@@ -1,6 +1,7 @@
 defmodule Elektrine.Messaging.Federation.Config do
   @moduledoc false
 
+  alias Elektrine.Domains
   alias Elektrine.Messaging.ArblargSDK
 
   def delivery_concurrency(config) when is_list(config) do
@@ -254,15 +255,7 @@ defmodule Elektrine.Messaging.Federation.Config do
   end
 
   def infer_local_base_url(domain) when is_binary(domain) do
-    is_tunnel = String.contains?(domain, ".") and not String.starts_with?(domain, "localhost")
-    scheme = if System.get_env("MIX_ENV") == "prod" or is_tunnel, do: "https", else: "http"
-    port = System.get_env("PORT") || "4000"
-
-    if scheme == "https" or port in ["80", "443"] or is_tunnel do
-      "#{scheme}://#{domain}"
-    else
-      "#{scheme}://#{domain}:#{port}"
-    end
+    Domains.inferred_base_url_for_domain(domain)
   end
 
   defp normalize_identity_key(key) when is_list(key), do: normalize_identity_key(Map.new(key))
@@ -711,7 +704,7 @@ defmodule Elektrine.Messaging.Federation.Config do
   defp decode_key_material(value) when is_binary(value) do
     trimmed = String.trim(value)
 
-    if trimmed == "" do
+    if not Elektrine.Strings.present?(trimmed) do
       :error
     else
       case Base.url_decode64(trimmed, padding: false) do
@@ -730,15 +723,8 @@ defmodule Elektrine.Messaging.Federation.Config do
     end
   end
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    if trimmed == "" do
-      nil
-    else
-      trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_), do: nil
 

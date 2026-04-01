@@ -1,13 +1,11 @@
 <.account_page
   title="Customize Your Profile"
-  subtitle={
-    "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}"
-  }
+  subtitle={ "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}" }
   nav_tab="profile"
   current_user={@current_user}
 >
   <:sidebar>
-    <div id="profile-settings-container" phx-hook="GlassCardContainer">
+    <div id="profile-settings-container">
       <.profile_settings_sidebar
         selected_page="profile"
         selected_section={@selected_tab}
@@ -21,12 +19,13 @@
     <div>
       <!-- Basic Info Tab -->
       <%= if @selected_tab == "basic" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-user" class="w-6 h-6" /> Basic Information
               </h2>
+
               <p class="text-sm text-base-content/60">
                 Your profile details and privacy settings
               </p>
@@ -60,22 +59,11 @@
                 <label class="label">
                   <span class="label-text font-medium">Bio Description</span>
                 </label>
-
                 <div class="tabs tabs-boxed mb-2">
-                  <button
-                    type="button"
-                    data-show-tab="edit"
-                    id="edit-tab"
-                    class="tab tab-active"
-                  >
+                  <button type="button" data-show-tab="edit" id="edit-tab" class="tab tab-active">
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    data-show-tab="preview"
-                    id="preview-tab"
-                    class="tab"
-                  >
+                  <button type="button" data-show-tab="preview" id="preview-tab" class="tab">
                     Preview
                   </button>
                 </div>
@@ -112,9 +100,7 @@
               </div>
 
               <div>
-                <label class="label">
-                  <span class="label-text font-medium">Location</span>
-                </label>
+                <label class="label"><span class="label-text font-medium">Location</span></label>
                 <input
                   type="text"
                   name="profile[location]"
@@ -124,9 +110,7 @@
                   maxlength="100"
                 />
                 <div class="label">
-                  <span class="text-xs text-base-content/60">
-                    Where are you based?
-                  </span>
+                  <span class="text-xs text-base-content/60"> Where are you based? </span>
                 </div>
               </div>
 
@@ -304,25 +288,22 @@
                   </label>
                 </div>
               </div>
-
-              <button type="submit" class="btn btn-primary w-full">
-                Save Basic Info
-              </button>
+              <button type="submit" class="btn btn-primary w-full"> Save Basic Info </button>
             </.form>
           </div>
         </div>
       <% end %>
-      
-<!-- Appearance Tab -->
+      <!-- Appearance Tab -->
       <%= if @selected_tab == "appearance" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Color Palette Generator -->
-          <div class="card glass-card shadow-lg border-2 border-primary/20">
+          <div class="card panel-card border-2 border-primary/20">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Pick one color and we'll generate a matching palette
                 </p>
@@ -333,11 +314,12 @@
                   <input
                     type="color"
                     name="base_color"
-                    value={(@profile && @profile.accent_color) || "#8b5cf6"}
-                    class="w-24 h-24 border-0 rounded-xl cursor-pointer shadow-lg"
+                    value={(@profile && @profile.accent_color) || "#8a7cc2"}
+                    class="w-24 h-24 border-0 rounded-xl cursor-pointer"
                   />
                   <div class="flex-1">
                     <p class="font-semibold text-lg">Base Color</p>
+
                     <p class="text-sm text-base-content/70">
                       We'll create a harmonious color scheme based on this
                     </p>
@@ -350,14 +332,14 @@
               </.form>
             </div>
           </div>
-          
-<!-- Colors & Theme -->
-          <div class="card glass-card shadow-lg">
+          <!-- Colors & Theme -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-swatch" class="w-6 h-6" /> Individual Colors
                 </h2>
+
                 <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
               </div>
 
@@ -378,13 +360,11 @@
                   />
                   <div>
                     <p class="font-medium">Accent Color</p>
-                    <p class="text-sm text-base-content/70">
-                      Links, icons, and highlights
-                    </p>
+
+                    <p class="text-sm text-base-content/70">Links, icons, and highlights</p>
                   </div>
                 </div>
-                
-<!-- Additional Color Options -->
+                <!-- Additional Color Options -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div class="flex items-center gap-4">
                     <input
@@ -397,6 +377,7 @@
                     />
                     <div>
                       <p class="font-medium">Text Color</p>
+
                       <p class="text-sm text-base-content/70">Color for main text</p>
                     </div>
                   </div>
@@ -412,6 +393,7 @@
                     />
                     <div>
                       <p class="font-medium">Page Background</p>
+
                       <p class="text-sm text-base-content/70">
                         Background behind the content box
                       </p>
@@ -429,6 +411,7 @@
                     />
                     <div>
                       <p class="font-medium">Icon Color</p>
+
                       <p class="text-sm text-base-content/70">Color for social icons</p>
                     </div>
                   </div>
@@ -444,6 +427,7 @@
                     />
                     <div>
                       <p class="font-medium">Container Background</p>
+
                       <p class="text-sm text-base-content/70">
                         Background for the middle content box
                       </p>
@@ -461,14 +445,14 @@
                     />
                     <div>
                       <p class="font-medium">Verified Badge Color</p>
+
                       <p class="text-sm text-base-content/70">
                         Color for your verified checkmark
                       </p>
                     </div>
                   </div>
                 </div>
-                
-<!-- Container Pattern -->
+                <!-- Container Pattern -->
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Container Pattern</span>
@@ -484,42 +468,49 @@
                     >
                       None
                     </option>
+
                     <option
                       value="dots"
                       selected={(@profile && @profile.container_pattern) == "dots"}
                     >
                       Dots
                     </option>
+
                     <option
                       value="grid"
                       selected={(@profile && @profile.container_pattern) == "grid"}
                     >
                       Grid
                     </option>
+
                     <option
                       value="diagonal_lines"
                       selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
                     >
                       Diagonal Lines
                     </option>
+
                     <option
                       value="zigzag"
                       selected={(@profile && @profile.container_pattern) == "zigzag"}
                     >
                       Zigzag
                     </option>
+
                     <option
                       value="waves"
                       selected={(@profile && @profile.container_pattern) == "waves"}
                     >
                       Waves
                     </option>
+
                     <option
                       value="crosses"
                       selected={(@profile && @profile.container_pattern) == "crosses"}
                     >
                       Crosses
                     </option>
+
                     <option
                       value="houndstooth"
                       selected={(@profile && @profile.container_pattern) == "houndstooth"}
@@ -541,6 +532,7 @@
                     />
                     <div>
                       <p class="font-medium">Pattern Color</p>
+
                       <p class="text-sm text-base-content/70">Color for the pattern overlay</p>
                     </div>
                   </div>
@@ -579,6 +571,7 @@
                         >
                           Slow
                         </option>
+
                         <option
                           value="normal"
                           selected={
@@ -588,6 +581,7 @@
                         >
                           Normal
                         </option>
+
                         <option
                           value="fast"
                           selected={(@profile && @profile.pattern_animation_speed) == "fast"}
@@ -598,8 +592,7 @@
                     </div>
                   <% end %>
                 <% end %>
-                
-<!-- Background Type Selector -->
+                <!-- Background Type Selector -->
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Background Style</span>
@@ -615,18 +608,21 @@
                     >
                       Gradient
                     </option>
+
                     <option
                       value="solid"
                       selected={(@profile && @profile.background_type) == "solid"}
                     >
                       Solid Color
                     </option>
+
                     <option
                       value="image"
                       selected={(@profile && @profile.background_type) == "image"}
                     >
                       Custom Image
                     </option>
+
                     <option
                       value="video"
                       selected={(@profile && @profile.background_type) == "video"}
@@ -635,8 +631,7 @@
                     </option>
                   </select>
                 </div>
-                
-<!-- Text Background Toggle -->
+                <!-- Text Background Toggle -->
                 <div class="form-control">
                   <label class="label cursor-pointer justify-start gap-3">
                     <input type="hidden" name="profile[text_background]" value="false" />
@@ -662,14 +657,14 @@
               </.form>
             </div>
           </div>
-          
-<!-- Background Upload -->
+          <!-- Background Upload -->
           <%= if @profile && @profile.background_type in ["image", "video"] do %>
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
                   <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
                 </h2>
+
                 <p class="text-sm text-base-content/60 mb-4">
                   <%= if @profile.background_type == "video" do %>
                     Upload a video background (MP4 or WebM, max 10MB)
@@ -703,6 +698,7 @@
                           class="w-full h-48 object-cover rounded-lg"
                         />
                       <% end %>
+
                       <button
                         type="button"
                         phx-click="remove_background"
@@ -712,8 +708,7 @@
                       </button>
                     </div>
                   <% end %>
-                  
-<!-- Upload Progress -->
+                  <!-- Upload Progress -->
                   <%= for entry <- @uploads.background.entries do %>
                     <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
                       <.icon
@@ -726,6 +721,7 @@
                       />
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium truncate">{entry.client_name}</p>
+
                         <progress
                           class="progress progress-primary w-full h-2 mt-1"
                           value={entry.progress}
@@ -733,6 +729,7 @@
                         >
                         </progress>
                       </div>
+
                       <button
                         type="button"
                         phx-click="cancel_background_upload"
@@ -743,29 +740,25 @@
                       </button>
                     </div>
                   <% end %>
-                  
-<!-- Upload Button -->
+                  <!-- Upload Button -->
                   <label class="btn btn-ghost w-full">
                     <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
                     Choose {if @profile.background_type == "video", do: "Video", else: "Image"}
                     <.live_file_input upload={@uploads.background} class="hidden" />
                   </label>
-
-                  <button type="submit" class="btn btn-primary w-full">
-                    Save Background
-                  </button>
+                  <button type="submit" class="btn btn-primary w-full"> Save Background </button>
                 </.form>
               </div>
             </div>
           <% end %>
-          
-<!-- Visual Effects -->
-          <div class="card glass-card shadow-lg">
+          <!-- Visual Effects -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Visual Effects
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Adjust opacity, blur, and pattern visibility for your profile
                 </p>
@@ -777,8 +770,7 @@
                 multipart
                 class="space-y-4 sm:space-y-6"
               >
-                
-<!-- Effect Sliders -->
+                <!-- Effect Sliders -->
                 <div class="space-y-4 sm:space-y-6">
                   <div>
                     <label class="label">
@@ -799,9 +791,7 @@
                       class="range range-primary w-full"
                     />
                     <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>50%</span>
-                      <span>75%</span>
-                      <span>100%</span>
+                      <span>50%</span> <span>75%</span> <span>100%</span>
                     </div>
                   </div>
 
@@ -824,9 +814,7 @@
                       class="range range-primary w-full"
                     />
                     <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>0px</span>
-                      <span>10px</span>
-                      <span>20px</span>
+                      <span>0px</span> <span>10px</span> <span>20px</span>
                     </div>
                   </div>
 
@@ -849,9 +837,7 @@
                       class="range range-primary w-full"
                     />
                     <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>0%</span>
-                      <span>50%</span>
-                      <span>100%</span>
+                      <span>0%</span> <span>50%</span> <span>100%</span>
                     </div>
                   </div>
 
@@ -875,28 +861,23 @@
                         class="range range-primary w-full"
                       />
                       <div class="flex w-full justify-between text-xs text-base-content/60">
-                        <span>0%</span>
-                        <span>50%</span>
-                        <span>100%</span>
+                        <span>0%</span> <span>50%</span> <span>100%</span>
                       </div>
                     </div>
                   <% end %>
                 </div>
-
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Effects
-                </button>
+                <button type="submit" class="btn btn-primary w-full"> Save Effects </button>
               </.form>
             </div>
           </div>
-          
-<!-- Typewriter Effect -->
-          <div class="card glass-card shadow-lg">
+          <!-- Typewriter Effect -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-pencil-square" class="w-6 h-6" /> Typewriter Effect
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Animate your bio with a typewriter effect
                 </p>
@@ -946,16 +927,14 @@
                     <label class="label">
                       <span class="label-text font-medium">Typing Speed</span>
                     </label>
-                    <select
-                      name="profile[typewriter_speed]"
-                      class="select select-bordered w-full"
-                    >
+                    <select name="profile[typewriter_speed]" class="select select-bordered w-full">
                       <option
                         value="slow"
                         selected={(@profile && @profile.typewriter_speed) == "slow"}
                       >
                         Slow
                       </option>
+
                       <option
                         value="normal"
                         selected={
@@ -965,6 +944,7 @@
                       >
                         Normal
                       </option>
+
                       <option
                         value="fast"
                         selected={(@profile && @profile.typewriter_speed) == "fast"}
@@ -983,15 +963,15 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Avatar Effects Tab -->
+      <!-- Avatar Effects Tab -->
       <%= if @selected_tab == "avatar" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-photo" class="w-6 h-6" /> Avatar Effects
               </h2>
+
               <p class="text-sm text-base-content/60">
                 Add animated effects to your profile avatar
               </p>
@@ -1003,49 +983,55 @@
                 <label class="label">
                   <span class="label-text font-medium">Choose Effect</span>
                 </label>
-                <select
-                  name="profile[avatar_effect]"
-                  class="select select-bordered w-full"
-                >
+                <select name="profile[avatar_effect]" class="select select-bordered w-full">
                   <option value="none" selected={(@profile && @profile.avatar_effect) == "none"}>
                     None
                   </option>
+
                   <option value="glow" selected={(@profile && @profile.avatar_effect) == "glow"}>
                     Glow Pulse
                   </option>
+
                   <option
                     value="rainbow"
                     selected={(@profile && @profile.avatar_effect) == "rainbow"}
                   >
                     Rainbow Border
                   </option>
+
                   <option value="fire" selected={(@profile && @profile.avatar_effect) == "fire"}>
                     Fire Ring
                   </option>
+
                   <option value="ice" selected={(@profile && @profile.avatar_effect) == "ice"}>
                     Ice Shimmer
                   </option>
+
                   <option
                     value="sparkle"
                     selected={(@profile && @profile.avatar_effect) == "sparkle"}
                   >
                     Sparkle
                   </option>
+
                   <option
                     value="holographic"
                     selected={(@profile && @profile.avatar_effect) == "holographic"}
                   >
                     Holographic
                   </option>
+
                   <option
                     value="gold_frame"
                     selected={(@profile && @profile.avatar_effect) == "gold_frame"}
                   >
                     Imperial Gold
                   </option>
+
                   <option value="pulse" selected={(@profile && @profile.avatar_effect) == "pulse"}>
                     Pulse
                   </option>
+
                   <option
                     value="rotate_border"
                     selected={(@profile && @profile.avatar_effect) == "rotate_border"}
@@ -1057,23 +1043,20 @@
                   Effects will use your profile's accent color. Save to preview on your profile.
                 </p>
               </div>
-
-              <button type="submit" class="btn btn-primary w-full">
-                Save Avatar Effects
-              </button>
+              <button type="submit" class="btn btn-primary w-full"> Save Avatar Effects </button>
             </.form>
           </div>
         </div>
       <% end %>
-      
-<!-- Username Effects Tab -->
+      <!-- Username Effects Tab -->
       <%= if @selected_tab == "username" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-sparkles" class="w-6 h-6" /> Username Effects
               </h2>
+
               <p class="text-sm text-base-content/60">
                 Make your username stand out across the platform
               </p>
@@ -1093,72 +1076,86 @@
                   <option value="none" selected={(@profile && @profile.username_effect) == "none"}>
                     None
                   </option>
+
                   <option value="glow" selected={(@profile && @profile.username_effect) == "glow"}>
                     Glow
                   </option>
+
                   <option value="neon" selected={(@profile && @profile.username_effect) == "neon"}>
                     Neon
                   </option>
+
                   <option
                     value="rainbow"
                     selected={(@profile && @profile.username_effect) == "rainbow"}
                   >
                     Rainbow
                   </option>
+
                   <option value="fire" selected={(@profile && @profile.username_effect) == "fire"}>
                     Fire
                   </option>
+
                   <option value="ice" selected={(@profile && @profile.username_effect) == "ice"}>
                     Ice
                   </option>
+
                   <option
                     value="chrome"
                     selected={(@profile && @profile.username_effect) == "chrome"}
                   >
                     Chrome
                   </option>
+
                   <option
                     value="holographic"
                     selected={(@profile && @profile.username_effect) == "holographic"}
                   >
                     Holographic
                   </option>
+
                   <option
                     value="gradient"
                     selected={(@profile && @profile.username_effect) == "gradient"}
                   >
                     Custom Gradient
                   </option>
+
                   <option
                     value="outline"
                     selected={(@profile && @profile.username_effect) == "outline"}
                   >
                     Outline
                   </option>
+
                   <option
                     value="shadow"
                     selected={(@profile && @profile.username_effect) == "shadow"}
                   >
                     Drop Shadow
                   </option>
+
                   <option
                     value="double"
                     selected={(@profile && @profile.username_effect) == "double"}
                   >
                     Double Text
                   </option>
+
                   <option
                     value="retro"
                     selected={(@profile && @profile.username_effect) == "retro"}
                   >
                     Retro VHS
                   </option>
+
                   <option
                     value="pixelated"
                     selected={(@profile && @profile.username_effect) == "pixelated"}
                   >
                     Pixelated
                   </option>
+
                   <option
                     value="glitch"
                     selected={(@profile && @profile.username_effect) == "glitch"}
@@ -1167,21 +1164,21 @@
                   </option>
                 </select>
               </div>
-              
-<!-- Color Settings (for effects that support custom colors) -->
+              <!-- Color Settings (for effects that support custom colors) -->
               <%= if @profile && @profile.username_effect in ["glow", "neon", "outline", "pixelated"] do %>
                 <div class="space-y-4 p-4 bg-base-200/50 rounded-lg">
                   <div class="flex items-center gap-4">
                     <input
                       type="color"
                       name="profile[username_glow_color]"
-                      value={(@profile && @profile.username_glow_color) || "#8b5cf6"}
+                      value={(@profile && @profile.username_glow_color) || "#8a7cc2"}
                       phx-change="update_username_color"
                       phx-value-field="username_glow_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
                     />
                     <div class="flex-1">
                       <p class="font-medium">Glow Color</p>
+
                       <p class="text-sm text-base-content/70">
                         Choose the color for your glow effect
                       </p>
@@ -1206,15 +1203,12 @@
                       class="range range-primary w-full"
                     />
                     <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>Subtle</span>
-                      <span>Medium</span>
-                      <span>Intense</span>
+                      <span>Subtle</span> <span>Medium</span> <span>Intense</span>
                     </div>
                   </div>
                 </div>
               <% end %>
-              
-<!-- Shadow Settings -->
+              <!-- Shadow Settings -->
               <%= if @profile && @profile.username_effect in ["shadow", "double"] do %>
                 <div class="p-4 bg-base-200/50 rounded-lg">
                   <div class="flex items-center gap-4">
@@ -1228,28 +1222,30 @@
                     />
                     <div class="flex-1">
                       <p class="font-medium">Shadow Color</p>
+
                       <p class="text-sm text-base-content/70">Choose the shadow color</p>
                     </div>
                   </div>
                 </div>
               <% end %>
-              
-<!-- Gradient Settings -->
+              <!-- Gradient Settings -->
               <%= if @profile && @profile.username_effect == "gradient" do %>
                 <div class="p-4 bg-base-200/50 rounded-lg space-y-4">
                   <p class="font-medium">Gradient Colors</p>
+
                   <div class="grid grid-cols-2 gap-4">
                     <div class="flex items-center gap-3">
                       <input
                         type="color"
                         name="profile[username_gradient_from]"
-                        value={(@profile && @profile.username_gradient_from) || "#8b5cf6"}
+                        value={(@profile && @profile.username_gradient_from) || "#8a7cc2"}
                         phx-change="update_username_color"
                         phx-value-field="username_gradient_from"
                         class="w-14 h-14 border-0 rounded-lg cursor-pointer"
                       />
                       <div>
                         <p class="font-medium text-sm">From</p>
+
                         <p class="text-xs text-base-content/70">Start color</p>
                       </div>
                     </div>
@@ -1258,21 +1254,21 @@
                       <input
                         type="color"
                         name="profile[username_gradient_to]"
-                        value={(@profile && @profile.username_gradient_to) || "#ec4899"}
+                        value={(@profile && @profile.username_gradient_to) || "#c7796b"}
                         phx-change="update_username_color"
                         phx-value-field="username_gradient_to"
                         class="w-14 h-14 border-0 rounded-lg cursor-pointer"
                       />
                       <div>
                         <p class="font-medium text-sm">To</p>
+
                         <p class="text-xs text-base-content/70">End color</p>
                       </div>
                     </div>
                   </div>
                 </div>
               <% end %>
-              
-<!-- Animation Speed -->
+              <!-- Animation Speed -->
               <%= if @profile && @profile.username_effect in ["rainbow", "glitch", "neon", "fire", "ice", "holographic"] do %>
                 <div>
                   <label class="label">
@@ -1288,6 +1284,7 @@
                     >
                       Slow
                     </option>
+
                     <option
                       value="normal"
                       selected={
@@ -1297,6 +1294,7 @@
                     >
                       Normal
                     </option>
+
                     <option
                       value="fast"
                       selected={(@profile && @profile.username_animation_speed) == "fast"}
@@ -1314,17 +1312,17 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Links Tab -->
+      <!-- Links Tab -->
       <%= if @selected_tab == "links" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Link Display Style
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Choose how your links appear on your profile
                 </p>
@@ -1346,6 +1344,7 @@
                     >
                       Circular Icons
                     </option>
+
                     <option
                       value="full_width"
                       selected={(@profile && @profile.link_display_style) == "full_width"}
@@ -1355,8 +1354,9 @@
                   </select>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
-                      <strong>Circular:</strong> Small icon circles (current style)<br />
-                      <strong>Full Width:</strong> Large button-style links (Linktree style)
+                      <strong>Circular:</strong>
+                      Small icon circles (current style)<br /> <strong>Full Width:</strong>
+                      Large button-style links (Linktree style)
                     </span>
                   </div>
                 </div>
@@ -1376,24 +1376,28 @@
                     >
                       None
                     </option>
+
                     <option
                       value="glow"
                       selected={(@profile && @profile.link_highlight_effect) == "glow"}
                     >
                       Glow
                     </option>
+
                     <option
                       value="pulse"
                       selected={(@profile && @profile.link_highlight_effect) == "pulse"}
                     >
                       Pulse
                     </option>
+
                     <option
                       value="border"
                       selected={(@profile && @profile.link_highlight_effect) == "border"}
                     >
                       Border Highlight
                     </option>
+
                     <option
                       value="shine"
                       selected={(@profile && @profile.link_highlight_effect) == "shine"}
@@ -1408,15 +1412,12 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Link Settings
-                </button>
+                <button type="submit" class="btn btn-primary w-full"> Save Link Settings </button>
               </.form>
             </div>
           </div>
-          
-<!-- Add New Link -->
-          <div class="card glass-card shadow-lg">
+          <!-- Add New Link -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1425,6 +1426,7 @@
                     ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
                   </span>
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Add social links and custom URLs to your profile
                 </p>
@@ -1441,10 +1443,9 @@
                     name="link[platform]"
                     value={@selected_platform || "custom"}
                   />
-                  
-<!-- Platform Selection Grid -->
+                  <!-- Platform Selection Grid -->
                   <div class="space-y-2">
-                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                    <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-xl bg-base-50">
                       <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                         <% platform_color =
                           Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1492,6 +1493,7 @@
                         </button>
                       <% end %>
                     </div>
+
                     <%= if @selected_platform do %>
                       <% selected_color =
                         Elektrine.Profiles.ProfileLink.get_platform_color(@selected_platform) %>
@@ -1504,13 +1506,10 @@
                     <% end %>
                   </div>
                 </div>
-                
-<!-- Form Fields Below Grid -->
+                <!-- Form Fields Below Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label class="label">
-                      <span class="label-text font-medium">Title</span>
-                    </label>
+                    <label class="label"><span class="label-text font-medium">Title</span></label>
                     <input
                       type="text"
                       name="link[title]"
@@ -1521,9 +1520,7 @@
                   </div>
 
                   <div>
-                    <label class="label">
-                      <span class="label-text font-medium">URL</span>
-                    </label>
+                    <label class="label"><span class="label-text font-medium">URL</span></label>
                     <input
                       type="url"
                       name="link[url]"
@@ -1539,12 +1536,11 @@
                     <label class="label">
                       <span class="label-text font-medium">Display Style</span>
                     </label>
-                    <select
-                      name="link[display_style]"
-                      class="select select-bordered w-full"
-                    >
+                    <select name="link[display_style]" class="select select-bordered w-full">
                       <option value="">Use Profile Default</option>
+
                       <option value="circular">Circular Icon</option>
+
                       <option value="full_width">Full Width Button</option>
                     </select>
                   </div>
@@ -1554,15 +1550,17 @@
                       <span class="label-text font-medium">Highlight Effect</span>
                       <span class="label-text-alt text-xs">Per-Link Override</span>
                     </label>
-                    <select
-                      name="link[highlight_effect]"
-                      class="select select-bordered w-full"
-                    >
+                    <select name="link[highlight_effect]" class="select select-bordered w-full">
                       <option value="">Use Profile Default</option>
+
                       <option value="none">None</option>
+
                       <option value="glow">Glow</option>
+
                       <option value="pulse">Pulse</option>
+
                       <option value="border">Border</option>
+
                       <option value="shine">Shine</option>
                     </select>
                   </div>
@@ -1601,16 +1599,13 @@
                 </div>
 
                 <div class="card-actions">
-                  <button type="submit" class="btn btn-primary w-full">
-                    Add Link
-                  </button>
+                  <button type="submit" class="btn btn-primary w-full"> Add Link </button>
                 </div>
               </.form>
             </div>
           </div>
-          
-<!-- Current Links -->
-          <div class="card glass-card shadow-lg">
+          <!-- Current Links -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1619,6 +1614,7 @@
                     ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
                   </span>
                 </h2>
+
                 <p class="text-sm text-base-content/60">Manage your profile links</p>
               </div>
 
@@ -1629,6 +1625,7 @@
                       <!-- Edit Form -->
                       <div class="p-4 bg-primary/10 rounded-lg border border-primary">
                         <h4 class="font-medium text-sm mb-3">Edit Link</h4>
+
                         <.form for={%{}} phx-submit="save_edit_link" class="space-y-3">
                           <div>
                             <label class="label">
@@ -1640,10 +1637,9 @@
                               id="edit-selected-platform"
                               value={@editing_link_data["platform"] || "custom"}
                             />
-                            
-<!-- Platform Selection Grid for Editing -->
+                            <!-- Platform Selection Grid for Editing -->
                             <div class="space-y-2">
-                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 border border-base-300 rounded-xl bg-base-50">
+                              <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2 p-4 rounded-xl bg-base-50">
                                 <%= for platform <- ["youtube", "discord", "instagram", "twitter", "tiktok", "telegram", "soundcloud", "paypal", "github", "adobe", "vk", "threads", "twitch", "reddit", "spotify", "pinterest", "linkedin", "steam", "bitcoin", "ethereum", "gitlab", "facebook", "whatsapp", "signal", "litecoin", "snapchat", "email", "website", "custom"] do %>
                                   <% platform_color =
                                     Elektrine.Profiles.ProfileLink.get_platform_color(platform) %>
@@ -1693,6 +1689,7 @@
                                   </button>
                                 <% end %>
                               </div>
+
                               <%= if @editing_link_data["platform"] do %>
                                 <% edit_selected_color =
                                   Elektrine.Profiles.ProfileLink.get_platform_color(
@@ -1750,12 +1747,14 @@
                                 <option value="" selected={!@editing_link_data["display_style"]}>
                                   Use Profile Default
                                 </option>
+
                                 <option
                                   value="circular"
                                   selected={@editing_link_data["display_style"] == "circular"}
                                 >
                                   Circular Icon
                                 </option>
+
                                 <option
                                   value="full_width"
                                   selected={@editing_link_data["display_style"] == "full_width"}
@@ -1780,30 +1779,35 @@
                                 >
                                   Use Default
                                 </option>
+
                                 <option
                                   value="none"
                                   selected={@editing_link_data["highlight_effect"] == "none"}
                                 >
                                   None
                                 </option>
+
                                 <option
                                   value="glow"
                                   selected={@editing_link_data["highlight_effect"] == "glow"}
                                 >
                                   Glow
                                 </option>
+
                                 <option
                                   value="pulse"
                                   selected={@editing_link_data["highlight_effect"] == "pulse"}
                                 >
                                   Pulse
                                 </option>
+
                                 <option
                                   value="border"
                                   selected={@editing_link_data["highlight_effect"] == "border"}
                                 >
                                   Border
                                 </option>
+
                                 <option
                                   value="shine"
                                   selected={@editing_link_data["highlight_effect"] == "shine"}
@@ -1850,15 +1854,12 @@
                                 name="link[is_active]"
                                 checked={@editing_link_data["is_active"]}
                                 class="checkbox checkbox-primary checkbox-sm"
-                              />
-                              <span class="label-text">Active</span>
+                              /> <span class="label-text">Active</span>
                             </label>
                           </div>
 
                           <div class="flex gap-2">
-                            <button type="submit" class="btn btn-primary btn-sm">
-                              Save
-                            </button>
+                            <button type="submit" class="btn btn-primary btn-sm"> Save </button>
                             <button
                               type="button"
                               phx-click="cancel_edit_link"
@@ -1871,7 +1872,7 @@
                       </div>
                     <% else %>
                       <!-- Normal Display -->
-                      <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg border border-base-300 hover:bg-base-200 transition-colors">
+                      <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg hover:bg-base-200 transition-colors">
                         <div class="flex items-center space-x-3">
                           <div class="flex flex-col gap-1">
                             <button
@@ -1900,23 +1901,28 @@
                               Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
                             )}
                           </div>
+
                           <div class="flex-1 min-w-0">
                             <div class="flex items-center gap-2 mb-1">
                               <p class="font-medium text-sm">{link.title}</p>
+
                               <%= if link.section do %>
                                 <span class="badge badge-xs badge-secondary">{link.section}</span>
                               <% end %>
+
                               <%= if link.display_style do %>
                                 <span class="badge badge-xs badge-info">
                                   {if link.display_style == "circular", do: "⭕", else: "▬"}
                                 </span>
                               <% end %>
                             </div>
+
                             <p class="text-xs text-base-content/60 truncate max-w-xs">
                               {link.url}
                             </p>
                           </div>
                         </div>
+
                         <div class="flex items-center space-x-2 flex-shrink-0">
                           <span class="badge badge-sm">{link.clicks} clicks</span>
                           <button
@@ -1943,6 +1949,7 @@
                 <div class="text-center py-8">
                   <.icon name="hero-link" class="w-12 h-12 text-base-content/30 mx-auto mb-3" />
                   <p class="text-base-content/60">No links yet</p>
+
                   <p class="text-sm text-base-content/40">Add your first link above</p>
                 </div>
               <% end %>
@@ -1950,12 +1957,11 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Widgets Tab -->
+      <!-- Widgets Tab -->
       <%= if @selected_tab == "widgets" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -1964,6 +1970,7 @@
                     ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
                   </span>
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Add interactive content blocks to your profile
                 </p>
@@ -1974,15 +1981,17 @@
                   <label class="label">
                     <span class="label-text font-medium">Widget Type</span>
                   </label>
-                  <select
-                    name="widget[widget_type]"
-                    class="select select-bordered w-full"
-                  >
+                  <select name="widget[widget_type]" class="select select-bordered w-full">
                     <option value="text">Text Block</option>
+
                     <option value="image">Image</option>
+
                     <option value="spotify">Spotify Embed</option>
+
                     <option value="youtube">YouTube Video</option>
+
                     <option value="github_stats">GitHub Stats</option>
+
                     <option value="discord_status">Discord Status</option>
                   </select>
                 </div>
@@ -2014,12 +2023,13 @@
                   ></textarea>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
-                      <strong>Text:</strong> Your custom text<br />
-                      <strong>Image:</strong> HTTPS image URL only<br />
-                      <strong>YouTube:</strong> Any YouTube link<br />
-                      <strong>Spotify:</strong> Track/album/playlist URL<br />
-                      <strong>GitHub Stats:</strong> GitHub username<br />
-                      <strong>Discord Status:</strong> Discord User ID (numbers only)
+                      <strong>Text:</strong>
+                      Your custom text<br /> <strong>Image:</strong>
+                      HTTPS image URL only<br /> <strong>YouTube:</strong>
+                      Any YouTube link<br /> <strong>Spotify:</strong>
+                      Track/album/playlist URL<br /> <strong>GitHub Stats:</strong>
+                      GitHub username<br /> <strong>Discord Status:</strong>
+                      Discord User ID (numbers only)
                     </span>
                   </div>
                 </div>
@@ -2030,9 +2040,8 @@
               </.form>
             </div>
           </div>
-          
-<!-- Current Widgets -->
-          <div class="card glass-card shadow-lg">
+          <!-- Current Widgets -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -2041,13 +2050,14 @@
                     ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
                   </span>
                 </h2>
+
                 <p class="text-sm text-base-content/60">Manage your profile widgets</p>
               </div>
 
               <%= if @profile && @profile.widgets && length(@profile.widgets) > 0 do %>
                 <div class="space-y-3">
                   <%= for widget <- @profile.widgets do %>
-                    <div class="p-4 bg-base-200/50 rounded-lg border border-base-300">
+                    <div class="p-4 bg-base-200/50 rounded-lg">
                       <div class="flex items-center justify-between">
                         <div class="flex items-center gap-3 flex-1">
                           <div class="flex flex-col gap-1">
@@ -2070,6 +2080,7 @@
                               <.icon name="hero-chevron-down" class="w-3 h-3" />
                             </button>
                           </div>
+
                           <div class="flex-1">
                             <div class="flex items-center gap-2 mb-1">
                               <span class="badge badge-primary badge-sm">
@@ -2077,11 +2088,13 @@
                               </span>
                               <span class="font-medium">{widget.title}</span>
                             </div>
+
                             <p class="text-xs text-base-content/60 truncate">
                               {widget.content || widget.url}
                             </p>
                           </div>
                         </div>
+
                         <div class="flex items-center gap-2">
                           <button
                             phx-click="delete_widget"
@@ -2103,6 +2116,7 @@
                     class="w-12 h-12 text-base-content/30 mx-auto mb-3"
                   />
                   <p class="text-base-content/60">No widgets yet</p>
+
                   <p class="text-sm text-base-content/40">Add your first widget above</p>
                 </div>
               <% end %>
@@ -2110,15 +2124,15 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Badges Tab -->
+      <!-- Badges Tab -->
       <%= if @selected_tab == "badges" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-check-badge" class="w-6 h-6" /> Manage Your Badges
               </h2>
+
               <p class="text-sm text-base-content/60">
                 Select which badges you want to display on your profile
               </p>
@@ -2127,21 +2141,16 @@
             <%= if @user_badges && length(@user_badges) > 0 do %>
               <div class="space-y-3">
                 <%= for badge <- @user_badges do %>
-                  <% # Create darker gradient colors (50% to 65% like show page)
-                  {r, g, b} = hex_to_rgb(badge.badge_color || "#8b5cf6")
-                  from_r = max(0, round(r * 0.5))
-                  from_g = max(0, round(g * 0.5))
-                  from_b = max(0, round(b * 0.5))
-                  to_r = max(0, round(r * 0.65))
-                  to_g = max(0, round(g * 0.65))
-                  to_b = max(0, round(b * 0.65))
-                  from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
-                  to_color = "rgb(#{to_r}, #{to_g}, #{to_b})" %>
-                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300 border border-base-300/50">
+                  <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300/50">
                     <div class="flex items-center gap-3">
                       <span
                         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold text-xs"
-                        style={"background: linear-gradient(to right, #{from_color}, #{to_color}); box-shadow: 0 2px 8px #{badge.badge_color || "#8b5cf6"}60, 0 1px 3px rgba(0, 0, 0, 0.5); border: 1px solid #{(@profile && @profile.accent_color) || badge.badge_color || "#8b5cf6"}40;"}
+                        style={
+                          badge_preview_style(
+                            badge.badge_color,
+                            @profile && @profile.accent_color
+                          )
+                        }
                       >
                         <span class="tracking-wide">{badge.badge_text || badge.badge_type}</span>
                       </span>
@@ -2154,6 +2163,7 @@
                         </div>
                       <% end %>
                     </div>
+
                     <label class="label cursor-pointer justify-start gap-3">
                       <input
                         type="checkbox"
@@ -2176,6 +2186,7 @@
                   class="w-16 h-16 text-base-content/20 mx-auto mb-4"
                 />
                 <p class="text-lg font-medium text-base-content/60 mb-2">No Badges Yet</p>
+
                 <p class="text-sm text-base-content/40">
                   Badges are awarded by administrators for special achievements or contributions
                 </p>
@@ -2184,17 +2195,17 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Advanced Tab -->
+      <!-- Advanced Tab -->
       <%= if @selected_tab == "advanced" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-document-text" class="w-6 h-6" /> Text Fonts
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Choose the font family for your profile
                 </p>
@@ -2213,6 +2224,7 @@
                     <option value="" selected={is_nil(@profile && @profile.font_family)}>
                       System Default
                     </option>
+
                     <option
                       value="Inter"
                       selected={(@profile && @profile.font_family) == "Inter"}
@@ -2220,6 +2232,7 @@
                     >
                       Inter
                     </option>
+
                     <option
                       value="Arial"
                       selected={(@profile && @profile.font_family) == "Arial"}
@@ -2227,6 +2240,7 @@
                     >
                       Arial
                     </option>
+
                     <option
                       value="Helvetica"
                       selected={(@profile && @profile.font_family) == "Helvetica"}
@@ -2234,6 +2248,7 @@
                     >
                       Helvetica
                     </option>
+
                     <option
                       value="Georgia"
                       selected={(@profile && @profile.font_family) == "Georgia"}
@@ -2241,6 +2256,7 @@
                     >
                       Georgia
                     </option>
+
                     <option
                       value="Times New Roman"
                       selected={(@profile && @profile.font_family) == "Times New Roman"}
@@ -2248,6 +2264,7 @@
                     >
                       Times New Roman
                     </option>
+
                     <option
                       value="Courier New"
                       selected={(@profile && @profile.font_family) == "Courier New"}
@@ -2255,6 +2272,7 @@
                     >
                       Courier New
                     </option>
+
                     <option
                       value="Verdana"
                       selected={(@profile && @profile.font_family) == "Verdana"}
@@ -2262,6 +2280,7 @@
                     >
                       Verdana
                     </option>
+
                     <option
                       value="Trebuchet MS"
                       selected={(@profile && @profile.font_family) == "Trebuchet MS"}
@@ -2269,6 +2288,7 @@
                     >
                       Trebuchet MS
                     </option>
+
                     <option
                       value="Comic Sans MS"
                       selected={(@profile && @profile.font_family) == "Comic Sans MS"}
@@ -2276,6 +2296,7 @@
                     >
                       Comic Sans MS
                     </option>
+
                     <option
                       value="Impact"
                       selected={(@profile && @profile.font_family) == "Impact"}
@@ -2283,6 +2304,7 @@
                     >
                       Impact
                     </option>
+
                     <option
                       value="Palatino"
                       selected={(@profile && @profile.font_family) == "Palatino"}
@@ -2290,6 +2312,7 @@
                     >
                       Palatino
                     </option>
+
                     <option
                       value="Garamond"
                       selected={(@profile && @profile.font_family) == "Garamond"}
@@ -2297,6 +2320,7 @@
                     >
                       Garamond
                     </option>
+
                     <option
                       value="Bookman"
                       selected={(@profile && @profile.font_family) == "Bookman"}
@@ -2304,6 +2328,7 @@
                     >
                       Bookman
                     </option>
+
                     <option
                       value="Consolas"
                       selected={(@profile && @profile.font_family) == "Consolas"}
@@ -2311,6 +2336,7 @@
                     >
                       Consolas
                     </option>
+
                     <option
                       value="Monaco"
                       selected={(@profile && @profile.font_family) == "Monaco"}
@@ -2328,6 +2354,7 @@
 
                 <div class="p-4 bg-base-200/50 rounded-lg">
                   <p class="text-sm font-semibold mb-2">Preview:</p>
+
                   <p
                     class="text-lg"
                     style={
@@ -2339,21 +2366,18 @@
                     The quick brown fox jumps over the lazy dog
                   </p>
                 </div>
-
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Font
-                </button>
+                <button type="submit" class="btn btn-primary w-full"> Save Font </button>
               </.form>
             </div>
           </div>
-          
-<!-- Cursor Effects -->
-          <div class="card glass-card shadow-lg">
+          <!-- Cursor Effects -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-cursor-arrow-rays" class="w-6 h-6" /> Cursor Effects
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Change the cursor style when hovering over your profile
                 </p>
@@ -2375,63 +2399,77 @@
                     >
                       Default
                     </option>
+
                     <option
                       value="pointer"
                       selected={(@profile && @profile.cursor_style) == "pointer"}
                     >
                       Pointer
                     </option>
+
                     <option
                       value="crosshair"
                       selected={(@profile && @profile.cursor_style) == "crosshair"}
                     >
                       Crosshair
                     </option>
+
                     <option value="help" selected={(@profile && @profile.cursor_style) == "help"}>
                       Help
                     </option>
+
                     <option value="wait" selected={(@profile && @profile.cursor_style) == "wait"}>
                       Wait
                     </option>
+
                     <option value="grab" selected={(@profile && @profile.cursor_style) == "grab"}>
                       Grab
                     </option>
+
                     <option value="text" selected={(@profile && @profile.cursor_style) == "text"}>
                       Text
                     </option>
+
                     <option value="move" selected={(@profile && @profile.cursor_style) == "move"}>
                       Move
                     </option>
+
                     <option
                       value="not-allowed"
                       selected={(@profile && @profile.cursor_style) == "not-allowed"}
                     >
                       Not Allowed
                     </option>
+
                     <option value="cell" selected={(@profile && @profile.cursor_style) == "cell"}>
                       Cell
                     </option>
+
                     <option
                       value="context-menu"
                       selected={(@profile && @profile.cursor_style) == "context-menu"}
                     >
                       Context Menu
                     </option>
+
                     <option
                       value="vertical-text"
                       selected={(@profile && @profile.cursor_style) == "vertical-text"}
                     >
                       Vertical Text
                     </option>
+
                     <option
                       value="alias"
                       selected={(@profile && @profile.cursor_style) == "alias"}
                     >
                       Alias
                     </option>
+
                     <option value="copy" selected={(@profile && @profile.cursor_style) == "copy"}>
                       Copy
                     </option>
+
                     <option
                       value="no-drop"
                       selected={(@profile && @profile.cursor_style) == "no-drop"}
@@ -2451,6 +2489,7 @@
                   style={"cursor: #{(@profile && @profile.cursor_style) || "default"}"}
                 >
                   <p class="text-sm font-semibold mb-2">Hover here to preview</p>
+
                   <p class="text-base-content/70">
                     Current cursor:
                     <span class="font-medium text-primary">
@@ -2458,21 +2497,18 @@
                     </span>
                   </p>
                 </div>
-
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Cursor
-                </button>
+                <button type="submit" class="btn btn-primary w-full"> Save Cursor </button>
               </.form>
             </div>
           </div>
-          
-<!-- Favicon -->
-          <div class="card glass-card shadow-lg">
+          <!-- Favicon -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-globe-alt" class="w-6 h-6" /> Favicon
                 </h2>
+
                 <p class="text-sm text-base-content/60">
                   Custom icon for your profile's browser tab
                 </p>
@@ -2488,18 +2524,19 @@
                 <%= if @profile && @profile.favicon_url do %>
                   <div class="relative p-4 bg-base-200/50 rounded-lg">
                     <p class="text-sm font-semibold mb-3">Current Favicon:</p>
+
                     <div class="flex items-center gap-3">
                       <img
                         src={Elektrine.Uploads.favicon_url(@profile.favicon_url)}
                         alt="Favicon preview"
                         class="w-8 h-8"
                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-                      />
-                      <span class="text-error text-sm hidden">Failed to load favicon</span>
+                      /> <span class="text-error text-sm hidden">Failed to load favicon</span>
                       <span class="text-sm text-base-content/70 truncate">
                         {@profile.favicon_url}
                       </span>
                     </div>
+
                     <button
                       type="button"
                       phx-click="remove_favicon"
@@ -2509,13 +2546,13 @@
                     </button>
                   </div>
                 <% end %>
-                
-<!-- Upload Progress -->
+                <!-- Upload Progress -->
                 <%= for entry <- @uploads.favicon.entries do %>
                   <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
                     <.icon name="hero-photo" class="w-6 h-6 flex-shrink-0" />
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-medium truncate">{entry.client_name}</p>
+
                       <progress
                         class="progress progress-primary w-full h-2 mt-1"
                         value={entry.progress}
@@ -2523,6 +2560,7 @@
                       >
                       </progress>
                     </div>
+
                     <button
                       type="button"
                       phx-click="cancel_favicon_upload"
@@ -2533,45 +2571,35 @@
                     </button>
                   </div>
                 <% end %>
-                
-<!-- Upload Button -->
+                <!-- Upload Button -->
                 <label class="btn btn-ghost w-full">
                   <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" /> Choose Favicon
                   <.live_file_input upload={@uploads.favicon} class="hidden" />
                 </label>
-
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     Accepts: PNG, ICO, SVG, JPG (max 1MB). Square images work best (16x16 to 512x512)
                   </span>
                 </div>
-
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Favicon
-                </button>
+                <button type="submit" class="btn btn-primary w-full"> Save Favicon </button>
               </.form>
             </div>
           </div>
         </div>
       <% end %>
-      
-<!-- Static Site Tab -->
+      <!-- Static Site Tab -->
       <%= if @selected_tab == "static_site" do %>
-        <% static_mode = @profile && @profile.profile_mode == "static" %>
-        <% static_file_count = length(@static_site_files || []) %>
-        <% has_static_files = static_file_count > 0 %>
-        <% has_homepage =
+        <% static_mode = @profile && @profile.profile_mode == "static" %> <% static_file_count =
+          length(@static_site_files || []) %> <% has_static_files = static_file_count > 0 %> <% has_homepage =
           Enum.any?(@static_site_files || [], &(&1.path in ["index.html", "index.htm"])) %>
-
         <div class="space-y-4 sm:space-y-6">
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6 space-y-5">
               <.section_header
                 eyebrow="Static Site Hosting"
                 title="Publish a profile site"
                 description="Upload a ZIP and publish to your profile URL."
               />
-
               <div class="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
                 <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-4 sm:p-5 space-y-4">
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2579,10 +2607,12 @@
                       <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                         Live URL
                       </div>
+
                       <div class="mt-2 break-all font-mono text-sm text-base-content/85">
                         {@static_site_url}
                       </div>
                     </div>
+
                     <span class={[
                       "badge border-0 font-medium whitespace-nowrap",
                       if(static_mode, do: "badge-secondary", else: "badge-ghost")
@@ -2607,7 +2637,6 @@
                       value: "#{format_bytes(@static_site_storage || 0)} / 1 GB"
                     }
                   ]} />
-
                   <.action_toolbar>
                     <a
                       href={@static_site_url}
@@ -2626,6 +2655,7 @@
                 <div class="rounded-lg border border-base-content/10 bg-base-200/30 p-4 sm:p-5 space-y-3">
                   <div>
                     <h3 class="text-base font-semibold">Publishing Mode</h3>
+
                     <p class="mt-1 text-sm text-base-content/65">
                       Uploading files switches this profile to static mode automatically.
                     </p>
@@ -2655,15 +2685,16 @@
                         ]}>
                           <.icon name="hero-paint-brush" class="h-5 w-5" />
                         </div>
+
                         <div class="min-w-0 flex-1">
                           <div class="font-medium">Profile Builder</div>
+
                           <div class="mt-1 text-xs text-base-content/60">
                             Use Elektrine blocks, links, widgets, and theme controls.
                           </div>
                         </div>
                       </div>
                     </button>
-
                     <button
                       type="button"
                       phx-click="set_profile_mode"
@@ -2687,8 +2718,10 @@
                         ]}>
                           <.icon name="hero-code-bracket" class="h-5 w-5" />
                         </div>
+
                         <div class="min-w-0 flex-1">
                           <div class="font-medium">Custom Static Site</div>
+
                           <div class="mt-1 text-xs text-base-content/60">
                             Publish your own HTML, CSS, JavaScript, images, and fonts.
                           </div>
@@ -2701,10 +2734,11 @@
             </div>
           </div>
 
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6 space-y-4">
               <div class="space-y-1.5">
                 <h3 class="text-lg sm:text-xl font-semibold">Upload</h3>
+
                 <p class="text-sm text-base-content/65">
                   Use a ZIP with a root <span class="font-mono text-base-content/85">index.html</span>.
                 </p>
@@ -2731,14 +2765,13 @@
                         The ZIP should contain <span class="font-mono">index.html</span>
                         at the root.
                       </span>
-                      <span class="mt-3 inline-flex items-center gap-2 rounded-lg bg-base-100 px-4 py-2 text-sm font-medium shadow-sm">
+                      <span class="mt-3 inline-flex items-center gap-2 rounded-lg bg-base-100 px-4 py-2 text-sm font-medium">
                         <.icon name="hero-folder-plus" class="h-4 w-4" /> Choose ZIP
                       </span>
                       <.live_file_input upload={@uploads.static_site} class="hidden" />
                     </label>
-
                     <%= for entry <- @uploads.static_site.entries do %>
-                      <div class="rounded-lg border border-base-content/10 bg-base-200/40 p-3">
+                      <div class="rounded-lg border border-base-content/10 bg-base-200/55 p-3">
                         <div class="flex items-center gap-3">
                           <.icon
                             name="hero-archive-box"
@@ -2746,12 +2779,14 @@
                           />
                           <div class="min-w-0 flex-1">
                             <div class="truncate text-sm font-medium">{entry.client_name}</div>
+
                             <progress
                               class="progress progress-primary mt-2 h-2 w-full"
                               value={entry.progress}
                               max="100"
                             />
                           </div>
+
                           <button
                             type="button"
                             phx-click="cancel_static_site_upload"
@@ -2793,6 +2828,7 @@
                         {format_bytes(@static_site_storage || 0)} / 1 GB
                       </span>
                     </div>
+
                     <progress
                       class="progress progress-primary w-full"
                       value={@static_site_storage || 0}
@@ -2807,7 +2843,9 @@
                   <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
                   <span>
                     Your uploaded files do not include a root
-                    <span class="font-mono">index.html</span>
+                    <span class="font-mono">
+                      index.html
+                    </span>
                     yet, so the site may not load as expected.
                   </span>
                 </div>
@@ -2815,18 +2853,17 @@
             </div>
           </div>
 
-          <details class="card glass-card shadow-lg group open:shadow-lg">
+          <details class="card panel-card group open:shadow-lg">
             <summary class="cursor-pointer list-none p-4 sm:p-6">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <h3 class="text-lg font-semibold">Site files</h3>
+
                   <p class="mt-1 text-sm text-base-content/65">
                     Upload, edit, and delete the files published on your profile site.
                   </p>
                 </div>
-                <span class="btn btn-ghost btn-sm pointer-events-none">
-                  Expand
-                </span>
+                <span class="btn btn-ghost btn-sm pointer-events-none"> Expand </span>
               </div>
             </summary>
 
@@ -2860,9 +2897,11 @@
                       class="mx-auto h-10 w-10 text-base-content/35"
                     />
                     <p class="mt-3 font-medium">Drop files here or browse</p>
+
                     <p class="mt-1 text-sm text-base-content/60">
                       HTML, CSS, JS, JSON, text, images, and common web fonts are supported.
                     </p>
+
                     <.live_file_input
                       upload={@uploads.static_files}
                       class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
@@ -2870,7 +2909,7 @@
                   </div>
 
                   <%= for entry <- @uploads.static_files.entries do %>
-                    <div class="rounded-lg border border-base-content/10 bg-base-200/40 p-3">
+                    <div class="rounded-lg border border-base-content/10 bg-base-200/55 p-3">
                       <div class="flex items-center gap-3">
                         <.icon
                           name="hero-document"
@@ -2878,12 +2917,14 @@
                         />
                         <div class="min-w-0 flex-1">
                           <div class="truncate text-sm font-medium">{entry.client_name}</div>
+
                           <progress
                             class="progress progress-primary mt-2 h-2 w-full"
                             value={entry.progress}
                             max="100"
                           />
                         </div>
+
                         <button
                           type="button"
                           phx-click="cancel_static_file_upload"
@@ -2917,38 +2958,37 @@
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h4 class="font-semibold">Current files</h4>
+
                     <p class="mt-1 text-sm text-base-content/65">
                       Edit text-based files in place or remove assets you no longer need.
                     </p>
                   </div>
+
                   <div class="text-sm text-base-content/60">{static_file_count} file(s)</div>
                 </div>
 
                 <%= if has_static_files do %>
                   <div class="max-h-80 overflow-y-auto rounded-lg bg-base-200/50 p-3 font-mono text-sm">
                     <div class="mb-2 flex items-center gap-2 font-semibold text-primary">
-                      <.icon name="hero-folder-open" class="h-4 w-4" />
-                      <span>/</span>
+                      <.icon name="hero-folder-open" class="h-4 w-4" /> <span>/</span>
                     </div>
+
                     <%= for file <- @static_site_files do %>
-                      <% parts = String.split(file.path, "/") %>
-                      <% depth = length(parts) - 1 %>
-                      <% filename = List.last(parts) %>
-                      <% is_html =
+                      <% parts = String.split(file.path, "/") %> <% depth = length(parts) - 1 %> <% filename =
+                        List.last(parts) %> <% is_html =
                         String.ends_with?(filename, ".html") or
-                          String.ends_with?(filename, ".htm") %>
-                      <% is_css = String.ends_with?(filename, ".css") %>
-                      <% is_js = String.ends_with?(filename, ".js") %>
-                      <% is_json = String.ends_with?(filename, ".json") %>
-                      <% is_text = String.ends_with?(filename, ".txt") %>
-                      <% is_image =
+                          String.ends_with?(filename, ".htm") %> <% is_css =
+                        String.ends_with?(filename, ".css") %> <% is_js =
+                        String.ends_with?(filename, ".js") %> <% is_json =
+                        String.ends_with?(filename, ".json") %> <% is_text =
+                        String.ends_with?(filename, ".txt") %> <% is_image =
                         String.ends_with?(filename, ".png") or String.ends_with?(filename, ".jpg") or
                           String.ends_with?(filename, ".jpeg") or
                           String.ends_with?(filename, ".gif") or
                           String.ends_with?(filename, ".webp") or
                           String.ends_with?(filename, ".svg") or
-                          String.ends_with?(filename, ".ico") %>
-                      <% is_editable = is_html or is_css or is_js or is_json or is_text %>
+                          String.ends_with?(filename, ".ico") %> <% is_editable =
+                        is_html or is_css or is_js or is_json or is_text %>
                       <div class="group flex items-center rounded px-1 py-1 hover:bg-base-300/70">
                         <div
                           class="flex min-w-0 flex-1 items-center gap-2"
@@ -2991,6 +3031,7 @@
                             {format_bytes(file.size)}
                           </span>
                         </div>
+
                         <div class="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <%= if is_editable do %>
                             <button
@@ -3002,6 +3043,7 @@
                               <.icon name="hero-pencil" class="h-3 w-3" />
                             </button>
                           <% end %>
+
                           <button
                             phx-click="delete_static_file"
                             phx-value-path={file.path}
@@ -3035,15 +3077,15 @@
     </div>
   </div>
 </.account_page>
-
 <!-- Code Editor Modal -->
 <%= if @editing_file do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-4xl w-full h-[80vh] flex flex-col border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-4xl w-full h-[80vh] flex flex-col/60">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-lg flex items-center gap-2">
           <.icon name="hero-code-bracket" class="w-5 h-5" /> Editing: {@editing_file.path}
         </h3>
+
         <button phx-click="close_editor" class="btn btn-ghost btn-sm btn-circle">
           <.icon name="hero-x-mark" class="w-5 h-5" />
         </button>
@@ -3057,7 +3099,6 @@
           phx-hook="CodeEditor"
           id="code-editor"
         >{@file_content}</textarea>
-
         <div class="modal-action">
           <button type="button" phx-click="close_editor" class="btn btn-ghost">Cancel</button>
           <button type="submit" class="btn btn-primary">
@@ -3066,6 +3107,7 @@
         </div>
       </form>
     </div>
+
     <div class="modal-backdrop bg-base-300/80" phx-click="close_editor"></div>
   </div>
 <% end %>

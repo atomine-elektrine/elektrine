@@ -3,6 +3,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging
   alias Elektrine.Social
@@ -100,8 +101,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
       reply_avatar_url =
         cond do
-          reply_actor && is_binary(reply_actor.avatar_url) &&
-              String.trim(reply_actor.avatar_url) != "" ->
+          reply_actor && Elektrine.Strings.present?(reply_actor.avatar_url) ->
             reply_actor.avatar_url
 
           true ->
@@ -251,7 +251,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       class="flex-shrink-0"
                       aria-label={"Open #{reply_display_name} profile"}
                     >
-                      <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                      <%= if Elektrine.Strings.present?(reply_avatar_url) do %>
                         <img
                           src={reply_avatar_url}
                           alt=""
@@ -276,7 +276,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       <% end %>
                     </.link>
                   <% else %>
-                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                    <%= if Elektrine.Strings.present?(reply_avatar_url) do %>
                       <img
                         src={reply_avatar_url}
                         alt=""
@@ -415,7 +415,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     class="flex-shrink-0"
                     aria-label={"Open #{reply_display_name} profile"}
                   >
-                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                    <%= if Elektrine.Strings.present?(reply_avatar_url) do %>
                       <img
                         src={reply_avatar_url}
                         alt=""
@@ -428,7 +428,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     <% end %>
                   </.link>
                 <% else %>
-                  <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                  <%= if Elektrine.Strings.present?(reply_avatar_url) do %>
                     <img
                       src={reply_avatar_url}
                       alt=""
@@ -462,7 +462,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     <span class="text-sm font-medium">{reply_display_name}</span>
                   <% end %>
                   <div class="text-xs opacity-50">
-                    <%= if is_binary(reply_acct_label) && String.trim(reply_acct_label) != "" do %>
+                    <%= if Elektrine.Strings.present?(reply_acct_label) do %>
                       {reply_acct_label} ·
                     <% end %>
                     {if reply["published"], do: format_activitypub_date(reply["published"])}
@@ -696,7 +696,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                 color.border
               ]}>
                 <div class="flex items-start gap-2 min-w-0">
-                  <%= if parent_actor && is_binary(parent_actor.avatar_url) && parent_actor.avatar_url != "" do %>
+                  <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
                     <img
                       src={parent_actor.avatar_url}
                       alt=""
@@ -737,12 +737,12 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                     </div>
                   </div>
                 </div>
-                <%= if is_binary(parent_title) && String.trim(parent_title) != "" do %>
+                <%= if Elektrine.Strings.present?(parent_title) do %>
                   <div class="mt-2 text-sm font-semibold line-clamp-2 break-words">
                     {parent_title}
                   </div>
                 <% end %>
-                <%= if is_binary(parent_content) && String.trim(parent_content) != "" do %>
+                <%= if Elektrine.Strings.present?(parent_content) do %>
                   <div class="mt-1 text-sm opacity-80 line-clamp-4 break-words post-content">
                     {raw(render_remote_post_content(parent_content, parent_domain))}
                   </div>
@@ -920,7 +920,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   def empty_comments_state(assigns) do
     ~H"""
     <div
-      class="card social-page-card border border-base-300 rounded-lg p-4 min-h-[14rem]"
+      class="card panel-card rounded-lg p-4 min-h-[14rem]"
       data-comments-state={if @replies_loading, do: "loading", else: "idle"}
     >
       <%= if @replies_loading do %>
@@ -958,7 +958,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   def standard_timeline_detail_reply_box(assigns) do
     ~H"""
     <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
-      <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-6">
+      <div class="card panel-card rounded-lg p-4 mb-6">
         <div class="space-y-3">
           <%= if length(@quick_reply_recent_replies) > 0 do %>
             <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
@@ -973,7 +973,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                         class="w-5 h-5 flex-shrink-0"
                         phx-click="stop_propagation"
                       >
-                        <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                        <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
                           <img
                             src={author_preview.avatar_url}
                             alt=""
@@ -993,7 +993,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                         {author_preview.label}
                       </.link>
                     <% else %>
-                      <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
+                      <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
                         <img
                           src={author_preview.avatar_url}
                           alt=""
@@ -1047,7 +1047,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     <% end %>
 
     <%= if !@current_user do %>
-      <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-6 text-center">
+      <div class="card panel-card rounded-lg p-4 mb-6 text-center">
         <.link navigate={~p"/login"} class="btn btn-secondary btn-sm">
           Sign in to interact
         </.link>
@@ -1686,10 +1686,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     current = map_get_value(post_object, key)
     fallback = map_get_value(existing_post, key)
 
-    if is_binary(current) && String.trim(current) != "" do
+    if Elektrine.Strings.present?(current) do
       post_object
     else
-      if is_binary(fallback) && String.trim(fallback) != "" do
+      if Elektrine.Strings.present?(fallback) do
         Map.put(post_object, key, fallback)
       else
         post_object
@@ -2123,7 +2123,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       is_map(reply_parent) && is_map(reply_parent["_local_user"]) ->
         local_user = reply_parent["_local_user"]
 
-        "@#{local_user.handle || local_user.username}@#{Elektrine.Domains.default_user_handle_domain()}"
+        AccountIdentifiers.at_local_handle(local_user)
 
       is_map(reply_parent) && is_binary(reply_parent["_fallback_author"]) ->
         reply_parent["_fallback_author"]
@@ -2386,13 +2386,16 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   defp get_first_media_url(urls) when is_list(urls) do
     Enum.find_value(urls, fn
-      url when is_binary(url) and url != "" ->
-        full_url = Elektrine.Uploads.attachment_url(url)
+      url when is_binary(url) ->
+        if Elektrine.Strings.present?(url) do
+          full_url = Elektrine.Uploads.attachment_url(url)
 
-        if is_binary(full_url) && String.match?(full_url, ~r/\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i) do
-          full_url
-        else
-          nil
+          if is_binary(full_url) &&
+               String.match?(full_url, ~r/\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i) do
+            full_url
+          else
+            nil
+          end
         end
 
       _ ->
@@ -2472,16 +2475,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         Enum.map(message.replies || [], fn reply ->
           {actor_uri, local_user, is_local_reply} =
             cond do
-              reply.sender && is_binary(reply.sender.username) && reply.sender.username != "" ->
+              reply.sender && Elektrine.Strings.present?(reply.sender.username) ->
                 {"#{base_url}/users/#{reply.sender.username}", reply.sender, true}
 
-              reply.remote_actor && is_binary(reply.remote_actor.uri) &&
-                  reply.remote_actor.uri != "" ->
+              reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.uri) ->
                 {reply.remote_actor.uri, nil, false}
 
-              reply.remote_actor && is_binary(reply.remote_actor.domain) &&
-                is_binary(reply.remote_actor.username) && reply.remote_actor.domain != "" &&
-                  reply.remote_actor.username != "" ->
+              reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.domain) &&
+                  Elektrine.Strings.present?(reply.remote_actor.username) ->
                 {"https://#{reply.remote_actor.domain}/users/#{reply.remote_actor.username}", nil,
                  false}
 
@@ -3533,7 +3534,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if String.trim(content) == "" do
+      if not Elektrine.Strings.present?(content) do
         {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       else
         user = socket.assigns.current_user
@@ -3619,7 +3620,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if String.trim(content) == "" do
+      if not Elektrine.Strings.present?(content) do
         {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       else
         user = socket.assigns.current_user
@@ -4234,14 +4235,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       avatar = Map.get(local_user, :avatar) || Map.get(local_user, "avatar")
 
       avatar_url =
-        if is_binary(avatar) && String.trim(avatar) != "" do
+        if Elektrine.Strings.present?(avatar) do
           Elektrine.Uploads.avatar_url(avatar)
         else
           nil
         end
 
       %{
-        label: "@#{handle}@#{Elektrine.Domains.default_user_handle_domain()}",
+        label: AccountIdentifiers.at_local_handle(handle),
         avatar_url: avatar_url,
         profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
       }
@@ -4254,10 +4255,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
       label =
         cond do
-          is_binary(fallback.acct_label) && String.trim(fallback.acct_label) != "" ->
+          Elektrine.Strings.present?(fallback.acct_label) ->
             fallback.acct_label
 
-          is_binary(author_uri) && String.trim(author_uri) != "" ->
+          Elektrine.Strings.present?(author_uri) ->
             "@#{extract_username_from_uri(author_uri)}"
 
           true ->

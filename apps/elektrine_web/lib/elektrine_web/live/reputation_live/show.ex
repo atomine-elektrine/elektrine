@@ -26,7 +26,7 @@ defmodule ElektrineWeb.ReputationLive.Show do
     query = String.trim(query)
 
     cond do
-      query == "" ->
+      not Elektrine.Strings.present?(query) ->
         {:noreply, push_patch(socket, to: ~p"/reputation")}
 
       user = Accounts.get_user_by_username_or_handle(query) ->
@@ -108,7 +108,7 @@ defmodule ElektrineWeb.ReputationLive.Show do
   end
 
   defp invalid_handle?(handle) do
-    !is_binary(handle) or handle == "" or String.length(handle) > 100 or
+    !Elektrine.Strings.present?(handle) or String.length(handle) > 100 or
       String.match?(handle, ~r/[\x00-\x1f]/)
   end
 end

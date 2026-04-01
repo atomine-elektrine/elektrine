@@ -32,19 +32,19 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
     ~H"""
     <%= if @show do %>
       <div class="modal modal-open" phx-hook="ImageModal" id={@modal_id}>
-        <div class="modal-box card glass-card max-w-7xl p-0 relative border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-7xl p-0 relative">
           <!-- Close button -->
           <button
             type="button"
             phx-click="close_image_modal"
-            class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10 bg-base-100/80 backdrop-blur-sm hover:bg-base-100"
+            class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10 bg-base-200/80 hover:bg-base-300"
           >
             <.icon name="hero-x-mark" class="w-5 h-5" />
           </button>
           
     <!-- Image counter -->
           <%= if length(@images) > 1 do %>
-            <div class="absolute top-2 left-1/2 -translate-x-1/2 z-10 badge badge-neutral bg-base-100/80 backdrop-blur-sm">
+            <div class="absolute top-2 left-1/2 -translate-x-1/2 z-10 badge badge-neutral bg-base-200/80">
               {@image_index + 1} / {length(@images)}
             </div>
           <% end %>
@@ -67,7 +67,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
           
     <!-- User Info Header -->
           <%= if sender_loaded || remote_actor_loaded do %>
-            <div class="absolute top-2 left-2 z-10 flex items-center gap-2 bg-base-100/80 backdrop-blur-sm rounded-full px-3 py-2">
+            <div class="absolute top-2 left-2 z-10 flex items-center gap-2 bg-base-200/80 rounded-full px-3 py-2">
               <%= if sender_loaded do %>
                 <.link
                   href={"/#{@post.sender.handle || @post.sender.username}"}
@@ -132,7 +132,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
               <button
                 type="button"
                 phx-click="prev_image"
-                class="btn btn-circle btn-ghost absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-base-100/80 backdrop-blur-sm hover:bg-base-100"
+                class="btn btn-circle btn-ghost absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-base-200/80 hover:bg-base-300"
               >
                 <.icon name="hero-chevron-left" class="w-6 h-6" />
               </button>
@@ -143,7 +143,7 @@ defmodule ElektrineWeb.Components.UI.ImageModal do
               <button
                 type="button"
                 phx-click="next_image"
-                class="btn btn-circle btn-ghost absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-base-100/80 backdrop-blur-sm hover:bg-base-100"
+                class="btn btn-circle btn-ghost absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-base-200/80 hover:bg-base-300"
               >
                 <.icon name="hero-chevron-right" class="w-6 h-6" />
               </button>

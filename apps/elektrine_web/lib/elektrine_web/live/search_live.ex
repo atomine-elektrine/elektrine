@@ -126,12 +126,20 @@ defmodule ElektrineWeb.SearchLive do
 
   defp handle_command_submit(socket, query) do
     case Search.execute_action(socket.assigns.current_user, query, source: "search_live") do
-      {:ok, %{mode: :navigate, url: url}} when is_binary(url) and url != "" ->
-        {:noreply, push_navigate(socket, to: url)}
+      {:ok, %{mode: :navigate, url: url}} when is_binary(url) ->
+        if Elektrine.Strings.present?(url) do
+          {:noreply, push_navigate(socket, to: url)}
+        else
+          {:noreply, socket}
+        end
 
       {:ok, %{mode: :operation, message: message, url: url}}
-      when is_binary(url) and url != "" ->
-        {:noreply, socket |> put_flash(:info, message) |> push_navigate(to: url)}
+      when is_binary(url) ->
+        if Elektrine.Strings.present?(url) do
+          {:noreply, socket |> put_flash(:info, message) |> push_navigate(to: url)}
+        else
+          {:noreply, socket |> put_flash(:info, message) |> perform_search(query)}
+        end
 
       {:ok, %{mode: :operation, message: message}} ->
         {:noreply, socket |> put_flash(:info, message) |> perform_search(query)}

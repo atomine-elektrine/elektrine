@@ -26,7 +26,7 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
     <div class={
       if @variant == :compact,
         do: "mb-3 p-2 rounded border border-base-300 bg-base-100/60",
-        else: "mb-4 p-3 rounded-lg border border-base-300 bg-base-200/40"
+        else: "mb-4 p-3 rounded-lg border border-base-300 bg-base-200/55"
     }>
       <div class="text-xs opacity-70 mb-1">
         <.icon name="hero-chat-bubble-oval-left-ellipsis" class="w-3 h-3 inline" />

@@ -49,7 +49,7 @@ defmodule Elektrine.Files.StoredFile do
 
       path ->
         cond do
-          String.trim(path) == "" ->
+          not Elektrine.Strings.present?(path) ->
             add_error(changeset, :path, "cannot be blank")
 
           String.starts_with?(path, "/") ->
@@ -61,7 +61,7 @@ defmodule Elektrine.Files.StoredFile do
           String.contains?(path, ["//", "\\", <<0>>]) ->
             add_error(changeset, :path, "contains invalid path segments")
 
-          Enum.any?(String.split(path, "/", trim: true), &(String.trim(&1) == "")) ->
+          Enum.any?(String.split(path, "/", trim: true), &(not Elektrine.Strings.present?(&1))) ->
             add_error(changeset, :path, "contains empty path segments")
 
           true ->

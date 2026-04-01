@@ -1,18 +1,14 @@
-<div
-  id="settings-container"
-  phx-hook="GlassCardContainer"
-  class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
->
+<div id="settings-container" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
   <ElektrineWeb.Components.Platform.ENav.e_nav
     active_tab="account"
     current_user={@current_user}
     class="mb-6 sm:mb-8"
   />
-
   <div class="mb-6 sm:mb-8">
     <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
       {gettext("Account Settings")}
     </h1>
+
     <p class="text-base-content/70 mt-2">
       {gettext("Manage your account preferences and security settings")}
     </p>
@@ -22,9 +18,10 @@
     <!-- Sidebar Navigation -->
     <div class="lg:col-span-1">
       <div class="sticky top-24 self-start">
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4">
             <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
+
             <ul class="menu menu-compact w-full p-0 space-y-1">
               <%= for {tab_id, tab_icon, tab_tone} <- setting_tabs() do %>
                 <li>
@@ -59,13 +56,12 @@
         </div>
       </div>
     </div>
-    
-<!-- Main Content -->
+    <!-- Main Content -->
     <div class="lg:col-span-3">
       <!-- Profile Tab -->
       <%= if @selected_tab == "profile" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
                 <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
@@ -85,6 +81,7 @@
                       <div class="font-semibold">
                         {gettext("Please fix the following errors:")}
                       </div>
+
                       <ul class="list-disc list-inside mt-2 text-sm">
                         <%= for {field, {message, opts}} <- @changeset.errors do %>
                           <li>
@@ -104,16 +101,12 @@
                     </div>
                   </div>
                 <% end %>
-                
-<!-- Avatar Section -->
+                <!-- Avatar Section -->
                 <div>
                   <% avatar_entry = List.first(@uploads.avatar.entries) %>
                   <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                     <div class="flex-shrink-0">
-                      <.live_file_input
-                        upload={@uploads.avatar}
-                        class="sr-only"
-                      />
+                      <.live_file_input upload={@uploads.avatar} class="sr-only" />
                       <label for={@uploads.avatar.ref} class="group block cursor-pointer">
                         <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden ring ring-primary ring-offset-base-100 ring-offset-2 bg-base-200">
                           <%= if avatar_entry do %>
@@ -128,12 +121,14 @@
                               class="w-full h-full rounded-full"
                             />
                           <% end %>
+
                           <div class="absolute inset-0 bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center text-xs font-medium">
                             {gettext("Change")}
                           </div>
                         </div>
                       </label>
                     </div>
+
                     <div class="flex-1 w-full space-y-3">
                       <div class="flex flex-wrap items-center gap-2">
                         <label for={@uploads.avatar.ref} class="btn btn-primary btn-sm">
@@ -154,12 +149,14 @@
                           </button>
                         <% end %>
                       </div>
+
                       <div class="text-xs sm:text-sm text-base-content/60">
                         {gettext(
                           "Upload a new avatar image (max %{max_size}) - Will be automatically cropped to square",
                           max_size: @avatar_upload_limit_text
                         )}
                       </div>
+
                       <%= if avatar_entry do %>
                         <div
                           id="avatar-upload-status"
@@ -170,14 +167,17 @@
                               <p class="text-sm font-medium truncate">
                                 {avatar_entry.client_name}
                               </p>
+
                               <p class="text-xs text-base-content/60">
                                 {gettext("Ready to save with your profile changes")}
                               </p>
                             </div>
+
                             <span class="text-xs font-semibold text-base-content/70">
                               {avatar_entry.progress}%
                             </span>
                           </div>
+
                           <progress
                             class="progress progress-primary w-full h-2"
                             value={avatar_entry.progress}
@@ -191,6 +191,7 @@
                           <% end %>
                         </div>
                       <% end %>
+
                       <%= for err <- upload_errors(@uploads.avatar) do %>
                         <div class="alert alert-error py-2">
                           <.icon name="hero-exclamation-circle" class="w-5 h-5" />
@@ -204,8 +205,7 @@
                 </div>
 
                 <div class="divider text-sm">{gettext("Public Profile")}</div>
-                
-<!-- Username Section (read-only) -->
+                <!-- Username Section (read-only) -->
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">{gettext("Username")}</span>
@@ -225,8 +225,7 @@
                     </span>
                   </div>
                 </div>
-                
-<!-- Handle Section -->
+                <!-- Handle Section -->
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">{gettext("Handle")}</span>
@@ -246,16 +245,15 @@
                   />
                   <div class="label">
                     <span class="text-xs text-base-content/60 block">
-                      {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br />
-                      {gettext("Mentions:")} @{@user.handle}<br />
-                      {gettext(
+                      {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br /> {gettext(
+                        "Mentions:"
+                      )} @{@user.handle}<br /> {gettext(
                         "Permanent public identifier for mentions and ActivityPub actor URLs."
                       )}
                     </span>
                   </div>
                 </div>
-                
-<!-- Display Name Section -->
+                <!-- Display Name Section -->
                 <div>
                   <.input
                     field={{@changeset, :display_name}}
@@ -274,8 +272,7 @@
                 </div>
 
                 <div class="divider text-sm">{gettext("Account Recovery")}</div>
-                
-<!-- Recovery Email Section -->
+                <!-- Recovery Email Section -->
                 <div>
                   <div class="flex items-end gap-2">
                     <div class="flex-1">
@@ -288,25 +285,30 @@
                         placeholder="your-external-email@example.com"
                       />
                     </div>
+
                     <%= if @user.recovery_email && @user.recovery_email != "" do %>
                       <%= if @user.recovery_email_verified do %>
                         <div class="badge badge-success gap-1 mb-3">
-                          <.icon name="hero-check-circle-mini" class="w-3 h-3" />
-                          {gettext("Verified")}
+                          <.icon name="hero-check-circle-mini" class="w-3 h-3" /> {gettext(
+                            "Verified"
+                          )}
                         </div>
                       <% else %>
                         <div class="badge badge-warning gap-1 mb-3">
-                          <.icon name="hero-exclamation-circle-mini" class="w-3 h-3" />
-                          {gettext("Unverified")}
+                          <.icon name="hero-exclamation-circle-mini" class="w-3 h-3" /> {gettext(
+                            "Unverified"
+                          )}
                         </div>
                       <% end %>
                     <% end %>
                   </div>
+
                   <div class="label">
                     <span class="text-xs text-base-content/60 break-words">
                       {gettext("Used for password reset. Must be an external email address.")}
                     </span>
                   </div>
+
                   <%= if @user.recovery_email && @user.recovery_email != "" && !@user.recovery_email_verified do %>
                     <div class="mt-2">
                       <button
@@ -314,8 +316,9 @@
                         phx-click="send_recovery_verification"
                         class="btn btn-sm btn-outline btn-primary"
                       >
-                        <.icon name="hero-envelope" class="w-4 h-4" />
-                        {gettext("Send Verification Email")}
+                        <.icon name="hero-envelope" class="w-4 h-4" /> {gettext(
+                          "Send Verification Email"
+                        )}
                       </button>
                       <p class="text-xs text-base-content/60 mt-1">
                         {gettext(
@@ -335,13 +338,14 @@
             </div>
           </div>
 
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6 space-y-4">
               <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                     <.icon name="hero-ticket" class="w-5 h-5" /> {gettext("My Invite Codes")}
                   </h3>
+
                   <p class="text-xs sm:text-sm text-base-content/70">
                     {gettext(
                       "Create single-use signup codes from your account. Codes expire after %{days} days, you can keep up to %{count} active at once, create up to %{monthly_codes} per month, and up to %{monthly_uses} can be redeemed per month.",
@@ -365,22 +369,27 @@
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Total
                   </div>
+
                   <div class="mt-2 text-xl font-semibold text-base-content">
                     {length(@user_invite_codes)}
                   </div>
                 </div>
+
                 <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Active
                   </div>
+
                   <div class="mt-2 text-xl font-semibold text-success">
                     {Enum.count(@user_invite_codes, &(invite_code_status(&1) == :active))}
                   </div>
                 </div>
+
                 <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Used
                   </div>
+
                   <div class="mt-2 text-xl font-semibold text-base-content">
                     {Enum.count(@user_invite_codes, &(&1.uses_count > 0))}
                   </div>
@@ -399,8 +408,7 @@
                   <div class="alert alert-warning">
                     <.icon name="hero-lock-closed" class="w-5 h-5" />
                     <span>
-                      Invite creation unlocks at TL{@invite_code_policy.min_trust_level}. Your
-                      account is currently TL{@user.trust_level}.
+                      Invite creation unlocks at TL{@invite_code_policy.min_trust_level}. Your account is currently TL{@user.trust_level}.
                     </span>
                   </div>
                 <% true -> %>
@@ -409,7 +417,7 @@
                     id="invite-code-form"
                     as={:invite}
                     phx-submit="create_invite_code"
-                    class="rounded-box border border-base-300 bg-base-200/40 p-4"
+                    class="rounded-box border border-base-300 bg-base-200/55 p-4"
                   >
                     <div class="space-y-3">
                       <div>
@@ -444,6 +452,7 @@
                 <div class="rounded-box border border-dashed border-base-300 px-4 py-10 text-center">
                   <.icon name="hero-ticket" class="mx-auto h-10 w-10 opacity-30" />
                   <p class="mt-3 text-sm font-medium text-base-content/70">No invite codes yet</p>
+
                   <p class="mt-1 text-xs text-base-content/55">
                     New codes you create here will appear in this list.
                   </p>
@@ -451,7 +460,7 @@
               <% else %>
                 <div class="space-y-3">
                   <%= for invite_code <- @user_invite_codes do %>
-                    <div class="rounded-box border border-base-300 bg-base-200/40 p-4">
+                    <div class="rounded-box border border-base-300 bg-base-200/55 p-4">
                       <div class="space-y-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                           <div class="min-w-0 flex-1">
@@ -486,10 +495,12 @@
                             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Usage
                             </div>
+
                             <div class="mt-1 flex items-center justify-between text-sm text-base-content/70">
                               <span>{invite_code.uses_count} / {invite_code.max_uses}</span>
                               <span>{invite_code_usage_percent(invite_code)}%</span>
                             </div>
+
                             <progress
                               class="progress progress-success h-2 w-full mt-2"
                               value={invite_code.uses_count}
@@ -502,6 +513,7 @@
                             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Expires
                             </div>
+
                             <div class="mt-1 text-sm text-base-content/70">
                               <%= if invite_code.expires_at do %>
                                 <.local_time
@@ -520,6 +532,7 @@
                             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                               Created
                             </div>
+
                             <div class="mt-1 text-sm text-base-content/70">
                               <.local_time
                                 datetime={invite_code.inserted_at}
@@ -552,19 +565,20 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Security Tab -->
+      <!-- Security Tab -->
       <%= if @selected_tab == "security" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Password Section -->
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
               </h3>
+
               <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
                 {gettext("Keep your account secure with a strong password.")}
               </p>
+
               <div class="card-actions">
                 <.link
                   navigate={~p"/account/password"}
@@ -575,9 +589,8 @@
               </div>
             </div>
           </div>
-          
-<!-- Two-Factor Authentication Section -->
-          <div class="card glass-card shadow-lg">
+          <!-- Two-Factor Authentication Section -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                 <.icon name="hero-shield-check" class="w-5 h-5" /> {gettext(
@@ -590,9 +603,11 @@
                   <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
                   <span class="text-success font-medium text-sm">{gettext("Enabled")}</span>
                 </div>
+
                 <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
                   {gettext("Your account is protected with 2FA.")}
                 </p>
+
                 <div class="card-actions">
                   <.link
                     navigate={~p"/account/two_factor"}
@@ -606,9 +621,11 @@
                   <.icon name="hero-shield-exclamation" class="w-5 h-5 text-warning" />
                   <span class="text-warning font-medium text-sm">{gettext("Disabled")}</span>
                 </div>
+
                 <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
                   {gettext("Add an extra layer of security to your account.")}
                 </p>
+
                 <div class="card-actions">
                   <.link
                     navigate={~p"/account/two_factor/setup"}
@@ -620,13 +637,11 @@
               <% end %>
             </div>
           </div>
-          
-<!-- Passkeys Section -->
-          <div class="card glass-card shadow-lg">
+          <!-- Passkeys Section -->
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-finger-print" class="w-5 h-5" />
-                {gettext("Passkeys")}
+                <.icon name="hero-finger-print" class="w-5 h-5" /> {gettext("Passkeys")}
               </h3>
 
               <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
@@ -634,6 +649,7 @@
                   "Sign in without a password using your device's biometrics or a security key."
                 )}
               </p>
+
               <div class="card-actions">
                 <.link
                   navigate={~p"/account/passkeys"}
@@ -648,17 +664,19 @@
           <%= if tab_enabled?("email") do %>
             <!-- Email Sending Status Section -->
             <%= if @loading_security do %>
-              <div class="card glass-card shadow-lg">
+              <div class="card panel-card">
                 <div class="card-body p-4 sm:p-6">
                   <div class="animate-pulse space-y-4">
                     <div class="h-4 bg-base-300 rounded w-1/3"></div>
+
                     <div class="h-3 bg-base-300 rounded w-2/3"></div>
                   </div>
                 </div>
               </div>
             <% end %>
+
             <%= if !@loading_security && @email_restriction_status.restricted do %>
-              <div class="card glass-card shadow-lg border-2 border-warning">
+              <div class="card panel-card border-2 border-warning">
                 <div class="card-body p-4 sm:p-6">
                   <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                     <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
@@ -671,15 +689,19 @@
                       <div class="font-semibold">
                         Your email sending has been temporarily restricted
                       </div>
+
                       <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
                     </div>
                   </div>
 
                   <div class="bg-base-200 rounded-lg p-4 mb-4">
                     <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
+
                     <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
                       <li>Make sure you have a recovery email set in your profile</li>
+
                       <li>Click the button below to receive a verification email</li>
+
                       <li>Click the verification link in that email</li>
                     </ol>
                   </div>
@@ -687,6 +709,7 @@
                   <%= if @email_restriction_status.recovery_email do %>
                     <div class="mb-4">
                       <div class="text-sm opacity-70 mb-1">Recovery Email</div>
+
                       <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
                         <span>{@email_restriction_status.recovery_email}</span>
                         <%= if @email_restriction_status.recovery_email_verified do %>
@@ -719,14 +742,16 @@
 
           <%= if tab_enabled?("email") do %>
             <!-- App Passwords Section -->
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
                   <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
                 </h3>
+
                 <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
                   {gettext("Access your email from POP3/IMAP clients without 2FA.")}
                 </p>
+
                 <div class="card-actions">
                   <.link
                     navigate={~p"/account/app-passwords"}
@@ -740,10 +765,9 @@
           <% end %>
         </div>
       <% end %>
-      
-<!-- Privacy Tab -->
+      <!-- Privacy Tab -->
       <%= if @selected_tab == "privacy" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-lock-closed" class="w-5 h-5" /> {gettext("Privacy Settings")}
@@ -763,10 +787,7 @@
                     {gettext("Who can add you to groups/channels")}
                   </span>
                 </label>
-                <select
-                  name="user[allow_group_adds_from]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[allow_group_adds_from]" class="select select-bordered w-full">
                   <option
                     value="everyone"
                     selected={
@@ -775,6 +796,7 @@
                   >
                     {gettext("Everyone")}
                   </option>
+
                   <option
                     value="friends"
                     selected={
@@ -783,6 +805,7 @@
                   >
                     {gettext("Friends only")}
                   </option>
+
                   <option
                     value="following"
                     selected={
@@ -791,6 +814,7 @@
                   >
                     {gettext("People I follow")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -799,6 +823,7 @@
                   >
                     {gettext("My followers")}
                   </option>
+
                   <option
                     value="mutual"
                     selected={
@@ -807,6 +832,7 @@
                   >
                     {gettext("Mutual follows only")}
                   </option>
+
                   <option
                     value="nobody"
                     selected={
@@ -822,8 +848,7 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Direct Message Permissions -->
+              <!-- Direct Message Permissions -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">
@@ -843,6 +868,7 @@
                   >
                     {gettext("Everyone")}
                   </option>
+
                   <option
                     value="friends"
                     selected={
@@ -852,6 +878,7 @@
                   >
                     {gettext("Friends only")}
                   </option>
+
                   <option
                     value="following"
                     selected={
@@ -861,6 +888,7 @@
                   >
                     {gettext("People I follow")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -870,6 +898,7 @@
                   >
                     {gettext("My followers")}
                   </option>
+
                   <option
                     value="mutual"
                     selected={
@@ -879,6 +908,7 @@
                   >
                     {gettext("Mutual follows only")}
                   </option>
+
                   <option
                     value="nobody"
                     selected={
@@ -895,16 +925,12 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Call Permissions -->
+              <!-- Call Permissions -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Who can call you")}</span>
                 </label>
-                <select
-                  name="user[allow_calls_from]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[allow_calls_from]" class="select select-bordered w-full">
                   <option
                     value="everyone"
                     selected={
@@ -913,6 +939,7 @@
                   >
                     {gettext("Everyone")}
                   </option>
+
                   <option
                     value="friends"
                     selected={
@@ -921,6 +948,7 @@
                   >
                     {gettext("Friends only")}
                   </option>
+
                   <option
                     value="nobody"
                     selected={Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "nobody"}
@@ -934,8 +962,7 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Friend Request Permissions -->
+              <!-- Friend Request Permissions -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">
@@ -955,6 +982,7 @@
                   >
                     {gettext("Everyone")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -964,6 +992,7 @@
                   >
                     {gettext("Followers only")}
                   </option>
+
                   <option
                     value="nobody"
                     selected={
@@ -980,16 +1009,12 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Mention Permissions -->
+              <!-- Mention Permissions -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Who can mention you")}</span>
                 </label>
-                <select
-                  name="user[allow_mentions_from]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[allow_mentions_from]" class="select select-bordered w-full">
                   <option
                     value="everyone"
                     selected={
@@ -998,6 +1023,7 @@
                   >
                     {gettext("Everyone")}
                   </option>
+
                   <option
                     value="friends"
                     selected={
@@ -1006,6 +1032,7 @@
                   >
                     {gettext("Friends only")}
                   </option>
+
                   <option
                     value="following"
                     selected={
@@ -1014,6 +1041,7 @@
                   >
                     {gettext("People I follow")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -1022,6 +1050,7 @@
                   >
                     {gettext("My followers")}
                   </option>
+
                   <option
                     value="mutual"
                     selected={
@@ -1030,6 +1059,7 @@
                   >
                     {gettext("Mutual follows only")}
                   </option>
+
                   <option
                     value="nobody"
                     selected={
@@ -1045,16 +1075,12 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Default Post Visibility -->
+              <!-- Default Post Visibility -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Default post visibility")}</span>
                 </label>
-                <select
-                  name="user[default_post_visibility]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[default_post_visibility]" class="select select-bordered w-full">
                   <option
                     value="public"
                     selected={
@@ -1063,6 +1089,7 @@
                   >
                     {gettext("Public")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -1072,6 +1099,7 @@
                   >
                     {gettext("Followers only")}
                   </option>
+
                   <option
                     value="friends"
                     selected={
@@ -1080,6 +1108,7 @@
                   >
                     {gettext("Friends only")}
                   </option>
+
                   <option
                     value="private"
                     selected={
@@ -1097,16 +1126,12 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Profile Visibility -->
+              <!-- Profile Visibility -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Profile visibility")}</span>
                 </label>
-                <select
-                  name="user[profile_visibility]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[profile_visibility]" class="select select-bordered w-full">
                   <option
                     value="public"
                     selected={
@@ -1115,6 +1140,7 @@
                   >
                     {gettext("Public")}
                   </option>
+
                   <option
                     value="followers"
                     selected={
@@ -1123,6 +1149,7 @@
                   >
                     {gettext("Followers only")}
                   </option>
+
                   <option
                     value="private"
                     selected={
@@ -1146,10 +1173,9 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Preferences Tab -->
+      <!-- Preferences Tab -->
       <%= if @selected_tab == "preferences" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> {gettext("Preferences")}
@@ -1167,16 +1193,14 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Language")}</span>
                 </label>
-                <select
-                  name="user[locale]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[locale]" class="select select-bordered w-full">
                   <option
                     value="en"
                     selected={Ecto.Changeset.get_field(@changeset, :locale) == "en"}
                   >
                     English
                   </option>
+
                   <option
                     value="zh"
                     selected={Ecto.Changeset.get_field(@changeset, :locale) == "zh"}
@@ -1190,8 +1214,7 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Timezone -->
+              <!-- Timezone -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Timezone")}</span>
@@ -1203,6 +1226,7 @@
                   id="timezone-select"
                 >
                   <option value="">{gettext("Auto-detect (browser timezone)")}</option>
+
                   <optgroup label={gettext("Common Timezones")}>
                     <option
                       value="America/New_York"
@@ -1212,6 +1236,7 @@
                     >
                       {gettext("Eastern Time (US & Canada)")}
                     </option>
+
                     <option
                       value="America/Chicago"
                       selected={
@@ -1220,6 +1245,7 @@
                     >
                       {gettext("Central Time (US & Canada)")}
                     </option>
+
                     <option
                       value="America/Denver"
                       selected={
@@ -1228,6 +1254,7 @@
                     >
                       {gettext("Mountain Time (US & Canada)")}
                     </option>
+
                     <option
                       value="America/Los_Angeles"
                       selected={
@@ -1236,6 +1263,7 @@
                     >
                       {gettext("Pacific Time (US & Canada)")}
                     </option>
+
                     <option
                       value="Europe/London"
                       selected={
@@ -1244,12 +1272,14 @@
                     >
                       {gettext("London")}
                     </option>
+
                     <option
                       value="Europe/Paris"
                       selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Paris"}
                     >
                       {gettext("Paris")}
                     </option>
+
                     <option
                       value="Europe/Berlin"
                       selected={
@@ -1258,12 +1288,14 @@
                     >
                       {gettext("Berlin")}
                     </option>
+
                     <option
                       value="Asia/Tokyo"
                       selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Tokyo"}
                     >
                       {gettext("Tokyo")}
                     </option>
+
                     <option
                       value="Asia/Shanghai"
                       selected={
@@ -1272,6 +1304,7 @@
                     >
                       {gettext("Shanghai")}
                     </option>
+
                     <option
                       value="Asia/Hong_Kong"
                       selected={
@@ -1280,6 +1313,7 @@
                     >
                       {gettext("Hong Kong")}
                     </option>
+
                     <option
                       value="Australia/Sydney"
                       selected={
@@ -1289,6 +1323,7 @@
                       {gettext("Sydney")}
                     </option>
                   </optgroup>
+
                   <optgroup label="UTC">
                     <option
                       value="Etc/UTC"
@@ -1304,22 +1339,19 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Time Format -->
+              <!-- Time Format -->
               <div>
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Time Format")}</span>
                 </label>
-                <select
-                  name="user[time_format]"
-                  class="select select-bordered w-full"
-                >
+                <select name="user[time_format]" class="select select-bordered w-full">
                   <option
                     value="12"
                     selected={Ecto.Changeset.get_field(@changeset, :time_format) == "12"}
                   >
                     {gettext("12-hour (3:45 PM)")}
                   </option>
+
                   <option
                     value="24"
                     selected={Ecto.Changeset.get_field(@changeset, :time_format) == "24"}
@@ -1341,10 +1373,9 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Notifications Tab -->
+      <!-- Notifications Tab -->
       <%= if @selected_tab == "notifications" do %>
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
               <.icon name="hero-bell" class="w-5 h-5" /> {gettext("Notifications")}
@@ -1362,6 +1393,7 @@
                 <div class="text-sm text-base-content/60 mb-2">
                   {gettext("Choose which events you want to be notified about")}
                 </div>
+
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1375,7 +1407,6 @@
                   />
                   <span class="label-text">{gettext("Notify me when someone follows me")}</span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1389,7 +1420,6 @@
                   />
                   <span class="label-text">{gettext("Notify me for new direct messages")}</span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1398,10 +1428,8 @@
                     value="true"
                     checked={Ecto.Changeset.get_field(@changeset, :notify_on_mention) == true}
                     class="checkbox checkbox-primary"
-                  />
-                  <span class="label-text">{gettext("Notify me when I'm mentioned")}</span>
+                  /> <span class="label-text">{gettext("Notify me when I'm mentioned")}</span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1415,7 +1443,6 @@
                     {gettext("Notify me when someone replies to my message")}
                   </span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1429,7 +1456,6 @@
                     {gettext("Notify me when someone likes my post")}
                   </span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1443,7 +1469,6 @@
                   />
                   <span class="label-text">{gettext("Notify me when I receive an email")}</span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1459,7 +1484,6 @@
                     {gettext("Notify me when someone replies to my discussion post")}
                   </span>
                 </label>
-
                 <label class="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1482,21 +1506,23 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Federation Tab -->
+      <!-- Federation Tab -->
       <%= if @selected_tab == "federation" do %>
         <div class="space-y-4 sm:space-y-6">
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                 <.icon name="hero-globe-alt" class="w-5 h-5" /> {gettext("Federation")}
               </h2>
+
               <p class="text-sm text-base-content/70">
                 {gettext(
                   "Manage your federated account bridge and cross-network connection status."
                 )}
               </p>
+
               <div class="divider my-4">{gettext("ActivityPub")}</div>
+
               <.form
                 for={@changeset}
                 id="federation-activitypub-form"
@@ -1543,14 +1569,14 @@
               </.form>
 
               <div class="divider my-4">{gettext("Bluesky Bridge")}</div>
-              <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %>
-              <% bluesky_profile_url = bluesky_profile_url(@user) %>
-
+              <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %> <% bluesky_profile_url =
+                bluesky_profile_url(@user) %>
               <div class="rounded-xl border border-base-300 bg-base-200/50 p-4 sm:p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
                     <.icon name="hero-link" class="w-4 h-4" /> {gettext("Managed Bluesky")}
                   </h3>
+
                   <span class={[
                     "badge badge-outline w-fit",
                     if(@bluesky_managed_enabled && managed_linked, do: "badge-success"),
@@ -1625,8 +1651,9 @@
                             rel="noopener noreferrer"
                             class="btn btn-outline btn-sm w-full sm:w-auto"
                           >
-                            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" />
-                            {gettext("Open Bluesky Profile")}
+                            <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4" /> {gettext(
+                              "Open Bluesky Profile"
+                            )}
                           </a>
                         </div>
                       <% end %>
@@ -1653,7 +1680,7 @@
 
           <%= if @bluesky_managed_enabled do %>
             <% managed_linked = @user.bluesky_enabled && @user.bluesky_app_password %>
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6 space-y-4">
                 <h3 class="card-title text-base sm:text-lg flex flex-wrap items-center gap-2 leading-tight">
                   <.icon name="hero-link" class="w-5 h-5 shrink-0" /> {gettext(
@@ -1667,6 +1694,7 @@
                       "Your managed Bluesky account is connected and maintained automatically."
                     )}
                   </p>
+
                   <div class="alert alert-success">
                     <span class="text-sm break-words">
                       {gettext("Managed Bluesky is active for this account.")}
@@ -1696,6 +1724,7 @@
                           )}
                         </span>
                       </div>
+
                       <div class="card-actions justify-start sm:justify-end">
                         <.button
                           type="submit"
@@ -1728,6 +1757,7 @@
                           )}
                         </span>
                       </div>
+
                       <div class="card-actions justify-start sm:justify-end">
                         <.button
                           type="submit"
@@ -1744,6 +1774,7 @@
                       "Confirm your account password once to create or reconnect your managed Bluesky account."
                     )}
                   </p>
+
                   <form
                     phx-submit="enable_bluesky_managed"
                     class="space-y-4 rounded-xl border border-base-300/70 bg-base-200/30 p-4"
@@ -1784,16 +1815,16 @@
           <% end %>
         </div>
       <% end %>
-      
-<!-- Timeline Tab -->
+      <!-- Timeline Tab -->
       <%= if @selected_tab == "timeline" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- RSS Feeds Card -->
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2 mb-2">
                 <.icon name="hero-rss" class="w-5 h-5" /> {gettext("RSS Feeds")}
               </h3>
+
               <p class="text-sm text-base-content/70 mb-4">
                 {gettext("Subscribe to RSS feeds to see articles in your timeline.")}
               </p>
@@ -1801,13 +1832,15 @@
               <%= if @loading_timeline do %>
                 <div class="animate-pulse space-y-4">
                   <div class="h-10 bg-base-300 rounded"></div>
+
                   <div class="h-4 bg-base-300 rounded w-1/4"></div>
+
                   <div class="h-16 bg-base-300 rounded"></div>
+
                   <div class="h-16 bg-base-300 rounded"></div>
                 </div>
               <% else %>
-                
-<!-- Add Feed Form -->
+                <!-- Add Feed Form -->
                 <form phx-submit="add_rss_feed" class="mb-6">
                   <div class="form-control">
                     <label class="label">
@@ -1820,25 +1853,18 @@
                         value={@new_feed_url}
                         phx-change="update_feed_url"
                         placeholder="https://example.com/feed.xml"
-                        class={[
-                          "input input-bordered flex-1",
-                          @rss_error && "input-error"
-                        ]}
+                        class={["input input-bordered flex-1", @rss_error && "input-error"]}
                         disabled={@adding_feed}
                       />
-                      <button
-                        type="submit"
-                        class="btn btn-secondary"
-                        disabled={@adding_feed}
-                      >
+                      <button type="submit" class="btn btn-secondary" disabled={@adding_feed}>
                         <%= if @adding_feed do %>
-                          <.spinner size="sm" />
-                          {gettext("Adding...")}
+                          <.spinner size="sm" /> {gettext("Adding...")}
                         <% else %>
                           {gettext("Add Feed")}
                         <% end %>
                       </button>
                     </div>
+
                     <%= if @rss_error do %>
                       <label class="label">
                         <span class="label-text-alt text-error">{@rss_error}</span>
@@ -1846,8 +1872,7 @@
                     <% end %>
                   </div>
                 </form>
-                
-<!-- Subscriptions List -->
+                <!-- Subscriptions List -->
                 <div class="space-y-4">
                   <h4 class="font-semibold text-sm">{gettext("Your Subscriptions")}</h4>
 
@@ -1855,6 +1880,7 @@
                     <div class="text-center py-6 text-base-content/60">
                       <.icon name="hero-rss" class="w-10 h-10 mx-auto mb-3 opacity-40" />
                       <p class="text-sm">{gettext("No feeds subscribed yet")}</p>
+
                       <p class="text-xs mt-1">{gettext("Add a feed URL above to get started")}</p>
                     </div>
                   <% else %>
@@ -1879,12 +1905,13 @@
                           <div class="flex-1 min-w-0">
                             <div class="font-medium text-sm truncate">
                               {subscription.display_name ||
-                                (subscription.feed && subscription.feed.title) ||
-                                "Untitled Feed"}
+                                (subscription.feed && subscription.feed.title) || "Untitled Feed"}
                             </div>
+
                             <div class="text-xs text-base-content/60 truncate">
                               {subscription.feed && subscription.feed.url}
                             </div>
+
                             <%= if subscription.feed && subscription.feed.last_error do %>
                               <div class="text-xs text-error mt-1">
                                 {gettext("Error:")} {subscription.feed.last_error}
@@ -1906,8 +1933,7 @@
                                 phx-value-subscription_id={subscription.id}
                               />
                             </label>
-                            
-<!-- Remove Button -->
+                            <!-- Remove Button -->
                             <button
                               phx-click="remove_rss_feed"
                               phx-value-feed_id={subscription.feed_id}
@@ -1927,63 +1953,61 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Email Tab -->
+      <!-- Email Tab -->
       <%= if @selected_tab == "email" do %>
-        <div class="space-y-4 sm:space-y-6">
-          <.email_tab_content {assigns} />
-        </div>
+        <div class="space-y-4 sm:space-y-6"><.email_tab_content {assigns} /></div>
       <% end %>
-      
-<!-- Developer Tab -->
+      <!-- Developer Tab -->
       <%= if @selected_tab == "developer" do %>
         <div class="space-y-6">
           <%= if @loading_developer do %>
             <!-- Loading skeleton for API Tokens -->
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
-                    <.icon name="hero-key" class="w-5 h-5" />
-                    {gettext("API Tokens")}
+                    <.icon name="hero-key" class="w-5 h-5" /> {gettext("API Tokens")}
                   </h2>
                 </div>
+
                 <div class="animate-pulse space-y-3">
                   <div class="h-4 bg-base-300 rounded w-2/3"></div>
+
                   <div class="h-16 bg-base-300 rounded"></div>
+
                   <div class="h-16 bg-base-300 rounded"></div>
                 </div>
               </div>
             </div>
             <!-- Loading skeleton for Data Export -->
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
-                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
-                  {gettext("Data Export")}
+                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> {gettext("Data Export")}
                 </h2>
+
                 <div class="animate-pulse space-y-3">
                   <div class="h-4 bg-base-300 rounded w-1/2"></div>
+
                   <div class="h-10 bg-base-300 rounded w-1/3"></div>
                 </div>
               </div>
             </div>
           <% else %>
             <!-- API Tokens Section -->
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
-                    <.icon name="hero-key" class="w-5 h-5" />
-                    {gettext("API Tokens")}
+                    <.icon name="hero-key" class="w-5 h-5" /> {gettext("API Tokens")}
                   </h2>
+
                   <button
                     phx-click="show_create_token_modal"
                     class="btn btn-primary btn-sm"
                     disabled={length(@api_tokens) >= 20}
                   >
-                    <.icon name="hero-plus" class="w-4 h-4" />
-                    {gettext("Create Token")}
+                    <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Create Token")}
                   </button>
                 </div>
 
@@ -1997,9 +2021,8 @@
                   <div class="text-center py-8 text-base-content/50">
                     <.icon name="hero-key" class="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p>{gettext("No API tokens yet")}</p>
-                    <p class="text-sm mt-1">
-                      {gettext("Create a token to start using the API")}
-                    </p>
+
+                    <p class="text-sm mt-1">{gettext("Create a token to start using the API")}</p>
                   </div>
                 <% else %>
                   <div class="space-y-3">
@@ -2013,6 +2036,7 @@
                                 {token.token_prefix}...
                               </code>
                             </div>
+
                             <div class="text-xs text-base-content/60 mt-1">
                               <span>
                                 {gettext("Created")} {Calendar.strftime(
@@ -2036,6 +2060,7 @@
                                 <span class="mx-1">·</span>
                                 <span class="text-warning">{gettext("Never used")}</span>
                               <% end %>
+
                               <%= if token.expires_at do %>
                                 <span class="mx-1">·</span>
                                 <%= if DateTime.compare(token.expires_at, DateTime.utc_now()) == :lt do %>
@@ -2053,12 +2078,14 @@
                                 <span>{gettext("Never expires")}</span>
                               <% end %>
                             </div>
+
                             <div class="flex flex-wrap gap-1 mt-2">
                               <%= for scope <- token.scopes do %>
                                 <span class="badge badge-xs badge-ghost">{scope}</span>
                               <% end %>
                             </div>
                           </div>
+
                           <div class="flex gap-1">
                             <button
                               phx-click="duplicate_token"
@@ -2093,12 +2120,14 @@
                   <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p class="font-semibold">{gettext("OAuth / OpenID Connect Clients")}</p>
+
                       <p class="mt-1 text-sm text-base-content/65">
                         {gettext(
                           "Register apps that use your Elektrine account as an identity provider."
                         )}
                       </p>
                     </div>
+
                     <.link
                       href={~p"/account/developer/oidc/clients"}
                       class="btn btn-outline btn-sm rounded-full"
@@ -2116,9 +2145,11 @@
 
                 <div class="text-sm text-base-content/60">
                   <p class="font-semibold mb-2">{gettext("API Documentation")}</p>
+
                   <p class="mb-2">
                     {gettext("Use personal access tokens with the versioned external API:")}
                   </p>
+
                   <code class="block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
                     curl -H "Authorization: Bearer ekt_xxxxx" \<br />
                     &nbsp;&nbsp;{"#{Elektrine.Domains.public_base_url()}/api/ext/v1/search?q=inbox"}
@@ -2128,6 +2159,7 @@
                       "Responses include X-RateLimit-* headers and a request id in meta.request_id for easier debugging."
                     )}
                   </p>
+
                   <p class="mt-2">
                     {gettext(
                       "Note: /api/* routes are first-party mobile/session APIs. PAT integrations should use /api/ext/v1/*."
@@ -2136,13 +2168,11 @@
                 </div>
               </div>
             </div>
-            
-<!-- Data Export Section -->
-            <div class="card glass-card shadow-lg">
+            <!-- Data Export Section -->
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
-                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" />
-                  {gettext("Data Export")}
+                  <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> {gettext("Data Export")}
                 </h2>
 
                 <p class="text-sm text-base-content/70 mb-4">
@@ -2157,46 +2187,48 @@
                     phx-value-type="email"
                     class="btn btn-outline btn-sm"
                   >
-                    <.icon name="hero-envelope" class="w-4 h-4" />
-                    {gettext("Export Emails (JSON)")}
+                    <.icon name="hero-envelope" class="w-4 h-4" /> {gettext(
+                      "Export Emails (JSON)"
+                    )}
                   </button>
                   <button
                     phx-click="export_data"
                     phx-value-type="social"
                     class="btn btn-outline btn-sm"
                   >
-                    <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-                    {gettext("Export Posts (JSON)")}
+                    <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> {gettext(
+                      "Export Posts (JSON)"
+                    )}
                   </button>
                   <button
                     phx-click="export_data"
                     phx-value-type="chat"
                     class="btn btn-outline btn-sm"
                   >
-                    <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
-                    {gettext("Export Chat (JSON)")}
+                    <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" /> {gettext(
+                      "Export Chat (JSON)"
+                    )}
                   </button>
                   <button
                     phx-click="export_data"
                     phx-value-type="account"
                     class="btn btn-outline btn-sm"
                   >
-                    <.icon name="hero-user" class="w-4 h-4" />
-                    {gettext("Export Account (JSON)")}
+                    <.icon name="hero-user" class="w-4 h-4" /> {gettext("Export Account (JSON)")}
                   </button>
                 </div>
 
                 <%= if @pending_exports && length(@pending_exports) > 0 do %>
                   <div class="divider">{gettext("Recent Exports")}</div>
+
                   <div class="space-y-2">
                     <%= for export <- @pending_exports do %>
                       <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
                         <div>
                           <span class="font-medium capitalize">{export.export_type}</span>
-                          <span class="text-xs text-base-content/60 ml-2">
-                            {export.format}
-                          </span>
+                          <span class="text-xs text-base-content/60 ml-2">{export.format}</span>
                         </div>
+
                         <div class="flex items-center gap-2">
                           <%= case export.status do %>
                             <% "pending" -> %>
@@ -2205,8 +2237,7 @@
                               </span>
                             <% "processing" -> %>
                               <span class="badge badge-info badge-sm">
-                                <.spinner size="xs" class="mr-1" />
-                                {gettext("Processing")}
+                                <.spinner size="xs" class="mr-1" /> {gettext("Processing")}
                               </span>
                             <% "completed" -> %>
                               <a
@@ -2215,8 +2246,9 @@
                                 }
                                 class="btn btn-success btn-xs"
                               >
-                                <.icon name="hero-arrow-down-tray" class="w-3 h-3" />
-                                {gettext("Download")}
+                                <.icon name="hero-arrow-down-tray" class="w-3 h-3" /> {gettext(
+                                  "Download"
+                                )}
                               </a>
                             <% "failed" -> %>
                               <span class="badge badge-error badge-sm">{gettext("Failed")}</span>
@@ -2230,18 +2262,16 @@
                 <% end %>
               </div>
             </div>
-            
-<!-- Webhooks Section -->
-            <div class="card glass-card shadow-lg">
+            <!-- Webhooks Section -->
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="card-title text-lg sm:text-xl flex items-center gap-2">
-                    <.icon name="hero-bell-alert" class="w-5 h-5" />
-                    {gettext("Webhooks")}
+                    <.icon name="hero-bell-alert" class="w-5 h-5" /> {gettext("Webhooks")}
                   </h2>
+
                   <button phx-click="show_create_webhook_modal" class="btn btn-primary btn-sm">
-                    <.icon name="hero-plus" class="w-4 h-4" />
-                    {gettext("Add Webhook")}
+                    <.icon name="hero-plus" class="w-4 h-4" /> {gettext("Add Webhook")}
                   </button>
                 </div>
 
@@ -2257,6 +2287,7 @@
                       <div class="font-medium">
                         {gettext("Copy the signing secret for")} {@revealed_webhook_secret.name}
                       </div>
+
                       <div class="join w-full mt-2">
                         <input
                           type="text"
@@ -2276,6 +2307,7 @@
                         </button>
                       </div>
                     </div>
+
                     <button
                       type="button"
                       phx-click="close_webhook_secret_notice"
@@ -2290,6 +2322,7 @@
                   <div class="text-center py-8 text-base-content/50">
                     <.icon name="hero-bell-slash" class="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p>{gettext("No webhooks configured")}</p>
+
                     <p class="text-sm mt-1">
                       {gettext("Add a webhook to receive event notifications")}
                     </p>
@@ -2312,6 +2345,7 @@
                                 </span>
                               <% end %>
                             </div>
+
                             <div class="text-xs text-base-content/60 mt-1 space-y-1">
                               <code class="block break-all">{webhook.url}</code>
                               <div>
@@ -2320,6 +2354,7 @@
                                   {String.slice(webhook.secret, 0, 8)}...
                                 </code>
                               </div>
+
                               <%= if webhook.last_triggered_at do %>
                                 <div>
                                   {gettext("Last delivery")} {Calendar.strftime(
@@ -2332,15 +2367,18 @@
                                   <% end %>
                                 </div>
                               <% end %>
+
                               <%= if webhook.last_error do %>
                                 <div class="text-error">{webhook.last_error}</div>
                               <% end %>
                             </div>
+
                             <div class="flex flex-wrap gap-1 mt-2">
                               <%= for event <- webhook.events do %>
                                 <span class="badge badge-xs badge-outline">{event}</span>
                               <% end %>
                             </div>
+
                             <div class="mt-3 rounded-lg bg-base-200/60 p-3">
                               <div class="flex items-center justify-between gap-2 mb-2">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
@@ -2350,6 +2388,7 @@
                                   {gettext("Signed with x-elektrine-signature")}
                                 </span>
                               </div>
+
                               <%= if Enum.empty?(Map.get(@webhook_deliveries_by_webhook, webhook.id, [])) do %>
                                 <p class="text-sm text-base-content/60">
                                   {gettext(
@@ -2380,10 +2419,12 @@
                                               </span>
                                           <% end %>
                                         </div>
+
                                         <div class="text-xs text-base-content/60 mt-1">
                                           <%= if delivery.response_status do %>
                                             <span>HTTP {delivery.response_status}</span>
                                           <% end %>
+
                                           <%= if delivery.duration_ms do %>
                                             <span class="mx-1">·</span>
                                             <span>{delivery.duration_ms}ms</span>
@@ -2393,12 +2434,14 @@
                                             {Calendar.strftime(delivery.inserted_at, "%b %d, %Y")}
                                           </span>
                                         </div>
+
                                         <%= if delivery.error do %>
                                           <div class="text-xs text-error mt-1">
                                             {delivery.error}
                                           </div>
                                         <% end %>
                                       </div>
+
                                       <%= if delivery.status == "failed" do %>
                                         <button
                                           phx-click="replay_webhook_delivery"
@@ -2415,6 +2458,7 @@
                               <% end %>
                             </div>
                           </div>
+
                           <div class="flex gap-1">
                             <button
                               phx-click="rotate_webhook_secret"
@@ -2448,155 +2492,222 @@
                 <% end %>
               </div>
             </div>
-            
-<!-- API Info Section -->
-            <div class="card glass-card shadow-lg">
+            <!-- API Info Section -->
+            <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title text-lg sm:text-xl flex items-center gap-2 mb-4">
-                  <.icon name="hero-document-text" class="w-5 h-5" />
-                  {gettext("API Reference")}
+                  <.icon name="hero-document-text" class="w-5 h-5" /> {gettext("API Reference")}
                 </h2>
 
                 <div class="prose prose-sm max-w-none">
                   <p class="text-base-content/70">
                     {gettext("Current external PAT endpoints (/api/ext/v1):")}
                   </p>
+
                   <p class="text-base-content/60">
                     {gettext(
                       "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, exports, vault access, and webhook management."
                     )}
                   </p>
+
                   <p>
                     <a href="/openapi/ext-v1.yaml" target="_blank" class="link link-primary">
                       {gettext("OpenAPI spec")}
                     </a>
                   </p>
+
                   <div class="overflow-x-auto">
                     <table class="table table-xs">
                       <thead>
                         <tr>
                           <th>{gettext("Endpoint")}</th>
+
                           <th>{gettext("Scope Required")}</th>
+
                           <th>{gettext("Description")}</th>
                         </tr>
                       </thead>
+
                       <tbody>
                         <tr>
                           <td><code>GET /api/ext/v1/capabilities</code></td>
+
                           <td><code>any PAT</code></td>
+
                           <td>{gettext("Inspect scopes, presets, and allowed endpoints")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/me</code></td>
+
                           <td><code>read:account</code></td>
+
                           <td>{gettext("Inspect the authenticated user and token metadata")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/search</code></td>
+
                           <td><code>read:* (any)</code></td>
+
                           <td>
                             {gettext(
                               "Global search across only the resources your token can read"
                             )}
                           </td>
                         </tr>
+
                         <tr>
                           <td><code>POST /api/ext/v1/search/actions/execute</code></td>
+
                           <td><code>varies by action</code></td>
+
                           <td>{gettext("Execute scoped actions")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/email/messages</code></td>
+
                           <td><code>read:email</code></td>
+
                           <td>{gettext("List email messages across your mailboxes")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/email/messages/:id</code></td>
+
                           <td><code>read:email</code></td>
+
                           <td>{gettext("Get a single email message")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/chat/conversations</code></td>
+
                           <td><code>read:chat</code></td>
+
                           <td>{gettext("List chat conversations")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/chat/conversations/:id/messages</code></td>
+
                           <td><code>read:chat</code></td>
+
                           <td>{gettext("List messages in a chat conversation")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/social/feed</code></td>
+
                           <td><code>read:social</code></td>
+
                           <td>{gettext("List your home feed or the public timeline")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/social/posts/:id</code></td>
+
                           <td><code>read:social</code></td>
+
                           <td>{gettext("Get a single visible social post")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/contacts</code></td>
+
                           <td><code>read:contacts</code></td>
+
                           <td>{gettext("List address book contacts")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/calendars</code></td>
+
                           <td><code>read:calendar</code></td>
+
                           <td>{gettext("List calendars")}</td>
                         </tr>
+
                         <tr>
                           <td><code>POST /api/ext/v1/calendars/:id/events</code></td>
+
                           <td><code>write:calendar</code></td>
+
                           <td>{gettext("Create calendar events")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/password-manager/entries</code></td>
+
                           <td><code>read:vault</code></td>
+
                           <td>{gettext("List encrypted vault entries")}</td>
                         </tr>
+
                         <tr>
                           <td><code>DELETE /api/ext/v1/password-manager/vault</code></td>
+
                           <td><code>write:vault</code></td>
+
                           <td>{gettext("Delete the encrypted vault and all saved entries")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/dns/zones</code></td>
+
                           <td><code>read:dns</code></td>
+
                           <td>{gettext("List managed DNS zones and records")}</td>
                         </tr>
+
                         <tr>
                           <td><code>POST /api/ext/v1/dns/zones/:id/verify</code></td>
+
                           <td><code>write:dns</code></td>
+
                           <td>{gettext("Verify delegation to Elektrine nameservers")}</td>
                         </tr>
+
                         <tr>
                           <td><code>POST /api/ext/v1/dns/zones/:zone_id/records</code></td>
+
                           <td><code>write:dns</code></td>
+
                           <td>{gettext("Create a DNS record in a managed zone")}</td>
                         </tr>
+
                         <tr>
                           <td><code>POST /api/ext/v1/exports</code></td>
+
                           <td><code>export</code></td>
+
                           <td>{gettext("Trigger data export")}</td>
                         </tr>
+
                         <tr>
                           <td><code>GET /api/ext/v1/webhooks</code></td>
+
                           <td><code>webhook</code></td>
+
                           <td>{gettext("List and inspect webhooks + delivery history")}</td>
                         </tr>
+
                         <tr>
                           <td>
                             <code>
                               POST /api/ext/v1/webhooks/:id/deliveries/:delivery_id/replay
                             </code>
                           </td>
+
                           <td><code>webhook</code></td>
+
                           <td>{gettext("Replay a failed or historical webhook delivery")}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
+
                   <p class="mt-3 text-base-content/60">
                     {gettext(
                       "Use /api/ext/v1/capabilities to power SDKs, CLIs, or setup wizards that need to inspect the current token."
@@ -2608,8 +2719,7 @@
           <% end %>
         </div>
       <% end %>
-      
-<!-- Danger Zone Tab -->
+      <!-- Danger Zone Tab -->
       <%= if @selected_tab == "danger" do %>
         <div class="card bg-error/10 shadow-lg">
           <div class="card-body p-4 sm:p-6">
@@ -2620,6 +2730,7 @@
             <%= if @loading_danger do %>
               <div class="animate-pulse space-y-4 mt-4">
                 <div class="h-4 bg-base-300 rounded w-2/3"></div>
+
                 <div class="h-10 bg-base-300 rounded w-1/3"></div>
               </div>
             <% else %>
@@ -2628,12 +2739,14 @@
                   <.icon name="hero-clock" class="w-5 h-5" />
                   <div>
                     <div class="font-semibold">{gettext("Account deletion pending")}</div>
+
                     <div class="text-xs mt-1">
                       {gettext("Requested:")} {Calendar.strftime(
                         @pending_deletion.requested_at,
                         "%Y-%m-%d at %H:%M UTC"
                       )}
                     </div>
+
                     <%= if @pending_deletion.reason && String.trim(@pending_deletion.reason) != "" do %>
                       <div class="text-xs mt-1">
                         <strong>{gettext("Reason:")}</strong> {@pending_deletion.reason}
@@ -2645,11 +2758,9 @@
                 <p class="text-sm text-base-content/70 mb-4 mt-4">
                   {gettext("Once deleted, your account cannot be recovered.")}
                 </p>
+
                 <div class="card-actions">
-                  <.link
-                    href={~p"/account/delete"}
-                    class="btn btn-secondary btn-sm w-full"
-                  >
+                  <.link href={~p"/account/delete"} class="btn btn-secondary btn-sm w-full">
                     {gettext("Request Deletion")}
                   </.link>
                 </div>
@@ -2661,5 +2772,4 @@
     </div>
   </div>
 </div>
-
 <.developer_modals {assigns} />

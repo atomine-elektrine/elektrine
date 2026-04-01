@@ -385,7 +385,7 @@ defmodule Elektrine.Messaging.ReferencePeerProtocol do
     trimmed = String.trim(path)
 
     cond do
-      trimmed == "" -> "/"
+      not Elektrine.Strings.present?(trimmed) -> "/"
       String.starts_with?(trimmed, "/") -> trimmed
       true -> "/" <> trimmed
     end
@@ -461,7 +461,7 @@ defmodule Elektrine.Messaging.ReferencePeerProtocol do
     end
   end
 
-  defp non_empty_binary?(value) when is_binary(value), do: String.trim(value) != ""
+  defp non_empty_binary?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp non_empty_binary?(_value), do: false
 
   defp valid_iso8601?(value) when is_binary(value) do

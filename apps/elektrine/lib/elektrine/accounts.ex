@@ -1324,11 +1324,11 @@ defmodule Elektrine.Accounts do
   end
 
   defp blank_invite_code?(code) do
-    is_nil(code) or String.trim(to_string(code)) == ""
+    is_nil(code) or not Elektrine.Strings.present?(to_string(code))
   end
 
   defp blank_registration_access_token?(token) do
-    is_nil(token) or String.trim(to_string(token)) == ""
+    is_nil(token) or not Elektrine.Strings.present?(to_string(token))
   end
 
   defp ensure_self_service_invites_enabled do

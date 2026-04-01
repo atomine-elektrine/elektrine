@@ -345,7 +345,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     query = from(i in Instance, order_by: [desc: i.inserted_at])
 
     query =
-      if search != "" do
+      if Elektrine.Strings.present?(search) do
         search_term = "%#{search}%"
         from(i in query, where: ilike(i.domain, ^search_term) or ilike(i.reason, ^search_term))
       else
@@ -359,7 +359,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
     query = from(a in ActivityPub.Actor, order_by: [desc: a.last_fetched_at])
 
     query =
-      if search != "" do
+      if Elektrine.Strings.present?(search) do
         search_term = "%#{search}%"
 
         from(a in query,
@@ -535,7 +535,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
       
     <!-- Stats Cards -->
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-8">
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-globe-alt" class="w-4 h-4 text-primary opacity-70" />
@@ -544,7 +544,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold">{@stats.unique_domains}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-users" class="w-4 h-4 text-info opacity-70" />
@@ -553,7 +553,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold">{@stats.total_actors}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-user" class="w-4 h-4 text-success opacity-70" />
@@ -562,7 +562,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold">{@stats.person_actors}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-user-group" class="w-4 h-4 text-accent opacity-70" />
@@ -571,7 +571,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold">{@stats.group_actors}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-bolt" class="w-4 h-4 text-warning opacity-70" />
@@ -580,7 +580,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold">{@stats.total_activities}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-no-symbol" class="w-4 h-4 text-error opacity-70" />
@@ -589,7 +589,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold text-error">{@stats.blocked_instances}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-adjustments-horizontal" class="w-4 h-4 text-warning opacity-70" />
@@ -598,7 +598,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
             <div class="text-lg sm:text-xl font-bold text-warning">{@stats.limited_instances}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-clock" class="w-4 h-4 text-secondary opacity-70" />
@@ -726,7 +726,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp instances_table(assigns) do
     ~H"""
-    <div class="card glass-card shadow">
+    <div class="card panel-card shadow">
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-server-stack" class="w-5 h-5" /> ActivityPub Instance Policies
@@ -861,7 +861,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
   defp policy_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-cog-6-tooth" class="w-5 h-5 inline mr-2" /> ActivityPub MRF Policies for
           <span class="font-mono">{@instance.domain}</span>
@@ -1024,7 +1024,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
   defp add_instance_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Add ActivityPub Instance Policy
         </h3>
@@ -1188,7 +1188,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp actors_table(assigns) do
     ~H"""
-    <div class="card glass-card shadow">
+    <div class="card panel-card shadow">
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-users" class="w-5 h-5" /> Remote Actors
@@ -1294,7 +1294,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp domains_table(assigns) do
     ~H"""
-    <div class="card glass-card shadow">
+    <div class="card panel-card shadow">
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-chart-bar" class="w-5 h-5" /> Top Domains by Actor Count
@@ -1341,7 +1341,7 @@ defmodule ElektrineWeb.AdminLive.Federation do
 
   defp activity_table(assigns) do
     ~H"""
-    <div class="card glass-card shadow">
+    <div class="card panel-card shadow">
       <div class="card-body p-3 sm:p-6">
         <h2 class="card-title text-base sm:text-lg mb-4">
           <.icon name="hero-bolt" class="w-5 h-5" /> Recent Activity

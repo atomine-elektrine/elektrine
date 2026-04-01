@@ -4,14 +4,13 @@
   current_user={@current_user}
   sidebar_tab="developer"
 >
-  <:sidebar>
-    <.developer_settings_sidebar selected_page="oidc-clients" />
-  </:sidebar>
+  <:sidebar><.developer_settings_sidebar selected_page="oidc-clients" /></:sidebar>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card panel-card">
     <div class="card-body gap-6 p-4 sm:p-6">
       <div class="space-y-2">
         <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
+
         <p class="text-sm text-base-content/70">
           Add the app name, allowed callback URLs, and scopes it can request.
         </p>
@@ -20,15 +19,10 @@
       <.simple_form :let={f} for={@changeset} action={~p"/account/developer/oidc/clients"}>
         <.input field={f[:client_name]} type="text" label="Client name" required />
         <.input field={f[:website]} type="url" label="Website" />
-        <.input
-          field={f[:redirect_uris]}
-          type="textarea"
-          label="Redirect URIs"
-          required
-        />
-
+        <.input field={f[:redirect_uris]} type="textarea" label="Redirect URIs" required />
         <div class="space-y-3">
           <p class="text-sm font-semibold text-base-content">Scopes</p>
+
           <div class="grid gap-3 sm:grid-cols-2">
             <label
               :for={scope <- @recommended_scopes}
@@ -40,10 +34,10 @@
                 value={scope}
                 checked={scope in @selected_scopes}
                 class="checkbox checkbox-sm"
-              />
-              <span class="text-sm">{scope}</span>
+              /> <span class="text-sm">{scope}</span>
             </label>
           </div>
+
           <p class="text-xs text-base-content/60">Include `openid` if you want an `id_token`.</p>
         </div>
 

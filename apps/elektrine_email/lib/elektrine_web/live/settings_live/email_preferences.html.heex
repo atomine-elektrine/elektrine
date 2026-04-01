@@ -1,5 +1,5 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <h2 class="card-title text-2xl mb-4">Email Preferences</h2>
 
@@ -53,6 +53,7 @@
         <div class="mb-8">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-xl font-bold">{email}</h3>
+
             <%= if @has_subscribable_lists do %>
               <div class="flex gap-2">
                 <button
@@ -78,21 +79,28 @@
               <thead>
                 <tr>
                   <th>Mailing List</th>
+
                   <th>Description</th>
+
                   <th>Type</th>
+
                   <th class="text-center">Status</th>
                 </tr>
               </thead>
+
               <tbody>
                 <%= for list <- @lists do %>
                   <tr>
                     <td class="font-semibold">{list.name}</td>
+
                     <td class="opacity-70">{list.description}</td>
+
                     <td>
                       <div class={"badge badge-sm #{type_badge_class(list.type)}"}>
                         {format_type(list.type)}
                       </div>
                     </td>
+
                     <td class="text-center">
                       <%= if list.can_unsubscribe do %>
                         <% unsubscribed = get_in(@unsubscribe_status, [email, list.id]) %>

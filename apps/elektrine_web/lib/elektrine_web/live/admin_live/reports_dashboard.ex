@@ -126,7 +126,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </button>
       </div>
 
-      <div class="card glass-card">
+      <div class="card panel-card">
         <div class="card-body gap-4">
           <div class="tabs tabs-boxed overflow-x-auto flex-nowrap">
             <button
@@ -213,7 +213,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         </div>
       </div>
 
-      <div class="card glass-card">
+      <div class="card panel-card">
         <div class="card-body p-0">
           <%= if @reports == [] do %>
             <.empty_state
@@ -332,7 +332,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                               </label>
                               <ul
                                 tabindex="0"
-                                class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300"
+                                class="dropdown-content z-50 menu p-2 rounded-box w-52"
                               >
                                 <li>
                                   <button
@@ -426,7 +426,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                         </label>
                         <ul
                           tabindex="0"
-                          class="dropdown-content z-50 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300"
+                          class="dropdown-content z-50 menu p-2 rounded-box w-52"
                         >
                           <li>
                             <button
@@ -485,7 +485,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       <%= if @selected_report do %>
         <div class="modal modal-open">
           <div
-            class="modal-box card glass-card max-w-5xl w-full p-0 overflow-hidden border border-base-300/60 shadow-xl"
+            class="modal-box modal-surface max-w-5xl w-full p-0 overflow-hidden"
             phx-click-away="close_report_modal"
           >
             <div class="border-b border-base-300 px-6 py-5">

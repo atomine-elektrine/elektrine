@@ -3,13 +3,15 @@ defmodule Elektrine.Domains do
   Centralized helpers for local app domains.
   """
 
+  alias Elektrine.RuntimeEnv
+
   @default_primary_domain "example.com"
 
   @doc """
   Primary email domain (usually the main app domain).
   """
   def primary_email_domain do
-    Application.get_env(:elektrine, :email, [])
+    email_config()
     |> Keyword.get(:domain, @default_primary_domain)
     |> normalize_domain(@default_primary_domain)
   end
@@ -18,7 +20,7 @@ defmodule Elektrine.Domains do
   Domains considered local mailbox domains.
   """
   def supported_email_domains do
-    Application.get_env(:elektrine, :email, [])
+    email_config()
     |> Keyword.get(:supported_domains, [primary_email_domain()])
     |> normalize_domains()
     |> ensure_primary_domain()
@@ -88,7 +90,7 @@ defmodule Elektrine.Domains do
   def default_profile_url_for_handle(handle) when is_binary(handle) do
     normalized_handle = String.trim(handle)
 
-    if normalized_handle == "" do
+    if not Elektrine.Strings.present?(normalized_handle) do
       nil
     else
       "https://#{normalized_handle}.#{default_profile_domain()}"
@@ -103,7 +105,7 @@ defmodule Elektrine.Domains do
   def profile_urls_for_handle(handle) when is_binary(handle) do
     normalized_handle = String.trim(handle)
 
-    if normalized_handle == "" do
+    if not Elektrine.Strings.present?(normalized_handle) do
       []
     else
       configured_profile_base_domains()
@@ -126,6 +128,33 @@ defmodule Elektrine.Domains do
   """
   def mail_base_url do
     "https://mail." <> primary_email_domain()
+  end
+
+  @doc """
+  Infers a local base URL for a domain using the current runtime environment.
+
+  This is used for local federation surfaces where development instances may run
+  over HTTP on a non-standard port, while production and public tunnel domains
+  should stay on HTTPS without an explicit port suffix.
+  """
+  def inferred_base_url_for_domain(domain) when is_binary(domain) do
+    normalized_domain =
+      domain
+      |> String.trim()
+      |> String.downcase()
+
+    is_tunnel =
+      String.contains?(normalized_domain, ".") and
+        not String.starts_with?(normalized_domain, "localhost")
+
+    scheme = if runtime_environment() == :prod or is_tunnel, do: "https", else: "http"
+    port = System.get_env("PORT") || "4000"
+
+    if scheme == "https" or port in ["80", "443"] or is_tunnel do
+      "#{scheme}://#{normalized_domain}"
+    else
+      "#{scheme}://#{normalized_domain}:#{port}"
+    end
   end
 
   @doc """
@@ -158,6 +187,14 @@ defmodule Elektrine.Domains do
 
   defp default_profile_custom_domain_edge_target do
     "edge." <> primary_profile_domain()
+  end
+
+  defp runtime_environment do
+    RuntimeEnv.environment()
+  end
+
+  defp email_config do
+    RuntimeEnv.app_config(:email, [])
   end
 
   @doc """
@@ -216,7 +253,7 @@ defmodule Elektrine.Domains do
   def local_addresses_for_username(username) when is_binary(username) do
     normalized_username = String.trim(username)
 
-    if normalized_username == "" do
+    if not Elektrine.Strings.present?(normalized_username) do
       []
     else
       supported_email_domains()
@@ -361,7 +398,7 @@ defmodule Elektrine.Domains do
   """
   def local_activitypub_domain?(domain) when is_binary(domain) do
     normalized = normalize_domain(domain, "")
-    normalized != "" and normalized in activitypub_domains()
+    Elektrine.Strings.present?(normalized) and normalized in activitypub_domains()
   end
 
   def local_activitypub_domain?(_), do: false
@@ -372,7 +409,7 @@ defmodule Elektrine.Domains do
   def local_profile_domain?(domain) when is_binary(domain) do
     normalized = normalize_host(domain)
 
-    normalized != "" and
+    Elektrine.Strings.present?(normalized) and
       (local_activitypub_domain?(normalized) or
          not is_nil(configured_profile_base_domain_for_host(normalized)))
   end
@@ -407,7 +444,7 @@ defmodule Elektrine.Domains do
       |> String.trim()
       |> String.trim_leading("@")
 
-    if clean_handle == "" do
+    if not Elektrine.Strings.present?(clean_handle) do
       nil
     else
       case profile_custom_domain_for_host(host) do
@@ -441,7 +478,7 @@ defmodule Elektrine.Domains do
   def profile_custom_domain_for_host(host) when is_binary(host) do
     normalized_host = normalize_host(host)
 
-    if normalized_host == "" do
+    if not Elektrine.Strings.present?(normalized_host) do
       nil
     else
       maybe_profile_custom_domains(:get_verified_custom_domain_for_host, [normalized_host])

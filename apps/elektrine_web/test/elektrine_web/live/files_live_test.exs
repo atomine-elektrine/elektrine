@@ -27,6 +27,7 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, _} = Files.upload_file(user, "projects/alpha", temp_upload("roadmap.txt", "v1"))
     {:ok, _} = Files.upload_file(user, "projects/beta", temp_upload("launch.txt", "v2"))
     {:ok, _} = Files.upload_file(user, "", temp_upload("root.txt", "root"))
+    {:ok, _} = Files.upload_file(user, "", temp_upload("photo.png", "pngdata"))
 
     {:ok, user: user}
   end
@@ -49,6 +50,22 @@ defmodule ElektrineWeb.FilesLiveTest do
     refute render(view) =~ "root.txt"
   end
 
+  test "expands the folder tree", %{conn: conn, user: user} do
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/files")
+
+    refute render(view) =~ "projects/alpha"
+
+    view
+    |> element("button[phx-click='toggle_tree_node'][phx-value-path='projects']")
+    |> render_click()
+
+    assert render(view) =~ "alpha"
+    assert render(view) =~ "beta"
+  end
+
   test "filters files by search query", %{conn: conn, user: user} do
     {:ok, view, _html} =
       conn
@@ -59,6 +76,43 @@ defmodule ElektrineWeb.FilesLiveTest do
 
     assert render(view) =~ "root.txt"
     refute has_element?(view, "article a", "projects")
+  end
+
+  test "uses quick filters for low-typing exploration", %{conn: conn, user: user} do
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/files")
+
+    view
+    |> element(~s(a[href="/account/files?filter=images"]), "Images")
+    |> render_click()
+
+    assert render(view) =~ "photo.png"
+    refute render(view) =~ "root.txt"
+  end
+
+  test "shows the upload queue after selecting a file", %{conn: conn, user: user} do
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/files")
+
+    upload =
+      file_input(view, "#file-explorer-upload-picker", :files, [
+        %{
+          last_modified: 1_594_171_879_000,
+          name: "queued.txt",
+          content: "queued content",
+          type: "text/plain"
+        }
+      ])
+
+    html = render_upload(upload, "queued.txt")
+
+    assert html =~ "Upload Queue"
+    assert html =~ "queued.txt"
+    assert has_element?(view, "button", "Finish upload")
   end
 
   defp log_in_user(conn, user) do

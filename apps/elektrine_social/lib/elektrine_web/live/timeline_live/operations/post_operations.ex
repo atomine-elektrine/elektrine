@@ -65,19 +65,19 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
     {:noreply,
      socket
      |> assign(:new_post_content_warning, cw)
-     |> assign(:new_post_sensitive, cw && String.trim(cw) != "")}
+     |> assign(:new_post_sensitive, Elektrine.Strings.present?(cw))}
   end
 
   def handle_event("update_post_content", %{"content" => content}, socket) do
     urls = Elektrine.Social.LinkPreviewFetcher.extract_urls(content)
     current_title = socket.assigns.new_post_title
-    should_fetch_title = (is_nil(current_title) || current_title == "") && urls != []
+    should_fetch_title = not Elektrine.Strings.present?(current_title) && urls != []
 
     updated_socket =
       if should_fetch_title do
         metadata = Elektrine.Social.LinkPreviewFetcher.fetch_preview_metadata(hd(urls))
 
-        if metadata[:title] && metadata[:title] != "" do
+        if Elektrine.Strings.present?(metadata[:title]) do
           assign(socket, :new_post_title, metadata[:title])
         else
           socket
@@ -104,32 +104,26 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
       cw = params["cw"]
 
       has_content =
-        content != "" || title != nil || !Enum.empty?(socket.assigns.pending_media_urls)
+        Elektrine.Strings.present?(content) || not is_nil(title) ||
+          !Enum.empty?(socket.assigns.pending_media_urls)
 
       if has_content do
         socket =
           socket
           |> assign(:new_post_content, content)
-          |> assign(
-            :new_post_title,
-            if title == "" do
-              nil
-            else
-              title
-            end
-          )
+          |> assign(:new_post_title, Elektrine.Strings.present(title))
           |> assign(:new_post_content_warning, cw)
-          |> assign(:new_post_sensitive, cw && String.trim(cw || "") != "")
+          |> assign(:new_post_sensitive, Elektrine.Strings.present?(cw))
           |> assign(:draft_saving, true)
 
         urls = Elektrine.Social.LinkPreviewFetcher.extract_urls(content)
         current_title = socket.assigns.new_post_title
 
         socket =
-          if (is_nil(current_title) || current_title == "") && urls != [] do
+          if not Elektrine.Strings.present?(current_title) && urls != [] do
             metadata = Elektrine.Social.LinkPreviewFetcher.fetch_preview_metadata(hd(urls))
 
-            if metadata[:title] && metadata[:title] != "" do
+            if Elektrine.Strings.present?(metadata[:title]) do
               assign(socket, :new_post_title, metadata[:title])
             else
               socket
@@ -215,7 +209,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
         socket
       ) do
     user = socket.assigns.current_user
-    has_content = String.trim(content) != ""
+    has_content = Elektrine.Strings.present?(content)
     has_attachments = !Enum.empty?(socket.assigns.pending_media_urls)
 
     if !has_content && !has_attachments do
@@ -554,8 +548,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
          |> assign(:new_post_title, draft.title)
          |> assign(:new_post_visibility, draft.visibility || "followers")
          |> assign(:new_post_content_warning, draft.content_warning)
-         |> assign(:new_post_sensitive, draft.content_warning && draft.content_warning != "")
-         |> assign(:show_cw_input, draft.content_warning && draft.content_warning != "")
+         |> assign(:new_post_sensitive, Elektrine.Strings.present?(draft.content_warning))
+         |> assign(:show_cw_input, Elektrine.Strings.present?(draft.content_warning))
          |> assign(:pending_media_urls, draft.media_urls || [])
          |> assign(:pending_media_attachments, draft_attachment_metadata(draft))
          |> assign(:pending_media_alt_texts, draft_alt_texts(draft))
@@ -1030,8 +1024,11 @@ defmodule ElektrineWeb.TimelineLive.Operations.PostOperations do
 
     params =
       case socket.assigns[:search_query] do
-        query when is_binary(query) and query != "" -> Map.put(params, "q", query)
-        _ -> params
+        query when is_binary(query) ->
+          if Elektrine.Strings.present?(query), do: Map.put(params, "q", query), else: params
+
+        _ ->
+          params
       end
 
     ~p"/timeline?#{params}"

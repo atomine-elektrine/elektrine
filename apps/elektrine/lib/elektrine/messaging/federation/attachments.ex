@@ -82,7 +82,7 @@ defmodule Elektrine.Messaging.Federation.Attachments do
         case values[to_string(index)] || values[index] do
           value when is_binary(value) ->
             trimmed = String.trim(value)
-            if trimmed == "", do: nil, else: trimmed
+            if Elektrine.Strings.present?(trimmed), do: trimmed, else: nil
 
           _ ->
             nil
@@ -99,7 +99,7 @@ defmodule Elektrine.Messaging.Federation.Attachments do
 
   defp maybe_put_optional_map_value(map, key, value) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: map, else: Map.put(map, key, trimmed)
+    if Elektrine.Strings.present?(trimmed), do: Map.put(map, key, trimmed), else: map
   end
 
   defp maybe_put_optional_map_value(map, _key, _value), do: map
@@ -111,12 +111,8 @@ defmodule Elektrine.Messaging.Federation.Attachments do
 
   defp maybe_put_optional_integer_value(map, _key, _value), do: map
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 end

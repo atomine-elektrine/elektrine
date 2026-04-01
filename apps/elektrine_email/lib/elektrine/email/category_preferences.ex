@@ -17,7 +17,7 @@ defmodule Elektrine.Email.CategoryPreferences do
     sender_email = extract_email(from_email)
     sender_domain = extract_domain(sender_email)
 
-    if sender_email == "" do
+    if not Elektrine.Strings.present?(sender_email) do
       nil
     else
       case get_sender_preference(user_id, sender_email) do
@@ -60,10 +60,10 @@ defmodule Elektrine.Email.CategoryPreferences do
     sender_domain = extract_domain(sender_email)
 
     cond do
-      sender_email == "" ->
+      not Elektrine.Strings.present?(sender_email) ->
         {:error, :invalid_sender}
 
-      sender_domain == "" ->
+      not Elektrine.Strings.present?(sender_domain) ->
         upsert_preference(user_id, :email, sender_email, category)
 
       true ->

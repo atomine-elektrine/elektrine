@@ -4,6 +4,7 @@ defmodule Elektrine.MailClientSettings do
   """
 
   alias Elektrine.Domains
+  alias Elektrine.RuntimeEnv
 
   @default_settings [
     imap: [port: 993, security: :ssl],
@@ -63,7 +64,7 @@ defmodule Elektrine.MailClientSettings do
       Keyword.keyword?(client_settings) and Keyword.has_key?(client_settings, protocol) ->
         Keyword.get(client_settings, protocol, [])
 
-      Application.get_env(:elektrine, :environment) == :dev ->
+      RuntimeEnv.environment() == :dev ->
         listener_settings(protocol)
 
       true ->

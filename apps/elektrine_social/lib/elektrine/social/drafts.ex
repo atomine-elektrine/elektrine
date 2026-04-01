@@ -146,7 +146,7 @@ defmodule Elektrine.Social.Drafts do
         {:error, :not_found}
 
       draft ->
-        has_content = draft.content && String.trim(draft.content) != ""
+        has_content = Elektrine.Strings.present?(draft.content)
         has_media = draft.media_urls && draft.media_urls != []
 
         if !has_content && !has_media do

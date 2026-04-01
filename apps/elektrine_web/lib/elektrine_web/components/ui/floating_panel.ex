@@ -11,7 +11,7 @@ defmodule ElektrineWeb.Components.UI.FloatingPanel do
 
   def floating_panel(assigns) do
     ~H"""
-    <div class={["glass-floating rounded-lg", @class]} {@rest}>
+    <div class={["floating-panel rounded-lg", @class]} {@rest}>
       {render_slot(@inner_block)}
     </div>
     """

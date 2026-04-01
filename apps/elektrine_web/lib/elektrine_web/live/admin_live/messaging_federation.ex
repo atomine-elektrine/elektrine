@@ -242,7 +242,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         </div>
       </div>
 
-      <div class="card glass-card shadow">
+      <div class="card panel-card shadow">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Arblarg Messaging
@@ -276,7 +276,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         </div>
       </div>
 
-      <div class="card glass-card shadow">
+      <div class="card panel-card shadow">
         <div class="card-body p-4 sm:p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">
@@ -295,7 +295,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
               <button type="submit" class="btn btn-sm btn-primary">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4" />
               </button>
-              <%= if @search_query != "" do %>
+              <%= if Elektrine.Strings.present?(@search_query) do %>
                 <button
                   type="button"
                   phx-click="clear_search"

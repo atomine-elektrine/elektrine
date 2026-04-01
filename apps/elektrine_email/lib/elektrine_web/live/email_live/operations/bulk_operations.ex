@@ -546,7 +546,7 @@ defmodule ElektrineWeb.EmailLive.Operations.BulkOperations do
         query = params["q"] || ""
 
         results =
-          if String.trim(query) != "" do
+          if Elektrine.Strings.present?(query) do
             Email.search_messages(mailbox.id, query, page, per_page)
           else
             %{

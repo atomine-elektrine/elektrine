@@ -162,7 +162,7 @@ defmodule Elektrine.Email.Alias do
   defp validate_optional_target_email(changeset) do
     target_email = get_field(changeset, :target_email)
 
-    if target_email && String.trim(target_email) != "" do
+    if Elektrine.Strings.present?(target_email) do
       validate_format(changeset, :target_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
         message: "must be a valid email format"
       )
@@ -175,7 +175,7 @@ defmodule Elektrine.Email.Alias do
     alias_email = get_field(changeset, :alias_email)
     target_email = get_field(changeset, :target_email)
 
-    if alias_email && target_email && String.trim(target_email) != "" &&
+    if alias_email && Elektrine.Strings.present?(target_email) &&
          alias_email == target_email do
       add_error(changeset, :target_email, "cannot be the same as the alias email")
     else
@@ -320,7 +320,7 @@ defmodule Elektrine.Email.Alias do
     alias_email = get_field(changeset, :alias_email)
     target_email = get_field(changeset, :target_email)
 
-    if alias_email && target_email && String.trim(target_email) != "" do
+    if alias_email && Elektrine.Strings.present?(target_email) do
       case detect_forwarding_loop(target_email, alias_email, [], 10) do
         :loop_detected ->
           add_error(
@@ -366,15 +366,17 @@ defmodule Elektrine.Email.Alias do
       true ->
         case Elektrine.Repo.get_by(Elektrine.Email.Alias, alias_email: target) do
           %Elektrine.Email.Alias{target_email: next_target, enabled: true}
-          when is_binary(next_target) and next_target != "" ->
-            # This target is an alias that forwards to another address
-            # Continue tracing the chain
-            detect_forwarding_loop(
-              next_target,
-              original,
-              [target | visited],
-              depth - 1
-            )
+          when is_binary(next_target) ->
+            if Elektrine.Strings.present?(next_target) do
+              detect_forwarding_loop(
+                next_target,
+                original,
+                [target | visited],
+                depth - 1
+              )
+            else
+              :ok
+            end
 
           _ ->
             # Target is not an alias or doesn't forward - chain ends safely

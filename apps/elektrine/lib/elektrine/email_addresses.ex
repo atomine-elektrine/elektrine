@@ -3,8 +3,11 @@ defmodule Elektrine.EmailAddresses do
   Helpers for rendering instance and user email addresses from configured domains.
   """
 
+  alias Elektrine.Domains
+  alias Elektrine.MailClientSettings
+
   def local(local_part) when is_binary(local_part) do
-    "#{String.trim(local_part)}@#{Elektrine.Domains.primary_email_domain()}"
+    "#{String.trim(local_part)}@#{Domains.primary_email_domain()}"
   end
 
   def mailto(local_part) when is_binary(local_part) do
@@ -12,7 +15,7 @@ defmodule Elektrine.EmailAddresses do
   end
 
   def uid(value) do
-    "#{value |> to_string() |> String.trim()}@#{Elektrine.Domains.primary_email_domain()}"
+    "#{value |> to_string() |> String.trim()}@#{Domains.primary_email_domain()}"
   end
 
   def message_id(value) do
@@ -20,7 +23,7 @@ defmodule Elektrine.EmailAddresses do
   end
 
   def list_id(value) do
-    "<#{value |> to_string() |> String.trim()}.#{Elektrine.Domains.primary_email_domain()}>"
+    "<#{value |> to_string() |> String.trim()}.#{Domains.primary_email_domain()}>"
   end
 
   def primary_for_user(%{username: username} = user) when is_binary(username) do
@@ -30,13 +33,13 @@ defmodule Elektrine.EmailAddresses do
           trimmed = String.trim(value)
 
           if trimmed == "" do
-            Elektrine.Domains.default_user_handle_domain()
+            Domains.default_user_handle_domain()
           else
             trimmed
           end
 
         _ ->
-          Elektrine.Domains.default_user_handle_domain()
+          Domains.default_user_handle_domain()
       end
 
     "#{String.trim(username)}@#{domain}"
@@ -44,8 +47,8 @@ defmodule Elektrine.EmailAddresses do
 
   def primary_for_user(_), do: nil
 
-  def imap_host, do: "imap." <> Elektrine.Domains.primary_email_domain()
-  def pop_host, do: "pop." <> Elektrine.Domains.primary_email_domain()
-  def smtp_host, do: "smtp." <> Elektrine.Domains.primary_email_domain()
-  def mail_base_url, do: "https://mail." <> Elektrine.Domains.primary_email_domain()
+  def imap_host, do: MailClientSettings.host(:imap)
+  def pop_host, do: MailClientSettings.host(:pop3)
+  def smtp_host, do: MailClientSettings.host(:smtp)
+  def mail_base_url, do: Domains.mail_base_url()
 end

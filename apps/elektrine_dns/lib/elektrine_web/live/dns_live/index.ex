@@ -274,7 +274,7 @@ defmodule ElektrineWeb.DNSLive.Index do
 
       <div class="space-y-6">
         <div class="grid gap-6">
-          <div class="card glass-card shadow-lg">
+          <div class="card panel-card">
             <div class="card-body p-6 space-y-6">
               <div class="flex items-center justify-between gap-3">
                 <div>
@@ -285,7 +285,7 @@ defmodule ElektrineWeb.DNSLive.Index do
               </div>
 
               <%= if @zones == [] do %>
-                <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/40 p-5 text-sm text-base-content/70">
+                <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-5 text-sm text-base-content/70">
                   No DNS zones yet. Create your first one below.
                 </div>
               <% else %>
@@ -347,7 +347,7 @@ defmodule ElektrineWeb.DNSLive.Index do
 
           <%= if @active_zone do %>
             <div class="flex flex-col gap-6">
-              <div class="card glass-card shadow-lg">
+              <div class="card panel-card">
                 <div class="card-body p-6">
                   <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div class="space-y-3">
@@ -406,7 +406,7 @@ defmodule ElektrineWeb.DNSLive.Index do
         </div>
 
         <%= if @active_zone do %>
-          <div class="order-3 card glass-card shadow-lg">
+          <div class="order-3 card panel-card">
             <div class="card-body p-6">
               <div class="flex items-center justify-between gap-3">
                 <div>
@@ -585,7 +585,7 @@ defmodule ElektrineWeb.DNSLive.Index do
           </div>
 
           <div class="order-1 space-y-6">
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-6">
                 <div class="flex items-center justify-between gap-3">
                   <h3 class="card-title text-lg">Records</h3>
@@ -648,7 +648,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                 <% end %>
 
                 <%= if @active_zone.records == [] do %>
-                  <div class="mt-4 rounded-2xl border border-dashed border-base-300 bg-base-200/40 p-5 text-sm text-base-content/70">
+                  <div class="mt-4 rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-5 text-sm text-base-content/70">
                     No custom records yet. Use managed services for the common setup, then add custom overrides only when needed.
                   </div>
                 <% else %>
@@ -713,7 +713,7 @@ defmodule ElektrineWeb.DNSLive.Index do
               </div>
             </div>
 
-            <div class="card glass-card shadow-lg">
+            <div class="card panel-card">
               <div class="card-body p-6">
                 <div class="flex items-center justify-between gap-3">
                   <h3 class="card-title text-lg">Add record</h3>
@@ -757,7 +757,7 @@ defmodule ElektrineWeb.DNSLive.Index do
             </div>
 
             <%= if @active_zone.status != "verified" do %>
-              <div class="card glass-card shadow-lg">
+              <div class="card panel-card">
                 <div class="card-body p-6">
                   <h3 class="card-title text-lg">Setup</h3>
                   <div class="overflow-x-auto">

@@ -294,7 +294,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       description = String.trim(params["description"] || "")
 
       cond do
-        name == "" ->
+        not Elektrine.Strings.present?(name) ->
           {:noreply, notify_error(socket, "Community name is required")}
 
         String.length(name) < 2 ->
@@ -310,7 +310,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
              "Community name can only contain letters and numbers (no spaces or special characters)"
            )}
 
-        description == "" ->
+        not Elektrine.Strings.present?(description) ->
           {:noreply, notify_error(socket, "Community description is required")}
 
         true ->
@@ -395,7 +395,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_event("search_communities", %{"query" => query}, socket) do
     query = String.trim(query)
 
-    if query == "" do
+    if not Elektrine.Strings.present?(query) do
       {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
     else
       results =
@@ -882,10 +882,10 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       media_urls = socket.assigns.pending_media_urls
       media_attachments = socket.assigns.pending_media_attachments || []
       alt_texts = socket.assigns.pending_media_alt_texts
-      content_empty = String.trim(content || "") == ""
+      content_empty = not Elektrine.Strings.present?(content)
       has_media = !Enum.empty?(media_urls)
 
-      if String.trim(title) == "" or (content_empty and not has_media) do
+      if not Elektrine.Strings.present?(title) or (content_empty and not has_media) do
         {:noreply, notify_error(socket, "Title and content (or media) are required")}
       else
         case String.split(community_selector, ":", parts: 2) do
@@ -923,7 +923,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
-    if String.trim(remote_handle) == "" do
+    if not Elektrine.Strings.present?(remote_handle) do
       {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
     else
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
@@ -1083,7 +1083,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
     if remote_actor do
       full_content =
-        if title != "" do
+        if Elektrine.Strings.present?(title) do
           "**#{title}**
 
 #{content}"
@@ -1571,7 +1571,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       followed_groups_from_follows
       |> Enum.map(& &1.uri)
       |> Kernel.++(Enum.map(federated_mirror_memberships, & &1.remote_uri))
-      |> Enum.filter(fn uri -> is_binary(uri) && String.trim(uri) != "" end)
+      |> Enum.map(&Elektrine.Strings.present/1)
+      |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
     if Enum.empty?(joined_community_ids) and Enum.empty?(followed_actor_ids) and
@@ -2090,7 +2091,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
 
   defp merge_recent_unique(values, additions, limit) do
     Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
-      if is_nil(value) or value == "" do
+      if is_nil(value) or (is_binary(value) and not Elektrine.Strings.present?(value)) do
         acc
       else
         (Enum.reject(acc, &(&1 == value)) ++ [value])
@@ -2234,7 +2235,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     followed_uris =
       followed_remote_communities
       |> Enum.map(& &1.uri)
-      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> Enum.map(&Elektrine.Strings.present/1)
+      |> Enum.reject(&is_nil/1)
       |> MapSet.new()
 
     Map.get(post, :remote_actor_id) in followed_actor_ids or

@@ -391,7 +391,7 @@ defmodule Elektrine.Email.VCard do
     suffix = Map.get(contact, :suffix, "")
 
     {family, given} =
-      if family == "" && given == "" do
+      if not Elektrine.Strings.present?(family) && not Elektrine.Strings.present?(given) do
         parse_name(Map.get(contact, :formatted_name) || Map.get(contact, :name) || "")
       else
         {family, given}

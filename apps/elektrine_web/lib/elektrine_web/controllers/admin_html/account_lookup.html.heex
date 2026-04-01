@@ -19,7 +19,7 @@
   </div>
   
 <!-- Search Form -->
-  <div class="card glass-card shadow-xl mb-6">
+  <div class="card panel-card mb-6">
     <div class="card-body">
       <.form for={%{}} action={~p"/pripyat/account-lookup"} method="post">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -78,7 +78,7 @@
   
 <!-- Search Results -->
   <%= if @search_results do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body p-3 sm:p-6">
         <h3 class="font-semibold mb-4 flex items-center gap-2">
           <.icon name="hero-users" class="w-5 h-5" /> Search Results
@@ -229,7 +229,7 @@
                             </div>
                             <ul
                               tabindex="0"
-                              class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-48"
+                              class="dropdown-content z-30 menu p-2 rounded-box w-48"
                             >
                               <li>
                                 <.link

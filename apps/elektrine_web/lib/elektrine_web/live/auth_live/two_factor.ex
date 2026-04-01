@@ -10,7 +10,7 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
   def render(assigns) do
     ~H"""
     <div class="flex justify-center p-4 pt-8">
-      <div id="two-factor-card" phx-hook="GlassCard" class="card glass-card shadow-xl w-full max-w-md">
+      <div id="two-factor-card" class="card panel-card w-full max-w-md">
         <div class="card-body">
           <h1 class="card-title text-2xl justify-center mb-2">
             Two-Factor Authentication

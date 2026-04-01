@@ -718,7 +718,7 @@ defmodule ElektrineWeb.DiscussionsLive.Post do
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
             </svg>
           </label>
-          <ul tabindex="0" class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 border border-base-300 rounded-box w-52 z-30 opacity-100">
+          <ul tabindex="0" class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30 opacity-100">
             <li>
               <button
                 phx-click="delete_reply"

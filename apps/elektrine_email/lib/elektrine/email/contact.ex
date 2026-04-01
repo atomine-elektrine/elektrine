@@ -167,10 +167,10 @@ defmodule Elektrine.Email.Contact do
     last = get_field(changeset, :last_name)
 
     cond do
-      name && name != "" ->
+      Elektrine.Strings.present?(name) ->
         changeset
 
-      formatted && formatted != "" ->
+      Elektrine.Strings.present?(formatted) ->
         put_change(changeset, :name, formatted)
 
       first || last ->

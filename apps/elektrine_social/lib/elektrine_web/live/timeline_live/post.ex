@@ -474,7 +474,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
   end
 
   def handle_event("create_reply", %{"content" => content} = params, socket) do
-    if String.trim(content) == "" do
+    if not Elektrine.Strings.present?(content) do
       {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     else
       # Determine what we're replying to - either a specific reply or the main post
@@ -917,7 +917,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
       user = socket.assigns.current_user
       quote_target = socket.assigns.quote_target_post
 
-      if quote_target && String.trim(content) != "" do
+      if quote_target && Elektrine.Strings.present?(content) do
         case Social.create_quote_post(user.id, quote_target.id, content) do
           {:ok, _quote_post} ->
             {:noreply,

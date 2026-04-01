@@ -40,7 +40,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
     >
       <div
         id={"#{@id}-bg"}
-        class="modal-backdrop bg-black/50 backdrop-blur-sm transition-opacity"
+        class="modal-backdrop bg-black/50 transition-opacity"
         aria-hidden="true"
       />
       <div
@@ -58,7 +58,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
               phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
               phx-key="escape"
               phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="modal-box card glass-card bg-base-100 relative hidden p-8 sm:p-10 transition"
+              class="modal-box modal-surface relative hidden p-8 sm:p-10 transition"
             >
               <div class="absolute top-4 right-4">
                 <button
@@ -105,7 +105,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
     ~H"""
     <div id={@id} data-modal={@data_modal} class={["modal", @open && "modal-open"]}>
       <div class={[
-        "modal-box bg-base-100/95 text-base-content border border-base-300 shadow-2xl backdrop-blur-md",
+        "modal-box modal-surface text-base-content",
         @max_width,
         @box_class
       ]}>

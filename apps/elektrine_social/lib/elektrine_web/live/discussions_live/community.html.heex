@@ -25,7 +25,7 @@
   <.e_nav active_tab="discussions" current_user={@current_user} />
   
 <!-- Community Header -->
-  <div class="card glass-card shadow-lg border border-base-300 mb-6">
+  <div class="card panel-card mb-6">
     <div class="card-body p-4 sm:p-6">
       <% community_rules = String.trim(@community.community_rules || "") %>
       <% remote_mirror? =
@@ -124,7 +124,7 @@
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
           <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             Purpose
           </div>
@@ -134,7 +134,7 @@
               else: String.trim(@community.description)}
           </div>
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
           <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             Rules
           </div>
@@ -144,7 +144,7 @@
               else: community_rules}
           </div>
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
           <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             Members
           </div>
@@ -155,7 +155,7 @@
             </span>
           </div>
         </div>
-        <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
+        <div class="rounded-xl border border-base-300 bg-base-200/70 p-3">
           <div class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
             Posting Cadence
           </div>
@@ -246,7 +246,7 @@
     <div class="flex-1 min-w-0 order-2 lg:order-1">
       <!-- New Post Composer -->
       <%= if @show_new_post && @current_user do %>
-        <div class="card glass-card shadow-lg border border-base-300 mb-6">
+        <div class="card panel-card mb-6">
           <div class="card-body p-4">
             <h3 class="font-semibold mb-4">Create Post</h3>
             
@@ -1144,7 +1144,7 @@
                               </label>
                               <ul
                                 tabindex="0"
-                                class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52 z-30"
+                                class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                               >
                                 <!-- Regular User Actions -->
                                 <%= if post.activitypub_id do %>
@@ -1871,7 +1871,7 @@
           <%= if @pending_posts && length(@pending_posts) > 0 do %>
             <div class="space-y-4">
               <%= for post <- @pending_posts do %>
-                <div class="card glass-card border border-warning/30 shadow-sm">
+                <div class="card panel-card border border-warning/30 shadow-sm">
                   <div class="card-body p-4">
                     <div class="flex items-start gap-3">
                       <.link
@@ -1959,7 +1959,7 @@
           <%= if @banned_users && length(@banned_users) > 0 do %>
             <div class="grid gap-3">
               <%= for ban <- @banned_users do %>
-                <div class="card glass-card border border-error/30 shadow-sm">
+                <div class="card panel-card border border-error/30 shadow-sm">
                   <div class="card-body p-4">
                     <div class="flex items-start gap-3">
                       <.link
@@ -2182,7 +2182,7 @@
     </div>
     
 <!-- Right Sidebar - Community Info (Shows on top on mobile, right side on desktop) -->
-    <div class="w-full lg:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 p-4 order-1 lg:order-2">
+    <div class="w-full lg:w-80 flex-shrink-0 card panel-card p-4 order-1 lg:order-2">
       <h3 class="font-semibold mb-2">Community Info</h3>
       <code class="text-xs opacity-70 bg-base-200 px-2 py-1 rounded mb-4 block">
         !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}

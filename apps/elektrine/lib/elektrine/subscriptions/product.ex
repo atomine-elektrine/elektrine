@@ -151,7 +151,7 @@ defmodule Elektrine.Subscriptions.Product do
       not is_nil(get_field(changeset, :one_time_price_cents))
   end
 
-  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(value), do: not is_nil(value)
 
   defp reject_slug_change(changeset, attrs) do
@@ -171,14 +171,8 @@ defmodule Elektrine.Subscriptions.Product do
     Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
   end
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> case do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(value), do: value
 

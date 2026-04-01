@@ -207,7 +207,7 @@ defmodule ElektrineWeb.Components.User.UsernameEffects do
     styles =
       case profile.username_effect do
         effect when effect in ["glow", "neon", "outline", "pixelated"] ->
-          glow_color = profile.username_glow_color || "#8b5cf6"
+          glow_color = profile.username_glow_color || "#8a7cc2"
           intensity = profile.username_glow_intensity || 10
           ["--glow-color: #{glow_color}", "--glow-intensity: #{intensity}px" | styles]
 
@@ -216,8 +216,8 @@ defmodule ElektrineWeb.Components.User.UsernameEffects do
           ["--shadow-color: #{shadow_color}" | styles]
 
         "gradient" ->
-          gradient_from = profile.username_gradient_from || "#8b5cf6"
-          gradient_to = profile.username_gradient_to || "#ec4899"
+          gradient_from = profile.username_gradient_from || "#8a7cc2"
+          gradient_to = profile.username_gradient_to || "#c7796b"
           ["--gradient-from: #{gradient_from}", "--gradient-to: #{gradient_to}" | styles]
 
         _ ->

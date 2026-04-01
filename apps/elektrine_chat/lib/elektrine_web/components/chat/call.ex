@@ -82,7 +82,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
   def incoming_call_modal(assigns) do
     ~H"""
     <div :if={@show} class="modal modal-open">
-      <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface">
         <h3 class="font-bold text-lg">Incoming {@call.call_type} call</h3>
         <div class="py-4">
           <div class="flex items-center gap-4">
@@ -160,7 +160,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
         </div>
         
     <!-- Call info overlay for video calls -->
-        <div class="absolute top-4 left-4 bg-base-100/80 backdrop-blur rounded-lg px-4 py-2">
+        <div class="absolute top-4 left-4 bg-base-200/80 rounded-lg px-4 py-2 border border-base-300/70">
           <div class="flex items-center gap-3">
             <.user_avatar
               user={if @is_caller, do: @call.callee, else: @call.caller}
@@ -227,7 +227,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
     <!-- Video calls connection status -->
       <div
         :if={@call.call_type == "video" && @call_status != "connected"}
-        class="absolute top-20 left-4 bg-base-100/80 backdrop-blur rounded-lg px-3 py-2"
+        class="absolute top-20 left-4 bg-base-200/80 rounded-lg px-3 py-2 border border-base-300/70"
       >
         <div class="flex items-center gap-2 text-sm">
           <.spinner size="sm" variant="dots" />
@@ -237,7 +237,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
 
       <div
         :if={@call.call_type == "video" && @call_status == "connected"}
-        class="absolute top-20 left-4 bg-success/20 backdrop-blur rounded-lg px-3 py-2"
+        class="absolute top-20 left-4 bg-success/15 rounded-lg px-3 py-2 border border-success/30"
       >
         <div class="flex items-center gap-2 text-sm text-success">
           <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
@@ -251,7 +251,7 @@ defmodule ElektrineWeb.Components.Chat.Call do
         phx-hook="CallControls"
         class="absolute bottom-8 left-1/2 transform -translate-x-1/2"
       >
-        <div class="flex gap-4 bg-base-100/80 backdrop-blur rounded-full px-6 py-3">
+        <div class="flex gap-4 bg-base-200/80 rounded-full px-6 py-3 border border-base-300/70">
           <!-- Mute/Unmute audio -->
           <button
             type="button"

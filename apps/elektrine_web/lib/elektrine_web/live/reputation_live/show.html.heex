@@ -244,7 +244,7 @@
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                   <%= for stat <- @reputation_graph.stats do %>
-                    <div class="rounded-lg border border-base-300 bg-base-200/40 px-4 py-3">
+                    <div class="rounded-lg border border-base-300 bg-base-200/55 px-4 py-3">
                       <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
                       <p class="text-2xl font-bold">{stat.value}</p>
                       <%= if stat.note do %>

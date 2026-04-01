@@ -6,6 +6,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
   import Phoenix.HTML
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
+  alias Elektrine.AccountIdentifiers
   alias ElektrineWeb.Platform.Integrations
 
   @doc """
@@ -48,7 +49,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
       phx-value-url={if @is_federated_link, do: @shared_message.activitypub_url, else: @post_url}
       phx-capture-click="stop_event"
       class={[
-        "card glass-card border transition-colors cursor-pointer",
+        "card panel-card border transition-colors cursor-pointer",
         if(@is_federated_link,
           do: "border-purple-300 hover:border-purple-500",
           else: "border-base-300 hover:border-primary/50"
@@ -69,7 +70,7 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
               @{@shared_message.remote_actor.username}@{@shared_message.remote_actor.domain}
             <% else %>
               <%= if Ecto.assoc_loaded?(@shared_message.sender) && @shared_message.sender do %>
-                @{@shared_message.sender.handle || @shared_message.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
+                {AccountIdentifiers.at_local_handle(@shared_message.sender)}
               <% else %>
                 @unknown
               <% end %>
@@ -86,12 +87,12 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
         
     <!-- Original Post Title (if exists) -->
         <% embedded_title = plain_text_content(@shared_message.title) %>
-        <%= if embedded_title != "" do %>
+        <%= if Elektrine.Strings.present?(embedded_title) do %>
           <h4 class="font-semibold text-base mb-2 post-content">{embedded_title}</h4>
         <% end %>
         
     <!-- Content Warning Indicator for embedded posts -->
-        <%= if @shared_message.content_warning && String.trim(@shared_message.content_warning) != "" do %>
+        <%= if Elektrine.Strings.present?(@shared_message.content_warning) do %>
           <div class="flex items-center gap-2 mb-2 text-sm text-warning bg-warning/10 border border-warning/30 rounded px-2 py-1">
             <.icon name="hero-exclamation-triangle" class="w-3 h-3 flex-shrink-0" />
             <span class="font-medium text-xs">{@shared_message.content_warning}</span>

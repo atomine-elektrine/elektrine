@@ -1,25 +1,27 @@
 <div class="max-w-2xl mx-auto">
   <div class="text-center mb-8">
     <h1 class="text-3xl font-bold mb-2">Manage Two-Factor Authentication</h1>
+
     <p class="text-base-content/70">Your account is protected with two-factor authentication</p>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <!-- Status Section -->
       <div class="flex items-center gap-4 mb-6">
         <.icon name="hero-shield-check" class="w-12 h-12 text-success" />
         <div>
           <h2 class="text-xl font-bold">Two-Factor Authentication Enabled</h2>
+
           <p class="text-base-content/70">Your account is protected with 2FA</p>
         </div>
       </div>
 
       <div class="divider"></div>
-      
-<!-- Backup Codes Section -->
+      <!-- Backup Codes Section -->
       <div class="space-y-4">
         <h3 class="text-lg font-semibold">Backup Codes</h3>
+
         <div class="alert">
           <.icon name="hero-information-circle" class="w-6 h-6 shrink-0" />
           <div>
@@ -27,40 +29,34 @@
               You have <span class="font-bold">{@backup_codes_count}</span>
               backup codes remaining.
             </p>
+
             <p class="text-sm">
               Use backup codes to access your account if you lose your authenticator device.
             </p>
           </div>
         </div>
 
-        <button
-          data-show-modal="regenerate_modal"
-          class="btn btn-primary"
-        >
+        <button data-show-modal="regenerate_modal" class="btn btn-primary">
           <.icon name="hero-arrow-path" class="w-4 h-4" /> Generate New Codes
         </button>
       </div>
 
       <div class="divider"></div>
-      
-<!-- Disable 2FA Section -->
+      <!-- Disable 2FA Section -->
       <div class="space-y-4">
         <h3 class="text-lg font-semibold text-error">Danger Zone</h3>
+
         <p class="text-sm text-base-content/70">
           Disabling 2FA will make your account less secure. You'll need your current password and a current code from your authenticator app to confirm. Backup codes cannot be used.
         </p>
 
-        <button
-          data-show-modal="disable_modal"
-          class="btn btn-secondary"
-        >
+        <button data-show-modal="disable_modal" class="btn btn-secondary">
           <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
         </button>
       </div>
 
       <div class="divider"></div>
-      
-<!-- Navigation -->
+      <!-- Navigation -->
       <div class="card-actions">
         <.link href={~p"/account"} class="btn btn-secondary">
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to account settings
@@ -68,11 +64,11 @@
       </div>
     </div>
   </div>
-  
-<!-- Regenerate Backup Codes Modal -->
+  <!-- Regenerate Backup Codes Modal -->
   <dialog id="regenerate_modal" class="modal">
-    <div class="modal-box card glass-card max-w-md w-full mx-4 border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-md w-full mx-4">
       <h3 class="font-bold text-lg mb-4">Generate New Backup Codes</h3>
+
       <p class="text-sm text-base-content/70 mb-4 break-words">
         This will replace your existing backup codes. Make sure to save the new codes in a safe place.
       </p>
@@ -96,37 +92,28 @@
         </div>
 
         <div class="modal-action">
-          <button
-            type="button"
-            data-close-modal="regenerate_modal"
-            class="btn btn-secondary"
-          >
+          <button type="button" data-close-modal="regenerate_modal" class="btn btn-secondary">
             Cancel
           </button>
-          <button type="submit" class="btn btn-primary">
-            Generate New Codes
-          </button>
+          <button type="submit" class="btn btn-primary"> Generate New Codes </button>
         </div>
       </.form>
     </div>
-    <form method="dialog" class="modal-backdrop">
-      <button>close</button>
-    </form>
+
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
-  
-<!-- Disable 2FA Modal -->
+  <!-- Disable 2FA Modal -->
   <dialog id="disable_modal" class="modal">
-    <div class="modal-box card glass-card max-w-md w-full mx-4 border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-md w-full mx-4">
       <h3 class="font-bold text-lg mb-4 text-error">Disable Two-Factor Authentication</h3>
+
       <p class="text-sm text-base-content/70 mb-4 break-words">
         Are you sure you want to disable 2FA? This will make your account less secure.
       </p>
 
       <.form for={%{}} as={:two_factor} action={~p"/account/two_factor/disable"}>
         <div class="mb-4">
-          <label class="label">
-            <span>Current Password</span>
-          </label>
+          <label class="label"><span>Current Password</span></label>
           <input
             id="current_password"
             name="two_factor[current_password]"
@@ -137,9 +124,7 @@
         </div>
 
         <div>
-          <label class="label">
-            <span>Authenticator App Code</span>
-          </label>
+          <label class="label"><span>Authenticator App Code</span></label>
           <input
             id="disable_code"
             name="two_factor[code]"
@@ -159,21 +144,14 @@
         </div>
 
         <div class="modal-action">
-          <button
-            type="button"
-            data-close-modal="disable_modal"
-            class="btn btn-secondary"
-          >
+          <button type="button" data-close-modal="disable_modal" class="btn btn-secondary">
             Cancel
           </button>
-          <button type="submit" class="btn btn-secondary">
-            Disable 2FA
-          </button>
+          <button type="submit" class="btn btn-secondary"> Disable 2FA </button>
         </div>
       </.form>
     </div>
-    <form method="dialog" class="modal-backdrop">
-      <button>close</button>
-    </form>
+
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
   </dialog>
 </div>

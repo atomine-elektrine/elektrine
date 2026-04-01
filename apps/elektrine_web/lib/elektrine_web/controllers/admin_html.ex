@@ -125,7 +125,9 @@ defmodule ElektrineWeb.AdminHTML do
     params = []
 
     params =
-      if search != "", do: params ++ ["search=#{URI.encode_www_form(search)}"], else: params
+      if Elektrine.Strings.present?(search),
+        do: params ++ ["search=#{URI.encode_www_form(search)}"],
+        else: params
 
     params = if category != "all", do: params ++ ["category=#{category}"], else: params
     params = if status != "all", do: params ++ ["status=#{status}"], else: params
@@ -138,7 +140,7 @@ defmodule ElektrineWeb.AdminHTML do
     params = []
 
     params =
-      if String.trim(search || "") != "" do
+      if Elektrine.Strings.present?(search) do
         params ++ ["search=#{URI.encode_www_form(search)}"]
       else
         params
@@ -411,6 +413,6 @@ defmodule ElektrineWeb.AdminHTML do
 
   def format_bytes(_), do: "0 B"
 
-  defp present_error?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_error?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present_error?(_), do: false
 end

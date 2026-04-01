@@ -185,7 +185,7 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
     }
   end
 
-  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(value), do: not is_nil(value)
 
   defp format_datetime(nil), do: "-"
@@ -275,25 +275,25 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Linked Users</div>
             <div class="text-xl font-semibold">{@stats.linked_users}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Ready Users</div>
             <div class="text-xl font-semibold">{@stats.ready_users}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Managed Linked Users</div>
             <div class="text-xl font-semibold">{@stats.managed_linked_users}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Polled in 24h</div>
             <div class="text-xl font-semibold">{@stats.users_polled_24h}</div>
@@ -302,25 +302,25 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
       </div>
 
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Mirrored Posts</div>
             <div class="text-xl font-semibold">{@stats.mirrored_posts}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Inbound Events (24h)</div>
             <div class="text-xl font-semibold">{@stats.inbound_events_24h}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Pending Outbound Jobs</div>
             <div class="text-xl font-semibold">{@stats.pending_outbound_jobs}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-3 sm:p-4">
             <div class="text-xs opacity-70">Discarded Jobs (24h)</div>
             <div class="text-xl font-semibold text-error">{@stats.discarded_outbound_jobs_24h}</div>
@@ -328,7 +328,7 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
         </div>
       </div>
 
-      <div class="card glass-card shadow">
+      <div class="card panel-card shadow">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-3">
             <.icon name="hero-cog-6-tooth" class="w-5 h-5" /> Bridge Configuration
@@ -373,7 +373,7 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
       </div>
 
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-base sm:text-lg mb-3">
               <.icon name="hero-arrow-down-tray" class="w-5 h-5" /> Recent Inbound Events
@@ -413,7 +413,7 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
           </div>
         </div>
 
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-base sm:text-lg mb-3">
               <.icon name="hero-arrow-up-tray" class="w-5 h-5" /> Recent Outbound Jobs

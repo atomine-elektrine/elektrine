@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
 
   import Plug.Conn
 
+  alias Elektrine.RuntimeEnv
   alias ElektrineWeb.ClientIP
 
   @behaviour Plug
@@ -38,7 +39,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   end
 
   defp enforce_https? do
-    Application.get_env(:elektrine, :enforce_https, false)
+    RuntimeEnv.enforce_https?()
   end
 
   defp insecure_request?(conn) do

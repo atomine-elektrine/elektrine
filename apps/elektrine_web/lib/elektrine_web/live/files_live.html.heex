@@ -1,19 +1,32 @@
-<.account_page
-  title="Files"
-  subtitle="Private cloud storage with search, previews, bulk actions, protected share links, and WebDAV sync."
-  sidebar_link="files"
-  nav_tab="files"
-  current_user={@current_user}
->
+<div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+  <ElektrineWeb.Components.Platform.ENav.e_nav
+    active_tab="files"
+    current_user={@current_user}
+    class="mb-6 sm:mb-8"
+  />
+
+  <div class="mb-6 sm:mb-8">
+    <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Files</h1>
+    <p class="mt-2 text-base-content/70">
+      Private cloud storage with search, previews, bulk actions, protected share links, and WebDAV sync.
+    </p>
+  </div>
+
   <div class="space-y-5">
-    <div class="card panel-card overflow-hidden shadow-xl">
-      <div class="border-b border-base-300/70 bg-base-200/25 px-4 py-5 sm:px-5">
+    <div
+      class="card panel-card overflow-hidden"
+      phx-hook="FileExplorer"
+      id="file-explorer"
+      phx-drop-target={@uploads.files.ref}
+    >
+      <div class="border-b border-base-300/70 bg-base-200/60 px-4 py-5 sm:px-5">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div class="space-y-3">
             <div>
               <h3 class="text-2xl font-semibold tracking-tight sm:text-3xl">
                 {current_folder_name(@current_folder)}
               </h3>
+
               <p class="mt-2 max-w-2xl text-sm leading-6 text-base-content/68 sm:text-base">
                 Work from one browser surface: navigate folders, upload here, organize items, and share files.
               </p>
@@ -23,14 +36,19 @@
           <div class="grid grid-cols-3 gap-2 sm:min-w-[18rem]">
             <div class="rounded-2xl border border-base-300/70 bg-base-100/70 px-3 py-2.5">
               <p class="text-[11px] uppercase tracking-[0.18em] text-base-content/45">Folders</p>
+
               <p class="mt-1 text-xl font-semibold">{length(@folders)}</p>
             </div>
+
             <div class="rounded-2xl border border-base-300/70 bg-base-100/70 px-3 py-2.5">
               <p class="text-[11px] uppercase tracking-[0.18em] text-base-content/45">Files</p>
+
               <p class="mt-1 text-xl font-semibold">{length(@files)}</p>
             </div>
+
             <div class="rounded-2xl border border-base-300/70 bg-base-100/70 px-3 py-2.5">
               <p class="text-[11px] uppercase tracking-[0.18em] text-base-content/45">Links</p>
+
               <p class="mt-1 text-xl font-semibold">{visible_share_count(@files)}</p>
             </div>
           </div>
@@ -39,63 +57,71 @@
 
       <div class="border-b border-base-300/70 bg-base-100/50 px-4 py-4 sm:px-5">
         <div class="grid gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
-          <div class="flex flex-wrap items-center gap-2 rounded-2xl bg-base-200/45 p-2">
-            <label
-              phx-drop-target={@uploads.files.ref}
-              class="btn btn-primary btn-sm h-9 min-h-9 cursor-pointer"
-            >
-              <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload
-              <.live_file_input upload={@uploads.files} class="hidden" />
-            </label>
+          <form id="file-explorer-upload-picker" phx-change="validate_upload" class="contents">
+            <input
+              type="hidden"
+              name="upload[folder]"
+              value={if @folder_path in [nil, ""], do: @current_folder, else: @folder_path}
+            />
 
-            <button
-              type="button"
-              phx-click="toggle_new_folder"
-              class="btn btn-outline btn-sm h-9 min-h-9"
-            >
-              <.icon name="hero-folder-plus" class="h-4 w-4" /> New Folder
-            </button>
-
-            <button
-              type="button"
-              phx-click="select_visible"
-              class="btn btn-ghost btn-sm h-9 min-h-9"
-            >
-              Select Visible
-            </button>
-
-            <button
-              type="button"
-              phx-click="clear_selection"
-              class="btn btn-ghost btn-sm h-9 min-h-9"
-            >
-              Clear
-            </button>
-
-            <%= if MapSet.size(@selected_items) > 0 do %>
+            <div class="flex flex-wrap items-center gap-2 rounded-2xl bg-base-200/60 p-2">
+              <label
+                phx-drop-target={@uploads.files.ref}
+                class="btn btn-primary btn-sm h-9 min-h-9 cursor-pointer"
+              >
+                <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Upload
+                <.live_file_input upload={@uploads.files} class="hidden" />
+              </label>
+              <div class="hidden items-center gap-2 rounded-xl bg-base-100/80 px-3 py-2 text-xs text-base-content/60 lg:inline-flex">
+                <.icon name="hero-arrow-down-tray" class="h-4 w-4" />
+                Drag files from your computer into this explorer to upload
+              </div>
               <button
                 type="button"
-                phx-click="open_bulk_move"
+                phx-click="toggle_new_folder"
                 class="btn btn-outline btn-sm h-9 min-h-9"
               >
-                <.icon name="hero-arrows-right-left" class="h-4 w-4" /> Move Selected
+                <.icon name="hero-folder-plus" class="h-4 w-4" /> New Folder
               </button>
-
               <button
                 type="button"
-                phx-click="bulk_delete"
-                data-confirm="Delete all selected items?"
-                class="btn btn-error btn-outline btn-sm h-9 min-h-9"
+                phx-click="select_visible"
+                class="btn btn-ghost btn-sm h-9 min-h-9"
               >
-                <.icon name="hero-trash" class="h-4 w-4" /> Delete Selected
+                Select Visible
               </button>
-            <% end %>
-          </div>
+              <button
+                type="button"
+                phx-click="clear_selection"
+                class="btn btn-ghost btn-sm h-9 min-h-9"
+              >
+                Clear
+              </button>
+              <%= if MapSet.size(@selected_items) > 0 do %>
+                <button
+                  type="button"
+                  phx-click="open_bulk_move"
+                  class="btn btn-outline btn-sm h-9 min-h-9"
+                >
+                  <.icon name="hero-arrows-right-left" class="h-4 w-4" /> Move Selected
+                </button>
+                <button
+                  type="button"
+                  phx-click="bulk_delete"
+                  data-confirm="Delete all selected items?"
+                  class="btn btn-error btn-outline btn-sm h-9 min-h-9"
+                >
+                  <.icon name="hero-trash" class="h-4 w-4" /> Delete Selected
+                </button>
+              <% end %>
+            </div>
+          </form>
 
           <form
             phx-change="filter"
             class="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem] xl:justify-self-end xl:w-full xl:max-w-[32rem]"
           >
+            <input type="hidden" name="filters[filter]" value={@active_filter} />
             <label class="form-control">
               <span class="sr-only">Search files</span>
               <input
@@ -103,10 +129,11 @@
                 name="filters[q]"
                 value={@search_query}
                 placeholder="Search files and folders"
+                phx-debounce="250"
+                id="file-explorer-search"
                 class="input input-bordered h-9 min-h-9 w-full"
               />
             </label>
-
             <label class="form-control">
               <span class="sr-only">Sort items</span>
               <select name="filters[sort]" class="select select-bordered h-9 min-h-9 w-full">
@@ -118,10 +145,27 @@
           </form>
         </div>
 
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Quick Filters
+          </span>
+          <%= for {label, value} <- @quick_filter_options do %>
+            <.link
+              patch={files_path(@current_folder, @search_query, @sort_by, value)}
+              class={[
+                "rounded-full px-3 py-1.5 text-sm transition-colors",
+                quick_filter_class(@active_filter, value)
+              ]}
+            >
+              {label}
+            </.link>
+          <% end %>
+        </div>
+
         <%= if @show_new_folder_form do %>
           <form
             phx-submit="create_folder"
-            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/45 p-3 sm:flex-row sm:items-center"
+            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/60 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -129,8 +173,7 @@
               value={@new_folder_name}
               placeholder="Folder name"
               class="input input-bordered h-9 min-h-9 flex-1"
-            />
-            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Create</button>
+            /> <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Create</button>
             <button
               type="button"
               phx-click="cancel_new_folder"
@@ -144,7 +187,7 @@
         <%= if @bulk_move_open do %>
           <form
             phx-submit="bulk_move"
-            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/45 p-3 sm:flex-row sm:items-center"
+            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/60 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -170,11 +213,12 @@
           <form
             phx-change="validate_upload"
             phx-submit="upload_files"
-            class="mt-4 rounded-3xl border border-base-300 bg-base-200/25 p-4"
+            class="mt-4 rounded-3xl border border-base-300 bg-base-200/60 p-4"
           >
             <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <p class="font-semibold">Upload Queue</p>
+
                 <p class="text-sm text-base-content/60">
                   Files will upload into {if @folder_path in [nil, ""],
                     do: "the current folder",
@@ -198,10 +242,11 @@
 
             <div class="mt-4 space-y-2">
               <%= for entry <- @uploads.files.entries do %>
-                <div class="rounded-2xl bg-base-100/80 px-3 py-3 text-sm">
+                <div class="rounded-2xl bg-base-200/70 px-3 py-3 text-sm">
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <p class="truncate font-medium">{entry.client_name}</p>
+
                       <p class="text-base-content/55">
                         {Storage.format_bytes(entry.client_size || 0)}
                       </p>
@@ -231,12 +276,12 @@
         <% end %>
       </div>
 
-      <div class="border-b border-base-300/70 bg-base-200/25 px-4 py-3 sm:px-5">
+      <div class="border-b border-base-300/70 bg-base-200/60 px-4 py-3 sm:px-5">
         <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <%= for crumb <- @breadcrumbs do %>
               <.link
-                patch={files_path(crumb.path, @search_query, @sort_by)}
+                patch={files_path(crumb.path, @search_query, @sort_by, @active_filter)}
                 class={[
                   "rounded-full px-3 py-1.5 transition-colors",
                   if(crumb.path == @current_folder,
@@ -277,543 +322,980 @@
         </div>
       </div>
 
-      <div class="p-4 sm:p-5">
+      <div class="relative p-4 sm:p-5">
         <%= if MapSet.size(@selected_items) > 0 do %>
           <div class="mb-5 rounded-2xl border border-primary/25 bg-primary/8 px-4 py-3">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p class="font-semibold">{MapSet.size(@selected_items)} item(s) selected</p>
+
                 <p class="text-sm text-base-content/60">
                   Use the toolbar above to move or remove the current selection.
                 </p>
               </div>
+
               <div class="text-sm text-base-content/55">Explorer selection active</div>
             </div>
           </div>
         <% end %>
 
-        <div class="rounded-3xl border border-base-300 bg-base-100/70 overflow-hidden">
-          <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.2fr)_minmax(0,1.2fr)_8.5rem_6.5rem_16rem] gap-3 border-b border-base-300/70 bg-base-200/45 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
-            <div></div>
-            <div>Name</div>
-            <div>Location / Type</div>
-            <div class="text-right">Modified</div>
-            <div class="text-right">Size</div>
-            <div class="text-right">Actions</div>
-          </div>
-
-          <%= if @folders == [] and @files == [] do %>
-            <div class="px-6 py-14 text-center">
-              <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <.icon name="hero-folder-open" class="h-8 w-8" />
-              </div>
-              <p class="mt-5 text-lg font-semibold">
-                <%= if @current_folder == "" do %>
-                  Your library is empty
-                <% else %>
-                  This folder is empty
-                <% end %>
-              </p>
-              <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-base-content/60">
-                Use the toolbar above to upload files or create a folder in this location.
-              </p>
+        <div
+          class="grid gap-4 xl:grid-cols-[var(--files-tree-width,18rem)_minmax(0,1fr)]"
+          data-tree-layout
+          style="--files-tree-width: 18rem;"
+        >
+          <aside
+            class="relative min-w-0 rounded-3xl border border-base-300 bg-base-100/70 overflow-hidden"
+            data-tree-pane
+          >
+            <div class="border-b border-base-300/70 bg-base-200/50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+              Folders
             </div>
-          <% else %>
-            <div class="divide-y divide-base-300/70">
-              <%= for folder <- @folders do %>
-                <article class="px-4 py-3 transition-colors hover:bg-base-200/25">
-                  <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.2fr)_minmax(0,1.2fr)_8.5rem_6.5rem_16rem] lg:items-center">
-                    <div class="pt-1 lg:pt-0">
-                      <input
-                        type="checkbox"
-                        checked={selected?(@selected_items, folder_token(folder.path))}
-                        phx-click="toggle_select"
-                        phx-value-token={folder_token(folder.path)}
-                        class="checkbox checkbox-sm"
-                      />
-                    </div>
 
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-3">
-                        <div class="rounded-2xl bg-secondary/12 p-2.5 text-secondary">
-                          <.icon name="hero-folder" class="h-5 w-5" />
-                        </div>
-                        <div class="min-w-0">
-                          <.link
-                            patch={files_path(folder.path, @search_query, @sort_by)}
-                            class="truncate text-base font-semibold hover:text-primary"
-                          >
-                            {folder.name}
-                          </.link>
-                          <p class="mt-1 text-sm text-base-content/55">{folder.path}</p>
-                        </div>
-                      </div>
-                    </div>
+            <div
+              class="absolute -right-2 top-0 hidden h-full w-4 cursor-col-resize items-center justify-center xl:flex"
+              data-tree-resizer
+              data-row-ignore
+            >
+              <span class="h-16 w-1 rounded-full bg-base-300/80"></span>
+            </div>
 
-                    <div class="text-sm text-base-content/60">
-                      {folder.file_count} file{if folder.file_count != 1, do: "s"}
-                    </div>
+            <div
+              class="max-h-[68vh] overflow-auto overscroll-contain px-2 py-2"
+              data-context-surface="tree"
+              data-row-ignore
+            >
+              <nav class="space-y-1">
+                <%= for node <- @folder_tree do %>
+                  <div class="flex min-w-0 items-center gap-0.5">
+                    <div class="flex shrink-0 items-center">
+                      <%= for _ <- tree_levels(node.depth) do %>
+                        <span class="relative h-9 w-4 shrink-0">
+                          <span class="absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-base-300/70">
+                          </span>
+                        </span>
+                      <% end %>
 
-                    <div class="text-sm text-base-content/60 lg:text-right">
-                      <%= if folder.updated_at do %>
-                        <.local_time
-                          datetime={folder.updated_at}
-                          format="date"
-                          timezone={@timezone}
-                          time_format={@time_format}
+                      <span :if={node.depth > 0} class="mt-0.5 h-px w-3 shrink-0 bg-base-300/70">
+                      </span>
+
+                      <button
+                        :if={node.path != "" and node.has_children}
+                        type="button"
+                        phx-click="toggle_tree_node"
+                        phx-value-path={node.path}
+                        class={[
+                          "btn btn-ghost btn-xs h-6 min-h-6 w-6 shrink-0 px-0",
+                          tree_toggle_class(node.expanded)
+                        ]}
+                        data-row-ignore
+                      >
+                        <.icon
+                          name={
+                            if node.expanded, do: "hero-chevron-down", else: "hero-chevron-right"
+                          }
+                          class="h-3.5 w-3.5"
                         />
-                      <% else %>
-                        <span>-</span>
-                      <% end %>
+                      </button>
+
+                      <span
+                        :if={node.path == "" or not node.has_children}
+                        class="inline-block h-6 w-6 shrink-0"
+                      >
+                      </span>
                     </div>
 
-                    <div class="text-sm text-base-content/55 lg:text-right">Folder</div>
+                    <button
+                      type="button"
+                      phx-click="open_folder"
+                      phx-value-path={node.path}
+                      data-tree-folder-drop-path={node.path}
+                      data-tree-folder-label={node.name}
+                      class={[
+                        "flex min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-xl px-3 py-2.5 text-left text-sm transition-colors",
+                        folder_tree_item_class(@current_folder, node.path)
+                      ]}
+                      data-row-ignore
+                    >
+                      <.icon
+                        name={if node.path == "", do: "hero-home", else: "hero-folder"}
+                        class="h-4 w-4 shrink-0"
+                      />
+                      <span class="truncate">{node.name}</span>
+                    </button>
+                  </div>
+                <% end %>
+              </nav>
+            </div>
+          </aside>
 
-                    <div class="flex flex-wrap items-center gap-2 lg:justify-self-end lg:justify-end">
-                      <.link
-                        patch={files_path(folder.path, @search_query, @sort_by)}
-                        class="btn btn-outline btn-sm"
-                      >
-                        Open
-                      </.link>
-                      <button
-                        type="button"
-                        phx-click="start_rename"
-                        phx-value-type="folder"
-                        phx-value-path={folder.path}
-                        class="btn btn-ghost btn-sm"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="start_move"
-                        phx-value-type="folder"
-                        phx-value-path={folder.path}
-                        class="btn btn-ghost btn-sm"
-                      >
-                        Move
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="delete_folder"
-                        phx-value-path={folder.path}
-                        class="btn btn-ghost btn-sm text-error"
-                        data-confirm="Delete this folder and everything inside it?"
-                      >
-                        Delete
-                      </button>
-                    </div>
+          <div
+            class="min-w-0 rounded-3xl border border-base-300 bg-base-100/70 overflow-hidden"
+            data-context-surface="content"
+            data-context-kind="blank"
+            data-context-path={@current_folder}
+            phx-drop-target={@uploads.files.ref}
+          >
+            <%= if @folders == [] and @files == [] do %>
+              <div class="px-6 py-14 text-center">
+                <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <.icon name="hero-folder-open" class="h-8 w-8" />
+                </div>
+
+                <p class="mt-5 text-lg font-semibold">
+                  <%= if @current_folder == "" do %>
+                    Your library is empty
+                  <% else %>
+                    This folder is empty
+                  <% end %>
+                </p>
+
+                <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-base-content/60">
+                  Drop files here from your computer, use the upload button above, or create a folder in this location.
+                </p>
+              </div>
+            <% else %>
+              <div class="overflow-x-auto overscroll-x-contain">
+                <div class="min-w-0 lg:min-w-[860px]">
+                  <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] gap-3 border-b border-base-300/70 bg-base-200/60 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+                    <div></div>
+                    <div>Name</div>
+                    <div>Location / Type</div>
+                    <div class="text-right">Modified</div>
+                    <div class="text-right">Size</div>
+                    <div class="text-right">Actions</div>
                   </div>
 
-                  <%= if @rename_target && @rename_target.type == "folder" && @rename_target.path == folder.path do %>
-                    <form
-                      phx-submit="rename_folder"
-                      class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center"
-                    >
-                      <input type="hidden" name="rename_folder[path]" value={folder.path} />
-                      <input
-                        type="text"
-                        name="rename_folder[name]"
-                        value={folder.name}
-                        class="input input-bordered h-9 min-h-9 flex-1"
-                      />
-                      <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="cancel_rename"
-                        class="btn btn-ghost btn-sm h-9 min-h-9"
+                  <div class="divide-y divide-base-300/70">
+                    <%= for {folder, index} <- Enum.with_index(@folders) do %>
+                      <article
+                        class={[
+                          "group px-4 py-3 transition-colors cursor-default outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset",
+                          row_class(selected?(@selected_items, folder_token(folder.path)))
+                        ]}
+                        tabindex="-1"
+                        draggable="true"
+                        data-row-selected={selected?(@selected_items, folder_token(folder.path))}
+                        data-drag-item-kind="folder"
+                        data-row-index={index}
+                        data-row-kind="folder"
+                        data-row-token={folder_token(folder.path)}
+                        data-row-open-event="open_folder"
+                        data-row-open-path={folder.path}
+                        data-row-menu-kind="folder"
+                        data-row-menu-path={folder.path}
                       >
-                        Cancel
-                      </button>
-                    </form>
-                  <% end %>
-
-                  <%= if @move_target && @move_target.type == "folder" && @move_target.path == folder.path do %>
-                    <form
-                      phx-submit="move_folder"
-                      class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center"
-                    >
-                      <input type="hidden" name="move_folder[path]" value={folder.path} />
-                      <input
-                        type="text"
-                        name="move_folder[folder]"
-                        value={@current_folder}
-                        placeholder="Destination folder"
-                        class="input input-bordered h-9 min-h-9 flex-1"
-                      />
-                      <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
-                        Move
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="cancel_move"
-                        class="btn btn-ghost btn-sm h-9 min-h-9"
-                      >
-                        Cancel
-                      </button>
-                    </form>
-                  <% end %>
-                </article>
-              <% end %>
-
-              <%= for file <- @files do %>
-                <article class="px-4 py-3 transition-colors hover:bg-base-200/25">
-                  <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.2fr)_minmax(0,1.2fr)_8.5rem_6.5rem_16rem] lg:items-center">
-                    <div class="pt-1 lg:pt-0">
-                      <input
-                        type="checkbox"
-                        checked={selected?(@selected_items, file_token(file.id))}
-                        phx-click="toggle_select"
-                        phx-value-token={file_token(file.id)}
-                        class="checkbox checkbox-sm"
-                      />
-                    </div>
-
-                    <div class="min-w-0">
-                      <div class="flex items-start gap-3">
-                        <%= if image_preview?(file.content_type) do %>
-                          <img
-                            src={~p"/account/files/#{file.id}/preview"}
-                            alt={file_display_name(file)}
-                            class="h-12 w-12 rounded-2xl object-cover ring-1 ring-base-300"
-                          />
-                        <% else %>
-                          <div class="rounded-2xl bg-primary/10 p-2.5 text-primary">
-                            <.icon name={file_icon_name(file.content_type)} class="h-5 w-5" />
+                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] lg:items-center">
+                          <div class="pt-1 lg:pt-0">
+                            <input
+                              type="checkbox"
+                              checked={selected?(@selected_items, folder_token(folder.path))}
+                              phx-click="toggle_select"
+                              phx-value-token={folder_token(folder.path)}
+                              class="checkbox checkbox-sm"
+                            />
                           </div>
-                        <% end %>
 
-                        <div class="min-w-0">
-                          <p class="truncate text-base font-semibold">
-                            {file_display_name(file)}
-                          </p>
-                          <p class="mt-1 text-sm text-base-content/55">{file.path}</p>
-                        </div>
-                      </div>
-                    </div>
+                          <div class="min-w-0">
+                            <div class="flex items-center gap-3">
+                              <div class="rounded-2xl bg-secondary/12 p-2.5 text-secondary">
+                                <.icon name="hero-folder" class="h-5 w-5" />
+                              </div>
 
-                    <div class="flex flex-wrap items-center gap-2 text-sm text-base-content/60">
-                      <span class={[
-                        "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                        kind_badge_class(file.content_type)
-                      ]}>
-                        {file_kind_label(file.content_type)}
-                      </span>
-                      <span class="truncate">{file_parent_label(file, @current_folder)}</span>
-                    </div>
-
-                    <div class="text-sm text-base-content/60 lg:text-right">
-                      <.local_time
-                        datetime={file.updated_at}
-                        format="date"
-                        timezone={@timezone}
-                        time_format={@time_format}
-                      />
-                    </div>
-
-                    <div class="text-sm text-base-content/55 lg:text-right">
-                      {Storage.format_bytes(file.size || 0)}
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-2 lg:justify-self-end lg:justify-end">
-                      <%= if inline_viewable?(file.content_type) do %>
-                        <.link
-                          href={~p"/account/files/#{file.id}/preview"}
-                          target="_blank"
-                          class="btn btn-outline btn-sm"
-                        >
-                          Preview
-                        </.link>
-                      <% end %>
-                      <.link
-                        href={~p"/account/files/#{file.id}/download"}
-                        class="btn btn-outline btn-sm"
-                      >
-                        Download
-                      </.link>
-                      <button
-                        type="button"
-                        phx-click="start_rename"
-                        phx-value-type="file"
-                        phx-value-id={file.id}
-                        class="btn btn-ghost btn-sm"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="start_move"
-                        phx-value-type="file"
-                        phx-value-id={file.id}
-                        class="btn btn-ghost btn-sm"
-                      >
-                        Move
-                      </button>
-                    </div>
-                  </div>
-
-                  <details
-                    open={
-                      (@rename_target && @rename_target.type == "file" &&
-                         @rename_target.id == to_string(file.id)) ||
-                        (@move_target && @move_target.type == "file" &&
-                           @move_target.id == to_string(file.id))
-                    }
-                    class="mt-4 rounded-2xl border border-base-300/70 bg-base-200/20"
-                  >
-                    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
-                      <div>
-                        <p class="text-sm font-semibold">Sharing and organization</p>
-                        <p class="text-sm text-base-content/55">
-                          Create links, rename, move, or remove this file when needed.
-                        </p>
-                      </div>
-                      <span class="btn btn-ghost btn-sm pointer-events-none">
-                        <%= if file.shares == [] do %>
-                          Manage
-                        <% else %>
-                          {length(file.shares)} link(s)
-                        <% end %>
-                      </span>
-                    </summary>
-
-                    <div class="space-y-4 border-t border-base-300/70 px-4 py-4">
-                      <div class="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          phx-click="start_rename"
-                          phx-value-type="file"
-                          phx-value-id={file.id}
-                          class="btn btn-ghost btn-sm"
-                        >
-                          Rename
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="start_move"
-                          phx-value-type="file"
-                          phx-value-id={file.id}
-                          class="btn btn-ghost btn-sm"
-                        >
-                          Move
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="delete_file"
-                          phx-value-id={file.id}
-                          data-confirm="Delete this file and all of its share links?"
-                          class="btn btn-error btn-outline btn-sm"
-                        >
-                          <.icon name="hero-trash" class="h-4 w-4" /> Delete
-                        </button>
-                      </div>
-
-                      <%= if @rename_target && @rename_target.type == "file" && @rename_target.id == to_string(file.id) do %>
-                        <form
-                          phx-submit="rename_file"
-                          class="flex flex-col gap-2 sm:flex-row sm:items-center"
-                        >
-                          <input type="hidden" name="rename[id]" value={file.id} />
-                          <input
-                            type="text"
-                            name="rename[name]"
-                            value={file_display_name(file)}
-                            class="input input-bordered h-9 min-h-9 flex-1"
-                          />
-                          <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            phx-click="cancel_rename"
-                            class="btn btn-ghost btn-sm h-9 min-h-9"
-                          >
-                            Cancel
-                          </button>
-                        </form>
-                      <% end %>
-
-                      <%= if @move_target && @move_target.type == "file" && @move_target.id == to_string(file.id) do %>
-                        <form
-                          phx-submit="move_file"
-                          class="flex flex-col gap-2 sm:flex-row sm:items-center"
-                        >
-                          <input type="hidden" name="move[id]" value={file.id} />
-                          <input
-                            type="text"
-                            name="move[folder]"
-                            value={@current_folder}
-                            placeholder="Destination folder"
-                            class="input input-bordered h-9 min-h-9 flex-1"
-                          />
-                          <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">
-                            Move
-                          </button>
-                          <button
-                            type="button"
-                            phx-click="cancel_move"
-                            class="btn btn-ghost btn-sm h-9 min-h-9"
-                          >
-                            Cancel
-                          </button>
-                        </form>
-                      <% end %>
-
-                      <div class="rounded-2xl border border-base-300/70 bg-base-100/60 p-4">
-                        <div>
-                          <p class="text-sm font-semibold">Create share link</p>
-                          <p class="mt-1 text-sm text-base-content/60">
-                            Choose access, expiry, and an optional password.
-                          </p>
-                        </div>
-
-                        <form
-                          phx-submit="create_share"
-                          class="mt-4 grid gap-3 xl:grid-cols-[10rem_10rem_minmax(0,1fr)_auto] xl:items-center"
-                        >
-                          <input type="hidden" name="share[file_id]" value={file.id} />
-
-                          <select
-                            name="share[access_level]"
-                            class="select select-bordered h-9 min-h-9 w-full"
-                          >
-                            <%= for {label, value} <- @share_access_options do %>
-                              <option value={value} selected={value == "download"}>
-                                {label}
-                              </option>
-                            <% end %>
-                          </select>
-
-                          <select
-                            name="share[expires_in]"
-                            class="select select-bordered h-9 min-h-9 w-full"
-                          >
-                            <%= for {label, value} <- @share_expiry_options do %>
-                              <option value={value} selected={value == "7d"}>{label}</option>
-                            <% end %>
-                          </select>
-
-                          <input
-                            type="password"
-                            name="share[password]"
-                            placeholder="Optional password"
-                            class="input input-bordered h-9 min-h-9 w-full"
-                          />
-
-                          <button
-                            type="submit"
-                            class="btn btn-primary h-9 min-h-9 w-full xl:w-auto"
-                          >
-                            <.icon name="hero-link" class="h-4 w-4" /> Create link
-                          </button>
-                        </form>
-                      </div>
-
-                      <%= if file.shares == [] do %>
-                        <p class="text-sm text-base-content/55">
-                          No public links for this file yet.
-                        </p>
-                      <% else %>
-                        <div class="space-y-3 border-t border-base-300/70 pt-4">
-                          <%= for share <- file.shares do %>
-                            <div class="rounded-2xl border border-base-300 bg-base-100/65 p-4">
-                              <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                                <div class="min-w-0 flex-1">
-                                  <div class="flex flex-wrap items-center gap-2">
-                                    <p class="text-sm font-semibold">Public share link</p>
-                                    <span class="inline-flex rounded-full bg-success/12 px-2.5 py-1 text-xs font-medium text-success">
-                                      {String.capitalize(share.access_level || "download")}
-                                    </span>
-                                    <span
-                                      :if={share_password_protected?(share)}
-                                      class="inline-flex rounded-full bg-warning/12 px-2.5 py-1 text-xs font-medium text-warning"
-                                    >
-                                      Password
-                                    </span>
-                                    <span class="text-xs text-base-content/50">
-                                      {share.download_count || 0} download{if (share.download_count ||
-                                                                                 0) != 1, do: "s"}
-                                    </span>
-                                  </div>
-
-                                  <div class="mt-3 join w-full">
-                                    <input
-                                      id={"share-link-#{share.id}"}
-                                      type="text"
-                                      readonly
-                                      value={share_url(share)}
-                                      class="input input-bordered join-item w-full text-sm"
-                                    />
-                                    <button
-                                      id={"copy-share-link-#{share.id}"}
-                                      type="button"
-                                      phx-hook="CopyToClipboard"
-                                      data-copy-target={"share-link-#{share.id}"}
-                                      class="btn btn-outline join-item"
-                                      title="Copy share link"
-                                      aria-label="Copy share link"
-                                    >
-                                      <.icon name="hero-clipboard-document" class="h-4 w-4" />
-                                    </button>
-                                  </div>
-
-                                  <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-base-content/55">
-                                    <span>
-                                      Created
-                                      <.local_time
-                                        datetime={share.inserted_at}
-                                        format="date"
-                                        timezone={@timezone}
-                                        time_format={@time_format}
-                                      />
-                                    </span>
-                                    <span :if={share.expires_at}>
-                                      Expires
-                                      <.local_time
-                                        datetime={share.expires_at}
-                                        format="date"
-                                        timezone={@timezone}
-                                        time_format={@time_format}
-                                      />
-                                    </span>
-                                    <span :if={is_nil(share.expires_at)}>No expiry</span>
-                                  </div>
-                                </div>
-
-                                <div class="flex flex-wrap gap-2 xl:justify-end">
-                                  <.link
-                                    href={~p"/files/share/#{share.token}"}
-                                    target="_blank"
-                                    class="btn btn-outline btn-sm"
-                                  >
-                                    Open
-                                  </.link>
-                                  <button
-                                    type="button"
-                                    phx-click="revoke_share"
-                                    phx-value-id={share.id}
-                                    data-confirm="Revoke this share link?"
-                                    class="btn btn-secondary btn-sm"
-                                  >
-                                    Revoke
-                                  </button>
-                                </div>
+                              <div class="min-w-0">
+                                <.link
+                                  patch={
+                                    files_path(
+                                      folder.path,
+                                      @search_query,
+                                      @sort_by,
+                                      @active_filter
+                                    )
+                                  }
+                                  class="truncate text-base font-semibold hover:text-primary"
+                                >
+                                  {folder.name}
+                                </.link>
+                                <p class="mt-1 truncate text-sm text-base-content/55">
+                                  {folder.path}
+                                </p>
                               </div>
                             </div>
-                          <% end %>
+                          </div>
+
+                          <div class="text-sm text-base-content/60">
+                            {folder.file_count} file{if folder.file_count != 1, do: "s"}
+                          </div>
+
+                          <div class="text-sm text-base-content/60 lg:text-right">
+                            <%= if folder.updated_at do %>
+                              <.local_time
+                                datetime={folder.updated_at}
+                                format="date"
+                                timezone={@timezone}
+                                time_format={@time_format}
+                              />
+                            <% else %>
+                              <span>-</span>
+                            <% end %>
+                          </div>
+
+                          <div class="text-sm text-base-content/55 lg:text-right">Folder</div>
+
+                          <div class="flex items-center justify-end gap-1 transition-opacity lg:justify-self-end lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                            <.link
+                              patch={
+                                files_path(folder.path, @search_query, @sort_by, @active_filter)
+                              }
+                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              title="Open folder"
+                            >
+                              <.icon name="hero-folder-open" class="h-4 w-4" />
+                            </.link>
+
+                            <details class="dropdown dropdown-end" data-row-ignore>
+                              <summary class="btn btn-ghost btn-sm h-8 min-h-8 px-2">
+                                <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
+                              </summary>
+                              <ul class="menu dropdown-content z-20 mt-2 w-44 rounded-2xl border border-base-300 bg-base-100 p-2 shadow-xl">
+                                <li>
+                                  <button
+                                    type="button"
+                                    phx-click="open_manage_folder"
+                                    phx-value-path={folder.path}
+                                  >
+                                    Manage
+                                  </button>
+                                </li>
+                                <li>
+                                  <.link patch={
+                                    files_path(
+                                      folder.path,
+                                      @search_query,
+                                      @sort_by,
+                                      @active_filter
+                                    )
+                                  }>
+                                    Open
+                                  </.link>
+                                </li>
+                                <li>
+                                  <button
+                                    type="button"
+                                    phx-click="delete_folder"
+                                    phx-value-path={folder.path}
+                                    data-confirm="Delete this folder and everything inside it?"
+                                    class="text-error"
+                                  >
+                                    Delete
+                                  </button>
+                                </li>
+                              </ul>
+                            </details>
+                          </div>
                         </div>
-                      <% end %>
-                    </div>
-                  </details>
-                </article>
+                      </article>
+                    <% end %>
+
+                    <%= for {file, index} <- Enum.with_index(@files, length(@folders)) do %>
+                      <article
+                        class={[
+                          "group px-4 py-3 transition-colors cursor-default outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset",
+                          row_class(selected?(@selected_items, file_token(file.id)))
+                        ]}
+                        tabindex="-1"
+                        draggable="true"
+                        data-row-selected={selected?(@selected_items, file_token(file.id))}
+                        data-drag-item-kind="file"
+                        data-drag-file-id={file.id}
+                        data-row-index={index}
+                        data-row-kind="file"
+                        data-row-token={file_token(file.id)}
+                        data-row-open-event="open_file"
+                        data-row-open-id={file.id}
+                        data-row-menu-kind="file"
+                        data-row-menu-id={file.id}
+                      >
+                        <div class="grid gap-3 lg:grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] lg:items-center">
+                          <div class="pt-1 lg:pt-0">
+                            <input
+                              type="checkbox"
+                              checked={selected?(@selected_items, file_token(file.id))}
+                              phx-click="toggle_select"
+                              phx-value-token={file_token(file.id)}
+                              class="checkbox checkbox-sm"
+                            />
+                          </div>
+
+                          <div class="min-w-0">
+                            <div class="flex items-start gap-3">
+                              <%= if image_preview?(file.content_type) do %>
+                                <img
+                                  src={~p"/account/files/#{file.id}/preview"}
+                                  alt={file_display_name(file)}
+                                  class="h-12 w-12 rounded-2xl object-cover ring-1 ring-base-300"
+                                />
+                              <% else %>
+                                <div class="rounded-2xl bg-primary/10 p-2.5 text-primary">
+                                  <.icon name={file_icon_name(file.content_type)} class="h-5 w-5" />
+                                </div>
+                              <% end %>
+
+                              <div class="min-w-0">
+                                <p class="truncate text-base font-semibold">
+                                  {file_display_name(file)}
+                                </p>
+
+                                <p class="mt-1 truncate text-sm text-base-content/55">
+                                  {file.path}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="min-w-0 flex flex-wrap items-center gap-2 text-sm text-base-content/60">
+                            <span class={[
+                              "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
+                              kind_badge_class(file.content_type)
+                            ]}>
+                              {file_kind_label(file.content_type)}
+                            </span>
+                            <span class="truncate">
+                              {file_parent_label(file, @current_folder)}
+                            </span>
+                          </div>
+
+                          <div class="text-sm text-base-content/60 lg:text-right">
+                            <.local_time
+                              datetime={file.updated_at}
+                              format="date"
+                              timezone={@timezone}
+                              time_format={@time_format}
+                            />
+                          </div>
+
+                          <div class="text-sm text-base-content/55 lg:text-right">
+                            {Storage.format_bytes(file.size || 0)}
+                          </div>
+
+                          <div class="flex items-center justify-end gap-1 transition-opacity lg:justify-self-end lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
+                            <%= if inline_viewable?(file.content_type) do %>
+                              <.link
+                                href={~p"/account/files/#{file.id}/preview"}
+                                target="_blank"
+                                class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                                title="Preview"
+                              >
+                                <.icon name="hero-eye" class="h-4 w-4" />
+                              </.link>
+                            <% end %>
+
+                            <.link
+                              href={~p"/account/files/#{file.id}/download"}
+                              class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
+                              title="Download"
+                            >
+                              <.icon name="hero-arrow-down-tray" class="h-4 w-4" />
+                            </.link>
+
+                            <details class="dropdown dropdown-end" data-row-ignore>
+                              <summary class="btn btn-ghost btn-sm h-8 min-h-8 px-2">
+                                <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
+                              </summary>
+                              <ul class="menu dropdown-content z-20 mt-2 w-44 rounded-2xl border border-base-300 bg-base-100 p-2 shadow-xl">
+                                <li>
+                                  <button
+                                    type="button"
+                                    phx-click="open_manage_file"
+                                    phx-value-id={file.id}
+                                  >
+                                    Manage
+                                  </button>
+                                </li>
+                                <li :if={inline_viewable?(file.content_type)}>
+                                  <.link
+                                    href={~p"/account/files/#{file.id}/preview"}
+                                    target="_blank"
+                                  >
+                                    Preview
+                                  </.link>
+                                </li>
+                                <li>
+                                  <.link href={~p"/account/files/#{file.id}/download"}>
+                                    Download
+                                  </.link>
+                                </li>
+                                <li>
+                                  <button
+                                    type="button"
+                                    phx-click="delete_file"
+                                    phx-value-id={file.id}
+                                    data-confirm="Delete this file and all of its share links?"
+                                    class="text-error"
+                                  >
+                                    Delete
+                                  </button>
+                                </li>
+                              </ul>
+                            </details>
+                          </div>
+                        </div>
+                      </article>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+          <%= if @context_menu do %>
+            <div class="fixed inset-0 z-40" phx-click="hide_context_menu" data-row-ignore></div>
+
+            <div
+              class="fixed z-50 min-w-[12rem] rounded-2xl border border-base-300 bg-base-100/95 p-2 shadow-2xl backdrop-blur"
+              style={"left: #{@context_menu.x}px; top: #{@context_menu.y}px;"}
+              data-row-ignore
+            >
+              <%= if @context_menu.kind == "blank" do %>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="new_folder"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  New Folder Here
+                </button>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="clear_selection"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  Clear Selection
+                </button>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="refresh"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  Refresh
+                </button>
+              <% else %>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="open"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-id={@context_menu.id}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  Open
+                </button>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="rename"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-id={@context_menu.id}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="move"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-id={@context_menu.id}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start"
+                >
+                  Move
+                </button>
+                <button
+                  type="button"
+                  phx-click="context_action"
+                  phx-value-action="delete"
+                  phx-value-kind={@context_menu.kind}
+                  phx-value-id={@context_menu.id}
+                  phx-value-path={@context_menu.path}
+                  class="btn btn-ghost btn-sm w-full justify-start text-error"
+                >
+                  Delete
+                </button>
               <% end %>
             </div>
           <% end %>
         </div>
       </div>
     </div>
+
+    <.modal
+      :if={@active_folder}
+      id="folder-manage-modal"
+      show={not is_nil(@active_folder)}
+      on_cancel={JS.push("close_manage_folder")}
+    >
+      <div class="space-y-6">
+        <div class="space-y-2 pr-8">
+          <p class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Manage Folder
+          </p>
+          <h3 class="text-2xl font-semibold">{@active_folder.name}</h3>
+          <p class="truncate text-sm text-base-content/60">{@active_folder.path}</p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
+              Contained Files
+            </p>
+            <p class="mt-2 text-2xl font-semibold">{@active_folder.file_count}</p>
+          </div>
+          <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4 sm:col-span-2">
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Last Updated</p>
+            <p class="mt-2 text-base font-medium text-base-content/75">
+              <%= if @active_folder.updated_at do %>
+                <.local_time
+                  datetime={@active_folder.updated_at}
+                  format="date"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              <% else %>
+                Never
+              <% end %>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            phx-click="open_folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-outline btn-sm"
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            phx-click="start_rename"
+            phx-value-type="folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-ghost btn-sm"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            phx-click="start_move"
+            phx-value-type="folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-ghost btn-sm"
+          >
+            Move
+          </button>
+          <button
+            type="button"
+            phx-click="delete_folder"
+            phx-value-path={@active_folder.path}
+            data-confirm="Delete this folder and everything inside it?"
+            class="btn btn-error btn-outline btn-sm"
+          >
+            <.icon name="hero-trash" class="h-4 w-4" /> Delete
+          </button>
+        </div>
+
+        <%= if @rename_target && @rename_target.type == "folder" && @rename_target.path == @active_folder.path do %>
+          <form phx-submit="rename_folder" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="rename_folder[path]" value={@active_folder.path} />
+            <input
+              type="text"
+              name="rename_folder[name]"
+              value={@active_folder.name}
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Save</button>
+            <button
+              type="button"
+              phx-click="cancel_rename"
+              class="btn btn-ghost btn-sm h-9 min-h-9"
+            >
+              Cancel
+            </button>
+          </form>
+        <% end %>
+
+        <%= if @move_target && @move_target.type == "folder" && @move_target.path == @active_folder.path do %>
+          <form phx-submit="move_folder" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="move_folder[path]" value={@active_folder.path} />
+            <input
+              type="text"
+              name="move_folder[folder]"
+              value={@current_folder}
+              placeholder="Destination folder"
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Move</button>
+            <button type="button" phx-click="cancel_move" class="btn btn-ghost btn-sm h-9 min-h-9">
+              Cancel
+            </button>
+          </form>
+        <% end %>
+      </div>
+    </.modal>
+
+    <.modal
+      :if={@active_folder}
+      id="folder-manage-modal"
+      show={not is_nil(@active_folder)}
+      on_cancel={JS.push("close_manage_folder")}
+    >
+      <div class="space-y-6">
+        <div class="space-y-2 pr-8">
+          <p class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Manage Folder
+          </p>
+          <h3 class="text-2xl font-semibold">{@active_folder.name}</h3>
+          <p class="truncate text-sm text-base-content/60">{@active_folder.path}</p>
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
+              Contained Files
+            </p>
+            <p class="mt-2 text-2xl font-semibold">{@active_folder.file_count}</p>
+          </div>
+          <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Last Updated</p>
+            <p class="mt-2 text-base font-medium text-base-content/75">
+              <%= if @active_folder.updated_at do %>
+                <.local_time
+                  datetime={@active_folder.updated_at}
+                  format="date"
+                  timezone={@timezone}
+                  time_format={@time_format}
+                />
+              <% else %>
+                Never
+              <% end %>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            phx-click="open_folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-outline btn-sm"
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            phx-click="start_rename"
+            phx-value-type="folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-ghost btn-sm"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            phx-click="start_move"
+            phx-value-type="folder"
+            phx-value-path={@active_folder.path}
+            class="btn btn-ghost btn-sm"
+          >
+            Move
+          </button>
+          <button
+            type="button"
+            phx-click="delete_folder"
+            phx-value-path={@active_folder.path}
+            data-confirm="Delete this folder and everything inside it?"
+            class="btn btn-error btn-outline btn-sm"
+          >
+            <.icon name="hero-trash" class="h-4 w-4" /> Delete
+          </button>
+        </div>
+
+        <%= if @rename_target && @rename_target.type == "folder" && @rename_target.path == @active_folder.path do %>
+          <form phx-submit="rename_folder" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="rename_folder[path]" value={@active_folder.path} />
+            <input
+              type="text"
+              name="rename_folder[name]"
+              value={@active_folder.name}
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Save</button>
+            <button
+              type="button"
+              phx-click="cancel_rename"
+              class="btn btn-ghost btn-sm h-9 min-h-9"
+            >
+              Cancel
+            </button>
+          </form>
+        <% end %>
+
+        <%= if @move_target && @move_target.type == "folder" && @move_target.path == @active_folder.path do %>
+          <form phx-submit="move_folder" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="move_folder[path]" value={@active_folder.path} />
+            <input
+              type="text"
+              name="move_folder[folder]"
+              value={@current_folder}
+              placeholder="Destination folder"
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Move</button>
+            <button type="button" phx-click="cancel_move" class="btn btn-ghost btn-sm h-9 min-h-9">
+              Cancel
+            </button>
+          </form>
+        <% end %>
+      </div>
+    </.modal>
+
+    <.modal
+      :if={@active_file}
+      id="file-manage-modal"
+      show={not is_nil(@active_file)}
+      on_cancel={JS.push("close_manage_file")}
+    >
+      <div class="space-y-6">
+        <div class="space-y-2 pr-8">
+          <p class="text-sm font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            Manage File
+          </p>
+          <h3 class="text-2xl font-semibold">{file_display_name(@active_file)}</h3>
+          <p class="truncate text-sm text-base-content/60">{@active_file.path}</p>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <%= if inline_viewable?(@active_file.content_type) do %>
+            <.link
+              href={~p"/account/files/#{@active_file.id}/preview"}
+              target="_blank"
+              class="btn btn-outline btn-sm"
+            >
+              Preview
+            </.link>
+          <% end %>
+          <.link
+            href={~p"/account/files/#{@active_file.id}/download"}
+            class="btn btn-outline btn-sm"
+          >
+            Download
+          </.link>
+          <button
+            type="button"
+            phx-click="start_rename"
+            phx-value-type="file"
+            phx-value-id={@active_file.id}
+            class="btn btn-ghost btn-sm"
+          >
+            Rename
+          </button>
+          <button
+            type="button"
+            phx-click="start_move"
+            phx-value-type="file"
+            phx-value-id={@active_file.id}
+            class="btn btn-ghost btn-sm"
+          >
+            Move
+          </button>
+          <button
+            type="button"
+            phx-click="delete_file"
+            phx-value-id={@active_file.id}
+            data-confirm="Delete this file and all of its share links?"
+            class="btn btn-error btn-outline btn-sm"
+          >
+            <.icon name="hero-trash" class="h-4 w-4" /> Delete
+          </button>
+        </div>
+
+        <%= if @rename_target && @rename_target.type == "file" && @rename_target.id == to_string(@active_file.id) do %>
+          <form phx-submit="rename_file" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="rename[id]" value={@active_file.id} />
+            <input
+              type="text"
+              name="rename[name]"
+              value={file_display_name(@active_file)}
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Save</button>
+            <button
+              type="button"
+              phx-click="cancel_rename"
+              class="btn btn-ghost btn-sm h-9 min-h-9"
+            >
+              Cancel
+            </button>
+          </form>
+        <% end %>
+
+        <%= if @move_target && @move_target.type == "file" && @move_target.id == to_string(@active_file.id) do %>
+          <form phx-submit="move_file" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="hidden" name="move[id]" value={@active_file.id} />
+            <input
+              type="text"
+              name="move[folder]"
+              value={@current_folder}
+              placeholder="Destination folder"
+              class="input input-bordered h-9 min-h-9 flex-1"
+            />
+            <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9">Move</button>
+            <button type="button" phx-click="cancel_move" class="btn btn-ghost btn-sm h-9 min-h-9">
+              Cancel
+            </button>
+          </form>
+        <% end %>
+
+        <div class="rounded-2xl border border-base-300/70 bg-base-100/60 p-4">
+          <div>
+            <p class="text-sm font-semibold">Create share link</p>
+            <p class="mt-1 text-sm text-base-content/60">
+              Choose access, expiry, and an optional password.
+            </p>
+          </div>
+
+          <form
+            phx-submit="create_share"
+            class="mt-4 grid gap-3 xl:grid-cols-[10rem_10rem_minmax(0,1fr)_auto] xl:items-center"
+          >
+            <input type="hidden" name="share[file_id]" value={@active_file.id} />
+            <select name="share[access_level]" class="select select-bordered h-9 min-h-9 w-full">
+              <%= for {label, value} <- @share_access_options do %>
+                <option value={value} selected={value == "download"}>{label}</option>
+              <% end %>
+            </select>
+            <select name="share[expires_in]" class="select select-bordered h-9 min-h-9 w-full">
+              <%= for {label, value} <- @share_expiry_options do %>
+                <option value={value} selected={value == "7d"}>{label}</option>
+              <% end %>
+            </select>
+            <input
+              type="password"
+              name="share[password]"
+              placeholder="Optional password"
+              class="input input-bordered h-9 min-h-9 w-full"
+            />
+            <button type="submit" class="btn btn-primary h-9 min-h-9 w-full xl:w-auto">
+              <.icon name="hero-link" class="h-4 w-4" /> Create link
+            </button>
+          </form>
+        </div>
+
+        <%= if @active_file.shares == [] do %>
+          <p class="text-sm text-base-content/55">No public links for this file yet.</p>
+        <% else %>
+          <div class="space-y-3 border-t border-base-300/70 pt-4">
+            <%= for share <- @active_file.shares do %>
+              <div class="rounded-2xl border border-base-300 bg-base-100/65 p-4">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="text-sm font-semibold">Public share link</p>
+                      <span class="inline-flex rounded-full bg-success/12 px-2.5 py-1 text-xs font-medium text-success">
+                        {String.capitalize(share.access_level || "download")}
+                      </span>
+                      <span
+                        :if={share_password_protected?(share)}
+                        class="inline-flex rounded-full bg-warning/12 px-2.5 py-1 text-xs font-medium text-warning"
+                      >
+                        Password
+                      </span>
+                      <span class="text-xs text-base-content/50">
+                        {share.download_count || 0} download{if (share.download_count || 0) != 1,
+                          do: "s"}
+                      </span>
+                    </div>
+
+                    <div class="mt-3 join w-full">
+                      <input
+                        id={"share-link-#{share.id}"}
+                        type="text"
+                        readonly
+                        value={share_url(share)}
+                        class="input input-bordered join-item w-full text-sm"
+                      />
+                      <button
+                        id={"copy-share-link-#{share.id}"}
+                        type="button"
+                        phx-hook="CopyToClipboard"
+                        data-copy-target={"share-link-#{share.id}"}
+                        class="btn btn-outline join-item"
+                        title="Copy share link"
+                        aria-label="Copy share link"
+                      >
+                        <.icon name="hero-clipboard-document" class="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-base-content/55">
+                      <span>
+                        Created
+                        <.local_time
+                          datetime={share.inserted_at}
+                          format="date"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                      <span :if={share.expires_at}>
+                        Expires
+                        <.local_time
+                          datetime={share.expires_at}
+                          format="date"
+                          timezone={@timezone}
+                          time_format={@time_format}
+                        />
+                      </span>
+                      <span :if={is_nil(share.expires_at)}>No expiry</span>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap gap-2 xl:justify-end">
+                    <.link
+                      href={~p"/files/share/#{share.token}"}
+                      target="_blank"
+                      class="btn btn-outline btn-sm"
+                    >
+                      Open
+                    </.link>
+                    <button
+                      type="button"
+                      phx-click="revoke_share"
+                      phx-value-id={share.id}
+                      data-confirm="Revoke this share link?"
+                      class="btn btn-secondary btn-sm"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </.modal>
   </div>
-</.account_page>
+</div>

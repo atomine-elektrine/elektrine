@@ -1,23 +1,16 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="friends" current_user={@current_user} />
-  <% roster_stats = friend_roster_stats(@friends, @user_statuses, @friend_follow_status) %>
-  <% visible_friends =
-    visible_friends(
-      @friends,
-      @search_query,
-      @friend_status_filter,
-      @friend_sort,
-      @user_statuses
-    ) %>
-
+  <.e_nav active_tab="friends" current_user={@current_user} /> <% roster_stats =
+    friend_roster_stats(@friends, @user_statuses, @friend_follow_status) %> <% visible_friends =
+    visible_friends(@friends, @search_query, @friend_status_filter, @friend_sort, @user_statuses) %>
   <div class="space-y-6">
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
+    <div class="card panel-card">
       <div class="card-body gap-4 p-4 sm:p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div class="flex flex-wrap items-center gap-2">
               <h1 class="text-xl font-bold sm:text-2xl">Friends</h1>
+
               <%= if @current_tab == "requests" && length(@pending_requests) > 0 do %>
                 <span class="badge badge-error badge-sm">
                   {length(@pending_requests)} pending
@@ -26,22 +19,29 @@
             </div>
 
             <div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div class="rounded-lg border border-base-300 p-3">
+              <div class="rounded-lg p-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">Friends</p>
+
                 <p class="mt-1 text-xl font-semibold">{roster_stats.total}</p>
               </div>
-              <div class="rounded-lg border border-base-300 p-3">
+
+              <div class="rounded-lg p-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">Active</p>
+
                 <p class="mt-1 text-xl font-semibold">{roster_stats.active}</p>
               </div>
-              <div class="rounded-lg border border-base-300 p-3">
+
+              <div class="rounded-lg p-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">Requests</p>
+
                 <p class="mt-1 text-xl font-semibold">
                   {length(@pending_requests) + length(@pending_follow_requests)}
                 </p>
               </div>
-              <div class="rounded-lg border border-base-300 p-3">
+
+              <div class="rounded-lg p-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">Mutual Follow</p>
+
                 <p class="mt-1 text-xl font-semibold">{roster_stats.mutual_follow}</p>
               </div>
             </div>
@@ -91,7 +91,7 @@
       </div>
     </div>
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
+    <div class="card panel-card">
       <div class="card-body p-4 sm:p-5">
         <%= if @current_tab in ["friends", "suggestions"] do %>
           <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -159,7 +159,9 @@
                     <option value="activity" selected={@friend_sort == "activity"}>
                       Activity
                     </option>
+
                     <option value="recent" selected={@friend_sort == "recent"}>Recent</option>
+
                     <option value="name" selected={@friend_sort == "name"}>Name</option>
                   </select>
                 </.form>
@@ -172,15 +174,19 @@
           <%= if @loading_friends do %>
             <div class="space-y-2 animate-pulse">
               <%= for _i <- 1..4 do %>
-                <div class="rounded-xl border border-base-300 p-4">
+                <div class="rounded-xl p-4">
                   <div class="flex items-center gap-4">
                     <div class="h-12 w-12 rounded-full bg-base-300"></div>
+
                     <div class="flex-1">
                       <div class="mb-2 h-4 w-32 rounded bg-base-300"></div>
+
                       <div class="h-3 w-24 rounded bg-base-300"></div>
                     </div>
+
                     <div class="flex gap-2">
                       <div class="h-8 w-16 rounded bg-base-300"></div>
+
                       <div class="h-8 w-12 rounded bg-base-300"></div>
                     </div>
                   </div>
@@ -190,6 +196,7 @@
           <% else %>
             <div class="mb-4 flex flex-wrap items-center justify-between gap-2 text-sm opacity-70">
               <div>{length(visible_friends)} of {roster_stats.total} friends</div>
+
               <div class="flex flex-wrap gap-3">
                 <span>{roster_stats.active} active</span>
                 <span>{roster_stats.offline} offline</span>
@@ -197,13 +204,10 @@
             </div>
 
             <%= if visible_friends != [] do %>
-              <div
-                id="friend-roster"
-                class="overflow-hidden rounded-xl border border-base-300 bg-base-100"
-              >
+              <div id="friend-roster" class="overflow-hidden rounded-xl">
                 <%= for friend <- visible_friends do %>
-                  <% presence = friend_presence(friend, @user_statuses) %>
-                  <% status = Map.get(@friend_follow_status, friend.id, %{}) %>
+                  <% presence = friend_presence(friend, @user_statuses) %> <% status =
+                    Map.get(@friend_follow_status, friend.id, %{}) %>
                   <div
                     id={"friend-row-#{friend.id}"}
                     class="flex flex-col gap-3 border-b border-base-300 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center"
@@ -212,7 +216,6 @@
                       <.link href={~p"/#{friend.handle || friend.username}"} class="shrink-0">
                         <.user_avatar user={friend} size="lg" user_statuses={@user_statuses} />
                       </.link>
-
                       <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2">
                           <.link
@@ -227,6 +230,7 @@
                           <%= if status[:mutual_follow] do %>
                             <span class="badge badge-ghost badge-xs">Mutual Follow</span>
                           <% end %>
+
                           <%= if status[:they_follow_you] && !status[:mutual_follow] do %>
                             <span class="badge badge-info badge-xs">Follows you</span>
                           <% end %>
@@ -262,17 +266,14 @@
                         class="btn btn-ghost btn-xs sm:btn-sm"
                         title="Call"
                       >
-                        <.icon name="hero-phone" class="h-4 w-4" />
-                        <span>Call</span>
+                        <.icon name="hero-phone" class="h-4 w-4" /> <span>Call</span>
                       </button>
                       <div class="dropdown dropdown-end">
                         <div tabindex="0" role="button" class="btn btn-ghost btn-xs sm:btn-sm">
                           <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
                         </div>
-                        <ul
-                          tabindex="0"
-                          class="dropdown-content z-30 menu w-40 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
-                        >
+
+                        <ul tabindex="0" class="dropdown-content z-30 menu w-40 rounded-box p-2">
                           <li>
                             <button
                               phx-click="show_unfriend_modal"
@@ -293,6 +294,7 @@
                 <.icon name="hero-user-group" class="mx-auto mb-4 h-16 w-16 opacity-40" />
                 <%= if @search_query != "" do %>
                   <h3 class="mb-3 text-lg font-semibold">No friends match "{@search_query}"</h3>
+
                   <button
                     phx-click="clear_search"
                     data-search-clear="true"
@@ -302,6 +304,7 @@
                   </button>
                 <% else %>
                   <h3 class="mb-3 text-lg font-semibold">No friends yet</h3>
+
                   <button
                     phx-click="change_tab"
                     phx-value-tab="suggestions"
@@ -314,8 +317,7 @@
             <% end %>
           <% end %>
         <% end %>
-        
-<!-- Pending Requests Tab -->
+        <!-- Pending Requests Tab -->
         <%= if @current_tab == "requests" do %>
           <!-- Pending Federated Follow Requests -->
           <%= if length(@pending_follow_requests) > 0 do %>
@@ -324,9 +326,10 @@
                 <.icon name="hero-globe-americas" class="w-4 h-4 text-purple-500" />
                 Pending Follow Requests from Fediverse
               </h3>
+
               <div class="space-y-3">
                 <%= for request <- @pending_follow_requests do %>
-                  <div class="card glass-card border border-purple-300 shadow-sm hover:shadow-md transition-shadow">
+                  <div class="card panel-card border border-purple-300 transition-colors">
                     <div class="card-body p-3 sm:p-4">
                       <div class="flex items-start gap-3">
                         <.link
@@ -397,12 +400,11 @@
               </div>
             </div>
           <% end %>
-          
-<!-- Friend Requests -->
+          <!-- Friend Requests -->
           <%= if length(@pending_requests) > 0 do %>
             <div class="space-y-4">
               <%= for request <- @pending_requests do %>
-                <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card panel-card hover:border-error/20 transition-colors">
                   <div class="card-body p-3 sm:p-4 overflow-visible">
                     <div class="flex items-start gap-3">
                       <.link
@@ -425,12 +427,12 @@
                         <p class="text-xs opacity-50 truncate">
                           @{request.requester.handle || request.requester.username}
                         </p>
-
                         <%!-- Follow status --%>
                         <div class="flex gap-1 mt-2 min-h-[20px] flex-wrap">
                           <%= if Elektrine.Profiles.following?(request.requester.id, @current_user.id) do %>
                             <span class="badge badge-xs badge-info">Follows you</span>
                           <% end %>
+
                           <%= if Elektrine.Profiles.following?(@current_user.id, request.requester.id) do %>
                             <span class="badge badge-xs badge-ghost">You follow</span>
                           <% end %>
@@ -475,13 +477,12 @@
             <% end %>
           <% end %>
         <% end %>
-        
-<!-- Sent Requests Tab -->
+        <!-- Sent Requests Tab -->
         <%= if @current_tab == "sent" do %>
           <%= if length(@sent_requests) > 0 do %>
             <div class="space-y-4">
               <%= for request <- @sent_requests do %>
-                <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card panel-card hover:border-error/20 transition-colors">
                   <div class="card-body p-3 sm:p-4 overflow-visible">
                     <div class="flex items-start gap-3">
                       <.link
@@ -530,13 +531,12 @@
             </div>
           <% end %>
         <% end %>
-        
-<!-- Suggestions Tab -->
+        <!-- Suggestions Tab -->
         <%= if @current_tab == "suggestions" do %>
           <%= if length(@suggested_friends) > 0 do %>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
               <%= for user <- @suggested_friends do %>
-                <div class="card bg-base-200 border border-base-300 shadow-sm hover:shadow-md hover:border-error/20 transition-shadow">
+                <div class="card panel-card hover:border-error/20 transition-colors">
                   <div class="card-body p-3 sm:p-4 overflow-visible">
                     <div class="flex items-start gap-3">
                       <.link
@@ -553,7 +553,6 @@
                           {user.display_name || user.username}
                         </.link>
                         <p class="text-xs opacity-50 truncate">@{user.handle || user.username}</p>
-
                         <%!-- Mutual follow indicator --%>
                         <div class="mt-2">
                           <span class="badge badge-xs badge-success">Mutual Follow</span>
@@ -580,21 +579,19 @@
             </div>
           <% end %>
         <% end %>
-        
-<!-- Blocked Tab -->
+        <!-- Blocked Tab -->
         <%= if @current_tab == "blocked" do %>
           <%= if length(@blocked_users) > 0 do %>
             <div class="space-y-2">
               <%= for user <- @blocked_users do %>
-                <div class="card glass-card border border-error/30 hover:bg-base-200/50 transition-colors">
+                <div class="card panel-card border border-error/30 hover:bg-base-200/50 transition-colors">
                   <div class="card-body p-3 sm:p-4 overflow-visible">
                     <div class="flex items-center gap-3 sm:gap-4">
                       <!-- Avatar -->
                       <div class="opacity-50 flex-shrink-0">
                         <.user_avatar user={user} size="lg" user_statuses={@user_statuses} />
                       </div>
-                      
-<!-- Profile Info -->
+                      <!-- Profile Info -->
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
                           <span class="font-semibold opacity-70 truncate">
@@ -602,12 +599,10 @@
                           </span>
                           <span class="badge badge-error badge-xs">Blocked</span>
                         </div>
-                        <p class="text-xs opacity-50 truncate">
-                          @{user.handle || user.username}
-                        </p>
+
+                        <p class="text-xs opacity-50 truncate">@{user.handle || user.username}</p>
                       </div>
-                      
-<!-- Actions -->
+                      <!-- Actions -->
                       <div class="flex gap-2 flex-shrink-0">
                         <button
                           phx-click="unblock_user"
@@ -634,29 +629,20 @@
       </div>
     </div>
   </div>
-
   <%!-- Unfriend Confirmation Modal --%>
   <%= if @show_unfriend_modal && @unfriend_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card">
+      <div class="modal-box modal-surface">
         <h3 class="font-bold text-lg">Remove Friend?</h3>
+
         <p class="py-4">
           Are you sure you want to remove <strong>{@unfriend_user.username}</strong>
           from your friends?
         </p>
+
         <div class="modal-action">
-          <button
-            phx-click="cancel_unfriend"
-            class="btn btn-ghost"
-          >
-            Cancel
-          </button>
-          <button
-            phx-click="confirm_unfriend"
-            class="btn btn-secondary"
-          >
-            Remove Friend
-          </button>
+          <button phx-click="cancel_unfriend" class="btn btn-ghost"> Cancel </button>
+          <button phx-click="confirm_unfriend" class="btn btn-secondary"> Remove Friend </button>
         </div>
       </div>
     </div>

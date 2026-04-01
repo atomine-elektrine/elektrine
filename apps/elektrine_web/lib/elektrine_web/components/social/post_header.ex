@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
   This ensures consistent styling and behavior across all post types.
   """
   use Phoenix.Component
+  alias Elektrine.AccountIdentifiers
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
@@ -116,7 +117,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
               </.user_hover_card>
               <div class="text-sm opacity-70 flex items-center gap-2 truncate">
                 <span class="truncate">
-                  @{@normalized.handle}@{Elektrine.Domains.default_user_handle_domain()} ·
+                  {AccountIdentifiers.at_local_handle(@normalized.handle)} ·
                   <.local_time
                     datetime={@normalized.timestamp}
                     format="relative"
@@ -290,7 +291,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
         path
         |> String.split("/")
         |> List.last()
-        |> then(fn name -> if name == "", do: uri, else: name end)
+        |> then(fn name -> if Elektrine.Strings.present?(name), do: name, else: uri end)
 
       _ ->
         uri

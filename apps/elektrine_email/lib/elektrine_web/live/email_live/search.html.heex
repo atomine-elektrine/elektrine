@@ -8,29 +8,25 @@
       current_page="search"
       current_user={@current_user}
     />
-    
-<!-- Main content -->
+    <!-- Main content -->
     <div class="flex-1 min-w-0 overflow-hidden">
-      <div
-        id="search-email-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-lg"
-      >
+      <div id="search-email-card" class="card panel-card rounded-lg">
         <div class="card-body p-6">
           <!-- Header -->
           <div class="flex items-center space-x-3 mb-6">
             <div class="p-2 bg-secondary/10 rounded-lg">
               <.icon name="hero-magnifying-glass" class="h-6 w-6 text-secondary" />
             </div>
+
             <div>
               <h2 class="text-2xl font-bold">{gettext("Search")}</h2>
+
               <p class="text-sm text-base-content/70">
                 {gettext("Find emails by sender, subject, or content")}
               </p>
             </div>
           </div>
-          
-<!-- Search Form -->
+          <!-- Search Form -->
           <div class="mb-6">
             <.form for={%{}} as={:search} phx-submit="search" class="flex gap-3">
               <div class="flex-1 relative">
@@ -57,6 +53,7 @@
                   </button>
                 <% end %>
               </div>
+
               <button type="submit" class="btn btn-secondary" disabled={@searching}>
                 <%= if @searching do %>
                   <.spinner size="sm" /> {gettext("Searching...")}
@@ -65,17 +62,14 @@
                 <% end %>
               </button>
             </.form>
-            
-<!-- Search Tips -->
+            <!-- Search Tips -->
             <div class="mt-2 text-sm text-base-content/60">
-              <strong>{gettext("Search tips:")}</strong>
-              {gettext(
+              <strong>{gettext("Search tips:")}</strong> {gettext(
                 "Use multiple words to narrow results • Search works across sender, subject, and message content"
               )}
             </div>
           </div>
-          
-<!-- Search Results -->
+          <!-- Search Results -->
           <%= if @search_results do %>
             <div class="space-y-4">
               <!-- Results Header -->
@@ -109,7 +103,7 @@
                   <%= for message <- @search_results.messages do %>
                     <div
                       id={"message-#{message.id}"}
-                      class={"card glass-card border hover:border-primary/40 hover:shadow-md transition-[border-color,box-shadow] #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
+                      class={"card panel-card border hover:border-primary/40 transition-colors #{if message.read, do: "border-base-300", else: "border-secondary/30 bg-secondary/5"}"}
                     >
                       <div class="card-body p-4">
                         <div class="flex items-center justify-between">
@@ -126,8 +120,7 @@
                                   </div>
                                 </div>
                               </div>
-                              
-<!-- Message Details -->
+                              <!-- Message Details -->
                               <div class="flex-1 min-w-0">
                                 <div class="flex items-center space-x-2">
                                   <span class={"font-semibold #{if message.read, do: "text-base-content", else: "text-secondary"}"}>
@@ -155,6 +148,7 @@
                                     </div>
                                   <% end %>
                                 </div>
+
                                 <.link
                                   navigate={
                                     ~p"/email/view/#{message.hash || message.id}?#{email_return_params(%{return_to: "search", return_query: @search_results.query})}"
@@ -164,6 +158,7 @@
                                   <div class={"text-sm #{if message.read, do: "text-base-content/80", else: "text-secondary font-medium"}"}>
                                     {truncate_subject(message.subject, 80)}
                                   </div>
+
                                   <div class="text-xs text-base-content/60 mt-1 line-clamp-2">
                                     <%= if message.text_body do %>
                                       {String.slice(message.text_body, 0, 150)}{if String.length(
@@ -176,8 +171,7 @@
                               </div>
                             </div>
                           </div>
-                          
-<!-- Quick Actions -->
+                          <!-- Quick Actions -->
                           <div class="flex items-center space-x-1 ml-4">
                             <div class="tooltip" data-tip={gettext("Archive")}>
                               <button
@@ -189,6 +183,7 @@
                                 <.icon name="hero-archive-box" class="h-4 w-4" />
                               </button>
                             </div>
+
                             <div class="tooltip" data-tip={gettext("Reply")}>
                               <button
                                 phx-click="quick_action"
@@ -199,6 +194,7 @@
                                 <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
                               </button>
                             </div>
+
                             <div class="tooltip" data-tip={gettext("Forward")}>
                               <button
                                 phx-click="quick_action"
@@ -215,8 +211,7 @@
                     </div>
                   <% end %>
                 </div>
-                
-<!-- Pagination -->
+                <!-- Pagination -->
                 <%= if @search_results.total_pages > 1 do %>
                   <div class="flex justify-center mt-6">
                     <div class="join">
@@ -258,6 +253,7 @@
             <div class="text-center py-12 bg-base-200 rounded-lg">
               <.icon name="hero-magnifying-glass" class="h-12 w-12 mx-auto text-base-content/40" />
               <p class="mt-4 text-lg">{gettext("Search your emails")}</p>
+
               <p class="text-sm text-base-content/60 mt-2">
                 {gettext("Enter keywords to find messages by sender, subject, or content.")}
               </p>

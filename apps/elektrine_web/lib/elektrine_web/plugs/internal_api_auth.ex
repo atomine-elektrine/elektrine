@@ -6,6 +6,8 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   import Plug.Conn
   require Logger
 
+  alias Elektrine.InternalAPI
+
   def init(opts) do
     opts
     |> Keyword.put_new(:env_names, ["PHOENIX_API_KEY"])
@@ -38,7 +40,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
 
   defp authorization_key(conn) do
     case List.first(get_req_header(conn, "authorization")) do
-      "Bearer " <> token when token != "" -> token
+      "Bearer " <> token -> if(Elektrine.Strings.present?(token), do: token, else: nil)
       "Basic " <> credentials -> basic_auth_password(credentials)
       _ -> nil
     end
@@ -47,7 +49,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   defp basic_auth_password(credentials) do
     with {:ok, decoded} <- Base.decode64(credentials),
          [_, password] <- String.split(decoded, ":", parts: 2),
-         false <- password == "" do
+         true <- Elektrine.Strings.present?(password) do
       password
     else
       _ -> nil
@@ -55,18 +57,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   end
 
   defp configured_api_key(opts) do
-    env_value =
-      opts
-      |> Keyword.fetch!(:env_names)
-      |> Kernel.++(["INTERNAL_API_KEY"])
-      |> Enum.find_value(fn env_name ->
-        case System.get_env(env_name) do
-          value when is_binary(value) and value != "" -> value
-          _ -> nil
-        end
-      end)
-
-    env_value || Application.get_env(:elektrine, :internal_api_key)
+    opts |> Keyword.fetch!(:env_names) |> InternalAPI.api_key()
   end
 
   defp secure_compare(provided_key, expected_key) do

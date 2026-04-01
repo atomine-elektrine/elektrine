@@ -57,7 +57,7 @@ defmodule Elektrine.Security.ContentValidator do
       String.length(title) > 200 ->
         {:error, :title_too_long}
 
-      String.trim(title) == "" ->
+      not Elektrine.Strings.present?(title) ->
         {:error, :title_empty}
 
       Regex.match?(~r/[<>"]/, title) ->

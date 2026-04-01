@@ -176,7 +176,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding-bottom: 30px; border-bottom: 1px solid #1f1f1f;">
-                        <h1 style="margin: 0; color: #a855f7; font-size: 24px; font-weight: 600;">Verify Your Recovery Email</h1>
+                        <h1 style="margin: 0; color: #8a7cc2; font-size: 24px; font-weight: 600;">Verify Your Recovery Email</h1>
                       </td>
                     </tr>
                   </table>
@@ -195,7 +195,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                         <!-- Button -->
                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                           <tr>
-                            <td style="background-color: #a855f7; border-radius: 8px;">
+                            <td style="background-color: #8a7cc2; border-radius: 8px;">
                               <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
                                 Verify Email Address
                               </a>
@@ -314,7 +314,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                         <!-- Button -->
                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                           <tr>
-                            <td style="background-color: #a855f7; border-radius: 8px;">
+                            <td style="background-color: #8a7cc2; border-radius: 8px;">
                               <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
                                 Verify Recovery Email
                               </a>

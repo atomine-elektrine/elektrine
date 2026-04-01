@@ -51,7 +51,7 @@
     <%= if @remote_actor.actor_type == "Group" do %>
       <!-- COMMUNITY VIEW (Lemmy-style) -->
     <!-- Community Header Banner -->
-      <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden mb-4">
+      <div class="card panel-card rounded-lg overflow-hidden mb-4">
         <!-- Cover Photo -->
         <div class="h-32 sm:h-40 relative">
           <%= if @remote_actor.header_url do %>
@@ -166,7 +166,7 @@
         <div class="flex-1 min-w-0">
           <!-- Create Post Card -->
           <%= if @current_user do %>
-            <div class="card social-page-card border border-base-300 rounded-lg p-4 mb-4">
+            <div class="card panel-card rounded-lg p-4 mb-4">
               <%= if @show_create_post do %>
                 <div class="flex items-start justify-between gap-3 mb-4">
                   <div>
@@ -349,7 +349,7 @@
             <% end %>
 
             <%= if !@loading && Enum.empty?(sorted_posts) && !@error do %>
-              <div class="card social-page-card border border-base-300 rounded-lg text-center py-12 px-4">
+              <div class="card panel-card rounded-lg text-center py-12 px-4">
                 <.icon name="hero-inbox" class="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p class="opacity-70">No posts yet</p>
                 <p class="text-sm opacity-50 mt-2">Be the first to post in this community!</p>
@@ -560,7 +560,7 @@
                 reaction_surface =
                   post_reaction_surface(post["id"], @local_posts, @post_reactions) %>
                 <article class={[
-                  "card social-page-card border border-base-300 rounded-lg overflow-hidden",
+                  "card panel-card rounded-lg overflow-hidden",
                   if(is_reply_outbox, do: "border-l-4 border-l-secondary/50", else: "")
                 ]}>
                   <div
@@ -894,7 +894,7 @@
 <!-- Sidebar -->
         <div class="w-full lg:w-80 flex-shrink-0 space-y-4">
           <!-- About Community -->
-          <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
+          <div class="card panel-card rounded-lg overflow-hidden">
             <div class="px-4 py-3 border-b border-base-300">
               <h3 class="font-semibold">About Community</h3>
             </div>
@@ -972,7 +972,7 @@
           
 <!-- Community Rules (if available in metadata) -->
           <%= if @remote_actor.metadata["attributedTo"] do %>
-            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
+            <div class="card panel-card rounded-lg overflow-hidden">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold">Moderators</h3>
               </div>
@@ -991,7 +991,7 @@
           
 <!-- Profile Fields -->
           <%= if @remote_actor.metadata["attachment"] && is_list(@remote_actor.metadata["attachment"]) do %>
-            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden">
+            <div class="card panel-card rounded-lg overflow-hidden">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold">Info</h3>
               </div>
@@ -1073,7 +1073,7 @@
         <!-- Main Profile Column -->
         <div class="flex-1 min-w-0">
           <!-- Mastodon-style Header -->
-          <div class="social-page-card bg-base-200 border border-base-300 rounded-lg overflow-hidden mb-6">
+          <div class="social-page-card panel-card rounded-lg overflow-hidden mb-6">
             <!-- Cover Photo -->
             <div class="h-48 sm:h-60 relative">
               <%= if @remote_actor.header_url do %>
@@ -1162,7 +1162,7 @@
                     </label>
                     <ul
                       tabindex="0"
-                      class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52 border border-base-300 z-30"
+                      class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                     >
                       <li>
                         <a href={@remote_actor.uri} target="_blank" rel="noopener noreferrer">
@@ -1264,7 +1264,7 @@
           
 <!-- Timeline Posts -->
           <div
-            class="social-page-card bg-base-200 border border-base-300 rounded-lg overflow-hidden"
+            class="social-page-card panel-card rounded-lg overflow-hidden"
             phx-hook="InfiniteScroll"
             id="remote-profile-infinite-scroll-person"
             data-offset="500"
@@ -1699,7 +1699,7 @@
       <!-- Right Sidebar - Media Gallery -->
         <%= if !Enum.empty?(all_media) do %>
           <div class="hidden flex-shrink-0 space-y-4 lg:block lg:w-80 xl:w-96">
-            <div class="card social-page-card border border-base-300 rounded-lg overflow-hidden sticky top-36 self-start">
+            <div class="card panel-card rounded-lg overflow-hidden sticky top-36 self-start">
               <div class="px-4 py-3 border-b border-base-300">
                 <h3 class="font-semibold flex items-center gap-2">
                   <.icon name="hero-photo" class="w-4 h-4" /> Media
@@ -1739,7 +1739,7 @@
 <!-- Quote Modal -->
 <%= if @show_quote_modal && @quote_target_post do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-2xl">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-lg">Quote Post</h3>
         <button
@@ -1823,7 +1823,7 @@
 <!-- Media Upload Modal -->
 <%= if @show_image_upload_modal && @current_user do %>
   <div class="modal modal-open" style="z-index: 60;">
-    <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-2xl">
       <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
 
       <.form for={%{}} phx-submit="upload_community_images" phx-change="validate_community_upload">

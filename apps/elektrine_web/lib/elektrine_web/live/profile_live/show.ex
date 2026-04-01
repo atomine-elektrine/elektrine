@@ -5,7 +5,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   import ElektrineWeb.Components.Profile.Modals
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
-  alias Elektrine.{Accounts, Domains, Messaging, Profiles}
+  alias Elektrine.{AccountIdentifiers, Accounts, Domains, Messaging, Profiles}
   alias ElektrineWeb.Platform.Integrations
   @impl true
   def mount(%{"handle" => handle}, session, socket) do
@@ -95,7 +95,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
             [
               %{
                 title: "Contact",
-                url: "mailto:#{user.username}@#{Domains.default_user_handle_domain()}",
+                url: AccountIdentifiers.public_contact_mailto(user),
                 description: "Send me an email",
                 platform: "email"
               }

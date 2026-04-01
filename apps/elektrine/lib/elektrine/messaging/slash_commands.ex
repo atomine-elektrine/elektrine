@@ -11,7 +11,7 @@ defmodule Elektrine.Messaging.SlashCommands do
   def process(input, opts \\ []) when is_binary(input) do
     trimmed = String.trim(input)
 
-    if trimmed == "" or not String.starts_with?(trimmed, "/") do
+    if not Elektrine.Strings.present?(trimmed) or not String.starts_with?(trimmed, "/") do
       {:send, trimmed}
     else
       execute(trimmed, opts)
@@ -72,8 +72,10 @@ defmodule Elektrine.Messaging.SlashCommands do
     giphy_search_fun = opts[:giphy_search_fun] || (&Giphy.search_gifs/2)
 
     case giphy_search_fun.(query, limit: 1) do
-      {:ok, [%{url: url} | _]} when is_binary(url) and url != "" ->
-        {:send, url}
+      {:ok, [%{url: url} | _]} when is_binary(url) ->
+        if Elektrine.Strings.present?(url),
+          do: {:send, url},
+          else: {:noop, "No GIFs found for \"#{query}\"."}
 
       {:ok, _} ->
         {:noop, "No GIFs found for \"#{query}\"."}
@@ -91,7 +93,7 @@ defmodule Elektrine.Messaging.SlashCommands do
       is_nil(conversation) ->
         {:error, "No active conversation to share."}
 
-      not is_binary(endpoint_url) or endpoint_url == "" ->
+      not Elektrine.Strings.present?(endpoint_url) ->
         {:error, "Invite link is unavailable right now."}
 
       true ->

@@ -1,6 +1,7 @@
 <div class="admin-page">
   <div class="mb-8">
     <h1 class="text-3xl font-bold">Edit VPN User Configuration</h1>
+
     <p class="text-base-content/70 mt-2">
       Manage quota and rate limit for
       <%= if @config.user.handle do %>
@@ -11,37 +12,43 @@
     </p>
   </div>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card panel-card">
     <div class="card-body">
       <.form :let={_f} for={@changeset} action={~p"/pripyat/vpn/users/#{@config.id}"} method="put">
         <div class="space-y-6">
           <!-- Current Usage Stats -->
           <div class="bg-base-200 rounded-lg p-4">
             <h3 class="font-semibold mb-3">Current Usage</h3>
+
             <div class="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p class="text-base-content/60">Quota Used</p>
+
                 <p class="font-medium font-semibold">{format_bytes(@config.quota_used_bytes)}</p>
               </div>
+
               <div>
                 <p class="text-base-content/60">Total Traffic</p>
+
                 <p class="font-medium">
-                  ↑ {format_bytes(@config.bytes_sent)} ·
-                  ↓ {format_bytes(@config.bytes_received)}
+                  ↑ {format_bytes(@config.bytes_sent)} · ↓ {format_bytes(@config.bytes_received)}
                 </p>
               </div>
+
               <div>
                 <p class="text-base-content/60">Server</p>
+
                 <p class="font-medium">{@config.vpn_server.name}</p>
               </div>
+
               <div>
                 <p class="text-base-content/60">Allocated IP</p>
+
                 <p class="font-medium">{@config.allocated_ip}</p>
               </div>
             </div>
           </div>
-          
-<!-- Bandwidth Quota -->
+          <!-- Bandwidth Quota -->
           <div class="form-control">
             <label class="label">
               <span class="label-text font-semibold">Bandwidth Quota</span>
@@ -57,15 +64,11 @@
                 max="1000"
                 class="input input-bordered join-item flex-1"
                 required
-              />
-              <span class="btn btn-disabled join-item">GB</span>
+              /> <span class="btn btn-disabled join-item">GB</span>
             </div>
-            <label class="label">
-              <span class="label-text-alt">Default: 10 GB</span>
-            </label>
+            <label class="label"><span class="label-text-alt">Default: 10 GB</span></label>
           </div>
-          
-<!-- Rate Limit -->
+          <!-- Rate Limit -->
           <div class="form-control">
             <label class="label">
               <span class="label-text font-semibold">Rate Limit</span>
@@ -80,29 +83,27 @@
                 max="1000"
                 class="input input-bordered join-item flex-1"
                 required
-              />
-              <span class="btn btn-disabled join-item">Mbps</span>
+              /> <span class="btn btn-disabled join-item">Mbps</span>
             </div>
+
             <label class="label">
               <span class="label-text-alt">Default: 50 Mbps (prevents bandwidth hogging)</span>
             </label>
           </div>
-          
-<!-- Status -->
+          <!-- Status -->
           <div class="form-control">
-            <label class="label">
-              <span class="label-text font-semibold">Status</span>
-            </label>
+            <label class="label"><span class="label-text font-semibold">Status</span></label>
             <select name="config[status]" class="select select-bordered">
               <option value="active" selected={@config.status == "active"}>Active</option>
+
               <option value="suspended" selected={@config.status == "suspended"}>
                 Suspended
               </option>
+
               <option value="revoked" selected={@config.status == "revoked"}>Revoked</option>
             </select>
           </div>
-          
-<!-- Actions -->
+          <!-- Actions -->
           <div class="flex gap-2 justify-end">
             <a href={~p"/pripyat/vpn/users"} class="btn btn-ghost">Cancel</a>
             <button type="submit" class="btn btn-secondary">

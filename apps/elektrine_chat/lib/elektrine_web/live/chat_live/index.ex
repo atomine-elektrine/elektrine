@@ -439,7 +439,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     description = Map.get(group_params, "description", "")
     is_public = Map.get(group_params, "is_public") == "true"
 
-    if String.trim(name) != "" and selected_users != [] do
+    if Elektrine.Strings.present?(name) and selected_users != [] do
       member_ids = Enum.map(selected_users, & &1.id)
 
       case consume_entity_image_upload(socket, :group_avatar_upload) do
@@ -502,7 +502,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     is_private = parse_checkbox_value(Map.get(channel_params, "is_private"))
 
     with server_id when is_integer(server_id) <- selected_server_id(socket),
-         true <- String.trim(name) != "",
+         true <- Elektrine.Strings.present?(name),
          {:ok, avatar_url} <- consume_entity_image_upload(socket, :channel_avatar_upload) do
       attrs = %{
         name: String.trim(name),
@@ -1290,7 +1290,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_server_modal do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
           phx-click-away="hide_create_server"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1406,7 +1406,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_settings_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
           phx-click-away="hide_settings"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1533,7 +1533,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_edit_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
           phx-click-away="hide_edit_conversation"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1656,7 +1656,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_add_members_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
           phx-click-away="hide_add_members"
         >
           <div class="flex justify-between items-center mb-6">
@@ -1783,7 +1783,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_message_search_modal && @conversation.selected do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-lg w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-lg w-full mx-4"
           phx-click-away="hide_message_search"
         >
           <div class="flex justify-between items-center mb-6">
@@ -2029,7 +2029,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_profile_modal && @profile_user do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4"
+          class="modal-box modal-surface p-6 max-w-md w-full mx-4"
           phx-click-away="hide_profile_modal"
         >
           <div class="flex justify-between items-center mb-6">
@@ -2139,7 +2139,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <%= if @ui.show_browse_modal do %>
       <div class="modal modal-open">
         <div
-          class="modal-box card glass-card bg-base-100 w-[95vw] max-w-6xl mx-4 max-h-[85vh] overflow-hidden"
+          class="modal-box modal-surface w-[95vw] max-w-6xl mx-4 max-h-[85vh] overflow-hidden"
           phx-click-away="hide_browse_modal"
         >
           <div class="flex items-center justify-between p-4 border-b border-base-300">
@@ -2292,7 +2292,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         phx-click="hide_member_management"
       >
         <div
-          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
+          class="card panel-card bg-base-100 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
           phx-click="ignore"
         >
           <div class="p-6 border-b border-base-300">
@@ -2357,7 +2357,7 @@ defmodule ElektrineWeb.ChatLive.Index do
                               </button>
                               <ul
                                 tabindex="0"
-                                class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-36 z-30"
+                                class="dropdown-content z-30 menu p-2 rounded-box w-36 z-30"
                               >
                                 <li>
                                   <button
@@ -2411,7 +2411,7 @@ defmodule ElektrineWeb.ChatLive.Index do
         phx-click="hide_moderation_log"
       >
         <div
-          class="card glass-card bg-base-100 rounded-xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
+          class="card panel-card bg-base-100 rounded-xl shadow-xl w-full max-w-4xl max-h-[80vh] overflow-hidden"
           phx-click="ignore"
         >
           <div class="p-6 border-b border-base-300">
@@ -2800,9 +2800,9 @@ defmodule ElektrineWeb.ChatLive.Index do
     url = relay[:url] || relay["url"]
     name = relay[:name] || relay["name"]
 
-    if is_binary(url) and String.trim(url) != "" do
+    if Elektrine.Strings.present?(url) do
       normalized_name =
-        if is_binary(name) and String.trim(name) != "" do
+        if Elektrine.Strings.present?(name) do
           String.trim(name)
         else
           nil

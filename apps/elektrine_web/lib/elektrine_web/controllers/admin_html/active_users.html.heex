@@ -4,25 +4,21 @@
       <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
         User Admin
       </p>
+
       <h1 class="mt-2 text-xl font-bold sm:text-2xl">Active Users - {@title}</h1>
+
       <p class="mt-2 text-sm text-base-content/70 sm:text-base">
         Review account activity by timeframe to spot recent engagement, dormant accounts, and unusual patterns.
       </p>
     </div>
+
     <div class="text-xs opacity-60 sm:text-sm">{@total_count} users</div>
   </div>
-  
-<!-- Timeframe Filter -->
-  <div class="card glass-card shadow-xl mb-6">
+  <!-- Timeframe Filter -->
+  <div class="card panel-card mb-6">
     <div class="card-body">
       <div class="tabs tabs-bordered">
-        <%= for {value, label} <- [
-          {"1h", "Last Hour"},
-          {"24h", "Last 24 Hours"},
-          {"7d", "Last 7 Days"},
-          {"30d", "Last 30 Days"},
-          {"never", "Never Active"}
-        ] do %>
+        <%= for {value, label} <- [ {"1h", "Last Hour"}, {"24h", "Last 24 Hours"}, {"7d", "Last 7 Days"}, {"30d", "Last 30 Days"}, {"never", "Never Active"} ] do %>
           <.link
             navigate={~p"/pripyat/active-users?timeframe=#{value}"}
             class={["tab", if(@timeframe == value, do: "tab-active", else: "")]}
@@ -33,41 +29,50 @@
       </div>
     </div>
   </div>
-  
-<!-- Active Users Table -->
-  <div class="card glass-card shadow-xl">
+  <!-- Active Users Table -->
+  <div class="card panel-card">
     <div class="card-body p-3 sm:p-6">
       <div class="overflow-x-auto">
         <table class="table table-zebra w-full">
           <thead>
             <tr>
               <th class="text-xs sm:text-sm">User</th>
+
               <th class="text-xs sm:text-sm">Last Activity</th>
+
               <th class="text-xs sm:text-sm hidden lg:table-cell">IP Address</th>
+
               <th class="text-xs sm:text-sm hidden md:table-cell">Login Count</th>
+
               <th class="text-xs sm:text-sm">Status</th>
+
               <th class="text-xs sm:text-sm">Actions</th>
             </tr>
           </thead>
+
           <tbody>
             <%= for user <- @active_users do %>
               <tr>
                 <td>
                   <div>
                     <div class="font-bold">{user.username}</div>
+
                     <%= if user.is_admin do %>
                       <div class="badge badge-error badge-xs">Admin</div>
                     <% end %>
+
                     <div class="text-xs opacity-50">
                       Registered: {Calendar.strftime(user.inserted_at, "%Y-%m-%d")}
                     </div>
                   </div>
                 </td>
+
                 <td>
                   <%= if user.last_activity_at do %>
                     <div class="text-sm">
                       {Calendar.strftime(user.last_activity_at, "%Y-%m-%d %H:%M")}
                     </div>
+
                     <div class="mt-1 flex flex-wrap items-center gap-2 text-xs opacity-60">
                       <span>{time_ago_in_words(user.last_activity_at)} ago</span>
                       <span class="badge badge-outline badge-xs">
@@ -78,6 +83,7 @@
                     <span class="opacity-50">Never</span>
                   <% end %>
                 </td>
+
                 <td class="hidden lg:table-cell">
                   <span class="font-medium text-xs break-all max-w-xs">
                     {if(user.last_activity_source == :web,
@@ -86,19 +92,23 @@
                     )}
                   </span>
                 </td>
+
                 <td class="hidden md:table-cell">
                   <span class="font-medium text-sm">{user.login_count || 0}</span>
                 </td>
+
                 <td>
                   <div class="flex flex-wrap gap-1">
                     <%= if user.two_factor_enabled do %>
                       <div class="badge badge-success badge-sm">2FA</div>
                     <% end %>
+
                     <%= if user.last_activity_at && DateTime.diff(DateTime.utc_now(), user.last_activity_at, :hour) < 1 do %>
                       <div class="badge badge-success badge-sm">Online</div>
                     <% end %>
                   </div>
                 </td>
+
                 <td>
                   <.link
                     navigate={~p"/pripyat/users/#{user.id}/edit"}
@@ -114,13 +124,11 @@
       </div>
     </div>
   </div>
-  
-<!-- Pagination -->
+  <!-- Pagination -->
   <%= if @total_pages > 1 do %>
     <div class="flex items-center justify-between mt-6">
-      <div class="text-sm opacity-70">
-        Page {@page} of {@total_pages}
-      </div>
+      <div class="text-sm opacity-70">Page {@page} of {@total_pages}</div>
+
       <div class="join">
         <%= if @page > 1 do %>
           <.link

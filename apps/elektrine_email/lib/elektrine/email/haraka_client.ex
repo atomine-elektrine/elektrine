@@ -9,6 +9,8 @@ defmodule Elektrine.Email.HarakaClient do
 
   require Logger
 
+  alias Elektrine.EmailConfig
+
   @api_path "/api/v1/send"
 
   defmodule FinchClient do
@@ -156,57 +158,23 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp configured_base_url do
-    [System.get_env("HARAKA_BASE_URL"), mailer_config()[:base_url], default_base_url()]
-    |> Enum.find_value(&present_string/1)
-    |> normalize_base_url()
+    EmailConfig.haraka_base_url()
   end
 
   defp configured_api_key do
-    [
-      System.get_env("HARAKA_HTTP_API_KEY"),
-      System.get_env("HARAKA_OUTBOUND_API_KEY"),
-      System.get_env("HARAKA_API_KEY"),
-      System.get_env("INTERNAL_API_KEY"),
-      mailer_config()[:api_key]
-    ]
-    |> Enum.find_value(&present_string/1)
+    EmailConfig.haraka_api_key(mailer_config()[:api_key])
   end
 
   defp mailer_config do
-    Application.get_env(:elektrine, Elektrine.Mailer, [])
+    [
+      api_key: EmailConfig.mailer_setting(:api_key),
+      base_url: EmailConfig.mailer_setting(:base_url)
+    ]
   end
 
   defp http_client do
-    Application.get_env(:elektrine, :email, [])
-    |> Keyword.get(:haraka_http_client, FinchClient)
+    EmailConfig.haraka_http_client()
   end
-
-  defp present_string(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> case do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp present_string(_), do: nil
-
-  defp normalize_base_url(base_url) do
-    legacy_base_url = "https://haraka." <> Elektrine.Domains.primary_email_domain()
-
-    base_url
-    |> String.trim_trailing("/")
-    |> case do
-      normalized when normalized == legacy_base_url ->
-        default_base_url()
-
-      normalized ->
-        normalized
-    end
-  end
-
-  defp default_base_url, do: Elektrine.EmailAddresses.mail_base_url()
 
   defp build_api_body(params) do
     # If raw email data is provided, use that directly (preserves attachments and MIME structure)
@@ -227,14 +195,13 @@ defmodule Elektrine.Email.HarakaClient do
             # No display name, use email only
             email
 
-          {email, name} when name != "" ->
-            # RFC 2047 encode the display name if it contains non-ASCII
-            encoded_name = encode_mime_header(name)
-            "#{encoded_name} <#{email}>"
-
-          {email, _} ->
-            # Fallback to email only
-            email
+          {email, name} ->
+            if Elektrine.Strings.present?(name) do
+              encoded_name = encode_mime_header(name)
+              "#{encoded_name} <#{email}>"
+            else
+              email
+            end
         end
 
       # Build the JSON body for Haraka HTTP API
@@ -255,7 +222,7 @@ defmodule Elektrine.Email.HarakaClient do
 
       # Add Reply-To if present
       body =
-        if params[:reply_to] && params[:reply_to] != "" do
+        if Elektrine.Strings.present?(params[:reply_to]) do
           Map.put(body, "reply_to", ensure_field_utf8_safe(params[:reply_to]))
         else
           body
@@ -263,7 +230,7 @@ defmodule Elektrine.Email.HarakaClient do
 
       # Add CC if present
       body =
-        if params[:cc] && params[:cc] != "" do
+        if Elektrine.Strings.present?(params[:cc]) do
           Map.put(body, "cc", ensure_field_utf8_safe(normalize_recipients_for_api(params[:cc])))
         else
           body
@@ -271,15 +238,15 @@ defmodule Elektrine.Email.HarakaClient do
 
       # Add BCC if present
       body =
-        if params[:bcc] && params[:bcc] != "" do
+        if Elektrine.Strings.present?(params[:bcc]) do
           Map.put(body, "bcc", ensure_field_utf8_safe(normalize_recipients_for_api(params[:bcc])))
         else
           body
         end
 
       # Add body content - send both HTML and text when both are available
-      has_html = params[:html_body] && String.trim(params[:html_body]) != ""
-      has_text = params[:text_body] && String.trim(params[:text_body]) != ""
+      has_html = Elektrine.Strings.present?(params[:html_body])
+      has_text = Elektrine.Strings.present?(params[:text_body])
 
       body =
         cond do
@@ -574,8 +541,7 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp internal_signing_secret do
-    System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") ||
-      Application.get_env(:elektrine, :email, []) |> Keyword.get(:internal_signing_secret)
+    EmailConfig.internal_signing_secret()
   end
 
   defp internal_origin_payload(from_address, ts) do

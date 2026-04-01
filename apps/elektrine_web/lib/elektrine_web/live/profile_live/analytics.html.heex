@@ -12,16 +12,17 @@
       }
     />
   </:sidebar>
-  
-<!-- Overview Stats -->
+  <!-- Overview Stats -->
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm opacity-70">Total Views</p>
+
             <p class="text-3xl font-bold">{@stats.total_views}</p>
           </div>
+
           <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <.icon name="hero-eye" class="w-6 h-6 text-primary" />
           </div>
@@ -29,13 +30,15 @@
       </div>
     </div>
 
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm opacity-70">Unique Visitors</p>
+
             <p class="text-3xl font-bold">{@stats.unique_viewers}</p>
           </div>
+
           <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
             <.icon name="hero-users" class="w-6 h-6 text-secondary" />
           </div>
@@ -43,13 +46,15 @@
       </div>
     </div>
 
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm opacity-70">Views This Week</p>
+
             <p class="text-3xl font-bold">{@stats.views_this_week}</p>
           </div>
+
           <div class="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
             <.icon name="hero-chart-bar" class="w-6 h-6 text-success" />
           </div>
@@ -57,13 +62,15 @@
       </div>
     </div>
 
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm opacity-70">Views Today</p>
+
             <p class="text-3xl font-bold">{@stats.views_today}</p>
           </div>
+
           <div class="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center">
             <.icon name="hero-fire" class="w-6 h-6 text-accent" />
           </div>
@@ -76,31 +83,30 @@
     <!-- Left Column - Charts and Timeline -->
     <div class="lg:col-span-2 space-y-6">
       <!-- Views Over Time Chart -->
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-chart-bar" class="w-5 h-5 mr-2" /> Views Over Time
           </h2>
 
           <%= if @daily_views && length(@daily_views) > 0 do %>
-            <% # Calculate max views for scaling
-            max_views = Enum.max_by(@daily_views, & &1.count).count
-            # Only show days with activity, most recent first
-            display_days = @daily_views |> Enum.filter(&(&1.count > 0)) |> Enum.reverse() %>
             <div class="space-y-2 max-h-96 overflow-y-auto" style="scrollbar-gutter: stable">
-              <%= for view_data <- display_days do %>
+              <%= for view_data <- @display_days do %>
                 <div class="flex items-center gap-3">
                   <span class="text-sm opacity-70 w-24 flex-shrink-0">
                     {Calendar.strftime(view_data.date, "%b %d")}
                   </span>
                   <div class="flex-1 bg-base-200 rounded-full h-6 relative overflow-hidden">
                     <% percentage =
-                      if max_views > 0, do: view_data.count / max_views * 100, else: 0 %>
+                      if @max_daily_views > 0,
+                        do: view_data.count / @max_daily_views * 100,
+                        else: 0 %>
                     <div
                       class="bg-primary h-full rounded-full transition-all duration-300"
                       style={"width: #{percentage}%"}
                     >
                     </div>
+
                     <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
                       {view_data.count} {if view_data.count == 1, do: "view", else: "views"}
                     </span>
@@ -108,16 +114,18 @@
                 </div>
               <% end %>
             </div>
-            
-<!-- Summary Stats -->
+            <!-- Summary Stats -->
             <div class="mt-4 pt-4 border-t border-base-200">
               <div class="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p class="opacity-70">Total Views</p>
+
                   <p class="text-xl font-bold">{Enum.sum(Enum.map(@daily_views, & &1.count))}</p>
                 </div>
+
                 <div>
                   <p class="opacity-70">Daily Average</p>
+
                   <p class="text-xl font-bold">
                     {Float.round(Enum.sum(Enum.map(@daily_views, & &1.count)) / 30, 1)}
                   </p>
@@ -132,9 +140,8 @@
           <% end %>
         </div>
       </div>
-      
-<!-- Visitor Breakdown -->
-      <div class="card glass-card shadow-lg">
+      <!-- Visitor Breakdown -->
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-user-group" class="w-5 h-5 mr-2" /> Visitor Types
@@ -146,6 +153,7 @@
                 <span class="text-sm">Authenticated Users</span>
                 <span class="font-medium">{@viewer_breakdown.authenticated}</span>
               </div>
+
               <div class="w-full bg-base-200 rounded-full h-3">
                 <% auth_percentage =
                   if @viewer_breakdown.total > 0,
@@ -161,6 +169,7 @@
                 <span class="text-sm">Anonymous Visitors</span>
                 <span class="font-medium">{@viewer_breakdown.anonymous}</span>
               </div>
+
               <div class="w-full bg-base-200 rounded-full h-3">
                 <% anon_percentage =
                   if @viewer_breakdown.total > 0,
@@ -173,9 +182,8 @@
           </div>
         </div>
       </div>
-      
-<!-- Top Referrers -->
-      <div class="card glass-card shadow-lg">
+      <!-- Top Referrers -->
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-arrow-top-right-on-square" class="w-5 h-5 mr-2" /> Top Referrers
@@ -189,8 +197,10 @@
                     <p class="font-medium truncate">
                       {URI.parse(referrer.referer).host || referrer.referer}
                     </p>
+
                     <p class="text-xs opacity-70 truncate">{referrer.referer}</p>
                   </div>
+
                   <div class="badge badge-primary">{referrer.count} views</div>
                 </div>
               <% end %>
@@ -204,11 +214,10 @@
         </div>
       </div>
     </div>
-    
-<!-- Right Column - Recent Activity and Link Performance -->
+    <!-- Right Column - Recent Activity and Link Performance -->
     <div class="space-y-6">
       <!-- Most Clicked Links -->
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-cursor-arrow-rays" class="w-5 h-5 mr-2" /> Link Performance
@@ -222,6 +231,7 @@
                     <span class="font-medium text-sm">{link.title}</span>
                     <div class="badge badge-sm badge-primary">{link.clicks}</div>
                   </div>
+
                   <p class="text-xs opacity-70 truncate">{link.url}</p>
                 </div>
               <% end %>
@@ -234,9 +244,8 @@
           <% end %>
         </div>
       </div>
-      
-<!-- Recent Viewers -->
-      <div class="card glass-card shadow-lg">
+      <!-- Recent Viewers -->
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title mb-4">
             <.icon name="hero-clock" class="w-5 h-5 mr-2" /> Recent Visitors
@@ -257,6 +266,7 @@
                     <p class="font-medium text-sm truncate">
                       {viewer.display_name || viewer.handle || viewer.username}
                     </p>
+
                     <p class="text-xs opacity-70">
                       <.local_time
                         datetime={viewer.viewed_at}

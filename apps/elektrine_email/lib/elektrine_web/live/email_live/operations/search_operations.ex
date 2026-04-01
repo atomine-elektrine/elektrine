@@ -8,7 +8,7 @@ defmodule ElektrineWeb.EmailLive.Operations.SearchOperations do
   alias Elektrine.Email
 
   def handle_event("search", %{"search" => %{"query" => query}}, socket) do
-    if String.trim(query) != "" do
+    if Elektrine.Strings.present?(query) do
       mailbox = socket.assigns.mailbox
 
       results = Email.search_messages(mailbox.id, query)

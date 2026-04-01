@@ -315,7 +315,7 @@ defmodule ElektrineWeb.API.ExtEmailController do
   defp build_outbound_email(mailbox, params) do
     to = Map.get(params, "to")
 
-    if is_nil(to) || String.trim(to) == "" do
+    if not Elektrine.Strings.present?(to) do
       {:error, :missing_to}
     else
       {:ok,
@@ -330,7 +330,9 @@ defmodule ElektrineWeb.API.ExtEmailController do
          html_body: Map.get(params, "html_body"),
          encryption_mode: Map.get(params, "encryption_mode")
        }
-       |> Enum.reject(fn {_key, value} -> is_nil(value) || value == "" end)
+       |> Enum.reject(fn {_key, value} ->
+         is_nil(value) || (is_binary(value) and not Elektrine.Strings.present?(value))
+       end)
        |> Map.new()}
     end
   end
@@ -412,21 +414,23 @@ defmodule ElektrineWeb.API.ExtEmailController do
     })
   end
 
-  defp message_preview(%Message{text_body: text_body})
-       when is_binary(text_body) and text_body != "" do
-    text_body
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-    |> String.slice(0, 200)
+  defp message_preview(%Message{text_body: text_body}) when is_binary(text_body) do
+    if Elektrine.Strings.present?(text_body) do
+      text_body
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+      |> String.slice(0, 200)
+    end
   end
 
-  defp message_preview(%Message{html_body: html_body})
-       when is_binary(html_body) and html_body != "" do
-    html_body
-    |> String.replace(~r/<[^>]*>/, " ")
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-    |> String.slice(0, 200)
+  defp message_preview(%Message{html_body: html_body}) when is_binary(html_body) do
+    if Elektrine.Strings.present?(html_body) do
+      html_body
+      |> String.replace(~r/<[^>]*>/, " ")
+      |> String.replace(~r/\s+/, " ")
+      |> String.trim()
+      |> String.slice(0, 200)
+    end
   end
 
   defp message_preview(_message), do: nil

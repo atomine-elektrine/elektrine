@@ -525,7 +525,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
   defp maybe_put_optional_map_value(map, _key, nil), do: map
 
   defp maybe_put_optional_map_value(map, key, value) when is_binary(value) do
-    if String.trim(value) == "", do: map, else: Map.put(map, key, value)
+    if Elektrine.Strings.present?(value), do: Map.put(map, key, value), else: map
   end
 
   defp maybe_put_optional_map_value(map, _key, _value), do: map
@@ -543,12 +543,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   defp valid_absolute_http_uri?(_value), do: false
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

@@ -31,7 +31,7 @@ defmodule Elektrine.Files.StoredFolder do
 
       path ->
         cond do
-          String.trim(path) == "" ->
+          not Elektrine.Strings.present?(path) ->
             add_error(changeset, :path, "cannot be blank")
 
           String.starts_with?(path, "/") ->

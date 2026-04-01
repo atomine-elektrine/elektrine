@@ -47,7 +47,7 @@ defmodule ElektrineWeb.EmailLive.Search do
     socket = assign(socket, :search_query, query)
 
     socket =
-      if String.trim(query) != "" do
+      if Elektrine.Strings.present?(query) do
         search_results =
           SearchCached.search_messages(
             socket.assigns.current_user.id,

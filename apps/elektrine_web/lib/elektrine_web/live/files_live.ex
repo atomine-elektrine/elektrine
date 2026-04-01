@@ -3,7 +3,6 @@ defmodule ElektrineWeb.FilesLive do
 
   alias Elektrine.Accounts.Storage
   alias Elektrine.Files
-
   @impl true
   def mount(_params, _session, socket) do
     case socket.assigns.current_user do
@@ -20,8 +19,10 @@ defmodule ElektrineWeb.FilesLive do
          |> assign(:folders, [])
          |> assign(:files, [])
          |> assign(:search_query, "")
+         |> assign(:active_filter, "all")
          |> assign(:sort_by, "updated_desc")
          |> assign(:sort_options, Files.sort_options())
+         |> assign(:quick_filter_options, Files.quick_filter_options())
          |> assign(:share_expiry_options, Files.share_expiry_options())
          |> assign(:share_access_options, Files.share_access_options())
          |> assign(:selected_items, MapSet.new())
@@ -31,6 +32,11 @@ defmodule ElektrineWeb.FilesLive do
          |> assign(:bulk_move_path, "")
          |> assign(:show_new_folder_form, false)
          |> assign(:new_folder_name, "")
+         |> assign(:tree_expanded_paths, MapSet.new())
+         |> assign(:folder_tree, [])
+         |> assign(:context_menu, nil)
+         |> assign(:active_file, nil)
+         |> assign(:active_folder, nil)
          |> assign(:storage_info, Storage.get_storage_info(user.id))
          |> allow_upload(:files,
            accept: :any,
@@ -99,7 +105,8 @@ defmodule ElektrineWeb.FilesLive do
     folder = socket.assigns.current_folder
     query = Map.get(params, "q", "")
     sort = Map.get(params, "sort", socket.assigns.sort_by)
-    {:noreply, push_patch(socket, to: files_path(folder, query, sort))}
+    filter = Map.get(params, "filter", socket.assigns.active_filter)
+    {:noreply, push_patch(socket, to: files_path(folder, query, sort, filter))}
   end
 
   def handle_event("create_folder", %{"folder" => %{"name" => name}}, socket) do
@@ -127,14 +134,16 @@ defmodule ElektrineWeb.FilesLive do
     {:noreply,
      socket
      |> assign(:show_new_folder_form, not socket.assigns.show_new_folder_form)
-     |> assign(:new_folder_name, "")}
+     |> assign(:new_folder_name, "")
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("cancel_new_folder", _params, socket) do
     {:noreply,
      socket
      |> assign(:show_new_folder_form, false)
-     |> assign(:new_folder_name, "")}
+     |> assign(:new_folder_name, "")
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("delete_file", %{"id" => id}, socket) do
@@ -144,6 +153,7 @@ defmodule ElektrineWeb.FilesLive do
          :ok <- Files.delete_file(user.id, file_id) do
       {:noreply,
        socket
+       |> assign(:active_file, nil)
        |> refresh_files(user.id, socket.assigns.current_folder)
        |> put_flash(:info, "File deleted")}
     else
@@ -159,6 +169,7 @@ defmodule ElektrineWeb.FilesLive do
       :ok ->
         {:noreply,
          socket
+         |> assign(:active_folder, nil)
          |> refresh_files(user.id, socket.assigns.current_folder)
          |> put_flash(:info, "Folder deleted")}
 
@@ -171,15 +182,66 @@ defmodule ElektrineWeb.FilesLive do
   end
 
   def handle_event("start_rename", %{"type" => type, "id" => id}, socket) do
-    {:noreply, assign(socket, :rename_target, %{type: type, id: id})}
+    {:noreply,
+     socket
+     |> assign(:rename_target, %{type: type, id: id})
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("start_rename", %{"type" => type, "path" => path}, socket) do
-    {:noreply, assign(socket, :rename_target, %{type: type, path: path})}
+    {:noreply,
+     socket
+     |> assign(:rename_target, %{type: type, path: path})
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("cancel_rename", _params, socket) do
     {:noreply, assign(socket, :rename_target, nil)}
+  end
+
+  def handle_event("open_manage_file", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, file_id} <- parse_id(id),
+         %Files.StoredFile{} = file <- Enum.find(Files.list_files(user.id), &(&1.id == file_id)) do
+      {:noreply,
+       socket
+       |> assign(:active_file, file)
+       |> assign(:active_folder, nil)
+       |> assign(:context_menu, nil)}
+    else
+      _ -> {:noreply, put_flash(socket, :error, "File not found")}
+    end
+  end
+
+  def handle_event("close_manage_file", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:active_file, nil)
+     |> assign(:rename_target, nil)
+     |> assign(:move_target, nil)}
+  end
+
+  def handle_event("open_manage_folder", %{"path" => path}, socket) do
+    folder = Enum.find(socket.assigns.folders, &(&1.path == path))
+
+    if folder do
+      {:noreply,
+       socket
+       |> assign(:active_folder, folder)
+       |> assign(:active_file, nil)
+       |> assign(:context_menu, nil)}
+    else
+      {:noreply, put_flash(socket, :error, "Folder not found")}
+    end
+  end
+
+  def handle_event("close_manage_folder", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:active_folder, nil)
+     |> assign(:rename_target, nil)
+     |> assign(:move_target, nil)}
   end
 
   def handle_event("rename_file", %{"rename" => %{"id" => id, "name" => name}}, socket) do
@@ -190,6 +252,7 @@ defmodule ElektrineWeb.FilesLive do
       {:noreply,
        socket
        |> assign(:rename_target, nil)
+       |> refresh_active_file(user.id, file_id)
        |> refresh_files(user.id, socket.assigns.current_folder)
        |> put_flash(:info, "File renamed")}
     else
@@ -216,6 +279,7 @@ defmodule ElektrineWeb.FilesLive do
         {:noreply,
          socket
          |> assign(:rename_target, nil)
+         |> assign(:active_folder, nil)
          |> refresh_files(user.id, current_folder)
          |> put_flash(:info, "Folder renamed")}
 
@@ -232,7 +296,8 @@ defmodule ElektrineWeb.FilesLive do
      socket
      |> assign(:move_target, %{type: type, id: id})
      |> assign(:bulk_move_open, false)
-     |> assign(:bulk_move_path, socket.assigns.current_folder)}
+     |> assign(:bulk_move_path, socket.assigns.current_folder)
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("start_move", %{"type" => type, "path" => path}, socket) do
@@ -240,11 +305,121 @@ defmodule ElektrineWeb.FilesLive do
      socket
      |> assign(:move_target, %{type: type, path: path})
      |> assign(:bulk_move_open, false)
-     |> assign(:bulk_move_path, socket.assigns.current_folder)}
+     |> assign(:bulk_move_path, socket.assigns.current_folder)
+     |> assign(:context_menu, nil)}
   end
 
   def handle_event("cancel_move", _params, socket) do
     {:noreply, assign(socket, :move_target, nil)}
+  end
+
+  def handle_event("toggle_tree_node", %{"path" => path}, socket) do
+    expanded_paths = socket.assigns.tree_expanded_paths || MapSet.new()
+
+    next_expanded_paths =
+      if MapSet.member?(expanded_paths, path) do
+        MapSet.delete(expanded_paths, path)
+      else
+        MapSet.put(expanded_paths, path)
+      end
+
+    all_folders = Files.list_folders(socket.assigns.current_user.id)
+
+    {:noreply,
+     socket
+     |> assign(:tree_expanded_paths, next_expanded_paths)
+     |> assign(
+       :folder_tree,
+       build_folder_tree(all_folders, socket.assigns.current_folder, next_expanded_paths)
+     )}
+  end
+
+  def handle_event("show_context_menu", params, socket) do
+    x = parse_position(Map.get(params, "x"))
+    y = parse_position(Map.get(params, "y"))
+
+    context_menu = %{
+      x: x,
+      y: y,
+      kind: Map.get(params, "kind"),
+      token: Map.get(params, "token"),
+      id: Map.get(params, "id"),
+      path: Map.get(params, "path")
+    }
+
+    {:noreply, assign(socket, :context_menu, context_menu)}
+  end
+
+  def handle_event("hide_context_menu", _params, socket) do
+    {:noreply, assign(socket, :context_menu, nil)}
+  end
+
+  def handle_event("context_action", %{"action" => action} = params, socket) do
+    socket = assign(socket, :context_menu, nil)
+
+    case {action, Map.get(params, "kind")} do
+      {"open", "folder"} ->
+        handle_event("open_folder", %{"path" => Map.get(params, "path", "")}, socket)
+
+      {"open", "file"} ->
+        handle_event("open_file", %{"id" => Map.get(params, "id", "")}, socket)
+
+      {"manage", "folder"} ->
+        handle_event("open_manage_folder", %{"path" => Map.get(params, "path", "")}, socket)
+
+      {"manage", "file"} ->
+        handle_event("open_manage_file", %{"id" => Map.get(params, "id", "")}, socket)
+
+      {"rename", "folder"} ->
+        handle_event(
+          "start_rename",
+          %{"type" => "folder", "path" => Map.get(params, "path", "")},
+          socket
+        )
+
+      {"rename", "file"} ->
+        handle_event(
+          "start_rename",
+          %{"type" => "file", "id" => Map.get(params, "id", "")},
+          socket
+        )
+
+      {"move", "folder"} ->
+        handle_event(
+          "start_move",
+          %{"type" => "folder", "path" => Map.get(params, "path", "")},
+          socket
+        )
+
+      {"move", "file"} ->
+        handle_event(
+          "start_move",
+          %{"type" => "file", "id" => Map.get(params, "id", "")},
+          socket
+        )
+
+      {"delete", "folder"} ->
+        handle_event("delete_folder", %{"path" => Map.get(params, "path", "")}, socket)
+
+      {"delete", "file"} ->
+        handle_event("delete_file", %{"id" => Map.get(params, "id", "")}, socket)
+
+      {"new_folder", "blank"} ->
+        handle_event("toggle_new_folder", %{}, socket)
+
+      {"clear_selection", "blank"} ->
+        handle_event("clear_selection", %{}, socket)
+
+      {"refresh", "blank"} ->
+        handle_event(
+          "open_folder",
+          %{"path" => Map.get(params, "path", socket.assigns.current_folder)},
+          socket
+        )
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("move_file", %{"move" => %{"id" => id, "folder" => folder}}, socket) do
@@ -255,6 +430,7 @@ defmodule ElektrineWeb.FilesLive do
       {:noreply,
        socket
        |> assign(:move_target, nil)
+       |> refresh_active_file(user.id, file_id)
        |> refresh_files(user.id, socket.assigns.current_folder)
        |> put_flash(:info, "File moved")}
     else
@@ -274,6 +450,7 @@ defmodule ElektrineWeb.FilesLive do
         {:noreply,
          socket
          |> assign(:move_target, nil)
+         |> assign(:active_folder, nil)
          |> refresh_files(user.id, socket.assigns.current_folder)
          |> put_flash(:info, "Folder moved")}
 
@@ -291,6 +468,52 @@ defmodule ElektrineWeb.FilesLive do
       end
 
     {:noreply, assign(socket, :selected_items, selected_items)}
+  end
+
+  def handle_event("set_selection", %{"tokens" => tokens}, socket) when is_list(tokens) do
+    {:noreply, assign(socket, :selected_items, MapSet.new(tokens))}
+  end
+
+  def handle_event("set_selection", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("open_folder", %{"path" => path}, socket) do
+    {:noreply,
+     push_patch(socket,
+       to:
+         files_path(
+           path,
+           socket.assigns.search_query,
+           socket.assigns.sort_by,
+           socket.assigns.active_filter
+         )
+     )}
+  end
+
+  def handle_event("open_file", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    case parse_id(id) do
+      {:ok, file_id} ->
+        case Files.get_file(user.id, file_id) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "File not found")}
+
+          file ->
+            destination =
+              if inline_viewable?(file.content_type) do
+                ~p"/account/files/#{file.id}/preview"
+              else
+                ~p"/account/files/#{file.id}/download"
+              end
+
+            {:noreply, push_event(socket, "open_url", %{url: destination})}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid file")}
+    end
   end
 
   def handle_event("select_visible", _params, socket) do
@@ -340,6 +563,26 @@ defmodule ElektrineWeb.FilesLive do
     end
   end
 
+  def handle_event("drag_move_items", %{"tokens" => tokens, "folder" => folder}, socket)
+      when is_list(tokens) do
+    user = socket.assigns.current_user
+
+    case Files.bulk_move(user.id, tokens, folder) do
+      :ok ->
+        {:noreply,
+         socket
+         |> refresh_files(user.id, socket.assigns.current_folder)
+         |> put_flash(:info, "Moved #{length(tokens)} item(s)")}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Could not move dragged items")}
+    end
+  end
+
+  def handle_event("drag_move_items", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("create_share", %{"share" => %{"file_id" => id} = params}, socket) do
     user = socket.assigns.current_user
 
@@ -347,6 +590,7 @@ defmodule ElektrineWeb.FilesLive do
          {:ok, _share} <- Files.create_share(user.id, file_id, params) do
       {:noreply,
        socket
+       |> refresh_active_file(user.id, file_id)
        |> refresh_files(user.id, socket.assigns.current_folder)
        |> put_flash(:info, "Share link created")}
     else
@@ -374,6 +618,10 @@ defmodule ElektrineWeb.FilesLive do
          {:ok, _share} <- Files.revoke_share(user.id, share_id) do
       {:noreply,
        socket
+       |> refresh_active_file(
+         user.id,
+         socket.assigns.active_file && socket.assigns.active_file.id
+       )
        |> refresh_files(user.id, socket.assigns.current_folder)
        |> put_flash(:info, "Share link revoked")}
     else
@@ -384,14 +632,24 @@ defmodule ElektrineWeb.FilesLive do
   defp refresh_files(socket, user_id, folder_path) do
     case Files.list_folder(user_id, folder_path, %{
            q: socket.assigns.search_query,
-           sort: socket.assigns.sort_by
+           sort: socket.assigns.sort_by,
+           filter: socket.assigns.active_filter
          }) do
       {:ok, folder_view} -> apply_folder_view(socket, folder_view, user_id)
       {:error, _reason} -> socket
     end
   end
 
+  defp refresh_active_file(socket, _user_id, nil), do: socket
+
+  defp refresh_active_file(socket, user_id, file_id) do
+    active_file = Enum.find(Files.list_files(user_id), &(&1.id == file_id))
+    assign(socket, :active_file, active_file)
+  end
+
   defp apply_folder_view(socket, folder_view, user_id) do
+    all_folders = Files.list_folders(user_id)
+
     socket
     |> assign(:current_folder, folder_view.current_folder)
     |> assign(:folder_path, folder_view.current_folder)
@@ -399,6 +657,7 @@ defmodule ElektrineWeb.FilesLive do
     |> assign(:folders, folder_view.folders)
     |> assign(:files, folder_view.files)
     |> assign(:search_query, folder_view.search_query)
+    |> assign(:active_filter, folder_view.filter_by)
     |> assign(:sort_by, folder_view.sort_by)
     |> assign(:selected_items, MapSet.new())
     |> assign(:rename_target, nil)
@@ -406,6 +665,15 @@ defmodule ElektrineWeb.FilesLive do
     |> assign(:bulk_move_open, false)
     |> assign(:bulk_move_path, folder_view.current_folder)
     |> assign(:show_new_folder_form, false)
+    |> assign(
+      :folder_tree,
+      build_folder_tree(
+        all_folders,
+        folder_view.current_folder,
+        socket.assigns.tree_expanded_paths || MapSet.new()
+      )
+    )
+    |> assign(:context_menu, nil)
     |> assign(:storage_info, Storage.get_storage_info(user_id))
   end
 
@@ -457,6 +725,88 @@ defmodule ElektrineWeb.FilesLive do
   defp file_token(id), do: "file:#{id}"
   defp folder_token(path), do: "folder:#{path}"
   defp selected?(selected_items, token), do: MapSet.member?(selected_items, token)
+
+  defp build_folder_tree(folders, current_folder, tree_expanded_paths) do
+    paths = folders |> Enum.map(& &1.path) |> Enum.sort()
+    forced_expanded_paths = MapSet.new(folder_ancestors(current_folder))
+    expanded_paths = MapSet.union(tree_expanded_paths, forced_expanded_paths)
+
+    [%{path: "", name: "All files", depth: 0, has_children: true, expanded: true}] ++
+      (paths
+       |> Enum.map(fn path ->
+         %{
+           path: path,
+           name: Path.basename(path),
+           depth: folder_depth(path),
+           has_children: Enum.any?(paths, &String.starts_with?(&1, path <> "/")),
+           expanded: MapSet.member?(expanded_paths, path)
+         }
+       end)
+       |> Enum.filter(fn node -> visible_tree_node?(node.path, expanded_paths) end))
+  end
+
+  defp folder_depth(""), do: 0
+
+  defp folder_depth(path) do
+    path |> String.split("/", trim: true) |> length()
+  end
+
+  defp folder_ancestors(""), do: []
+
+  defp folder_ancestors(path) do
+    path
+    |> String.split("/", trim: true)
+    |> Enum.reduce({[], ""}, fn segment, {paths, prefix} ->
+      current = if prefix == "", do: segment, else: prefix <> "/" <> segment
+      {paths ++ [current], current}
+    end)
+    |> elem(0)
+  end
+
+  defp folder_tree_item_class(current_folder, path) do
+    cond do
+      current_folder == path ->
+        "bg-primary text-primary-content shadow-sm"
+
+      path != "" and String.starts_with?(current_folder, path <> "/") ->
+        "bg-primary/10 text-primary"
+
+      true ->
+        "text-base-content/70 hover:bg-base-200/80"
+    end
+  end
+
+  defp tree_toggle_class(true), do: "text-primary"
+  defp tree_toggle_class(false), do: "text-base-content/35"
+
+  defp tree_levels(depth) when depth > 0, do: Enum.to_list(1..depth)
+  defp tree_levels(_depth), do: []
+
+  defp visible_tree_node?(path, expanded_paths) do
+    path
+    |> folder_ancestors()
+    |> Enum.drop(-1)
+    |> Enum.all?(&MapSet.member?(expanded_paths, &1))
+  end
+
+  defp parse_position(value) do
+    case Integer.parse(to_string(value || "0")) do
+      {int, ""} -> int
+      _ -> 0
+    end
+  end
+
+  defp quick_filter_class(active_filter, value) do
+    if active_filter == value do
+      "bg-primary text-primary-content shadow-sm"
+    else
+      "bg-base-100 text-base-content/70 hover:bg-base-200"
+    end
+  end
+
+  defp row_class(true), do: "bg-primary/8 ring-1 ring-primary/20"
+
+  defp row_class(false), do: "hover:bg-base-200/45 focus-within:bg-base-200/45"
 
   defp current_folder_name(""), do: "All files"
 
@@ -535,11 +885,17 @@ defmodule ElektrineWeb.FilesLive do
   defp image_preview?(content_type),
     do: is_binary(content_type) and String.starts_with?(content_type, "image/")
 
-  defp files_path(folder, query, sort) do
+  defp files_path(folder, query, sort, filter) do
     normalized_sort = if sort == "updated_desc", do: nil, else: sort
+    normalized_filter = if filter == "all", do: nil, else: filter
 
     params =
-      [folder: blank_to_nil(folder), q: blank_to_nil(query), sort: blank_to_nil(normalized_sort)]
+      [
+        folder: blank_to_nil(folder),
+        q: blank_to_nil(query),
+        sort: blank_to_nil(normalized_sort),
+        filter: blank_to_nil(normalized_filter)
+      ]
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
 
     ~p"/account/files?#{params}"

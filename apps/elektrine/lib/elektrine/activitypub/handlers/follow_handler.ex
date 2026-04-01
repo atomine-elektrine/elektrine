@@ -5,6 +5,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
   alias Elektrine.ActivityPub.{Builder, Publisher, Relay}
   alias Elektrine.Async
   alias Elektrine.Profiles
+  alias Elektrine.RuntimeEnv
   @doc "Handles an incoming Follow activity.\n"
   def handle(
         %{"id" => follow_id, "actor" => actor_uri, "object" => object_ref},
@@ -14,7 +15,7 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
     case resolve_follow_target_uri(object_ref) do
       object_uri when is_binary(object_uri) and object_uri != "" ->
         remote_actor_result =
-          if Application.get_env(:elektrine, :env) == :dev do
+          if RuntimeEnv.environment() == :dev do
             case ActivityPub.get_or_fetch_actor(actor_uri) do
               {:ok, actor} ->
                 {:ok, actor}

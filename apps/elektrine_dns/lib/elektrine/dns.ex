@@ -347,7 +347,7 @@ defmodule Elektrine.DNS do
   end
 
   defp is_nil_or_blank(nil), do: true
-  defp is_nil_or_blank(value) when is_binary(value), do: String.trim(value) == ""
+  defp is_nil_or_blank(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp is_nil_or_blank(_), do: false
 
   defp verify_nameservers(%Zone{domain: domain}) do

@@ -1,19 +1,17 @@
 <div class="admin-page">
   <div class="mb-4 sm:mb-6">
     <h1 class="text-xl sm:text-2xl font-bold">{gettext("Mailboxes")}</h1>
+
     <p class="opacity-70 mt-2 text-sm sm:text-base">
       {gettext("Overview of all user mailboxes in the system.")}
     </p>
   </div>
-  
-<!-- Search Form -->
-  <div class="card glass-card shadow-xl mb-6">
+  <!-- Search Form -->
+  <div class="card panel-card mb-6">
     <div class="card-body">
       <form method="get" action={~p"/pripyat/mailboxes"} class="flex gap-4 items-end">
         <div class="flex-1">
-          <label class="label">
-            <span>Search mailboxes</span>
-          </label>
+          <label class="label"><span>Search mailboxes</span></label>
           <div class="join w-full">
             <input
               type="text"
@@ -27,6 +25,7 @@
             </button>
           </div>
         </div>
+
         <%= if assigns[:search_query] && @search_query != "" do %>
           <.link href={~p"/pripyat/mailboxes"} data-search-clear="true" class="btn btn-ghost">
             <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
@@ -52,7 +51,7 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <!-- Desktop Table View -->
       <div class="hidden lg:block overflow-x-auto">
@@ -60,27 +59,36 @@
           <thead>
             <tr>
               <th>{gettext("Email Address")}</th>
+
               <th>{gettext("Owner")}</th>
+
               <th>{gettext("Status")}</th>
+
               <th>{gettext("Created")}</th>
+
               <th>{gettext("Actions")}</th>
             </tr>
           </thead>
+
           <tbody>
             <%= for mailbox <- @mailboxes do %>
               <tr>
                 <td>
                   <div class="font-medium text-sm">{mailbox.email}</div>
+
                   <div class="text-xs opacity-50">{gettext("ID:")}{" "}{mailbox.id}</div>
                 </td>
+
                 <td>
                   <%= if mailbox.orphaned do %>
                     <div class="text-error font-medium">{gettext("ORPHANED")}</div>
+
                     <div class="text-xs text-error/70">{gettext("No user association")}</div>
                   <% else %>
                     <div class="font-medium">{mailbox.username}</div>
                   <% end %>
                 </td>
+
                 <td>
                   <%= if mailbox.orphaned do %>
                     <div class="badge badge-warning">{gettext("Orphaned")}</div>
@@ -88,6 +96,7 @@
                     <div class="badge badge-success">{gettext("Active")}</div>
                   <% end %>
                 </td>
+
                 <td class="text-sm opacity-70">
                   <.local_time
                     datetime={mailbox.inserted_at}
@@ -96,6 +105,7 @@
                     time_format={@time_format}
                   />
                 </td>
+
                 <td>
                   <%= if mailbox.orphaned do %>
                     <div class="flex gap-2">
@@ -128,8 +138,7 @@
           </tbody>
         </table>
       </div>
-      
-<!-- Mobile Card View -->
+      <!-- Mobile Card View -->
       <div class="lg:hidden space-y-3">
         <%= for mailbox <- @mailboxes do %>
           <div class={[
@@ -138,13 +147,11 @@
           ]}>
             <div class="flex justify-between items-start mb-3">
               <div class="flex-1 min-w-0">
-                <h4 class="font-medium text-sm font-medium break-all">
-                  {mailbox.email}
-                </h4>
-                <div class="text-xs opacity-50 mt-1">
-                  {gettext("ID:")}{" "}{mailbox.id}
-                </div>
+                <h4 class="font-medium text-sm font-medium break-all">{mailbox.email}</h4>
+
+                <div class="text-xs opacity-50 mt-1">{gettext("ID:")}{" "}{mailbox.id}</div>
               </div>
+
               <div class="flex items-center gap-2 ml-2 flex-shrink-0">
                 <%= if mailbox.orphaned do %>
                   <div class="badge badge-warning badge-sm">{gettext("Orphaned")}</div>
@@ -162,6 +169,7 @@
                 <div class="mt-1">
                   <%= if mailbox.orphaned do %>
                     <div class="text-error font-medium text-sm">{gettext("ORPHANED")}</div>
+
                     <div class="text-xs text-error/70">{gettext("No user association")}</div>
                   <% else %>
                     <div class="font-medium">{mailbox.username}</div>
@@ -181,11 +189,7 @@
               </span>
               <div class="flex gap-1">
                 <%= if mailbox.orphaned do %>
-                  <form
-                    method="post"
-                    action={~p"/pripyat/mailboxes/#{mailbox.id}"}
-                    class="inline"
-                  >
+                  <form method="post" action={~p"/pripyat/mailboxes/#{mailbox.id}"} class="inline">
                     <input type="hidden" name="_method" value="delete" />
                     <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
                     <button
@@ -209,12 +213,12 @@
           </div>
         <% end %>
       </div>
-      
-<!-- No mailboxes fallback -->
+      <!-- No mailboxes fallback -->
       <%= if length(@mailboxes) == 0 do %>
         <div class="text-center py-8">
           <.icon name="hero-inbox" class="w-12 h-12 text-base-content/30 mx-auto mb-4" />
           <h3 class="text-lg font-medium mb-2">{gettext("No mailboxes found")}</h3>
+
           <p class="text-base-content/60">
             <%= if assigns[:search_query] && @search_query != "" do %>
               {gettext("No mailboxes match your search criteria.")}
@@ -224,8 +228,7 @@
           </p>
         </div>
       <% end %>
-      
-<!-- Pagination -->
+      <!-- Pagination -->
       <%= if @total_pages > 1 do %>
         <div class="mt-6 pt-4 border-t border-base-300">
           <!-- Mobile: Compact pagination -->
@@ -233,6 +236,7 @@
             <div class="text-center text-sm text-base-content/70">
               {gettext("Page %{current} of %{total}", current: @current_page, total: @total_pages)}
             </div>
+
             <div class="flex justify-center items-center gap-2">
               <%= if @current_page > 1 do %>
                 <.link
@@ -242,11 +246,7 @@
                   <.icon name="hero-chevron-left" class="h-4 w-4" />
                 </.link>
               <% end %>
-
-              <span class="px-3 py-2 text-sm">
-                {@current_page} / {@total_pages}
-              </span>
-
+              <span class="px-3 py-2 text-sm">{@current_page} / {@total_pages}</span>
               <%= if @current_page < @total_pages do %>
                 <.link
                   href={~p"/pripyat/mailboxes?page=#{@current_page + 1}&search=#{@search_query}"}
@@ -256,12 +256,12 @@
                 </.link>
               <% end %>
             </div>
+
             <div class="text-center text-xs text-base-content/60">
               {gettext("%{total} total mailboxes", total: @total_count)}
             </div>
           </div>
-          
-<!-- Desktop: Full pagination -->
+          <!-- Desktop: Full pagination -->
           <div class="hidden sm:flex justify-between items-center">
             <div class="text-sm text-base-content/70">
               {gettext("Showing %{start}-%{end} of %{total} mailboxes",

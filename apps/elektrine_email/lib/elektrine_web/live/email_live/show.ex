@@ -424,7 +424,7 @@ defmodule ElektrineWeb.EmailLive.Show do
   def has_additional_recipients?(message) do
     # Add TO recipients
     to_recipients =
-      if message.to && String.trim(message.to) != "" do
+      if Elektrine.Strings.present?(message.to) do
         message.to |> String.split(~r/[,;]\s*/) |> Enum.map(&String.trim/1)
       else
         []
@@ -432,7 +432,7 @@ defmodule ElektrineWeb.EmailLive.Show do
 
     # Add CC recipients
     cc_recipients =
-      if message.cc && String.trim(message.cc) != "" do
+      if Elektrine.Strings.present?(message.cc) do
         message.cc |> String.split(~r/[,;]\s*/) |> Enum.map(&String.trim/1)
       else
         []

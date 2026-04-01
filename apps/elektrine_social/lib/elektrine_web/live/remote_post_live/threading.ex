@@ -154,7 +154,9 @@ defmodule ElektrineWeb.RemotePostLive.Threading do
         parent_id = reply["inReplyTo"]
 
         parent_id not in root_parent_ids &&
-          (is_nil(parent_id) || parent_id == "" || !MapSet.member?(reply_ids, parent_id))
+          (is_nil(parent_id) ||
+             (is_binary(parent_id) and not Elektrine.Strings.present?(parent_id)) ||
+             !MapSet.member?(reply_ids, parent_id))
       end)
 
     root_replies =
@@ -261,12 +263,7 @@ defmodule ElektrineWeb.RemotePostLive.Threading do
 
   defp normalize_in_reply_to_ref(ref) when is_binary(ref) do
     trimmed = String.trim(ref)
-
-    if trimmed == "" do
-      nil
-    else
-      trimmed
-    end
+    Elektrine.Strings.present(trimmed)
   end
 
   defp normalize_in_reply_to_ref(_), do: nil

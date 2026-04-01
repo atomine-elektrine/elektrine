@@ -25,7 +25,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   def handle_event("add_feed", %{"url" => url}, socket) do
     url = String.trim(url)
 
-    if url == "" do
+    if not Elektrine.Strings.present?(url) do
       {:noreply, assign(socket, :error_message, "Please enter a feed URL")}
     else
       socket = assign(socket, :adding_feed, true)
@@ -118,7 +118,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   def render(assigns) do
     ~H"""
     <div class="max-w-4xl mx-auto p-4">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body">
           <h2 class="card-title text-2xl mb-4">
             <.icon name="hero-rss" class="w-6 h-6 text-warning" /> RSS Feeds

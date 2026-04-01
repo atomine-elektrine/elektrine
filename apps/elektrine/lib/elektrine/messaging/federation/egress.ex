@@ -482,12 +482,8 @@ defmodule Elektrine.Messaging.Federation.Egress do
   defp maybe_iso8601(%NaiveDateTime{} = datetime), do: NaiveDateTime.to_iso8601(datetime)
   defp maybe_iso8601(_value), do: nil
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 end

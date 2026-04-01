@@ -298,11 +298,10 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   @spec get_reply_avatar_url(map() | Message.t()) :: String.t() | nil
   def get_reply_avatar_url(%Message{} = msg) do
     cond do
-      msg.remote_actor && is_binary(msg.remote_actor.avatar_url) &&
-          String.trim(msg.remote_actor.avatar_url) != "" ->
+      msg.remote_actor && Elektrine.Strings.present?(msg.remote_actor.avatar_url) ->
         msg.remote_actor.avatar_url
 
-      msg.sender && is_binary(msg.sender.avatar) && String.trim(msg.sender.avatar) != "" ->
+      msg.sender && Elektrine.Strings.present?(msg.sender.avatar) ->
         Uploads.avatar_url(msg.sender.avatar)
 
       true ->
@@ -460,7 +459,7 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
     trimmed = String.trim(value)
 
     cond do
-      trimmed == "" ->
+      not Elektrine.Strings.present?(trimmed) ->
         nil
 
       String.starts_with?(trimmed, "http://") || String.starts_with?(trimmed, "https://") ->
@@ -475,17 +474,21 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
 
   defp remote_actor_domain(%{remote_actor: remote_actor}), do: remote_actor_domain(remote_actor)
 
-  defp remote_actor_domain(%{domain: domain}) when is_binary(domain) and domain != "", do: domain
+  defp remote_actor_domain(%{domain: domain}) when is_binary(domain),
+    do: if(Elektrine.Strings.present?(domain), do: domain, else: nil)
 
-  defp remote_actor_domain(%{"domain" => domain}) when is_binary(domain) and domain != "",
-    do: domain
+  defp remote_actor_domain(%{"domain" => domain}) when is_binary(domain),
+    do: if(Elektrine.Strings.present?(domain), do: domain, else: nil)
 
   defp remote_actor_domain(_), do: nil
 
   defp host_from_uri(uri) when is_binary(uri) do
     case URI.parse(uri) do
-      %URI{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
+      %URI{host: host} when is_binary(host) ->
+        if(Elektrine.Strings.present?(host), do: host, else: nil)
+
+      _ ->
+        nil
     end
   end
 

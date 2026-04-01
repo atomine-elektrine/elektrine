@@ -124,7 +124,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
       </:sidebar>
 
       <div class="space-y-6">
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body space-y-4">
             <.section_header
               title="Default Profile URL"
@@ -156,7 +156,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
           </div>
         </div>
 
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body space-y-5">
             <.section_header
               title="Add Profile Domain"
@@ -188,7 +188,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
           </div>
         </div>
 
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-0">
             <div class="border-b border-base-content/10 px-5 py-4">
               <h3 class="text-lg font-semibold">Connected Domains</h3>
@@ -263,7 +263,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                           </div>
                         </div>
 
-                        <%= if custom_domain.last_error && String.trim(custom_domain.last_error) != "" do %>
+                        <%= if Elektrine.Strings.present?(custom_domain.last_error) do %>
                           <div class="rounded-xl border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                             {custom_domain.last_error}
                           </div>

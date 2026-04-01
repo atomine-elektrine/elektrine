@@ -566,7 +566,7 @@ defmodule ElektrineWeb.MessagingFederationController do
     after_sequence = parse_positive_int(params["after_sequence"], 0)
     limit = parse_positive_int(params["limit"], 128)
 
-    if is_binary(stream_id) and String.trim(stream_id) != "" do
+    if Elektrine.Strings.present?(stream_id) do
       payload =
         Federation.export_stream_events(stream_id,
           after_sequence: after_sequence,

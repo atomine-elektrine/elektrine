@@ -172,7 +172,7 @@ defmodule Elektrine.Encryption do
     Enum.all?([master_secret(), key_salt(), search_salt()], &present_secret?/1)
   end
 
-  defp present_secret?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_secret?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present_secret?(_), do: false
 
   defp master_secret do

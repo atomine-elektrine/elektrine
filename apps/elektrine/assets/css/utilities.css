@@ -7,7 +7,7 @@
    -------------------------------------------------------------------------- */
 
 .skip-link {
-  @apply sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-1/2 focus:-translate-x-1/2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-violet-600 focus:text-white focus:rounded-lg focus:outline-none;
+  @apply sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-1/2 focus:-translate-x-1/2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-slate-600 focus:text-white focus:rounded-lg focus:outline-none;
 }
 
 /* --------------------------------------------------------------------------
@@ -141,17 +141,17 @@
 .message-selected,
 .card.message-selected,
 div.message-selected {
-  background-color: rgba(124, 58, 237, 0.1) !important;
-  border-color: rgba(124, 58, 237, 0.5) !important;
-  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.2) !important;
+  background-color: rgba(138, 124, 194, 0.1) !important;
+  border-color: rgba(138, 124, 194, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.18) !important;
 }
 
 .message-selected:hover,
 .card.message-selected:hover,
 div.message-selected:hover {
-  background-color: rgba(124, 58, 237, 0.15) !important;
-  border-color: rgba(124, 58, 237, 0.7) !important;
-  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.3) !important;
+  background-color: rgba(138, 124, 194, 0.15) !important;
+  border-color: rgba(138, 124, 194, 0.62) !important;
+  box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.26) !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -398,78 +398,4 @@ div.message-selected:hover {
   .timeline-post-card .timeline-post-card-body {
     overflow: visible;
   }
-}
-
-
-/* --------------------------------------------------------------------------
-   GLASS/OPACITY UTILITIES
-   -------------------------------------------------------------------------- */
-
-/* Glass background variants */
-.bg-glass,
-.bg-glass-light,
-.bg-glass-heavy,
-.bg-base-200-glass {
-  background-color: var(--glass-utility-bg-fallback) !important;
-}
-
-.bg-glass {
-  --glass-utility-bg-fallback: var(--color-base-100);
-  --glass-utility-bg: oklch(var(--b1));
-  --glass-utility-bg-no-blur: var(--color-base-100);
-}
-
-.bg-glass-light {
-  --glass-utility-bg-fallback: var(--color-base-100);
-  --glass-utility-bg: oklch(var(--b1));
-  --glass-utility-bg-no-blur: var(--color-base-100);
-}
-
-.bg-glass-heavy {
-  --glass-utility-bg-fallback: var(--color-base-200);
-  --glass-utility-bg: oklch(var(--b2));
-  --glass-utility-bg-no-blur: var(--color-base-200);
-}
-
-.bg-base-200-glass {
-  --glass-utility-bg-fallback: var(--color-base-200);
-  --glass-utility-bg: oklch(var(--b2));
-  --glass-utility-bg-no-blur: var(--color-base-200);
-}
-
-@supports (color: oklch(0 0 0)) {
-  .bg-glass,
-  .bg-glass-light,
-  .bg-glass-heavy,
-  .bg-base-200-glass {
-    background-color: var(--glass-utility-bg) !important;
-  }
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .bg-glass,
-  .bg-glass-light,
-  .bg-glass-heavy,
-  .bg-base-200-glass {
-    background-color: var(--glass-utility-bg-no-blur) !important;
-  }
-}
-
-/* Colored glass variants matching home page */
-.bg-purple-glass {
-  background-color: rgba(88, 28, 135, 0.1) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.bg-red-glass {
-  background-color: rgba(127, 29, 29, 0.1) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.bg-orange-glass {
-  background-color: rgba(124, 45, 18, 0.1) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
 }

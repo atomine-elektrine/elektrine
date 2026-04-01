@@ -141,7 +141,7 @@ defmodule Elektrine.Messaging.Federation.Discovery do
       |> to_string()
       |> String.trim(".")
 
-    if normalized == "" do
+    if not Elektrine.Strings.present?(normalized) do
       {:error, :invalid_domain}
     else
       {:ok, normalized}
@@ -1578,10 +1578,8 @@ defmodule Elektrine.Messaging.Federation.Discovery do
 
   defp safe_existing_atom_key(_key), do: nil
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

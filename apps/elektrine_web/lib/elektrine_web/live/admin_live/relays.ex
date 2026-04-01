@@ -62,7 +62,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
   def handle_event("subscribe", %{"relay_url" => relay_url}, socket) do
     relay_url = String.trim(relay_url)
 
-    if relay_url == "" do
+    if not Elektrine.Strings.present?(relay_url) do
       {:noreply, put_flash(socket, :error, "Please enter a relay URL")}
     else
       socket = assign(socket, :adding, true)
@@ -220,7 +220,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       
     <!-- Stats -->
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-signal" class="w-4 h-4 text-primary opacity-70" />
@@ -229,7 +229,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             <div class="text-xl font-bold">{@stats.total}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-check-circle" class="w-4 h-4 text-success opacity-70" />
@@ -238,7 +238,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             <div class="text-xl font-bold text-success">{@stats.active}</div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-clock" class="w-4 h-4 text-warning opacity-70" />
@@ -259,7 +259,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             </div>
           </div>
         </div>
-        <div class="card glass-card shadow">
+        <div class="card panel-card shadow">
           <div class="card-body p-4">
             <div class="flex items-center gap-2">
               <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-error opacity-70" />
@@ -284,7 +284,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Subscriptions Table -->
-      <div class="card glass-card">
+      <div class="card panel-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
             <.icon name="hero-signal" class="w-5 h-5" /> Relay Subscriptions
@@ -419,7 +419,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
       </div>
       
     <!-- Popular Relays -->
-      <div class="card glass-card">
+      <div class="card panel-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-2">
             <.icon name="hero-star" class="w-5 h-5" /> Popular Relays
@@ -672,7 +672,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
   defp add_relay_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface">
         <h3 class="font-bold text-lg mb-4">
           <.icon name="hero-plus" class="w-5 h-5 inline mr-2" /> Subscribe to Relay
         </h3>

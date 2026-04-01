@@ -2,14 +2,14 @@
   <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
       <h1 class="text-xl font-bold sm:text-2xl">Invite Codes</h1>
+
       <p class="mt-1 text-sm text-base-content/70">
         Manage signup mode and the codes available for registration.
       </p>
     </div>
 
     <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm">
-      <.icon name="hero-plus" class="h-4 w-4" />
-      <span>Create Invite Code</span>
+      <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
     </.link>
   </div>
 
@@ -18,6 +18,7 @@
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Total
       </div>
+
       <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.total}</div>
     </div>
 
@@ -25,6 +26,7 @@
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Usable
       </div>
+
       <div class="mt-2 text-2xl font-semibold text-success">{@stats.active}</div>
     </div>
 
@@ -32,6 +34,7 @@
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Expired
       </div>
+
       <div class="mt-2 text-2xl font-semibold text-warning">{@stats.expired}</div>
     </div>
 
@@ -39,6 +42,7 @@
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Exhausted
       </div>
+
       <div class="mt-2 text-2xl font-semibold text-error">{@stats.exhausted}</div>
     </div>
 
@@ -46,6 +50,7 @@
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Mode
       </div>
+
       <div class="mt-2">
         <span class={[
           "badge badge-sm",
@@ -57,11 +62,12 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body p-4 sm:p-5">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="font-semibold">Registration Mode</h2>
+
           <p class="mt-1 text-sm text-base-content/70">
             When enabled, new accounts must provide a valid invite code.
           </p>
@@ -74,7 +80,6 @@
         >
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="enabled" value="" id="enabled-value" />
-
           <span class="text-sm font-medium text-base-content">
             {if @invite_codes_enabled, do: "Invite-only", else: "Open signup"}
           </span>
@@ -99,6 +104,7 @@
       <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 class="font-semibold">Self-Service Invite Access</h2>
+
           <p class="mt-1 text-sm text-base-content/70">
             Choose which trust level can create invite codes from account settings.
           </p>
@@ -110,7 +116,6 @@
           class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-3 sm:flex-row sm:items-end"
         >
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
-
           <label class="form-control min-w-[12rem]">
             <span class="label pb-1">
               <span class="label-text text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
@@ -125,17 +130,15 @@
               <% end %>
             </select>
           </label>
-
           <button type="submit" class="btn btn-primary btn-sm">
-            <.icon name="hero-check" class="h-4 w-4" />
-            <span>Save Access Rule</span>
+            <.icon name="hero-check" class="h-4 w-4" /> <span>Save Access Rule</span>
           </button>
         </form>
       </div>
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body p-0">
       <div class="flex items-center justify-between border-b border-base-content/10 px-4 py-4 sm:px-5">
         <h2 class="font-semibold">Codes</h2>
@@ -146,10 +149,11 @@
         <div class="py-12 text-center">
           <.icon name="hero-ticket" class="mx-auto h-12 w-12 opacity-30" />
           <p class="mt-4 text-lg font-medium opacity-70">No invite codes found</p>
+
           <p class="mt-2 text-sm opacity-55">Create one when you need to hand out access.</p>
+
           <.link href={~p"/pripyat/invite-codes/new"} class="btn btn-primary btn-sm mt-6">
-            <.icon name="hero-plus" class="h-4 w-4" />
-            <span>Create Invite Code</span>
+            <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
           </.link>
         </div>
       <% else %>
@@ -158,13 +162,19 @@
             <thead>
               <tr>
                 <th>Code</th>
+
                 <th>Status</th>
+
                 <th class="min-w-[12rem]">Usage</th>
+
                 <th class="hidden md:table-cell">Expires</th>
+
                 <th class="hidden lg:table-cell">Created</th>
+
                 <th class="w-1">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <%= for invite_code <- @invite_codes do %>
                 <tr>
@@ -183,6 +193,7 @@
                           </div>
                         <% end %>
                       </div>
+
                       <button
                         type="button"
                         class="btn btn-ghost btn-xs"
@@ -206,6 +217,7 @@
                         <span>{invite_code.uses_count} / {invite_code.max_uses}</span>
                         <span>{invite_code_usage_percent(invite_code)}%</span>
                       </div>
+
                       <progress
                         class={["progress h-2 w-full", invite_code_progress_class(invite_code)]}
                         value={invite_code.uses_count}
@@ -234,6 +246,7 @@
                         do: invite_code.created_by.username,
                         else: "System"}
                     </div>
+
                     <div class="mt-1 text-xs text-base-content/50">
                       {time_ago_in_words(invite_code.inserted_at)} ago
                     </div>
@@ -248,7 +261,6 @@
                       >
                         <.icon name="hero-pencil" class="h-4 w-4" />
                       </.link>
-
                       <.form
                         for={%{}}
                         action={~p"/pripyat/invite-codes/#{invite_code.id}"}

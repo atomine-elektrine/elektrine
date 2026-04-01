@@ -199,7 +199,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
         <div
           id={"#{@id_prefix}-card-#{@post.id}"}
           class={[
-            "card glass-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 transition-shadow",
+            "card panel-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 transition-shadow",
             if(@has_thread_context, do: "ml-6 border border-primary/25"),
             if(@is_reply,
               do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
@@ -299,8 +299,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       <% booster = @post.media_metadata["boosted_by"]
 
       has_booster_data =
-        is_binary(booster["domain"]) && booster["domain"] != "" &&
-          is_binary(booster["username"]) && booster["username"] != ""
+        Elektrine.Strings.present?(booster["domain"]) &&
+          Elektrine.Strings.present?(booster["username"])
 
       # Filter out relay actors - they distribute content, not boost it
       is_relay =
@@ -567,7 +567,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
       </label>
       <ul
         tabindex="0"
-        class="dropdown-content timeline-post-dropdown-menu menu p-2 shadow-lg bg-base-100 rounded-box w-52"
+        class="dropdown-content timeline-post-dropdown-menu menu p-2 rounded-box w-52"
       >
         <!-- View/Open Actions -->
         <%= if @post.federated && @post.activitypub_url do %>
@@ -666,7 +666,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <%= if @ancestor_count > 0 do %>
       <div class="mb-2 space-y-2">
         <div class="pl-6 pr-2 flex items-center gap-2 text-[11px]">
-          <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-100/80 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
+          <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-200/70 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
             <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Thread context
           </span>
           <span class="opacity-60">{@thread_node_count} posts in path</span>
@@ -1251,10 +1251,10 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     message_content = Map.get(message, :content)
 
     cond do
-      is_binary(message_content) && String.trim(message_content) != "" ->
+      Elektrine.Strings.present?(message_content) ->
         message_content
 
-      is_binary(fallback_content) && String.trim(fallback_content) != "" ->
+      Elektrine.Strings.present?(fallback_content) ->
         fallback_content
 
       true ->
@@ -1263,9 +1263,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   end
 
   defp ancestor_preview_content(_, fallback_content)
-       when is_binary(fallback_content) and fallback_content != "" do
-    fallback_content
-  end
+       when is_binary(fallback_content),
+       do: Elektrine.Strings.present(fallback_content)
 
   defp ancestor_preview_content(_, _), do: nil
 
@@ -1706,7 +1705,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <% end %>
 
     <!-- Content Warning Indicator -->
-    <%= if @post.content_warning && String.trim(@post.content_warning) != "" do %>
+    <%= if Elektrine.Strings.present?(@post.content_warning) do %>
       <div class="mb-3 flex items-center gap-2 bg-warning/10 border border-warning/30 rounded-lg p-3">
         <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-warning flex-shrink-0" />
         <span class="font-medium text-sm">{@post.content_warning}</span>
@@ -1715,10 +1714,10 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     <% end %>
 
     <!-- Main Content -->
-    <div class={"mb-3 min-w-0 #{if @post.content_warning && String.trim(@post.content_warning) != "", do: "blur-sm hover:blur-none transition-all", else: ""}"}>
+    <div class={"mb-3 min-w-0 #{if Elektrine.Strings.present?(@post.content_warning), do: "blur-sm hover:blur-none transition-all", else: ""}"}>
       <!-- Quoted post content -->
       <%= if @post.quoted_message_id && Ecto.assoc_loaded?(@post.quoted_message) && @post.quoted_message do %>
-        <%= if @post.content && @post.content != "" do %>
+        <%= if Elektrine.Strings.present?(@post.content) do %>
           <div class="break-words mb-3 post-content line-clamp-4 overflow-hidden">
             {raw(render_post_content(@post))}
           </div>
@@ -1991,7 +1990,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
             phx-value-images={Jason.encode!(@image_urls)}
             phx-value-index={idx}
             phx-value-post_id={@post.id}
-            class="block w-full overflow-hidden rounded-lg bg-base-200/40"
+            class="block w-full overflow-hidden rounded-lg bg-base-200/55"
             style={@content_image_frame_style}
           >
             <img
@@ -2029,7 +2028,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
           <%= cond do %>
             <% media_entry.is_video -> %>
               <div
-                class="w-full overflow-hidden rounded-lg bg-base-200/40"
+                class="w-full overflow-hidden rounded-lg bg-base-200/55"
                 style={media_entry.frame_style}
               >
                 <video
@@ -2054,7 +2053,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                 phx-value-images={Jason.encode!(@full_media_urls)}
                 phx-value-index={media_entry.index}
                 phx-value-post_id={@post.id}
-                class="block w-full overflow-hidden rounded-lg bg-base-200/40"
+                class="block w-full overflow-hidden rounded-lg bg-base-200/55"
                 style={media_entry.frame_style}
               >
                 <img
@@ -2560,7 +2559,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     ~H"""
     <article
       id={@unique_id}
-      class="card glass-card timeline-post-card border border-base-300 rounded-lg overflow-visible transition-all relative z-0"
+      class="card panel-card timeline-post-card border border-base-300 rounded-lg overflow-visible transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
       phx-hook="PostClick"
@@ -2842,7 +2841,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
                 <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-1 text-xs text-base-content/50 mb-0.5">
-                    <%= if is_binary(reply_avatar_url) && String.trim(reply_avatar_url) != "" do %>
+                    <%= if Elektrine.Strings.present?(reply_avatar_url) do %>
                       <img
                         src={reply_avatar_url}
                         alt=""
@@ -3019,8 +3018,12 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
   defp audio_url?(url), do: PostUtilities.audio_url?(url)
 
   defp quoted_post_url(%{federated: true, activitypub_id: activitypub_id})
-       when is_binary(activitypub_id) and activitypub_id != "" do
-    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+       when is_binary(activitypub_id) do
+    if Elektrine.Strings.present?(activitypub_id) do
+      "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+    else
+      "#"
+    end
   end
 
   defp quoted_post_url(%{
@@ -3046,8 +3049,13 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     do: "/discussions/#{name}/post/#{message_id}"
 
   defp quoted_post_url(%{id: message_id, conversation: %{type: "chat", hash: hash}})
-       when is_binary(hash) and hash != "",
-       do: "/chat/#{hash}#message-#{message_id}"
+       when is_binary(hash) do
+    if Elektrine.Strings.present?(hash) do
+      "/chat/#{hash}#message-#{message_id}"
+    else
+      "/chat/#{message_id}#message-#{message_id}"
+    end
+  end
 
   defp quoted_post_url(%{id: message_id, conversation: %{type: "chat", id: conv_id}}),
     do: "/chat/#{conv_id}#message-#{message_id}"
@@ -3057,7 +3065,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
 
   defp normalize_post_title(title) when is_binary(title) do
     title = String.trim(title)
-    if title == "", do: nil, else: title
+    Elektrine.Strings.present(title)
   end
 
   defp normalize_post_title(_), do: nil
@@ -3083,7 +3091,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePost do
     inferred_label = infer_reply_label_from_url(in_reply_to_url)
 
     cond do
-      author == "" ->
+      not Elektrine.Strings.present?(author) ->
         %{name: "a post", type: :unknown}
 
       String.starts_with?(author, "@") ->

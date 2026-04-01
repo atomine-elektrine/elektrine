@@ -658,7 +658,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Flair Modal -->
     <%= if @show_flair_modal && @is_moderator do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-lg">
               {if @editing_flair, do: "Edit Flair", else: "Add New Flair"}
@@ -727,7 +727,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Voters Modal -->
     <%= if @show_voters_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-2xl">
           <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-lg">Votes</h3>
             <button
@@ -810,7 +810,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- User Moderation Status Modal -->
     <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-3xl border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-3xl">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">User Moderation Status</h3>
             <button
@@ -844,7 +844,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <!-- Ban Status -->
             <div class={[
-              "card glass-card border-2",
+              "card panel-card border-2",
               if(mod_data[:ban], do: "border-error", else: "border-base-300")
             ]}>
               <div class="card-body p-4">
@@ -890,7 +890,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
             
     <!-- Timeout Status -->
             <div class={[
-              "card glass-card border-2",
+              "card panel-card border-2",
               if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
             ]}>
               <div class="card-body p-4">
@@ -933,7 +933,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           
     <!-- Warnings -->
           <div class={[
-            "card glass-card border-2 mb-4",
+            "card panel-card border-2 mb-4",
             if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
               do: "border-info",
               else: "border-base-300"
@@ -988,7 +988,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           </div>
           
     <!-- Moderator Notes Preview -->
-          <div class="card glass-card border-2 border-base-300 mb-4">
+          <div class="card panel-card border-2 border-base-300 mb-4">
             <div class="card-body p-4">
               <h4 class="font-semibold flex items-center gap-2 mb-3">
                 <.icon name="hero-document-text" class="w-4 h-4" />
@@ -1033,7 +1033,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Moderator Note Modal -->
     <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-2xl">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">Moderator Notes</h3>
             <button type="button" phx-click="cancel_note" class="btn btn-ghost btn-sm btn-circle">
@@ -1098,7 +1098,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
           <div class="space-y-3 max-h-64 overflow-y-auto">
             <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
               <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
-                <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
+                <div class={"card panel-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
                   <%= if note.is_important do %>
                     <div class="badge badge-warning badge-sm mb-3">Important</div>
                   <% end %>
@@ -1132,7 +1132,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Timeout Modal -->
     <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md">
           <div class="flex justify-between items-center mb-6">
             <h3 class="font-bold text-lg">Timeout User</h3>
             <button type="button" phx-click="cancel_timeout" class="btn btn-ghost btn-sm btn-circle">
@@ -1208,7 +1208,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Warning Modal -->
     <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md">
           <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
 
           <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1277,7 +1277,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Auto-Mod Rule Modal -->
     <%= if @show_rule_modal && (@is_moderator || @current_user.is_admin) do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-lg border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-lg">
           <h3 class="font-bold text-lg mb-6 text-center">Add Auto-Mod Rule</h3>
 
           <.form for={%{}} phx-submit="create_automod_rule">
@@ -1348,7 +1348,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Ban User Modal -->
     <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md">
           <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
 
           <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1419,7 +1419,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Media Upload Modal -->
     <%= if @show_image_upload_modal && @current_user do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-2xl">
           <h3 class="font-bold text-lg mb-4">Add Media to Post</h3>
 
           <.form
@@ -1520,7 +1520,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     case Map.get(post, :title) do
       title when is_binary(title) ->
         title = plain_text_content(title)
-        if title == "", do: "Untitled discussion", else: title
+        if Elektrine.Strings.present?(title), do: title, else: "Untitled discussion"
 
       _ ->
         "Untitled discussion"
@@ -1529,7 +1529,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
 
   defp has_explicit_discussion_title?(post) do
     case Map.get(post, :title) do
-      title when is_binary(title) -> String.trim(title) != ""
+      title when is_binary(title) -> Elektrine.Strings.present?(title)
       _ -> false
     end
   end
@@ -1546,7 +1546,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   defp build_community_description(community) do
     base = "!#{community.name} - A community on Elektrine"
 
-    if community.description && String.trim(community.description) != "" do
+    if Elektrine.Strings.present?(community.description) do
       desc =
         community.description
         |> HtmlSanitizeEx.strip_tags()
@@ -1570,10 +1570,10 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     avatar = Map.get(community, :avatar_url)
 
     cond do
-      banner && banner != "" ->
+      Elektrine.Strings.present?(banner) ->
         Elektrine.Uploads.attachment_url(banner)
 
-      avatar && avatar != "" ->
+      Elektrine.Strings.present?(avatar) ->
         Elektrine.Uploads.attachment_url(avatar)
 
       true ->

@@ -1,4 +1,4 @@
-<div class="card glass-card shadow-xl max-w-md mx-auto">
+<div class="card panel-card max-w-md mx-auto">
   <div class="card-body text-center">
     <div class="flex justify-center mb-4">
       <div class="w-16 h-16 rounded-full bg-error/20 flex items-center justify-center">
@@ -19,9 +19,7 @@
           <span>Please request a new verification email.</span>
         </div>
       <% _ -> %>
-        <p class="opacity-70 mb-6">
-          The verification link is invalid or has already been used.
-        </p>
+        <p class="opacity-70 mb-6">The verification link is invalid or has already been used.</p>
 
         <div class="alert alert-error mb-6">
           <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
@@ -33,9 +31,7 @@
       <.link href={~p"/account?tab=security"} class="btn btn-primary w-full">
         Go to Account Settings
       </.link>
-      <.link href={~p"/login"} class="btn btn-ghost w-full">
-        Back to Login
-      </.link>
+      <.link href={~p"/login"} class="btn btn-ghost w-full"> Back to Login </.link>
     </div>
   </div>
 </div>

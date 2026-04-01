@@ -48,7 +48,7 @@
     <!-- Main Content -->
     <div class="flex-1 min-w-0 max-w-full">
       <!-- Main Post -->
-      <div class="card glass-card shadow-lg border border-base-300 mb-4 sm:mb-6">
+      <div class="card panel-card mb-4 sm:mb-6">
         <div class="card-body p-4 sm:p-6">
           <div class="flex gap-2 sm:gap-4">
             <!-- Voting Column -->
@@ -124,7 +124,7 @@
                     </label>
                     <ul
                       tabindex="0"
-                      class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52 z-30"
+                      class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30"
                     >
                       <!-- Regular User Actions -->
                       <%= if @post.activitypub_id do %>
@@ -604,7 +604,7 @@
       
 <!-- Reply Form -->
       <%= if @show_reply_form && @current_user do %>
-        <div class="card glass-card shadow-lg border border-base-300 mb-6">
+        <div class="card panel-card mb-6">
           <div class="card-body p-4">
             <div class="flex items-start gap-3 mb-3">
               <div class="w-8 h-8">
@@ -678,7 +678,7 @@
     </div>
     
 <!-- Right Sidebar - Community Info (Hidden on mobile, shown on large screens) -->
-    <div class="hidden lg:flex w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300 p-4 flex-col">
+    <div class="hidden lg:flex w-80 flex-shrink-0 card panel-card p-4 flex-col">
       <h3 class="font-semibold mb-2">About {@community.name}</h3>
       <code class="text-xs opacity-70 bg-base-200 px-2 py-1 rounded mb-3">
         !{@community_slug}@{Elektrine.ActivityPub.instance_domain()}
@@ -773,7 +773,7 @@
 <!-- Moderator Note Modal -->
   <%= if @show_note_modal && (@is_moderator || @current_user.is_admin) && @note_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl">
         <h3 class="font-bold text-lg mb-6 text-center">Moderator Notes</h3>
 
         <div class="flex items-center justify-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -833,7 +833,7 @@
         <div class="space-y-3 max-h-64 overflow-y-auto">
           <%= if Map.get(@user_notes, @note_target_user.id, []) != [] do %>
             <%= for note <- Map.get(@user_notes, @note_target_user.id, []) do %>
-              <div class={"card glass-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
+              <div class={"card panel-card border-2 p-4 #{if note.is_important, do: "border-warning", else: "border-base-300"}"}>
                 <%= if note.is_important do %>
                   <div class="badge badge-warning badge-sm mb-3">Important</div>
                 <% end %>
@@ -867,7 +867,7 @@
 <!-- Timeout Modal -->
   <%= if @show_timeout_modal && (@is_moderator || @current_user.is_admin) && @timeout_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-md">
         <h3 class="font-bold text-lg mb-6 text-center">Timeout User</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -938,7 +938,7 @@
 <!-- Warning Modal -->
   <%= if @show_warning_modal && (@is_moderator || @current_user.is_admin) && @warning_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-md">
         <h3 class="font-bold text-lg mb-6 text-center text-warning">Warn User</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1007,7 +1007,7 @@
 <!-- User Moderation Status Modal -->
   <%= if @show_user_mod_status_modal && (@is_moderator || @current_user.is_admin) && @mod_status_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-3xl border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-3xl">
         <h3 class="font-bold text-lg mb-6 text-center">User Moderation Status</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">
@@ -1032,7 +1032,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <!-- Ban Status -->
           <div class={[
-            "card glass-card border-2",
+            "card panel-card border-2",
             if(mod_data[:ban], do: "border-error", else: "border-base-300")
           ]}>
             <div class="card-body p-4">
@@ -1078,7 +1078,7 @@
           
 <!-- Timeout Status -->
           <div class={[
-            "card glass-card border-2",
+            "card panel-card border-2",
             if(mod_data[:timeout], do: "border-warning", else: "border-base-300")
           ]}>
             <div class="card-body p-4">
@@ -1121,7 +1121,7 @@
         
 <!-- Warnings -->
         <div class={[
-          "card glass-card border-2 mb-4",
+          "card panel-card border-2 mb-4",
           if(mod_data[:warning_count] && mod_data[:warning_count] > 0,
             do: "border-info",
             else: "border-base-300"
@@ -1176,7 +1176,7 @@
         </div>
         
 <!-- Moderator Notes Preview -->
-        <div class="card glass-card border-2 border-base-300 mb-4">
+        <div class="card panel-card border-2 border-base-300 mb-4">
           <div class="card-body p-4">
             <h4 class="font-semibold flex items-center gap-2 mb-3">
               <.icon name="hero-document-text" class="w-4 h-4" />
@@ -1221,7 +1221,7 @@
 <!-- Ban User Modal -->
   <%= if @show_ban_modal && (@is_moderator || @current_user.is_admin) && @ban_target_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-md">
         <h3 class="font-bold text-lg mb-6 text-center text-error">Ban User from Community</h3>
 
         <div class="flex flex-col items-center gap-3 mb-6 p-4 bg-base-200 rounded-lg">

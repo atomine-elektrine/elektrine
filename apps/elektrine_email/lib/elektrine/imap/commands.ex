@@ -2215,7 +2215,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp stringify_header_value({name, email}) when is_binary(name) and is_binary(email) do
-    if name && String.trim(name) != "" do
+    if Elektrine.Strings.present?(name) do
       "#{name} <#{email}>"
     else
       email
@@ -2474,7 +2474,7 @@ defmodule Elektrine.IMAP.Commands do
               String.contains?(content_disposition, "inline") or
               (content_id != "" and String.contains?(content_type, "image"))
 
-          if !is_text_part and is_attachment and String.trim(content) != "" do
+          if !is_text_part and is_attachment and Elektrine.Strings.present?(content) do
             filename =
               extract_filename(content_disposition, content_type) ||
                 "attachment_#{:rand.uniform(10_000)}"

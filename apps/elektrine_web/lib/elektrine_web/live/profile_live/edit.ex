@@ -327,7 +327,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   def handle_event("update_font", %{"profile" => %{"font_family" => font_family}}, socket) do
     if socket.assigns.profile do
       # Convert empty string to nil for "System Default"
-      font_value = if font_family == "", do: nil, else: font_family
+      font_value = Elektrine.Strings.present(font_family)
 
       case Profiles.update_user_profile(socket.assigns.profile, %{font_family: font_value}) do
         {:ok, updated_profile} ->
@@ -424,8 +424,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
         # Fetch thumbnail automatically if URL is provided and no thumbnail yet
         clean_params =
-          if clean_params["url"] &&
-               (!clean_params["thumbnail_url"] || clean_params["thumbnail_url"] == "") do
+          if clean_params["url"] && !Elektrine.Strings.present?(clean_params["thumbnail_url"]) do
             # Fetch metadata in background and get image
             Task.start(fn ->
               case fetch_link_thumbnail(clean_params["url"]) do
@@ -837,7 +836,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
     # Convert empty string font_family to nil for "System Default"
     profile_params =
-      if Map.has_key?(profile_params, "font_family") && profile_params["font_family"] == "" do
+      if Map.has_key?(profile_params, "font_family") &&
+           not Elektrine.Strings.present?(profile_params["font_family"]) do
         Map.put(profile_params, "font_family", nil)
       else
         profile_params
@@ -1221,6 +1221,21 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   defp lighten_color(hex, factor) do
     {r, g, b} = hex_to_rgb(hex)
     rgb_to_hex(r + (255 - r) * factor, g + (255 - g) * factor, b + (255 - b) * factor)
+  end
+
+  def badge_preview_style(badge_color, accent_color \\ nil) do
+    badge_color = badge_color || "#8a7cc2"
+    accent_color = accent_color || badge_color
+
+    {r, g, b} = hex_to_rgb(badge_color)
+
+    from_color =
+      "rgb(#{max(0, round(r * 0.5))}, #{max(0, round(g * 0.5))}, #{max(0, round(b * 0.5))})"
+
+    to_color =
+      "rgb(#{max(0, round(r * 0.65))}, #{max(0, round(g * 0.65))}, #{max(0, round(b * 0.65))})"
+
+    "background: linear-gradient(to right, #{from_color}, #{to_color}); box-shadow: 0 2px 8px #{badge_color}60, 0 1px 3px rgba(0, 0, 0, 0.5); border: 1px solid #{accent_color}40;"
   end
 
   defp shift_hue(hex, degrees) do

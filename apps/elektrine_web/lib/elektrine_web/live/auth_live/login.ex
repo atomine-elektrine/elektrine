@@ -15,7 +15,7 @@ defmodule ElektrineWeb.AuthLive.Login do
 
   def render(assigns) do
     ~H"""
-    <div id="login-card" phx-hook="GlassCard" class="card glass-card shadow-xl max-w-md mx-auto">
+    <div id="login-card" class="card panel-card max-w-md mx-auto">
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Log in")}</h1>
 

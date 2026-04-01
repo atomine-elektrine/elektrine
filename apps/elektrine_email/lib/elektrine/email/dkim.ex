@@ -79,7 +79,7 @@ defmodule Elektrine.Email.DKIM do
   @spec sync_domain(String.t(), String.t(), String.t()) :: :ok | {:error, String.t()}
   def sync_domain(domain, selector, private_key)
       when is_binary(domain) and is_binary(selector) and is_binary(private_key) do
-    with true <- String.trim(selector) != "" and String.trim(private_key) != "",
+    with true <- Elektrine.Strings.present?(selector) and Elektrine.Strings.present?(private_key),
          {:ok, request_config} <- request_config(domain) do
       body = Jason.encode!(%{selector: selector, private_key: private_key})
 
@@ -197,8 +197,13 @@ defmodule Elektrine.Email.DKIM do
   @spec spf_value() :: String.t()
   def spf_value do
     case email_config()[:custom_domain_spf_include] do
-      value when is_binary(value) and value != "" -> "v=spf1 include:#{value} ~all"
-      _ -> "v=spf1 mx ~all"
+      value when is_binary(value) ->
+        if Elektrine.Strings.present?(value),
+          do: "v=spf1 include:#{value} ~all",
+          else: "v=spf1 mx ~all"
+
+      _ ->
+        "v=spf1 mx ~all"
     end
   end
 
@@ -232,12 +237,11 @@ defmodule Elektrine.Email.DKIM do
   def public_key_dns_value(_), do: ""
 
   defp ensure_sync_ready(%CustomDomain{dkim_selector: selector, dkim_private_key: private_key})
-       when is_binary(selector) and selector != "" and is_binary(private_key) and
-              private_key != "" do
-    if sync_enabled?() do
-      :ok
+       when is_binary(selector) and is_binary(private_key) do
+    if Elektrine.Strings.present?(selector) and Elektrine.Strings.present?(private_key) do
+      if sync_enabled?(), do: :ok, else: {:error, "Haraka DKIM sync is disabled"}
     else
-      {:error, "Haraka DKIM sync is disabled"}
+      {:error, "DKIM key material is missing"}
     end
   end
 
@@ -249,10 +253,10 @@ defmodule Elektrine.Email.DKIM do
     api_key = Keyword.get(email_cfg, :custom_domain_haraka_api_key)
 
     cond do
-      !is_binary(base_url) or base_url == "" ->
+      !Elektrine.Strings.present?(base_url) ->
         {:error, "Haraka DKIM sync base URL is not configured"}
 
-      !is_binary(api_key) or api_key == "" ->
+      !Elektrine.Strings.present?(api_key) ->
         {:error, "Haraka DKIM sync API key is not configured"}
 
       true ->
@@ -288,7 +292,9 @@ defmodule Elektrine.Email.DKIM do
 
   defp normalize_error_body(body), do: inspect(body)
 
-  defp dmarc_rua_fragment(value) when is_binary(value) and value != "", do: "rua=mailto:#{value}"
+  defp dmarc_rua_fragment(value) when is_binary(value),
+    do: if(Elektrine.Strings.present?(value), do: "rua=mailto:#{value}", else: nil)
+
   defp dmarc_rua_fragment(_), do: nil
 
   defp configured_selector do
@@ -307,12 +313,14 @@ defmodule Elektrine.Email.DKIM do
   end
 
   defp default_mail_host do
-    email_config()
-    |> Keyword.get(:domain, Elektrine.Domains.primary_email_domain())
+    Elektrine.Domains.primary_email_domain()
   end
 
   defp email_config do
-    Application.get_env(:elektrine, :email, [])
+    [
+      custom_domain_http_client:
+        Elektrine.EmailConfig.email_setting(:custom_domain_http_client, FinchClient)
+    ]
   end
 
   defp http_client do

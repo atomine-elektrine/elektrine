@@ -154,7 +154,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
           />
 
           <div class="grid gap-6 lg:grid-cols-2">
-            <div class="card glass-card border border-base-300 shadow-lg">
+            <div class="card panel-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <%= if @vault_configured do %>
                   <h2 class="card-title mb-4 text-lg">Unlock Vault</h2>
@@ -227,7 +227,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
               </div>
             </div>
 
-            <div class="card glass-card border border-base-300 shadow-lg">
+            <div class="card panel-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title mb-4 text-lg">Security Notes</h2>
                 <ul class="list-disc space-y-3 pl-5 text-sm text-base-content/70">
@@ -258,7 +258,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card glass-card border border-base-300 shadow-lg">
+          <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="space-y-2">
@@ -286,7 +286,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card glass-card border border-base-300 shadow-lg">
+          <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Add Entry</h2>
 
@@ -394,7 +394,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             </div>
           </div>
 
-          <div class="card glass-card border border-base-300 shadow-lg">
+          <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
               <h2 class="card-title mb-4 text-lg">Saved Entries</h2>
 

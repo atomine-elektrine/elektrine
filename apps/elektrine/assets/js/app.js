@@ -32,7 +32,6 @@ import { initTabSwitcher } from "./tab_switcher"
 import "./hashtag_links" // self-initializes
 import { initCursorGlow, destroyCursorGlow } from "./cursor_glow"
 import { initBlinkenlights, checkBlinkenlights } from "./blinkenlights"
-import { initAllGlassCards } from "./glass_card"
 import { initMarkdownEditor } from "./markdown_editor"
 import { initLiveClock } from "./live_clock"
 import { initIpLookup } from "./ip_lookup"
@@ -82,7 +81,7 @@ const liveSocket = new LiveSocket("/live", Socket, {
 // Progress Bar Configuration
 // ============================================================================
 
-topbar.config({ barColors: { 0: "#a855f7" }, shadowColor: "rgba(168, 85, 247, .3)" })
+topbar.config({ barColors: { 0: "#8a7cc2" }, shadowColor: "rgba(138, 124, 194, .28)" })
 
 window.addEventListener("phx:page-loading-start", () => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", () => {
@@ -487,7 +486,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize UI modules
   initBlinkenlights()
-  initAllGlassCards()
   initMarkdownEditor()
   initLiveClock()
   initTaglineCycler()

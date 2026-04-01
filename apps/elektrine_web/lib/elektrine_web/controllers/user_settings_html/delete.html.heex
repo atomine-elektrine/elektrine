@@ -1,4 +1,4 @@
-<div class="card glass-card shadow-xl max-w-md mx-auto">
+<div class="card panel-card max-w-md mx-auto">
   <div class="card-body">
     <h1 class="text-2xl font-bold mb-6 text-error">Delete Account</h1>
 
@@ -6,13 +6,18 @@
       <.icon name="hero-exclamation-triangle" class="h-6 w-6" />
       <div>
         <h3 class="font-bold">Warning!</h3>
+
         <div class="text-sm">
           This action cannot be undone. This will permanently delete your account and all associated data including:
         </div>
+
         <ul class="text-sm mt-2 list-disc list-inside">
           <li>All your mailboxes and email addresses</li>
+
           <li>All stored messages</li>
+
           <li>Email aliases and forwarding settings</li>
+
           <li>Account settings and preferences</li>
         </ul>
       </div>
@@ -32,7 +37,6 @@
         placeholder="Please explain why you want to delete your account"
         value=""
       />
-
       <.input
         name="confirmation"
         type="text"
@@ -42,7 +46,6 @@
         value=""
         required
       />
-
       <:actions>
         <.link href={~p"/account"} class="btn btn-secondary">Cancel</.link>
         <.button class="btn-secondary">Submit Deletion Request</.button>

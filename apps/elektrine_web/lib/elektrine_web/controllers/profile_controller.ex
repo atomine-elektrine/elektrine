@@ -32,7 +32,18 @@ defmodule ElektrineWeb.ProfileController do
   """
 
   use ElektrineWeb, :controller
-  alias Elektrine.{Accounts, Domains, Friends, Messaging, Profiles, StaticSites}
+
+  alias Elektrine.{
+    AccountIdentifiers,
+    Accounts,
+    Domains,
+    Friends,
+    Messaging,
+    Profiles,
+    RuntimeEnv,
+    StaticSites
+  }
+
   alias ElektrineWeb.Platform.Integrations
 
   # Reserved usernames that conflict with routes
@@ -73,7 +84,7 @@ defmodule ElektrineWeb.ProfileController do
       |> render(:"404")
     else
       # Only allow profiles in dev/test environment or on configured profile domains
-      if Application.get_env(:elektrine, :environment) in [:dev, :test] or
+      if RuntimeEnv.dev_or_test?() or
            allowed_profile_host?(conn.host) do
         # Check if handle is reserved
         if handle in @reserved_usernames do
@@ -188,7 +199,7 @@ defmodule ElektrineWeb.ProfileController do
     default_links = [
       %{
         title: "Contact",
-        url: "mailto:#{user.username}@#{Domains.default_user_handle_domain()}",
+        url: AccountIdentifiers.public_contact_mailto(user),
         description: "Send me an email",
         icon: "hero-at-symbol",
         platform: "email"
@@ -254,7 +265,7 @@ defmodule ElektrineWeb.ProfileController do
     handle = conn.assigns[:subdomain_handle] || user.handle || user.username
 
     # Serve static site index.html
-    if Elektrine.Domains.app_host?(conn.host) and is_binary(handle) and handle != "" and
+    if Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
          conn.assigns[:subdomain_handle] != handle do
       redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
     else

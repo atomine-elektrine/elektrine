@@ -31,7 +31,7 @@ defmodule ElektrineWeb.Admin.MailboxesController do
     per_page = 20
 
     {mailboxes, total_count} =
-      if search_query != "" do
+      if Elektrine.Strings.present?(search_query) do
         search_mailboxes_paginated(search_query, page, per_page)
       else
         get_all_mailboxes_paginated(page, per_page)

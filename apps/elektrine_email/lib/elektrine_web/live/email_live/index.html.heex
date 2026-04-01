@@ -33,7 +33,7 @@
     
 <!-- Main content -->
     <div class="flex-1 min-w-0 overflow-visible">
-      <div id="email-main-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-lg">
+      <div id="email-main-card" class="card panel-card rounded-lg">
         <div class="card-body p-3 sm:p-6">
           <!-- Header with tab content -->
           <%= if @current_tab == "search" do %>
@@ -68,7 +68,7 @@
                     </div>
                     <ul
                       tabindex="0"
-                      class="dropdown-content z-30 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52"
+                      class="dropdown-content z-30 menu p-2 rounded-box w-52"
                     >
                       <li>
                         <button phx-click="bulk_action" phx-value-action="mark_read">
@@ -189,7 +189,7 @@
                     </div>
                     <ul
                       tabindex="0"
-                      class="dropdown-content z-30 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52"
+                      class="dropdown-content z-30 menu p-2 rounded-box w-52"
                     >
                       <li>
                         <button phx-click="bulk_action" phx-value-action="mark_read">
@@ -285,7 +285,7 @@
             
 <!-- Filter buttons for inbox -->
             <%= if @current_tab == "inbox" do %>
-              <div class="top-[7rem] z-30 bg-black/40 backdrop-blur-md -mx-6 px-6 py-3 border-b border-base-300 mb-4 rounded-lg">
+              <div class="top-[7rem] z-30 bg-base-300/60 -mx-6 px-6 py-3 border-b border-base-300 mb-4 rounded-lg">
                 <div class="flex flex-wrap gap-2">
                   <.link
                     patch={~p"/email?tab=inbox&filter=inbox"}
@@ -1103,7 +1103,7 @@
                             <summary class="btn btn-xs btn-ghost min-h-[2rem]">
                               <.icon name="hero-ellipsis-horizontal" class="h-4 w-4" />
                             </summary>
-                            <ul class="dropdown-content z-50 menu p-2 shadow bg-black/80 backdrop-blur-md rounded-box w-52">
+                            <ul class="dropdown-content z-50 menu p-2 rounded-box w-52">
                               <li>
                                 <.link
                                   navigate={
@@ -1381,7 +1381,7 @@
 <!-- Event Modal -->
 <%= if @show_event_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-lg border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-lg">
       <h3 class="font-bold text-lg mb-4">
         {cond do
           @editing_event -> gettext("Edit Event")
@@ -1557,7 +1557,7 @@
 <!-- Calendar Modal -->
 <%= if @show_calendar_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-sm border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-sm">
       <h3 class="font-bold text-lg mb-4">
         {if @editing_calendar, do: gettext("Edit Calendar"), else: gettext("New Calendar")}
       </h3>
@@ -1633,7 +1633,7 @@
 <%= if assigns[:show_reply_later_modal] && @show_reply_later_modal do %>
   <div class="modal modal-open">
     <div
-      class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl"
+      class="modal-box modal-surface max-w-md"
       phx-click-away="cancel_reply_later"
     >
       <div class="flex items-center justify-between mb-4">
@@ -1715,7 +1715,7 @@
 <!-- Contact Modal -->
 <%= if assigns[:show_contact_modal] && @show_contact_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-md">
       <h3 class="font-bold text-lg mb-6 text-center">
         {if assigns[:editing_contact] && @editing_contact, do: "Edit Contact", else: "Add Contact"}
       </h3>
@@ -1823,7 +1823,7 @@
 <!-- Group Modal -->
 <%= if assigns[:show_group_modal] && @show_group_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+    <div class="modal-box modal-surface max-w-md">
       <h3 class="font-bold text-lg mb-6 text-center">
         {if assigns[:editing_group] && @editing_group, do: "Edit Group", else: "New Group"}
       </h3>

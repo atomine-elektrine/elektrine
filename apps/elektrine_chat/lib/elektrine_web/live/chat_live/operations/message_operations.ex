@@ -355,7 +355,7 @@ defmodule ElektrineWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("update_message", %{"message" => message_content}, socket) do
     socket =
-      if String.trim(message_content) != "" && socket.assigns.conversation.selected do
+      if Elektrine.Strings.present?(message_content) && socket.assigns.conversation.selected do
         should_broadcast =
           case socket.assigns[:last_typing_broadcast] do
             nil -> true

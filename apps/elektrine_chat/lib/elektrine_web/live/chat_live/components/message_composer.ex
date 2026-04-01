@@ -43,7 +43,7 @@ defmodule ElektrineWeb.ChatLive.Components.MessageComposer do
             </div>
             <ul
               tabindex="0"
-              class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box w-52"
+              class="dropdown-content z-30 menu p-2 rounded-box w-52"
             >
               <li>
                 <label class="cursor-pointer">
@@ -73,7 +73,7 @@ defmodule ElektrineWeb.ChatLive.Components.MessageComposer do
           <button
             type="submit"
             class="btn btn-primary"
-            disabled={String.trim(@new_message) == ""}
+            disabled={not Elektrine.Strings.present?(@new_message)}
           >
             <.icon name="hero-paper-airplane" class="w-4 h-4" />
           </button>

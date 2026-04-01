@@ -218,7 +218,7 @@ defmodule Elektrine.Email.MailboxEncryption do
      }}
   end
 
-  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank?(nil), do: true
   defp blank?(_value), do: false
 

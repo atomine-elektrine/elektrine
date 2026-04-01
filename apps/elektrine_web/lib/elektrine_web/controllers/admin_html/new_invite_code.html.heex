@@ -1,18 +1,19 @@
 <div class="admin-page max-w-5xl mx-auto space-y-6">
   <div class="flex flex-wrap items-center gap-3">
     <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost btn-sm">
-      <.icon name="hero-arrow-left" class="h-4 w-4" />
-      <span>Back to Invite Codes</span>
+      <.icon name="hero-arrow-left" class="h-4 w-4" /> <span>Back to Invite Codes</span>
     </.link>
     <div class="text-sm text-base-content/50">Invite Codes</div>
   </div>
 
-  <section class="card glass-card shadow-xl border border-base-300">
+  <section class="card panel-card">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
         New Invite
       </div>
+
       <h1 class="mt-1 text-3xl font-semibold tracking-tight">Create Invite Code</h1>
+
       <p class="mt-2 text-sm leading-6 text-base-content/70">
         Set the code, usage limit, expiration, and active state.
       </p>
@@ -30,6 +31,7 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Basics
               </div>
+
               <h2 class="mt-1 text-lg font-semibold tracking-tight">Code and Usage</h2>
             </div>
 
@@ -69,6 +71,7 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Access
               </div>
+
               <h2 class="mt-1 text-lg font-semibold tracking-tight">Expiration and Status</h2>
             </div>
 
@@ -89,6 +92,7 @@
                 <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   Availability
                 </div>
+
                 <div class="mt-3">
                   <.input
                     field={f[:is_active]}
@@ -97,6 +101,7 @@
                     checked={Ecto.Changeset.get_field(@changeset, :is_active, true)}
                   />
                 </div>
+
                 <p class="mt-2 text-sm leading-6 text-base-content/60">
                   Inactive codes stay visible in admin but cannot be used at signup.
                 </p>
@@ -109,6 +114,7 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Internal
               </div>
+
               <h2 class="mt-1 text-lg font-semibold tracking-tight">Admin Note</h2>
             </div>
 
@@ -130,12 +136,9 @@
         <:actions>
           <div class="flex flex-col gap-3 border-t border-base-content/10 pt-5 sm:flex-row sm:items-center">
             <.button class="btn-primary">
-              <.icon name="hero-plus" class="h-4 w-4" />
-              <span>Create Invite Code</span>
+              <.icon name="hero-plus" class="h-4 w-4" /> <span>Create Invite Code</span>
             </.button>
-            <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost">
-              Cancel
-            </.link>
+            <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost"> Cancel </.link>
           </div>
         </:actions>
       </.simple_form>

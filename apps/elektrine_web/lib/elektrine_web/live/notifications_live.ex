@@ -167,7 +167,7 @@ defmodule ElektrineWeb.NotificationsLive do
 
     socket = reload_notification_data(socket)
 
-    if is_binary(url) and url != "" do
+    if Elektrine.Strings.present?(url) do
       {:noreply, push_navigate(socket, to: url)}
     else
       {:noreply, socket}
@@ -488,7 +488,7 @@ defmodule ElektrineWeb.NotificationsLive do
     [
       "rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
       if(group.unread_count > 0,
-        do: "border-l-4 border-l-primary hover:bg-base-200/40",
+        do: "border-l-4 border-l-primary hover:bg-base-200/55",
         else: "hover:bg-base-200/20"
       )
     ]

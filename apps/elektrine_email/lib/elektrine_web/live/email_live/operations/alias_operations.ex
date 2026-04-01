@@ -20,7 +20,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
     username = alias_params["username"]
     domain = alias_params["domain"] || Domains.primary_email_domain()
 
-    if username && String.trim(username) != "" do
+    if Elektrine.Strings.present?(username) do
       # Use single-domain creation
       alias_creation_params = %{
         username: String.trim(username),

@@ -52,8 +52,7 @@ defmodule Elektrine.Messaging.CommunityBan do
       is_integer(banned_by_id) ->
         changeset
 
-      map_size(actor_payload) > 0 and is_binary(origin_domain) and
-          String.trim(origin_domain) != "" ->
+      map_size(actor_payload) > 0 and Elektrine.Strings.present?(origin_domain) ->
         changeset
 
       true ->

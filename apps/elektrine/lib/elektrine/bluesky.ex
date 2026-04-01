@@ -277,7 +277,7 @@ defmodule Elektrine.Bluesky do
       message.post_type == "message" -> {:skip, :not_timeline_post}
       is_nil(message.sender_id) -> {:skip, :missing_sender}
       not is_nil(message.deleted_at) -> {:skip, :already_deleted}
-      is_binary(message.bluesky_uri) and message.bluesky_uri != "" -> {:skip, :already_mirrored}
+      Elektrine.Strings.present?(message.bluesky_uri) -> {:skip, :already_mirrored}
       true -> :ok
     end
   end
@@ -306,7 +306,7 @@ defmodule Elektrine.Bluesky do
       message.federated -> {:skip, :remote_message}
       message.post_type == "message" -> {:skip, :not_timeline_post}
       is_nil(message.sender_id) -> {:skip, :missing_sender}
-      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") -> {:skip, :not_mirrored}
+      not Elektrine.Strings.present?(message.bluesky_uri) -> {:skip, :not_mirrored}
       not is_nil(message.deleted_at) -> {:skip, :already_deleted}
       true -> :ok
     end
@@ -316,7 +316,7 @@ defmodule Elektrine.Bluesky do
     cond do
       message.federated -> {:skip, :remote_message}
       is_nil(message.sender_id) -> {:skip, :missing_sender}
-      not (is_binary(message.bluesky_uri) and message.bluesky_uri != "") -> {:skip, :not_mirrored}
+      not Elektrine.Strings.present?(message.bluesky_uri) -> {:skip, :not_mirrored}
       true -> :ok
     end
   end
@@ -354,7 +354,7 @@ defmodule Elektrine.Bluesky do
   defp require_user_value(value, reason) when is_binary(value) do
     trimmed = String.trim(value)
 
-    if trimmed == "" do
+    if not Elektrine.Strings.present?(trimmed) do
       {:error, reason}
     else
       {:ok, trimmed}
@@ -400,15 +400,16 @@ defmodule Elektrine.Bluesky do
 
     text =
       [cw_prefix(message.content_warning), title_prefix(message.title), decrypted.content]
-      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> Enum.map(&Elektrine.Strings.present/1)
+      |> Enum.reject(&is_nil/1)
       |> Enum.join("\n\n")
       |> String.trim()
 
     cond do
-      text != "" ->
+      Elektrine.Strings.present?(text) ->
         {:ok, clamp_text(text)}
 
-      is_binary(message.primary_url) and String.trim(message.primary_url) != "" ->
+      Elektrine.Strings.present?(message.primary_url) ->
         {:ok, clamp_text(String.trim(message.primary_url))}
 
       is_list(message.media_urls) and message.media_urls != [] ->
@@ -524,7 +525,7 @@ defmodule Elektrine.Bluesky do
       Enum.reduce(mention_candidates, {[], %{}}, fn candidate, {acc, cache} ->
         {did, next_cache} = resolve_mention_did_cached(candidate.handle, session, cache)
 
-        if is_binary(did) and did != "" do
+        if Elektrine.Strings.present?(did) do
           facet = %{
             "index" => %{"byteStart" => candidate.byte_start, "byteEnd" => candidate.byte_end},
             "features" => [%{"$type" => @facet_mention_type, "did" => did}]
@@ -549,7 +550,7 @@ defmodule Elektrine.Bluesky do
         trimmed_len = byte_size(trimmed_url)
 
         cond do
-          trimmed_url == "" ->
+          not Elektrine.Strings.present?(trimmed_url) ->
             acc
 
           not valid_absolute_http_url?(trimmed_url) ->
@@ -702,7 +703,8 @@ defmodule Elektrine.Bluesky do
     local_user = Repo.get_by(User, handle: handle) || Repo.get_by(User, username: handle)
 
     cond do
-      match?(%User{bluesky_did: did} when is_binary(did) and did != "", local_user) ->
+      match?(%User{bluesky_did: did} when is_binary(did), local_user) and
+          Elektrine.Strings.present?(local_user.bluesky_did) ->
         local_user.bluesky_did
 
       match?(%User{bluesky_identifier: "did:" <> _}, local_user) ->
@@ -916,9 +918,12 @@ defmodule Elektrine.Bluesky do
   defp maybe_build_quote_embed(%Message{quoted_message_id: quoted_message_id})
        when is_integer(quoted_message_id) do
     case Messaging.get_message(quoted_message_id) do
-      %Message{bluesky_uri: uri, bluesky_cid: cid}
-      when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
-        {:ok, %{"$type" => @record_embed_type, "record" => %{"uri" => uri, "cid" => cid}}}
+      %Message{bluesky_uri: uri, bluesky_cid: cid} when is_binary(uri) and is_binary(cid) ->
+        if Elektrine.Strings.present?(uri) and Elektrine.Strings.present?(cid) do
+          {:ok, %{"$type" => @record_embed_type, "record" => %{"uri" => uri, "cid" => cid}}}
+        else
+          {:ok, nil}
+        end
 
       _ ->
         {:ok, nil}
@@ -942,7 +947,7 @@ defmodule Elektrine.Bluesky do
 
   defp external_title_for(%Message{} = message, media_source, _index) do
     title =
-      if is_binary(message.title) and String.trim(message.title) != "" do
+      if Elektrine.Strings.present?(message.title) do
         String.trim(message.title)
       else
         media_source |> to_string() |> source_display_name()
@@ -955,7 +960,8 @@ defmodule Elektrine.Bluesky do
     decrypted = Message.decrypt_content(message)
 
     [message.content_warning, decrypted.content]
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.map(&Elektrine.Strings.present/1)
+    |> Enum.reject(&is_nil/1)
     |> Enum.join(" ")
     |> String.trim()
     |> String.slice(0, @max_external_description_chars)
@@ -963,7 +969,7 @@ defmodule Elektrine.Bluesky do
   end
 
   defp blank_to_default(value, default) when is_binary(value) do
-    if String.trim(value) == "" do
+    if not Elektrine.Strings.present?(value) do
       default
     else
       value
@@ -1023,7 +1029,7 @@ defmodule Elektrine.Bluesky do
     uri = String.trim(uri)
 
     cond do
-      uri == "" ->
+      not Elektrine.Strings.present?(uri) ->
         {:skip, :missing_external_uri}
 
       String.starts_with?(uri, "/") ->
@@ -1063,7 +1069,7 @@ defmodule Elektrine.Bluesky do
     source = String.trim(source)
 
     cond do
-      source == "" ->
+      not Elektrine.Strings.present?(source) ->
         {:skip, :empty_media_source}
 
       String.starts_with?(source, ["http://", "https://"]) ->
@@ -1116,21 +1122,25 @@ defmodule Elektrine.Bluesky do
     {:skip, reason}
   end
 
-  defp fetch_media_binary_from_url(url, fallback_guess) when is_binary(url) and url != "" do
-    headers = [{"accept", "*/*"}]
+  defp fetch_media_binary_from_url(url, fallback_guess) when is_binary(url) do
+    if Elektrine.Strings.present?(url) do
+      headers = [{"accept", "*/*"}]
 
-    with {:ok, %Finch.Response{} = response} <- request_raw(:get, url, headers, ""),
-         :ok <- require_success_status(response.status, :media_fetch_failed) do
-      content_type =
-        response.headers |> response_content_type() |> maybe_fallback_content_type(fallback_guess)
+      with {:ok, %Finch.Response{} = response} <- request_raw(:get, url, headers, ""),
+           :ok <- require_success_status(response.status, :media_fetch_failed) do
+        content_type =
+          response.headers
+          |> response_content_type()
+          |> maybe_fallback_content_type(fallback_guess)
 
-      {:ok, response.body, content_type}
+        {:ok, response.body, content_type}
+      end
+    else
+      {:skip, :invalid_media_source}
     end
   end
 
-  defp fetch_media_binary_from_url(_url, _fallback_guess) do
-    {:skip, :invalid_media_source}
-  end
+  defp fetch_media_binary_from_url(_url, _fallback_guess), do: {:skip, :invalid_media_source}
 
   defp read_media_from_file(path, fallback_content_type) do
     case File.read(path) do
@@ -1283,10 +1293,14 @@ defmodule Elektrine.Bluesky do
   defp maybe_build_reply_payload(reply_to_id) do
     case Messaging.get_message(reply_to_id) do
       %Message{bluesky_uri: uri, bluesky_cid: cid} = parent
-      when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
-        parent_ref = %{"uri" => uri, "cid" => cid}
-        root_ref = find_root_reference(parent, parent_ref)
-        {:ok, %{"root" => root_ref, "parent" => parent_ref}}
+      when is_binary(uri) and is_binary(cid) ->
+        if Elektrine.Strings.present?(uri) and Elektrine.Strings.present?(cid) do
+          parent_ref = %{"uri" => uri, "cid" => cid}
+          root_ref = find_root_reference(parent, parent_ref)
+          {:ok, %{"root" => root_ref, "parent" => parent_ref}}
+        else
+          {:skip, :reply_parent_not_mirrored}
+        end
 
       _ ->
         {:skip, :reply_parent_not_mirrored}
@@ -1304,9 +1318,13 @@ defmodule Elektrine.Bluesky do
   defp find_root_reference(%Message{reply_to_id: reply_to_id}, current_ref, depth) do
     case Messaging.get_message(reply_to_id) do
       %Message{bluesky_uri: uri, bluesky_cid: cid} = parent
-      when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
-        next_ref = %{"uri" => uri, "cid" => cid}
-        find_root_reference(parent, next_ref, depth + 1)
+      when is_binary(uri) and is_binary(cid) ->
+        if Elektrine.Strings.present?(uri) and Elektrine.Strings.present?(cid) do
+          next_ref = %{"uri" => uri, "cid" => cid}
+          find_root_reference(parent, next_ref, depth + 1)
+        else
+          current_ref
+        end
 
       _ ->
         current_ref
@@ -1404,12 +1422,8 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp maybe_put_cursor_param(params, cursor) when is_binary(cursor) and cursor != "" do
-    Map.put(params, "cursor", cursor)
-  end
-
-  defp maybe_put_cursor_param(params, _cursor) do
-    params
+  defp maybe_put_cursor_param(params, cursor) do
+    if Elektrine.Strings.present?(cursor), do: Map.put(params, "cursor", cursor), else: params
   end
 
   defp request_json(method, url, payload, extra_headers \\ []) do
@@ -1452,8 +1466,11 @@ defmodule Elektrine.Bluesky do
 
   defp map_fetch_string(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
-      value when is_binary(value) and value != "" -> {:ok, value}
-      _ -> {:error, reason}
+      value when is_binary(value) ->
+        if Elektrine.Strings.present?(value), do: {:ok, value}, else: {:error, reason}
+
+      _ ->
+        {:error, reason}
     end
   end
 
@@ -1486,8 +1503,12 @@ defmodule Elektrine.Bluesky do
   defp fetch_mirrored_subject_message(message_id) when is_integer(message_id) do
     case Repo.get(Message, message_id) do
       %Message{bluesky_uri: uri, bluesky_cid: cid} = message
-      when is_binary(uri) and uri != "" and is_binary(cid) and cid != "" ->
-        {:ok, message}
+      when is_binary(uri) and is_binary(cid) ->
+        if Elektrine.Strings.present?(uri) and Elektrine.Strings.present?(cid) do
+          {:ok, message}
+        else
+          {:skip, :message_not_mirrored}
+        end
 
       %Message{} ->
         {:skip, :message_not_mirrored}
@@ -1503,8 +1524,13 @@ defmodule Elektrine.Bluesky do
 
   defp parse_at_uri("at://" <> rest) do
     case String.split(rest, "/", parts: 3) do
-      [repo, collection, rkey] when repo != "" and collection != "" and rkey != "" ->
-        {:ok, %{repo: repo, collection: collection, rkey: rkey, uri: "at://" <> rest}}
+      [repo, collection, rkey] ->
+        if Elektrine.Strings.present?(repo) and Elektrine.Strings.present?(collection) and
+             Elektrine.Strings.present?(rkey) do
+          {:ok, %{repo: repo, collection: collection, rkey: rkey, uri: "at://" <> rest}}
+        else
+          {:error, :invalid_at_uri}
+        end
 
       _ ->
         {:error, :invalid_at_uri}
@@ -1523,13 +1549,12 @@ defmodule Elektrine.Bluesky do
     {:error, :unexpected_collection}
   end
 
-  defp maybe_create_subject_record(_session, _collection, existing_uri, _record)
-       when is_binary(existing_uri) and existing_uri != "" do
-    {:ok, %{uri: existing_uri, cid: nil}}
-  end
-
-  defp maybe_create_subject_record(session, collection, nil, record) do
-    create_record(session.service_url, session.access_jwt, session.did, record, collection)
+  defp maybe_create_subject_record(session, collection, existing_uri, record) do
+    if Elektrine.Strings.present?(existing_uri) do
+      {:ok, %{uri: existing_uri, cid: nil}}
+    else
+      create_record(session.service_url, session.access_jwt, session.did, record, collection)
+    end
   end
 
   defp find_subject_record_uri(session, collection, subject_uri) do
@@ -1547,11 +1572,11 @@ defmodule Elektrine.Bluesky do
   defp find_record_uri(session, collection, matcher, cursor \\ nil, seen_cursors \\ MapSet.new())
 
   defp find_record_uri(session, collection, matcher, cursor, seen_cursors) do
-    if is_binary(cursor) and cursor != "" and MapSet.member?(seen_cursors, cursor) do
+    if Elektrine.Strings.present?(cursor) and MapSet.member?(seen_cursors, cursor) do
       {:error, :record_cursor_loop}
     else
       next_seen_cursors =
-        if is_binary(cursor) and cursor != "" do
+        if Elektrine.Strings.present?(cursor) do
           MapSet.put(seen_cursors, cursor)
         else
           seen_cursors
@@ -1566,15 +1591,19 @@ defmodule Elektrine.Bluesky do
                cursor
              ) do
         case Enum.find(response.records, matcher) do
-          %{"uri" => uri} when is_binary(uri) and uri != "" ->
-            {:ok, uri}
+          %{"uri" => uri} when is_binary(uri) ->
+            if Elektrine.Strings.present?(uri), do: {:ok, uri}, else: {:ok, nil}
 
           _ ->
             case response.cursor do
-              next_cursor when is_binary(next_cursor) and next_cursor != "" ->
-                find_record_uri(session, collection, matcher, next_cursor, next_seen_cursors)
+              next_cursor when is_binary(next_cursor) ->
+                if Elektrine.Strings.present?(next_cursor) do
+                  find_record_uri(session, collection, matcher, next_cursor, next_seen_cursors)
+                else
+                  {:ok, nil}
+                end
 
-              _ ->
+              _other ->
                 {:ok, nil}
             end
         end
@@ -1605,14 +1634,14 @@ defmodule Elektrine.Bluesky do
 
   defp resolve_follow_target_did(%User{} = followed, session) do
     cond do
-      is_binary(followed.bluesky_did) and followed.bluesky_did != "" ->
+      Elektrine.Strings.present?(followed.bluesky_did) ->
         {:ok, followed.bluesky_did}
 
       is_binary(followed.bluesky_identifier) and
           String.starts_with?(followed.bluesky_identifier, "did:") ->
         {:ok, followed.bluesky_identifier}
 
-      is_binary(followed.bluesky_identifier) and followed.bluesky_identifier != "" ->
+      Elektrine.Strings.present?(followed.bluesky_identifier) ->
         case resolve_handle_to_did(session.service_url, followed.bluesky_identifier) do
           {:ok, did} ->
             persist_user_did(followed.id, did)
@@ -1631,7 +1660,7 @@ defmodule Elektrine.Bluesky do
     normalized = String.trim(handle || "")
 
     cond do
-      normalized == "" ->
+      not Elektrine.Strings.present?(normalized) ->
         {:error, :missing_handle}
 
       String.starts_with?(normalized, "did:") ->
@@ -1674,8 +1703,10 @@ defmodule Elektrine.Bluesky do
         %Message{deleted_at: deleted_at} when not is_nil(deleted_at) ->
           {:skip, :already_deleted}
 
-        %Message{bluesky_uri: uri} when is_binary(uri) and uri != "" ->
-          {:skip, :already_mirrored}
+        %Message{bluesky_uri: uri} when is_binary(uri) ->
+          if Elektrine.Strings.present?(uri),
+            do: {:skip, :already_mirrored},
+            else: {:error, :message_mapping_not_persisted}
 
         _ ->
           {:error, :message_mapping_not_persisted}
@@ -1683,16 +1714,20 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp cleanup_orphaned_published_post(session, %{uri: uri}) when is_binary(uri) and uri != "" do
-    case maybe_delete_record_by_uri(session, @post_collection, uri) do
-      :ok ->
-        :ok
+  defp cleanup_orphaned_published_post(session, %{uri: uri}) when is_binary(uri) do
+    if Elektrine.Strings.present?(uri) do
+      case maybe_delete_record_by_uri(session, @post_collection, uri) do
+        :ok ->
+          :ok
 
-      {:error, {:delete_record_failed, 404}} ->
-        :ok
+        {:error, {:delete_record_failed, 404}} ->
+          :ok
 
-      {:error, reason} ->
-        {:error, {:cleanup_failed, reason}}
+        {:error, reason} ->
+          {:error, {:cleanup_failed, reason}}
+      end
+    else
+      :ok
     end
   end
 
@@ -1703,14 +1738,15 @@ defmodule Elektrine.Bluesky do
     :ok
   end
 
-  defp persist_user_did(user_id, did) when is_integer(user_id) and is_binary(did) and did != "" do
-    from(u in User, where: u.id == ^user_id) |> Repo.update_all(set: [bluesky_did: did])
+  defp persist_user_did(user_id, did) when is_integer(user_id) and is_binary(did) do
+    if Elektrine.Strings.present?(did) do
+      from(u in User, where: u.id == ^user_id) |> Repo.update_all(set: [bluesky_did: did])
+    end
+
     :ok
   end
 
-  defp persist_user_did(_user_id, _did) do
-    :ok
-  end
+  defp persist_user_did(_user_id, _did), do: :ok
 
   defp format_created_at(nil) do
     DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()

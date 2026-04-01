@@ -8,6 +8,7 @@
             Admin Mode: You are impersonating {@current_user.username}
           </span>
         </div>
+
         <form action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
           <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
           <button type="submit" class="btn btn-sm btn-secondary">
@@ -18,25 +19,23 @@
     </div>
   <% end %>
 
-  <div class="admin-navbar navbar min-h-16 bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
+  <div class="admin-navbar navbar min-h-16 sticky top-0 z-50">
     <div class="max-w-7xl mx-auto flex min-h-16 w-full items-center px-4 sm:px-6 lg:px-8 overflow-visible">
       <div class="navbar-start !w-auto flex-1 min-w-0 items-center gap-2 sm:gap-3 overflow-visible">
         <div class="dropdown flex-shrink-0">
-          <div
-            tabindex="0"
-            role="button"
-            class="btn btn-ghost btn-circle lg:hidden flex-shrink-0"
-          >
+          <div tabindex="0" role="button" class="btn btn-ghost btn-circle lg:hidden flex-shrink-0">
             <.icon name="hero-bars-3" class="h-6 w-6" />
           </div>
+
           <ul
             tabindex="0"
-            class="menu dropdown-content mt-3 z-[100] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-64 border border-base-300/50 space-y-1 max-h-[80vh] overflow-y-auto"
+            class="menu dropdown-content mt-3 z-[100] p-2 rounded-box w-64 space-y-1 max-h-[80vh] overflow-y-auto"
           >
             <%= for section <- admin_nav_sections() do %>
               <li class="menu-title px-3 pt-2 pb-1">
                 <span class="text-xs uppercase tracking-wider opacity-60">{section.label}</span>
               </li>
+
               <%= for item <- section.items do %>
                 <li>
                   <%= if Map.get(item, :navigate, false) do %>
@@ -50,8 +49,10 @@
                   <% end %>
                 </li>
               <% end %>
+
               <div class="divider my-1 h-px"></div>
             <% end %>
+
             <li>
               <.link href={~p"/overview"} class="rounded-lg py-3 text-primary">
                 <.icon name="hero-arrow-left" class="w-5 h-5" /> Exit Admin
@@ -59,10 +60,8 @@
             </li>
           </ul>
         </div>
-        <.link
-          href={~p"/pripyat"}
-          class="btn btn-ghost px-2 sm:px-3 flex-shrink-0"
-        >
+
+        <.link href={~p"/pripyat"} class="btn btn-ghost px-2 sm:px-3 flex-shrink-0">
           <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
         </.link>
       </div>
@@ -71,17 +70,11 @@
         <ul class="menu menu-horizontal px-1 gap-1 whitespace-nowrap">
           <%= for section <- admin_nav_sections() do %>
             <li class="dropdown">
-              <div
-                tabindex="0"
-                role="button"
-                class="btn btn-ghost rounded-full"
-              >
+              <div tabindex="0" role="button" class="btn btn-ghost rounded-full">
                 {section.label} <.icon name="hero-chevron-down" class="w-4 h-4 ml-1" />
               </div>
-              <ul
-                tabindex="0"
-                class="dropdown-content z-[100] menu p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-box w-56 border border-base-300/50"
-              >
+
+              <ul tabindex="0" class="dropdown-content z-[100] menu p-2 rounded-box w-56">
                 <%= for item <- section.items do %>
                   <li>
                     <%= if Map.get(item, :navigate, false) do %>
@@ -104,14 +97,12 @@
             class="btn btn-ghost rounded-full hidden md:inline-flex flex-shrink-0 gap-2 px-4"
             title="Exit Admin"
           >
-            <.icon name="hero-arrow-left" class="w-4 h-4" />
-            <span>Exit Admin</span>
+            <.icon name="hero-arrow-left" class="w-4 h-4" /> <span>Exit Admin</span>
           </.link>
-          
-<!-- Notification Bell -->
+          <!-- Notification Bell -->
           <.link
             href="/notifications"
-            class="indicator btn btn-ghost notification-bell-btn rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
+            class="indicator btn btn-ghost rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
             title="Notifications"
           >
             <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -123,14 +114,14 @@
                 </span>
               </span>
             <% end %>
+
             <%= if assigns[:notification_count] && @notification_count > 0 do %>
               <.icon name="hero-bell-alert" class="w-5 h-5" />
             <% else %>
               <.icon name="hero-bell" class="w-5 h-5" />
             <% end %>
           </.link>
-          
-<!-- User Avatar Dropdown -->
+          <!-- User Avatar Dropdown -->
           <div class="dropdown dropdown-end flex-shrink-0">
             <div
               tabindex="0"
@@ -139,9 +130,10 @@
             >
               <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
             </div>
+
             <ul
               tabindex="0"
-              class="menu menu-sm dropdown-content mt-3 z-[100] p-2 shadow-lg bg-base-200/90 backdrop-blur-sm rounded-box w-56 border border-base-300/50"
+              class="menu menu-sm dropdown-content mt-3 z-[100] p-2 rounded-box w-56"
             >
               <li class="menu-title px-3 py-2">
                 <.link
@@ -153,6 +145,7 @@
                     <div class="font-semibold text-sm">
                       {@current_user.display_name || @current_user.username}
                     </div>
+
                     <div class="text-xs opacity-60">
                       @{@current_user.handle || @current_user.username}
                     </div>
@@ -169,6 +162,7 @@
                   </.link>
                 </li>
               <% end %>
+
               <%= if platform_module_enabled?(:social) do %>
                 <li>
                   <.link navigate={~p"/timeline"} class="gap-3">
@@ -184,6 +178,7 @@
                   <.icon name="hero-user-circle" class="w-4 h-4" /> Account Settings
                 </.link>
               </li>
+
               <li>
                 <.link href={~p"/logout"} method="delete" class="gap-3 text-error">
                   <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4" /> Log out
@@ -195,9 +190,7 @@
       </div>
     </div>
   </div>
-
   <.flash_group flash={assigns[:flash] || %{}} />
-
   <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 min-h-[100vh] overflow-x-hidden">
     {@inner_content}
   </main>

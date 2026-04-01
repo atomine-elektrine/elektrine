@@ -187,7 +187,7 @@ defmodule ElektrineWeb.ChatLive.Components.MessageList do
                 </label>
                 <ul
                   tabindex="0"
-                  class="dropdown-content z-50 menu p-1 shadow-lg bg-base-100 rounded-box w-32 border border-base-300"
+                  class="dropdown-content z-50 menu p-1 rounded-box w-32"
                 >
                   <li>
                     <button

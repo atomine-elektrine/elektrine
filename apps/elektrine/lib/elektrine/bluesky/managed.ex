@@ -336,7 +336,7 @@ defmodule Elektrine.Bluesky.Managed do
   defp reconnect_identifier(%User{} = user, handle_domain) do
     candidate =
       [user.bluesky_did, user.bluesky_identifier, preferred_managed_handle(user, handle_domain)]
-      |> Enum.find(fn value -> is_binary(value) and String.trim(value) != "" end)
+      |> Enum.find_value(&Elektrine.Strings.present/1)
 
     case candidate do
       value when is_binary(value) -> {:ok, String.trim(value)}
@@ -373,7 +373,8 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp reconnect_password_candidates(%User{bluesky_app_password: app_password}, current_password) do
     [app_password, current_password]
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.map(&Elektrine.Strings.present/1)
+    |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
   end
 
@@ -468,10 +469,7 @@ defmodule Elektrine.Bluesky.Managed do
   end
 
   defp default_pds_email(user) do
-    email_domain =
-      Application.get_env(:elektrine, :email, []) |> Keyword.get(:domain, "elektrine.local")
-
-    "#{user.username}@#{email_domain}"
+    "#{user.username}@#{Elektrine.Domains.primary_email_domain()}"
   end
 
   defp bluesky_config do

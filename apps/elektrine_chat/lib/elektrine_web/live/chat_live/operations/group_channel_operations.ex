@@ -80,7 +80,7 @@ defmodule ElektrineWeb.ChatLive.Operations.GroupChannelOperations do
     name = params["name"]
     selected_users = socket.assigns.form.selected_users
 
-    if String.trim(name) == "" || Enum.empty?(selected_users) do
+    if not Elektrine.Strings.present?(name) || Enum.empty?(selected_users) do
       {:noreply, notify_error(socket, "Please enter a name and select at least one user")}
     else
       case Messaging.create_group_conversation(
@@ -107,7 +107,7 @@ defmodule ElektrineWeb.ChatLive.Operations.GroupChannelOperations do
     description = Map.get(server_params, "description", "")
     is_public = parse_checkbox_value(Map.get(server_params, "is_public"))
 
-    with true <- String.trim(name) != "",
+    with true <- Elektrine.Strings.present?(name),
          {:ok, icon_url} <- consume_entity_image_upload(socket, :server_icon_upload) do
       attrs = %{
         name: String.trim(name),
@@ -159,7 +159,7 @@ defmodule ElektrineWeb.ChatLive.Operations.GroupChannelOperations do
     is_private = parse_checkbox_value(params["is_private"] || channel_params["is_private"])
 
     with server_id when is_integer(server_id) <- selected_server_id(socket),
-         true <- String.trim(name || "") != "" do
+         true <- Elektrine.Strings.present?(name) do
       attrs = %{
         name: String.trim(name),
         description: normalize_optional_text(description),

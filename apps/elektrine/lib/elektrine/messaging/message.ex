@@ -291,10 +291,10 @@ defmodule Elektrine.Messaging.Message do
     is_draft = get_field(changeset, :is_draft)
 
     # Check if this is valid based on post type
-    has_content = !is_nil(content) && String.trim(content) != ""
+    has_content = Elektrine.Strings.present?(content)
     has_encrypted = !is_nil(encrypted_content)
     has_media = !Enum.empty?(media_urls)
-    has_url = !is_nil(primary_url) && String.trim(primary_url) != ""
+    has_url = Elektrine.Strings.present?(primary_url)
 
     cond do
       # Drafts can be empty - they're work in progress
@@ -512,7 +512,7 @@ defmodule Elektrine.Messaging.Message do
           "File"
       end
 
-    if content && String.trim(content) != "" do
+    if Elektrine.Strings.present?(content) do
       "#{media_text}: #{content}"
     else
       media_text

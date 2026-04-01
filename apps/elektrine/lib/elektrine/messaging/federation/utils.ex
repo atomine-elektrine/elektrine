@@ -1,6 +1,7 @@
 defmodule Elektrine.Messaging.Federation.Utils do
   @moduledoc false
 
+  alias Elektrine.Domains
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Profiles
   alias Elektrine.Repo
@@ -164,7 +165,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
     trimmed = String.trim(path)
 
     cond do
-      trimmed == "" -> "/"
+      not Elektrine.Strings.present?(trimmed) -> "/"
       String.starts_with?(trimmed, "/") -> trimmed
       true -> "/" <> trimmed
     end
@@ -205,7 +206,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
     values
     |> Enum.filter(&is_binary/1)
     |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
     |> Enum.take(10)
   end
 
@@ -280,7 +281,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
     |> case do
       value when is_binary(value) ->
         trimmed = String.trim(value)
-        if trimmed == "", do: nil, else: trimmed
+        if Elektrine.Strings.present?(trimmed), do: trimmed, else: nil
 
       _ ->
         nil
@@ -413,8 +414,11 @@ defmodule Elektrine.Messaging.Federation.Utils do
 
   def preferred_dm_origin_domain_for_user(%{id: user_id}) when is_integer(user_id) do
     case Profiles.preferred_verified_domain_for_user(user_id) do
-      %{domain: domain} when is_binary(domain) and domain != "" -> domain
-      _ -> local_domain()
+      %{domain: domain} when is_binary(domain) ->
+        if Elektrine.Strings.present?(domain), do: domain, else: local_domain()
+
+      _ ->
+        local_domain()
     end
   end
 
@@ -479,7 +483,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
     case Keyword.get(opts, :domain) do
       domain when is_binary(domain) ->
         trimmed = String.trim(domain)
-        if trimmed == "", do: local_domain(), else: String.downcase(trimmed)
+        if Elektrine.Strings.present?(trimmed), do: String.downcase(trimmed), else: local_domain()
 
       _ ->
         local_domain()
@@ -537,8 +541,11 @@ defmodule Elektrine.Messaging.Federation.Utils do
 
   def uri_host(value) when is_binary(value) do
     case URI.parse(value) do
-      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
-      _ -> nil
+      %URI{host: host} when is_binary(host) ->
+        if Elektrine.Strings.present?(host), do: String.downcase(host), else: nil
+
+      _ ->
+        nil
     end
   end
 
@@ -546,16 +553,22 @@ defmodule Elektrine.Messaging.Federation.Utils do
 
   defp embedded_sender_domain_from_uri(uri) when is_binary(uri) do
     case URI.parse(uri) do
-      %URI{host: host} when is_binary(host) and host != "" -> String.downcase(host)
-      _ -> nil
+      %URI{host: host} when is_binary(host) ->
+        if Elektrine.Strings.present?(host), do: String.downcase(host), else: nil
+
+      _ ->
+        nil
     end
   end
 
   defp embedded_sender_domain_from_uri(_uri), do: nil
 
-  defp embedded_sender_handle(username, domain)
-       when is_binary(username) and is_binary(domain) and username != "" and domain != "" do
-    "#{username}@#{domain}"
+  defp embedded_sender_handle(username, domain) when is_binary(username) and is_binary(domain) do
+    if Elektrine.Strings.present?(username) and Elektrine.Strings.present?(domain) do
+      "#{username}@#{domain}"
+    else
+      nil
+    end
   end
 
   defp embedded_sender_handle(_username, _domain), do: nil
@@ -578,27 +591,15 @@ defmodule Elektrine.Messaging.Federation.Utils do
   end
 
   defp infer_local_base_url(domain) when is_binary(domain) do
-    is_tunnel = String.contains?(domain, ".") and not String.starts_with?(domain, "localhost")
-    scheme = if System.get_env("MIX_ENV") == "prod" or is_tunnel, do: "https", else: "http"
-    port = System.get_env("PORT") || "4000"
-
-    if scheme == "https" or port in ["80", "443"] or is_tunnel do
-      "#{scheme}://#{domain}"
-    else
-      "#{scheme}://#{domain}:#{port}"
-    end
+    Domains.inferred_base_url_for_domain(domain)
   end
 
   defp federation_config do
     Application.get_env(:elektrine, :messaging_federation, [])
   end
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_), do: nil
 end
