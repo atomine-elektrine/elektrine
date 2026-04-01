@@ -1361,15 +1361,18 @@ defmodule Elektrine.Messaging.Conversations do
 
     display_name =
       case actor do
-        %ActivityPubActor{display_name: display_name}
-        when is_binary(display_name) and display_name != "" ->
-          display_name
+        %ActivityPubActor{display_name: display_name} when is_binary(display_name) ->
+          if Elektrine.Strings.present?(display_name), do: display_name, else: nil
 
-        %ActivityPubActor{username: username} when is_binary(username) and username != "" ->
-          username
+        %ActivityPubActor{username: username} when is_binary(username) ->
+          if Elektrine.Strings.present?(username), do: username, else: nil
 
         _ ->
           handle || "remote user"
+      end
+      |> case do
+        nil -> handle || "remote user"
+        value -> value
       end
 
     %{
@@ -1392,7 +1395,7 @@ defmodule Elektrine.Messaging.Conversations do
 
   defp remote_join_display_label(display_name, handle)
        when is_binary(display_name) and is_binary(handle) do
-    if String.trim(display_name) != "" and display_name != handle do
+    if Elektrine.Strings.present?(display_name) and display_name != handle do
       "#{display_name} (#{handle})"
     else
       handle
@@ -1429,9 +1432,10 @@ defmodule Elektrine.Messaging.Conversations do
 
   defp remote_join_actor_payload(_actor), do: %{}
 
-  defp maybe_put_actor_avatar(payload, avatar_url)
-       when is_binary(avatar_url) and avatar_url != "" do
-    Map.put(payload, "avatar_url", avatar_url)
+  defp maybe_put_actor_avatar(payload, avatar_url) when is_binary(avatar_url) do
+    if Elektrine.Strings.present?(avatar_url),
+      do: Map.put(payload, "avatar_url", avatar_url),
+      else: payload
   end
 
   defp maybe_put_actor_avatar(payload, _avatar_url), do: payload
@@ -1647,7 +1651,7 @@ defmodule Elektrine.Messaging.Conversations do
         attrs[:name] ||
         attrs["name"]
 
-    if is_binary(display_name) and String.trim(display_name) != "" do
+    if Elektrine.Strings.present?(display_name) do
       String.trim(display_name)
     else
       "@" <> recipient.handle

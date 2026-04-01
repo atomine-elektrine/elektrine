@@ -912,12 +912,8 @@ defmodule Elektrine.Messaging.Federation.State do
   defp normalize_positive_int(value) when is_integer(value) and value > 0, do: value
   defp normalize_positive_int(_value), do: nil
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

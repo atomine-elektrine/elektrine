@@ -137,7 +137,7 @@ defmodule Elektrine.Social.Bookmarks do
       )
 
     message_ids_query =
-      if is_binary(search_query) && String.trim(search_query) != "" do
+      if Elektrine.Strings.present?(search_query) do
         pattern = "%" <> search_query <> "%"
 
         from([s, m, sender, remote_actor] in message_ids_query,

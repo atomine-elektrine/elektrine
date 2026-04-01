@@ -42,7 +42,7 @@ defmodule ElektrineWeb.Components.UI.Card do
 
   def card(assigns) do
     ~H"""
-    <div class={["card glass-card shadow-lg border border-base-300", @class]} {@rest}>
+    <div class={["card panel-card", @class]} {@rest}>
       <div class="card-body">
         <%= if @title != [] do %>
           <h2 class="card-title text-base-content">{render_slot(@title)}</h2>
@@ -148,7 +148,7 @@ defmodule ElektrineWeb.Components.UI.Card do
 
   def info_card(assigns) do
     ~H"""
-    <div class={["card bg-base-200 border border-base-300 rounded-lg", @class]} {@rest}>
+    <div class={["card panel-card rounded-lg", @class]} {@rest}>
       <div class="card-body p-4">
         <div class="flex items-start gap-4">
           <div class={"flex-shrink-0 #{@icon_color}"}>

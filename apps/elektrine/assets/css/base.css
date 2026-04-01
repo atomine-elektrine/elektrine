@@ -1,550 +1,80 @@
-/* ==========================================================================
-   BASE - Reset, Fonts, Theme Variables
-   ========================================================================== */
-
-/* Dark mode only */
-:root {
-  color-scheme: dark;
-}
-
-html {
-  color-scheme: dark;
-  overflow-x: hidden;
-}
-
-body {
-  color: #d1d5db;
-}
-
-/* Selection highlight */
-::selection {
-  background: rgba(168, 85, 247, 0.3);
-  color: #ffffff;
-}
-
-/* Custom scrollbar */
-* {
-  scrollbar-width: auto;
-  scrollbar-color: rgba(168, 85, 247, 0.25) transparent;
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: rgba(168, 85, 247, 0.25);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(168, 85, 247, 0.4);
-}
-
-/* Clickable elements cursor */
+/* ========================================================================== BASE - Reset, Fonts, Theme Variables ========================================================================== */ /* Dark mode only */
+:root { color-scheme: dark;
+} html { color-scheme: dark; overflow-x: hidden;
+} body { color: #d1d5db;
+} /* Selection highlight */
+::selection { background: rgba(148, 163, 184, 0.22); color: #ffffff;
+} /* Custom scrollbar */
+* { scrollbar-width: auto; scrollbar-color: rgba(148, 163, 184, 0.26) transparent;
+} ::-webkit-scrollbar { width: 10px; height: 10px;
+} ::-webkit-scrollbar-track { background: transparent;
+} ::-webkit-scrollbar-thumb { background-color: rgba(148, 163, 184, 0.26); border-radius: 999px;
+} ::-webkit-scrollbar-thumb:hover { background-color: rgba(148, 163, 184, 0.38);
+} /* Clickable elements cursor */
 [phx-click],
 [phx-submit],
 button:not(:disabled),
 a[href],
 .btn,
-.cursor-pointer {
-  cursor: pointer;
-}
-
-.search-clear-input {
-  padding-right: 2rem;
-}
-
-.search-clear-auto[hidden] {
-  display: none !important;
-}
-
-.search-clear-auto {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  display: inline-flex;
-  justify-content: center;
-  line-height: 1;
-  margin: 0;
-  padding: 0;
-}
-
-.search-clear-inline {
-  margin-left: 0.5rem;
-}
-
-.search-clear-auto:focus-visible {
-  border-radius: 0.25rem;
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-.search-clear-overlay {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 2;
-}
-
-/* ==========================================================================
-   FONT SYSTEM - Self-hosted Inter
-   ========================================================================== */
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-Light.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-Regular.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-Medium.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'Inter';
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-  src: url('/fonts/Inter-Bold.woff2') format('woff2');
-}
-
-@layer base {
-  html {
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    font-weight: 600;
-  }
-}
-
-/* ==========================================================================
-   THEME - DaisyUI Dark Theme Overrides (EVA palette)
-   ========================================================================== */
-
-html[data-theme="dark"],
+.cursor-pointer { cursor: pointer;
+} .search-clear-input { padding-right: 2rem;
+} .search-clear-auto[hidden] { display: none !important;
+} .search-clear-auto { align-items: center; background: transparent; border: 0; display: inline-flex; justify-content: center; line-height: 1; margin: 0; padding: 0;
+} .search-clear-inline { margin-left: 0.5rem;
+} .search-clear-auto:focus-visible { border-radius: 0.25rem; outline: 2px solid currentColor; outline-offset: 2px;
+} .search-clear-overlay { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); z-index: 2;
+} /* ========================================================================== FONT SYSTEM - Self-hosted Inter ========================================================================== */ @font-face { font-family: 'Inter'; font-weight: 300; font-style: normal; font-display: swap; src: url('/fonts/Inter-Light.woff2') format('woff2');
+} @font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/Inter-Regular.woff2') format('woff2');
+} @font-face { font-family: 'Inter'; font-weight: 500; font-style: normal; font-display: swap; src: url('/fonts/Inter-Medium.woff2') format('woff2');
+} @font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+} @font-face { font-family: 'Inter'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/Inter-Bold.woff2') format('woff2');
+} @layer base { html { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif; } h1, h2, h3, h4, h5, h6 { font-weight: 600; }
+} /* ========================================================================== THEME - DaisyUI Dark Theme Overrides (EVA palette) ========================================================================== */ html[data-theme="dark"],
 :root[data-theme="dark"],
 [data-theme="dark"],
-[data-theme=dark] {
-  --color-primary: oklch(55% 0.28 295) !important;
-  --color-primary-content: #ffffff !important;
-  --color-secondary: oklch(55% 0.25 15) !important;
-  --color-secondary-content: #ffffff !important;
-  --color-accent: oklch(60% 0.26 310) !important;
-  --color-accent-content: #ffffff !important;
-  --color-neutral: #171717 !important;
-  --color-neutral-content: #e5e5e5 !important;
-  --color-base-100: #000000 !important;
-  --color-base-200: #0a0a0a !important;
-  --color-base-300: #141414 !important;
-  --color-base-content: #e5e5e5 !important;
-  --color-info: oklch(60% 0.22 285) !important;
-  --color-info-content: #ffffff !important;
-  --color-success: oklch(65% 0.20 145) !important;
-  --color-success-content: #000000 !important;
-  --color-warning: oklch(68% 0.22 35) !important;
-  --color-warning-content: #000000 !important;
-  --color-error: oklch(58% 0.26 20) !important;
-  --color-error-content: #ffffff !important;
-  --surface-panel-bg-fallback: var(--color-base-200);
-  --surface-panel-bg: oklch(var(--b2));
-  --surface-panel-bg-no-blur: var(--color-base-200);
-  --surface-panel-border: var(--color-base-300);
-  --surface-panel-blur: 0px;
-  --surface-panel-shadow:
-    0 12px 30px -24px rgba(0, 0, 0, 0.8);
-  --surface-floating-bg-fallback: var(--color-base-100);
-  --surface-floating-bg: oklch(var(--b1));
-  --surface-floating-bg-no-blur: var(--color-base-100);
-  --surface-floating-border: var(--color-base-300);
-  --surface-floating-blur: 0px;
-  --surface-floating-shadow:
-    0 18px 42px -24px rgba(0, 0, 0, 0.7);
-  --surface-modal-bg-fallback: var(--color-base-100);
-  --surface-modal-bg: oklch(var(--b1));
-  --surface-modal-bg-no-blur: var(--color-base-100);
-  --surface-modal-border: var(--color-base-300);
-  --surface-modal-blur: 0px;
-  --surface-modal-shadow:
-    0 24px 56px -28px rgba(0, 0, 0, 0.82);
-}
-
-/* ==========================================================================
-   GRID BACKGROUNDS
-   ========================================================================== */
-
-:root {
-  --grid-color: rgba(168, 85, 247, 0.12);
-  --grid-x-color: rgba(168, 85, 247, 0.06);
-  --grid-glow-color: rgba(168, 85, 247, 0.20);
-  --grid-glow-x-color: rgba(168, 85, 247, 0.12);
-}
-
-/* Grid glow overlay - cursor-focused grid highlight */
-#cursor-glow-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 0;
-  contain: strict;
-  background-size: 40px 40px;
-  background-image:
-    linear-gradient(var(--grid-glow-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-glow-color) 1px, transparent 1px),
-    linear-gradient(
-      45deg,
-      transparent calc(50% - 0.6px),
-      var(--grid-glow-x-color) 50%,
-      transparent calc(50% + 0.6px)
-    ),
-    linear-gradient(
-      -45deg,
-      transparent calc(50% - 0.6px),
-      var(--grid-glow-x-color) 50%,
-      transparent calc(50% + 0.6px)
-    );
-  opacity: calc(var(--cursor-opacity, 0) * 0.78);
-  filter: saturate(1.08) brightness(1.12);
-  transition: opacity 140ms ease-out;
-  will-change: opacity, mask-image, -webkit-mask-image;
-  mask-image: radial-gradient(
-    var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0, 0, 0, 0.76) 0%,
-    rgba(0, 0, 0, 0.56) 36%,
-    rgba(0, 0, 0, 0.30) 62%,
-    transparent 84%
-  );
-  -webkit-mask-image: radial-gradient(
-    var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px),
-    rgba(0, 0, 0, 0.76) 0%,
-    rgba(0, 0, 0, 0.56) 36%,
-    rgba(0, 0, 0, 0.30) 62%,
-    transparent 84%
-  );
-}
-
-body.bg-base-100 {
-  background-color: var(--color-base-100);
-  background-size: 40px 40px;
-  /* Prevent grid line drift/aliasing after deep scroll offsets. */
-  background-attachment: fixed;
-  background-position: 0 0;
-  background-image:
-    linear-gradient(var(--grid-color) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px),
-    linear-gradient(
-      45deg,
-      transparent calc(50% - 0.6px),
-      var(--grid-x-color) 50%,
-      transparent calc(50% + 0.6px)
-    ),
-    linear-gradient(
-      -45deg,
-      transparent calc(50% - 0.6px),
-      var(--grid-x-color) 50%,
-     transparent calc(50% + 0.6px)
-    );
-}
-
-@supports (color: oklch(0 0 0)) {
-  body.bg-base-100 {
-    background-color: oklch(var(--b1));
-  }
-}
-
-/* Grid color variants */
-body[data-grid="purple"], body.grid-purple {
-  --grid-color: rgba(168, 85, 247, 0.06);
-  --grid-x-color: rgba(168, 85, 247, 0.04);
-  --grid-glow-color: rgba(168, 85, 247, 0.20);
-  --grid-glow-x-color: rgba(168, 85, 247, 0.12);
-}
-
-body[data-grid="cyan"], body.grid-cyan {
-  --grid-color: rgba(6, 182, 212, 0.06);
-  --grid-x-color: rgba(6, 182, 212, 0.04);
-  --grid-glow-color: rgba(6, 182, 212, 0.20);
-  --grid-glow-x-color: rgba(6, 182, 212, 0.12);
-}
-
-body[data-grid="red"], body.grid-red {
-  --grid-color: rgba(239, 68, 68, 0.06);
-  --grid-x-color: rgba(239, 68, 68, 0.04);
-  --grid-glow-color: rgba(239, 68, 68, 0.20);
-  --grid-glow-x-color: rgba(239, 68, 68, 0.12);
-}
-
-body[data-grid="green"], body.grid-green {
-  --grid-color: rgba(34, 197, 94, 0.06);
-  --grid-x-color: rgba(34, 197, 94, 0.04);
-  --grid-glow-color: rgba(34, 197, 94, 0.20);
-  --grid-glow-x-color: rgba(34, 197, 94, 0.12);
-}
-
-body[data-grid="orange"], body.grid-orange {
-  --grid-color: rgba(249, 115, 22, 0.06);
-  --grid-x-color: rgba(249, 115, 22, 0.04);
-  --grid-glow-color: rgba(249, 115, 22, 0.20);
-  --grid-glow-x-color: rgba(249, 115, 22, 0.12);
-}
-
-.admin-layout {
-  color-scheme: dark;
-}
-
-.admin-navbar {
-  z-index: 400 !important;
-  isolation: isolate;
-  overflow: visible !important;
-}
-
-.admin-layout > main {
-  position: relative;
-  z-index: 0;
-}
-
-.admin-navbar .navbar-start,
+[data-theme=dark] { --color-primary: oklch(63% 0.11 296) !important; --color-primary-content: #ffffff !important; --color-secondary: oklch(60% 0.14 22) !important; --color-secondary-content: #ffffff !important; --color-accent: oklch(66% 0.10 314) !important; --color-accent-content: #ffffff !important; --color-neutral: #171c22 !important; --color-neutral-content: #e4e7eb !important; --color-base-100: #101419 !important; --color-base-200: #151b22 !important; --color-base-300: #202833 !important; --color-base-content: #e4e7eb !important; --color-info: oklch(61% 0.12 275) !important; --color-info-content: #ffffff !important; --color-success: oklch(65% 0.20 145) !important; --color-success-content: #000000 !important; --color-warning: oklch(68% 0.22 35) !important; --color-warning-content: #000000 !important; --color-error: oklch(58% 0.26 20) !important; --color-error-content: #ffffff !important; --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%); --surface-panel-bg: oklch(var(--b2)); --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%); --surface-panel-border: color-mix(in srgb, var(--color-base-300) 88%, #8ea4bf 12%); --surface-panel-blur: 0px; --surface-panel-shadow: 0 18px 40px -34px rgba(6, 12, 24, 0.48); --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%); --surface-floating-bg: oklch(var(--b3)); --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%); --surface-floating-border: color-mix(in srgb, var(--color-base-300) 86%, #92abc9 14%); --surface-floating-blur: 0px; --surface-floating-shadow: 0 22px 46px -30px rgba(6, 12, 24, 0.5); --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%); --surface-modal-bg: oklch(var(--b3)); --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%); --surface-modal-border: color-mix(in srgb, var(--color-base-300) 84%, #9ab0ca 16%); --surface-modal-blur: 0px; --surface-modal-shadow: 0 26px 60px -32px rgba(6, 12, 24, 0.58);
+} /* ========================================================================== GRID BACKGROUNDS ========================================================================== */ :root { --grid-color: rgba(148, 163, 184, 0.03); --grid-x-color: rgba(148, 163, 184, 0.015); --grid-glow-color: rgba(148, 163, 184, 0.05); --grid-glow-x-color: rgba(148, 163, 184, 0.025);
+} /* Grid glow overlay - cursor-focused grid highlight */
+#cursor-glow-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; contain: strict; background-size: 40px 40px; background-image: linear-gradient(var(--grid-glow-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-glow-color) 1px, transparent 1px), linear-gradient( 45deg, transparent calc(50% - 0.6px), var(--grid-glow-x-color) 50%, transparent calc(50% + 0.6px) ), linear-gradient( -45deg, transparent calc(50% - 0.6px), var(--grid-glow-x-color) 50%, transparent calc(50% + 0.6px) ); opacity: calc(var(--cursor-opacity, 0) * 0.78); filter: saturate(1.08) brightness(1.12); transition: opacity 140ms ease-out; will-change: opacity, mask-image, -webkit-mask-image; mask-image: radial-gradient( var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px), rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0.56) 36%, rgba(0, 0, 0, 0.30) 62%, transparent 84% ); -webkit-mask-image: radial-gradient( var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px), rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0.56) 36%, rgba(0, 0, 0, 0.30) 62%, transparent 84% );
+} body.bg-base-100 { background-color: var(--color-base-100); background-size: 40px 40px; /* Prevent grid line drift/aliasing after deep scroll offsets. */ background-attachment: fixed; background-position: 0 0; background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px), linear-gradient( 45deg, transparent calc(50% - 0.6px), var(--grid-x-color) 50%, transparent calc(50% + 0.6px) ), linear-gradient( -45deg, transparent calc(50% - 0.6px), var(--grid-x-color) 50%, transparent calc(50% + 0.6px) );
+} @supports (color: oklch(0 0 0)) { body.bg-base-100 { background-color: oklch(var(--b1)); }
+} /* Grid color variants */
+body[data-grid="purple"], body.grid-purple { --grid-color: rgba(138, 124, 194, 0.032); --grid-x-color: rgba(138, 124, 194, 0.016); --grid-glow-color: rgba(138, 124, 194, 0.07); --grid-glow-x-color: rgba(138, 124, 194, 0.035);
+} body[data-grid="cyan"], body.grid-cyan { --grid-color: rgba(6, 182, 212, 0.035); --grid-x-color: rgba(6, 182, 212, 0.018); --grid-glow-color: rgba(6, 182, 212, 0.08); --grid-glow-x-color: rgba(6, 182, 212, 0.04);
+} body[data-grid="red"], body.grid-red { --grid-color: rgba(239, 68, 68, 0.035); --grid-x-color: rgba(239, 68, 68, 0.018); --grid-glow-color: rgba(239, 68, 68, 0.08); --grid-glow-x-color: rgba(239, 68, 68, 0.04);
+} body[data-grid="green"], body.grid-green { --grid-color: rgba(34, 197, 94, 0.035); --grid-x-color: rgba(34, 197, 94, 0.018); --grid-glow-color: rgba(34, 197, 94, 0.08); --grid-glow-x-color: rgba(34, 197, 94, 0.04);
+} body[data-grid="orange"], body.grid-orange { --grid-color: rgba(249, 115, 22, 0.035); --grid-x-color: rgba(249, 115, 22, 0.018); --grid-glow-color: rgba(249, 115, 22, 0.08); --grid-glow-x-color: rgba(249, 115, 22, 0.04);
+} .admin-layout { color-scheme: dark;
+} .admin-navbar { z-index: 400 !important; isolation: isolate; overflow: visible !important;
+} .admin-layout > main { position: relative; z-index: 0;
+} .admin-navbar .navbar-start,
 .admin-navbar .navbar-center,
 .admin-navbar .navbar-end,
-.admin-navbar .dropdown {
-  overflow: visible !important;
-}
-
-.admin-page {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-@media (min-width: 640px) {
-  .admin-page {
-    gap: 2rem;
-  }
-}
-
-.admin-page > :first-child {
-  margin-bottom: 0 !important;
-}
-
-.admin-page > .card.glass-card,
-.admin-page > section.card.glass-card {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-}
-
-.admin-layout .dropdown-content,
-.admin-layout .menu.dropdown-content {
-  z-index: 450 !important;
-}
-
-/* Logo glow effect - purple variant */
-.logo-glow-purple {
-  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.25)) drop-shadow(0 0 20px rgba(168, 85, 247, 0.12));
-}
-
-/* Logo glow effect - red variant */
-.logo-glow-red {
-  filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.25)) drop-shadow(0 0 20px rgba(239, 68, 68, 0.12));
-}
-
-/* Glass pill button - floating notification style */
-.glass-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: oklch(var(--bc));
-  background: oklch(var(--b2) / 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid oklch(var(--bc) / 0.15);
-  border-radius: 9999px;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1),
-    inset 0 1px 0 0 oklch(var(--b3) / 0.5);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.glass-pill:hover {
-  background: oklch(var(--b2) / 0.95);
-  border-color: oklch(var(--p) / 0.4);
-  box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 0.1),
-    0 4px 6px -4px rgb(0 0 0 / 0.1),
-    0 0 20px -5px oklch(var(--p) / 0.3),
-    inset 0 1px 0 0 oklch(var(--b3) / 0.5);
-  transform: translateY(-1px);
-}
-
-.glass-pill:active {
-  transform: translateY(0);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
-}
-
-body[data-grid="blue"], body.grid-blue {
-  --grid-color: rgba(59, 130, 246, 0.06);
-  --grid-x-color: rgba(59, 130, 246, 0.04);
-  --grid-glow-color: rgba(59, 130, 246, 0.20);
-  --grid-glow-x-color: rgba(59, 130, 246, 0.12);
-}
-
-body[data-grid="pink"], body.grid-pink {
-  --grid-color: rgba(236, 72, 153, 0.06);
-  --grid-x-color: rgba(236, 72, 153, 0.04);
-  --grid-glow-color: rgba(236, 72, 153, 0.20);
-  --grid-glow-x-color: rgba(236, 72, 153, 0.12);
-}
-
-.bg-grid {
-  background-size: 40px 40px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(168,85,247,0.08)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3C/svg%3E");
-}
-
-.network-grid {
-  background-size: 50px 50px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect width='50' height='50' fill='none' stroke='rgba(168,85,247,0.05)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='50' y2='50' stroke='rgba(168,85,247,0.03)' stroke-width='1'/%3E%3Cline x1='50' y1='0' x2='0' y2='50' stroke='rgba(168,85,247,0.03)' stroke-width='1'/%3E%3C/svg%3E");
-}
-
-/* ==========================================================================
-   BLINKENLIGHTS - Retro mainframe-style blinking lights grid
-   ========================================================================== */
-
-/* Hide regular grid when blinkenlights are active */
-body.has-blinkenlights {
-  background-image: none !important;
-}
-
-body.has-blinkenlights #cursor-glow-overlay {
-  display: none;
-}
-
-#blinkenlights-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: calc(100vh + 100px);
-  height: calc(100dvh + 100px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-
-
-.blinkenlight {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background-color: rgba(150, 150, 150, 0.5);
-  transition: opacity 0.15s;
-}
-
-.blinkenlight.active {
-  animation: blinken-mono var(--blinken-duration, 6s) var(--blinken-delay, 0s) infinite ease-in-out;
-}
-
-.blinkenlight.finding {
-  background-color: rgba(255, 255, 255, 1) !important;
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
-}
-
-.blinkenlight.action {
-  background-color: rgba(220, 220, 220, 1) !important;
-  box-shadow: 0 0 4px rgba(220, 220, 220, 0.6);
-}
-
-@keyframes blinken-mono {
-  0%, 75%, 100% {
-    background-color: rgba(150, 150, 150, 0.5);
-  }
-  80%, 95% {
-    background-color: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
-  }
-}
-
-/* ==========================================================================
-   3D TILT EFFECT - Mouse-responsive for transparent images
-   ========================================================================== */
-
-.tilt-3d {
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
-  transition: filter 0.3s ease, opacity 0.3s ease;
-  transform-style: preserve-3d;
-  transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
-  will-change: transform, filter;
-}
-
-.tilt-3d:hover {
-  opacity: 0.8 !important;
-  filter:
-    brightness(1.5)
-    drop-shadow(0 0 20px rgba(168, 85, 247, 0.5))
-    drop-shadow(0 0 40px rgba(168, 85, 247, 0.3))
-    drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
-}
-
-.hover-glow {
-  transition: filter 0.3s ease, opacity 0.3s ease;
-  will-change: filter, opacity;
-  filter:
-    drop-shadow(0 0 18px rgba(168, 85, 247, 0.25))
-    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
-}
-
-.hover-glow:hover {
-  opacity: 0.28 !important;
-  filter:
-    brightness(1.35)
-    drop-shadow(0 0 20px rgba(168, 85, 247, 0.45))
-    drop-shadow(0 0 36px rgba(168, 85, 247, 0.22))
-    drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
-}
-
-.footer-wordmark-glow {
-  opacity: 0.78;
-}
-
-.footer-wordmark-glow:hover {
-  opacity: 1 !important;
+.admin-navbar .dropdown { overflow: visible !important;
+} .admin-page { display: flex; flex-direction: column; gap: 1.5rem;
+} @media (min-width: 640px) { .admin-page { gap: 2rem; }
+} .admin-page > :first-child { margin-bottom: 0 !important;
+} .admin-page > .card.panel-card,
+.admin-page > section.card.panel-card { margin-top: 0 !important; margin-bottom: 0 !important;
+} .admin-layout .dropdown-content,
+.admin-layout .menu.dropdown-content { z-index: 450 !important;
+} body[data-grid="blue"], body.grid-blue { --grid-color: rgba(59, 130, 246, 0.035); --grid-x-color: rgba(59, 130, 246, 0.018); --grid-glow-color: rgba(59, 130, 246, 0.08); --grid-glow-x-color: rgba(59, 130, 246, 0.04);
+} body[data-grid="pink"], body.grid-pink { --grid-color: rgba(236, 72, 153, 0.035); --grid-x-color: rgba(236, 72, 153, 0.018); --grid-glow-color: rgba(236, 72, 153, 0.08); --grid-glow-x-color: rgba(236, 72, 153, 0.04);
+} .bg-grid { background-size: 40px 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(148,163,184,0.08)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3C/svg%3E");
+} .network-grid { background-size: 50px 50px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect width='50' height='50' fill='none' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='50' y2='50' stroke='rgba(148,163,184,0.03)' stroke-width='1'/%3E%3Cline x1='50' y1='0' x2='0' y2='50' stroke='rgba(148,163,184,0.03)' stroke-width='1'/%3E%3C/svg%3E");
+} /* ========================================================================== BLINKENLIGHTS - Retro mainframe-style blinking lights grid ========================================================================== */ /* Hide regular grid when blinkenlights are active */
+body.has-blinkenlights { background-image: none !important;
+} body.has-blinkenlights #cursor-glow-overlay { display: none;
+} #blinkenlights-container { position: fixed; top: 0; left: 0; width: 100vw; height: calc(100vh + 100px); height: calc(100dvh + 100px); pointer-events: none; z-index: 0;
+} .blinkenlight { position: absolute; width: 3px; height: 3px; border-radius: 50%; background-color: rgba(150, 150, 150, 0.5); transition: opacity 0.15s;
+} .blinkenlight.active { animation: blinken-mono var(--blinken-duration, 6s) var(--blinken-delay, 0s) infinite ease-in-out;
+} .blinkenlight.finding { background-color: rgba(255, 255, 255, 1) !important; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);
+} .blinkenlight.action { background-color: rgba(220, 220, 220, 1) !important; box-shadow: 0 0 4px rgba(220, 220, 220, 0.6);
+} @keyframes blinken-mono { 0%, 75%, 100% { background-color: rgba(150, 150, 150, 0.5); } 80%, 95% { background-color: rgba(255, 255, 255, 0.9); box-shadow: 0 0 4px rgba(255, 255, 255, 0.5); }
+} /* ========================================================================== 3D TILT EFFECT - Mouse-responsive for transparent images ========================================================================== */ .tilt-3d { --tilt-x: 0deg; --tilt-y: 0deg; transition: filter 0.3s ease, opacity 0.3s ease; transform-style: preserve-3d; transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)); will-change: transform, filter;
+} .tilt-3d:hover { opacity: 0.8 !important; filter: brightness(1.5) drop-shadow(0 0 20px rgba(138, 124, 194, 0.42)) drop-shadow(0 0 40px rgba(138, 124, 194, 0.24)) drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
+} .hover-glow { transition: filter 0.3s ease, opacity 0.3s ease; will-change: filter, opacity; filter: drop-shadow(0 0 18px rgba(138, 124, 194, 0.2)) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
+} .hover-glow:hover { opacity: 0.28 !important; filter: brightness(1.35) drop-shadow(0 0 20px rgba(138, 124, 194, 0.38)) drop-shadow(0 0 36px rgba(138, 124, 194, 0.18)) drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
+} .footer-wordmark-glow { opacity: 0.78;
+} .footer-wordmark-glow:hover { opacity: 1 !important;
 }

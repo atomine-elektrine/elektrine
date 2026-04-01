@@ -108,7 +108,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       current_user={@current_user}
     >
       <!-- Information Card -->
-      <div class="card glass-card border border-base-300 shadow-lg">
+      <div class="card panel-card border border-base-300 shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <div class="flex items-start gap-3">
             <.icon name="hero-information-circle" class="w-5 h-5 text-info mt-0.5" />
@@ -129,7 +129,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
 
       <div class="grid gap-6 lg:grid-cols-2">
         <!-- Create New App Password -->
-        <div class="card glass-card border border-base-300 shadow-lg">
+        <div class="card panel-card border border-base-300 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">Create App Password</h2>
             <.form id={"create-app-password-form-#{@form_version}"} for={@form} phx-submit="create">
@@ -181,7 +181,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
         </div>
         
     <!-- Usage Instructions -->
-        <div class="card glass-card border border-base-300 shadow-lg">
+        <div class="card panel-card border border-base-300 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg mb-4">How to Use</h2>
             <div class="space-y-3 text-sm text-base-content/70">
@@ -208,7 +208,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       
     <!-- Newly created password -->
       <%= if @new_token do %>
-        <div class="card glass-card border border-success/40 shadow-lg">
+        <div class="card panel-card border border-success/40 shadow-lg">
           <div class="card-body p-4 sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -288,7 +288,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
       <% end %>
       
     <!-- Existing App Passwords -->
-      <div class="card glass-card border border-base-300 shadow-lg">
+      <div class="card panel-card border border-base-300 shadow-lg">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-lg mb-4">Existing App Passwords</h2>
 

@@ -734,22 +734,25 @@ defmodule Elektrine.Social do
 
   defp maybe_apply_timeline_search(nil, _), do: nil
 
-  defp maybe_apply_timeline_search(query, search_query)
-       when is_binary(search_query) and search_query != "" do
-    pattern = "%" <> search_query <> "%"
+  defp maybe_apply_timeline_search(query, search_query) when is_binary(search_query) do
+    if Elektrine.Strings.present?(search_query) do
+      pattern = "%" <> search_query <> "%"
 
-    from(m in query,
-      left_join: sender in assoc(m, :sender),
-      left_join: remote_actor in assoc(m, :remote_actor),
-      where:
-        ilike(m.content, ^pattern) or
-          (not is_nil(m.title) and ilike(m.title, ^pattern)) or
-          (not is_nil(sender.username) and ilike(sender.username, ^pattern)) or
-          (not is_nil(sender.display_name) and ilike(sender.display_name, ^pattern)) or
-          (not is_nil(remote_actor.username) and ilike(remote_actor.username, ^pattern)) or
-          (not is_nil(remote_actor.display_name) and ilike(remote_actor.display_name, ^pattern)) or
-          (not is_nil(remote_actor.domain) and ilike(remote_actor.domain, ^pattern))
-    )
+      from(m in query,
+        left_join: sender in assoc(m, :sender),
+        left_join: remote_actor in assoc(m, :remote_actor),
+        where:
+          ilike(m.content, ^pattern) or
+            (not is_nil(m.title) and ilike(m.title, ^pattern)) or
+            (not is_nil(sender.username) and ilike(sender.username, ^pattern)) or
+            (not is_nil(sender.display_name) and ilike(sender.display_name, ^pattern)) or
+            (not is_nil(remote_actor.username) and ilike(remote_actor.username, ^pattern)) or
+            (not is_nil(remote_actor.display_name) and ilike(remote_actor.display_name, ^pattern)) or
+            (not is_nil(remote_actor.domain) and ilike(remote_actor.domain, ^pattern))
+      )
+    else
+      query
+    end
   end
 
   defp maybe_apply_timeline_search(query, _), do: query
@@ -858,7 +861,7 @@ defmodule Elektrine.Social do
 
   defp maybe_put_media_attachment_text(map, key, value) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: map, else: Map.put(map, key, trimmed)
+    if Elektrine.Strings.present?(trimmed), do: Map.put(map, key, trimmed), else: map
   end
 
   defp maybe_put_media_attachment_text(map, _key, _value), do: map
@@ -900,7 +903,7 @@ defmodule Elektrine.Social do
        when is_map(attachment) and is_binary(alt_text) do
     trimmed = String.trim(alt_text)
 
-    if trimmed == "" do
+    if not Elektrine.Strings.present?(trimmed) do
       attachment
     else
       Map.put(attachment, "alt_text", trimmed)
@@ -921,7 +924,7 @@ defmodule Elektrine.Social do
        when is_binary(community_actor_uri) do
     normalized = String.trim(community_actor_uri)
 
-    if normalized == "" || normalized in @public_audience_uris do
+    if not Elektrine.Strings.present?(normalized) || normalized in @public_audience_uris do
       metadata
     else
       Map.put(metadata, "community_actor_uri", normalized)
@@ -1706,8 +1709,13 @@ defmodule Elektrine.Social do
     }
   end
 
-  defp suggested_discussion_title(%{title: title}) when is_binary(title) and title != "",
-    do: "Discussion: #{title}"
+  defp suggested_discussion_title(%{title: title} = message) when is_binary(title) do
+    if Elektrine.Strings.present?(title) do
+      "Discussion: #{title}"
+    else
+      "Discussion: #{String.slice(message.content, 0, 50)}..."
+    end
+  end
 
   defp suggested_discussion_title(message),
     do: "Discussion: #{String.slice(message.content, 0, 50)}..."
@@ -2096,7 +2104,7 @@ defmodule Elektrine.Social do
 
   defp validate_title_if_present(title) when is_binary(title) do
     # Treat empty/whitespace titles as nil (optional)
-    if String.trim(title) == "" do
+    if not Elektrine.Strings.present?(title) do
       {:ok, nil}
     else
       case ContentValidator.validate_title(title) do
@@ -2108,7 +2116,7 @@ defmodule Elektrine.Social do
 
   # Allow empty content if media is present
   defp validate_content_or_allow_empty(content, media_urls) do
-    if (is_nil(content) || String.trim(content) == "") && !Enum.empty?(media_urls) do
+    if not Elektrine.Strings.present?(content) && !Enum.empty?(media_urls) do
       # Media-only post, allow empty content
       {:ok, ""}
     else

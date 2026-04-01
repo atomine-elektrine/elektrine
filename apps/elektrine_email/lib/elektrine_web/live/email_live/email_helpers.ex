@@ -276,7 +276,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       # Get plain text content
       content =
         cond do
-          message.text_body && String.trim(message.text_body) != "" ->
+          Elektrine.Strings.present?(message.text_body) ->
             message.text_body
             # Decode quoted-printable encoding first
             |> decode_body()
@@ -288,7 +288,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
             |> String.replace(~r/<[^>]+>/, " ")
             |> decode_all_html_entities()
 
-          message.html_body && String.trim(message.html_body) != "" ->
+          Elektrine.Strings.present?(message.html_body) ->
             # Simple HTML to text conversion
             message.html_body
             # Decode quoted-printable encoding first
@@ -476,8 +476,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
       <div class="lg:hidden">
         <div
           id={"mobile-email-sidebar-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg rounded-lg"
+          class="card panel-card rounded-lg"
         >
           <div class="card-body p-4 space-y-4">
             <div class="flex items-start justify-between gap-3">
@@ -766,8 +765,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
         <!-- Mailbox Info Card -->
         <div
           id={"mailbox-info-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg mb-6 rounded-lg"
+          class="card panel-card mb-6 rounded-lg"
         >
           <div class="card-body p-6">
             <div class="flex-1 min-w-0">
@@ -872,8 +870,7 @@ defmodule ElektrineWeb.EmailLive.EmailHelpers do
     <!-- Navigation Menu -->
         <div
           id={"nav-menu-card-#{@mailbox.id}"}
-          phx-hook="GlassCard"
-          class="card glass-card shadow-lg rounded-lg"
+          class="card panel-card rounded-lg"
         >
           <div class="card-body p-3">
             <ul class="menu menu-lg rounded-box w-full">

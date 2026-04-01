@@ -6,10 +6,11 @@
       </.link>
       <h1 class="text-2xl font-bold">Edit Product: {@product.name}</h1>
     </div>
+
     <p class="opacity-70">Update product details and Stripe pricing.</p>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <.simple_form
         :let={f}
@@ -20,20 +21,19 @@
         <.error :if={@changeset.action}>
           Oops, something went wrong! Please check the errors below.
         </.error>
-
-        <% features_value = Phoenix.HTML.Form.input_value(f, :features) || @product.features || [] %>
-
+        <% features_value =
+          Phoenix.HTML.Form.input_value(f, :features) || @product.features || [] %>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <.input field={f[:name]} type="text" label="Name" placeholder="e.g., VPN" required />
           </div>
+
           <div>
-            <label class="label">
-              <span class="label-text font-medium">Slug</span>
-            </label>
+            <label class="label"><span class="label-text font-medium">Slug</span></label>
             <div class="input input-bordered flex items-center font-mono text-sm bg-base-200">
               {@product.slug}
             </div>
+
             <div class="label">
               <span class="text-xs opacity-70">
                 Product slugs are immutable after creation so existing subscriptions and webhook mappings stay stable.
@@ -56,13 +56,8 @@
               </span>
             </div>
           </div>
-          <div>
-            <.input
-              field={f[:sort_order]}
-              type="number"
-              label="Sort Order"
-            />
-          </div>
+
+          <div><.input field={f[:sort_order]} type="number" label="Sort Order" /></div>
         </div>
 
         <div>
@@ -92,13 +87,13 @@
         <div class="alert alert-info mb-4">
           <.icon name="hero-information-circle" class="w-5 h-5" />
           <span>
-            Stripe price IDs sync the amount and currency each time you save. Use either recurring
-            prices or a one-time price, depending on the billing type.
+            Stripe price IDs sync the amount and currency each time you save. Use either recurring prices or a one-time price, depending on the billing type.
           </span>
         </div>
 
         <div class="rounded-box border border-base-300 p-4 mb-4">
           <div class="font-medium mb-3">Recurring Pricing</div>
+
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <.input
@@ -108,10 +103,9 @@
                 placeholder="1900"
                 min="0"
               />
-              <div class="label">
-                <span class="text-xs opacity-70">e.g., 1900 = $19.00</span>
-              </div>
+              <div class="label"><span class="text-xs opacity-70">e.g., 1900 = $19.00</span></div>
             </div>
+
             <div>
               <.input
                 field={f[:yearly_price_cents]}
@@ -124,6 +118,7 @@
                 <span class="text-xs opacity-70">e.g., 19000 = $190.00</span>
               </div>
             </div>
+
             <div>
               <.input
                 field={f[:currency]}
@@ -137,6 +132,7 @@
 
         <div class="rounded-box border border-base-300 p-4 mb-4">
           <div class="font-medium mb-3">One-time Pricing</div>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <.input
@@ -146,10 +142,9 @@
                 placeholder="500"
                 min="0"
               />
-              <div class="label">
-                <span class="text-xs opacity-70">e.g., 500 = $5.00</span>
-              </div>
+              <div class="label"><span class="text-xs opacity-70">e.g., 500 = $5.00</span></div>
             </div>
+
             <div class="flex items-end">
               <div class="text-sm opacity-70">
                 Use this for pay-once access such as registration fees or lifetime unlocks.
@@ -167,11 +162,10 @@
               placeholder="price_xxx"
             />
             <div class="label">
-              <span class="text-xs opacity-70">
-                Must be a recurring monthly Stripe price.
-              </span>
+              <span class="text-xs opacity-70"> Must be a recurring monthly Stripe price. </span>
             </div>
           </div>
+
           <div>
             <.input
               field={f[:stripe_yearly_price_id]}
@@ -183,6 +177,7 @@
               <span class="text-xs opacity-70">Must be a recurring yearly price.</span>
             </div>
           </div>
+
           <div>
             <.input
               field={f[:stripe_one_time_price_id]}
@@ -191,9 +186,7 @@
               placeholder="price_xxx"
             />
             <div class="label">
-              <span class="text-xs opacity-70">
-                Must be a non-recurring Stripe price.
-              </span>
+              <span class="text-xs opacity-70"> Must be a non-recurring Stripe price. </span>
             </div>
           </div>
         </div>
@@ -214,8 +207,7 @@
                   )
                 }
                 class="checkbox checkbox-primary"
-              />
-              <span class="ml-3">Active (visible to users)</span>
+              /> <span class="ml-3">Active (visible to users)</span>
             </label>
           </div>
         </div>
@@ -225,9 +217,7 @@
             <.button class="btn-primary">
               <.icon name="hero-check" class="w-4 h-4 mr-2" /> Update Product
             </.button>
-            <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost">
-              Cancel
-            </.link>
+            <.link href={~p"/pripyat/subscriptions"} class="btn btn-ghost"> Cancel </.link>
           </div>
         </:actions>
       </.simple_form>

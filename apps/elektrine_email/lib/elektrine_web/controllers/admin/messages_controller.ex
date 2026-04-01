@@ -33,7 +33,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
     per_page = 50
 
     {messages, total_count} =
-      if search_query != "" do
+      if Elektrine.Strings.present?(search_query) do
         search_messages_paginated(search_query, status_filter, page, per_page)
       else
         get_recent_messages_paginated(status_filter, page, per_page)
@@ -220,7 +220,7 @@ defmodule ElektrineWeb.Admin.MessagesController do
           end
 
         html_content =
-          if decrypted_message.html_body && String.trim(decrypted_message.html_body) != "" do
+          if Elektrine.Strings.present?(decrypted_message.html_body) do
             # Use proper HTML sanitization to prevent XSS
             # Wrap in try/rescue to handle malformed HTML that can crash mochiweb_html parser
             try do

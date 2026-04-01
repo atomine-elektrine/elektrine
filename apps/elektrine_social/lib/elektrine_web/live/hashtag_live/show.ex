@@ -312,7 +312,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
       is_nil(socket.assigns.quote_target_post) ->
         {:noreply, put_flash(socket, :error, "Quote target not found")}
 
-      String.trim(content) == "" ->
+      not Elektrine.Strings.present?(content) ->
         {:noreply, put_flash(socket, :error, "Please add some content to your quote")}
 
       true ->

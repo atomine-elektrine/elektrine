@@ -3,6 +3,7 @@ defmodule Elektrine.Messaging.Federation.Runtime do
 
   alias Elektrine.Messaging.ArblargSDK
   alias Elektrine.Messaging.Federation.Config
+  alias Elektrine.RuntimeEnv
 
   @clock_skew_seconds ArblargSDK.clock_skew_seconds()
 
@@ -204,15 +205,11 @@ defmodule Elektrine.Messaging.Federation.Runtime do
   end
 
   def prod_environment? do
-    Application.get_env(:elektrine, :environment) == :prod
+    RuntimeEnv.prod?()
   end
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 end

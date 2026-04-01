@@ -1,9 +1,10 @@
 defmodule ElektrineWeb.Components.Social.PostReactions do
   @moduledoc """
   Reusable emoji reactions component for posts.
-  Provides consistent styling and behavior across all post types.
   """
+
   use Phoenix.Component
+
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers, only: [render_custom_emojis: 1]
@@ -12,34 +13,6 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
 
   @doc """
   Renders emoji reactions with a quick picker dropdown.
-
-  ## Attributes
-
-  * `:post_id` - The post identifier (can be integer ID or ActivityPub URI string)
-  * `:reactions` - List of reaction records (with emoji, user, remote_actor fields)
-  * `:current_user` - The current user (nil if not logged in)
-  * `:on_react` - Event name for react action (default: "react_to_post")
-  * `:size` - Button size: :xs, :sm (default: :xs)
-  * `:value_name` - The phx-value attribute name: "post_id" or "message_id" (default: "post_id")
-  * `:actor_uri` - Optional actor URI to help resolve remote comment interactions
-  * `:show_picker` - Whether to show the quick picker (default: true)
-  * `:emojis` - List of emojis for quick picker (default: standard set)
-
-  ## Examples
-
-      <.post_reactions
-        post_id={post.id}
-        reactions={@post_reactions[post.id] || []}
-        current_user={@current_user}
-      />
-
-      <!-- With custom size -->
-      <.post_reactions
-        post_id={post.id}
-        reactions={reactions}
-        current_user={@current_user}
-        size={:sm}
-      />
   """
   attr :post_id, :any, required: true
   attr :reactions, :list, default: []
@@ -54,23 +27,22 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
   def post_reactions(assigns) do
     current_user_id = if assigns.current_user, do: assigns.current_user.id, else: nil
 
-    # Group reactions by emoji and count
     grouped_reactions = Enum.group_by(assigns.reactions, & &1.emoji)
 
     formatted_reactions =
-      Enum.map(grouped_reactions, fn {emoji, reactions} ->
-        user_reacted = Enum.any?(reactions, fn r -> r.user_id == current_user_id end)
+      grouped_reactions
+      |> Enum.map(fn {emoji, reactions} ->
+        user_reacted = Enum.any?(reactions, &(&1.user_id == current_user_id))
 
-        # Get usernames for tooltip
         usernames =
           reactions
-          |> Enum.map(fn r ->
+          |> Enum.map(fn reaction ->
             cond do
-              r.user && r.user.username ->
-                r.user.username
+              reaction.user && reaction.user.username ->
+                reaction.user.username
 
-              r.remote_actor && r.remote_actor.username ->
-                "#{r.remote_actor.username}@#{r.remote_actor.domain}"
+              reaction.remote_actor && reaction.remote_actor.username ->
+                "#{reaction.remote_actor.username}@#{reaction.remote_actor.domain}"
 
               true ->
                 nil
@@ -88,43 +60,13 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
       end)
       |> Enum.sort_by(& &1.count, :desc)
 
-    # Size-based classes
-    {btn_class, text_class, icon_class, picker_btn_class, picker_icon_class} =
-      case assigns.size do
-        :xs ->
-          {
-            "btn btn-xs sm:btn-sm gap-1 min-w-0",
-            "text-xs sm:text-sm",
-            "w-3.5 h-3.5 sm:w-4 sm:h-4",
-            "btn btn-ghost btn-xs sm:btn-sm",
-            "w-3.5 h-3.5 sm:w-4 sm:h-4"
-          }
-
-        :sm ->
-          {
-            "btn btn-sm gap-1 min-w-0",
-            "text-sm",
-            "w-4 h-4",
-            "btn btn-ghost btn-sm",
-            "w-4 h-4"
-          }
-
-        _ ->
-          {
-            "btn btn-xs sm:btn-sm gap-1 min-w-0",
-            "text-xs sm:text-sm",
-            "w-3.5 h-3.5 sm:w-4 sm:h-4",
-            "btn btn-ghost btn-xs sm:btn-sm",
-            "w-3.5 h-3.5 sm:w-4 sm:h-4"
-          }
-      end
+    {btn_class, text_class, picker_btn_class, picker_icon_class} = size_classes(assigns.size)
 
     assigns =
       assigns
       |> assign(:formatted_reactions, formatted_reactions)
       |> assign(:btn_class, btn_class)
       |> assign(:text_class, text_class)
-      |> assign(:icon_class, icon_class)
       |> assign(:picker_btn_class, picker_btn_class)
       |> assign(:picker_icon_class, picker_icon_class)
       |> assign(
@@ -135,11 +77,9 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
     ~H"""
     <%= if length(@formatted_reactions) > 0 || (@current_user && @show_picker) do %>
       <div class="flex flex-wrap items-center gap-1.5">
-        <!-- Existing reactions -->
         <%= for reaction <- @formatted_reactions do %>
-          <% tooltip = Enum.join(reaction.usernames, ", ")
-
-          tooltip =
+          <% tooltip = Enum.join(reaction.usernames, ", ") %>
+          <% tooltip =
             if reaction.count > 10, do: tooltip <> " and #{reaction.count - 10} more", else: tooltip %>
           <button
             phx-click={@on_react}
@@ -157,8 +97,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
             <span class={@text_class}>{reaction.count}</span>
           </button>
         <% end %>
-        
-    <!-- Quick reaction picker -->
+
         <%= if @current_user && @show_picker do %>
           <div class="dropdown dropdown-top">
             <button
@@ -170,10 +109,7 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
             >
               <.icon name="hero-face-smile" class={@picker_icon_class} />
             </button>
-            <div
-              tabindex="0"
-              class="dropdown-content z-30 menu p-2 shadow-lg bg-base-100 rounded-box border border-base-300"
-            >
+            <div tabindex="0" class="dropdown-content z-30 menu p-2 rounded-box">
               <div class="flex gap-1">
                 <%= for emoji <- @emojis do %>
                   <button
@@ -194,6 +130,26 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
     <% end %>
     """
   end
+
+  defp size_classes(:xs) do
+    {
+      "btn btn-xs sm:btn-sm gap-1 min-w-0",
+      "text-xs sm:text-sm",
+      "btn btn-ghost btn-xs sm:btn-sm",
+      "w-3.5 h-3.5 sm:w-4 sm:h-4"
+    }
+  end
+
+  defp size_classes(:sm) do
+    {
+      "btn btn-sm gap-1 min-w-0",
+      "text-sm",
+      "btn btn-ghost btn-sm",
+      "w-4 h-4"
+    }
+  end
+
+  defp size_classes(_size), do: size_classes(:xs)
 
   defp build_reaction_value_attrs(value_name, post_id, actor_uri) do
     [{"phx-value-#{value_name}", post_id}] ++ actor_uri_attr(actor_uri)

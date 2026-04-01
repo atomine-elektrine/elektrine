@@ -256,12 +256,8 @@ defmodule Elektrine.Messaging.Federation.Actors do
 
   defp derive_actor_inbox_from_uri(_uri), do: nil
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      normalized -> normalized
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

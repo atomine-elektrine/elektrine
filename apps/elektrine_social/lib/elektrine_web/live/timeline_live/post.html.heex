@@ -1,6 +1,6 @@
 <div class="social-page-wrap">
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="timeline" class="mb-3 sm:mb-4" current_user={@current_user} />
+  <.e_nav active_tab="timeline" current_user={@current_user} />
   
 <!-- Back Button -->
   <div class="social-page-toolbar">
@@ -14,7 +14,7 @@
     <div
       id="trending-hashtags-marquee"
       phx-update="ignore"
-      class="social-page-card hidden overflow-hidden bg-base-50 rounded-lg p-2 mb-3"
+      class="hidden overflow-hidden rounded-lg border border-base-300 bg-base-50 p-2 mb-6"
     >
       <div class="flex items-center gap-2">
         <.icon name="hero-fire" class="w-4 h-4 text-orange-500 flex-shrink-0" />
@@ -94,7 +94,7 @@
     <div class="w-full min-w-0">
       <div>
         <!-- Main Post -->
-        <div class="card social-page-card border border-base-300 rounded-lg mb-6">
+        <div class="card panel-card rounded-lg mb-6">
           <div class="card-body p-6">
             <!-- Post Header -->
             <div class="flex items-center gap-3 mb-4">
@@ -533,7 +533,7 @@
         
 <!-- Reply Form -->
         <%= if @show_reply_form && @current_user do %>
-          <div class="card social-page-card border border-base-300 rounded-lg mb-6">
+          <div class="card panel-card rounded-lg mb-6">
             <div class="card-body p-4">
               <div class="flex items-start gap-3 mb-3">
                 <div class="w-10 h-10">
@@ -766,7 +766,7 @@
       phx-click="close_quote_modal"
     >
       <div
-        class="modal-box card glass-card rounded-lg max-w-xl w-full max-h-[90vh] overflow-y-auto"
+        class="modal-box modal-surface rounded-lg max-w-xl w-full max-h-[90vh] overflow-y-auto"
         phx-click="stop_propagation"
         phx-window-keydown="close_quote_modal"
         phx-key="Escape"

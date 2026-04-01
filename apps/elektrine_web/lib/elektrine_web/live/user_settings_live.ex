@@ -545,7 +545,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("add_rss_feed", %{"url" => url}, socket) do
     url = String.trim(url)
 
-    if url == "" do
+    if not Elektrine.Strings.present?(url) do
       {:noreply, assign(socket, :rss_error, "Please enter a feed URL")}
     else
       socket = assign(socket, :adding_feed, true)
@@ -1000,7 +1000,7 @@ defmodule ElektrineWeb.UserSettingsLive do
         old_recovery_email = socket.assigns.user.recovery_email
 
         {final_user, message} =
-          if recovery_email_param && recovery_email_param != "" &&
+          if Elektrine.Strings.present?(recovery_email_param) &&
                recovery_email_param != old_recovery_email do
             RecoveryEmailVerification.set_recovery_email(updated_user.id, recovery_email_param)
             reloaded_user = Accounts.get_user!(socket.assigns.user.id)
@@ -1157,11 +1157,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp bluesky_profile_url(user) do
     profile_id =
       [user.bluesky_did, user.bluesky_identifier]
-      |> Enum.find(fn value -> is_binary(value) and String.trim(value) != "" end)
-      |> case do
-        value when is_binary(value) -> String.trim(value)
-        _ -> nil
-      end
+      |> Enum.find_value(&Elektrine.Strings.present/1)
 
     if profile_id do
       "https://bsky.app/profile/#{profile_id}"
@@ -1218,9 +1214,13 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp resolve_token_scopes(%{"preset" => "custom", "scopes" => scopes}), do: scopes
 
-  defp resolve_token_scopes(%{"preset" => preset}) when is_binary(preset) and preset != "" do
-    scopes = ApiToken.preset_scopes(preset)
-    if scopes == [], do: [], else: scopes
+  defp resolve_token_scopes(%{"preset" => preset}) when is_binary(preset) do
+    if Elektrine.Strings.present?(preset) do
+      scopes = ApiToken.preset_scopes(preset)
+      if scopes == [], do: [], else: scopes
+    else
+      []
+    end
   end
 
   defp resolve_token_scopes(%{"scopes" => scopes}), do: scopes
@@ -1405,7 +1405,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Token Modal -->
     <%= if @show_create_token_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md">
           <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
 
           <%= if @new_token do %>
@@ -1419,7 +1419,7 @@ defmodule ElektrineWeb.UserSettingsLive do
               <label class="label">
                 <span class="label-text font-medium">{gettext("Your new token")}</span>
               </label>
-              <div class="rounded-xl border border-base-300/70 bg-base-200/40 p-3 backdrop-blur-sm">
+              <div class="rounded-xl border border-base-300/70 bg-base-200/55 p-3">
                 <div class="join w-full">
                   <input
                     type="text"
@@ -1580,7 +1580,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Webhook Modal -->
     <%= if @show_create_webhook_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md">
           <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
 
           <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
@@ -1750,7 +1750,7 @@ defmodule ElektrineWeb.UserSettingsLive do
     case Integrations.user_settings_email_component() do
       nil ->
         ~H"""
-        <div class="card glass-card shadow-lg">
+        <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <h2 class="card-title text-lg sm:text-xl">Email</h2>
             <p class="text-sm text-base-content/70">

@@ -554,7 +554,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.VotingOperations do
       user = socket.assigns.current_user
       quote_target = socket.assigns.quote_target_post
 
-      if quote_target && String.trim(content) != "" do
+      if quote_target && Elektrine.Strings.present?(content) do
         case Social.create_quote_post(user.id, quote_target.id, content) do
           {:ok, quote_post} ->
             import Ecto.Query

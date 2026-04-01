@@ -32,7 +32,7 @@ defmodule Elektrine.Social.Boosts do
       Repo.get!(Message, message_id) |> Repo.preload([:sender, :conversation, :remote_actor])
 
     # Validate: Don't allow boosting empty posts (must have content OR media)
-    has_content = original.content && String.trim(original.content) != ""
+    has_content = Elektrine.Strings.present?(original.content)
     has_media = original.media_urls && original.media_urls != []
 
     if !has_content && !has_media do
@@ -165,7 +165,7 @@ defmodule Elektrine.Social.Boosts do
     _quoted = Repo.get!(Message, quoted_message_id)
 
     # Validate content is not empty
-    if !content || String.trim(content) == "" do
+    if not Elektrine.Strings.present?(content) do
       {:error, :empty_quote}
     else
       visibility = Keyword.get(opts, :visibility, "public")

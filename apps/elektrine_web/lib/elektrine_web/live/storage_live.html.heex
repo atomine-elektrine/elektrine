@@ -7,7 +7,7 @@
 >
   
 <!-- Storage Overview Card -->
-  <div class="card glass-card shadow-lg border border-base-300 mb-6">
+  <div class="card panel-card border border-base-300 mb-6">
     <div class="card-body">
       <h2 class="card-title">Storage Overview</h2>
 
@@ -92,7 +92,7 @@
 
   <%= if @active_tab == "overview" do %>
     <!-- Storage Breakdown -->
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body">
         <h2 class="card-title mb-4">Storage Breakdown</h2>
 
@@ -119,7 +119,7 @@
   <% end %>
 
   <%= if @active_tab == "emails" do %>
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body">
         <h2 class="card-title mb-4">Email Attachments</h2>
         <%= if Enum.empty?(@email_attachments) do %>
@@ -180,7 +180,7 @@
   <% end %>
 
   <%= if @active_tab == "chat" do %>
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body">
         <h2 class="card-title mb-4">Chat Media</h2>
         <%= if Enum.empty?(@chat_attachments) do %>
@@ -236,7 +236,7 @@
   <% end %>
 
   <%= if @active_tab == "profile" do %>
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body">
         <h2 class="card-title mb-4">Profile Images</h2>
         <%= if Enum.empty?(@profile_images) do %>
@@ -273,7 +273,7 @@
   <% end %>
 
   <%= if @active_tab == "static_sites" do %>
-    <div class="card glass-card shadow-lg">
+    <div class="card panel-card">
       <div class="card-body">
         <div class="flex items-center justify-between mb-4">
           <h2 class="card-title">Static Site Files</h2>
@@ -321,7 +321,7 @@
   <% end %>
   
 <!-- Tips -->
-  <div class="card glass-card shadow-lg border border-base-300 mt-6">
+  <div class="card panel-card border border-base-300 mt-6">
     <div class="card-body">
       <h2 class="card-title">Storage Tips</h2>
       <ul class="list-disc list-inside space-y-2 text-sm text-base-content/70">

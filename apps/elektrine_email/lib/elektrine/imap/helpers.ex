@@ -148,7 +148,7 @@ defmodule Elektrine.IMAP.Helpers do
     {items, current, _bracket_depth} =
       String.graphemes(str)
       |> Enum.reduce({[], "", 0}, fn char, {items, current, bracket_depth} ->
-        if String.trim(char) == "" and bracket_depth == 0 do
+        if not Elektrine.Strings.present?(char) and bracket_depth == 0 do
           if current == "" do
             {items, "", bracket_depth}
           else

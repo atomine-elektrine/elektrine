@@ -59,7 +59,7 @@ defmodule Elektrine.Messaging.Server do
           |> String.replace(~r/javascript:/i, "")
           |> String.trim()
 
-        if cleaned_name == "" do
+        if not Elektrine.Strings.present?(cleaned_name) do
           add_error(changeset, :name, "cannot be empty")
         else
           put_change(changeset, :name, cleaned_name)

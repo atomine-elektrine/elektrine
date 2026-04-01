@@ -120,7 +120,7 @@ defmodule ElektrineWeb.StorageLive do
 
       # If message has no content, mark as deleted; otherwise just clear media
       result =
-        if is_nil(message.content) || String.trim(message.content || "") == "" do
+        if not Elektrine.Strings.present?(message.content) do
           # Directly mark as deleted since we already verified ownership
           changeset =
             Elektrine.Messaging.Message.changeset(message, %{

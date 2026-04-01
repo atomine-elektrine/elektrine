@@ -4,19 +4,19 @@
   current_user={@current_user}
   sidebar_tab="developer"
 >
-  <:sidebar>
-    <.developer_settings_sidebar selected_page="oidc-clients" />
-  </:sidebar>
+  <:sidebar><.developer_settings_sidebar selected_page="oidc-clients" /></:sidebar>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card panel-card">
     <div class="card-body gap-6 p-4 sm:p-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
+
           <p class="text-sm text-base-content/70">
             Rotating the client secret invalidates the existing shared secret for this integration.
           </p>
         </div>
+
         <.form
           for={%{}}
           action={~p"/account/developer/oidc/clients/#{@app.id}/rotate-secret"}
@@ -35,12 +35,15 @@
       <div class="grid gap-3 sm:grid-cols-2">
         <div>
           <p class="text-xs uppercase tracking-[0.22em] text-base-content/50">Client ID</p>
+
           <code class="mt-1 block break-all rounded-lg bg-base-300/70 px-3 py-2 text-xs">
             {@app.client_id}
           </code>
         </div>
+
         <div>
           <p class="text-xs uppercase tracking-[0.22em] text-base-content/50">Current Secret</p>
+
           <code class="mt-1 block break-all rounded-lg bg-base-300/70 px-3 py-2 text-xs">
             {@app.client_secret}
           </code>
@@ -62,9 +65,9 @@
           value={@redirect_uri_text}
           required
         />
-
         <div class="space-y-3">
           <p class="text-sm font-semibold text-base-content">Scopes</p>
+
           <div class="grid gap-3 sm:grid-cols-2">
             <label
               :for={scope <- @recommended_scopes}
@@ -76,8 +79,7 @@
                 value={scope}
                 checked={scope in @selected_scopes}
                 class="checkbox checkbox-sm"
-              />
-              <span class="text-sm">{scope}</span>
+              /> <span class="text-sm">{scope}</span>
             </label>
           </div>
         </div>

@@ -26,6 +26,9 @@ defmodule ElektrineWeb.HtmlHelpers do
       is_nil(content) || content == "" ->
         ""
 
+      not Elektrine.Strings.present?(content) ->
+        ""
+
       Ecto.assoc_loaded?(post.remote_actor) && post.remote_actor != nil ->
         render_remote_post_content(content, post.remote_actor.domain)
 
@@ -584,7 +587,7 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   defp normalize_remote_post_markup(content) when is_binary(content) do
     cond do
-      String.trim(content) == "" ->
+      not Elektrine.Strings.present?(content) ->
         ""
 
       looks_like_html?(content) ->
@@ -669,7 +672,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     if trusted_image_url?(url) do
       ~s(<img src="#{HtmlEntities.encode(url)}" alt="#{HtmlEntities.encode(alt)}" class="max-w-full rounded-lg my-2" loading="lazy" />)
     else
-      ~s(<a href="#{HtmlEntities.encode(url)}" target="_blank" rel="noopener noreferrer" class="text-violet-500 hover:underline">#{if alt == "" do
+      ~s(<a href="#{HtmlEntities.encode(url)}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline">#{if alt == "" do
         "Image"
       else
         HtmlEntities.encode(alt)
@@ -710,7 +713,7 @@ defmodule ElektrineWeb.HtmlHelpers do
             clean_url = String.replace(url, ~r/[.!?,;:]+$/, "")
 
             if valid_linkify_url?(clean_url) do
-              ~s(<a href="#{clean_url}" target="_blank" rel="noopener noreferrer" class="text-violet-500 hover:text-violet-400 hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200">#{clean_url}</a>)
+              ~s(<a href="#{clean_url}" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200">#{clean_url}</a>)
             else
               url
             end
@@ -774,7 +777,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         local_path =
           ActorPaths.profile_path(clean_username, domain) || "/remote/#{clean_username}@#{domain}"
 
-        ~s(<a href="#{local_path}" class="text-violet-500 hover:text-violet-400 hover:underline font-medium" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
+        ~s(<a href="#{local_path}" class="text-primary hover:text-accent hover:underline font-medium" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
       end
     )
   end
@@ -792,7 +795,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           fn _full, prefix, username, domain ->
             href = ActorPaths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
 
-            "#{prefix}<a href=\"#{href}\" class=\"text-violet-500 hover:text-violet-400 hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
+            "#{prefix}<a href=\"#{href}\" class=\"text-primary hover:text-accent hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
           end
         )
         |> maybe_linkify_short_mentions(instance_domain)
@@ -811,7 +814,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           ActorPaths.profile_path(username, instance_domain) ||
             "/remote/#{username}@#{instance_domain}"
 
-        "#{prefix}<a href=\"#{href}\" class=\"text-violet-500 hover:text-violet-400 hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}</a>"
+        "#{prefix}<a href=\"#{href}\" class=\"text-primary hover:text-accent hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}</a>"
       end
     )
   end
@@ -824,7 +827,7 @@ defmodule ElektrineWeb.HtmlHelpers do
       html,
       fn full_match, attrs ->
         style_classes =
-          "text-violet-500 hover:text-violet-400 hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200"
+          "text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200"
 
         result =
           if Regex.match?(~r/phx-click\s*=/i, attrs) do

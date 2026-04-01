@@ -120,7 +120,9 @@ defmodule ElektrineWeb.API.EmailController do
           bcc: Map.get(email_params, "bcc"),
           encryption_mode: Map.get(email_params, "encryption_mode")
         }
-        |> Enum.reject(fn {_, v} -> is_nil(v) || v == "" end)
+        |> Enum.reject(fn {_, v} ->
+          is_nil(v) || (is_binary(v) and not Elektrine.Strings.present?(v))
+        end)
         |> Map.new()
 
       case Elektrine.Email.Sender.send_email(user.id, params) do
@@ -428,7 +430,7 @@ defmodule ElektrineWeb.API.EmailController do
           reminder_at = params["reminder_at"]
 
           result =
-            if is_nil(reminder_at) || reminder_at == "" do
+            if not Elektrine.Strings.present?(reminder_at) do
               Folders.clear_reply_later(message)
             else
               case DateTime.from_iso8601(reminder_at) do

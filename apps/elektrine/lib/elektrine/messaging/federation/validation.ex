@@ -653,8 +653,8 @@ defmodule Elektrine.Messaging.Federation.Validation do
        when is_map(payload) and is_binary(remote_domain) and is_map(context) do
     with %{"algorithm" => algorithm, "key_id" => key_id, "value" => value} <- payload["signature"],
          true <- algorithm == ArblargSDK.signature_algorithm(),
-         true <- is_binary(key_id) and String.trim(key_id) != "",
-         true <- is_binary(value) and String.trim(value) != "",
+         true <- Elektrine.Strings.present?(key_id),
+         true <- Elektrine.Strings.present?(value),
          %{} = peer <- call(context, :incoming_peer, [remote_domain]) do
       verification_materials =
         call(context, :incoming_verification_materials_for_key_id, [peer, key_id])
@@ -773,10 +773,8 @@ defmodule Elektrine.Messaging.Federation.Validation do
 
   defp valid_snapshot_stream_position?(_position, _remote_domain), do: false
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

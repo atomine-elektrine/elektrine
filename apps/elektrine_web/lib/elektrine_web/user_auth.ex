@@ -241,7 +241,7 @@ defmodule ElektrineWeb.UserAuth do
     case conn.assigns[:current_user] do
       %{banned: true} = user ->
         message =
-          if user.banned_reason && String.trim(user.banned_reason) != "" do
+          if Elektrine.Strings.present?(user.banned_reason) do
             "Your account has been banned. Reason: #{user.banned_reason}"
           else
             "Your account has been banned. Please contact support if you believe this is an error."
@@ -261,7 +261,7 @@ defmodule ElektrineWeb.UserAuth do
             end
 
           message =
-            if user.suspension_reason && String.trim(user.suspension_reason) != "" do
+            if Elektrine.Strings.present?(user.suspension_reason) do
               "#{base_message}. Reason: #{user.suspension_reason}"
             else
               "#{base_message}. Please contact support if you believe this is an error."

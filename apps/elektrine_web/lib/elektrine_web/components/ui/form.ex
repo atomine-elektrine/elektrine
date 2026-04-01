@@ -18,7 +18,7 @@ defmodule ElektrineWeb.Components.UI.Form do
         </:actions>
       </.simple_form>
 
-  Use `bare={true}` when the form is already inside a glass-card wrapper:
+  Use `bare={true}` when the form is already inside a panel-card wrapper:
 
       <.simple_form for={@form} bare={true}>
         ...
@@ -26,7 +26,7 @@ defmodule ElektrineWeb.Components.UI.Form do
   """
   attr :for, :any, required: true, doc: "the data structure for the form"
   attr :as, :any, default: nil, doc: "the server side parameter to collect all input under"
-  attr :bare, :boolean, default: false, doc: "when true, skips the glass-card wrapper"
+  attr :bare, :boolean, default: false, doc: "when true, skips the panel-card wrapper"
 
   attr :rest, :global,
     include: ~w(autocomplete name rel action enctype method novalidate target multipart),
@@ -46,7 +46,7 @@ defmodule ElektrineWeb.Components.UI.Form do
           </div>
         </div>
       <% else %>
-        <div class="card glass-card shadow-sm p-6">
+        <div class="card panel-card p-6">
           <div class="space-y-4">
             {render_slot(@inner_block, f)}
             <div :for={action <- @actions} class="mt-6">

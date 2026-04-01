@@ -2,7 +2,9 @@ defmodule ElektrineWeb.PageLive.Home do
   use ElektrineWeb, :live_view
 
   import Ecto.Query
+
   require Logger
+
   alias Elektrine.Platform.Modules
   alias ElektrineWeb.Platform.Integrations
 
@@ -60,7 +62,7 @@ defmodule ElektrineWeb.PageLive.Home do
     </script>
 
     <div class="relative min-h-screen overflow-hidden text-base-content">
-      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.12),transparent_34%),radial-gradient(circle_at_82%_18%,rgba(249,115,22,0.08),transparent_20%)]">
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(138,124,194,0.1),transparent_34%),radial-gradient(circle_at_82%_18%,rgba(199,121,107,0.08),transparent_20%)]">
       </div>
 
       <div class="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
@@ -72,7 +74,7 @@ defmodule ElektrineWeb.PageLive.Home do
 
         <main class="flex flex-1 items-center py-8 lg:py-10">
           <div class="grid w-full items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
-            <section class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
+            <section class="card border border-base-300 bg-base-200/80">
               <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
                 <div class="space-y-4">
                   <div class="inline-flex items-center rounded-full border border-base-300 bg-base-200/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-base-content/65">
@@ -153,7 +155,7 @@ defmodule ElektrineWeb.PageLive.Home do
             </section>
 
             <section class="space-y-4">
-              <div class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
+              <div class="card border border-base-300 bg-base-200/80">
                 <div class="card-body gap-3 p-4 sm:p-5">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">Principles</p>
                   <div class="space-y-3">
@@ -177,7 +179,7 @@ defmodule ElektrineWeb.PageLive.Home do
                 </div>
               </div>
 
-              <div class="card border border-base-300 bg-base-100/85 shadow-sm backdrop-blur-sm">
+              <div class="card border border-base-300 bg-base-200/80">
                 <div class="card-body gap-4 p-4 sm:p-5">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
 
@@ -207,7 +209,7 @@ defmodule ElektrineWeb.PageLive.Home do
         <footer class="pb-4">
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <%= for stat <- home_stats(@stats, @federation, @sys) do %>
-              <div class="rounded-lg border border-base-300 bg-base-100/80 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <div class="rounded-lg border border-base-300 bg-base-200/70 px-4 py-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
                 <p class="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
               </div>

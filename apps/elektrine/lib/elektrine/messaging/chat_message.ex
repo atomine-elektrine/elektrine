@@ -206,7 +206,7 @@ defmodule Elektrine.Messaging.ChatMessage do
       }) do
     duration_str = format_duration(duration)
 
-    if content && String.trim(content) != "" do
+    if Elektrine.Strings.present?(content) do
       "Voice message (#{duration_str}): #{content}"
     else
       "Voice message (#{duration_str})"
@@ -225,7 +225,7 @@ defmodule Elektrine.Messaging.ChatMessage do
           "File"
       end
 
-    if content && String.trim(content) != "" do
+    if Elektrine.Strings.present?(content) do
       "#{media_text}: #{content}"
     else
       media_text
@@ -289,7 +289,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     message_type = get_field(changeset, :message_type)
     deleted_at = get_field(changeset, :deleted_at)
 
-    has_content = !is_nil(content) && String.trim(content) != ""
+    has_content = Elektrine.Strings.present?(content)
     has_encrypted = !is_nil(encrypted_content)
     has_media = !Enum.empty?(media_urls)
 

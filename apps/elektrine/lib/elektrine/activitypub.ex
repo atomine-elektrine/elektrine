@@ -6,6 +6,7 @@ defmodule Elektrine.ActivityPub do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Elektrine.Domains
   alias Elektrine.Repo
 
   alias Elektrine.ActivityPub.{
@@ -49,37 +50,18 @@ defmodule Elektrine.ActivityPub do
   Gets an instance-style base URL for a specific domain.
   """
   def instance_url_for_domain(domain) when is_binary(domain) do
-    normalized_domain =
-      domain
-      |> String.trim()
-      |> String.downcase()
-
-    # Check if using ngrok or other external tunnel (contains a dot and not localhost)
-    is_tunnel =
-      String.contains?(normalized_domain, ".") and
-        not String.starts_with?(normalized_domain, "localhost")
-
-    # Use HTTPS for production or tunnels (ngrok, etc.)
-    scheme = if System.get_env("MIX_ENV") == "prod" or is_tunnel, do: "https", else: "http"
-    port = System.get_env("PORT") || "4000"
-
-    # Don't include port for HTTPS, standard ports, or tunnels
-    if scheme == "https" or port == "80" or port == "443" or is_tunnel do
-      "#{scheme}://#{normalized_domain}"
-    else
-      "#{scheme}://#{normalized_domain}:#{port}"
-    end
+    Domains.inferred_base_url_for_domain(domain)
   end
 
   @doc """
   Returns the canonical local ActivityPub identifier for a user.
   """
   def actor_identifier(%User{handle: handle, username: username}) do
-    if is_binary(handle) and String.trim(handle) != "", do: handle, else: username
+    if Elektrine.Strings.present?(handle), do: handle, else: username
   end
 
   def actor_identifier(%{handle: handle, username: username}) do
-    if is_binary(handle) and String.trim(handle) != "", do: handle, else: username
+    if Elektrine.Strings.present?(handle), do: handle, else: username
   end
 
   def actor_identifier(identifier) when is_binary(identifier) do
@@ -98,7 +80,7 @@ defmodule Elektrine.ActivityPub do
   """
   def actor_identifiers(%User{} = user) do
     [actor_identifier(user), user.username]
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.filter(&Elektrine.Strings.present?/1)
     |> Enum.uniq()
   end
 
@@ -305,7 +287,7 @@ defmodule Elektrine.ActivityPub do
   def local_username_from_uri(uri) when is_binary(uri) do
     normalized_uri = String.trim(uri)
 
-    if normalized_uri == "" do
+    if not Elektrine.Strings.present?(normalized_uri) do
       {:error, :invalid_uri}
     else
       case URI.parse(normalized_uri) do
@@ -335,11 +317,11 @@ defmodule Elektrine.ActivityPub do
 
   defp extract_local_identifier_from_path(path) when is_binary(path) do
     case path |> String.trim_leading("/") |> String.split("/", trim: true) do
-      ["users", identifier | _] when identifier != "" ->
-        identifier
+      ["users", identifier | _] ->
+        if Elektrine.Strings.present?(identifier), do: identifier, else: nil
 
-      [<<"@", identifier::binary>> | _] when identifier != "" ->
-        identifier
+      [<<"@", identifier::binary>> | _] ->
+        if Elektrine.Strings.present?(identifier), do: identifier, else: nil
 
       _ ->
         nil
@@ -449,7 +431,8 @@ defmodule Elektrine.ActivityPub do
 
   defp recipient_values(%{} = value) do
     [Map.get(value, "id"), Map.get(value, "href"), Map.get(value, "url")]
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.map(&Elektrine.Strings.present/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp recipient_values(_), do: []
@@ -458,7 +441,8 @@ defmodule Elektrine.ActivityPub do
     tags
     |> Enum.filter(&(Map.get(&1, "type") == "Mention"))
     |> Enum.map(&Map.get(&1, "href"))
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.map(&Elektrine.Strings.present/1)
+    |> Enum.reject(&is_nil/1)
   end
 
   defp mention_hrefs(_), do: []
@@ -674,7 +658,7 @@ defmodule Elektrine.ActivityPub do
       {:following, actor_data["following"]},
       {:shared_inbox, get_in(actor_data, ["endpoints", "sharedInbox"])}
     ]
-    |> Enum.filter(fn {_field, url} -> is_binary(url) and String.trim(url) != "" end)
+    |> Enum.filter(fn {_field, url} -> Elektrine.Strings.present?(url) end)
   end
 
   defp comparable_actor_uri(uri) when is_binary(uri) do

@@ -195,7 +195,7 @@ defmodule ElektrineWeb.CoreComponents do
 
     ~H"""
     <div class="sticky top-24 self-start">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
           <ul class="menu menu-compact w-full p-0 space-y-1">
@@ -253,7 +253,7 @@ defmodule ElektrineWeb.CoreComponents do
   def profile_settings_sidebar(assigns) do
     ~H"""
     <div class="sticky top-24 self-start">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">Profile</h3>
 
@@ -308,7 +308,7 @@ defmodule ElektrineWeb.CoreComponents do
   def developer_settings_sidebar(assigns) do
     ~H"""
     <div class="sticky top-24 self-start">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">{gettext("Developer")}</h3>
 

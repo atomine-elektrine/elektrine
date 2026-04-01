@@ -62,7 +62,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
     user = conn.assigns.current_user
     command = params["command"] || params["action"] || params["id"]
 
-    if is_nil(command) or String.trim(to_string(command)) == "" do
+    if not Elektrine.Strings.present?(to_string(command || "")) do
       Response.error(
         conn,
         :bad_request,

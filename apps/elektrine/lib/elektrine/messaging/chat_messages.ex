@@ -863,7 +863,7 @@ defmodule Elektrine.Messaging.ChatMessages do
     domain = reader[:domain] || reader["domain"]
     handle = if is_binary(domain), do: "@#{username}@#{domain}", else: "@#{username}"
 
-    if is_binary(display_name) and String.trim(display_name) != "" and display_name != username do
+    if Elektrine.Strings.present?(display_name) and display_name != username do
       "#{display_name} (#{handle})"
     else
       handle
@@ -1197,8 +1197,8 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp remote_sender_from_metadata(_), do: nil
 
-  defp remote_handle(username, domain) when is_binary(domain) and domain != "" do
-    "#{username}@#{domain}"
+  defp remote_handle(username, domain) when is_binary(domain) do
+    if Elektrine.Strings.present?(domain), do: "#{username}@#{domain}", else: to_string(username)
   end
 
   defp remote_handle(username, _domain), do: to_string(username)

@@ -964,19 +964,22 @@ defmodule Elektrine.Social.Recommendations do
       |> Repo.all()
 
     (post_type_categories ++ community_categories)
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.filter(&Elektrine.Strings.present?/1)
     |> Enum.uniq()
   end
 
   defp post_interest_categories(post) do
     community_category =
       case Map.get(post, :conversation) do
-        %{community_category: category} when is_binary(category) and category != "" -> category
-        _ -> nil
+        %{community_category: category} when is_binary(category) ->
+          Elektrine.Strings.present(category)
+
+        _ ->
+          nil
       end
 
     [Map.get(post, :post_type), community_category]
-    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.filter(&Elektrine.Strings.present?/1)
   end
 
   defp normalize_inserted_at(%NaiveDateTime{} = inserted_at), do: inserted_at

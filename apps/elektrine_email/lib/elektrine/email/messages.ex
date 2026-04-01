@@ -1449,7 +1449,7 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp blank_value?(value) when is_nil(value), do: true
-  defp blank_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_value?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank_value?(_), do: false
 
   # Helper function to safely get field values from string or atom keys

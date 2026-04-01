@@ -3,6 +3,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
+  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActorPaths
@@ -1071,7 +1072,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp maybe_put_metadata_field(metadata, _key, nil), do: metadata
 
   defp maybe_put_metadata_field(metadata, key, value) when is_binary(value) do
-    if String.trim(value) == "" do
+    if not Elektrine.Strings.present?(value) do
       metadata
     else
       Map.put(metadata, key, value)
@@ -1083,13 +1084,13 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp maybe_put_if_blank(updates, field, current, candidate) do
     current_blank? =
       case current do
-        value when is_binary(value) -> String.trim(value) == ""
+        value when is_binary(value) -> not Elektrine.Strings.present?(value)
         _ -> true
       end
 
     candidate_present? =
       case candidate do
-        value when is_binary(value) -> String.trim(value) != ""
+        value when is_binary(value) -> Elektrine.Strings.present?(value)
         _ -> false
       end
 
@@ -1358,7 +1359,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if String.trim(socket.assigns.reply_content) == "" do
+      if not Elektrine.Strings.present?(socket.assigns.reply_content) do
         {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       else
         user = socket.assigns.current_user
@@ -1713,7 +1714,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         is_nil(quote_target_message_id) ->
           {:noreply, put_flash(socket, :error, "Quote target not found")}
 
-        String.trim(content) == "" ->
+        not Elektrine.Strings.present?(content) ->
           {:noreply, put_flash(socket, :error, "Please add some content to your quote")}
 
         true ->
@@ -2868,14 +2869,14 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
       avatar = Map.get(local_user, :avatar) || Map.get(local_user, "avatar")
 
       avatar_url =
-        if is_binary(avatar) && String.trim(avatar) != "" do
+        if Elektrine.Strings.present?(avatar) do
           Elektrine.Uploads.avatar_url(avatar)
         else
           nil
         end
 
       %{
-        label: "@#{handle}@#{Elektrine.Domains.default_user_handle_domain()}",
+        label: AccountIdentifiers.at_local_handle(handle),
         avatar_url: avatar_url,
         profile_path: if(is_binary(handle) && handle != "", do: "/#{handle}", else: nil)
       }
@@ -2888,10 +2889,10 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
       label =
         cond do
-          is_binary(fallback.acct_label) && String.trim(fallback.acct_label) != "" ->
+          Elektrine.Strings.present?(fallback.acct_label) ->
             fallback.acct_label
 
-          is_binary(author_uri) && String.trim(author_uri) != "" ->
+          Elektrine.Strings.present?(author_uri) ->
             "@#{extract_username_from_uri(author_uri)}"
 
           true ->

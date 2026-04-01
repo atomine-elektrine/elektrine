@@ -11,7 +11,7 @@ defmodule ElektrineWeb.Admin.CustomDomainsHTML do
     params = []
 
     params =
-      if String.trim(search || "") != "" do
+      if Elektrine.Strings.present?(search) do
         params ++ ["search=#{URI.encode_www_form(search)}"]
       else
         params
@@ -86,6 +86,6 @@ defmodule ElektrineWeb.Admin.CustomDomainsHTML do
     end
   end
 
-  defp present_error?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_error?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present_error?(_), do: false
 end

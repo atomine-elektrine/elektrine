@@ -342,7 +342,7 @@ defmodule Elektrine.Email.Message do
     # Create search index from text_body (prefer text over html for indexing)
     search_content = original_text || original_html || ""
 
-    if search_content != "" do
+    if Elektrine.Strings.present?(search_content) do
       search_index = Elektrine.Encryption.index_content(search_content, user_id)
       Map.put(attrs, :search_index, search_index)
     else

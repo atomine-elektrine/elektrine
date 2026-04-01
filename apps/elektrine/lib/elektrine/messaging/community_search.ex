@@ -29,7 +29,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
     # Normalize query
     query = String.trim(query) |> String.downcase()
 
-    if query == "" do
+    if not Elektrine.Strings.present?(query) do
       []
     else
       # Search local communities

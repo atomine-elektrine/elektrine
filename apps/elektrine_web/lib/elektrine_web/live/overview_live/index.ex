@@ -443,7 +443,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       is_nil(socket.assigns.quote_target_post) ->
         {:noreply, put_flash(socket, :error, "Quote target not found")}
 
-      String.trim(content) == "" ->
+      not Elektrine.Strings.present?(content) ->
         {:noreply, put_flash(socket, :error, "Please add some content to your quote")}
 
       true ->
@@ -1891,11 +1891,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp trim_or(value, fallback) when is_binary(value) do
     value = String.trim(value)
 
-    if value == "" do
-      fallback
-    else
-      value
-    end
+    Elektrine.Strings.present(value) || fallback
   end
 
   defp trim_or(_value, fallback) do
@@ -1945,7 +1941,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     name = trim_or(conversation.name, "")
 
     cond do
-      name != "" -> name
+      Elektrine.Strings.present?(name) -> name
       conversation.type == "dm" -> "Direct message"
       true -> "Conversation ##{conversation.id}"
     end
@@ -2265,7 +2261,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp normalize_thread_ref(value) when is_binary(value) do
     value = String.trim(value)
-    if value == "", do: nil, else: value
+    Elektrine.Strings.present(value)
   end
 
   defp normalize_thread_ref(_), do: nil
@@ -2566,7 +2562,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp merge_recent_unique(values, additions, limit) do
     Enum.reduce(List.wrap(additions), values || [], fn value, acc ->
-      if is_nil(value) or value == "" do
+      if is_nil(value) or (is_binary(value) and not Elektrine.Strings.present?(value)) do
         acc
       else
         (Enum.reject(acc, &(&1 == value)) ++ [value])

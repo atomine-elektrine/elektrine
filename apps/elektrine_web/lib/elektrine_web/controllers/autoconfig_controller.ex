@@ -9,6 +9,7 @@ defmodule ElektrineWeb.AutoconfigController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Domains
+  alias Elektrine.Input
   alias Elektrine.MailClientSettings
   alias ElektrineWeb.MailAutoconfig
 
@@ -64,7 +65,7 @@ defmodule ElektrineWeb.AutoconfigController do
   def microsoft_autodiscover(conn, _params) do
     # Parse email from request body
     {:ok, body, conn} = read_body(conn)
-    email = sanitize_email(extract_email_from_autodiscover(body))
+    email = Input.sanitize_email(extract_email_from_autodiscover(body))
     domain = get_domain(conn)
     imap = MailClientSettings.imap(domain)
     smtp = MailClientSettings.smtp(domain)
@@ -112,8 +113,11 @@ defmodule ElektrineWeb.AutoconfigController do
   This provides a downloadable .mobileconfig for iOS/macOS.
   """
   def apple_mobileconfig(conn, params) do
-    email = sanitize_email(params["email"] || "")
-    username = sanitize_username(params["username"] || List.first(String.split(email, "@")) || "")
+    email = Input.sanitize_email(params["email"] || "")
+
+    username =
+      Input.sanitize_username(params["username"] || List.first(String.split(email, "@")) || "")
+
     domain = get_domain(conn)
     imap = MailClientSettings.imap(domain)
     smtp = MailClientSettings.smtp(domain)
@@ -228,27 +232,6 @@ defmodule ElektrineWeb.AutoconfigController do
       _ -> ""
     end
   end
-
-  defp sanitize_email(value) when is_binary(value) do
-    value = String.trim(value)
-
-    if Regex.match?(~r/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/u, value) do
-      value
-    else
-      ""
-    end
-  end
-
-  defp sanitize_email(_), do: ""
-
-  defp sanitize_username(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> String.replace(~r/[^[:alnum:]_.+\- ]/u, "")
-    |> String.slice(0, 128)
-  end
-
-  defp sanitize_username(_), do: ""
 
   defp xml_escape(value) when is_binary(value) do
     value

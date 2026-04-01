@@ -8,6 +8,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   This ensures consistent styling and behavior across all reply types.
   """
   use Phoenix.Component
+  alias Elektrine.AccountIdentifiers
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers
@@ -141,7 +142,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
                   </button>
                 </.user_hover_card>
                 <div class="text-xs opacity-70 truncate">
-                  @{@normalized.handle}@{Elektrine.Domains.default_user_handle_domain()}
+                  {AccountIdentifiers.at_local_handle(@normalized.handle)}
                   <%= if @normalized.timestamp do %>
                     · {format_timestamp(@normalized.timestamp)}
                   <% end %>
@@ -192,7 +193,7 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
         </div>
         
     <!-- Reply Content -->
-        <%= if @normalized.content && String.trim(@normalized.content) != "" do %>
+        <%= if Elektrine.Strings.present?(@normalized.content) do %>
           <div class="text-sm break-words mb-2 [&_img]:max-w-[200px] [&_img]:max-h-[150px] [&_img]:rounded [&_img]:object-cover">
             {raw(render_reply_content_html(@normalized))}
           </div>

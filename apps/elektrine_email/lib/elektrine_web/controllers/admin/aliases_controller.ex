@@ -65,7 +65,7 @@ defmodule ElektrineWeb.Admin.AliasesController do
 
     query =
       cond do
-        clean_query == "" ->
+        not Elektrine.Strings.present?(clean_query) ->
           query
 
         is_exact_match ->
@@ -187,7 +187,7 @@ defmodule ElektrineWeb.Admin.AliasesController do
       from(fm in Email.ForwardedMessage, left_join: a in Email.Alias, on: fm.alias_id == a.id)
 
     base_query =
-      if search_query != "" do
+      if Elektrine.Strings.present?(search_query) do
         search_pattern = "%#{search_query}%"
 
         from([fm, a] in base_query,

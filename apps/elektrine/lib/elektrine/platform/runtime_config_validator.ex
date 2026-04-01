@@ -122,7 +122,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     do: errors
 
   defp require_present(errors, value, message) when is_binary(value) do
-    if String.trim(value) == "" do
+    if not Elektrine.Strings.present?(value) do
       [message | errors]
     else
       errors
@@ -138,7 +138,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     end
   end
 
-  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(_value), do: false
 
   defp format_errors(errors) do

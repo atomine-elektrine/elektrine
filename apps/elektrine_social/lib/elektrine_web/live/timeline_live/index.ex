@@ -1332,7 +1332,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
           "for_you" ->
             if user do
               recommendation_limit =
-                if search_query == "" do
+                if not Elektrine.Strings.present?(search_query) do
                   20
                 else
                   100
@@ -1584,7 +1584,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
 
   defp normalize_thread_ref(value) when is_binary(value) do
     value = String.trim(value)
-    if value == "", do: nil, else: value
+    Elektrine.Strings.present(value)
   end
 
   defp normalize_thread_ref(_), do: nil
@@ -2084,7 +2084,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp filter_rss_items_by_query(items, query) when is_list(items) do
     normalized_query = normalize_search_query(query) |> String.downcase()
 
-    if normalized_query == "" do
+    if not Elektrine.Strings.present?(normalized_query) do
       items
     else
       Enum.filter(items, fn item ->

@@ -1,6 +1,7 @@
 defmodule Elektrine.Email.Receiver do
   @moduledoc "Handles incoming email processing functionality.\n"
   alias Elektrine.Email
+  alias Elektrine.EmailConfig
   alias Elektrine.Email.ForwardedMessage
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.MailboxEncryption
@@ -91,23 +92,22 @@ defmodule Elektrine.Email.Receiver do
   end
 
   defp validate_webhook(params) when is_map(params) do
-    email_config = Application.get_env(:elektrine, :email, [])
-
-    webhook_secret =
-      System.get_env("EMAIL_RECEIVER_WEBHOOK_SECRET") ||
-        Keyword.get(email_config, :receiver_webhook_secret)
-
-    allow_insecure = Keyword.get(email_config, :allow_insecure_receiver_webhook, true)
+    webhook_secret = EmailConfig.receiver_webhook_secret()
+    allow_insecure = EmailConfig.allow_insecure_receiver_webhook?()
 
     case webhook_secret do
-      secret when is_binary(secret) and secret != "" ->
-        provided =
-          params["webhook_secret"] || params["signature"] || params["token"] || params["auth"]
-
-        if secure_compare(provided, secret) do
-          :ok
+      secret when is_binary(secret) ->
+        if not Elektrine.Strings.present?(secret) do
+          if allow_insecure, do: :ok, else: {:error, :missing_webhook_secret}
         else
-          {:error, :invalid_webhook_signature}
+          provided =
+            params["webhook_secret"] || params["signature"] || params["token"] || params["auth"]
+
+          if secure_compare(provided, secret) do
+            :ok
+          else
+            {:error, :invalid_webhook_signature}
+          end
         end
 
       _ when allow_insecure ->

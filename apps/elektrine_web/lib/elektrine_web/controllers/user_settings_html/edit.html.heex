@@ -3,6 +3,7 @@
     <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
       {gettext("Account Settings")}
     </h1>
+
     <p class="text-base-content/70 mt-2">
       {gettext("Manage your account preferences and security settings")}
     </p>
@@ -11,7 +12,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
     <!-- Profile Section -->
     <div class="lg:col-span-2">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
             <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
@@ -44,6 +45,7 @@
                         <% end %>
                       </div>
                     </div>
+
                     <div class="flex-1 w-full">
                       <input
                         type="file"
@@ -74,8 +76,7 @@
                   </span>
                 </div>
               </div>
-              
-<!-- Recovery Email Section -->
+              <!-- Recovery Email Section -->
               <div>
                 <.input
                   field={f[:recovery_email]}
@@ -98,18 +99,19 @@
         </div>
       </div>
     </div>
-    
-<!-- Security & Actions Sidebar -->
+    <!-- Security & Actions Sidebar -->
     <div class="space-y-4 sm:space-y-6">
       <!-- Password Section -->
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4 sm:p-6">
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
             <.icon name="hero-key" class="w-5 h-5" /> Password
           </h3>
+
           <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
             Keep your account secure with a strong password.
           </p>
+
           <div class="card-actions">
             <.link
               href={~p"/account/password"}
@@ -120,9 +122,8 @@
           </div>
         </div>
       </div>
-      
-<!-- Two-Factor Authentication Section -->
-      <div class="card glass-card shadow-lg">
+      <!-- Two-Factor Authentication Section -->
+      <div class="card panel-card">
         <div class="card-body p-4 sm:p-6">
           <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
             <.icon name="hero-shield-check" class="w-5 h-5" /> Two-Factor Authentication
@@ -133,9 +134,11 @@
               <.icon name="hero-shield-check" class="w-5 h-5 text-success" />
               <span class="text-success font-medium text-sm">Enabled</span>
             </div>
+
             <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
               Your account is protected with 2FA.
             </p>
+
             <div class="card-actions">
               <.link
                 href={~p"/account/two_factor"}
@@ -149,9 +152,11 @@
               <.icon name="hero-shield-exclamation" class="w-5 h-5 text-warning" />
               <span class="text-warning font-medium text-sm">Disabled</span>
             </div>
+
             <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
               Add an extra layer of security to your account.
             </p>
+
             <div class="card-actions">
               <.link
                 href={~p"/account/two_factor/setup"}
@@ -163,9 +168,8 @@
           <% end %>
         </div>
       </div>
-      
-<!-- Profile Page Section -->
-      <div class="card glass-card shadow-lg">
+      <!-- Profile Page Section -->
+      <div class="card panel-card">
         <div class="card-body">
           <h3 class="card-title text-lg flex items-center gap-2">
             <.icon name="hero-user-circle" class="w-5 h-5" /> Profile Page
@@ -182,10 +186,12 @@
             <div class="flex items-center justify-between p-3 bg-base-200/50 rounded-lg">
               <div>
                 <p class="font-medium text-sm">Your Profile URL</p>
+
                 <p class="text-xs text-base-content/60">
                   {Elektrine.Domains.primary_profile_domain()}/{@user.handle || @user.username}
                 </p>
               </div>
+
               <div class="flex gap-2">
                 <.link
                   href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
@@ -202,8 +208,7 @@
           </div>
         </div>
       </div>
-      
-<!-- Danger Zone -->
+      <!-- Danger Zone -->
       <div class="card bg-error/10 shadow-lg">
         <div class="card-body">
           <h3 class="card-title text-lg text-error flex items-center gap-2">
@@ -215,6 +220,7 @@
               <.icon name="hero-clock" class="w-5 h-5" />
               <div>
                 <div class="font-semibold">Account deletion pending</div>
+
                 <div class="text-xs mt-1">
                   Requested:
                   <.local_time
@@ -224,6 +230,7 @@
                     time_format={@time_format}
                   />
                 </div>
+
                 <%= if @pending_deletion.reason && String.trim(@pending_deletion.reason) != "" do %>
                   <div class="text-xs mt-1">
                     <strong>Reason:</strong> {@pending_deletion.reason}
@@ -235,6 +242,7 @@
             <p class="text-sm text-base-content/70 mb-4">
               Once deleted, your account cannot be recovered.
             </p>
+
             <div class="card-actions">
               <.link href={~p"/account/delete"} class="btn btn-secondary btn-sm w-full">
                 Request Deletion

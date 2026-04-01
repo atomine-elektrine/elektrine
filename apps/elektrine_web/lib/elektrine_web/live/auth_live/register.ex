@@ -1,11 +1,10 @@
 defmodule ElektrineWeb.AuthLive.Register do
   use ElektrineWeb, :live_view
 
-  # Note: on_mount is handled by live_session :auth in router
-
   import Ecto.Changeset, only: [add_error: 3, cast: 3]
 
   alias Elektrine.Accounts.User
+  alias Elektrine.Strings
   alias Elektrine.Subscriptions
   alias Elektrine.Subscriptions.Product
 
@@ -25,8 +24,7 @@ defmodule ElektrineWeb.AuthLive.Register do
     site_key = turnstile_config[:site_key]
 
     turnstile_enabled =
-      not Keyword.get(turnstile_config, :skip_verification, false) and is_binary(site_key) and
-        String.trim(site_key) != ""
+      not Keyword.get(turnstile_config, :skip_verification, false) and Strings.present?(site_key)
 
     require Logger
 
@@ -130,7 +128,7 @@ defmodule ElektrineWeb.AuthLive.Register do
 
     cond do
       !is_binary(access_token) -> form_data
-      String.trim(access_token) == "" -> form_data
+      not Elektrine.Strings.present?(access_token) -> form_data
       Map.get(form_data, "registration_access_token") -> form_data
       true -> Map.put(form_data, "registration_access_token", String.trim(access_token))
     end
@@ -180,7 +178,7 @@ defmodule ElektrineWeb.AuthLive.Register do
 
   def render(assigns) do
     ~H"""
-    <div id="register-card" phx-hook="GlassCard" class="card glass-card shadow-xl max-w-md mx-auto">
+    <div id="register-card" class="card panel-card max-w-md mx-auto">
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Register")}</h1>
 

@@ -27,7 +27,7 @@
     gallery_empty_state(%{gallery_search: @gallery_search, current_filter: @current_filter}) %>
 
   <div class="space-y-6">
-    <section class="card border border-base-300 bg-base-100 shadow-sm">
+    <section class="card panel-card">
       <div class="card-body p-4 sm:p-5 gap-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -113,12 +113,12 @@
                   <% end %>
                 </div>
               <% else %>
-                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-5">
+                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
                   <h3 class="font-medium">No uploads yet</h3>
                 </div>
               <% end %>
             <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-5">
+              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
                 <h3 class="font-medium">Sign in to track your gallery</h3>
                 <.link href={~p"/login"} class="btn btn-secondary btn-sm mt-4">
                   Sign In
@@ -152,7 +152,7 @@
                   <% end %>
                 </div>
               <% else %>
-                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-5">
+                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
                   <h3 class="font-medium">Nothing recent yet</h3>
                   <p class="mt-1 text-sm text-base-content/60">
                     Your uploads will show up here.
@@ -160,7 +160,7 @@
                 </div>
               <% end %>
             <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-5">
+              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
                 <h3 class="font-medium">Recent uploads are personal</h3>
                 <p class="mt-1 text-sm text-base-content/60">
                   Sign in to track your latest uploads and saved work.
@@ -239,7 +239,7 @@
                 </div>
               </div>
             <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/40 p-5 text-sm text-base-content/70">
+              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5 text-sm text-base-content/70">
                 Use the filters above to move between saved items, likes, and people you follow.
               </div>
             <% end %>
@@ -248,7 +248,7 @@
       </div>
     </section>
 
-    <section class="card border border-base-300 bg-base-100 shadow-sm">
+    <section class="card panel-card">
       <div class="card-body p-4 sm:p-5 gap-4">
         <div class="flex flex-wrap gap-2">
           <%= for {value, label, icon} <- filter_options do %>
@@ -273,7 +273,7 @@
           phx-submit="search_gallery"
           class="flex flex-col lg:flex-row gap-3"
         >
-          <label class="input input-bordered flex items-center gap-2 flex-1 bg-base-100/80">
+          <label class="input input-bordered flex items-center gap-2 flex-1 bg-base-200/70">
             <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
             <input
               type="text"
@@ -364,7 +364,7 @@
       <%= if @loading_gallery do %>
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <%= for _i <- 1..9 do %>
-            <div class="card border border-base-300 bg-base-100/80 shadow-sm overflow-hidden">
+            <div class="card border border-base-300 bg-base-200/70 shadow-sm overflow-hidden">
               <div class="aspect-[4/5] bg-base-300 animate-pulse"></div>
               <div class="p-4 space-y-2">
                 <div class="h-4 bg-base-300 rounded animate-pulse"></div>
@@ -398,7 +398,7 @@
               is_liked = MapSet.member?(@user_likes, photo.id)
               is_saved = MapSet.member?(@user_saved_posts, photo.id) %>
               <div
-                class="card border border-base-300 bg-base-100/90 shadow-sm overflow-hidden"
+                class="card border border-base-300 bg-base-200/80 shadow-sm overflow-hidden"
                 data-post-id={photo.id}
               >
                 <div
@@ -417,10 +417,10 @@
                   <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent">
                   </div>
                   <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
-                    <span class="badge badge-outline bg-base-100/80 backdrop-blur">
+                    <span class="badge badge-outline bg-base-200/70 backdrop-blur">
                       {gallery_source_label(photo)}
                     </span>
-                    <span class="badge badge-outline bg-base-100/80 backdrop-blur">
+                    <span class="badge badge-outline bg-base-200/70 backdrop-blur">
                       {String.capitalize(photo.category || "gallery")}
                     </span>
                   </div>
@@ -547,7 +547,7 @@
 
   <%= if @show_upload_modal && @current_user do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-2xl border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl">
         <div class="flex items-center justify-between gap-3 mb-4">
           <div>
             <h3 class="font-bold text-lg">Upload to Gallery</h3>

@@ -138,7 +138,7 @@ defmodule ElektrineWeb.API.ExtContactsController do
 
   defp normalize_search(value) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
+    if Elektrine.Strings.present?(trimmed), do: trimmed, else: nil
   end
 
   defp normalize_search(_value), do: nil

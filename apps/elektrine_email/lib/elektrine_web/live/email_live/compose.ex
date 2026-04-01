@@ -278,8 +278,8 @@ defmodule ElektrineWeb.EmailLive.Compose do
       |> assign_encryption_state(email_params["encryption_mode"])
 
     has_content =
-      String.trim(email_params["subject"] || "") != "" ||
-        String.trim(email_params["body"] || "") != ""
+      Elektrine.Strings.present?(email_params["subject"]) ||
+        Elektrine.Strings.present?(email_params["body"])
 
     if has_content do
       socket = assign(socket, :draft_status, :saving)
@@ -540,8 +540,7 @@ defmodule ElektrineWeb.EmailLive.Compose do
         combined_text = email_params["body"]
 
         combined_html =
-          if original_message && original_message.html_body &&
-               String.trim(original_message.html_body) != "" do
+          if original_message && Elektrine.Strings.present?(original_message.html_body) do
             new_message_html = markdown_to_html(new_message)
 
             if mode == "reply" do
@@ -1331,7 +1330,7 @@ Subject: #{message.subject}#{attachment_info}
     original_sender = extract_clean_email(message.from)
 
     to_recipients =
-      if message.to && String.trim(message.to) != "" do
+      if Elektrine.Strings.present?(message.to) do
         message.to
         |> String.split(~r/[,;]\s*/)
         |> Enum.map(&String.trim/1)
@@ -1342,7 +1341,7 @@ Subject: #{message.subject}#{attachment_info}
       end
 
     cc_recipients =
-      if message.cc && String.trim(message.cc) != "" do
+      if Elektrine.Strings.present?(message.cc) do
         message.cc
         |> String.split(~r/[,;]\s*/)
         |> Enum.map(&String.trim/1)
@@ -1376,7 +1375,7 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp maybe_put_reply_references(attrs, references) do
-    if references && String.trim(references) != "" do
+    if Elektrine.Strings.present?(references) do
       Map.put(attrs, :references, references)
     else
       attrs
@@ -1675,7 +1674,7 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp append_signature(body, user) do
-    if user && user.email_signature && String.trim(user.email_signature) != "" do
+    if user && Elektrine.Strings.present?(user.email_signature) do
       body <> "\n\n-- \n" <> user.email_signature
     else
       body

@@ -372,7 +372,7 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
       |> to_string()
       |> String.trim(".")
 
-    if normalized == "" do
+    if not Elektrine.Strings.present?(normalized) do
       {:error, :invalid_domain}
     else
       {:ok, normalized}
@@ -398,7 +398,7 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
 
   defp normalize_reason(reason) when is_binary(reason) do
     trimmed = String.trim(reason)
-    if trimmed == "", do: nil, else: trimmed
+    if Elektrine.Strings.present?(trimmed), do: trimmed, else: nil
   end
 
   defp normalize_reason(nil), do: nil

@@ -202,7 +202,7 @@ defmodule Elektrine.Messaging.Conversation do
         _current_user_id
       ) do
     cond do
-      is_binary(name) and String.trim(name) != "" ->
+      Elektrine.Strings.present?(name) ->
         name
 
       is_binary(federated_source) and String.starts_with?(federated_source, "arblarg:dm:") ->
@@ -231,8 +231,8 @@ defmodule Elektrine.Messaging.Conversation do
   end
 
   def avatar_url(%__MODULE__{type: "dm", avatar_url: avatar_url}, _current_user_id)
-      when is_binary(avatar_url) and avatar_url != "" do
-    avatar_url
+      when is_binary(avatar_url) do
+    if Elektrine.Strings.present?(avatar_url), do: avatar_url, else: nil
   end
 
   def avatar_url(%__MODULE__{avatar_url: avatar_url}, _current_user_id) do

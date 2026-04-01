@@ -8,7 +8,7 @@ defmodule ElektrineWeb.ChatLive.Components.ChannelModal do
     ~H"""
     <div class="modal modal-open">
       <div
-        class="modal-box card glass-card bg-base-100 p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+        class="modal-box modal-surface p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
         phx-click-away="close_modal"
         phx-target={@myself}
       >

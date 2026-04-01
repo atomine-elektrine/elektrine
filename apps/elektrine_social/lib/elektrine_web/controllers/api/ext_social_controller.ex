@@ -302,7 +302,7 @@ defmodule ElektrineWeb.API.ExtSocialController do
 
   defp blank_to_nil(value) when is_binary(value) do
     trimmed = String.trim(value)
-    if trimmed == "", do: nil, else: trimmed
+    Elektrine.Strings.present(trimmed)
   end
 
   defp blank_to_nil(value), do: value

@@ -19,6 +19,7 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
+  alias Elektrine.EmailConfig
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.ListTypes
@@ -339,7 +340,7 @@ defmodule Elektrine.Email.Sender do
           # This avoids Mail library's potential encoding corruption
           subject =
             cond do
-              raw_subject_line && raw_subject_line != "" ->
+              Elektrine.Strings.present?(raw_subject_line) ->
                 HeaderDecoder.decode_mime_header(raw_subject_line)
 
               mail_subj ->
@@ -399,8 +400,10 @@ defmodule Elektrine.Email.Sender do
     # Try to extract subject directly from headers
     subject =
       case extract_raw_subject_from_email(raw_email) do
-        subj when is_binary(subj) and subj != "" ->
-          HeaderDecoder.decode_mime_header(subj)
+        subj when is_binary(subj) ->
+          if Elektrine.Strings.present?(subj),
+            do: HeaderDecoder.decode_mime_header(subj),
+            else: params[:subject] || params["subject"] || "(No Subject)"
 
         _ ->
           params[:subject] || params["subject"] || "(No Subject)"
@@ -461,7 +464,7 @@ defmodule Elektrine.Email.Sender do
   defp put_if_present(params, _key, value) when not is_binary(value), do: params
 
   defp put_if_present(params, key, value) do
-    if String.trim(value) == "" do
+    if not Elektrine.Strings.present?(value) do
       params
     else
       Map.put(params, key, value)
@@ -502,7 +505,7 @@ defmodule Elektrine.Email.Sender do
       end
 
     formatted_from =
-      if user.display_name && String.trim(user.display_name) != "" &&
+      if Elektrine.Strings.present?(user.display_name) &&
            email_address in main_addresses do
         # Only add display name for main addresses, not aliases
         display_name = String.trim(user.display_name)
@@ -570,7 +573,12 @@ defmodule Elektrine.Email.Sender do
       if params[:forwarded_from] do
         # Already has forwarding info, append to it
         existing = params[:forwarded_from] || ""
-        updated = if existing == "", do: params[:to], else: "#{existing}, #{params[:to]}"
+
+        updated =
+          if Elektrine.Strings.present?(existing),
+            do: "#{existing}, #{params[:to]}",
+            else: params[:to]
+
         Map.put(params, :forwarded_from, updated)
       else
         params
@@ -589,8 +597,7 @@ defmodule Elektrine.Email.Sender do
 
   defp should_use_external_api? do
     # Use external API unless we're explicitly using local email
-    System.get_env("USE_LOCAL_EMAIL") != "true" &&
-      Application.get_env(:elektrine, :env) != :test
+    EmailConfig.use_external_delivery_api?()
   end
 
   defp send_via_external_api(params) do
@@ -629,7 +636,7 @@ defmodule Elektrine.Email.Sender do
 
       # Add Reply-To if provided
       email =
-        if params[:reply_to] && String.trim(params[:reply_to]) != "" do
+        if Elektrine.Strings.present?(params[:reply_to]) do
           reply_to(email, params[:reply_to])
         else
           email
@@ -637,7 +644,7 @@ defmodule Elektrine.Email.Sender do
 
       # Add CC if provided
       email =
-        if params[:cc] && String.trim(params[:cc]) != "" do
+        if Elektrine.Strings.present?(params[:cc]) do
           cc(email, parse_recipients(params[:cc]))
         else
           email
@@ -645,7 +652,7 @@ defmodule Elektrine.Email.Sender do
 
       # Add BCC if provided
       email =
-        if params[:bcc] && String.trim(params[:bcc]) != "" do
+        if Elektrine.Strings.present?(params[:bcc]) do
           bcc(email, parse_recipients(params[:bcc]))
         else
           email
@@ -841,9 +848,13 @@ defmodule Elektrine.Email.Sender do
         # Check mailbox forwarding
         case Email.get_mailbox_by_email(clean_email) do
           %Mailbox{forward_enabled: true, forward_to: forward_to}
-          when is_binary(forward_to) and forward_to != "" ->
-            is_external = !is_internal_email?([forward_to])
-            {forward_to, is_external}
+          when is_binary(forward_to) ->
+            if Elektrine.Strings.present?(forward_to) do
+              is_external = !is_internal_email?([forward_to])
+              {forward_to, is_external}
+            else
+              {clean_email, !is_internal_email?([clean_email])}
+            end
 
           _ ->
             {clean_email, !is_internal_email?([clean_email])}
@@ -1319,8 +1330,7 @@ defmodule Elektrine.Email.Sender do
               case try_cross_domain_mailbox_lookup(clean_email) do
                 {:ok, mailbox} ->
                   # Check if cross-domain mailbox has forwarding
-                  if mailbox.forward_enabled && mailbox.forward_to &&
-                       String.trim(mailbox.forward_to) != "" do
+                  if mailbox.forward_enabled && Elektrine.Strings.present?(mailbox.forward_to) do
                     if is_internal_email?([mailbox.forward_to]) do
                       find_internal_recipient_mailbox(mailbox.forward_to, visited, depth + 1)
                     else
@@ -1676,10 +1686,10 @@ defmodule Elektrine.Email.Sender do
 
     body_to_encrypt =
       cond do
-        text_body && String.trim(text_body) != "" ->
+        Elektrine.Strings.present?(text_body) ->
           text_body
 
-        html_body && String.trim(html_body) != "" ->
+        Elektrine.Strings.present?(html_body) ->
           # Convert HTML to plain text for encryption
           html_body
           |> String.replace(~r/<br\s*\/?>/, "\n")

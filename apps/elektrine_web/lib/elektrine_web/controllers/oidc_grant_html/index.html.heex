@@ -4,15 +4,14 @@
   current_user={@current_user}
   sidebar_tab="developer"
 >
-  <:sidebar>
-    <.developer_settings_sidebar selected_page="oidc-grants" />
-  </:sidebar>
+  <:sidebar><.developer_settings_sidebar selected_page="oidc-grants" /></:sidebar>
 
-  <div class="card glass-card shadow-lg">
+  <div class="card panel-card">
     <div class="card-body gap-6 p-4 sm:p-6">
       <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="space-y-2">
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
+
           <p class="max-w-2xl text-sm text-base-content/70">
             This view shows active authorizations created through OAuth and OpenID Connect flows.
           </p>
@@ -35,6 +34,7 @@
                 <div class="space-y-3">
                   <div>
                     <h2 class="text-xl font-bold text-base-content">{grant.app.client_name}</h2>
+
                     <%= if grant.app.website do %>
                       <p class="mt-1 break-all text-sm text-base-content/65">
                         {grant.app.website}
@@ -44,6 +44,7 @@
 
                   <div class="text-sm text-base-content/65">
                     <p>Last granted {Calendar.strftime(grant.last_granted_at, "%b %d, %Y")}</p>
+
                     <p>Active sessions {grant.active_token_count}</p>
                   </div>
 

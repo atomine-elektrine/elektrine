@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.AuthLive.PasswordReset do
   use ElektrineWeb, :live_view
 
-  # Note: on_mount is handled by live_session :auth in router
+  alias Elektrine.Strings
 
   def mount(_params, session, socket) do
     via_tor = via_tor_request?(socket, session)
@@ -9,8 +9,7 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
     site_key = turnstile_config[:site_key]
 
     turnstile_enabled =
-      not Keyword.get(turnstile_config, :skip_verification, false) and is_binary(site_key) and
-        String.trim(site_key) != ""
+      not Keyword.get(turnstile_config, :skip_verification, false) and Strings.present?(site_key)
 
     {:ok,
      assign(socket,
@@ -33,8 +32,7 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
     ~H"""
     <div
       id="password-reset-card"
-      phx-hook="GlassCard"
-      class="card glass-card shadow-xl max-w-md mx-auto"
+      class="card panel-card max-w-md mx-auto"
     >
       <div class="card-body">
         <h1 class="text-center text-3xl font-bold mb-6">{gettext("Reset Password")}</h1>

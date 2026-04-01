@@ -122,9 +122,9 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
   defp get_badge_color("supporter"), do: "#f59e0b"
   defp get_badge_color("developer"), do: "#3b82f6"
   defp get_badge_color("admin"), do: "#dc2626"
-  defp get_badge_color("moderator"), do: "#8b5cf6"
+  defp get_badge_color("moderator"), do: "#8a7cc2"
   defp get_badge_color("contributor"), do: "#06b6d4"
-  defp get_badge_color("beta_tester"), do: "#ec4899"
+  defp get_badge_color("beta_tester"), do: "#c7796b"
   defp get_badge_color(_), do: "#6b7280"
 
   defp get_badge_icon("staff"), do: nil
@@ -156,4 +156,16 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
 
   # Default purple
   defp hex_to_rgb(_hex), do: {139, 92, 246}
+
+  def badge_gradient_style(color) do
+    {r, g, b} = hex_to_rgb(color)
+
+    from_color =
+      "rgb(#{max(0, round(r * 0.5))}, #{max(0, round(g * 0.5))}, #{max(0, round(b * 0.5))})"
+
+    to_color =
+      "rgb(#{max(0, round(r * 0.65))}, #{max(0, round(g * 0.65))}, #{max(0, round(b * 0.65))})"
+
+    "background: linear-gradient(to right, #{from_color}, #{to_color});"
+  end
 end

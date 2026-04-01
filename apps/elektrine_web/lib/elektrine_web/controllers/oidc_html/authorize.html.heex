@@ -1,28 +1,32 @@
 <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
   <.e_nav active_tab="account" current_user={@current_user} class="mb-6 sm:mb-8" />
-
   <div class="mx-auto flex max-w-3xl flex-col gap-6">
     <header class="space-y-3">
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-xs uppercase tracking-[0.3em] text-base-content/60">Identity Provider</p>
+
           <h1 class="mt-2 text-2xl font-bold text-base-content sm:text-3xl">
             Authorize {@app.client_name}
           </h1>
+
           <p class="mt-3 text-sm text-base-content/70">
             {@app.client_name} wants to use your Elektrine account.
           </p>
         </div>
+
         <div class="badge badge-outline badge-lg">OAuth / OIDC</div>
       </div>
     </header>
 
-    <section class="card glass-card shadow-lg">
+    <section class="card panel-card">
       <div class="card-body gap-6 p-4 sm:p-6">
         <div class="grid gap-4 sm:grid-cols-2">
           <div class="rounded-2xl border border-base-300/60 bg-base-200/50 p-4">
             <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Client</p>
+
             <p class="mt-2 text-lg font-semibold text-base-content">{@app.client_name}</p>
+
             <%= if @app.website do %>
               <p class="mt-2 break-all text-sm text-base-content/70">{@app.website}</p>
             <% end %>
@@ -30,17 +34,20 @@
 
           <div class="rounded-2xl border border-base-300/60 bg-base-200/50 p-4">
             <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Signed in as</p>
+
             <p class="mt-2 text-lg font-semibold text-base-content">
               {@current_user.display_name || @current_user.username}
             </p>
+
             <p class="mt-1 text-sm text-base-content/70">
               @{@current_user.handle || @current_user.username}
             </p>
           </div>
         </div>
 
-        <div class="rounded-2xl border border-base-300/60 bg-base-200/40 p-4">
+        <div class="rounded-2xl border border-base-300/60 bg-base-200/55 p-4">
           <p class="text-xs uppercase tracking-[0.24em] text-base-content/60">Requested scopes</p>
+
           <div class="mt-3 flex flex-wrap gap-2">
             <%= for scope <- @scopes do %>
               <span class="badge badge-neutral badge-outline px-3 py-3">{scope}</span>
@@ -66,7 +73,6 @@
             name="code_challenge_method"
             value={@params["code_challenge_method"]}
           />
-
           <button
             type="submit"
             name="decision"

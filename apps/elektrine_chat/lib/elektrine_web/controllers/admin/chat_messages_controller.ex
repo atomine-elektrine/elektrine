@@ -236,7 +236,7 @@ defmodule ElektrineWeb.Admin.ChatMessagesController do
     end
   end
 
-  defp present?(value), do: is_binary(value) and String.trim(value) != ""
+  defp present?(value), do: Elektrine.Strings.present?(value)
 
   defp get_raw_chat_message_content(message) do
     conversation = Map.get(message, :conversation)

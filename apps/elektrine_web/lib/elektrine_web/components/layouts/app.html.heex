@@ -1,6 +1,7 @@
 <!-- Presence hooks for auto-away and device detection -->
 <%= if @current_user && Map.has_key?(assigns, :socket) do %>
   <div id="activity-tracker" phx-hook="ActivityTracker" class="hidden"></div>
+
   <div id="device-detector" phx-hook="DeviceDetector" class="hidden"></div>
 <% end %>
 <%= if (assigns[:conn] && Plug.Conn.get_session(@conn, :impersonating_admin_id)) || (assigns[:is_impersonating] && @is_impersonating) do %>
@@ -12,6 +13,7 @@
           Admin Mode: You are impersonating {@current_user.username}
         </span>
       </div>
+
       <.form for={%{}} action={~p"/pripyat/stop-impersonation"} method="post" class="inline">
         <button type="submit" class="btn btn-sm btn-secondary">
           <.icon name="hero-stop" class="w-4 h-4" /> Stop Impersonation
@@ -21,28 +23,22 @@
   </div>
 <% end %>
 
-<div class="navbar min-h-16 bg-base-200/80 backdrop-blur-sm shadow-md sticky top-0 z-50">
+<div class="navbar min-h-16 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto flex min-h-16 w-full items-center px-4 sm:px-6 lg:px-8">
     <div class="navbar-start items-center gap-2 sm:gap-3">
       <div class="dropdown flex-shrink-0">
-        <div
-          tabindex="0"
-          role="button"
-          class="btn btn-ghost btn-circle lg:hidden flex-shrink-0"
-        >
+        <div tabindex="0" role="button" class="btn btn-ghost btn-circle lg:hidden flex-shrink-0">
           <.icon name="hero-bars-3" class="h-6 w-6" />
         </div>
-        <ul
-          tabindex="0"
-          class="menu dropdown-content mt-3 z-[1] p-2 shadow-lg bg-base-100/90 backdrop-blur-sm rounded-lg w-52 border border-base-300/50"
-        >
+
+        <ul tabindex="0" class="menu dropdown-content mt-3 z-[1] p-2 rounded-lg w-52">
           <%= if @current_user do %>
             <li>
               <a href={~p"/account"} class="rounded-lg">
-                <.icon name="hero-user-circle" class="w-5 h-5" />
-                {gettext("Account")}
+                <.icon name="hero-user-circle" class="w-5 h-5" /> {gettext("Account")}
               </a>
             </li>
+
             <%= if @current_user.is_admin do %>
               <li>
                 <.link href={~p"/pripyat"} class="rounded-lg">
@@ -50,32 +46,33 @@
                 </.link>
               </li>
             <% end %>
+
             <li>
               <.link href={~p"/logout"} method="delete" class="rounded-lg text-error">
-                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" />
-                {gettext("Log out")}
+                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" /> {gettext("Log out")}
               </.link>
             </li>
           <% else %>
             <li>
               <.link href={~p"/login"} class="rounded-lg">
-                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" />
-                {gettext("Sign in")}
+                <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" /> {gettext("Sign in")}
               </.link>
             </li>
+
             <li>
               <.link href={~p"/register"} class="rounded-lg text-primary">
-                <.icon name="hero-user-plus" class="w-5 h-5" />
-                {gettext("Sign up")}
+                <.icon name="hero-user-plus" class="w-5 h-5" /> {gettext("Sign up")}
               </.link>
             </li>
           <% end %>
         </ul>
       </div>
+
       <a href="/" class="btn btn-ghost px-2 sm:px-3 flex-shrink-0">
         <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
       </a>
     </div>
+
     <div class="navbar-center hidden lg:flex">
       <div class="form-control">
         <form action="/search" method="get">
@@ -91,51 +88,51 @@
                 id="global-search"
               />
             </label>
-            <button
-              type="submit"
-              class="btn join-item rounded-l-none rounded-r-full px-4"
-            >
+            <button type="submit" class="btn join-item rounded-l-none rounded-r-full px-4">
               <.icon name="hero-magnifying-glass" class="h-4 w-4" />
             </button>
           </div>
         </form>
       </div>
     </div>
+
     <div class="navbar-end items-center gap-2 sm:gap-3 lg:gap-3">
       <%= if @current_user do %>
         <div class="dropdown dropdown-end flex-shrink-0" data-test="global-composer">
           <div
             tabindex="0"
             role="button"
-            class="btn btn-outline btn-primary rounded-full gap-2 px-4 shadow-sm"
+            class="btn btn-outline btn-primary rounded-full gap-2 px-4-sm"
             title="Create"
           >
             <.icon name="hero-plus" class="w-4 h-4" />
             <span class="hidden sm:inline">Create</span>
           </div>
-          <div
-            tabindex="0"
-            class="dropdown-content z-[100] mt-3 w-80 rounded-lg border border-base-300/70 bg-base-100/95 p-2 shadow-xl backdrop-blur-sm"
-          >
+
+          <div tabindex="0" class="dropdown-content z-[100] mt-3 w-80 rounded-lg p-2">
             <div class="px-3 py-2">
               <p class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/50">
                 Quick Create
               </p>
+
               <p class="mt-1 text-sm text-base-content/70">
                 Start something from the modules enabled on this host.
               </p>
             </div>
+
             <div class="mt-1 space-y-1">
               <%= for item <- global_composer_items() do %>
                 <a
                   href={item.href}
                   class="flex items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-base-200/80"
                 >
-                  <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-2">
+                  <div class="mt-0.5 rounded-lg bg-base-200 p-2">
                     <.icon name={item.icon} class="h-4 w-4" />
                   </div>
+
                   <div class="min-w-0">
                     <p class="text-sm font-medium">{item.label}</p>
+
                     <p class="text-xs text-base-content/65">{item.detail}</p>
                   </div>
                 </a>
@@ -143,8 +140,7 @@
             </div>
           </div>
         </div>
-        
-<!-- Status Selector (desktop only) -->
+        <!-- Status Selector (desktop only) -->
         <div
           class="dropdown dropdown-end hidden lg:flex"
           id="status-selector-desktop"
@@ -155,13 +151,10 @@
               "w-3 h-3 rounded-full inline-block status-indicator",
               status_indicator_class(@current_user.status || "online")
             ]}>
-            </span>
-            <.icon name="hero-chevron-down" class="w-3 h-3 ml-1" />
+            </span> <.icon name="hero-chevron-down" class="w-3 h-3 ml-1" />
           </div>
-          <div
-            tabindex="0"
-            class="dropdown-content z-[1] p-3 shadow bg-base-100/90 backdrop-blur-sm rounded-box w-52 border border-base-300/50"
-          >
+
+          <div tabindex="0" class="dropdown-content z-[1] p-3 rounded-box w-52">
             <div class="flex flex-col gap-2">
               <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
                 <input type="hidden" name="status" value="online" />
@@ -179,6 +172,7 @@
                   <span class="text-sm">Online</span>
                 </button>
               </.form>
+
               <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
                 <input type="hidden" name="status" value="away" />
                 <button
@@ -195,6 +189,7 @@
                   <span class="text-sm">Away</span>
                 </button>
               </.form>
+
               <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
                 <input type="hidden" name="status" value="dnd" />
                 <button
@@ -211,6 +206,7 @@
                   <span class="text-sm">Do Not Disturb</span>
                 </button>
               </.form>
+
               <.form for={%{}} action={~p"/account/status"} method="post" class="w-full">
                 <input type="hidden" name="status" value="offline" />
                 <button
@@ -218,7 +214,7 @@
                   class={[
                     "gap-2 rounded-md px-3 py-3 w-full text-left flex items-center",
                     if(@current_user.status == "offline",
-                      do: "bg-base-300/20 border border-base-300",
+                      do: "bg-base-300/20",
                       else: "border border-base-300"
                     )
                   ]}
@@ -231,8 +227,7 @@
           </div>
         </div>
       <% end %>
-      
-<!-- Language Switcher (desktop only) -->
+      <!-- Language Switcher (desktop only) -->
       <div class="dropdown dropdown-end hidden lg:flex">
         <div tabindex="0" role="button" class="btn btn-ghost rounded-full">
           <%= if (@current_user && @current_user.locale == "zh") || (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "zh") do %>
@@ -242,10 +237,8 @@
           <% end %>
           <.icon name="hero-chevron-down" class="w-3 h-3 ml-1" />
         </div>
-        <ul
-          tabindex="0"
-          class="dropdown-content z-[1] menu p-2 shadow bg-base-100/90 backdrop-blur-sm rounded-box w-40 border border-base-300/50"
-        >
+
+        <ul tabindex="0" class="dropdown-content z-[1] menu p-2 rounded-box w-40">
           <li>
             <a
               href="/locale/switch?locale=en"
@@ -259,6 +252,7 @@
               <span class="font-medium">EN</span> English
             </a>
           </li>
+
           <li>
             <a
               href="/locale/switch?locale=zh"
@@ -279,7 +273,7 @@
         <!-- Notification Bell -->
         <.link
           href="/notifications"
-          class="indicator btn btn-ghost notification-bell-btn rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
+          class="indicator btn btn-ghost rounded-full h-10 w-10 p-0 inline-flex items-center justify-center flex-shrink-0"
           title={gettext("Notifications")}
         >
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
@@ -291,13 +285,13 @@
               </span>
             </span>
           <% end %>
+
           <%= if assigns[:notification_count] && @notification_count > 0 do %>
             <.icon name="hero-bell-alert" class="w-5 h-5" />
           <% else %>
             <.icon name="hero-bell" class="w-5 h-5" />
           <% end %>
         </.link>
-
         <div class="dropdown dropdown-end flex-shrink-0" data-test="user-menu">
           <div
             tabindex="0"
@@ -306,10 +300,8 @@
           >
             <.user_avatar user={@current_user} size="md" class="w-10 h-10" />
           </div>
-          <ul
-            tabindex="0"
-            class="menu menu-sm dropdown-content mt-3 z-[100] p-2 shadow-lg bg-base-200/90 backdrop-blur-sm rounded-box w-56 border border-base-300/50"
-          >
+
+          <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[100] p-2 rounded-box w-56">
             <!-- User Info Header -->
             <li class="menu-title px-3 py-2">
               <.link
@@ -321,6 +313,7 @@
                   <div class="font-semibold text-sm">
                     {@current_user.display_name || @current_user.username}
                   </div>
+
                   <div class="text-xs opacity-60">
                     @{@current_user.handle || @current_user.username}
                   </div>
@@ -333,6 +326,7 @@
             <li class="menu-title">
               <span class="text-xs opacity-75">{gettext("Your Stuff")}</span>
             </li>
+
             <li>
               <.link
                 navigate={~p"/notifications"}
@@ -345,8 +339,7 @@
                       else: "hero-bell"
                   }
                   class="w-4 h-4"
-                />
-                <span>{gettext("Notifications")}</span>
+                /> <span>{gettext("Notifications")}</span>
                 <%= if assigns[:notification_count] && @notification_count > 0 do %>
                   <span class="ml-auto badge badge-xs badge-error text-white">
                     {if @notification_count > 99, do: "99+", else: @notification_count}
@@ -354,6 +347,7 @@
                 <% end %>
               </.link>
             </li>
+
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
@@ -364,6 +358,7 @@
                 </.link>
               </li>
             <% end %>
+
             <%= if platform_module_enabled?(:chat) do %>
               <li>
                 <.link
@@ -374,6 +369,7 @@
                 </.link>
               </li>
             <% end %>
+
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
@@ -384,6 +380,7 @@
                 </.link>
               </li>
             <% end %>
+
             <li>
               <.link
                 navigate={~p"/account/profile/edit"}
@@ -395,9 +392,8 @@
 
             <div class="divider my-1"></div>
 
-            <li class="menu-title">
-              <span class="text-xs opacity-75">{gettext("Apps")}</span>
-            </li>
+            <li class="menu-title"><span class="text-xs opacity-75">{gettext("Apps")}</span></li>
+
             <%= if platform_module_enabled?(:email) do %>
               <li>
                 <.link
@@ -408,6 +404,7 @@
                 </.link>
               </li>
             <% end %>
+
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
@@ -418,6 +415,7 @@
                 </.link>
               </li>
             <% end %>
+
             <%= if platform_module_enabled?(:vpn) do %>
               <li>
                 <.link
@@ -428,6 +426,7 @@
                 </.link>
               </li>
             <% end %>
+
             <%= if platform_module_enabled?(:dns) do %>
               <li>
                 <.link
@@ -441,9 +440,11 @@
 
             <%= if @current_user.is_admin do %>
               <div class="divider my-1"></div>
+
               <li class="menu-title">
                 <span class="text-xs opacity-75">{gettext("Administration")}</span>
               </li>
+
               <li>
                 <.link
                   navigate={~p"/pripyat"}
@@ -459,6 +460,7 @@
             <li class="menu-title">
               <span class="text-xs opacity-75">{gettext("Account")}</span>
             </li>
+
             <li>
               <.link
                 navigate={~p"/account/storage"}
@@ -467,6 +469,7 @@
                 <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
               </.link>
             </li>
+
             <li>
               <.link
                 navigate={~p"/account"}
@@ -475,11 +478,10 @@
                 <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Account Settings")}
               </.link>
             </li>
+
             <li>
               <a
-                href={
-                  Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta"
-                }
+                href={ Elektrine.EmailAddresses.mailto("support") <> "?subject=Issue Report - Elektrine Beta" }
                 class="gap-3 text-warning hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
               >
                 <.icon name="hero-exclamation-triangle" class="w-4 h-4" /> {gettext(
@@ -487,6 +489,7 @@
                 )}
               </a>
             </li>
+
             <li>
               <.link
                 href={~p"/logout"}
@@ -505,9 +508,7 @@
     </div>
   </div>
 </div>
-<.flash_group flash={assigns[:flash] || %{}} />
-
-<%!-- System Announcements --%>
+<.flash_group flash={assigns[:flash] || %{}} /> <%!-- System Announcements --%>
 <%= if assigns[:active_announcements] && @active_announcements != [] do %>
   <div class={
     if full_width_main?(assigns),
@@ -548,17 +549,20 @@
       <!-- Company -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Company</h3>
+
         <ul class="space-y-2 text-xs">
           <li>
             <.link href={~p"/about"} class="link link-hover opacity-70 hover:opacity-100">
               About
             </.link>
           </li>
+
           <li>
             <.link href={~p"/contact"} class="link link-hover opacity-70 hover:opacity-100">
               Contact
             </.link>
           </li>
+
           <li>
             <.link href={~p"/faq"} class="link link-hover opacity-70 hover:opacity-100">
               FAQ
@@ -566,21 +570,23 @@
           </li>
         </ul>
       </div>
-      
-<!-- Legal -->
+      <!-- Legal -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Legal</h3>
+
         <ul class="space-y-2 text-xs">
           <li>
             <.link href={~p"/terms"} class="link link-hover opacity-70 hover:opacity-100">
               Terms of Service
             </.link>
           </li>
+
           <li>
             <.link href={~p"/privacy"} class="link link-hover opacity-70 hover:opacity-100">
               Privacy Policy
             </.link>
           </li>
+
           <li>
             <.link href={~p"/vpn/policy"} class="link link-hover opacity-70 hover:opacity-100">
               VPN Policy
@@ -588,30 +594,33 @@
           </li>
         </ul>
       </div>
-      
-<!-- Email Settings -->
+      <!-- Email Settings -->
       <div class="col-span-2 md:col-span-1">
         <h3 class="font-semibold mb-3 text-sm">Email Settings</h3>
+
         <div class="text-xs opacity-70 space-y-1">
           <p>
             <span class="font-semibold">IMAP:</span>
             <span class="font-mono">{Elektrine.EmailAddresses.imap_host()}:993</span>
           </p>
+
           <p>
             <span class="font-semibold">POP3:</span>
             <span class="font-mono">{Elektrine.EmailAddresses.pop_host()}:995</span>
           </p>
+
           <p>
             <span class="font-semibold">SMTP:</span>
             <span class="font-mono">{Elektrine.EmailAddresses.smtp_host()}:465</span>
           </p>
         </div>
+
         <p class="text-xs opacity-50 mt-2">SSL/TLS required</p>
       </div>
-      
-<!-- Support -->
+      <!-- Support -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Support</h3>
+
         <ul class="space-y-2 text-xs">
           <li>
             <a
@@ -621,6 +630,7 @@
               {Elektrine.EmailAddresses.local("support")}
             </a>
           </li>
+
           <li>
             <a
               href={Elektrine.EmailAddresses.mailto("security")}
@@ -631,10 +641,10 @@
           </li>
         </ul>
       </div>
-      
-<!-- Connect -->
+      <!-- Connect -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Connect</h3>
+
         <div class="flex items-center gap-3 justify-center md:justify-start">
           <a
             href="https://github.com/atomine-elektrine/elektrine"
@@ -645,7 +655,6 @@
           >
             <.brand_icon name="github" class="w-5 h-5" />
           </a>
-
           <a
             href="https://t.me/elektrine"
             target="_blank"
@@ -656,16 +665,14 @@
             <.brand_icon name="telegram" class="w-5 h-5" />
           </a>
         </div>
+
         <div class="mt-3">
           <p class="text-xs opacity-70 mb-1">Tor Hidden Service</p>
-          <code class="text-xs opacity-60 break-all select-all">
-            {tor_onion_host()}
-          </code>
+          <code class="text-xs opacity-60 break-all select-all">{tor_onion_host()}</code>
         </div>
       </div>
     </div>
-    
-<!-- Bottom Bar -->
+    <!-- Bottom Bar -->
     <div class="border-t border-base-300 pt-4">
       <div class="flex flex-wrap justify-center items-center gap-4 text-xs opacity-60">
         <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>

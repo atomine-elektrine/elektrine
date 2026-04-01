@@ -114,7 +114,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
         %{"content" => content, "reply_to_id" => reply_to_id},
         socket
       ) do
-    if String.trim(content) == "" do
+    if not Elektrine.Strings.present?(content) do
       {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     else
       user = socket.assigns.current_user
@@ -300,7 +300,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
       reply_to_post.federated != true ->
         socket
 
-      !is_binary(reply_to_post.activitypub_id) || String.trim(reply_to_post.activitypub_id) == "" ->
+      !Elektrine.Strings.present?(reply_to_post.activitypub_id) ->
         socket
 
       recent_replies != [] ->

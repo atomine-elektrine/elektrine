@@ -134,7 +134,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
     ~H"""
     <article
       id={@unique_id}
-      class="card glass-card border border-base-300 rounded-lg overflow-hidden hover:shadow-md transition-all relative z-0"
+      class="card panel-card border border-base-300 rounded-lg overflow-hidden hover:shadow-md transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
       phx-hook="PostClick"
@@ -433,7 +433,7 @@ defmodule ElektrineWeb.Components.Social.LemmyPost do
 
   defp normalize_title(title) when is_binary(title) do
     title = String.trim(title)
-    if title == "", do: nil, else: title
+    Elektrine.Strings.present(title)
   end
 
   defp normalize_title(_), do: nil

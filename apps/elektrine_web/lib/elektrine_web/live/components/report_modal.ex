@@ -29,7 +29,7 @@ defmodule ElektrineWeb.Components.ReportModal do
   def render(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-md border border-base-300/60 shadow-xl">
+      <div class="modal-box modal-surface max-w-md">
         <h3 class="font-bold text-lg mb-6 text-center text-error">
           Report {format_reportable_type(@reportable_type)}
         </h3>

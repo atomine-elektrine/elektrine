@@ -193,7 +193,7 @@ defmodule ElektrineWeb.AdminLive.Emojis do
     attrs = %{
       shortcode: params["shortcode"],
       image_url: params["image_url"],
-      category: if(params["category"] == "", do: nil, else: params["category"]),
+      category: Elektrine.Strings.present(params["category"]),
       visible_in_picker: params["visible_in_picker"] == "true"
     }
 

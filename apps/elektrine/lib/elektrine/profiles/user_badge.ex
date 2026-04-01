@@ -93,7 +93,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "developer" ->
         %{
           badge_text: "Developer",
-          badge_color: "#8b5cf6",
+          badge_color: "#8a7cc2",
           badge_icon: "hero-code-bracket",
           tooltip: "Developer"
         }
@@ -109,7 +109,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "beta_tester" ->
         %{
           badge_text: "Beta Tester",
-          badge_color: "#ec4899",
+          badge_color: "#c7796b",
           badge_icon: "hero-beaker",
           tooltip: "Beta Tester"
         }

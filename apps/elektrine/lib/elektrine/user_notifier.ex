@@ -46,7 +46,7 @@ defmodule Elektrine.UserNotifier do
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding-bottom: 30px; border-bottom: 1px solid #1f1f1f;">
-                        <h1 style="margin: 0; color: #a855f7; font-size: 24px; font-weight: 600;">Password Reset Request</h1>
+                        <h1 style="margin: 0; color: #8a7cc2; font-size: 24px; font-weight: 600;">Password Reset Request</h1>
                       </td>
                     </tr>
                   </table>
@@ -65,7 +65,7 @@ defmodule Elektrine.UserNotifier do
                         <!-- Button -->
                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                           <tr>
-                            <td style="background-color: #a855f7; border-radius: 8px;">
+                            <td style="background-color: #8a7cc2; border-radius: 8px;">
                               <a href="#{reset_url}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
                                 Reset Your Password
                               </a>
@@ -81,7 +81,7 @@ defmodule Elektrine.UserNotifier do
                         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px 0;">
                           <tr>
                             <td style="background-color: #171717; padding: 12px 16px; border-radius: 6px; word-break: break-all;">
-                              <a href="#{reset_url}" style="color: #a855f7; font-size: 14px; text-decoration: none;">#{reset_url}</a>
+                              <a href="#{reset_url}" style="color: #8a7cc2; font-size: 14px; text-decoration: none;">#{reset_url}</a>
                             </td>
                           </tr>
                         </table>

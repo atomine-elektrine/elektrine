@@ -50,6 +50,6 @@ defmodule ElektrineWeb.UserSettingsEmailController do
   defp decode_json_payload(_value), do: {:error, :invalid}
 
   defp blank_string?(value) do
-    !is_binary(value) || String.trim(value) == ""
+    !Elektrine.Strings.present?(value)
   end
 end

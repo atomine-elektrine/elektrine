@@ -7,13 +7,14 @@ defmodule Elektrine.Email.HarakaAdapter do
     required_config: [:api_key],
     optional_config: [:base_url, :timeout]
 
+  alias Elektrine.EmailConfig
   alias Swoosh.Email
 
   @api_path "/api/v1/send"
 
   @impl true
   def deliver(%Email{} = email, config) do
-    base_url = normalize_base_url(config[:base_url] || default_base_url())
+    base_url = EmailConfig.haraka_base_url(config[:base_url])
     timeout = config[:timeout] || 30_000
 
     # Get the appropriate API key based on the from address
@@ -143,29 +144,6 @@ defmodule Elektrine.Email.HarakaAdapter do
 
   # Get the API key (no domain-specific logic needed)
   defp get_api_key_for_email(_from_address, default_key) do
-    ["HARAKA_HTTP_API_KEY", "HARAKA_OUTBOUND_API_KEY", "HARAKA_API_KEY", "INTERNAL_API_KEY"]
-    |> Enum.find_value(fn env_name ->
-      case System.get_env(env_name) do
-        nil -> nil
-        "" -> nil
-        value -> value
-      end
-    end) || default_key
+    EmailConfig.haraka_api_key(default_key)
   end
-
-  defp normalize_base_url(base_url) do
-    legacy_base_url = "https://haraka." <> Elektrine.Domains.primary_email_domain()
-
-    base_url
-    |> String.trim_trailing("/")
-    |> case do
-      normalized when normalized == legacy_base_url ->
-        default_base_url()
-
-      normalized ->
-        normalized
-    end
-  end
-
-  defp default_base_url, do: Elektrine.EmailAddresses.mail_base_url()
 end

@@ -10,6 +10,7 @@ defmodule Elektrine.Subscriptions do
   alias Ecto.Changeset
   require Logger
   alias Elektrine.Accounts.User
+  alias Elektrine.EmailAddresses
   alias Elektrine.Repo
   alias Elektrine.Subscriptions.{Product, RegistrationCheckout, Subscription}
 
@@ -799,10 +800,10 @@ defmodule Elektrine.Subscriptions do
         String.trim(user.recovery_email)
 
       present?(user.preferred_email_domain) ->
-        "#{user.username}@#{String.trim(user.preferred_email_domain)}"
+        EmailAddresses.primary_for_user(user)
 
       true ->
-        "#{user.username}@#{Elektrine.Domains.default_user_handle_domain()}"
+        EmailAddresses.primary_for_user(user)
     end
   end
 
@@ -1112,18 +1113,12 @@ defmodule Elektrine.Subscriptions do
     end
   end
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> case do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(value), do: value
 
-  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(value), do: not is_nil(value)
 
   defp normalize_checkout_mode(:subscription), do: "subscription"

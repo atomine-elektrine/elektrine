@@ -450,7 +450,7 @@ defmodule Elektrine.Email.CustomDomains do
     end
   end
 
-  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(_), do: false
 
   defp truncate_error(value, max_length \\ 255) do

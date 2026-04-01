@@ -103,7 +103,7 @@ defmodule ElektrineWeb.FriendsLive do
     user_id = String.to_integer(user_id)
 
     message =
-      if socket.assigns.friend_request_message != "",
+      if Elektrine.Strings.present?(socket.assigns.friend_request_message),
         do: socket.assigns.friend_request_message,
         else: nil
 

@@ -325,7 +325,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   # Private functions
 
   defp poll_vote?(object) do
-    has_name = is_binary(object["name"]) && String.trim(object["name"]) != ""
+    has_name = Elektrine.Strings.present?(object["name"])
     has_reply_to = object["inReplyTo"] != nil
     content = object["content"] || ""
     has_minimal_content = String.length(strip_html(content, object["tag"])) < 5
@@ -1299,7 +1299,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   defp hashtag_source_content(content, question)
        when is_binary(content) and is_binary(question) do
-    if String.trim(content) == "", do: question, else: content
+    if Elektrine.Strings.present?(content), do: content, else: question
   end
 
   defp maybe_enrich_sparse_object(%{"id" => id} = object) when is_binary(id) do
@@ -1344,7 +1344,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp merge_sparse_object_payload(base, _), do: base
 
   defp blank_object_value?(nil), do: true
-  defp blank_object_value?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank_object_value?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank_object_value?(value) when is_list(value), do: value == []
   defp blank_object_value?(value) when is_map(value), do: map_size(value) == 0
   defp blank_object_value?(_), do: false
@@ -1531,7 +1531,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       new_urls = urls ++ [url]
 
       new_alt_map =
-        if alt_text && String.trim(alt_text) != "" do
+        if Elektrine.Strings.present?(alt_text) do
           Map.put(alt_map, to_string(idx), String.trim(alt_text))
         else
           alt_map
@@ -1661,7 +1661,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     external_link = get_in(message.media_metadata || %{}, ["external_link"])
 
     content_urls =
-      if message.content && String.trim(message.content) != "" do
+      if Elektrine.Strings.present?(message.content) do
         Elektrine.Social.LinkPreviewFetcher.extract_urls(message.content)
       else
         []

@@ -170,7 +170,7 @@ defmodule Elektrine.ActivityPub.Builder do
     String.starts_with?(url, "http://") or String.starts_with?(url, "https://")
   end
 
-  defp present_text?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_text?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present_text?(_value), do: false
 
   defp absolutize_url(nil, _base_url), do: nil
@@ -353,8 +353,15 @@ defmodule Elektrine.ActivityPub.Builder do
 
     author_uri =
       case get_builder_opt(opts, :author_uri) do
-        value when is_binary(value) and value != "" ->
-          value
+        value when is_binary(value) ->
+          if Elektrine.Strings.present?(value) do
+            value
+          else
+            case post.sender do
+              %{username: _username} = author -> ActivityPub.actor_uri(author, base_url)
+              _ -> community_actor_url
+            end
+          end
 
         _ ->
           case post.sender do
@@ -407,7 +414,7 @@ defmodule Elektrine.ActivityPub.Builder do
   end
 
   defp format_html_content(content) when is_binary(content) do
-    if String.trim(content) == "" do
+    if not Elektrine.Strings.present?(content) do
       ""
     else
       content
@@ -496,7 +503,7 @@ defmodule Elektrine.ActivityPub.Builder do
         # Add alt text (name field) if available
         alt_text = Map.get(alt_texts, to_string(idx))
 
-        if alt_text && String.trim(alt_text) != "" do
+        if Elektrine.Strings.present?(alt_text) do
           Map.put(attachment, "name", alt_text)
         else
           attachment
@@ -579,7 +586,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
   # Add content warning as summary field (for sensitive content / spoiler text)
   defp maybe_add_content_warning(note, message) do
-    if message.content_warning && String.trim(message.content_warning) != "" do
+    if Elektrine.Strings.present?(message.content_warning) do
       Map.put(note, "summary", message.content_warning)
     else
       note
@@ -588,7 +595,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
   # Add title as name field (for titled posts like Article-style)
   defp maybe_add_title_as_name(note, message) do
-    if message.title && String.trim(message.title) != "" do
+    if Elektrine.Strings.present?(message.title) do
       Map.put(note, "name", message.title)
     else
       note
@@ -686,8 +693,15 @@ defmodule Elektrine.ActivityPub.Builder do
 
     author_uri =
       case get_builder_opt(opts, :author_uri) do
-        value when is_binary(value) and value != "" ->
-          value
+        value when is_binary(value) ->
+          if Elektrine.Strings.present?(value) do
+            value
+          else
+            case post.sender do
+              %{username: _username} = author -> ActivityPub.actor_uri(author, base_url)
+              _ -> community_actor_url
+            end
+          end
 
         _ ->
           case post.sender do
@@ -748,9 +762,12 @@ defmodule Elektrine.ActivityPub.Builder do
 
   defp build_community_in_reply_to(%Message{reply_to_id: reply_to_id}, community, base_url) do
     case Elektrine.Messaging.get_message(reply_to_id) do
-      %Message{activitypub_id: activitypub_id}
-      when is_binary(activitypub_id) and activitypub_id != "" ->
-        activitypub_id
+      %Message{activitypub_id: activitypub_id, id: parent_id} when is_binary(activitypub_id) ->
+        if Elektrine.Strings.present?(activitypub_id) do
+          activitypub_id
+        else
+          ActivityPub.community_post_uri(community.name, parent_id, base_url)
+        end
 
       %Message{id: parent_id} ->
         ActivityPub.community_post_uri(community.name, parent_id, base_url)
@@ -1127,7 +1144,7 @@ defmodule Elektrine.ActivityPub.Builder do
     }
 
     # Add content/reason if provided
-    if content && content != "" do
+    if Elektrine.Strings.present?(content) do
       Map.put(activity, "content", content)
     else
       activity
@@ -1166,15 +1183,16 @@ defmodule Elektrine.ActivityPub.Builder do
 
   defp normalize_audience(values) when is_list(values) do
     values
-    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.map(&Elektrine.Strings.present/1)
+    |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
   end
 
   defp normalize_audience(value) when is_binary(value) do
-    if String.trim(value) == "" do
-      []
-    else
+    if Elektrine.Strings.present?(value) do
       [value]
+    else
+      []
     end
   end
 
@@ -1185,7 +1203,8 @@ defmodule Elektrine.ActivityPub.Builder do
   defp maybe_put_list(map, key, values) when is_list(values) do
     normalized =
       values
-      |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+      |> Enum.map(&Elektrine.Strings.present/1)
+      |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
     if normalized == [] do

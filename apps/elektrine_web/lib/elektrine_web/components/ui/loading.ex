@@ -112,7 +112,7 @@ defmodule ElektrineWeb.Components.UI.Loading do
           <div class="skeleton h-32 w-full"></div>
         </div>
       <% "post" -> %>
-        <div class={["card bg-base-200 border border-base-300", @class]} {@rest}>
+        <div class={["card panel-card", @class]} {@rest}>
           <div class="card-body p-4 space-y-3">
             <!-- Header with avatar -->
             <div class="flex items-center gap-3">
@@ -211,7 +211,7 @@ defmodule ElektrineWeb.Components.UI.Loading do
     <div
       class={[
         "fixed inset-0 z-50 flex items-center justify-center",
-        "bg-base-100/80 backdrop-blur-sm",
+        "bg-base-200/80",
         @class
       ]}
       {@rest}

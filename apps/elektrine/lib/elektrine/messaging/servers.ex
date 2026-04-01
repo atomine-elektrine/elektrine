@@ -588,14 +588,19 @@ defmodule Elektrine.Messaging.Servers do
   defp remote_public_servers_url(peer, path, query_string) do
     query_suffix =
       case query_string do
-        value when is_binary(value) and value != "" -> "?" <> value
-        _ -> ""
+        value when is_binary(value) ->
+          if(Elektrine.Strings.present?(value), do: "?" <> value, else: "")
+
+        _ ->
+          ""
       end
 
     endpoint =
       case peer do
-        %{directory_endpoint: endpoint} when is_binary(endpoint) and endpoint != "" ->
-          String.trim_trailing(endpoint, "/")
+        %{directory_endpoint: endpoint} when is_binary(endpoint) ->
+          if Elektrine.Strings.present?(endpoint),
+            do: String.trim_trailing(endpoint, "/"),
+            else: peer.base_url <> path
 
         _ ->
           peer.base_url <> path
@@ -609,7 +614,9 @@ defmodule Elektrine.Messaging.Servers do
       {"limit", Integer.to_string(limit)},
       {"query", query}
     ]
-    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+    |> Enum.reject(fn {_key, value} ->
+      is_nil(value) or (is_binary(value) and not Elektrine.Strings.present?(value))
+    end)
     |> URI.encode_query()
   end
 
@@ -643,14 +650,8 @@ defmodule Elektrine.Messaging.Servers do
 
   defp value_from(_data, _key), do: nil
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    value
-    |> String.trim()
-    |> case do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_), do: nil
 

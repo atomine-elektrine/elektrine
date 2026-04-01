@@ -55,7 +55,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
 
     # Handle link URL changes - fetch preview if URL changed
     socket =
-      if link_url && link_url != "" && link_url != socket.assigns.link_url do
+      if Elektrine.Strings.present?(link_url) && link_url != socket.assigns.link_url do
         socket
         |> assign(:link_url, link_url)
         |> maybe_fetch_link_preview(link_url)
@@ -160,10 +160,10 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
   def handle_event("update_link_url", %{"link_url" => url}, socket) do
     # Only fetch title if URL is valid and title is empty
     updated_socket =
-      if String.trim(url) != "" && is_nil(socket.assigns.link_title) do
+      if Elektrine.Strings.present?(url) && is_nil(socket.assigns.link_title) do
         case Elektrine.Social.LinkPreviewFetcher.fetch_preview_metadata(url) do
           metadata when is_map(metadata) ->
-            if metadata[:title] && metadata[:title] != "" do
+            if Elektrine.Strings.present?(metadata[:title]) do
               socket
               |> assign(:link_url, url)
               |> assign(:link_title, metadata[:title])
@@ -549,7 +549,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
         Messaging.add_member_to_conversation(community.id, user_id, "member")
       end
 
-      if String.trim(content) == "" do
+      if not Elektrine.Strings.present?(content) do
         {:noreply, notify_error(socket, "Reply cannot be empty")}
       else
         case Messaging.create_text_message(
@@ -698,10 +698,10 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     trimmed_title = String.trim(title || "")
 
     cond do
-      trimmed_title == "" ->
+      not Elektrine.Strings.present?(trimmed_title) ->
         {:noreply, notify_error(socket, "Title is required")}
 
-      trimmed_content == "" ->
+      not Elektrine.Strings.present?(trimmed_content) ->
         {:noreply, notify_error(socket, "Content cannot be empty")}
 
       true ->
@@ -726,10 +726,10 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     link_url = String.trim(params["link_url"] || "")
 
     cond do
-      title == "" ->
+      not Elektrine.Strings.present?(title) ->
         {:noreply, notify_error(socket, "Title is required")}
 
-      link_url == "" ->
+      not Elektrine.Strings.present?(link_url) ->
         {:noreply, notify_error(socket, "Link URL is required")}
 
       !String.starts_with?(link_url, ["http://", "https://"]) ->
@@ -779,7 +779,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
     alt_texts = Map.get(socket.assigns, :pending_media_alt_texts, %{})
 
     cond do
-      title == "" ->
+      not Elektrine.Strings.present?(title) ->
         {:noreply, notify_error(socket, "Title is required")}
 
       Enum.empty?(media_urls) ->
@@ -838,13 +838,13 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
         key |> String.replace("poll_option_", "") |> String.to_integer()
       end)
       |> Enum.map(fn {_key, value} -> String.trim(value) end)
-      |> Enum.reject(&(&1 == ""))
+      |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
 
     cond do
-      title == "" ->
+      not Elektrine.Strings.present?(title) ->
         {:noreply, notify_error(socket, "Title is required")}
 
-      poll_question == "" ->
+      not Elektrine.Strings.present?(poll_question) ->
         {:noreply, notify_error(socket, "Poll question is required")}
 
       String.length(poll_question) < 3 ->
@@ -1268,7 +1268,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
          is_nil(socket.assigns.link_title) do
       case Elektrine.Social.LinkPreviewFetcher.fetch_preview_metadata(url) do
         metadata when is_map(metadata) ->
-          if metadata[:title] && metadata[:title] != "" do
+          if Elektrine.Strings.present?(metadata[:title]) do
             assign(socket, :link_title, metadata[:title])
           else
             socket

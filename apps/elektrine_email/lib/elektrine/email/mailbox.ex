@@ -124,7 +124,7 @@ defmodule Elektrine.Email.Mailbox do
   Returns true when mailbox private storage has been configured.
   """
   def private_storage_configured?(%__MODULE__{} = mailbox) do
-    is_binary(mailbox.private_storage_public_key) and mailbox.private_storage_public_key != "" and
+    Elektrine.Strings.present?(mailbox.private_storage_public_key) and
       is_map(mailbox.private_storage_wrapped_private_key) and
       is_map(mailbox.private_storage_verifier)
   end
@@ -257,10 +257,10 @@ defmodule Elektrine.Email.Mailbox do
     forward_to = get_field(changeset, :forward_to)
 
     cond do
-      forward_enabled && (is_nil(forward_to) || String.trim(forward_to) == "") ->
+      forward_enabled && not Elektrine.Strings.present?(forward_to) ->
         add_error(changeset, :forward_to, "enter a forwarding address")
 
-      forward_to && String.trim(forward_to) != "" ->
+      Elektrine.Strings.present?(forward_to) ->
         changeset
         |> validate_format(:forward_to, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
           message: "must be a valid email format"
@@ -299,7 +299,7 @@ defmodule Elektrine.Email.Mailbox do
     user_id = get_field(changeset, :user_id)
     forward_to = get_field(changeset, :forward_to)
 
-    if forward_to && String.trim(forward_to) != "" do
+    if Elektrine.Strings.present?(forward_to) do
       original_addresses = mailbox_addresses(username, user_id, email)
 
       case detect_mailbox_forwarding_loop(forward_to, original_addresses, [], 10) do
@@ -348,25 +348,32 @@ defmodule Elektrine.Email.Mailbox do
         # First check aliases
         case Elektrine.Email.Aliases.get_alias_by_email(target) do
           %Elektrine.Email.Alias{target_email: next_target, enabled: true}
-          when is_binary(next_target) and next_target != "" ->
-            # This target is an alias that forwards to another address
-            detect_mailbox_forwarding_loop(
-              next_target,
-              originals,
-              [target | visited],
-              depth - 1
-            )
+          when is_binary(next_target) ->
+            if Elektrine.Strings.present?(next_target) do
+              detect_mailbox_forwarding_loop(
+                next_target,
+                originals,
+                [target | visited],
+                depth - 1
+              )
+            else
+              :ok
+            end
 
           _ ->
             case Elektrine.Email.Mailboxes.get_mailbox_by_email(target) do
               %Elektrine.Email.Mailbox{forward_enabled: true, forward_to: next_target}
-              when is_binary(next_target) and next_target != "" ->
-                detect_mailbox_forwarding_loop(
-                  next_target,
-                  originals,
-                  [target | visited],
-                  depth - 1
-                )
+              when is_binary(next_target) ->
+                if Elektrine.Strings.present?(next_target) do
+                  detect_mailbox_forwarding_loop(
+                    next_target,
+                    originals,
+                    [target | visited],
+                    depth - 1
+                  )
+                else
+                  :ok
+                end
 
               _ ->
                 :safe

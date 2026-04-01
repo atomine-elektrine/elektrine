@@ -8,8 +8,7 @@
       <!-- Available Servers Card -->
       <div
         id="vpn-servers-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box"
+        class="card panel-card rounded-box"
       >
         <div class="card-body p-3">
           <h3 class="font-semibold text-sm mb-3">
@@ -95,8 +94,7 @@
 
       <div
         id="vpn-info-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box mt-3"
+        class="card panel-card rounded-box mt-3"
       >
         <div class="card-body p-4">
           <div class="flex-1 min-w-0">
@@ -120,8 +118,7 @@
 <!-- How to Use Section -->
       <div
         id="vpn-instructions-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box mt-3"
+        class="card panel-card rounded-box mt-3"
       >
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
@@ -159,8 +156,7 @@
     <div class="order-1 lg:order-2 flex-1 min-w-0">
       <div
         id="vpn-configs-card"
-        phx-hook="GlassCard"
-        class="card glass-card shadow-lg rounded-box"
+        class="card panel-card rounded-box"
       >
         <div class="card-body p-3 sm:p-6">
           <!-- Header -->
@@ -374,7 +370,7 @@
 <!-- QR Code Modal -->
 <%= if @show_qr_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card">
+    <div class="modal-box modal-surface">
       <h3 class="font-bold text-lg mb-4">
         {gettext("QR Code - %{name}", name: @qr_config_name)}
       </h3>

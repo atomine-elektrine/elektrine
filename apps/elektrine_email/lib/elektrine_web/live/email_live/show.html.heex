@@ -20,7 +20,7 @@
     
 <!-- Main content -->
     <div class="order-1 lg:order-2 flex-1 min-w-0 overflow-visible">
-      <div id="show-email-card" phx-hook="GlassCard" class="card glass-card shadow-lg rounded-lg">
+      <div id="show-email-card" class="card panel-card rounded-lg">
         <div
           id="private-mailbox-show-content"
           class="card-body p-3 sm:p-6"
@@ -236,7 +236,7 @@
                     {gettext("From")}
                   </span>
                 </div>
-                <p class="text-sm font-medium bg-base-100/80 p-2.5 rounded-lg border border-base-300 break-all">
+                <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
                   {format_email_display(@message.from)}
                 </p>
               </div>
@@ -248,7 +248,7 @@
                     {gettext("To")}
                   </span>
                 </div>
-                <p class="text-sm font-medium bg-base-100/80 p-2.5 rounded-lg border border-base-300 break-all">
+                <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
                   {format_email_display(@message.to)}
                 </p>
               </div>
@@ -261,7 +261,7 @@
                       {gettext("CC")}
                     </span>
                   </div>
-                  <p class="text-sm font-medium bg-base-100/80 p-2.5 rounded-lg border border-base-300 break-all">
+                  <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
                     {format_email_display(@message.cc)}
                   </p>
                 </div>
@@ -275,7 +275,7 @@
                       {gettext("BCC")}
                     </span>
                   </div>
-                  <p class="text-sm font-medium bg-base-100/80 p-2.5 rounded-lg border border-base-300 break-all">
+                  <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
                     {format_email_display(@message.bcc)}
                   </p>
                 </div>
@@ -629,7 +629,7 @@
 <!-- Reply Later Modal -->
 <%= if @show_reply_later_modal do %>
   <div class="modal modal-open">
-    <div class="modal-box card glass-card">
+    <div class="modal-box modal-surface">
       <h3 class="font-bold text-lg mb-4">{gettext("Schedule Reply Later")}</h3>
 
       <div class="mb-4 p-4 bg-base-200 rounded-lg">

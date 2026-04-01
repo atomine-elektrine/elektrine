@@ -304,12 +304,8 @@ defmodule Elektrine.Messaging.Federation.Peers do
   defp clamp_page(page, total_pages) when page > total_pages, do: total_pages
   defp clamp_page(page, _total_pages), do: page
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 end

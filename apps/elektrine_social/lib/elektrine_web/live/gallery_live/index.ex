@@ -1441,10 +1441,10 @@ defmodule ElektrineWeb.GalleryLive.Index do
     content = gallery_plain_text(post.content)
 
     cond do
-      title != "" ->
+      Elektrine.Strings.present?(title) ->
         title
 
-      content != "" ->
+      Elektrine.Strings.present?(content) ->
         String.slice(content, 0, 70)
 
       true ->

@@ -2,11 +2,13 @@ defmodule ElektrineWeb.HarakaWebhookController do
   use ElektrineEmailWeb, :controller
   require Logger
   alias Elektrine.Email.ForwardedMessage
+  alias Elektrine.EmailConfig
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.InboundRouting
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
+  alias Elektrine.InternalAPI
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   alias Elektrine.Webhook.RateLimiter, as: WebhookRateLimiter
@@ -368,7 +370,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
     to = get_header_value(params, "to", "rcpt_to")
     rcpt_to = params["rcpt_to"] || to
 
-    if is_binary(message_id) and String.trim(message_id) != "" do
+    if Elektrine.Strings.present?(message_id) do
       case InboundRouting.resolve_recipient_mailbox(to, rcpt_to) do
         {:ok, mailbox} ->
           query =
@@ -662,8 +664,13 @@ defmodule ElektrineWeb.HarakaWebhookController do
   defp maybe_send_spoofing_alert({:local_domain_spoofing, _reason}, params) do
     recipient =
       case params["rcpt_to"] |> extract_from_array() do
-        value when is_binary(value) and value != "" -> value
-        _ -> get_header_value(params, "to", "rcpt_to") || ""
+        value when is_binary(value) ->
+          if Elektrine.Strings.present?(value),
+            do: value,
+            else: get_header_value(params, "to", "rcpt_to") || ""
+
+        _ ->
+          get_header_value(params, "to", "rcpt_to") || ""
       end
 
     from = get_header_value(params, "from", "mail_from") || ""
@@ -789,16 +796,9 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
   defp authenticate(conn) do
     webhook_api_key =
-      ["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY", "INTERNAL_API_KEY"]
-      |> Enum.find_value(fn env_name ->
-        case System.get_env(env_name) do
-          nil -> nil
-          "" -> nil
-          value -> value
-        end
-      end) || Application.get_env(:elektrine, :internal_api_key)
+      InternalAPI.api_key(["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY"])
 
-    if is_nil(webhook_api_key) || webhook_api_key == "" do
+    if not Elektrine.Strings.present?(webhook_api_key) do
       Logger.error("SECURITY: Webhook authentication configuration error")
       {:error, :unauthorized}
     else
@@ -886,8 +886,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
     fallback = params[fallback_key]
 
     cond do
-      is_binary(primary) && String.trim(primary) != "" -> primary
-      is_binary(fallback) && String.trim(fallback) != "" -> fallback
+      Elektrine.Strings.present?(primary) -> primary
+      Elektrine.Strings.present?(fallback) -> fallback
       true -> nil
     end
   end
@@ -985,8 +985,8 @@ defmodule ElektrineWeb.HarakaWebhookController do
       end
 
     cond do
-      fallback == "" -> primary
-      primary == "" -> fallback
+      not Elektrine.Strings.present?(fallback) -> primary
+      not Elektrine.Strings.present?(primary) -> fallback
       decoded_text_quality_score(fallback) < decoded_text_quality_score(primary) -> fallback
       true -> primary
     end
@@ -1034,7 +1034,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
     has_auth_user =
       Enum.any?(user_keys, fn key ->
         value = params[key]
-        is_binary(value) && String.trim(value) != ""
+        Elektrine.Strings.present?(value)
       end)
 
     has_truthy_boolean or has_auth_user
@@ -1061,13 +1061,16 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp valid_internal_origin_signature?(params, from) do
-    with secret when is_binary(secret) and secret != "" <- internal_signing_secret(),
+    with secret when is_binary(secret) <- internal_signing_secret(),
+         true <- Elektrine.Strings.present?(secret),
          headers when is_map(headers) <- params["headers"] || %{},
          "internal" <- header_value(headers, ["x-elektrine-origin", "X-Elektrine-Origin"]),
-         ts when is_binary(ts) and ts != "" <-
+         ts when is_binary(ts) <-
            header_value(headers, ["x-elektrine-origin-ts", "X-Elektrine-Origin-Ts"]),
-         signature when is_binary(signature) and signature != "" <-
+         true <- Elektrine.Strings.present?(ts),
+         signature when is_binary(signature) <-
            header_value(headers, ["x-elektrine-origin-sig", "X-Elektrine-Origin-Sig"]),
+         true <- Elektrine.Strings.present?(signature),
          {timestamp, ""} <- Integer.parse(ts),
          true <- timestamp_fresh?(timestamp) do
       payload = internal_origin_payload(from, ts)
@@ -1079,8 +1082,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
   end
 
   defp internal_signing_secret do
-    System.get_env("HARAKA_INTERNAL_SIGNING_SECRET") ||
-      Application.get_env(:elektrine, :email, []) |> Keyword.get(:internal_signing_secret)
+    EmailConfig.internal_signing_secret()
   end
 
   defp header_value(headers, candidates) do
@@ -1160,7 +1162,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
       is_map(headers) &&
         Enum.any?(["feedback-type", "Feedback-Type", "x-feedback-id", "X-Feedback-Id"], fn key ->
           case headers[key] do
-            value when is_binary(value) and value != "" -> true
+            value when is_binary(value) -> Elektrine.Strings.present?(value)
             _ -> false
           end
         end)
@@ -1523,24 +1525,25 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
   defp synthetic_haraka_message_id?(_message_id), do: false
 
-  defp maybe_filter_by_envelope_rcpt(query, envelope_rcpt_to)
-       when is_binary(envelope_rcpt_to) and envelope_rcpt_to != "" do
-    import Ecto.Query, only: [where: 3]
+  defp maybe_filter_by_envelope_rcpt(query, envelope_rcpt_to) when is_binary(envelope_rcpt_to) do
+    if Elektrine.Strings.present?(envelope_rcpt_to) do
+      import Ecto.Query, only: [where: 3]
 
-    where(
-      query,
-      [m],
-      fragment(
-        "lower(coalesce(?->>'envelope_rcpt_to', '')) = lower(?)",
-        m.metadata,
-        ^envelope_rcpt_to
+      where(
+        query,
+        [m],
+        fragment(
+          "lower(coalesce(?->>'envelope_rcpt_to', '')) = lower(?)",
+          m.metadata,
+          ^envelope_rcpt_to
+        )
       )
-    )
+    else
+      query
+    end
   end
 
-  defp maybe_filter_by_envelope_rcpt(query, _) do
-    query
-  end
+  defp maybe_filter_by_envelope_rcpt(query, _), do: query
 
   defp record_forwarded_message_haraka(
          message_id,

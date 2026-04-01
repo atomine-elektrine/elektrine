@@ -3,6 +3,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
   User hover card component that shows profile details on hover.
   """
   use ElektrineWeb, :html
+  alias Elektrine.AccountIdentifiers
   import ElektrineWeb.Components.Social.FollowButton, only: [local_follow_button: 1]
   import ElektrineWeb.Components.User.Avatar
   import ElektrineWeb.Components.User.UsernameEffects
@@ -115,7 +116,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
             />
           </.link>
           <div class="text-sm opacity-60 truncate">
-            @{@user.handle || @user.username}@{Elektrine.Domains.default_user_handle_domain()}
+            {AccountIdentifiers.at_local_handle(@user)}
           </div>
         </div>
       </div>
@@ -206,7 +207,7 @@ defmodule ElektrineWeb.Components.User.HoverCard do
       </div>
       
     <!-- Bio -->
-      <%= if @remote_actor.summary && String.trim(strip_html(@remote_actor.summary)) != "" do %>
+      <%= if Elektrine.Strings.present?(strip_html(@remote_actor.summary || "")) do %>
         <p class="text-sm line-clamp-3">{strip_html(@remote_actor.summary)}</p>
       <% end %>
       
@@ -363,8 +364,11 @@ defmodule ElektrineWeb.Components.User.HoverCard do
 
   defp get_profile_description(user) do
     case user do
-      %{profile: %{description: desc}} when is_binary(desc) and desc != "" -> String.trim(desc)
-      _ -> nil
+      %{profile: %{description: desc}} when is_binary(desc) ->
+        Elektrine.Strings.present(desc)
+
+      _ ->
+        nil
     end
   end
 end

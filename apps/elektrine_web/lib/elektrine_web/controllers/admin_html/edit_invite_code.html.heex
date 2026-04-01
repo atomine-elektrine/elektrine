@@ -1,31 +1,32 @@
 <div class="space-y-6">
   <div class="flex flex-wrap items-center gap-3">
     <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost btn-sm">
-      <.icon name="hero-arrow-left" class="h-4 w-4" />
-      <span>Back to Invite Codes</span>
+      <.icon name="hero-arrow-left" class="h-4 w-4" /> <span>Back to Invite Codes</span>
     </.link>
     <div class="text-sm text-base-content/50">Invite Codes</div>
   </div>
 
-  <section class="card glass-card shadow-xl border border-base-300">
+  <section class="card panel-card">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
         Existing Invite
       </div>
+
       <h1 class="mt-1 text-3xl font-semibold tracking-tight">Edit Invite Code</h1>
+
       <p class="mt-3 max-w-2xl text-sm leading-6 text-base-content/70">
-        Adjust lifetime, usage ceiling, note, or active state without changing the code people
-        already received.
+        Adjust lifetime, usage ceiling, note, or active state without changing the code people already received.
       </p>
     </div>
   </section>
 
   <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-    <section class="card glass-card shadow-xl border border-base-300">
+    <section class="card panel-card">
       <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Settings
         </div>
+
         <h2 class="mt-1 text-xl font-semibold tracking-tight">Update Configuration</h2>
       </div>
 
@@ -46,8 +47,9 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Code
               </div>
+
               <div class="mt-3 flex items-center gap-2">
-                <code class="rounded-box border border-base-content/10 bg-base-100/80 px-3 py-2 font-mono text-sm font-semibold tracking-[0.2em] text-primary">
+                <code class="rounded-box border border-base-content/10 bg-base-200/70 px-3 py-2 font-mono text-sm font-semibold tracking-[0.2em] text-primary">
                   {@invite_code.code}
                 </code>
                 <button
@@ -58,6 +60,7 @@
                   Copy
                 </button>
               </div>
+
               <p class="mt-3 text-sm leading-6 text-base-content/60">
                 Code values are immutable after creation so existing recipients do not lose access.
               </p>
@@ -67,15 +70,17 @@
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                 Current Usage
               </div>
+
               <div class="mt-3 text-3xl font-semibold text-base-content">
                 {@invite_code.uses_count}
                 <span class="text-base text-base-content/50">/ {@invite_code.max_uses}</span>
               </div>
+
               <div class="mt-3">
                 <div class="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                  <span>Usage</span>
-                  <span>{invite_code_usage_percent(@invite_code)}%</span>
+                  <span>Usage</span> <span>{invite_code_usage_percent(@invite_code)}%</span>
                 </div>
+
                 <progress
                   class={["progress h-2 w-full", invite_code_progress_class(@invite_code)]}
                   value={@invite_code.uses_count}
@@ -134,6 +139,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Availability
             </div>
+
             <div class="mt-3">
               <.input
                 field={f[:is_active]}
@@ -142,6 +148,7 @@
                 checked={Ecto.Changeset.get_field(@changeset, :is_active, @invite_code.is_active)}
               />
             </div>
+
             <p class="mt-2 text-sm leading-6 text-base-content/60">
               Turning this off immediately blocks the code from future registrations.
             </p>
@@ -150,12 +157,9 @@
           <:actions>
             <div class="flex flex-col gap-3 border-t border-base-content/10 pt-4 sm:flex-row sm:items-center">
               <.button class="btn-primary">
-                <.icon name="hero-check" class="h-4 w-4" />
-                <span>Update Invite Code</span>
+                <.icon name="hero-check" class="h-4 w-4" /> <span>Update Invite Code</span>
               </.button>
-              <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost">
-                Cancel
-              </.link>
+              <.link href={~p"/pripyat/invite-codes"} class="btn btn-ghost"> Cancel </.link>
             </div>
           </:actions>
         </.simple_form>
@@ -163,11 +167,12 @@
     </section>
 
     <aside class="space-y-4">
-      <section class={["card glass-card shadow-xl border", invite_code_card_class(@invite_code)]}>
+      <section class={["card panel-card border", invite_code_card_class(@invite_code)]}>
         <div class="border-b border-base-content/10 px-5 py-5">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Current Status
           </div>
+
           <h2 class="mt-1 text-lg font-semibold tracking-tight">Invite Snapshot</h2>
         </div>
 
@@ -189,6 +194,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Created
             </div>
+
             <div class="mt-2 text-sm text-base-content/75">
               <.local_time
                 datetime={@invite_code.inserted_at}
@@ -203,6 +209,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Created By
             </div>
+
             <div class="mt-2 text-sm text-base-content/75">
               {if @invite_code.created_by, do: @invite_code.created_by.username, else: "System"}
             </div>
@@ -212,6 +219,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Expiration
             </div>
+
             <div class="mt-2 text-sm text-base-content/75">
               <%= if @invite_code.expires_at do %>
                 <.local_time
@@ -228,17 +236,19 @@
         </div>
       </section>
 
-      <section class="card glass-card shadow-xl border border-base-300">
+      <section class="card panel-card">
         <div class="border-b border-base-content/10 px-5 py-5">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Editing Rules
           </div>
+
           <h2 class="mt-1 text-lg font-semibold tracking-tight">What you can change</h2>
         </div>
 
         <div class="space-y-4 px-5 py-5">
           <div class="rounded-box border border-base-300 bg-base-200/60 p-4">
             <div class="text-sm font-medium text-base-content">Usage ceiling</div>
+
             <p class="mt-2 text-sm leading-6 text-base-content/65">
               You can raise the limit or keep it where it is, but not set it below existing usage.
             </p>
@@ -246,6 +256,7 @@
 
           <div class="rounded-box border border-base-300 bg-base-200/60 p-4">
             <div class="text-sm font-medium text-base-content">Expiration and activity</div>
+
             <p class="mt-2 text-sm leading-6 text-base-content/65">
               Use these controls to temporarily pause a code or retire it on a schedule.
             </p>
@@ -253,6 +264,7 @@
 
           <div class="rounded-box border border-base-300 bg-base-200/60 p-4">
             <div class="text-sm font-medium text-base-content">Identity of the code</div>
+
             <p class="mt-2 text-sm leading-6 text-base-content/65">
               The code string itself stays fixed after creation to avoid breaking links already sent.
             </p>

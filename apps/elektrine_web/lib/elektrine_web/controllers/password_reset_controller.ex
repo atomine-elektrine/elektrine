@@ -116,7 +116,7 @@ defmodule ElektrineWeb.PasswordResetController do
     captcha_answer =
       Map.get(password_reset_params, "captcha_answer") || Map.get(params, "captcha_answer")
 
-    if captcha_token && is_binary(captcha_answer) && String.trim(captcha_answer) != "" do
+    if captcha_token && Elektrine.Strings.present?(captcha_answer) do
       case Elektrine.Captcha.verify(captcha_token, captcha_answer) do
         :ok -> {:ok, :verified}
         error -> error

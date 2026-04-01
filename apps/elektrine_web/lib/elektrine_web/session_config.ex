@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.SessionConfig do
   @moduledoc false
 
+  alias Elektrine.RuntimeEnv
   alias ElektrineWeb.ClientIP
 
   def session_options(conn \\ nil) do
@@ -23,7 +24,7 @@ defmodule ElektrineWeb.SessionConfig do
   end
 
   def session_cookie_key do
-    if Application.get_env(:elektrine, :environment) == :prod do
+    if RuntimeEnv.environment() == :prod do
       "_elektrine_host"
     else
       "_elektrine_key"
@@ -41,11 +42,11 @@ defmodule ElektrineWeb.SessionConfig do
   def secure_cookies?(conn \\ nil)
 
   def secure_cookies?(conn) when not is_nil(conn) do
-    case System.get_env("SESSION_COOKIE_SECURE") do
-      "true" ->
+    case RuntimeEnv.optional_boolean("SESSION_COOKIE_SECURE") do
+      true ->
         true
 
-      "false" ->
+      false ->
         false
 
       _ ->
@@ -54,17 +55,16 @@ defmodule ElektrineWeb.SessionConfig do
   end
 
   def secure_cookies?(nil) do
-    case System.get_env("SESSION_COOKIE_SECURE") do
-      "true" ->
+    case RuntimeEnv.optional_boolean("SESSION_COOKIE_SECURE") do
+      true ->
         true
 
-      "false" ->
+      false ->
         false
 
       _ ->
-        Application.get_env(:elektrine, :enforce_https, false) or
-          Application.get_env(:elektrine, :environment) == :prod or
-          System.get_env("FORCE_SSL") == "true"
+        RuntimeEnv.enforce_https?() or RuntimeEnv.environment() == :prod or
+          RuntimeEnv.truthy?("FORCE_SSL")
     end
   end
 
@@ -81,7 +81,7 @@ defmodule ElektrineWeb.SessionConfig do
           _ -> "dev_signing_salt"
         end
 
-      Application.get_env(:elektrine, :environment) == :prod ->
+      RuntimeEnv.environment() == :prod ->
         "chat_auth_signing_salt"
 
       true ->
@@ -98,7 +98,7 @@ defmodule ElektrineWeb.SessionConfig do
           _ -> "dev_encryption_salt"
         end
 
-      Application.get_env(:elektrine, :environment) == :prod ->
+      RuntimeEnv.environment() == :prod ->
         nil
 
       true ->

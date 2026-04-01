@@ -79,7 +79,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
   end
 
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
-    if String.trim(remote_handle) == "" do
+    if not Elektrine.Strings.present?(remote_handle) do
       {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
     else
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)

@@ -32,7 +32,7 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
           {local_message_id, "message_id",
            [Integer.to_string(local_message_id), local_message_id]}
 
-        is_binary(reply_id) and reply_id != "" ->
+        Elektrine.Strings.present?(reply_id) ->
           {reply_id, "post_id", [reply_id]}
 
         true ->
@@ -77,7 +77,7 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
     do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
 
   def ancestor_role_badge_class(_),
-    do: "badge-ghost border-base-300/70 bg-base-100/80 text-base-content/80"
+    do: "badge-ghost border-base-300/70 bg-base-200/70 text-base-content/80"
 
   def extract_username_from_uri(uri) when is_binary(uri) do
     cond do
@@ -159,10 +159,10 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
     acct_label =
       cond do
-        is_binary(username) && username != "" && is_binary(domain) && domain != "" ->
+        Elektrine.Strings.present?(username) && Elektrine.Strings.present?(domain) ->
           "@#{username}@#{domain}"
 
-        is_binary(username) && username != "" ->
+        Elektrine.Strings.present?(username) ->
           "@#{username}"
 
         true ->
@@ -487,12 +487,13 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   defp reactions_for_keys(_, _), do: []
 
-  defp actor_profile_path(username, domain)
-       when is_binary(username) and username != "" and is_binary(domain) and domain != "" do
-    ActorPaths.profile_path(username, domain)
+  defp actor_profile_path(username, domain) do
+    if Elektrine.Strings.present?(username) and Elektrine.Strings.present?(domain) do
+      ActorPaths.profile_path(username, domain)
+    else
+      nil
+    end
   end
-
-  defp actor_profile_path(_, _), do: nil
 
   defp parse_acct_parts(acct) when is_binary(acct) do
     cleaned =
@@ -626,7 +627,7 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   defp normalize_in_reply_to_ref(ref) when is_binary(ref) do
     trimmed = String.trim(ref)
-    if trimmed == "", do: nil, else: trimmed
+    Elektrine.Strings.present(trimmed)
   end
 
   defp normalize_in_reply_to_ref(_), do: nil

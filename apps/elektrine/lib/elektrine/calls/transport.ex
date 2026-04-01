@@ -41,10 +41,10 @@ defmodule Elektrine.Calls.Transport do
     token_secret = Keyword.get(config, :sfu_token_secret)
 
     cond do
-      !is_binary(endpoint) or String.trim(endpoint) == "" ->
+      not Elektrine.Strings.present?(endpoint) ->
         nil
 
-      !is_binary(token_secret) or String.trim(token_secret) == "" ->
+      not Elektrine.Strings.present?(token_secret) ->
         %{"endpoint" => endpoint}
 
       true ->

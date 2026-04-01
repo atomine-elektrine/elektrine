@@ -28,7 +28,7 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.ReplyOperations do
         !community.is_public && !member?(community.id, user_id) ->
           {:noreply, notify_error(socket, "You must be a member of this community to reply")}
 
-        String.trim(content) == "" ->
+        not Elektrine.Strings.present?(content) ->
           {:noreply, notify_error(socket, "Reply cannot be empty")}
 
         true ->
@@ -95,7 +95,7 @@ defmodule ElektrineWeb.DiscussionsLive.PostOperations.ReplyOperations do
         !community.is_public && !member?(community.id, user_id) ->
           {:noreply, notify_error(socket, "You must be a member of this community to reply")}
 
-        String.trim(content) == "" ->
+        not Elektrine.Strings.present?(content) ->
           {:noreply, notify_error(socket, "Reply cannot be empty")}
 
         true ->

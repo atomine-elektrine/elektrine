@@ -1,959 +1,169 @@
-/* ==========================================================================
-   COMPONENTS - Buttons, Inputs, Cards, Navbar, etc.
-   ========================================================================== */
-
-/* --------------------------------------------------------------------------
-   BUTTONS - Glass-inspired design
-   -------------------------------------------------------------------------- */
-
-.btn {
-  --btn-tint: rgba(148, 163, 184, 0.14);
-  --btn-border: rgba(148, 163, 184, 0.34);
-  --btn-glow: rgba(148, 163, 184, 0.22);
-  --btn-text: oklch(var(--bc) / 0.95);
-  transition: all 0.2s ease;
-  border: 1px solid var(--btn-border);
-  background:
-    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.08) 45%, rgba(0, 0, 0, 0) 100%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.9));
-  color: var(--btn-text);
-  box-shadow:
-    0 12px 28px -22px rgba(0, 0, 0, 0.92),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(8px) saturate(1.08);
-  -webkit-backdrop-filter: blur(8px) saturate(1.08);
-  font-weight: 500;
-}
-
-.btn:hover {
-  transform: translateY(-1px);
-  border-color: var(--btn-border);
-  box-shadow:
-    0 16px 34px -24px rgba(0, 0, 0, 0.94),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 24px -16px var(--btn-glow);
-}
-
-
-.btn:active {
-  transform: translateY(0);
-  box-shadow:
-    0 8px 20px -18px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.btn:focus-visible {
-  outline: 2px solid rgba(168, 85, 247, 0.6) !important;
-  outline-offset: 2px !important;
-}
-
-.btn:disabled,
-.btn.btn-disabled {
-  @apply opacity-40 cursor-not-allowed;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-/* Shared icon behavior for consistent look across pages.
-   Explicit text-* / opacity-* icon classes keep full control. */
-.ui-icon {
-  color: currentColor;
-  vertical-align: middle;
-  transition: color 0.15s ease, opacity 0.15s ease;
-}
-
-.btn .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+/* ========================================================================== COMPONENTS - Buttons, Inputs, Cards, Navbar, etc. ========================================================================== */ /* Shared icon behavior for consistent look across pages. Explicit text-* / opacity-* icon classes keep full control. */
+.ui-icon { color: currentColor; vertical-align: middle; transition: color 0.15s ease, opacity 0.15s ease;
+} /* -------------------------------------------------------------------------- BUTTONS -------------------------------------------------------------------------- */ .btn { transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+} .btn-primary,
+.btn-secondary,
+.btn-accent,
+.btn-info,
+.btn-success,
+.btn-warning,
+.btn-error { box-shadow: none;
+} .btn-primary { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-primary) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-primary) 45%); color: var(--color-primary-content);
+} .btn-primary:hover,
+.btn-primary:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-primary) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-primary) 60%);
+} .btn-secondary { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-secondary) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-secondary) 45%); color: var(--color-secondary-content);
+} .btn-secondary:hover,
+.btn-secondary:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-secondary) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-secondary) 60%);
+} .btn-accent { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-accent) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-accent) 45%); color: var(--color-accent-content);
+} .btn-accent:hover,
+.btn-accent:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-accent) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-accent) 60%);
+} .btn-info { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-info) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-info) 45%); color: var(--color-info-content);
+} .btn-info:hover,
+.btn-info:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-info) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-info) 60%);
+} .btn-success { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-success) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-success) 45%); color: var(--color-success-content);
+} .btn-success:hover,
+.btn-success:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-success) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-success) 60%);
+} .btn-warning { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-warning) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-warning) 45%); color: var(--color-warning-content);
+} .btn-warning:hover,
+.btn-warning:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-warning) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-warning) 60%);
+} .btn-error { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-error) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-error) 45%); color: var(--color-error-content);
+} .btn-error:hover,
+.btn-error:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-error) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-error) 60%);
+} .btn-ghost { border-color: transparent; color: color-mix(in srgb, var(--color-base-content) 88%, #9fb2c9 12%);
+} .btn-ghost:hover,
+.btn-ghost:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 84%, #293441 16%); color: var(--color-base-content);
+} .btn-outline { border-color: color-mix(in srgb, var(--color-base-300) 84%, #889caf 16%); background-color: color-mix(in srgb, var(--color-base-200) 92%, #1d2731 8%);
+} .btn-outline:hover,
+.btn-outline:focus-visible { border-color: color-mix(in srgb, var(--color-base-300) 74%, #93a8bd 26%); background-color: color-mix(in srgb, var(--color-base-300) 84%, #283442 16%); color: var(--color-base-content);
+} .btn-soft,
+.btn-neutral { background-color: color-mix(in srgb, var(--color-base-300) 90%, #273340 10%); border-color: color-mix(in srgb, var(--color-base-300) 82%, #8a9fb5 18%); color: var(--color-base-content);
+} .btn-soft:hover,
+.btn-neutral:hover { background-color: color-mix(in srgb, var(--color-base-300) 78%, #31404f 22%); border-color: color-mix(in srgb, var(--color-base-300) 74%, #94a8bf 26%);
+} .btn:disabled,
+.btn.btn-disabled { opacity: 0.45;
+} .btn .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .menu a .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .menu button .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .navbar a .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
-.navbar [role="button"] .ui-icon:not([class*="text-"]):not([class*="opacity-"]) {
-  opacity: 0.88;
-}
-
-.btn:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
+.navbar [role="button"] .ui-icon:not([class*="text-"]):not([class*="opacity-"]) { opacity: 0.88;
+} .btn:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .btn:focus-visible .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .menu a:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .menu button:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
 .navbar a:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
-.navbar [role="button"]:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]) {
-  opacity: 1;
-}
-
-/* Primary - violet tint */
-.btn-primary {
-  --btn-tint: rgba(168, 85, 247, 0.22);
-  --btn-border: rgba(168, 85, 247, 0.46);
-  --btn-glow: rgba(168, 85, 247, 0.4);
-  --btn-text: rgba(250, 245, 255, 0.98);
-}
-
-.btn-primary:hover {
-  --btn-tint: rgba(168, 85, 247, 0.3);
-  --btn-border: rgba(168, 85, 247, 0.6);
-}
-
-/* Secondary - warm red tint */
-.btn-secondary {
-  --btn-tint: rgba(239, 68, 68, 0.2);
-  --btn-border: rgba(239, 68, 68, 0.42);
-  --btn-glow: rgba(239, 68, 68, 0.34);
-  --btn-text: rgba(255, 237, 237, 0.98);
-}
-
-.btn-secondary:hover {
-  --btn-tint: rgba(239, 68, 68, 0.28);
-  --btn-border: rgba(239, 68, 68, 0.56);
-}
-
-/* Neutral + active */
-.btn-neutral,
-.btn-active {
-  --btn-tint: rgba(148, 163, 184, 0.2);
-  --btn-border: rgba(148, 163, 184, 0.44);
-  --btn-glow: rgba(148, 163, 184, 0.3);
-  --btn-text: rgba(241, 245, 249, 0.96);
-}
-
-.btn-neutral:hover,
-.btn-active:hover {
-  --btn-tint: rgba(148, 163, 184, 0.28);
-  --btn-border: rgba(148, 163, 184, 0.58);
-}
-
-/* Ghost - subtle but always visible glass effect */
-.btn-ghost {
-  background:
-    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.04) 50%, rgba(0, 0, 0, 0) 100%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.74), oklch(var(--b2) / 0.58));
-  border-color: var(--btn-border);
-  box-shadow:
-    0 8px 20px -20px rgba(0, 0, 0, 0.92),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(6px) saturate(1.04);
-  -webkit-backdrop-filter: blur(6px) saturate(1.04);
-  color: var(--btn-text);
-}
-
-.btn-ghost:hover {
-  background:
-    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.08) 55%, rgba(0, 0, 0, 0) 100%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.88), oklch(var(--b2) / 0.68));
-  border-color: var(--btn-border);
-  color: var(--btn-text);
-  box-shadow:
-    0 12px 26px -22px rgba(0, 0, 0, 0.94),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 0 18px -14px var(--btn-glow);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.notification-bell-btn {
-  --btn-glow: transparent;
-}
-
-.notification-bell-btn .ui-icon,
-.notification-bell-btn:hover .ui-icon,
-.notification-bell-btn:focus-visible .ui-icon {
-  text-shadow: none;
-  filter: none;
-}
-
-/* Ghost with orange active state (for filters) */
-.btn-ghost.bg-orange-500\/20,
-.btn-ghost.bg-orange-500\/10 {
-  background: rgba(249, 115, 22, 0.2) !important;
-  border-color: rgba(249, 115, 22, 0.3);
-  color: rgb(249, 115, 22) !important;
-  box-shadow: 0 2px 12px rgba(249, 115, 22, 0.2);
-}
-
-.btn-ghost.bg-orange-500\/20:hover,
-.btn-ghost.bg-orange-500\/10:hover {
-  background: rgba(249, 115, 22, 0.25) !important;
-  border-color: rgba(249, 115, 22, 0.4);
-  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
-}
-
-/* Ghost with orange hover state (for inactive filters) */
-.btn-ghost.hover\:bg-orange-500\/10:hover {
-  background: rgba(249, 115, 22, 0.1) !important;
-  border-color: rgba(249, 115, 22, 0.2);
-  color: rgb(249, 115, 22) !important;
-  box-shadow: 0 2px 12px rgba(249, 115, 22, 0.15);
-}
-
-/* Outline - glass border */
-.btn-outline {
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.24), rgba(15, 23, 42, 0.08));
-  border-color: var(--btn-border);
-  color: var(--btn-text);
-  box-shadow:
-    0 8px 24px -20px rgba(0, 0, 0, 0.92),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.btn-outline:hover {
-  background:
-    linear-gradient(135deg, var(--btn-tint), rgba(15, 23, 42, 0.08) 55%, rgba(0, 0, 0, 0) 100%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.88));
-  box-shadow:
-    0 14px 30px -22px rgba(0, 0, 0, 0.92),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 0 24px -16px var(--btn-glow);
-}
-
-/* Success */
-.btn-success {
-  --btn-tint: rgba(34, 197, 94, 0.18);
-  --btn-border: rgba(34, 197, 94, 0.42);
-  --btn-glow: rgba(34, 197, 94, 0.34);
-  --btn-text: rgba(220, 252, 231, 0.98);
-}
-
-.btn-success:hover {
-  --btn-tint: rgba(34, 197, 94, 0.26);
-  --btn-border: rgba(34, 197, 94, 0.56);
-}
-
-/* Error */
-.btn-error {
-  --btn-tint: rgba(239, 68, 68, 0.22);
-  --btn-border: rgba(239, 68, 68, 0.46);
-  --btn-glow: rgba(239, 68, 68, 0.38);
-  --btn-text: rgba(254, 226, 226, 0.98);
-}
-
-.btn-error:hover {
-  --btn-tint: rgba(239, 68, 68, 0.3);
-  --btn-border: rgba(239, 68, 68, 0.6);
-}
-
-/* Warning */
-.btn-warning {
-  --btn-tint: rgba(245, 158, 11, 0.2);
-  --btn-border: rgba(245, 158, 11, 0.46);
-  --btn-glow: rgba(245, 158, 11, 0.34);
-  --btn-text: rgba(255, 237, 213, 0.98);
-}
-
-.btn-warning:hover {
-  --btn-tint: rgba(245, 158, 11, 0.28);
-  --btn-border: rgba(245, 158, 11, 0.62);
-}
-
-/* Info */
-.btn-info {
-  --btn-tint: rgba(59, 130, 246, 0.22);
-  --btn-border: rgba(59, 130, 246, 0.46);
-  --btn-glow: rgba(59, 130, 246, 0.38);
-  --btn-text: rgba(219, 234, 254, 0.98);
-}
-
-.btn-info:hover {
-  --btn-tint: rgba(59, 130, 246, 0.3);
-  --btn-border: rgba(59, 130, 246, 0.62);
-}
-
-/* Circle button */
-.btn-circle:hover {
-  border-radius: 9999px !important;
-}
-
-/* Small buttons - refined */
-.btn-sm {
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-/* Extra small buttons */
-.btn-xs {
-  backdrop-filter: none;
-  border: none;
-}
-
-.btn-xs:hover {
-  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.2);
-}
-
-/* --------------------------------------------------------------------------
-   MOBILE TOUCH TARGETS - Minimum 44x44px for accessibility
-   -------------------------------------------------------------------------- */
-
-@media (max-width: 640px) {
-  /* Increase touch targets on mobile */
-  .btn-xs {
-    min-height: 2.5rem;
-    min-width: 2.5rem;
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-  
-  .btn-sm {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
-  }
-  
-  /* Filter pills on mobile */
-  .filter-pill {
-    min-height: 2.75rem;
-    padding: 0.5rem 1rem;
-  }
-  
-  /* Dropdown items */
-  .dropdown-content li button,
-  .dropdown-content li a,
-  .menu li button,
-  .menu li a {
-    min-height: 2.75rem;
-    padding: 0.75rem 1rem;
-  }
-}
-
-/* Loading state */
-.btn-loading {
-  pointer-events: none;
-  opacity: 0.7;
-}
-
-.btn-loading .btn-text {
-  visibility: hidden;
-}
-
-.btn-loading .btn-spinner {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
-/* --------------------------------------------------------------------------
-   INPUTS & FORMS
-   -------------------------------------------------------------------------- */
-
-.input,
+.navbar [role="button"]:hover .ui-icon:not([class*="text-"]):not([class*="opacity-"]) { opacity: 1;
+} /* Primary - violet tint */ /* -------------------------------------------------------------------------- MOBILE TOUCH TARGETS - Minimum 44x44px for accessibility -------------------------------------------------------------------------- */ @media (max-width: 640px) { /* Increase touch targets on mobile */ .btn-xs { min-height: 2.5rem; min-width: 2.5rem; padding-left: 0.75rem; padding-right: 0.75rem; } .btn-sm { min-height: 2.75rem; min-width: 2.75rem; } /* Filter pills on mobile */ .filter-pill { min-height: 2.75rem; padding: 0.5rem 1rem; } /* Dropdown items */ .dropdown-content li button, .dropdown-content li a, .menu li button, .menu li a { min-height: 2.75rem; padding: 0.75rem 1rem; }
+} /* Loading state */
+.btn-loading { pointer-events: none; opacity: 0.7;
+} .btn-loading .btn-text { visibility: hidden;
+} .btn-loading .btn-spinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+} /* -------------------------------------------------------------------------- INPUTS & FORMS -------------------------------------------------------------------------- */ .input,
 .textarea,
-.select {
-  border: 1px solid #2f3336 !important;
-}
-
-.input:focus,
+.select { border: 1px solid color-mix(in srgb, var(--color-base-300) 72%, white 28%) !important; background-color: color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-100) 22%) !important; color: var(--color-base-content) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+} .input:focus,
 .textarea:focus,
-.select:focus {
-  outline: 2px solid rgba(168, 85, 247, 0.5) !important;
-  outline-offset: 2px !important;
-  border-color: rgba(168, 85, 247, 0.6) !important;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3), 0 0 6px rgba(168, 85, 247, 0.2) !important;
-}
-
-.input-bordered:focus,
+.select:focus { outline: 2px solid rgba(138, 124, 194, 0.28) !important; outline-offset: 2px !important; border-color: rgba(138, 124, 194, 0.42) !important; box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.12) !important;
+} .input-bordered:focus,
 .input-bordered:focus-within,
 .input-ghost:focus,
-.input-ghost:focus-within {
-  outline: 2px solid rgba(168, 85, 247, 0.5) !important;
-  border-color: rgba(168, 85, 247, 0.6) !important;
-}
-
-.checkbox:focus,
+.input-ghost:focus-within { outline: 2px solid rgba(138, 124, 194, 0.28) !important; border-color: rgba(138, 124, 194, 0.42) !important;
+} .checkbox:focus,
 .radio:focus,
-.toggle:focus {
-  outline: 2px solid rgba(168, 85, 247, 0.5) !important;
-  outline-offset: 2px !important;
-}
-
-
-/* Icon visibility fix */
+.toggle:focus { outline: 2px solid rgba(138, 124, 194, 0.5) !important; outline-offset: 2px !important;
+} .input:hover,
+.textarea:hover,
+.select:hover { border-color: color-mix(in srgb, var(--color-base-300) 55%, white 45%) !important;
+} .input::placeholder,
+.textarea::placeholder { color: color-mix(in srgb, var(--color-base-content) 48%, transparent 52%) !important;
+} .select option { background-color: var(--color-base-200); color: var(--color-base-content);
+} /* Icon visibility fix */
 .input:focus ~ .icon,
 .input:focus-within ~ .icon,
 .relative .input:focus ~ [class*="icon"],
-.relative .input:focus ~ svg {
-  opacity: 1 !important;
-  visibility: visible !important;
-  display: flex !important;
-}
-
-.relative .absolute {
-  z-index: 10;
-}
-
-.input {
-  position: relative;
-  z-index: 1;
-}
-
-/* --------------------------------------------------------------------------
-   SURFACES
-   -------------------------------------------------------------------------- */
-
-.surface-panel,
-.card,
-.glass-card,
-.social-page-card {
-  border: 1px solid transparent;
-  border-color: var(--surface-panel-border);
-  background-color: #080808 !important;
-  background-image: none !important;
-  box-shadow: var(--surface-panel-shadow);
-}
-
-/* --------------------------------------------------------------------------
-   CARDS
-   -------------------------------------------------------------------------- */
-
-.card {
-  transition: all 0.3s ease;
-}
-
-.panel-card {
-  border-color: var(--color-base-300);
-}
-
-.glass-card {
-  position: relative;
-  isolation: isolate;
-  transform: translateZ(0);
-}
-
-.glass-card.sticky {
-  contain: none;
-}
-
-.glass-card > .card-body {
-  position: relative;
-  z-index: 1;
-}
-
-.card:hover {
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.15), 0 0 10px rgba(255, 165, 0, 0.08);
-}
-
-/* Glass card variant for stronger effect */
-.card-glass {
-  --surface-panel-bg-fallback: var(--color-base-100);
-  --surface-panel-bg: oklch(var(--b1));
-  --surface-panel-bg-no-blur: var(--color-base-100);
-  --surface-panel-border: var(--color-base-300);
-  --surface-panel-shadow: 0 18px 44px -28px rgba(0, 0, 0, 0.82);
-}
-
-.card-interactive:focus-visible,
-[data-post-id]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px oklch(var(--p));
-}
-
-/* --------------------------------------------------------------------------
-   ALERTS & FLASH MESSAGES
-   -------------------------------------------------------------------------- */
-
-.alert {
-  --alert-tint: rgba(148, 163, 184, 0.14);
-  --alert-border: rgba(148, 163, 184, 0.38);
-  --alert-icon: rgba(226, 232, 240, 0.92);
-  border-radius: 0.875rem;
-  border: 1px solid var(--alert-border);
-  background:
-    linear-gradient(135deg, var(--alert-tint), rgba(15, 23, 42, 0.08) 45%, rgba(0, 0, 0, 0) 100%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.92));
-  color: oklch(var(--bc) / 0.95);
-  box-shadow:
-    0 14px 32px -24px rgba(0, 0, 0, 0.95),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px) saturate(1.08);
-  -webkit-backdrop-filter: blur(10px) saturate(1.08);
-}
-
-.alert > svg {
-  color: var(--alert-icon);
-  margin-top: 0.1rem;
-  flex-shrink: 0;
-}
-
-.alert a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.alert-info {
-  --alert-tint: rgba(59, 130, 246, 0.2);
-  --alert-border: rgba(59, 130, 246, 0.42);
-  --alert-icon: rgba(147, 197, 253, 0.95);
-}
-
-.alert-success {
-  --alert-tint: rgba(34, 197, 94, 0.18);
-  --alert-border: rgba(34, 197, 94, 0.42);
-  --alert-icon: rgba(134, 239, 172, 0.95);
-}
-
-.alert-warning {
-  --alert-tint: rgba(245, 158, 11, 0.2);
-  --alert-border: rgba(245, 158, 11, 0.46);
-  --alert-icon: rgba(252, 211, 77, 0.95);
-}
-
-.alert-error {
-  --alert-tint: rgba(239, 68, 68, 0.2);
-  --alert-border: rgba(239, 68, 68, 0.42);
-  --alert-icon: rgba(252, 165, 165, 0.95);
-}
-
-#flash-group {
-  perspective: 1000px;
-}
-
-.alert.app-flash {
-  --flash-accent: rgba(168, 85, 247, 0.88);
-  --flash-accent-soft: rgba(168, 85, 247, 0.25);
-  --flash-tint-start: rgba(168, 85, 247, 0.16);
-  --flash-tint-mid: rgba(168, 85, 247, 0.06);
-  --flash-border: rgba(168, 85, 247, 0.45);
-  --flash-icon: rgba(168, 85, 247, 0.96);
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  align-items: flex-start;
-  gap: 0.75rem;
-  border-radius: 0.875rem;
-  border: 1px solid var(--flash-border);
-  background:
-    linear-gradient(140deg, var(--flash-tint-start), var(--flash-tint-mid) 34%, rgba(0, 0, 0, 0) 70%),
-    linear-gradient(135deg, oklch(var(--b1) / 0.98), oklch(var(--b2) / 0.96));
-  color: oklch(var(--bc));
-  box-shadow:
-    0 18px 45px -26px rgba(0, 0, 0, 0.9),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 0 30px -18px var(--flash-accent);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  transform-origin: top right;
-  will-change: transform, opacity, filter;
-  animation: app-flash-enter 320ms cubic-bezier(0.19, 0.9, 0.24, 1);
-  background-color: oklch(var(--b1));
-}
-
-.alert.app-flash::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    120deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.025) 35%,
-    rgba(255, 255, 255, 0) 62%
-  );
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-.alert.app-flash::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 3px;
-  transform-origin: left center;
-  background: linear-gradient(90deg, var(--flash-accent), rgba(255, 255, 255, 0.5));
-  animation: app-flash-progress var(--flash-auto-dismiss, 5000ms) linear forwards;
-  opacity: 0.85;
-}
-
-.alert.app-flash:hover::after,
-.alert.app-flash:focus-within::after {
-  animation-play-state: paused;
-}
-
-.app-flash > svg {
-  margin-top: 0.1rem;
-  color: var(--flash-icon);
-}
-
-.app-flash__dismiss {
-  color: oklch(var(--bc) / 0.7);
-}
-
-.app-flash__dismiss:hover,
-.app-flash__dismiss:focus-visible {
-  color: oklch(var(--bc));
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.alert.app-flash.is-dismissing {
-  animation: app-flash-exit var(--flash-exit, 260ms) cubic-bezier(0.35, 0.05, 0.68, 0.17) forwards;
-  pointer-events: none;
-}
-
-@keyframes app-flash-enter {
-  from {
-    opacity: 0;
-    transform: translate3d(18px, -10px, 0) scale(0.97) rotateX(-8deg);
-    filter: blur(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1) rotateX(0deg);
-    filter: blur(0);
-  }
-}
-
-@keyframes app-flash-exit {
-  from {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-    filter: blur(0);
-  }
-  to {
-    opacity: 0;
-    transform: translate3d(24px, -4px, 0) scale(0.95);
-    filter: blur(3px);
-  }
-}
-
-@keyframes app-flash-progress {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
-}
-
-.flash-message {
-  position: fixed !important;
-  right: 1rem !important;
-  width: 20rem !important;
-  max-width: calc(100vw - 2rem) !important;
-  z-index: 9999 !important;
-  pointer-events: auto !important;
-  animation: flash-slide-in 0.3s ease-out;
-}
-
-@keyframes flash-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(1rem);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* --------------------------------------------------------------------------
-   NAVBAR
-   -------------------------------------------------------------------------- */
-
-.navbar {
-  background-color: #000000 !important;
-  border-bottom: 1px solid #2f3336 !important;
-}
-
-.navbar a {
-  color: #e5e5e5 !important;
-}
-
-.navbar a:hover {
-  color: #ffffff !important;
-  background-color: #141414 !important;
-}
-
-.navbar a.active {
-  background-color: #1a1a1a !important;
-  color: var(--color-primary) !important;
-  font-weight: 600;
-}
-
-.navbar .btn-primary {
-  --btn-tint: rgba(168, 85, 247, 0.28);
-  --btn-border: rgba(168, 85, 247, 0.62);
-  --btn-glow: rgba(168, 85, 247, 0.42);
-  --btn-text: rgba(250, 245, 255, 0.98);
-}
-
-.e-nav .e-nav-link,
+.relative .input:focus ~ svg { opacity: 1 !important; visibility: visible !important; display: flex !important;
+} .input { position: relative; z-index: 1;
+} /* -------------------------------------------------------------------------- SURFACES -------------------------------------------------------------------------- */ .card,
+.panel-card,
+.social-page-card { border: 1px solid transparent; border-color: var(--surface-panel-border); background-color: var(--color-base-200) !important; background-image: none !important; box-shadow: var(--surface-panel-shadow);
+} /* -------------------------------------------------------------------------- CARDS -------------------------------------------------------------------------- */ .card { transition: all 0.3s ease;
+} .panel-card { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; position: relative; isolation: isolate; transform: translateZ(0);
+} .panel-card.sticky { contain: none;
+} .panel-card > .card-body { position: relative; z-index: 1;
+} .card-interactive:focus-visible,
+[data-post-id]:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(var(--p));
+} /* -------------------------------------------------------------------------- ALERTS & FLASH MESSAGES -------------------------------------------------------------------------- */ #flash-group { perspective: 1000px;
+} .alert.app-flash { position: relative; align-items: flex-start; gap: 0.75rem; transform-origin: top right; animation: flash-slide-in 0.2s ease-out;
+} .app-flash__dismiss { margin-left: auto; align-self: flex-start;
+} .alert.app-flash.is-dismissing { animation: app-flash-exit var(--flash-exit, 260ms) cubic-bezier(0.35, 0.05, 0.68, 0.17) forwards; pointer-events: none;
+} @keyframes app-flash-exit { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(24px, -4px, 0) scale(0.95); }
+} .flash-message { position: fixed !important; right: 1rem !important; width: 20rem !important; max-width: calc(100vw - 2rem) !important; z-index: 9999 !important; pointer-events: auto !important; animation: flash-slide-in 0.3s ease-out;
+} @keyframes flash-slide-in { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: translateX(0); }
+} .alert { border: 1px solid color-mix(in srgb, var(--color-base-300) 68%, white 32%); background-color: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); color: var(--color-base-content); box-shadow: none;
+} .alert-info { border-color: color-mix(in srgb, var(--color-info) 22%, var(--color-base-300) 78%); background-color: color-mix(in srgb, var(--color-info) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-info) 36%, var(--color-base-content) 64%);
+} .alert-success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-success) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-success) 34%, var(--color-base-content) 66%);
+} .alert-warning { border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-base-300) 74%); background-color: color-mix(in srgb, var(--color-warning) 11%, var(--color-base-200) 89%); color: color-mix(in srgb, var(--color-warning) 38%, var(--color-base-content) 62%);
+} .alert-error { border-color: color-mix(in srgb, var(--color-error) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-error) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-error) 36%, var(--color-base-content) 64%);
+} /* -------------------------------------------------------------------------- NAVBAR -------------------------------------------------------------------------- */ .navbar { background-color: color-mix(in srgb, var(--color-base-100) 88%, #1b2530 12%) !important; border-bottom: 1px solid color-mix(in srgb, var(--color-base-300) 84%, #8ea2b8 16%) !important; box-shadow: 0 12px 28px -24px rgba(8, 16, 30, 0.72);
+} .e-nav .e-nav-link,
 .e-nav .e-nav-link:hover,
 .e-nav .e-nav-link:focus,
 .e-nav .e-nav-link:focus-visible,
 .e-nav .e-nav-link:active,
-.e-nav .e-nav-link:visited {
-  text-decoration: none !important;
-  box-shadow: none;
-}
-
-.e-nav .e-nav-link::-moz-focus-inner {
-  border: 0;
-}
-
-.e-nav .e-nav-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.e-nav .e-nav-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.navbar .btn-primary:hover {
-  filter: none;
-}
-
-.navbar .badge-error,
-.indicator .badge-error {
-  background-color: #ef4444 !important;
-  border-color: #ef4444 !important;
-  color: white !important;
-}
-
-/* --------------------------------------------------------------------------
-   DROPDOWNS
-   -------------------------------------------------------------------------- */
-
-.surface-floating,
-.glass-floating,
-.dropdown-floating,
-.dropdown-content {
-  border: 1px solid transparent;
-  border-color: var(--surface-floating-border);
-  background-color: #090909 !important;
-  background-image: none !important;
-  box-shadow: var(--surface-floating-shadow);
-}
-
-.glass-floating {
-  position: relative;
-  isolation: isolate;
-}
-
-.dropdown-content {
-  z-index: 50;
-}
-
-.dropdown {
-  position: relative;
-}
-
-.dropdown .dropdown-content {
-  position: absolute;
-  visibility: hidden;
-  opacity: 0;
-  transform: translateY(-4px) scale(0.98);
-  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
-}
-
-.dropdown:focus-within .dropdown-content,
+.e-nav .e-nav-link:visited { text-decoration: none !important; box-shadow: none;
+} .e-nav .e-nav-link::-moz-focus-inner { border: 0;
+} .e-nav .e-nav-scroll { scrollbar-width: none; -ms-overflow-style: none;
+} .e-nav .e-nav-scroll::-webkit-scrollbar { display: none;
+} .e-nav .e-nav-link { color: color-mix(in srgb, var(--color-base-content) 88%, #9cb0c7 12%);
+} .e-nav .e-nav-link:hover,
+.e-nav .e-nav-link:focus-visible { color: var(--color-base-content);
+} .navbar .badge-error,
+.indicator .badge-error { background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important;
+} /* -------------------------------------------------------------------------- DROPDOWNS -------------------------------------------------------------------------- */ .floating-panel,
+.floating-menu,
+.dropdown-content { border: 1px solid transparent; border-color: var(--surface-floating-border); background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-floating-shadow);
+} .floating-panel { position: relative; isolation: isolate;
+} .dropdown-content { z-index: 50;
+} .dropdown { position: relative;
+} .dropdown .dropdown-content { position: absolute; visibility: hidden; opacity: 0; transform: translateY(-4px) scale(0.98); transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+} .dropdown:focus-within .dropdown-content,
 .dropdown:focus .dropdown-content,
-.dropdown-open .dropdown-content {
-  visibility: visible;
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-/* Ensure dropdowns escape glass-card overflow */
-.glass-card .dropdown-content {
-  z-index: 100;
-}
-
-/* Timeline cards need higher stacking when menus are open */
-.timeline-post-card {
-  position: relative;
-  overflow: visible !important;
-  z-index: 1;
-  isolation: isolate;
-  contain: none;
-  transform: none !important;
-}
-
-.timeline-post-card:hover,
-.timeline-post-card:focus-within {
-  z-index: 220;
-}
-
-.timeline-post-card > .card-body,
-.timeline-post-card .timeline-post-card-body {
-  overflow: visible;
-}
-
-.timeline-post-dropdown {
-  position: relative;
-  z-index: 90;
-  overflow: visible;
-}
-
-.timeline-post-dropdown .dropdown-content,
-.timeline-post-card .timeline-post-dropdown-menu {
-  z-index: 260;
-  position: absolute;
-  overflow: visible;
-}
-
-.thread-context-card[role="button"] {
-  cursor: pointer;
-}
-
-.thread-context-card[role="button"]:focus-visible {
-  outline: 2px solid oklch(var(--p) / 0.55);
-  outline-offset: -2px;
-}
-
-/* --------------------------------------------------------------------------
-   MODALS
-   -------------------------------------------------------------------------- */
-
-.modal,
-.modal.modal-open {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.modal::backdrop {
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.modal-backdrop {
-  background: rgba(0, 0, 0, 0.5) !important;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.surface-modal,
-.modal-box {
-  border: 1px solid transparent;
-  border-color: var(--surface-modal-border);
-  background-color: #060606 !important;
-  background-image: none !important;
-  box-shadow: var(--surface-modal-shadow);
-}
-
-.modal-box {
-  position: relative;
-  isolation: isolate;
-  border-radius: 0.75rem !important;
-  animation: modal-pop 0.2s ease-out;
-}
-
-@keyframes modal-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* --------------------------------------------------------------------------
-   MENUS
-   -------------------------------------------------------------------------- */
-
-.menu a:hover,
-.menu button:hover {
-  text-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.3), 0 0 8px rgba(255, 165, 0, 0.1);
-}
-
-/* --------------------------------------------------------------------------
-   BADGES & TABS
-   -------------------------------------------------------------------------- */
-
-.badge:hover {
-  box-shadow: 0 0 8px rgba(168, 85, 247, 0.4);
-}
-
-.tab-active {
-  text-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
-}
-
-/* --------------------------------------------------------------------------
-   AVATARS
-   -------------------------------------------------------------------------- */
-
-.avatar:hover,
+.dropdown-open .dropdown-content { visibility: visible; opacity: 1; transform: translateY(0) scale(1);
+} /* Ensure dropdowns escape panel-card overflow */
+.panel-card .dropdown-content { z-index: 100;
+} /* Timeline cards need higher stacking when menus are open */
+.timeline-post-card { position: relative; overflow: visible !important; z-index: 1; isolation: isolate; contain: none; transform: none !important;
+} .timeline-post-card:hover,
+.timeline-post-card:focus-within { z-index: 220;
+} .timeline-post-card > .card-body,
+.timeline-post-card .timeline-post-card-body { overflow: visible;
+} .timeline-post-dropdown { position: relative; z-index: 90; overflow: visible;
+} .timeline-post-dropdown .dropdown-content,
+.timeline-post-card .timeline-post-dropdown-menu { z-index: 260; position: absolute; overflow: visible;
+} .thread-context-card[role="button"] { cursor: pointer;
+} .thread-context-card[role="button"]:focus-visible { outline: 2px solid oklch(var(--p) / 0.55); outline-offset: -2px;
+} /* -------------------------------------------------------------------------- MODALS -------------------------------------------------------------------------- */ .modal,
+.modal.modal-open { background: rgba(10, 14, 20, 0.56);
+} .modal::backdrop { background: rgba(10, 14, 20, 0.56);
+} .modal-backdrop { background: rgba(10, 14, 20, 0.56) !important;
+} .modal-surface,
+.modal-box { border: 1px solid transparent; border-color: var(--surface-modal-border); background-color: var(--surface-modal-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-modal-shadow);
+} .modal-box { position: relative; isolation: isolate; border-radius: 0.75rem !important; animation: modal-pop 0.2s ease-out;
+} @keyframes modal-pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); }
+} /* -------------------------------------------------------------------------- MENUS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- BADGES & TABS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- AVATARS -------------------------------------------------------------------------- */ .avatar:hover,
 .avatar img:hover,
-[class*="avatar"]:hover {
-  transform: none !important;
-}
-
-.avatar.avatar-placeholder > div {
-  border: 2px solid var(--fallback-bc,oklch(var(--bc)/0.2));
-  background-color: var(--fallback-b1,oklch(var(--b1))) !important;
-  color: var(--fallback-p,oklch(var(--p))) !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  font-weight: 600;
-}
-
-.avatar.avatar-placeholder > div.bg-primary {
-  border-color: var(--fallback-p,oklch(var(--p)));
-  background-color: var(--fallback-p,oklch(var(--p))) !important;
-  color: var(--fallback-pc,oklch(var(--pc))) !important;
-}
-
-/* --------------------------------------------------------------------------
-   LINKS
-   -------------------------------------------------------------------------- */
-
-a:not(.btn):not(.no-glow):hover {
-  text-shadow: 0 0 8px rgba(168, 85, 247, 0.5);
-}
-
-a:focus-visible {
-  outline: none;
-  border-radius: 0.25rem;
-  box-shadow: 0 0 0 2px oklch(var(--p) / 0.5);
-}
-
-/* --------------------------------------------------------------------------
-   FOCUS RING UTILITY
-   -------------------------------------------------------------------------- */
-
-.focus-ring:focus,
-.focus-ring:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--fallback-b1, oklch(var(--b1))),
-              0 0 0 4px oklch(var(--p));
-}
-
-/* --------------------------------------------------------------------------
-   PROSE (Markdown content)
-   -------------------------------------------------------------------------- */
-
-.prose table {
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.prose img {
-  max-width: 100% !important;
-  height: auto !important;
-  display: block !important;
-  margin: 0 auto !important;
-}
-
-.prose pre {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.prose code {
-  word-wrap: break-word;
-}
-
-.prose > * {
-  max-width: 100%;
-  overflow-wrap: break-word;
-  word-wrap: break-word;
-}
-
-.prose table td,
-.prose table th {
-  min-width: auto;
-  white-space: normal;
+[class*="avatar"]:hover { transform: none !important;
+} /* -------------------------------------------------------------------------- LINKS -------------------------------------------------------------------------- */ a:focus-visible { outline: none; border-radius: 0.25rem; box-shadow: 0 0 0 2px oklch(var(--p) / 0.5);
+} /* -------------------------------------------------------------------------- FOCUS RING UTILITY -------------------------------------------------------------------------- */ .focus-ring:focus,
+.focus-ring:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--fallback-b1, oklch(var(--b1))), 0 0 0 4px oklch(var(--p));
+} .table :where(thead, tbody) :where(tr:not(:last-child)),
+.table tr { border-bottom-color: color-mix(in srgb, var(--color-base-300) 84%, #8ea2b8 16%);
+} .table :where(thead, tbody) :where(tr:hover),
+table tr:hover { background-color: color-mix(in srgb, var(--color-base-200) 90%, #202a34 10%);
+} /* -------------------------------------------------------------------------- PROSE (Markdown content) -------------------------------------------------------------------------- */ .prose table { display: block; overflow-x: auto; white-space: nowrap; max-width: 100%;
+} .prose img { max-width: 100% !important; height: auto !important; display: block !important; margin: 0 auto !important;
+} .prose pre { overflow-x: auto; max-width: 100%;
+} .prose code { word-wrap: break-word;
+} .prose > * { max-width: 100%; overflow-wrap: break-word; word-wrap: break-word;
+} .prose table td,
+.prose table th { min-width: auto; white-space: normal;
 }

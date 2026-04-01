@@ -13,8 +13,7 @@
       </.action_toolbar>
     </:actions>
   </.section_header>
-  
-<!-- Search and Filter -->
+  <!-- Search and Filter -->
   <div class="flex flex-col sm:flex-row gap-4 mb-6">
     <div class="flex-1">
       <form phx-change="search" phx-submit="search" class="relative">
@@ -32,25 +31,25 @@
         />
       </form>
     </div>
+
     <div class="flex gap-2">
-      <select
-        class="select select-bordered"
-        phx-change="filter"
-        name="filter"
-      >
+      <select class="select select-bordered" phx-change="filter" name="filter">
         <option value="all" selected={@filter == "all"}>All</option>
+
         <option value="local" selected={@filter == "local"}>Local Only</option>
+
         <option value="remote" selected={@filter == "remote"}>Remote Only</option>
+
         <option value="enabled" selected={@filter == "enabled"}>Enabled</option>
+
         <option value="disabled" selected={@filter == "disabled"}>Disabled</option>
       </select>
     </div>
   </div>
-  
-<!-- Emoji Form Modal -->
+  <!-- Emoji Form Modal -->
   <%= if @show_form do %>
     <div class="modal modal-open">
-      <div class="modal-box card glass-card">
+      <div class="modal-box modal-surface">
         <h3 class="font-bold text-lg mb-4">
           {if @editing_emoji, do: "Edit Emoji", else: "Add New Emoji"}
         </h3>
@@ -78,9 +77,7 @@
           </div>
 
           <div class="form-control">
-            <label class="label">
-              <span class="label-text">Image URL</span>
-            </label>
+            <label class="label"><span class="label-text">Image URL</span></label>
             <input
               type="url"
               name="image_url"
@@ -102,9 +99,7 @@
           </div>
 
           <div class="form-control">
-            <label class="label">
-              <span class="label-text">Category (optional)</span>
-            </label>
+            <label class="label"><span class="label-text">Category (optional)</span></label>
             <input
               type="text"
               name="category"
@@ -137,22 +132,20 @@
           </div>
 
           <div class="modal-action">
-            <button type="button" phx-click="cancel" class="btn btn-ghost">
-              Cancel
-            </button>
+            <button type="button" phx-click="cancel" class="btn btn-ghost"> Cancel </button>
             <button type="submit" class="btn btn-secondary">
               {if @editing_emoji, do: "Update Emoji", else: "Create Emoji"}
             </button>
           </div>
         </form>
       </div>
+
       <form method="dialog" class="modal-backdrop" phx-click="cancel">
         <button>close</button>
       </form>
     </div>
   <% end %>
-  
-<!-- Emoji Grid -->
+  <!-- Emoji Grid -->
   <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
     <%= for emoji <- @emojis do %>
       <div class={[
@@ -169,16 +162,14 @@
               loading="lazy"
             />
           </div>
-          
-<!-- Shortcode -->
+          <!-- Shortcode -->
           <code
             class="text-xs bg-base-200 px-2 py-0.5 rounded truncate max-w-full"
             title={":#{emoji.shortcode}:"}
           >
             :{emoji.shortcode}:
           </code>
-          
-<!-- Source Badge -->
+          <!-- Source Badge -->
           <%= if emoji.instance_domain do %>
             <span
               class="badge badge-ghost badge-xs truncate max-w-full"
@@ -189,23 +180,21 @@
           <% else %>
             <span class="badge badge-secondary badge-xs">local</span>
           <% end %>
-          
-<!-- Category -->
+          <!-- Category -->
           <%= if emoji.category do %>
             <span class="text-xs text-base-content/50">{emoji.category}</span>
           <% end %>
-          
-<!-- Status Indicators -->
+          <!-- Status Indicators -->
           <div class="flex gap-1">
             <%= if emoji.disabled do %>
               <span class="badge badge-error badge-xs">disabled</span>
             <% end %>
+
             <%= if !emoji.visible_in_picker do %>
               <span class="badge badge-warning badge-xs">hidden</span>
             <% end %>
           </div>
-          
-<!-- Actions -->
+          <!-- Actions -->
           <div class="flex gap-1 mt-2">
             <.link
               patch={~p"/pripyat/emojis/#{emoji.id}/edit"}
@@ -253,8 +242,7 @@
       </div>
     <% end %>
   </div>
-  
-<!-- Empty State -->
+  <!-- Empty State -->
   <%= if Enum.empty?(@emojis) do %>
     <.empty_state
       icon="hero-face-smile"
@@ -269,8 +257,7 @@
       </:actions>
     </.empty_state>
   <% end %>
-  
-<!-- Load More -->
+  <!-- Load More -->
   <%= if length(@emojis) < @total_count do %>
     <div class="text-center mt-6">
       <button type="button" phx-click="load_more" class="btn btn-ghost">

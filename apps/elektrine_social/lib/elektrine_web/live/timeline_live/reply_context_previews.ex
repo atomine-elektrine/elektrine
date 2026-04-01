@@ -47,7 +47,7 @@ defmodule ElektrineWeb.TimelineLive.ReplyContextPreviews do
   defp candidate_ref(post) when is_map(post) do
     ref = metadata_in_reply_to(post)
 
-    if is_binary(ref) and ref != "" and not reply_preview_available?(post) do
+    if Elektrine.Strings.present?(ref) and not reply_preview_available?(post) do
       ref
     end
   end
@@ -282,7 +282,7 @@ defmodule ElektrineWeb.TimelineLive.ReplyContextPreviews do
   defp path_segments(path) when is_binary(path) do
     path
     |> String.split("/", trim: true)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
   end
 
   defp sanitize_identifier(value) when is_binary(value) do
@@ -297,7 +297,7 @@ defmodule ElektrineWeb.TimelineLive.ReplyContextPreviews do
 
   defp sanitize_identifier(_), do: nil
 
-  defp present_binary?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present_binary?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present_binary?(_), do: false
 
   defp maybe_put(map, _key, nil), do: map

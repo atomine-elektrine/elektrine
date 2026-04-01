@@ -9,6 +9,7 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
 
   use ElektrineWeb, :live_component
 
+  alias Elektrine.AccountIdentifiers
   import ElektrineWeb.Components.Social.ReplyItem, only: [reply_item: 1]
   import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.Components.User.UsernameEffects, only: [username_with_effects: 1]
@@ -102,8 +103,7 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
                   {gettext("Replying to")}
                   <span class="font-medium text-error">
                     <%= if @reply_to_post.sender do %>
-                      @{@reply_to_post.sender.handle ||
-                        @reply_to_post.sender.username}@{Elektrine.Domains.default_user_handle_domain()}
+                      {AccountIdentifiers.at_local_handle(@reply_to_post.sender)}
                     <% else %>
                       <%= if Ecto.assoc_loaded?(@reply_to_post.remote_actor) && @reply_to_post.remote_actor do %>
                         @{@reply_to_post.remote_actor.username}@{@reply_to_post.remote_actor.domain}

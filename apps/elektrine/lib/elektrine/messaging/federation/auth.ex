@@ -346,7 +346,7 @@ defmodule Elektrine.Messaging.Federation.Auth do
     trimmed = String.trim(path)
 
     cond do
-      trimmed == "" -> "/"
+      not Elektrine.Strings.present?(trimmed) -> "/"
       String.starts_with?(trimmed, "/") -> trimmed
       true -> "/" <> trimmed
     end
@@ -370,12 +370,8 @@ defmodule Elektrine.Messaging.Federation.Auth do
   defp canonical_content_digest(content_digest),
     do: canonical_content_digest(to_string(content_digest))
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
 

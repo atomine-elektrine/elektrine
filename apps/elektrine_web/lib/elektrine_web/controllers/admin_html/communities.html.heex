@@ -4,8 +4,7 @@
     description="Manage discussion communities and their members."
     class="mb-6"
   />
-  
-<!-- Stats Cards -->
+  <!-- Stats Cards -->
   <.stats_row
     class="mb-6 lg:grid-cols-4"
     stats={[
@@ -15,16 +14,13 @@
       %{label: "Active (7d)", value: @stats.active_7d}
     ]}
   />
-  
-<!-- Search and Filters -->
-  <div class="card glass-card shadow-xl mb-6">
+  <!-- Search and Filters -->
+  <div class="card panel-card mb-6">
     <div class="card-body">
       <form method="get" action={~p"/pripyat/communities"} class="space-y-4">
         <!-- Search Box -->
         <div class="form-control">
-          <label class="label">
-            <span class="label-text">Search</span>
-          </label>
+          <label class="label"><span class="label-text">Search</span></label>
           <div class="join w-full">
             <input
               type="text"
@@ -47,24 +43,25 @@
             <% end %>
           </div>
         </div>
-        
-<!-- Filters -->
+        <!-- Filters -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="form-control">
-            <label class="label">
-              <span class="label-text">Category</span>
-            </label>
+            <label class="label"><span class="label-text">Category</span></label>
             <select name="category" class="select select-bordered" data-submit-on-change>
               <option value="all" selected={@category_filter == "all"}>All Categories</option>
+
               <option value="tech" selected={@category_filter == "tech"}>
                 Tech ({Map.get(@category_counts, "tech", 0)})
               </option>
+
               <option value="gaming" selected={@category_filter == "gaming"}>
                 Gaming ({Map.get(@category_counts, "gaming", 0)})
               </option>
+
               <option value="science" selected={@category_filter == "science"}>
                 Science ({Map.get(@category_counts, "science", 0)})
               </option>
+
               <option value="general" selected={@category_filter == "general"}>
                 General ({Map.get(@category_counts, "general", 0)})
               </option>
@@ -72,12 +69,12 @@
           </div>
 
           <div class="form-control">
-            <label class="label">
-              <span class="label-text">Status</span>
-            </label>
+            <label class="label"><span class="label-text">Status</span></label>
             <select name="status" class="select select-bordered" data-submit-on-change>
               <option value="all" selected={@status_filter == "all"}>All</option>
+
               <option value="public" selected={@status_filter == "public"}>Public Only</option>
+
               <option value="private" selected={@status_filter == "private"}>Private Only</option>
             </select>
           </div>
@@ -88,14 +85,17 @@
             <.icon name="hero-funnel" class="w-5 h-5" />
             <div>
               <div class="font-bold">Filters Active</div>
+
               <div class="text-sm">
                 Showing {@total_count} communities
                 <%= if @search_query != "" do %>
                   matching "<span class="font-medium">{@search_query}</span>"
                 <% end %>
+
                 <%= if @category_filter != "all" do %>
                   in <span class="badge badge-sm">{@category_filter}</span>
                 <% end %>
+
                 <%= if @status_filter != "all" do %>
                   • <span class="badge badge-sm">{@status_filter}</span>
                 <% end %>
@@ -106,13 +106,13 @@
       </form>
     </div>
   </div>
-  
-<!-- Communities Table -->
+  <!-- Communities Table -->
   <%= if Enum.empty?(@communities) do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body text-center py-12">
         <.icon name="hero-magnifying-glass" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
         <h3 class="text-lg font-semibold">No Communities Found</h3>
+
         <p class="text-base-content/70">
           <%= if @search_query != "" do %>
             No communities match your search criteria.
@@ -123,33 +123,43 @@
       </div>
     </div>
   <% else %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body p-3 sm:p-6">
         <div class="overflow-x-auto">
           <table class="table table-zebra">
             <thead>
               <tr>
                 <th>Community</th>
+
                 <th>Creator</th>
+
                 <th>Category</th>
+
                 <th>Members</th>
+
                 <th>Posts</th>
+
                 <th>Status</th>
+
                 <th class="hidden md:table-cell">Activity</th>
+
                 <th>Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <%= for community <- @communities do %>
                 <tr class="hover">
                   <td>
                     <div>
                       <div class="font-bold">{community.name}</div>
+
                       <div class="text-xs text-base-content/60 truncate max-w-xs">
                         {community.description || "No description"}
                       </div>
                     </div>
                   </td>
+
                   <td>
                     <%= if community.creator do %>
                       <.link
@@ -162,6 +172,7 @@
                       <span class="text-base-content/50 text-sm">System</span>
                     <% end %>
                   </td>
+
                   <td>
                     <%= if community.community_category do %>
                       <span class="badge badge-outline badge-sm">
@@ -171,18 +182,21 @@
                       <span class="text-base-content/40 text-xs">None</span>
                     <% end %>
                   </td>
+
                   <td>
                     <div class="flex items-center gap-2">
                       <.icon name="hero-users" class="w-4 h-4 text-base-content/50" />
                       <span class="font-semibold">{community.member_count || 0}</span>
                     </div>
                   </td>
+
                   <td>
                     <div class="flex items-center gap-2">
                       <.icon name="hero-document-text" class="w-4 h-4 text-base-content/50" />
                       <span class="font-semibold">{community.post_count}</span>
                     </div>
                   </td>
+
                   <td>
                     <%= if community.is_public do %>
                       <span class="badge badge-success badge-sm">Public</span>
@@ -190,6 +204,7 @@
                       <span class="badge badge-ghost badge-sm">Private</span>
                     <% end %>
                   </td>
+
                   <td class="hidden md:table-cell">
                     <%= if community.last_message_at do %>
                       <div class="text-xs">
@@ -205,6 +220,7 @@
                       <span class="text-base-content/40 text-xs">No posts</span>
                     <% end %>
                   </td>
+
                   <td>
                     <div class="flex gap-1">
                       <.link
@@ -242,8 +258,7 @@
             </tbody>
           </table>
         </div>
-        
-<!-- Pagination -->
+        <!-- Pagination -->
         <%= if @total_pages > 1 do %>
           <div class="flex justify-center mt-6 gap-2">
             <%= if @current_page > 1 do %>
@@ -304,8 +319,7 @@
       </div>
     </div>
   <% end %>
-  
-<!-- Back Button -->
+  <!-- Back Button -->
   <div class="mt-6">
     <.link href={~p"/pripyat"} class="btn btn-ghost">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Admin Dashboard

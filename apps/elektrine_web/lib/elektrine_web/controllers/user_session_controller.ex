@@ -100,7 +100,7 @@ defmodule ElektrineWeb.UserSessionController do
         Events.auth(:password_login, :failure, %{reason: :banned})
 
         message =
-          if banned_reason && String.trim(banned_reason || "") != "" do
+          if Elektrine.Strings.present?(banned_reason) do
             "Your account has been banned. Reason: #{banned_reason}"
           else
             "Your account has been banned. Please contact support if you believe this is an error."
@@ -124,7 +124,7 @@ defmodule ElektrineWeb.UserSessionController do
           end
 
         message =
-          if suspension_reason && String.trim(suspension_reason || "") != "" do
+          if Elektrine.Strings.present?(suspension_reason) do
             "#{base_message}. Reason: #{suspension_reason}"
           else
             "#{base_message}. Please contact support if you believe this is an error."

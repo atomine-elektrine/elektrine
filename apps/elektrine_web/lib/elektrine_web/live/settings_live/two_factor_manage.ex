@@ -29,8 +29,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
     >
       <div
         id="2fa-manage-card"
-        phx-hook="GlassCard"
-        class="card glass-card border border-base-300 shadow-xl"
+        class="card panel-card border border-base-300 shadow-xl"
       >
         <div class="card-body">
           <div class="flex items-center gap-4 mb-6">
@@ -87,7 +86,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       </div>
 
       <dialog id="regenerate_modal" class="modal">
-        <div class="modal-box card glass-card max-w-md w-full mx-4 border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md w-full mx-4">
           <h3 class="font-bold text-lg mb-4">Generate New Backup Codes</h3>
           <p class="text-sm text-base-content/70 mb-4 break-words">
             This will replace your existing backup codes. Make sure to save the new codes in a safe place.
@@ -131,7 +130,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       </dialog>
 
       <dialog id="disable_modal" class="modal">
-        <div class="modal-box card glass-card max-w-md w-full mx-4 border border-base-300/60 shadow-xl">
+        <div class="modal-box modal-surface max-w-md w-full mx-4">
           <h3 class="font-bold text-lg mb-4 text-error">Disable Two-Factor Authentication</h3>
           <p class="text-sm text-base-content/70 mb-4 break-words">
             Are you sure you want to disable 2FA? This will make your account less secure.

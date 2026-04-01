@@ -69,7 +69,7 @@ defmodule ElektrineWeb.OnboardingLive do
     fresh_user = Elektrine.Repo.get!(Elektrine.Accounts.User, socket.assigns.current_user.id)
 
     bio_result =
-      if bio != "" do
+      if Elektrine.Strings.present?(bio) do
         Profiles.upsert_user_profile(fresh_user.id, %{description: bio})
       else
         {:ok, nil}
@@ -116,7 +116,7 @@ defmodule ElektrineWeb.OnboardingLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-4xl px-2 sm:px-4 lg:px-8 pb-8">
-      <div class="card glass-card shadow-lg border border-base-300 mt-6">
+      <div class="card panel-card mt-6">
         <div class="card-body p-6 sm:p-8">
           <!-- Progress Bar -->
           <div class="mb-8">
@@ -272,7 +272,7 @@ defmodule ElektrineWeb.OnboardingLive do
                 <p class="text-center opacity-70 mb-8">Here's what you can do on Elektrine</p>
 
                 <div class="space-y-4">
-                  <div class="card bg-base-200 border border-base-300 shadow-sm">
+                  <div class="card panel-card">
                     <div class="card-body p-6">
                       <div class="flex items-start gap-4">
                         <div class="w-12 h-12 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -291,7 +291,7 @@ defmodule ElektrineWeb.OnboardingLive do
                     </div>
                   </div>
 
-                  <div class="card bg-base-200 border border-base-300 shadow-sm">
+                  <div class="card panel-card">
                     <div class="card-body p-6">
                       <div class="flex items-start gap-4">
                         <div class="w-12 h-12 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -314,7 +314,7 @@ defmodule ElektrineWeb.OnboardingLive do
                     </div>
                   </div>
 
-                  <div class="card bg-base-200 border border-base-300 shadow-sm">
+                  <div class="card panel-card">
                     <div class="card-body p-6">
                       <div class="flex items-start gap-4">
                         <div class="w-12 h-12 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -333,7 +333,7 @@ defmodule ElektrineWeb.OnboardingLive do
                     </div>
                   </div>
 
-                  <div class="card bg-base-200 border border-base-300 shadow-sm">
+                  <div class="card panel-card">
                     <div class="card-body p-6">
                       <div class="flex items-start gap-4">
                         <div class="w-12 h-12 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -352,7 +352,7 @@ defmodule ElektrineWeb.OnboardingLive do
                     </div>
                   </div>
 
-                  <div class="card bg-base-200 border border-base-300 shadow-sm">
+                  <div class="card panel-card">
                     <div class="card-body p-6">
                       <div class="flex items-start gap-4">
                         <div class="w-12 h-12 bg-primary/10 border border-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -384,7 +384,7 @@ defmodule ElektrineWeb.OnboardingLive do
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                   <.link
                     navigate={~p"/chat"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon
@@ -398,7 +398,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                   <.link
                     navigate={~p"/discussions"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon name="hero-users" class="w-8 h-8 mx-auto mb-2 text-primary" />
@@ -409,7 +409,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                   <.link
                     navigate={~p"/timeline"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon name="hero-newspaper" class="w-8 h-8 mx-auto mb-2 text-primary" />
@@ -420,7 +420,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                   <.link
                     navigate={~p"/email"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon name="hero-envelope" class="w-8 h-8 mx-auto mb-2 text-primary" />
@@ -431,7 +431,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                   <.link
                     navigate={~p"/vpn"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon name="hero-shield-check" class="w-8 h-8 mx-auto mb-2 text-primary" />
@@ -442,7 +442,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                   <.link
                     navigate={~p"/#{@current_user.handle || @current_user.username}"}
-                    class="card glass-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
+                    class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
                       <.icon name="hero-user-circle" class="w-8 h-8 mx-auto mb-2 text-primary" />

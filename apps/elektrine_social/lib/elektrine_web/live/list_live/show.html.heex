@@ -1,15 +1,14 @@
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
   <.e_nav active_tab="lists" current_user={@current_user} />
-
   <div class="flex flex-col sm:flex-row gap-4">
     <!-- Sidebar - List Members -->
-    <div class="w-full sm:w-80 flex-shrink-0 card glass-card shadow-lg border border-base-300">
+    <div class="w-full sm:w-80 flex-shrink-0 card panel-card">
       <div class="card-body p-4">
         <.link href={~p"/lists"} class="btn btn-ghost btn-sm mb-4">
           <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Lists
         </.link>
-
         <h2 class="text-xl font-bold mb-2">{@list.name}</h2>
+
         <%= if @list.description && @list.description != "" do %>
           <p class="text-sm opacity-70 mb-2">{@list.description}</p>
         <% end %>
@@ -24,14 +23,10 @@
         <% end %>
 
         <%= if @is_owner do %>
-          <button
-            phx-click="toggle_add_member_form"
-            class="btn btn-secondary btn-sm w-full mb-4"
-          >
+          <button phx-click="toggle_add_member_form" class="btn btn-secondary btn-sm w-full mb-4">
             <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Add Member
           </button>
-          
-<!-- Add Member Form -->
+          <!-- Add Member Form -->
           <%= if @show_add_member_form do %>
             <div class="mb-4 p-3 bg-base-50 rounded-lg border border-base-300">
               <!-- Tab Selector -->
@@ -55,6 +50,7 @@
               <%= if @add_mode == "search" do %>
                 <!-- Search Mode -->
                 <h3 class="font-semibold text-sm mb-3">Search Users</h3>
+
                 <input
                   type="text"
                   placeholder="Search username or @user@domain..."
@@ -64,8 +60,7 @@
                   name="query"
                   value={@search_query}
                 />
-                
-<!-- Search Results -->
+                <!-- Search Results -->
                 <%= if length(@search_results) > 0 do %>
                   <div class="mt-3 space-y-2 max-h-64 overflow-y-auto">
                     <%= for result <- @search_results do %>
@@ -80,8 +75,10 @@
                                 verified_size="xs"
                               />
                             </div>
+
                             <div class="text-xs opacity-70">@{result.user.username}</div>
                           </div>
+
                           <.form for={%{}} phx-submit="add_member" class="inline">
                             <input type="hidden" name="user_id" value={result.user.id} />
                             <button type="submit" class="btn btn-xs btn-secondary">
@@ -102,14 +99,17 @@
                               <.icon name="hero-user" class="w-4 h-4" />
                             </div>
                           <% end %>
+
                           <div class="flex-1 min-w-0">
                             <div class="text-sm font-medium truncate">
                               {raw(render_actor_display_name(result.actor))}
                             </div>
+
                             <div class="text-xs opacity-70">
                               @{result.actor.username}@{result.actor.domain}
                             </div>
                           </div>
+
                           <.form for={%{}} phx-submit="add_member" class="inline">
                             <input type="hidden" name="remote_actor_id" value={result.actor.id} />
                             <button type="submit" class="btn btn-xs btn-secondary">
@@ -121,8 +121,7 @@
                     <% end %>
                   </div>
                 <% end %>
-                
-<!-- Add Remote User by Handle (if query looks like @user@domain) -->
+                <!-- Add Remote User by Handle (if query looks like @user@domain) -->
                 <%= if String.match?(@search_query, ~r/@\w+@[\w.-]+/) do %>
                   <div class="mt-3 p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
                     <p class="text-sm mb-2 flex items-center gap-2">
@@ -133,6 +132,7 @@
                         Or add directly by handle:
                       <% end %>
                     </p>
+
                     <button
                       phx-click="add_remote_user"
                       phx-value-handle={String.trim_leading(@search_query, "@")}
@@ -145,7 +145,9 @@
               <% else %>
                 <!-- Bulk Add Mode -->
                 <h3 class="font-semibold text-sm mb-3">Add Multiple Users</h3>
+
                 <p class="text-xs opacity-70 mb-2">Enter comma-separated handles:</p>
+
                 <.form for={%{}} phx-change="update_bulk_input" phx-submit="bulk_add_members">
                   <textarea
                     placeholder="@alice@mastodon.social, @bob@pixelfed.social, charlie"
@@ -154,7 +156,6 @@
                     name="handles"
                     value={@bulk_input}
                   ></textarea>
-
                   <button
                     type="submit"
                     class="btn btn-sm btn-secondary w-full mt-2"
@@ -168,10 +169,10 @@
             </div>
           <% end %>
         <% end %>
-        
-<!-- List Members -->
+        <!-- List Members -->
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-sm">Members ({length(@list.list_members)})</h3>
+
           <%= if length(@list.list_members) > 0 do %>
             <button
               phx-click="follow_all_members"
@@ -187,6 +188,7 @@
             </button>
           <% end %>
         </div>
+
         <div class="space-y-2 max-h-96 overflow-y-auto">
           <%= for member <- @list.list_members do %>
             <div class="flex items-center gap-2 p-2 bg-base-50 rounded-lg">
@@ -200,6 +202,7 @@
                       verified_size="xs"
                     />
                   </div>
+
                   <div class="text-xs opacity-70">@{member.user.username}</div>
                 </div>
               <% else %>
@@ -214,10 +217,12 @@
                     <.icon name="hero-user" class="w-4 h-4" />
                   </div>
                 <% end %>
+
                 <div class="flex-1 min-w-0">
                   <div class="text-sm font-medium truncate">
                     {raw(render_actor_display_name(member.remote_actor))}
                   </div>
+
                   <div class="text-xs opacity-70">
                     @{member.remote_actor.username}@{member.remote_actor.domain}
                   </div>
@@ -237,10 +242,9 @@
         </div>
       </div>
     </div>
-    
-<!-- Main Content - List Timeline -->
+    <!-- Main Content - List Timeline -->
     <div class="flex-1">
-      <div class="card glass-card shadow-lg">
+      <div class="card panel-card">
         <div class="card-body p-4">
           <h2 class="text-xl font-semibold mb-4">Timeline</h2>
 
@@ -248,30 +252,17 @@
             <div class="space-y-4">
               <%= for post <- @posts do %>
                 <%= if post.sender || post.remote_actor do %>
-                  <div
-                    class={[
-                      "card glass-card shadow-sm border border-base-300"
-                    ]}
-                    data-post-id={post.id}
-                  >
+                  <div class={["card panel-card "]} data-post-id={post.id}>
                     <div class="card-body p-4">
                       <!-- Boosted By Indicator -->
                       <%= if post.media_metadata && post.media_metadata["boosted_by"] do %>
-                        <% booster = post.media_metadata["boosted_by"]
-                        # Filter out relay actors - they distribute content, not boost it
-                        is_relay =
-                          String.contains?(String.downcase(booster["username"] || ""), "relay") ||
-                            String.starts_with?(
-                              String.downcase(booster["domain"] || ""),
-                              "relay."
-                            ) %>
-                        <%= unless is_relay do %>
+                        <% booster = post.media_metadata["boosted_by"] %>
+                        <%= unless relay_actor?(booster) do %>
                           <div class="flex items-center gap-2 mb-3 text-sm opacity-70 min-w-0">
                             <.icon
                               name="hero-arrow-path"
                               class="w-4 h-4 text-success flex-shrink-0"
-                            />
-                            <span class="flex-shrink-0">Boosted by</span>
+                            /> <span class="flex-shrink-0">Boosted by</span>
                             <%= if booster["avatar_url"] do %>
                               <.link
                                 navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
@@ -285,6 +276,7 @@
                                 />
                               </.link>
                             <% end %>
+
                             <.link
                               navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
                               class="font-medium hover:underline text-success truncate min-w-0"
@@ -303,8 +295,7 @@
                           </div>
                         <% end %>
                       <% end %>
-                      
-<!-- Post Header -->
+                      <!-- Post Header -->
                       <div class="flex items-center gap-3 mb-3">
                         <%= if Ecto.assoc_loaded?(post.sender) && post.sender do %>
                           <button
@@ -368,8 +359,7 @@
                           </div>
                         <% end %>
                       </div>
-                      
-<!-- Post Content -->
+                      <!-- Post Content -->
                       <div
                         id={"list-post-content-#{post.id}"}
                         class="mb-3 cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
@@ -392,12 +382,10 @@
                             {post_title}
                           </h3>
                         <% end %>
-                        <div class="break-words">
-                          {raw(render_post_content(post))}
-                        </div>
+
+                        <div class="break-words">{raw(render_post_content(post))}</div>
                       </div>
-                      
-<!-- Post Actions -->
+                      <!-- Post Actions -->
                       <div
                         class="flex items-center gap-2 pt-2 border-t border-base-200"
                         phx-click="stop_propagation"
@@ -416,8 +404,7 @@
                           show_quote={false}
                           show_save={false}
                         />
-                        
-<!-- View Post Button -->
+                        <!-- View Post Button -->
                         <%= if post.remote_actor && post.activitypub_url do %>
                           <a
                             href={post.activitypub_url}
@@ -444,8 +431,7 @@
                       </div>
                     </div>
                   </div>
-                  
-<!-- Direct Replies -->
+                  <!-- Direct Replies -->
                   <%= if Map.get(@post_replies, post.id) do %>
                     <% replies = Map.get(@post_replies, post.id, []) %>
                     <%= if length(replies) > 0 do %>
@@ -464,6 +450,7 @@
                                         verified_size="xs"
                                       />
                                     </div>
+
                                     <div class="text-xs opacity-70">
                                       @{reply.sender.username} · {Elektrine.Social.time_ago_in_words(
                                         reply.inserted_at
@@ -482,6 +469,7 @@
                                       <.icon name="hero-user" class="w-4 h-4" />
                                     </div>
                                   <% end %>
+
                                   <div class="flex-1 min-w-0">
                                     <div class="font-medium text-sm">
                                       {raw(
@@ -492,6 +480,7 @@
                                         )
                                       )}
                                     </div>
+
                                     <div class="text-xs opacity-70">
                                       @{reply.remote_actor.username}@{reply.remote_actor.domain} · {Elektrine.Social.time_ago_in_words(
                                         reply.inserted_at
@@ -504,8 +493,7 @@
                               <div class="text-sm break-words mb-2">
                                 {raw(render_post_content(reply))}
                               </div>
-                              
-<!-- Reply Actions -->
+                              <!-- Reply Actions -->
                               <.post_actions
                                 post_id={reply.id}
                                 current_user={@current_user}
@@ -521,14 +509,14 @@
                                 show_save={false}
                                 size={:xs}
                               />
-                              
-<!-- Quick Reply Form (for replying to this reply) -->
+                              <!-- Quick Reply Form (for replying to this reply) -->
                               <%= if @reply_to_reply_id == reply.id do %>
                                 <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
                                   <div class="flex items-start gap-2">
                                     <div class="w-8 h-8 flex-shrink-0">
                                       <.user_avatar user={@current_user} size="xs" />
                                     </div>
+
                                     <div class="flex-1 min-w-0">
                                       <div class="text-xs opacity-70 mb-2">
                                         Replying to
@@ -544,8 +532,7 @@
                                       </div>
 
                                       <.form for={%{}} phx-submit="create_reply" class="space-y-2">
-                                        <input type="hidden" name="reply_to_id" value={reply.id} />
-                                        <textarea
+                                        <input type="hidden" name="reply_to_id" value={reply.id} /> <textarea
                                           name="content"
                                           placeholder="Post your reply..."
                                           class="textarea textarea-bordered textarea-sm w-full"
@@ -554,7 +541,6 @@
                                           phx-mounted={JS.focus()}
                                           required
                                         ><%= @reply_content %></textarea>
-
                                         <div class="flex gap-2 justify-end">
                                           <button
                                             type="button"
@@ -603,9 +589,8 @@
             <div class="text-center py-12">
               <.icon name="hero-rectangle-stack" class="w-16 h-16 mx-auto mb-4 opacity-40" />
               <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
-              <p class="text-base-content/70 mb-6">
-                Add members to this list to see their posts
-              </p>
+
+              <p class="text-base-content/70 mb-6">Add members to this list to see their posts</p>
             </div>
           <% end %>
         </div>

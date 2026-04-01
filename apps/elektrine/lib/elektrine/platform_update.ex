@@ -34,7 +34,7 @@ defmodule Elektrine.PlatformUpdate do
       # Validate each item
       valid_items =
         Enum.all?(items, fn item ->
-          is_binary(item) && String.trim(item) != "" && String.length(item) <= 200
+          Elektrine.Strings.present?(item) && String.length(item) <= 200
         end)
 
       if valid_items do

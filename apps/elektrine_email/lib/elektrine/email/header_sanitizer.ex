@@ -160,10 +160,11 @@ defmodule Elektrine.Email.HeaderSanitizer do
 
   defp validate_critical_fields(params) do
     cond do
-      is_nil(params.from) or params.from == "" ->
+      is_nil(params.from) or
+          (is_binary(params.from) and not Elektrine.Strings.present?(params.from)) ->
         {:error, "From address is required"}
 
-      is_nil(params.to) or params.to == "" ->
+      is_nil(params.to) or (is_binary(params.to) and not Elektrine.Strings.present?(params.to)) ->
         {:error, "To address is required"}
 
       contains_header_injection?(params.from) ->

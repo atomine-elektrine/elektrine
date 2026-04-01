@@ -1,10 +1,8 @@
-<div class="card glass-card shadow-xl max-w-md mx-auto">
+<div class="card panel-card max-w-md mx-auto">
   <div class="card-body">
     <h1 class="text-center text-3xl font-bold mb-6">Set New Password</h1>
 
-    <p class="text-center opacity-70 mb-6">
-      Enter your new password below.
-    </p>
+    <p class="text-center opacity-70 mb-6">Enter your new password below.</p>
 
     <.simple_form :let={f} for={@changeset} action={~p"/password/reset/#{@token}"} method="put">
       <.error :if={@changeset.action}>
@@ -18,7 +16,6 @@
         placeholder="Enter your new password"
         required
       />
-
       <.input
         field={f[:password_confirmation]}
         type="password"
@@ -26,10 +23,7 @@
         placeholder="Confirm your new password"
         required
       />
-
-      <:actions>
-        <.button class="w-full">Reset Password</.button>
-      </:actions>
+      <:actions><.button class="w-full">Reset Password</.button></:actions>
     </.simple_form>
 
     <div class="divider mt-6">OR</div>

@@ -369,15 +369,8 @@ defmodule Elektrine.VPN do
   defp config_mtu_line(%Server{client_mtu: nil}), do: ""
   defp config_mtu_line(%Server{client_mtu: client_mtu}), do: "MTU = #{client_mtu}"
 
-  defp normalize_optional_string(value) when is_binary(value) do
-    trimmed = String.trim(value)
-
-    if trimmed == "" do
-      nil
-    else
-      trimmed
-    end
-  end
+  defp normalize_optional_string(value) when is_binary(value),
+    do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_), do: nil
 

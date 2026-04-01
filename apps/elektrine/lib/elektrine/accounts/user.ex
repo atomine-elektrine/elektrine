@@ -665,7 +665,7 @@ defmodule Elektrine.Accounts.User do
     username = get_field(changeset, :username)
     user_id = get_field(changeset, :id)
 
-    if is_binary(username) and String.trim(username) != "" do
+    if Elektrine.Strings.present?(username) do
       query =
         from(u in Elektrine.Accounts.User,
           where: fragment("lower(?)", u.handle) == ^String.downcase(username)
@@ -937,8 +937,10 @@ defmodule Elektrine.Accounts.User do
 
   defp require_bluesky_identifier(changeset) do
     case get_field(changeset, :bluesky_identifier) do
-      identifier when is_binary(identifier) and identifier != "" ->
-        changeset
+      identifier when is_binary(identifier) ->
+        if Elektrine.Strings.present?(identifier),
+          do: changeset,
+          else: add_error(changeset, :bluesky_identifier, "is required when Bluesky is enabled")
 
       _ ->
         add_error(changeset, :bluesky_identifier, "is required when Bluesky is enabled")
@@ -947,8 +949,10 @@ defmodule Elektrine.Accounts.User do
 
   defp require_bluesky_app_password(changeset) do
     case get_field(changeset, :bluesky_app_password) do
-      password when is_binary(password) and password != "" ->
-        changeset
+      password when is_binary(password) ->
+        if Elektrine.Strings.present?(password),
+          do: changeset,
+          else: add_error(changeset, :bluesky_app_password, "is required when Bluesky is enabled")
 
       _ ->
         add_error(changeset, :bluesky_app_password, "is required when Bluesky is enabled")
@@ -1119,10 +1123,10 @@ defmodule Elektrine.Accounts.User do
     new_handle = get_change(changeset, :handle)
 
     cond do
-      not is_binary(new_handle) or String.trim(new_handle) == "" ->
+      not Elektrine.Strings.present?(new_handle) ->
         changeset
 
-      not is_binary(current_handle) or String.trim(current_handle) == "" ->
+      not Elektrine.Strings.present?(current_handle) ->
         changeset
 
       String.downcase(String.trim(new_handle)) == String.downcase(String.trim(current_handle)) ->
@@ -1227,7 +1231,7 @@ defmodule Elektrine.Accounts.User do
     handle = get_field(changeset, :handle)
     user_id = get_field(changeset, :id)
 
-    if is_binary(handle) and String.trim(handle) != "" do
+    if Elektrine.Strings.present?(handle) do
       query =
         from(u in Elektrine.Accounts.User,
           where: fragment("lower(?)", u.username) == ^String.downcase(handle)

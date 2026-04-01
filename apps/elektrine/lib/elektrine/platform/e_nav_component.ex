@@ -15,7 +15,7 @@ defmodule Elektrine.Platform.ENavComponent do
       class={["e-nav sticky top-14 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}
     >
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="card border border-base-300 bg-base-100 shadow-sm rounded-lg">
+        <div class="card panel-card rounded-lg">
           <div class="card-body px-2 py-2 sm:px-3 space-y-1">
             <div class="pt-1 pb-0.5">
               <div class="flex flex-wrap items-center gap-1 sm:gap-2">

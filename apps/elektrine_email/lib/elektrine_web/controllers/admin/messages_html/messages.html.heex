@@ -1,34 +1,30 @@
 <div class="admin-page overflow-x-hidden">
-  <% search_active = @search_query != "" %>
-  <% status_filter = assigns[:status_filter] || "received" %>
-  <% show_domain_stats = assigns[:show_domain_stats] || false %>
-  <% page_results_count = assigns[:page_results_count] || length(@messages) %>
-  <% received_messages =
-    assigns[:received_messages] || Enum.filter(@messages, &(&1.status == "received")) %>
-  <% sent_messages = assigns[:sent_messages] || Enum.filter(@messages, &(&1.status == "sent")) %>
-  <% base_params =
+  <% search_active = @search_query != "" %> <% status_filter =
+    assigns[:status_filter] || "received" %> <% show_domain_stats =
+    assigns[:show_domain_stats] || false %> <% page_results_count =
+    assigns[:page_results_count] || length(@messages) %> <% received_messages =
+    assigns[:received_messages] || Enum.filter(@messages, &(&1.status == "received")) %> <% sent_messages =
+    assigns[:sent_messages] || Enum.filter(@messages, &(&1.status == "sent")) %> <% base_params =
     %{"status" => status_filter}
     |> then(fn params ->
       if search_active, do: Map.put(params, "search", @search_query), else: params
     end)
     |> then(fn params ->
       if show_domain_stats, do: Map.put(params, "show_domains", "1"), else: params
-    end) %>
-  <% base_params_without_search = Map.delete(base_params, "search") %>
-  <% base_params_without_domain_stats = Map.delete(base_params, "show_domains") %>
-  <% received_tab_params = base_params |> Map.put("status", "received") |> Map.put("page", 1) %>
-  <% sent_tab_params = base_params |> Map.put("status", "sent") |> Map.put("page", 1) %>
-
+    end) %> <% base_params_without_search = Map.delete(base_params, "search") %> <% base_params_without_domain_stats =
+    Map.delete(base_params, "show_domains") %> <% received_tab_params =
+    base_params |> Map.put("status", "received") |> Map.put("page", 1) %> <% sent_tab_params =
+    base_params |> Map.put("status", "sent") |> Map.put("page", 1) %>
   <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Message Console</h1>
+
       <p class="mt-1 text-sm opacity-70 sm:text-base">
         Admin view for {if status_filter == "sent", do: "outbound", else: "inbound"} email activity.
       </p>
     </div>
-    <div class="text-xs opacity-60 sm:text-sm">
-      Page {@current_page} of {@total_pages}
-    </div>
+
+    <div class="text-xs opacity-60 sm:text-sm">Page {@current_page} of {@total_pages}</div>
   </div>
 
   <div>
@@ -59,27 +55,34 @@
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
+
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{page_results_count}</div>
     </div>
+
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Received</div>
+
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">
         {length(received_messages)}
       </div>
     </div>
+
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Sent</div>
+
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">
         {length(sent_messages)}
       </div>
     </div>
+
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Total Matches</div>
+
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{@total_count}</div>
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <form
         method="get"
@@ -87,9 +90,7 @@
         class="flex flex-col gap-3 sm:flex-row sm:items-end"
       >
         <div class="w-full flex-1">
-          <label class="label pt-0">
-            <span>Search messages</span>
-          </label>
+          <label class="label pt-0"><span>Search messages</span></label>
           <div class="join w-full">
             <input
               type="text"
@@ -107,6 +108,7 @@
         <%= if show_domain_stats do %>
           <input type="hidden" name="show_domains" value="1" />
         <% end %>
+
         <%= if search_active do %>
           <.link
             href={~p"/pripyat/messages?#{base_params_without_search}"}
@@ -126,17 +128,19 @@
     </div>
   </div>
 
-  <div class="card glass-card shadow-xl">
+  <div class="card panel-card">
     <div class="card-body">
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 class="card-title text-lg">
             <.icon name="hero-globe-alt" class="mr-2 h-5 w-5" /> Recipient Domains
           </h3>
+
           <p class="text-sm opacity-70">
             External domains from sent mail. This query is heavy on large datasets.
           </p>
         </div>
+
         <%= if show_domain_stats do %>
           <.link
             href={
@@ -157,12 +161,14 @@
                 <div class="truncate text-sm font-medium" title={domain.domain}>
                   {domain.domain}
                 </div>
+
                 <div class="mt-1 text-xs opacity-60">
                   {domain.count} message{if domain.count != 1, do: "s"}
                 </div>
               </div>
             <% end %>
           </div>
+
           <%= if elem(@recipient_domains, 1) > 20 do %>
             <div class="mt-3 text-center text-xs opacity-60">
               Showing top 20 of {elem(@recipient_domains, 1)} domains
@@ -187,7 +193,7 @@
   </div>
 
   <%= if length(received_messages) > 0 do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body p-4 sm:p-5">
         <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-down-tray" class="mr-2 h-5 w-5" />
@@ -199,12 +205,17 @@
             <thead class="text-xs">
               <tr>
                 <th class="w-[34%]">Subject & From</th>
+
                 <th class="w-[24%]">Recipient</th>
+
                 <th class="w-[12%]">User</th>
+
                 <th class="w-[20%]">Received</th>
+
                 <th class="w-[10%]">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <%= for message <- received_messages do %>
                 <tr class="hover align-top text-sm">
@@ -215,15 +226,19 @@
                     >
                       {decode_email_subject(message.subject)}
                     </div>
+
                     <div class="max-w-full truncate text-xs opacity-70" title={message.from}>
                       From: {message.from || "(Unknown)"}
                     </div>
+
                     <div class="text-[11px] opacity-50">ID: {message.id}</div>
                   </td>
+
                   <td class="py-2">
                     <div class="max-w-full truncate text-sm font-medium" title={message.to}>
                       {message.to || "(Unknown)"}
                     </div>
+
                     <div
                       class="truncate text-[11px] opacity-50"
                       title={message.mailbox && message.mailbox.email}
@@ -231,6 +246,7 @@
                       → {message.mailbox && message.mailbox.email}
                     </div>
                   </td>
+
                   <td class="py-2">
                     <div
                       class="max-w-[10rem] truncate font-medium"
@@ -241,6 +257,7 @@
                       {message.mailbox && message.mailbox.user && message.mailbox.user.username}
                     </div>
                   </td>
+
                   <td class="py-2 text-xs opacity-70 whitespace-nowrap">
                     <.local_time
                       datetime={message.inserted_at}
@@ -249,6 +266,7 @@
                       time_format={@time_format}
                     />
                   </td>
+
                   <td class="py-2">
                     <div class="flex justify-end gap-1">
                       <.link
@@ -285,10 +303,12 @@
                   >
                     {decode_email_subject(message.subject)}
                   </h4>
+
                   <p class="mt-1 truncate text-xs opacity-70" title={message.from}>
                     From: {message.from || "(Unknown)"}
                   </p>
                 </div>
+
                 <div class="flex flex-shrink-0 gap-1">
                   <.link
                     href={~p"/pripyat/messages/#{message.id}/view"}
@@ -315,6 +335,7 @@
                     {message.to || "(Unknown)"}
                   </div>
                 </div>
+
                 <div>
                   <span class="opacity-60">User:</span>
                   <div class="font-medium">
@@ -347,7 +368,7 @@
   <% end %>
 
   <%= if length(sent_messages) > 0 do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body p-4 sm:p-5">
         <h3 class="card-title mb-3 text-base sm:text-lg">
           <.icon name="hero-arrow-up-tray" class="mr-2 h-5 w-5" />
@@ -359,12 +380,17 @@
             <thead class="text-xs">
               <tr>
                 <th class="w-[34%]">Subject & To</th>
+
                 <th class="w-[24%]">From</th>
+
                 <th class="w-[12%]">User</th>
+
                 <th class="w-[20%]">Sent</th>
+
                 <th class="w-[10%]">Actions</th>
               </tr>
             </thead>
+
             <tbody>
               <%= for message <- sent_messages do %>
                 <tr class="hover align-top text-sm">
@@ -375,15 +401,19 @@
                     >
                       {decode_email_subject(message.subject)}
                     </div>
+
                     <div class="max-w-full truncate text-xs opacity-70" title={message.to}>
                       To: {message.to || "(Unknown)"}
                     </div>
+
                     <div class="text-[11px] opacity-50">ID: {message.id}</div>
                   </td>
+
                   <td class="py-2">
                     <div class="max-w-full truncate text-sm font-medium" title={message.from}>
                       {message.from || "(Unknown)"}
                     </div>
+
                     <div
                       class="truncate text-[11px] opacity-50"
                       title={message.mailbox && message.mailbox.email}
@@ -391,6 +421,7 @@
                       ← {message.mailbox && message.mailbox.email}
                     </div>
                   </td>
+
                   <td class="py-2">
                     <div
                       class="max-w-[10rem] truncate font-medium"
@@ -401,6 +432,7 @@
                       {message.mailbox && message.mailbox.user && message.mailbox.user.username}
                     </div>
                   </td>
+
                   <td class="py-2 text-xs opacity-70 whitespace-nowrap">
                     <.local_time
                       datetime={message.inserted_at}
@@ -409,6 +441,7 @@
                       time_format={@time_format}
                     />
                   </td>
+
                   <td class="py-2">
                     <div class="flex justify-end gap-1">
                       <.link
@@ -445,10 +478,12 @@
                   >
                     {decode_email_subject(message.subject)}
                   </h4>
+
                   <p class="mt-1 truncate text-xs opacity-70" title={message.to}>
                     To: {message.to || "(Unknown)"}
                   </p>
                 </div>
+
                 <div class="flex flex-shrink-0 gap-1">
                   <.link
                     href={~p"/pripyat/messages/#{message.id}/view"}
@@ -475,6 +510,7 @@
                     {message.from || "(Unknown)"}
                   </div>
                 </div>
+
                 <div>
                   <span class="opacity-60">User:</span>
                   <div class="font-medium">
@@ -507,10 +543,11 @@
   <% end %>
 
   <%= if page_results_count == 0 do %>
-    <div class="card glass-card shadow-xl">
+    <div class="card panel-card">
       <div class="card-body py-10 text-center">
         <.icon name="hero-inbox" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
         <h3 class="text-lg font-medium">No messages found</h3>
+
         <p class="mt-2 text-sm opacity-70">
           <%= if search_active do %>
             No messages matched your search.
@@ -533,9 +570,7 @@
             <.icon name="hero-chevron-left" class="h-4 w-4" />
           </.link>
         <% end %>
-
         <span class="px-3 py-2 text-sm">{@current_page} / {@total_pages}</span>
-
         <%= if @current_page < @total_pages do %>
           <.link
             href={~p"/pripyat/messages?#{Map.put(base_params, "page", @current_page + 1)}"}

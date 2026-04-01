@@ -277,7 +277,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
       new_urls = urls ++ [url]
 
       new_alt_map =
-        if alt_text && String.trim(alt_text) != "" do
+        if Elektrine.Strings.present?(alt_text) do
           Map.put(alt_map, to_string(idx), String.trim(alt_text))
         else
           alt_map

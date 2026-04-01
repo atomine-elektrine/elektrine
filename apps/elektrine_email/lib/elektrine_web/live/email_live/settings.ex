@@ -585,9 +585,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
       username: username,
       domain: domain,
       user_id: user_id,
-      target_email:
-        if(target_email && String.trim(target_email) != "", do: target_email, else: nil),
-      description: if(description && String.trim(description) != "", do: description, else: nil)
+      target_email: if(Elektrine.Strings.present?(target_email), do: target_email, else: nil),
+      description: if(Elektrine.Strings.present?(description), do: description, else: nil)
     }
 
     case Aliases.create_alias(alias_attrs) do
@@ -971,8 +970,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
         <div class="flex-1 min-w-0">
           <div
             id="email-settings-card"
-            phx-hook="GlassCard"
-            class="card glass-card shadow-lg rounded-lg"
+            class="card panel-card rounded-lg"
           >
             <div class="card-body p-3 sm:p-6">
               <!-- Header -->
@@ -1497,8 +1495,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
           <option value="#22c55e">Green</option>
           <option value="#ef4444">Red</option>
           <option value="#f59e0b">Orange</option>
-          <option value="#8b5cf6">Purple</option>
-          <option value="#ec4899">Pink</option>
+          <option value="#8a7cc2">Plum</option>
+          <option value="#c7796b">Rose Clay</option>
           <option value="#6b7280">Gray</option>
         </select>
         <button type="submit" class="btn btn-secondary">Create</button>
@@ -1556,8 +1554,8 @@ defmodule ElektrineWeb.EmailLive.Settings do
           <option value="#22c55e">Green</option>
           <option value="#ef4444">Red</option>
           <option value="#f59e0b">Orange</option>
-          <option value="#8b5cf6">Purple</option>
-          <option value="#ec4899">Pink</option>
+          <option value="#8a7cc2">Plum</option>
+          <option value="#c7796b">Rose Clay</option>
           <option value="#6b7280">Gray</option>
         </select>
         <button type="submit" class="btn btn-secondary">Create</button>
@@ -1749,7 +1747,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       </div>
                     </div>
 
-                    <%= if custom_domain.last_error && String.trim(custom_domain.last_error) != "" do %>
+                    <%= if Elektrine.Strings.present?(custom_domain.last_error) do %>
                       <div class="mt-3 rounded-lg border border-error/20 bg-error/5 px-3 py-2 text-xs leading-5 text-error">
                         {custom_domain.last_error}
                       </div>
@@ -1866,7 +1864,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           <% end %>
         </div>
 
-        <div class="flex items-center justify-between p-3 bg-base-200/40 rounded-lg">
+        <div class="flex items-center justify-between p-3 bg-base-200/55 rounded-lg">
           <label class="label cursor-pointer gap-3 p-0">
             <span class="label-text font-medium">Enable Forwarding</span>
             <input type="hidden" name="mailbox[forward_enabled]" value="false" />
@@ -1896,7 +1894,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
           </div>
         </div>
 
-        <%= if @mailbox.forward_enabled && @mailbox.forward_to && String.trim(@mailbox.forward_to) != "" do %>
+        <%= if @mailbox.forward_enabled && Elektrine.Strings.present?(@mailbox.forward_to) do %>
           <div class="alert alert-info py-2 px-3">
             <span class="text-sm">
               Forwarding active: mail to your main mailbox goes to {@mailbox.forward_to}
@@ -2004,7 +2002,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                 <div class="flex-1 min-w-0">
                   <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                     <span class="font-semibold text-lg">{alias_record.alias_email}</span>
-                    <%= if alias_record.target_email && String.trim(alias_record.target_email) != "" do %>
+                    <%= if Elektrine.Strings.present?(alias_record.target_email) do %>
                       <div class="flex items-center gap-2 text-base-content/60">
                         <.icon name="hero-arrow-right" class="w-4 h-4" />
                         <span class="text-sm">{alias_record.target_email}</span>
@@ -2015,7 +2013,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
                       </span>
                     <% end %>
                   </div>
-                  <%= if alias_record.description && String.trim(alias_record.description) != "" do %>
+                  <%= if Elektrine.Strings.present?(alias_record.description) do %>
                     <p class="text-sm text-base-content/50 mt-1">{alias_record.description}</p>
                   <% end %>
                   <%= if !alias_record.enabled do %>
@@ -2067,7 +2065,7 @@ defmodule ElektrineWeb.EmailLive.Settings do
   defp render_modal(assigns) do
     ~H"""
     <div class="modal modal-open">
-      <div class="modal-box card glass-card max-w-2xl border border-purple-500/30 shadow-xl">
+      <div class="modal-box modal-surface max-w-2xl border border-purple-500/30 shadow-xl">
         <%= case @show_modal do %>
           <% "filter" -> %>
             <!-- Header -->

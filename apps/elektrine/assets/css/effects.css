@@ -7,7 +7,7 @@
    -------------------------------------------------------------------------- */
 
 .gradient-orb-cyan {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.4), rgba(220, 38, 38, 0.2), transparent);
+  background: radial-gradient(circle, rgba(138, 124, 194, 0.34), rgba(220, 38, 38, 0.16), transparent);
 }
 
 .gradient-orb-red {
@@ -19,11 +19,11 @@
 }
 
 .gradient-orb-purple {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.4), rgba(139, 92, 246, 0.2), transparent);
+  background: radial-gradient(circle, rgba(138, 124, 194, 0.34), rgba(176, 160, 213, 0.16), transparent);
 }
 
 .gradient-text-cyan {
-  background: linear-gradient(45deg, #a855f7 30%, #dc2626 50%, #a855f7 70%);
+  background: linear-gradient(45deg, #8a7cc2 30%, #c7796b 50%, #8a7cc2 70%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -44,7 +44,7 @@
 }
 
 .gradient-text-purple {
-  background: linear-gradient(45deg, #a855f7 30%, #8b5cf6 50%, #a855f7 70%);
+  background: linear-gradient(45deg, #8a7cc2 30%, #a297cf 50%, #8a7cc2 70%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -62,7 +62,7 @@
 
 .elektrine-mark:hover {
   transform: scale(1.1) rotate(5deg);
-  filter: invert(1) sepia(0.8) saturate(2) hue-rotate(180deg) brightness(1) contrast(1.2) drop-shadow(0 0 8px rgba(168, 85, 247, 0.6));
+  filter: invert(1) sepia(0.8) saturate(2) hue-rotate(180deg) brightness(1) contrast(1.2) drop-shadow(0 0 8px rgba(138, 124, 194, 0.54));
 }
 
 .mark-glow-effect {
@@ -78,10 +78,10 @@
   inset: -8px;
   background: conic-gradient(
     from 0deg,
-    rgba(168, 85, 247, 0.1),
+    rgba(138, 124, 194, 0.08),
     rgba(255, 165, 0, 0.1),
     rgba(255, 69, 0, 0.1),
-    rgba(168, 85, 247, 0.1)
+    rgba(138, 124, 194, 0.08)
   );
   border-radius: 50%;
   animation: mark-rotate 8s linear infinite;
@@ -114,7 +114,7 @@
     circle at center,
     rgba(255, 69, 0, 0.08) 0%,
     rgba(255, 165, 0, 0.04) 40%,
-    rgba(168, 85, 247, 0.03) 70%,
+    rgba(138, 124, 194, 0.025) 70%,
     transparent 100%
   );
   pointer-events: none;
@@ -181,20 +181,20 @@
 
 .username-effect-glow {
   text-shadow:
-    0 0 2px color-mix(in srgb, var(--glow-color, #a855f7) 70%, transparent),
-    0 0 5px color-mix(in srgb, var(--glow-color, #a855f7) 50%, transparent),
-    0 0 10px color-mix(in srgb, var(--glow-color, #a855f7) 30%, transparent);
+    0 0 2px color-mix(in srgb, var(--glow-color, #8a7cc2) 70%, transparent),
+    0 0 5px color-mix(in srgb, var(--glow-color, #8a7cc2) 50%, transparent),
+    0 0 10px color-mix(in srgb, var(--glow-color, #8a7cc2) 30%, transparent);
   padding: 0 4px;
   margin: 0 -4px;
 }
 
 .username-effect-neon {
-  color: var(--glow-color, #a855f7);
+  color: var(--glow-color, #8a7cc2);
   text-shadow:
-    0 0 5px var(--glow-color, #a855f7),
-    0 0 10px var(--glow-color, #a855f7),
-    0 0 20px var(--glow-color, #a855f7),
-    0 0 40px var(--glow-color, #a855f7);
+    0 0 5px var(--glow-color, #8a7cc2),
+    0 0 10px var(--glow-color, #8a7cc2),
+    0 0 20px var(--glow-color, #8a7cc2),
+    0 0 40px var(--glow-color, #8a7cc2);
   animation: neon-pulse var(--animation-duration, 2s) ease-in-out infinite;
 }
 
@@ -202,18 +202,18 @@
   0%, 100% {
     opacity: 1;
     text-shadow:
-      0 0 5px var(--glow-color, #a855f7),
-      0 0 10px var(--glow-color, #a855f7),
-      0 0 20px var(--glow-color, #a855f7),
-      0 0 40px var(--glow-color, #a855f7);
+      0 0 5px var(--glow-color, #8a7cc2),
+      0 0 10px var(--glow-color, #8a7cc2),
+      0 0 20px var(--glow-color, #8a7cc2),
+      0 0 40px var(--glow-color, #8a7cc2);
   }
   50% {
     opacity: 0.8;
     text-shadow:
-      0 0 3px var(--glow-color, #a855f7),
-      0 0 7px var(--glow-color, #a855f7),
-      0 0 15px var(--glow-color, #a855f7),
-      0 0 30px var(--glow-color, #a855f7);
+      0 0 3px var(--glow-color, #8a7cc2),
+      0 0 7px var(--glow-color, #8a7cc2),
+      0 0 15px var(--glow-color, #8a7cc2),
+      0 0 30px var(--glow-color, #8a7cc2);
   }
 }
 
@@ -236,7 +236,7 @@
 }
 
 .username-effect-gradient {
-  background: linear-gradient(90deg, var(--gradient-from, #a855f7), var(--gradient-to, #dc2626));
+  background: linear-gradient(90deg, var(--gradient-from, #8a7cc2), var(--gradient-to, #c7796b));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -308,8 +308,8 @@
 
 .username-effect-outline {
   color: transparent;
-  -webkit-text-stroke: 2px var(--glow-color, #a855f7);
-  text-stroke: 2px var(--glow-color, #a855f7);
+  -webkit-text-stroke: 2px var(--glow-color, #8a7cc2);
+  text-stroke: 2px var(--glow-color, #8a7cc2);
 }
 
 .username-effect-double {
@@ -341,7 +341,7 @@
   -ms-interpolation-mode: nearest-neighbor;
   font-weight: 700;
   text-shadow:
-    1px 1px 0 var(--glow-color, #a855f7),
+    1px 1px 0 var(--glow-color, #8a7cc2),
     2px 2px 0 var(--shadow-color, #000000);
 }
 
@@ -372,10 +372,10 @@
 
 @keyframes avatar-glow-pulse {
   0%, 100% {
-    filter: drop-shadow(0 0 8px var(--avatar-accent, #a855f7)) drop-shadow(0 0 12px var(--avatar-accent, #a855f7));
+    filter: drop-shadow(0 0 8px var(--avatar-accent, #8a7cc2)) drop-shadow(0 0 12px var(--avatar-accent, #8a7cc2));
   }
   50% {
-    filter: drop-shadow(0 0 16px var(--avatar-accent, #a855f7)) drop-shadow(0 0 24px var(--avatar-accent, #a855f7));
+    filter: drop-shadow(0 0 16px var(--avatar-accent, #8a7cc2)) drop-shadow(0 0 24px var(--avatar-accent, #8a7cc2));
   }
 }
 
@@ -506,7 +506,7 @@
   position: absolute;
   inset: -4px;
   border-radius: inherit;
-  background: conic-gradient(from 0deg, var(--avatar-accent, #a855f7), var(--avatar-accent-light, #67e8f9), var(--avatar-accent, #a855f7));
+  background: conic-gradient(from 0deg, var(--avatar-accent, #8a7cc2), var(--avatar-accent-light, #a8bfd8), var(--avatar-accent, #8a7cc2));
   animation: rotate-border 3s linear infinite;
   z-index: -1;
 }
@@ -575,13 +575,13 @@
    -------------------------------------------------------------------------- */
 
 .link-effect-glow {
-  box-shadow: 0 0 15px var(--link-accent, #a855f7), 0 0 30px var(--link-accent, #a855f7);
+  box-shadow: 0 0 15px var(--link-accent, #8a7cc2), 0 0 30px var(--link-accent, #8a7cc2);
   animation: link-glow-pulse 2s ease-in-out infinite;
 }
 
 @keyframes link-glow-pulse {
-  0%, 100% { box-shadow: 0 0 15px var(--link-accent, #a855f7), 0 0 25px var(--link-accent, #a855f7); }
-  50% { box-shadow: 0 0 20px var(--link-accent, #a855f7), 0 0 35px var(--link-accent, #a855f7); }
+  0%, 100% { box-shadow: 0 0 15px var(--link-accent, #8a7cc2), 0 0 25px var(--link-accent, #8a7cc2); }
+  50% { box-shadow: 0 0 20px var(--link-accent, #8a7cc2), 0 0 35px var(--link-accent, #8a7cc2); }
 }
 
 .link-effect-pulse {
@@ -595,8 +595,8 @@
 
 .link-effect-border {
   border-width: 3px !important;
-  border-color: var(--link-accent, #a855f7) !important;
-  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
+  border-color: var(--link-accent, #8a7cc2) !important;
+  box-shadow: 0 0 0 3px rgba(138, 124, 194, 0.2);
 }
 
 .link-effect-shine {

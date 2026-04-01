@@ -30,13 +30,23 @@ defmodule Elektrine.Files do
     {"Largest", "size_desc"},
     {"Smallest", "size_asc"}
   ]
+  @quick_filter_options [
+    {"All", "all"},
+    {"Recent", "recent"},
+    {"Images", "images"},
+    {"Docs", "documents"},
+    {"Media", "media"},
+    {"Shared", "shared"}
+  ]
   @valid_share_access_levels Enum.map(@share_access_options, &elem(&1, 1))
   @valid_sort_values Enum.map(@sort_options, &elem(&1, 1))
+  @valid_filter_values Enum.map(@quick_filter_options, &elem(&1, 1))
 
   def max_upload_size, do: @default_max_upload_size
   def share_expiry_options, do: @share_expiry_options
   def share_access_options, do: @share_access_options
   def sort_options, do: @sort_options
+  def quick_filter_options, do: @quick_filter_options
 
   def list_files(user_id) do
     StoredFile
@@ -63,13 +73,15 @@ defmodule Elektrine.Files do
        %{
          current_folder: normalized_folder,
          breadcrumbs: breadcrumbs(normalized_folder),
-         folders: build_folder_entries(folders, files, normalized_folder, normalized_opts),
+         folders: filtered_folder_entries(folders, files, normalized_folder, normalized_opts),
          files:
            files_in_folder(files, normalized_folder)
+           |> apply_file_filter(normalized_opts.filter)
            |> filter_files(normalized_opts.search)
            |> sort_files(normalized_opts.sort),
          search_query: normalized_opts.search,
-         sort_by: normalized_opts.sort
+         sort_by: normalized_opts.sort,
+         filter_by: normalized_opts.filter
        }}
     end
   end
@@ -753,12 +765,87 @@ defmodule Elektrine.Files do
         ""
 
     sort = Map.get(opts, :sort) || Map.get(opts, "sort") || "updated_desc"
-    %{search: String.trim(to_string(search)), sort: normalize_sort(sort)}
+    filter = Map.get(opts, :filter) || Map.get(opts, "filter") || "all"
+
+    %{
+      search: String.trim(to_string(search)),
+      sort: normalize_sort(sort),
+      filter: normalize_filter(filter)
+    }
   end
 
   defp normalize_sort(sort) when sort in @valid_sort_values, do: sort
   defp normalize_sort(sort) when is_binary(sort) and sort in @valid_sort_values, do: sort
   defp normalize_sort(_sort), do: "updated_desc"
+
+  defp normalize_filter(filter) when filter in @valid_filter_values, do: filter
+
+  defp normalize_filter(filter) when is_binary(filter) and filter in @valid_filter_values,
+    do: filter
+
+  defp normalize_filter(_filter), do: "all"
+
+  defp filtered_folder_entries(folders, files, current_folder, opts) do
+    if opts.filter == "all" do
+      build_folder_entries(folders, files, current_folder, opts)
+    else
+      []
+    end
+  end
+
+  defp apply_file_filter(files, "all"), do: files
+
+  defp apply_file_filter(files, "recent") do
+    threshold = DateTime.utc_now() |> DateTime.add(-1_209_600, :second)
+
+    Enum.filter(files, fn file ->
+      case file.updated_at do
+        %DateTime{} = updated_at -> DateTime.compare(updated_at, threshold) != :lt
+        _ -> false
+      end
+    end)
+  end
+
+  defp apply_file_filter(files, "images") do
+    Enum.filter(files, &content_type_match?(&1.content_type, :images))
+  end
+
+  defp apply_file_filter(files, "documents") do
+    Enum.filter(files, &content_type_match?(&1.content_type, :documents))
+  end
+
+  defp apply_file_filter(files, "media") do
+    Enum.filter(files, &content_type_match?(&1.content_type, :media))
+  end
+
+  defp apply_file_filter(files, "shared") do
+    Enum.filter(files, &(length(&1.shares || []) > 0))
+  end
+
+  defp apply_file_filter(files, _filter), do: files
+
+  defp content_type_match?(content_type, :images),
+    do: is_binary(content_type) and String.starts_with?(content_type, "image/")
+
+  defp content_type_match?(content_type, :media),
+    do:
+      is_binary(content_type) and
+        String.starts_with?(content_type, ["image/", "video/", "audio/"])
+
+  defp content_type_match?(content_type, :documents) do
+    is_binary(content_type) and
+      (String.starts_with?(content_type, "text/") or
+         content_type in [
+           "application/pdf",
+           "application/json",
+           "application/msword",
+           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+           "application/vnd.ms-excel",
+           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+           "application/vnd.ms-powerpoint",
+           "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+         ])
+  end
 
   defp filter_files(files, ""), do: files
 

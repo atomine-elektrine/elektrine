@@ -290,11 +290,14 @@ defmodule ElektrineWeb.ListLive.Show do
     require Logger
     handles_text = String.trim(socket.assigns.bulk_input)
 
-    if handles_text == "" do
+    if not Elektrine.Strings.present?(handles_text) do
       {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
     else
       handles =
-        handles_text |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+        handles_text
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(not Elektrine.Strings.present?(&1)))
 
       results =
         Enum.map(handles, fn handle ->
@@ -555,7 +558,7 @@ defmodule ElektrineWeb.ListLive.Show do
   end
 
   def handle_event("create_reply", %{"content" => content, "reply_to_id" => reply_to_id}, socket) do
-    if String.trim(content) == "" do
+    if not Elektrine.Strings.present?(content) do
       {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     else
       reply_to_id = String.to_integer(reply_to_id)
@@ -663,6 +666,16 @@ defmodule ElektrineWeb.ListLive.Show do
         end
     end
   end
+
+  def relay_actor?(actor) when is_map(actor) do
+    username = actor["username"] || ""
+    domain = actor["domain"] || ""
+
+    String.contains?(String.downcase(username), "relay") ||
+      String.starts_with?(String.downcase(domain), "relay.")
+  end
+
+  def relay_actor?(_), do: false
 
   defp update_message_count(posts, post_replies, message_id, field, delta) do
     updated_posts =

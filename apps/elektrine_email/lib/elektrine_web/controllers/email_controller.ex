@@ -132,10 +132,10 @@ defmodule ElektrineWeb.EmailController do
                 Email.Message.private_encrypted?(message) ->
                   "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #666; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"max-width: 32rem; text-align: center;\">This message is protected by mailbox encryption. Unlock it in webmail to view the contents.</p></div>"
 
-                message.html_body && String.trim(message.html_body) != "" ->
+                Elektrine.Strings.present?(message.html_body) ->
                   safe_sanitize_email_html(message.html_body)
 
-                message.text_body && String.trim(message.text_body) != "" ->
+                Elektrine.Strings.present?(message.text_body) ->
                   escaped_text =
                     Phoenix.HTML.html_escape(message.text_body) |> Phoenix.HTML.safe_to_string()
 
@@ -307,14 +307,14 @@ defmodule ElektrineWeb.EmailController do
 
     # Add optional headers
     mail_message =
-      if message.cc && message.cc != "" do
+      if Elektrine.Strings.present?(message.cc) do
         Mail.Message.put_header(mail_message, "cc", message.cc)
       else
         mail_message
       end
 
     mail_message =
-      if message.bcc && message.bcc != "" do
+      if Elektrine.Strings.present?(message.bcc) do
         Mail.Message.put_header(mail_message, "bcc", message.bcc)
       else
         mail_message

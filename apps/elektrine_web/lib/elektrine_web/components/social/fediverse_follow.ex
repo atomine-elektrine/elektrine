@@ -76,7 +76,7 @@ defmodule ElektrineWeb.Components.Social.FediverseFollow do
 
   defp render_with_card(assigns) do
     ~H"""
-    <div class="card glass-card shadow-lg rounded-lg">
+    <div class="card panel-card rounded-lg">
       <div class="card-body p-4">
         <div class="flex items-center gap-2 mb-3">
           <.icon name="hero-globe-americas" class="w-4 h-4 text-purple-600" />
@@ -160,7 +160,7 @@ defmodule ElektrineWeb.Components.Social.FediverseFollow do
 
   def actor_preview(assigns) do
     ~H"""
-    <div class="card glass-card shadow-sm rounded-lg">
+    <div class="card panel-card rounded-lg">
       <div class="card-body p-3">
         <div class="flex items-center gap-3">
           <a href={@actor.uri} target="_blank" rel="noopener noreferrer" class="flex-shrink-0">
