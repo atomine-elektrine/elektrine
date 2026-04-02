@@ -2,6 +2,7 @@ defmodule Elektrine.Email.HarakaClientTest do
   use ExUnit.Case, async: false
 
   alias Elektrine.Email.HarakaClient
+  alias Elektrine.EmailConfig
 
   defmodule MockHarakaHTTPClient do
     def request(method, url, headers, body, _opts) do
@@ -72,6 +73,16 @@ defmodule Elektrine.Email.HarakaClientTest do
     assert Enum.any?(request.headers, fn {key, value} ->
              key == "X-API-Key" and value == "mailer-api-key"
            end)
+  end
+
+  test "haraka_http_client defaults to the fully qualified Finch client" do
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.delete(Application.get_env(:elektrine, :email, []), :haraka_http_client)
+    )
+
+    assert EmailConfig.haraka_http_client() == Elektrine.Email.HarakaClient.FinchClient
   end
 
   test "falls back to the mail subdomain default when no base_url is configured" do

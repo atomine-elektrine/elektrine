@@ -969,7 +969,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
     if map_size(updates) > 0 do
       case existing
-           |> Ecto.Changeset.change(updates)
+           |> Elektrine.Messaging.Message.federated_changeset(updates)
            |> Repo.update() do
         {:ok, message} ->
           Repo.preload(message, MessagingMessages.timeline_post_preloads())

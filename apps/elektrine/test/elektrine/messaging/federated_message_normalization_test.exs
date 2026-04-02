@@ -7,6 +7,7 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.Message
 
   describe "create_federated_message/1 normalization" do
     test "truncates titles longer than varchar limit" do
@@ -33,6 +34,30 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
                |> Messaging.create_federated_message()
 
       assert message.media_urls == [short_url]
+    end
+  end
+
+  describe "federated_changeset/2 normalization on updates" do
+    test "truncates refreshed titles and drops oversized media URLs" do
+      actor = remote_actor_fixture()
+      long_title = String.duplicate("T", 320)
+      short_url = "https://remote.example/media/image.jpg"
+      long_url = "https://remote.example/media/" <> String.duplicate("a", 280)
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{title: nil, media_urls: []})
+               |> Messaging.create_federated_message()
+
+      changeset =
+        Message.federated_changeset(message, %{
+          title: long_title,
+          media_urls: [short_url, long_url]
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :title) == String.slice(long_title, 0, 255)
+      assert Ecto.Changeset.get_change(changeset, :media_urls) == [short_url]
     end
   end
 

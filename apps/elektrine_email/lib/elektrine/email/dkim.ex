@@ -319,12 +319,15 @@ defmodule Elektrine.Email.DKIM do
   defp email_config do
     [
       custom_domain_http_client:
-        Elektrine.EmailConfig.email_setting(:custom_domain_http_client, FinchClient)
+        Elektrine.EmailConfig.email_setting(
+          :custom_domain_http_client,
+          Elektrine.Email.DKIM.FinchClient
+        )
     ]
   end
 
   defp http_client do
-    Keyword.get(email_config(), :custom_domain_http_client, FinchClient)
+    Keyword.get(email_config(), :custom_domain_http_client, Elektrine.Email.DKIM.FinchClient)
   end
 
   defp generate_key_pair do
