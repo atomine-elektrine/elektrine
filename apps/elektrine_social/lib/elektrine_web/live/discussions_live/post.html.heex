@@ -719,14 +719,14 @@
               >
                 <div class="p-3 bg-base-200 border border-base-200 rounded-lg hover:border-primary/50 hover:shadow-sm transition-shadow">
                   <% related_title =
-                    ElektrineWeb.Components.Social.PostUtilities.plain_text_content(
+                    ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_content(
                       related_post.title
                     ) %>
                   <h4 class="font-medium text-sm group-hover:text-primary line-clamp-2">
                     {if related_title != "",
                       do: related_title,
                       else:
-                        ElektrineWeb.Components.Social.PostUtilities.plain_text_preview(
+                        ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_preview(
                           related_post.content,
                           50
                         )}
@@ -761,7 +761,7 @@
 <!-- Report Modal -->
   <%= if @show_report_modal do %>
     <.live_component
-      module={ElektrineWeb.Components.ReportModal}
+      module={Elektrine.Components.ReportModal}
       id="report-modal"
       reporter_id={@current_user.id}
       reportable_type={@report_type}

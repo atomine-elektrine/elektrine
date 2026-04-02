@@ -279,9 +279,11 @@ defmodule Elektrine.DNS.Recursive do
 
     decoded
     |> additional_records()
-    |> Enum.filter(&(normalize_rr_type(rr_type(&1)) in [:a, :aaaa]))
-    |> Enum.filter(&(normalize_name(rr_domain(&1)) in ns_names))
-    |> Enum.filter(&within_bailiwick?(normalize_name(rr_domain(&1)), delegated_names))
+    |> Enum.filter(fn record ->
+      normalize_rr_type(rr_type(record)) in [:a, :aaaa] and
+        normalize_name(rr_domain(record)) in ns_names and
+        within_bailiwick?(normalize_name(rr_domain(record)), delegated_names)
+    end)
     |> Enum.map(&rr_ip/1)
   end
 

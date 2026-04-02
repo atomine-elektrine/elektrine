@@ -11,9 +11,9 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     router: ElektrineWeb.Router,
     statics: ElektrineWeb.static_paths()
 
-  alias Elektrine.Platform.Modules
   alias Elektrine.Platform.ENav, as: PlatformENav
   alias Elektrine.Platform.ENavComponent
+  alias Elektrine.Platform.Modules
 
   @doc """
   Renders the unified product navigation tabs.

@@ -1,48 +1,54 @@
-# Docker deploy
+# Docker Deploy
 
-This keeps the main app and worker in a single Docker deployment:
+The Docker deployment keeps the main app and background services in one Compose
+stack.
 
-- one `app` container
-- one `worker` container
-- optional `mail` container when the `email` profile is enabled
-- one Postgres container
-- optional Caddy edge via `--profile caddy`
-- optional TURN/STUN daemon via `--profile turn`
-- optional Bluesky PDS via `--profile bluesky`
-- optional authoritative DNS via `--profile dns`
-- optional onion service inside the `app` container via `--profile tor`
+## Services
 
-The optional Caddy edge handles HTTP bootstrap on the server IP, automatic HTTPS
-for your configured domains, optional mounted wildcard certs from an external
-ACME client, and on-demand TLS for custom domains. See `docs/self-hosting/caddy.md`.
+- `app`
+- `worker`
+- `postgres`
+- optional `mail` service when the `email` profile is enabled
+- optional `dns` service when the `dns` profile is enabled
+- optional `turn` service when the `turn` profile is enabled
+- optional `vpn` service when the `vpn` module is enabled
+- optional `caddy` edge when the `caddy` profile is enabled
+- optional `bluesky` PDS when the `bluesky` profile is enabled
+- optional onion hosting inside the `app` container when the `tor` profile is enabled
 
-Deployment model:
+See `docs/self-hosting/caddy.md` for Caddy details.
+
+## Model
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
 | product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
-| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `caddy`, `bluesky` |
+| long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `vpn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
-Rule of thumb:
+Use this rule of thumb:
 
 - if it is a feature in the app, treat it as a module
 - if it opens ports or runs a dedicated daemon, treat it as a profile-backed service
 
-Recommended host layout:
+`vpn` is the one intentional hybrid here: the app module stays enabled in
+Elektrine, and the Docker deploy adds the bundled `vpn` service so WireGuard
+runs in the same stack.
+
+## Host Layout
 
 1. clone this repo to `/opt/elektrine/app`
 2. copy `.env.minimal.example` to `/opt/elektrine/app/.env.production`
 3. install Docker Engine with the Compose plugin
 4. install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts
 
-Recommended simplification:
+## Environment Files
 
 - start from `.env.minimal.example` for the easiest first deploy
 - use `.env.example` only when you want the larger advanced template
 - use the smaller files under `env/` as reference for feature-specific overrides
 
-Minimal first-run values are usually just:
+Minimal first-run values are usually:
 
 - `PRIMARY_DOMAIN`
 - `DB_PASSWORD`
@@ -56,6 +62,8 @@ By default, the DNS service derives:
 
 Override those only if you want custom DNS branding via `DNS_NAMESERVERS` or `DNS_SOA_RNAME`.
 
+## Storage
+
 Local uploads without R2:
 
 - if `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, and `R2_BUCKET_NAME` are unset, uploads stay on local disk
@@ -63,13 +71,22 @@ Local uploads without R2:
 - the container entrypoint links that volume into the release `priv/static/uploads` path so `/uploads/...` URLs keep working
 - keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
 
-Deploy manually:
+## Deploy
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn --profile caddy --profile dns
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile dns
 ```
 
-Fast path for local iteration:
+When `vpn` is in the module list, `scripts/deploy/docker_deploy.sh` also enables the `vpn`
+profile automatically so the bundled WireGuard container comes up with the stack.
+
+To enable VPN explicitly:
+
+```bash
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn --profile caddy
+```
+
+## Fast Iteration
 
 ```bash
 scripts/deploy/build_and_push_image.sh --tag dev-$(git rev-parse --short HEAD)
@@ -78,6 +95,8 @@ scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git
 
 That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
 remote host to pull and deploy it without rebuilding the app image there.
+
+## HTTPS
 
 For automatic HTTPS, set this key in `.env.production` before first deploy:
 
@@ -102,17 +121,22 @@ directory mounted read-only into the Caddy container. `scripts/deploy/docker_dep
 auto-selects the wildcard Caddyfile for this combination, so `CADDY_CONFIG_PATH`
 usually does not need to be set manually.
 
-Preview what a deploy will run:
+## Preview
 
 ```bash
 scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor"
 ```
 
-Keep the repo owned by your deploy user and avoid running `git` operations as `root` inside the checkout. Use `sudo` only for Docker commands. If a generated compose file ever becomes unwritable because of ownership drift, render to a writable temporary path instead of the tracked repo file:
+Keep the repo owned by your deploy user and avoid running `git` operations as
+`root` inside the checkout. Use `sudo` only for Docker commands. If a rendered
+compose file becomes unwritable because of ownership drift, render to a
+writable temporary path instead:
 
 ```bash
 scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault --profile caddy
 ```
+
+## Optional Services
 
 Enable the separate mail protocol service with:
 
@@ -148,7 +172,7 @@ The Docker deploy keeps Tor off by default. Turn it on with the `tor` profile pl
 - `ONION_TLS_ENABLED=true`
 - persistent `/data` storage so the hidden-service keys survive restarts
 
-The deploy wrapper:
+## What The Wrapper Does
 
 - renders `deploy/docker/generated.docker.yml`
 - keeps `app` and `worker` in the stack
@@ -159,7 +183,7 @@ The deploy wrapper:
 - can expose the app as an onion service when the `tor` profile is enabled
 - runs a stock Caddy edge when the `caddy` profile is enabled
 
-Postgres notes:
+## Postgres
 
 - Docker deploy uses `pgvector/pgvector:pg16` for the `postgres` service
 - fresh databases load `vector` from `deploy/docker/initdb/010-extensions.sql`
@@ -167,10 +191,13 @@ Postgres notes:
 - `POSTGRES_EXTENSIONS` defaults to `vector`; set a comma-separated list in `.env.production` if you need more
 
 Mail on the same server is supported too, but as a second Docker deployment.
-Use this repo for Phoenix/mailbox/JMAP/WKD and run `elektrine-haraka` beside it
-for SMTP edge and delivery. See `docs/self-hosting/mail.md`.
+Use this repo for Phoenix, mailbox, JMAP, and WKD, and run
+`elektrine-haraka` beside it for SMTP edge and delivery. See
+`docs/self-hosting/mail.md`.
 
-GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
+## GitHub Actions
+
+Deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 - `DEPLOY_HOST`
 - `DEPLOY_USER`
@@ -183,7 +210,7 @@ GitHub Actions deploy secrets for `.github/workflows/docker-deploy.yml`:
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
 - TURN profile exposes `3478` plus relay ports `49160-49200` on the host; adjust `TURN_PORT`, `TURN_MIN_PORT`, and `TURN_MAX_PORT` if needed
 
-GitHub Actions variables for `.github/workflows/docker-deploy.yml`:
+Variables for `.github/workflows/docker-deploy.yml`:
 
 - `ELEKTRINE_ENABLED_MODULES` optional, defaults to `all`
 - `ELEKTRINE_RELEASE_MODULES` optional advanced build override

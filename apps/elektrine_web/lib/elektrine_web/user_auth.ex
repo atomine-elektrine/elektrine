@@ -30,7 +30,7 @@ defmodule ElektrineWeb.UserAuth do
   This is used to remember users when they return to the app.
   """
   def log_in_user(conn, user, params \\ %{}, opts \\ []) do
-    token = Phoenix.Token.sign(conn, "user auth", user.id)
+    token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user))
     user_return_to = get_session(conn, :user_return_to)
 
     # Update login information (IP, timestamp, count)
@@ -226,12 +226,46 @@ defmodule ElektrineWeb.UserAuth do
 
   defp fetch_user_by_token(token) do
     case Phoenix.Token.verify(ElektrineWeb.Endpoint, "user auth", token, max_age: @max_age) do
-      {:ok, user_id} -> Accounts.get_user!(user_id)
+      {:ok, claims} -> claims |> session_user_id() |> fetch_user_for_claims(claims)
       {:error, _} -> nil
     end
   rescue
     _ -> nil
   end
+
+  defp user_session_claims(user) do
+    %{
+      "user_id" => user.id,
+      "password_changed_at" => password_changed_at_unix(user)
+    }
+  end
+
+  defp fetch_user_for_claims(nil, _claims), do: nil
+
+  defp fetch_user_for_claims(user_id, claims) do
+    user = Accounts.get_user!(user_id)
+
+    if session_claims_valid?(user, claims) do
+      user
+    else
+      nil
+    end
+  end
+
+  defp session_user_id(%{"user_id" => user_id}) when is_integer(user_id), do: user_id
+  defp session_user_id(_claims), do: nil
+
+  defp session_claims_valid?(user, %{"password_changed_at" => changed_at}) do
+    password_changed_at_unix(user) == changed_at
+  end
+
+  defp session_claims_valid?(_user, _claims), do: false
+
+  defp password_changed_at_unix(%{last_password_change: %DateTime{} = changed_at}) do
+    DateTime.to_unix(changed_at)
+  end
+
+  defp password_changed_at_unix(_user), do: nil
 
   @doc """
   Confirms if the current user is authenticated.

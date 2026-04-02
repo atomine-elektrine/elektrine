@@ -44,6 +44,7 @@ defmodule Elektrine.Accounts.User do
     field :locale, :string, default: "en"
     field :timezone, :string
     field :time_format, :string, default: "12"
+    field :theme_overrides, :map, default: %{}
 
     # Social Identity
     field :handle, :string
@@ -323,6 +324,7 @@ defmodule Elektrine.Accounts.User do
       :locale,
       :timezone,
       :time_format,
+      :theme_overrides,
       :email_signature,
       :preferred_email_domain,
       :onboarding_completed,
@@ -370,6 +372,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:default_post_visibility, ["public", "followers", "friends", "private"])
     |> validate_inclusion(:locale, ~w(en zh), message: "is not a supported locale")
     |> validate_inclusion(:time_format, ~w(12 24), message: "must be 12 or 24")
+    |> Elektrine.Theme.validate_overrides(:theme_overrides)
     |> validate_preferred_email_domain(user)
     |> validate_bluesky_settings()
   end

@@ -239,7 +239,7 @@
 
               <%= if @local_message.post_type == "poll" && Ecto.assoc_loaded?(@local_message.poll) && @local_message.poll do %>
                 <div class="mb-4">
-                  <ElektrineWeb.Components.Social.PollDisplay.poll_card
+                  <ElektrineSocialWeb.Components.Social.PollDisplay.poll_card
                     poll={@local_message.poll}
                     message={@local_message}
                     current_user={@current_user}
@@ -253,14 +253,14 @@
                 <% quoted_message_path = quote_message_path(@local_message.quoted_message) %>
                 <%= if is_binary(quoted_message_path) do %>
                   <.link navigate={quoted_message_path} class="block">
-                    <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                    <ElektrineSocialWeb.Components.Social.RemotePostShared.quote_preview
                       quoted_message={@local_message.quoted_message}
                       variant={:detail}
                       content_mode={:local}
                     />
                   </.link>
                 <% else %>
-                  <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                  <ElektrineSocialWeb.Components.Social.RemotePostShared.quote_preview
                     quoted_message={@local_message.quoted_message}
                     variant={:detail}
                     content_mode={:local}
@@ -272,7 +272,7 @@
               <%= if @local_message.media_urls && length(@local_message.media_urls) > 0 do %>
                 <% all_urls =
                   Enum.map(@local_message.media_urls, &Elektrine.Uploads.attachment_url/1) %>
-                <ElektrineWeb.Components.Social.RemotePostShared.media_gallery
+                <ElektrineSocialWeb.Components.Social.RemotePostShared.media_gallery
                   urls={all_urls}
                   layout={:auto}
                   wrapper_class="mb-4"
@@ -456,7 +456,7 @@
                     </div>
                   <% end %>
 
-                  <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                  <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
                     wrapper_class=""
                     content={@reply_content}
                     textarea_id="remote-post-reply-textarea"
@@ -797,7 +797,7 @@
                           <% local_quote_path = quote_message_path(local_quote) %>
                           <%= if is_binary(local_quote_path) do %>
                             <.link navigate={local_quote_path} class="block">
-                              <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                              <ElektrineSocialWeb.Components.Social.RemotePostShared.quote_preview
                                 quoted_message={local_quote}
                                 variant={:detail}
                                 content_mode={:remote_post}
@@ -805,7 +805,7 @@
                               />
                             </.link>
                           <% else %>
-                            <ElektrineWeb.Components.Social.RemotePostShared.quote_preview
+                            <ElektrineSocialWeb.Components.Social.RemotePostShared.quote_preview
                               quoted_message={local_quote}
                               variant={:detail}
                               content_mode={:remote_post}
@@ -830,7 +830,7 @@
 <!-- Poll Display for Question type posts -->
                         <%= if @post["type"] == "Question" || @post["oneOf"] || @post["anyOf"] do %>
                           <div class="mb-4">
-                            <ElektrineWeb.Components.Social.PollDisplay.poll_card
+                            <ElektrineSocialWeb.Components.Social.PollDisplay.poll_card
                               post={@post}
                               remote_actor={@remote_actor}
                               current_user={@current_user}
@@ -1241,7 +1241,7 @@
                             </div>
                           <% end %>
 
-                          <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+                          <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
                             wrapper_class=""
                             content={@reply_content}
                             textarea_id="remote-post-reply-textarea"

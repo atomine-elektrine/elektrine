@@ -1,43 +1,38 @@
 # Elektrine
 
 Elektrine is an Elixir umbrella application. The shared platform core lives in
-`apps/elektrine`, the Phoenix shell lives in `apps/elektrine_web`, and the
-major product areas ship as separate umbrella apps.
+`apps/elektrine`, the Phoenix shell lives in `apps/elektrine_web`, and each
+product area ships as a separate umbrella app.
 
-## Repository layout
+## Layout
 
-- `apps/` umbrella apps
-- `clients/` optional client artifacts that are not part of the server deploy
-- `config/` shared compile-time and runtime config
-- `deploy/` Docker, Fly, edge, onion, and installer assets
-- `docs/` protocol, platform, and deployment notes
-- `env/` profile-based environment examples
-- `release_builder/` subset release tooling
-- `scripts/` release, deploy, and ops helpers
+- `apps/`: umbrella apps
+- `clients/`: client artifacts that are not part of the server deploy
+- `config/`: shared compile-time and runtime config
+- `deploy/`: Docker, Fly, edge, onion, and installer assets
+- `docs/`: platform, protocol, and deployment docs
+- `env/`: environment examples
+- `release_builder/`: subset release tooling
+- `scripts/`: release, deploy, and ops helpers
 
-Main apps:
+## Main apps
 
-- `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts,
-  uploads, notifications, ActivityPub internals, calendar, and the platform
-  module registry
-- `apps/elektrine_web`: endpoint, router, plugs, shared layouts/components,
-  admin shell, and the auth/navigation layer
+- `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts, uploads, notifications, calendar, and the module registry
+- `apps/elektrine_web`: endpoint, router, plugs, layouts, admin shell, and shared web components
 - `apps/elektrine_chat`: chat UI and API
-- `apps/elektrine_social`: timeline, communities, federation, and the social
-  web surface
-- `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and
-  the public email surface
+- `apps/elektrine_social`: timeline, communities, federation, and social web surface
+- `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and email web surface
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
 - `apps/elektrine_password_manager`: password vault
 
-Requests enter through `ElektrineWeb.Router`, pass through the shared plugs and
+Requests enter through `ElektrineWeb.Router`, pass through shared plugs and
 module guards, and then land in the controller or LiveView owned by the
 relevant app. Persistence stays centralized in `Elektrine.Repo`.
 
-## Identity provider slice
+## Identity Provider
 
-Elektrine now exposes a first OpenID Connect-compatible identity provider layer
-on top of the existing OAuth app tables:
+Elektrine exposes an OpenID Connect-compatible identity provider on top of the
+existing OAuth tables:
 
 - discovery: `/.well-known/openid-configuration`
 - browser consent: `/oauth/authorize`
@@ -48,13 +43,13 @@ on top of the existing OAuth app tables:
 - grant review UI: `/account/developer/oidc/grants`
 - dynamic registration: `POST /oauth/register` while signed in
 
-Register OAuth apps with `openid`, `profile`, and `email` scopes to use the IdP
+Register OAuth apps with `openid`, `profile`, and `email` scopes to use this
 flow. The current implementation supports the authorization code flow and
 issues `RS256` `id_token`s for confidential clients.
 
-## Release modules and runtime modules
+## Module Selection
 
-Elektrine uses one public module switch for normal deployments:
+Normal deployments use one public module switch:
 
 - `ELEKTRINE_ENABLED_MODULES` controls which product modules are turned on
 - release builds default to that same module list
@@ -64,7 +59,7 @@ Elektrine uses one public module switch for normal deployments:
 In normal use, set `ELEKTRINE_ENABLED_MODULES` and leave
 `ELEKTRINE_RELEASE_MODULES` unset.
 
-## Local development
+## Local Development
 
 From the repo root:
 
@@ -94,10 +89,9 @@ mix test apps/elektrine_password_manager/test
 
 Frontend assets live under `apps/elektrine/assets`.
 
-## Building and deploying
+## Build And Deploy
 
-The repo still supports a full umbrella release, but the supported path for
-hosted or subset installs is the subset builder:
+The supported path for hosted or subset installs is the subset builder:
 
 ```bash
 scripts/release/deploy_release.sh --modules email,vpn
@@ -106,25 +100,30 @@ scripts/release/deploy_release.sh --modules email,vpn
 This builds assets, selects the requested module apps, and writes the release
 to `_deploy_release/`. `deploy/docker/Dockerfile` uses the same path.
 
-For Docker deployments, use the wrapper instead of invoking
-`docker compose` against `deploy/docker/compose.full.yml` directly:
+For Docker deployments, use the wrapper instead of invoking `docker compose`
+against `deploy/docker/compose.full.yml` directly:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
 ```
 
-The wrapper renders a module-aware Compose file first, updates
-`ELEKTRINE_ENABLED_MODULES`, derives release modules from it by default, and
-`ELEKTRINE_ENABLE_MAIL`, and removes the POP3, IMAP, and SMTP port bindings
-when `email` is not selected.
+The wrapper renders a module-aware Compose file first, sets
+`ELEKTRINE_ENABLED_MODULES`, derives release modules from it by default, sets
+mail runtime flags, and removes POP3, IMAP, and SMTP port bindings when
+`email` is not selected.
 
-## Self-hosting profiles
+When `vpn` is selected, the Docker deploy also enables the bundled `vpn`
+service automatically. That service runs the Docker-managed WireGuard node,
+creates or restores its private key, derives the public key, and reconciles
+peer state in-app.
+
+## Self-hosting
 
 The self-hosting docs are split by profile:
 
 - `core`: Phoenix app and Postgres only
 - `mail`: Haraka deployment layered on top of the `email` module
-- `vpn`: `vpn` module plus fleet registration key
+- `vpn`: optional Docker-managed WireGuard on the same stack, with optional fleet mode
 - `addons`: Caddy edge, Bluesky PDS, onion hosting, and client artifacts
 
 Start with:
@@ -137,7 +136,7 @@ Start with:
 - `docs/addons/onion.md`
 - `docs/clients/password-manager-extension.md`
 
-## Email deployment
+## Email Deployment
 
 The `email` module in this repo is only part of the mail stack. Mail transport
 lives in
@@ -147,15 +146,15 @@ and a production email deployment needs both repositories.
 This repo owns the mailbox product: UI, aliases, contacts, JMAP, WKD, message
 storage, and the Phoenix endpoints that receive mail webhooks.
 `elektrine-haraka` owns the SMTP edge and delivery pipeline: inbound SMTP,
-authenticated submission, outbound send API, Redis-backed mail queueing, and
-the worker that posts cleaned inbound message data back into Phoenix.
+authenticated submission, outbound send API, Redis-backed queueing, and the
+worker that posts cleaned inbound message data back into Phoenix.
 
 If you enable the `email` module, deploy `elektrine-haraka` alongside it and
 configure `HARAKA_BASE_URL`, an outbound Haraka API key, and an inbound webhook
 key. Both deployments can live on the same bare-metal server as separate Docker
 projects.
 
-## Bluesky integration
+## Bluesky Integration
 
 Bluesky support is part of the social stack.
 

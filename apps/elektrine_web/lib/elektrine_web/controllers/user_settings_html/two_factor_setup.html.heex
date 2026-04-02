@@ -71,7 +71,10 @@
         </h2>
 
         <div class="flex flex-col items-center my-4 sm:my-6">
-          <div class="bg-white p-3 sm:p-4 rounded-lg shadow-lg">
+          <div
+            class="p-3 sm:p-4 rounded-lg shadow-lg"
+            style={"background-color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
             <%= if @qr_code_data_uri do %>
               <img
                 src={@qr_code_data_uri}

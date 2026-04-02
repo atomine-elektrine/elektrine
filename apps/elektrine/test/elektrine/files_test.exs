@@ -126,6 +126,18 @@ defmodule Elektrine.FilesTest do
     assert Files.share_inline_view?(share)
   end
 
+  test "html shares are never inline viewable", %{user: user} do
+    upload = temp_upload("preview.html", "<script>alert(1)</script>")
+    upload = %{upload | content_type: "text/html"}
+
+    assert {:ok, file} = Files.upload_file(user, "", upload)
+    assert {:ok, share} = Files.create_share(user.id, file.id, %{access_level: "view"})
+
+    share = Repo.preload(share, :stored_file)
+
+    refute Files.share_inline_view?(share)
+  end
+
   test "uploading the same path replaces the existing file", %{user: user} do
     assert {:ok, first} = Files.upload_file(user, "docs", temp_upload("notes.txt", "one"))
     assert {:ok, second} = Files.upload_file(user, "docs", temp_upload("notes.txt", "two two"))

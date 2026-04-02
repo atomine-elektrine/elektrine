@@ -11,6 +11,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
   alias Elektrine.Accounts.User
   alias Elektrine.EmailAddresses
   alias Elektrine.Repo
+  alias Elektrine.Theme
   require Logger
 
   @token_validity_hours 24
@@ -139,6 +140,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
 
   defp build_verification_email(user, verify_url, app_name) do
     subject = "Verify your recovery email address"
+    palette = Theme.email_palette(user)
 
     text_body = """
     Hi #{user.username},
@@ -165,18 +167,18 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
       <meta name="color-scheme" content="dark">
       <meta name="supported-color-schemes" content="dark">
     </head>
-    <body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #000000;">
+    <body style="margin: 0; padding: 0; background-color: #{palette.page_bg}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #{palette.page_bg};">
         <tr>
           <td align="center" style="padding: 40px 20px;">
-            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #0a0a0a; border: 1px solid #1f1f1f; border-radius: 12px;">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #{palette.card_bg}; border: 1px solid #{palette.card_border}; border-radius: 12px;">
               <tr>
                 <td style="padding: 40px;">
                   <!-- Header -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="padding-bottom: 30px; border-bottom: 1px solid #1f1f1f;">
-                        <h1 style="margin: 0; color: #8a7cc2; font-size: 24px; font-weight: 600;">Verify Your Recovery Email</h1>
+                      <td style="padding-bottom: 30px; border-bottom: 1px solid #{palette.divider};">
+                        <h1 style="margin: 0; color: #{palette.text_heading}; font-size: 24px; font-weight: 600;">Verify Your Recovery Email</h1>
                       </td>
                     </tr>
                   </table>
@@ -185,31 +187,31 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding: 30px 0;">
-                        <p style="margin: 0 0 20px 0; color: #e5e5e5; font-size: 16px; line-height: 1.6;">
+                        <p style="margin: 0 0 20px 0; color: #{palette.text_strong}; font-size: 16px; line-height: 1.6;">
                           Hi #{user.username},
                         </p>
-                        <p style="margin: 0 0 30px 0; color: #d1d5db; font-size: 16px; line-height: 1.6;">
+                        <p style="margin: 0 0 30px 0; color: #{palette.text_body}; font-size: 16px; line-height: 1.6;">
                           Please verify your recovery email address by clicking the button below:
                         </p>
 
                         <!-- Button -->
                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                           <tr>
-                            <td style="background-color: #8a7cc2; border-radius: 8px;">
-                              <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                            <td style="background-color: #{palette.button_bg}; border-radius: 8px;">
+                              <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #{palette.button_text}; text-decoration: none; font-size: 16px; font-weight: 600;">
                                 Verify Email Address
                               </a>
                             </td>
                           </tr>
                         </table>
 
-                        <p style="margin: 0 0 20px 0; color: #9ca3af; font-size: 14px; line-height: 1.6;">
+                        <p style="margin: 0 0 20px 0; color: #{palette.text_muted}; font-size: 14px; line-height: 1.6;">
                           This link will expire in #{@token_validity_hours} hours.
                         </p>
-                        <p style="margin: 0 0 20px 0; color: #d1d5db; font-size: 16px; line-height: 1.6;">
+                        <p style="margin: 0 0 20px 0; color: #{palette.text_body}; font-size: 16px; line-height: 1.6;">
                           Once verified, this email can be used for password resets and account recovery.
                         </p>
-                        <p style="margin: 0; color: #9ca3af; font-size: 14px; line-height: 1.6;">
+                        <p style="margin: 0; color: #{palette.text_muted}; font-size: 14px; line-height: 1.6;">
                           If you did not add this recovery email, you can safely ignore this message.
                         </p>
                       </td>
@@ -219,8 +221,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <!-- Footer -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="padding-top: 30px; border-top: 1px solid #1f1f1f;">
-                        <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                      <td style="padding-top: 30px; border-top: 1px solid #{palette.divider};">
+                        <p style="margin: 0; color: #{palette.text_subtle}; font-size: 12px;">
                           - The #{app_name} Team
                         </p>
                       </td>
@@ -241,6 +243,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
 
   defp build_restriction_email(user, verify_url, app_name) do
     subject = "Verify your recovery email to restore email sending"
+    palette = Theme.email_palette(user, :warning)
 
     text_body = """
     Hi #{user.username},
@@ -267,18 +270,18 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
       <meta name="color-scheme" content="dark">
       <meta name="supported-color-schemes" content="dark">
     </head>
-    <body style="margin: 0; padding: 0; background-color: #000000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #000000;">
+    <body style="margin: 0; padding: 0; background-color: #{palette.page_bg}; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #{palette.page_bg};">
         <tr>
           <td align="center" style="padding: 40px 20px;">
-            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #0a0a0a; border: 1px solid #1f1f1f; border-radius: 12px;">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #{palette.card_bg}; border: 1px solid #{palette.card_border}; border-radius: 12px;">
               <tr>
                 <td style="padding: 40px;">
                   <!-- Header -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="padding-bottom: 30px; border-bottom: 1px solid #1f1f1f;">
-                        <h1 style="margin: 0; color: #f97316; font-size: 24px; font-weight: 600;">Restore Email Sending</h1>
+                      <td style="padding-bottom: 30px; border-bottom: 1px solid #{palette.divider};">
+                        <h1 style="margin: 0; color: #{palette.text_heading}; font-size: 24px; font-weight: 600;">Restore Email Sending</h1>
                       </td>
                     </tr>
                   </table>
@@ -287,10 +290,10 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding: 20px 0;">
-                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #1c1917; border: 1px solid #f97316; border-radius: 8px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #{palette.alert_bg}; border: 1px solid #{palette.alert_border}; border-radius: 8px;">
                           <tr>
                             <td style="padding: 16px;">
-                              <p style="margin: 0; color: #fed7aa; font-size: 14px; line-height: 1.6;">
+                              <p style="margin: 0; color: #{palette.alert_text}; font-size: 14px; line-height: 1.6;">
                                 Your email sending privileges have been temporarily restricted due to rate limit violations.
                               </p>
                             </td>
@@ -304,28 +307,28 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="padding: 10px 0 30px 0;">
-                        <p style="margin: 0 0 20px 0; color: #e5e5e5; font-size: 16px; line-height: 1.6;">
+                        <p style="margin: 0 0 20px 0; color: #{palette.text_strong}; font-size: 16px; line-height: 1.6;">
                           Hi #{user.username},
                         </p>
-                        <p style="margin: 0 0 30px 0; color: #d1d5db; font-size: 16px; line-height: 1.6;">
+                        <p style="margin: 0 0 30px 0; color: #{palette.text_body}; font-size: 16px; line-height: 1.6;">
                           To restore your ability to send emails, please verify your recovery email by clicking the button below:
                         </p>
 
                         <!-- Button -->
                         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                           <tr>
-                            <td style="background-color: #8a7cc2; border-radius: 8px;">
-                              <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">
+                            <td style="background-color: #{palette.button_bg}; border-radius: 8px;">
+                              <a href="#{verify_url}" style="display: inline-block; padding: 14px 28px; color: #{palette.button_text}; text-decoration: none; font-size: 16px; font-weight: 600;">
                                 Verify Recovery Email
                               </a>
                             </td>
                           </tr>
                         </table>
 
-                        <p style="margin: 0 0 20px 0; color: #9ca3af; font-size: 14px; line-height: 1.6;">
+                        <p style="margin: 0 0 20px 0; color: #{palette.text_muted}; font-size: 14px; line-height: 1.6;">
                           This link will expire in #{@token_validity_hours} hours.
                         </p>
-                        <p style="margin: 0; color: #9ca3af; font-size: 14px; line-height: 1.6;">
+                        <p style="margin: 0; color: #{palette.text_muted}; font-size: 14px; line-height: 1.6;">
                           If you did not request this or believe this is an error, please contact support.
                         </p>
                       </td>
@@ -335,8 +338,8 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
                   <!-- Footer -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="padding-top: 30px; border-top: 1px solid #1f1f1f;">
-                        <p style="margin: 0; color: #6b7280; font-size: 12px;">
+                      <td style="padding-top: 30px; border-top: 1px solid #{palette.divider};">
+                        <p style="margin: 0; color: #{palette.text_subtle}; font-size: 12px;">
                           - The #{app_name} Team
                         </p>
                       </td>

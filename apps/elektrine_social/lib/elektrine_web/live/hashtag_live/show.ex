@@ -3,10 +3,10 @@ defmodule ElektrineWeb.HashtagLive.Show do
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Social
-  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.TimelinePost
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.TimelinePost
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @impl true
   def mount(%{"hashtag" => hashtag_name}, _session, socket) do

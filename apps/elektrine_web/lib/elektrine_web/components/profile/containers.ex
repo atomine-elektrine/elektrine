@@ -6,7 +6,7 @@ defmodule ElektrineWeb.Components.Profile.Containers do
   Renders SVG pattern overlay for profile containers
   """
   attr :pattern, :string, required: true
-  attr :color, :string, default: "#ffffff"
+  attr :color, :string, default: Elektrine.Theme.inverse_text_color()
   attr :id, :string, required: true
   attr :animated, :boolean, default: false
   attr :speed, :string, default: "normal"

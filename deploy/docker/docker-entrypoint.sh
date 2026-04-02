@@ -99,5 +99,10 @@ fi
 chown -R nobody:nogroup /data 2>/dev/null || true
 chmod 700 "$TOR_HS_DIR" 2>/dev/null || true
 
+# The dedicated vpn role needs root so it can manage the WireGuard interface.
+if [ "$ROLE" = "vpn" ]; then
+  exec /app/start.sh "$ROLE"
+fi
+
 # Drop to nobody and run the start script
 exec su -s /bin/bash nobody -c "/app/start.sh ${ROLE}"

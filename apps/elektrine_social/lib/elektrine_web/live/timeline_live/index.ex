@@ -8,11 +8,11 @@ defmodule ElektrineWeb.TimelineLive.Index do
   alias Elektrine.Social
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
-  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.TimelineLive.ReplyContextPreviews
-  import ElektrineWeb.Components.Social.RSSItem
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.User.UsernameEffects
+  import ElektrineSocialWeb.Components.Social.RSSItem
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   alias ElektrineWeb.TimelineLive.Operations.Helpers, as: TimelineHelpers
   alias ElektrineWeb.TimelineLive.Operations.PostOperations
@@ -1332,10 +1332,10 @@ defmodule ElektrineWeb.TimelineLive.Index do
           "for_you" ->
             if user do
               recommendation_limit =
-                if not Elektrine.Strings.present?(search_query) do
-                  20
-                else
+                if Elektrine.Strings.present?(search_query) do
                   100
+                else
+                  20
                 end
 
               user.id
@@ -2084,9 +2084,7 @@ defmodule ElektrineWeb.TimelineLive.Index do
   defp filter_rss_items_by_query(items, query) when is_list(items) do
     normalized_query = normalize_search_query(query) |> String.downcase()
 
-    if not Elektrine.Strings.present?(normalized_query) do
-      items
-    else
+    if Elektrine.Strings.present?(normalized_query) do
       Enum.filter(items, fn item ->
         [
           Map.get(item, :title),
@@ -2104,6 +2102,8 @@ defmodule ElektrineWeb.TimelineLive.Index do
             false
         end)
       end)
+    else
+      items
     end
   end
 

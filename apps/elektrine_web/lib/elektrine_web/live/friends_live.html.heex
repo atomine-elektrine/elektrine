@@ -323,13 +323,13 @@
           <%= if length(@pending_follow_requests) > 0 do %>
             <div class="mb-6">
               <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
-                <.icon name="hero-globe-americas" class="w-4 h-4 text-purple-500" />
+                <.icon name="hero-globe-americas" class="w-4 h-4 text-primary" />
                 Pending Follow Requests from Fediverse
               </h3>
 
               <div class="space-y-3">
                 <%= for request <- @pending_follow_requests do %>
-                  <div class="card panel-card border border-purple-300 transition-colors">
+                  <div class="card panel-card border border-primary/30 transition-colors">
                     <div class="card-body p-3 sm:p-4">
                       <div class="flex items-start gap-3">
                         <.link
@@ -343,7 +343,7 @@
                               alt={request.remote_actor.username}
                             />
                           <% else %>
-                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
+                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-content font-bold">
                               {String.first(request.remote_actor.username) |> String.upcase()}
                             </div>
                           <% end %>

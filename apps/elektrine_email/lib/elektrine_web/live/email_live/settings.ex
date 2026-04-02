@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.EmailLive.Settings do
   use ElektrineEmailWeb, :live_view
   import ElektrineWeb.EmailLive.EmailHelpers
-  import ElektrineWeb.Components.Platform.ElektrineNav
+  import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email
   alias ElektrineWeb.UserErrorHelpers

@@ -93,12 +93,9 @@ defmodule ElektrineChatWeb do
 
       import Phoenix.HTML
       import ElektrineWeb.CoreComponents
-      import ElektrineWeb.Components.User.Avatar
-      import ElektrineWeb.Components.Loaders.Skeleton
-      import ElektrineWeb.Components.UI.ImageModal
-      import ElektrineWeb.Components.Social.PostActions
-      import ElektrineWeb.Components.Social.PostReactions
-      import ElektrineWeb.Components.Social.FediverseFollow
+      import Elektrine.Components.User.Avatar
+      import Elektrine.Components.Loaders.Skeleton
+      import ElektrineChatWeb.Components.UI.ImageModal
 
       alias Elektrine.Utils.SafeConvert
       alias Phoenix.LiveView.JS

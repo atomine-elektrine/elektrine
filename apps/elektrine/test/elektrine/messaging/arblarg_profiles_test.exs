@@ -63,4 +63,17 @@ defmodule Elektrine.Messaging.ArblargProfilesTest do
       assert extension["fallback"] == "reject_unsupported_event_type"
     end)
   end
+
+  test "marks only conformance-covered extensions as verified" do
+    statuses = ArblargProfiles.conformance_verified_extension_statuses()
+
+    assert statuses["urn:arblarg:ext:bootstrap:1"] == true
+    assert statuses["urn:arblarg:ext:roles:1"] == true
+    assert statuses["urn:arblarg:ext:permissions:1"] == true
+    assert statuses["urn:arblarg:ext:threads:1"] == true
+    assert statuses["urn:arblarg:ext:presence:1"] == true
+    assert statuses["urn:arblarg:ext:moderation:1"] == true
+    assert statuses["urn:arblarg:ext:dm:1"] == false
+    assert statuses["urn:arblarg:ext:voice:1"] == false
+  end
 end

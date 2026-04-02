@@ -372,10 +372,10 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
       |> to_string()
       |> String.trim(".")
 
-    if not Elektrine.Strings.present?(normalized) do
-      {:error, :invalid_domain}
-    else
+    if Elektrine.Strings.present?(normalized) do
       {:ok, normalized}
+    else
+      {:error, :invalid_domain}
     end
   end
 

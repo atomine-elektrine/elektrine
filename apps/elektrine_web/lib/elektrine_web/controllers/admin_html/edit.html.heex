@@ -517,7 +517,7 @@
             <%= if @user.registration_ip do %>
               {@user.registration_ip}
             <% else %>
-              <span class="text-gray-400">Not recorded</span>
+              <span class="text-base-content/40">Not recorded</span>
             <% end %>
           </div>
         </div>
@@ -529,7 +529,7 @@
             <%= if @user.last_login_ip do %>
               {@user.last_login_ip}
             <% else %>
-              <span class="text-gray-400">Never logged in</span>
+              <span class="text-base-content/40">Never logged in</span>
             <% end %>
           </div>
         </div>
@@ -541,7 +541,7 @@
             <%= if @user.last_login_at do %>
               {Calendar.strftime(@user.last_login_at, "%B %d, %Y at %I:%M %p")}
             <% else %>
-              <span class="text-gray-400">Never</span>
+              <span class="text-base-content/40">Never</span>
             <% end %>
           </div>
         </div>
@@ -623,7 +623,7 @@
         <!-- Related by Registration IP -->
         <%= if length(@related_by_registration) > 0 do %>
           <div class="mt-4">
-            <h3 class="font-semibold text-orange-600 mb-2">
+            <h3 class="font-semibold text-warning mb-2">
               <.icon name="hero-user-plus" class="w-4 h-4 inline" />
               Same Registration IP ({@user.registration_ip})
             </h3>
@@ -650,7 +650,7 @@
                       <td>
                         <div class="flex items-center gap-2">
                           <div class="avatar">
-                            <div class="bg-orange-500 text-white rounded-lg w-8 h-8">
+                            <div class="bg-warning text-warning-content rounded-lg w-8 h-8">
                               <span class="text-xs font-bold flex items-center justify-center h-full">
                                 {String.first(related_user.username) |> String.upcase()}
                               </span>
@@ -684,7 +684,7 @@
                         <%= if related_user.last_login_at do %>
                           {Calendar.strftime(related_user.last_login_at, "%m/%d/%y %H:%M")}
                         <% else %>
-                          <span class="text-gray-400">Never</span>
+                          <span class="text-base-content/40">Never</span>
                         <% end %>
                       </td>
 

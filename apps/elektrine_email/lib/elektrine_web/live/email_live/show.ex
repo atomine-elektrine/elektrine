@@ -2,7 +2,7 @@ defmodule ElektrineWeb.EmailLive.Show do
   use ElektrineEmailWeb, :live_view
   import ElektrineWeb.EmailLive.EmailHelpers
   import ElektrineWeb.Live.NotificationHelpers
-  import ElektrineWeb.Components.Platform.ElektrineNav
+  import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email
 

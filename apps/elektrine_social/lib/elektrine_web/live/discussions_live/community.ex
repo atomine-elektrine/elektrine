@@ -23,14 +23,14 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
   alias ElektrineWeb.DiscussionsLive.Operations.SortHelpers
   alias ElektrineWeb.DiscussionsLive.Router
 
-  import ElektrineWeb.Components.Social.ContentJourney
-  import ElektrineWeb.Components.User.Avatar
-  import ElektrineWeb.Components.User.UsernameEffects
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.EmbeddedPost
-  import ElektrineWeb.Components.Social.PostActions
+  import ElektrineSocialWeb.Components.Social.ContentJourney
+  import Elektrine.Components.User.Avatar
+  import Elektrine.Components.User.UsernameEffects
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.EmbeddedPost
+  import ElektrineSocialWeb.Components.Social.PostActions
   import ElektrineWeb.HtmlHelpers
-  import ElektrineWeb.Components.Social.Poll
+  import ElektrineSocialWeb.Components.Social.Poll
 
   @impl true
   def mount(%{"name" => community_name}, _session, socket) do
@@ -646,7 +646,7 @@ defmodule ElektrineWeb.DiscussionsLive.Community do
     <!-- Report Modal -->
     <%= if @show_report_modal do %>
       <.live_component
-        module={ElektrineWeb.Components.ReportModal}
+        module={Elektrine.Components.ReportModal}
         id="report-modal"
         reporter_id={@current_user.id}
         reportable_type={@report_type}

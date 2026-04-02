@@ -66,6 +66,50 @@ defmodule Elektrine.VPNTest do
     end
   end
 
+  describe "ensure_self_host_server/1" do
+    test "creates a managed self-hosted server from env" do
+      {:ok, server} =
+        VPN.ensure_self_host_server(%{
+          "PRIMARY_DOMAIN" => "example.com",
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.50",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key"
+        })
+
+      assert server.name == "example.com"
+      assert server.location == "Self-hosted"
+      assert server.public_ip == "203.0.113.50"
+      assert server.endpoint_port == 443
+      assert server.client_mtu == 1280
+      assert VPN.self_host_server?(server)
+      assert is_binary(server.api_key)
+    end
+
+    test "updates the managed self-hosted server in place" do
+      {:ok, original} =
+        VPN.ensure_self_host_server(%{
+          "PRIMARY_DOMAIN" => "example.com",
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.51",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key-a"
+        })
+
+      {:ok, updated} =
+        VPN.ensure_self_host_server(%{
+          "VPN_SELFHOST_NAME" => "Home VPN",
+          "VPN_SELFHOST_LOCATION" => "Closet rack",
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.51",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key-b",
+          "VPN_SELFHOST_ENDPOINT_HOST" => "vpn.example.com"
+        })
+
+      assert updated.id == original.id
+      assert updated.api_key == original.api_key
+      assert updated.name == "Home VPN"
+      assert updated.location == "Closet rack"
+      assert updated.public_key == "self-host-public-key-b"
+      assert updated.endpoint_host == "vpn.example.com"
+    end
+  end
+
   defp user_fixture do
     {:ok, user} =
       Accounts.create_user(%{

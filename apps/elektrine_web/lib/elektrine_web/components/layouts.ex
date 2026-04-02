@@ -7,16 +7,17 @@ defmodule ElektrineWeb.Layouts do
 
   alias Elektrine.Platform.Modules
   alias Elektrine.RuntimeEnv
+  alias Elektrine.Theme
 
   @footer_wordmark_palette [
-    "#ff2b2b",
-    "#2455ff",
-    "#ffe600",
-    "#ffffff",
-    "#00e5ff",
-    "#56ff00",
-    "#ff00c8",
-    "#ff7a00"
+    Theme.default_value("color_error"),
+    Theme.default_value("color_info"),
+    Theme.default_value("color_warning"),
+    Theme.inverse_text_color(),
+    Theme.default_value("color_primary"),
+    Theme.default_value("color_success"),
+    Theme.default_value("color_accent"),
+    Theme.default_value("color_secondary")
   ]
 
   @doc ~s|Gets active announcements for display in layouts.\nThis function is called from the layout templates.\n|
@@ -41,6 +42,27 @@ defmodule ElektrineWeb.Layouts do
       script_url: Keyword.get(config, :script_url, "https://cloud.umami.is/script.js"),
       website_id: Keyword.get(config, :website_id)
     }
+  end
+
+  def site_theme_style(assigns) do
+    assigns
+    |> current_user_theme_overrides()
+    |> Theme.effective_style_attribute()
+  end
+
+  def site_theme_color(assigns) do
+    assigns
+    |> current_user_theme_overrides()
+    |> Theme.effective_meta_theme_color()
+  end
+
+  def site_theme_name(_assigns), do: "dark"
+
+  defp current_user_theme_overrides(assigns) do
+    case assigns[:current_user] do
+      %{theme_overrides: overrides} when is_map(overrides) -> overrides
+      _ -> %{}
+    end
   end
 
   @doc ~s|Builds the page title.\n|
@@ -434,7 +456,7 @@ defmodule ElektrineWeb.Layouts do
   end
 
   def status_indicator_class("offline") do
-    "bg-gray-400"
+    "bg-base-content/40"
   end
 
   def status_indicator_class(_) do

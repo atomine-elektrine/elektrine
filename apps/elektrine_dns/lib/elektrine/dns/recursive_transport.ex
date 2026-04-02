@@ -26,9 +26,8 @@ defmodule Elektrine.DNS.RecursiveTransport do
       {:ok, socket} ->
         result =
           with :ok <- :gen_tcp.send(socket, <<byte_size(packet)::16, packet::binary>>),
-               {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, timeout),
-               {:ok, response} <- :gen_tcp.recv(socket, length, timeout) do
-            {:ok, response}
+               {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, timeout) do
+            :gen_tcp.recv(socket, length, timeout)
           end
 
         :gen_tcp.close(socket)

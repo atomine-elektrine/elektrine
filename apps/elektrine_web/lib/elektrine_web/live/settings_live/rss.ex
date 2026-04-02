@@ -25,9 +25,7 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   def handle_event("add_feed", %{"url" => url}, socket) do
     url = String.trim(url)
 
-    if not Elektrine.Strings.present?(url) do
-      {:noreply, assign(socket, :error_message, "Please enter a feed URL")}
-    else
+    if Elektrine.Strings.present?(url) do
       socket = assign(socket, :adding_feed, true)
 
       case RSS.subscribe(socket.assigns.current_user.id, url) do
@@ -60,6 +58,8 @@ defmodule ElektrineWeb.SettingsLive.RSS do
            |> assign(:adding_feed, false)
            |> assign(:error_message, error)}
       end
+    else
+      {:noreply, assign(socket, :error_message, "Please enter a feed URL")}
     end
   end
 

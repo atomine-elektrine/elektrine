@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" class="[scrollbar-gutter:stable]">
+<html
+  lang="en"
+  data-theme={site_theme_name(assigns)}
+  style={site_theme_style(assigns)}
+  class="[scrollbar-gutter:stable]"
+>
   <head>
     <meta charset="utf-8" />
     <meta
@@ -7,10 +12,10 @@
       content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes"
     />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content={site_theme_color(assigns)} />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <.live_title>
       <%= if assigns[:profile] && @profile && @profile.page_title do %>
         {@profile.page_title}

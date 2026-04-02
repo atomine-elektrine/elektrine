@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.AdminLive.BadgeManagement do
   use ElektrineWeb, :live_view
+
   alias Elektrine.{Accounts, Profiles}
+  alias Elektrine.Profiles.UserBadge
 
   @impl true
   def mount(_params, _session, socket) do
@@ -117,15 +119,11 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
   defp get_badge_text("beta_tester"), do: "Beta Tester"
   defp get_badge_text(_), do: "Custom"
 
-  defp get_badge_color("staff"), do: "#22d3ee"
-  defp get_badge_color("verified"), do: "#22c55e"
-  defp get_badge_color("supporter"), do: "#f59e0b"
-  defp get_badge_color("developer"), do: "#3b82f6"
-  defp get_badge_color("admin"), do: "#dc2626"
-  defp get_badge_color("moderator"), do: "#8a7cc2"
-  defp get_badge_color("contributor"), do: "#06b6d4"
-  defp get_badge_color("beta_tester"), do: "#c7796b"
-  defp get_badge_color(_), do: "#6b7280"
+  defp get_badge_color(badge_type) do
+    badge_type
+    |> UserBadge.default_badge_properties()
+    |> Map.get(:badge_color, UserBadge.default(:badge_color))
+  end
 
   defp get_badge_icon("staff"), do: nil
   defp get_badge_icon("verified"), do: nil
@@ -147,24 +145,8 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
   defp get_badge_tooltip("beta_tester"), do: "Beta tester"
   defp get_badge_tooltip(_), do: nil
 
-  defp hex_to_rgb("#" <> hex) do
-    {r, ""} = Integer.parse(String.slice(hex, 0..1), 16)
-    {g, ""} = Integer.parse(String.slice(hex, 2..3), 16)
-    {b, ""} = Integer.parse(String.slice(hex, 4..5), 16)
-    {r, g, b}
-  end
-
-  # Default purple
-  defp hex_to_rgb(_hex), do: {139, 92, 246}
-
   def badge_gradient_style(color) do
-    {r, g, b} = hex_to_rgb(color)
-
-    from_color =
-      "rgb(#{max(0, round(r * 0.5))}, #{max(0, round(g * 0.5))}, #{max(0, round(b * 0.5))})"
-
-    to_color =
-      "rgb(#{max(0, round(r * 0.65))}, #{max(0, round(g * 0.65))}, #{max(0, round(b * 0.65))})"
+    {from_color, to_color} = Elektrine.Theme.gradient_pair(color)
 
     "background: linear-gradient(to right, #{from_color}, #{to_color});"
   end

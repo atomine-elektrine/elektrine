@@ -2,8 +2,8 @@ defmodule ElektrineWeb.ListLive.Show do
   use ElektrineSocialWeb, :live_view
   require Logger
   alias Elektrine.Social
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.User.UsernameEffects
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @impl true
@@ -290,9 +290,7 @@ defmodule ElektrineWeb.ListLive.Show do
     require Logger
     handles_text = String.trim(socket.assigns.bulk_input)
 
-    if not Elektrine.Strings.present?(handles_text) do
-      {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
-    else
+    if Elektrine.Strings.present?(handles_text) do
       handles =
         handles_text
         |> String.split(",")
@@ -343,6 +341,8 @@ defmodule ElektrineWeb.ListLive.Show do
        |> assign(:bulk_input, "")
        |> assign(:search_results, [])
        |> put_flash(:info, "Added #{successful}/#{total} users to list")}
+    else
+      {:noreply, put_flash(socket, :error, "Please enter at least one handle")}
     end
   end
 
@@ -558,9 +558,7 @@ defmodule ElektrineWeb.ListLive.Show do
   end
 
   def handle_event("create_reply", %{"content" => content, "reply_to_id" => reply_to_id}, socket) do
-    if not Elektrine.Strings.present?(content) do
-      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-    else
+    if Elektrine.Strings.present?(content) do
       reply_to_id = String.to_integer(reply_to_id)
       user = socket.assigns.current_user
 
@@ -621,6 +619,8 @@ defmodule ElektrineWeb.ListLive.Show do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to post reply")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     end
   end
 

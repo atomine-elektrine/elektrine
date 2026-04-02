@@ -109,7 +109,7 @@
               <span class="indicator-item indicator-top indicator-end flex h-4 w-4 pointer-events-none -translate-x-0.5 translate-y-0.5">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75">
                 </span>
-                <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-error text-white text-[9px] font-medium">
+                <span class="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-error text-error-content text-[9px] font-medium">
                   {if @notification_count > 99, do: "99+", else: @notification_count}
                 </span>
               </span>
@@ -138,7 +138,7 @@
               <li class="menu-title px-3 py-2">
                 <.link
                   navigate={~p"/#{@current_user.handle || @current_user.username}"}
-                  class="flex items-center gap-3 hover:bg-primary/20 hover:text-white transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
+                  class="flex items-center gap-3 hover:bg-primary/20 hover:text-base-content transition-all duration-200 rounded-md px-2 py-2 -mx-2 -my-2"
                 >
                   <.user_avatar user={@current_user} size="sm" />
                   <div>

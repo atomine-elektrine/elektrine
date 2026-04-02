@@ -99,6 +99,26 @@ fi
 
 normalize_platform_modules "$REQUESTED_MODULES"
 
+append_profile_if_missing() {
+  local wanted="$1"
+  local existing=""
+  local i=0
+
+  for ((i = 0; i < ${#PROFILE_ARGS[@]}; i += 2)); do
+    existing="${PROFILE_ARGS[i + 1]}"
+
+    if [[ "$existing" == "$wanted" ]]; then
+      return
+    fi
+  done
+
+  PROFILE_ARGS+=("--profile" "$wanted")
+}
+
+if platform_module_selected vpn; then
+  append_profile_if_missing "vpn"
+fi
+
 for ((i = 0; i < ${#PROFILE_ARGS[@]}; i += 2)); do
   profile_name="${PROFILE_ARGS[i + 1]}"
 

@@ -430,13 +430,13 @@ defmodule ElektrineWeb.API.EmailController do
           reminder_at = params["reminder_at"]
 
           result =
-            if not Elektrine.Strings.present?(reminder_at) do
-              Folders.clear_reply_later(message)
-            else
+            if Elektrine.Strings.present?(reminder_at) do
               case DateTime.from_iso8601(reminder_at) do
                 {:ok, datetime, _offset} -> Folders.reply_later_message(message, datetime)
                 {:error, _} -> {:error, :invalid_datetime}
               end
+            else
+              Folders.clear_reply_later(message)
             end
 
           case result do

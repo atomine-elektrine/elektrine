@@ -29,16 +29,16 @@
 } .btn-error { background-color: color-mix(in srgb, var(--color-base-300) 72%, var(--color-error) 28%); border-color: color-mix(in srgb, var(--color-base-300) 55%, var(--color-error) 45%); color: var(--color-error-content);
 } .btn-error:hover,
 .btn-error:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 60%, var(--color-error) 40%); border-color: color-mix(in srgb, var(--color-base-300) 40%, var(--color-error) 60%);
-} .btn-ghost { border-color: transparent; color: color-mix(in srgb, var(--color-base-content) 88%, #9fb2c9 12%);
+} .btn-ghost { border-color: transparent; color: var(--theme-btn-ghost-text);
 } .btn-ghost:hover,
-.btn-ghost:focus-visible { background-color: color-mix(in srgb, var(--color-base-300) 84%, #293441 16%); color: var(--color-base-content);
-} .btn-outline { border-color: color-mix(in srgb, var(--color-base-300) 84%, #889caf 16%); background-color: color-mix(in srgb, var(--color-base-200) 92%, #1d2731 8%);
+.btn-ghost:focus-visible { background-color: var(--theme-btn-ghost-bg); color: var(--color-base-content);
+} .btn-outline { border-color: var(--theme-btn-outline-border); background-color: var(--theme-btn-outline-bg);
 } .btn-outline:hover,
-.btn-outline:focus-visible { border-color: color-mix(in srgb, var(--color-base-300) 74%, #93a8bd 26%); background-color: color-mix(in srgb, var(--color-base-300) 84%, #283442 16%); color: var(--color-base-content);
+.btn-outline:focus-visible { border-color: var(--theme-btn-outline-border-hover); background-color: var(--theme-btn-outline-bg-hover); color: var(--color-base-content);
 } .btn-soft,
-.btn-neutral { background-color: color-mix(in srgb, var(--color-base-300) 90%, #273340 10%); border-color: color-mix(in srgb, var(--color-base-300) 82%, #8a9fb5 18%); color: var(--color-base-content);
+.btn-neutral { background-color: var(--theme-btn-neutral-bg); border-color: var(--theme-btn-neutral-border); color: var(--color-base-content);
 } .btn-soft:hover,
-.btn-neutral:hover { background-color: color-mix(in srgb, var(--color-base-300) 78%, #31404f 22%); border-color: color-mix(in srgb, var(--color-base-300) 74%, #94a8bf 26%);
+.btn-neutral:hover { background-color: var(--theme-btn-neutral-bg-hover); border-color: var(--theme-btn-neutral-border-hover);
 } .btn:disabled,
 .btn.btn-disabled { opacity: 0.45;
 } .btn .ui-icon:not([class*="text-"]):not([class*="opacity-"]),
@@ -59,17 +59,17 @@
 } .btn-loading .btn-spinner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
 } /* -------------------------------------------------------------------------- INPUTS & FORMS -------------------------------------------------------------------------- */ .input,
 .textarea,
-.select { border: 1px solid color-mix(in srgb, var(--color-base-300) 72%, white 28%) !important; background-color: color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-100) 22%) !important; color: var(--color-base-content) !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025) !important;
+.select { border: 1px solid var(--theme-input-border) !important; background-color: color-mix(in srgb, var(--color-base-200) 78%, var(--color-base-100) 22%) !important; color: var(--color-base-content) !important; box-shadow: var(--theme-input-inset-shadow) !important;
 } .input:focus,
 .textarea:focus,
-.select:focus { outline: 2px solid rgba(138, 124, 194, 0.28) !important; outline-offset: 2px !important; border-color: rgba(138, 124, 194, 0.42) !important; box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.12) !important;
+.select:focus { outline: 2px solid var(--theme-input-highlight) !important; outline-offset: 2px !important; border-color: var(--theme-input-highlight-strong) !important; box-shadow: 0 0 0 1px var(--theme-input-highlight-shadow) !important;
 } .input-bordered:focus,
 .input-bordered:focus-within,
 .input-ghost:focus,
-.input-ghost:focus-within { outline: 2px solid rgba(138, 124, 194, 0.28) !important; border-color: rgba(138, 124, 194, 0.42) !important;
+.input-ghost:focus-within { outline: 2px solid var(--theme-input-highlight) !important; border-color: var(--theme-input-highlight-strong) !important;
 } .checkbox:focus,
 .radio:focus,
-.toggle:focus { outline: 2px solid rgba(138, 124, 194, 0.5) !important; outline-offset: 2px !important;
+.toggle:focus { outline: 2px solid color-mix(in srgb, var(--color-primary) 50%, transparent) !important; outline-offset: 2px !important;
 } .input:hover,
 .textarea:hover,
 .select:hover { border-color: color-mix(in srgb, var(--color-base-300) 55%, white 45%) !important;
@@ -103,7 +103,7 @@
 } .alert-success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-success) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-success) 34%, var(--color-base-content) 66%);
 } .alert-warning { border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-base-300) 74%); background-color: color-mix(in srgb, var(--color-warning) 11%, var(--color-base-200) 89%); color: color-mix(in srgb, var(--color-warning) 38%, var(--color-base-content) 62%);
 } .alert-error { border-color: color-mix(in srgb, var(--color-error) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-error) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-error) 36%, var(--color-base-content) 64%);
-} /* -------------------------------------------------------------------------- NAVBAR -------------------------------------------------------------------------- */ .navbar { background-color: color-mix(in srgb, var(--color-base-100) 88%, #1b2530 12%) !important; border-bottom: 1px solid color-mix(in srgb, var(--color-base-300) 84%, #8ea2b8 16%) !important; box-shadow: 0 12px 28px -24px rgba(8, 16, 30, 0.72);
+} /* -------------------------------------------------------------------------- NAVBAR -------------------------------------------------------------------------- */ .navbar { background-color: var(--theme-navbar-bg) !important; border-bottom: 1px solid var(--theme-navbar-border) !important; box-shadow: var(--theme-navbar-shadow);
 } .e-nav .e-nav-link,
 .e-nav .e-nav-link:hover,
 .e-nav .e-nav-link:focus,
@@ -113,11 +113,11 @@
 } .e-nav .e-nav-link::-moz-focus-inner { border: 0;
 } .e-nav .e-nav-scroll { scrollbar-width: none; -ms-overflow-style: none;
 } .e-nav .e-nav-scroll::-webkit-scrollbar { display: none;
-} .e-nav .e-nav-link { color: color-mix(in srgb, var(--color-base-content) 88%, #9cb0c7 12%);
+} .e-nav .e-nav-link { color: var(--theme-nav-link);
 } .e-nav .e-nav-link:hover,
 .e-nav .e-nav-link:focus-visible { color: var(--color-base-content);
 } .navbar .badge-error,
-.indicator .badge-error { background-color: #ef4444 !important; border-color: #ef4444 !important; color: white !important;
+.indicator .badge-error { background-color: var(--theme-error-badge-bg) !important; border-color: var(--theme-error-badge-border) !important; color: var(--theme-text-inverse) !important;
 } /* -------------------------------------------------------------------------- DROPDOWNS -------------------------------------------------------------------------- */ .floating-panel,
 .floating-menu,
 .dropdown-content { border: 1px solid transparent; border-color: var(--surface-floating-border); background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-floating-shadow);
@@ -142,9 +142,9 @@
 } .thread-context-card[role="button"] { cursor: pointer;
 } .thread-context-card[role="button"]:focus-visible { outline: 2px solid oklch(var(--p) / 0.55); outline-offset: -2px;
 } /* -------------------------------------------------------------------------- MODALS -------------------------------------------------------------------------- */ .modal,
-.modal.modal-open { background: rgba(10, 14, 20, 0.56);
-} .modal::backdrop { background: rgba(10, 14, 20, 0.56);
-} .modal-backdrop { background: rgba(10, 14, 20, 0.56) !important;
+.modal.modal-open { background: var(--theme-modal-backdrop);
+} .modal::backdrop { background: var(--theme-modal-backdrop);
+} .modal-backdrop { background: var(--theme-modal-backdrop) !important;
 } .modal-surface,
 .modal-box { border: 1px solid transparent; border-color: var(--surface-modal-border); background-color: var(--surface-modal-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-modal-shadow);
 } .modal-box { position: relative; isolation: isolate; border-radius: 0.75rem !important; animation: modal-pop 0.2s ease-out;
@@ -156,9 +156,9 @@
 } /* -------------------------------------------------------------------------- FOCUS RING UTILITY -------------------------------------------------------------------------- */ .focus-ring:focus,
 .focus-ring:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--fallback-b1, oklch(var(--b1))), 0 0 0 4px oklch(var(--p));
 } .table :where(thead, tbody) :where(tr:not(:last-child)),
-.table tr { border-bottom-color: color-mix(in srgb, var(--color-base-300) 84%, #8ea2b8 16%);
+.table tr { border-bottom-color: var(--theme-navbar-border);
 } .table :where(thead, tbody) :where(tr:hover),
-table tr:hover { background-color: color-mix(in srgb, var(--color-base-200) 90%, #202a34 10%);
+table tr:hover { background-color: var(--theme-table-row-hover);
 } /* -------------------------------------------------------------------------- PROSE (Markdown content) -------------------------------------------------------------------------- */ .prose table { display: block; overflow-x: auto; white-space: nowrap; max-width: 100%;
 } .prose img { max-width: 100% !important; height: auto !important; display: block !important; margin: 0 auto !important;
 } .prose pre { overflow-x: auto; max-width: 100%;

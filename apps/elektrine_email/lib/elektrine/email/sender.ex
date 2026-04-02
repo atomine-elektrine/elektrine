@@ -19,7 +19,6 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
-  alias Elektrine.EmailConfig
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.ListTypes
@@ -30,6 +29,7 @@ defmodule Elektrine.Email.Sender do
   alias Elektrine.Email.Suppressions
   alias Elektrine.Email.Unsubscribes
   alias Elektrine.EmailAddresses
+  alias Elektrine.EmailConfig
   alias Elektrine.Mailer
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -464,10 +464,10 @@ defmodule Elektrine.Email.Sender do
   defp put_if_present(params, _key, value) when not is_binary(value), do: params
 
   defp put_if_present(params, key, value) do
-    if not Elektrine.Strings.present?(value) do
-      params
-    else
+    if Elektrine.Strings.present?(value) do
       Map.put(params, key, value)
+    else
+      params
     end
   end
 

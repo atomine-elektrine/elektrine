@@ -22,6 +22,32 @@ defmodule ElektrineWeb.UserSettingsLive do
     {"developer", "hero-code-bracket", :default},
     {"danger", "hero-exclamation-triangle", :danger}
   ]
+  @user_setting_param_fields [
+    "display_name",
+    "recovery_email",
+    "handle",
+    "allow_group_adds_from",
+    "allow_direct_messages_from",
+    "allow_mentions_from",
+    "allow_calls_from",
+    "allow_friend_requests_from",
+    "profile_visibility",
+    "default_post_visibility",
+    "notify_on_new_follower",
+    "notify_on_direct_message",
+    "notify_on_mention",
+    "notify_on_reply",
+    "notify_on_like",
+    "notify_on_email_received",
+    "notify_on_discussion_reply",
+    "notify_on_comment",
+    "locale",
+    "timezone",
+    "time_format",
+    "theme_overrides",
+    "email_signature",
+    "activitypub_manually_approve_followers"
+  ]
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
@@ -240,49 +266,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("validate", %{"user" => user_params}, socket) do
-    filtered_params =
-      Map.take(user_params, [
-        "display_name",
-        "recovery_email",
-        "handle",
-        "allow_group_adds_from",
-        "allow_direct_messages_from",
-        "allow_mentions_from",
-        "allow_calls_from",
-        "allow_friend_requests_from",
-        "profile_visibility",
-        "default_post_visibility",
-        "notify_on_new_follower",
-        "notify_on_direct_message",
-        "notify_on_mention",
-        "notify_on_reply",
-        "notify_on_like",
-        "notify_on_email_received",
-        "notify_on_discussion_reply",
-        "notify_on_comment",
-        "locale",
-        "timezone",
-        "time_format",
-        "email_signature",
-        "activitypub_manually_approve_followers"
-      ])
-
-    checkbox_fields = checkbox_fields_for_tab(socket.assigns.selected_tab)
-
-    params_with_checkboxes =
-      Enum.reduce(checkbox_fields, filtered_params, fn field, acc ->
-        case Map.get(acc, field) do
-          "true" -> Map.put(acc, field, true)
-          nil -> Map.put(acc, field, false)
-          _ -> acc
-        end
-      end)
-
-    final_params =
-      case Map.get(params_with_checkboxes, "timezone") do
-        "" -> Map.put(params_with_checkboxes, "timezone", nil)
-        _ -> params_with_checkboxes
-      end
+    final_params = normalize_user_settings_params(user_params, socket.assigns.selected_tab)
 
     changeset =
       socket.assigns.user |> Accounts.change_user(final_params) |> Map.put(:action, :validate)
@@ -293,6 +277,24 @@ defmodule ElektrineWeb.UserSettingsLive do
   @impl true
   def handle_event("save", params, socket) when params == %{} do
     handle_event("save", %{"user" => %{}}, socket)
+  end
+
+  @impl true
+  def handle_event("save", %{"action" => "reset_theme_defaults", "user" => user_params}, socket) do
+    reset_params =
+      user_params
+      |> normalize_user_settings_params(socket.assigns.selected_tab)
+      |> Map.put("theme_overrides", %{})
+
+    changeset =
+      socket.assigns.user
+      |> Accounts.change_user(reset_params)
+      |> Map.put(:action, :validate)
+
+    {:noreply,
+     socket
+     |> assign(:changeset, changeset)
+     |> notify_info("Theme reset to defaults. Save changes to apply.")}
   end
 
   @impl true
@@ -545,9 +547,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_event("add_rss_feed", %{"url" => url}, socket) do
     url = String.trim(url)
 
-    if not Elektrine.Strings.present?(url) do
-      {:noreply, assign(socket, :rss_error, "Please enter a feed URL")}
-    else
+    if Elektrine.Strings.present?(url) do
       socket = assign(socket, :adding_feed, true)
 
       case RSS.subscribe(socket.assigns.current_user.id, url) do
@@ -576,6 +576,8 @@ defmodule ElektrineWeb.UserSettingsLive do
 
           {:noreply, socket |> assign(:adding_feed, false) |> assign(:rss_error, error)}
       end
+    else
+      {:noreply, assign(socket, :rss_error, "Please enter a feed URL")}
     end
   end
 
@@ -1016,6 +1018,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
         {:noreply,
          socket
+         |> assign(:current_user, final_user)
          |> assign(:user, final_user)
          |> assign(:changeset, Accounts.change_user(final_user))
          |> assign(:handle_changeset, Accounts.User.handle_changeset(final_user, %{}))
@@ -1033,6 +1036,7 @@ defmodule ElektrineWeb.UserSettingsLive do
 
         {:noreply,
          socket
+         |> assign(:current_user, updated_user)
          |> assign(:user, updated_user)
          |> assign(:changeset, Accounts.change_user(updated_user))
          |> assign(:handle_changeset, Accounts.User.handle_changeset(updated_user, %{}))
@@ -1398,6 +1402,30 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp checkbox_fields_for_tab(_) do
     []
+  end
+
+  defp normalize_user_settings_params(user_params, selected_tab) do
+    user_params
+    |> Map.take(@user_setting_param_fields)
+    |> normalize_checkbox_fields(checkbox_fields_for_tab(selected_tab))
+    |> normalize_user_settings_timezone()
+  end
+
+  defp normalize_checkbox_fields(params, checkbox_fields) do
+    Enum.reduce(checkbox_fields, params, fn field, acc ->
+      case Map.get(acc, field) do
+        "true" -> Map.put(acc, field, true)
+        nil -> Map.put(acc, field, false)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp normalize_user_settings_timezone(params) do
+    case Map.get(params, "timezone") do
+      "" -> Map.put(params, "timezone", nil)
+      _ -> params
+    end
   end
 
   defp developer_modals(assigns) do

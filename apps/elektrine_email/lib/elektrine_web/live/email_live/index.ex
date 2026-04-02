@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.EmailLive.Index do
   use ElektrineEmailWeb, :live_view
   import ElektrineWeb.EmailLive.EmailHelpers
-  import ElektrineWeb.Components.Platform.ElektrineNav
+  import ElektrineEmailWeb.Components.Platform.ElektrineNav
   import ElektrineWeb.CalendarLive.Operations.CalendarOperations, only: [handle_calendar_event: 3]
 
   alias Elektrine.Calendar, as: Cal

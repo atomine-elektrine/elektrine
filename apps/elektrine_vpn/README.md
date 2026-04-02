@@ -1,14 +1,14 @@
 # Elektrine VPN
 
-WireGuard VPN domain app for the Elektrine umbrella.
+WireGuard VPN app for the Elektrine umbrella.
 
-## What this app owns
+## Responsibilities
 
-- VPN server records and fleet registration data
+- VPN server records and self-host/fleet registration data
 - Per-user WireGuard config lifecycle and key handling
 - Connection logging, stats aggregation, and health monitoring
-- Extracted Phoenix surfaces for VPN:
-  user LiveView, policy page, admin screens, authenticated API, and fleet API
+- Native WireGuard reconciliation for the Docker-managed self-host node
+- VPN Phoenix surfaces: user LiveView, policy page, admin screens, authenticated API, and fleet API
 
 ## Notes
 

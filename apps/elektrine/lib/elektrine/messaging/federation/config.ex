@@ -704,13 +704,13 @@ defmodule Elektrine.Messaging.Federation.Config do
   defp decode_key_material(value) when is_binary(value) do
     trimmed = String.trim(value)
 
-    if not Elektrine.Strings.present?(trimmed) do
-      :error
-    else
+    if Elektrine.Strings.present?(trimmed) do
       case Base.url_decode64(trimmed, padding: false) do
         {:ok, raw} when byte_size(raw) == 32 -> {:ok, raw}
         _ -> decode_key_material_standard_base64(trimmed)
       end
+    else
+      :error
     end
   end
 

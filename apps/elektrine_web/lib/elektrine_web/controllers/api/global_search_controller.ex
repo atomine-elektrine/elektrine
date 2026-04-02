@@ -62,14 +62,7 @@ defmodule ElektrineWeb.API.GlobalSearchController do
     user = conn.assigns.current_user
     command = params["command"] || params["action"] || params["id"]
 
-    if not Elektrine.Strings.present?(to_string(command || "")) do
-      Response.error(
-        conn,
-        :bad_request,
-        "missing_parameter",
-        "Missing required parameter: command"
-      )
-    else
+    if Elektrine.Strings.present?(to_string(command || "")) do
       opts = [
         scopes: token_scopes(conn),
         enforce_scopes: true,
@@ -105,6 +98,13 @@ defmodule ElektrineWeb.API.GlobalSearchController do
             inspect(reason)
           )
       end
+    else
+      Response.error(
+        conn,
+        :bad_request,
+        "missing_parameter",
+        "Missing required parameter: command"
+      )
     end
   end
 

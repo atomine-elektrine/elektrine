@@ -13,8 +13,8 @@ export function normalizeServerUrl(value) {
     throw new Error("Enter a valid server URL, including https://.")
   }
 
-  if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("Server URL must start with http:// or https://.")
+  if (url.protocol !== "https:") {
+    throw new Error("Server URL must start with https://.")
   }
 
   url.pathname = url.pathname.replace(/\/+$/, "")

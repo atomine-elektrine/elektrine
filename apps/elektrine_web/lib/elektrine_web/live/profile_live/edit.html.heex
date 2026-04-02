@@ -314,7 +314,10 @@
                   <input
                     type="color"
                     name="base_color"
-                    value={(@profile && @profile.accent_color) || "#8a7cc2"}
+                    value={
+                      (@profile && @profile.accent_color) ||
+                        Elektrine.Profiles.UserProfile.default(:accent_color)
+                    }
                     class="w-24 h-24 border-0 rounded-xl cursor-pointer"
                   />
                   <div class="flex-1">
@@ -353,7 +356,10 @@
                   <input
                     type="color"
                     name="profile[accent_color]"
-                    value={(@profile && @profile.accent_color) || "#f97316"}
+                    value={
+                      (@profile && @profile.accent_color) ||
+                        Elektrine.Profiles.UserProfile.default(:accent_color)
+                    }
                     phx-change="update_color"
                     phx-value-field="accent_color"
                     class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -370,7 +376,10 @@
                     <input
                       type="color"
                       name="profile[text_color]"
-                      value={(@profile && @profile.text_color) || "#ffffff"}
+                      value={
+                        (@profile && @profile.text_color) ||
+                          Elektrine.Profiles.UserProfile.default(:text_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="text_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -386,7 +395,10 @@
                     <input
                       type="color"
                       name="profile[background_color]"
-                      value={(@profile && @profile.background_color) || "#000000"}
+                      value={
+                        (@profile && @profile.background_color) ||
+                          Elektrine.Profiles.UserProfile.default(:background_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="background_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -404,7 +416,10 @@
                     <input
                       type="color"
                       name="profile[icon_color]"
-                      value={(@profile && @profile.icon_color) || "#ffffff"}
+                      value={
+                        (@profile && @profile.icon_color) ||
+                          Elektrine.Profiles.UserProfile.default(:icon_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="icon_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -420,7 +435,10 @@
                     <input
                       type="color"
                       name="profile[container_background_color]"
-                      value={(@profile && @profile.container_background_color) || "#000000"}
+                      value={
+                        (@profile && @profile.container_background_color) ||
+                          Elektrine.Profiles.UserProfile.default(:background_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="container_background_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -438,7 +456,10 @@
                     <input
                       type="color"
                       name="profile[tick_color]"
-                      value={(@profile && @profile.tick_color) || "#1d9bf0"}
+                      value={
+                        (@profile && @profile.tick_color) ||
+                          Elektrine.Profiles.UserProfile.default(:tick_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="tick_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -525,7 +546,10 @@
                     <input
                       type="color"
                       name="profile[pattern_color]"
-                      value={(@profile && @profile.pattern_color) || "#ffffff"}
+                      value={
+                        (@profile && @profile.pattern_color) ||
+                          Elektrine.Profiles.UserProfile.default(:text_color)
+                      }
                       phx-change="update_color"
                       phx-value-field="pattern_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -1171,7 +1195,10 @@
                     <input
                       type="color"
                       name="profile[username_glow_color]"
-                      value={(@profile && @profile.username_glow_color) || "#8a7cc2"}
+                      value={
+                        (@profile && @profile.username_glow_color) ||
+                          Elektrine.Profiles.UserProfile.default(:username_glow_color)
+                      }
                       phx-change="update_username_color"
                       phx-value-field="username_glow_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -1215,7 +1242,10 @@
                     <input
                       type="color"
                       name="profile[username_shadow_color]"
-                      value={(@profile && @profile.username_shadow_color) || "#000000"}
+                      value={
+                        (@profile && @profile.username_shadow_color) ||
+                          Elektrine.Profiles.UserProfile.default(:username_shadow_color)
+                      }
                       phx-change="update_username_color"
                       phx-value-field="username_shadow_color"
                       class="w-16 h-16 border-0 rounded-lg cursor-pointer"
@@ -1238,7 +1268,10 @@
                       <input
                         type="color"
                         name="profile[username_gradient_from]"
-                        value={(@profile && @profile.username_gradient_from) || "#8a7cc2"}
+                        value={
+                          (@profile && @profile.username_gradient_from) ||
+                            Elektrine.Profiles.UserProfile.default(:username_glow_color)
+                        }
                         phx-change="update_username_color"
                         phx-value-field="username_gradient_from"
                         class="w-14 h-14 border-0 rounded-lg cursor-pointer"
@@ -1254,7 +1287,10 @@
                       <input
                         type="color"
                         name="profile[username_gradient_to]"
-                        value={(@profile && @profile.username_gradient_to) || "#c7796b"}
+                        value={
+                          (@profile && @profile.username_gradient_to) ||
+                            Elektrine.Theme.default_value("color_secondary")
+                        }
                         phx-change="update_username_color"
                         phx-value-field="username_gradient_to"
                         class="w-14 h-14 border-0 rounded-lg cursor-pointer"
@@ -2144,7 +2180,7 @@
                   <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-xl hover:bg-base-200 transition-all duration-300/50">
                     <div class="flex items-center gap-3">
                       <span
-                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-white font-semibold text-xs"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-xs"
                         style={
                           badge_preview_style(
                             badge.badge_color,
@@ -2998,27 +3034,27 @@
                             <% is_html -> %>
                               <.icon
                                 name="hero-document-text"
-                                class="h-4 w-4 flex-shrink-0 text-orange-500"
+                                class="h-4 w-4 flex-shrink-0 text-warning"
                               />
                             <% is_css -> %>
                               <.icon
                                 name="hero-paint-brush"
-                                class="h-4 w-4 flex-shrink-0 text-blue-500"
+                                class="h-4 w-4 flex-shrink-0 text-info"
                               />
                             <% is_js -> %>
                               <.icon
                                 name="hero-code-bracket"
-                                class="h-4 w-4 flex-shrink-0 text-yellow-500"
+                                class="h-4 w-4 flex-shrink-0 text-warning"
                               />
                             <% is_json -> %>
                               <.icon
                                 name="hero-document-text"
-                                class="h-4 w-4 flex-shrink-0 text-purple-500"
+                                class="h-4 w-4 flex-shrink-0 text-accent"
                               />
                             <% is_image -> %>
                               <.icon
                                 name="hero-photo"
-                                class="h-4 w-4 flex-shrink-0 text-green-500"
+                                class="h-4 w-4 flex-shrink-0 text-success"
                               />
                             <% true -> %>
                               <.icon

@@ -1,9 +1,9 @@
 defmodule ElektrineWeb.RemoteUserLive.Show do
   use ElektrineSocialWeb, :live_view
 
+  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActorPaths
@@ -12,10 +12,10 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.SurfaceHelpers
 
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
-  import ElektrineWeb.Components.Loaders.Skeleton
+  import Elektrine.Components.Loaders.Skeleton
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
 
   @impl true
@@ -1072,10 +1072,10 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp maybe_put_metadata_field(metadata, _key, nil), do: metadata
 
   defp maybe_put_metadata_field(metadata, key, value) when is_binary(value) do
-    if not Elektrine.Strings.present?(value) do
-      metadata
-    else
+    if Elektrine.Strings.present?(value) do
       Map.put(metadata, key, value)
+    else
+      metadata
     end
   end
 
@@ -1359,9 +1359,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if not Elektrine.Strings.present?(socket.assigns.reply_content) do
-        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-      else
+      if Elektrine.Strings.present?(socket.assigns.reply_content) do
         user = socket.assigns.current_user
         post = socket.assigns.reply_to_post
 
@@ -1422,6 +1420,8 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
         else
           {:noreply, put_flash(socket, :error, "Failed to process remote post")}
         end
+      else
+        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       end
     end
   end

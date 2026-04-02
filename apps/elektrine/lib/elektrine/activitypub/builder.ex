@@ -414,12 +414,12 @@ defmodule Elektrine.ActivityPub.Builder do
   end
 
   defp format_html_content(content) when is_binary(content) do
-    if not Elektrine.Strings.present?(content) do
-      ""
-    else
+    if Elektrine.Strings.present?(content) do
       content
       |> String.replace("\n", "<br>")
       |> HtmlSanitizeEx.basic_html()
+    else
+      ""
     end
   end
 

@@ -19,6 +19,13 @@ defmodule ElektrineWeb.ClientIP do
     |> format_ip()
   end
 
+  @spec rate_limit_ip(Plug.Conn.t()) :: String.t()
+  def rate_limit_ip(conn) do
+    conn
+    |> client_ip()
+    |> normalize_ipv6_subnet()
+  end
+
   @spec client_ip_tuple(Plug.Conn.t()) :: ip_tuple() | nil
   def client_ip_tuple(conn) do
     remote_ip = normalize_ip_tuple(conn.remote_ip)
@@ -246,4 +253,29 @@ defmodule ElektrineWeb.ClientIP do
 
   defp format_ip(ip) when is_tuple(ip),
     do: ip |> normalize_ip_tuple() |> :inet.ntoa() |> to_string()
+
+  defp normalize_ipv6_subnet(ip_string) when is_binary(ip_string) do
+    if String.contains?(ip_string, ":") do
+      hextets = String.split(ip_string, ":")
+
+      normalized_hextets =
+        if Enum.any?(hextets, &(&1 == "")) do
+          parts_before = Enum.take_while(hextets, &(&1 != ""))
+          parts_after = hextets |> Enum.drop_while(&(&1 != "")) |> Enum.drop(1)
+          zeros_needed = 8 - length(parts_before) - length(parts_after)
+          parts_before ++ List.duplicate("0", zeros_needed) ++ parts_after
+        else
+          hextets
+        end
+
+      normalized_hextets
+      |> Enum.take(4)
+      |> Enum.join(":")
+      |> Kernel.<>("::/64")
+    else
+      ip_string
+    end
+  end
+
+  defp normalize_ipv6_subnet(ip_string), do: ip_string
 end

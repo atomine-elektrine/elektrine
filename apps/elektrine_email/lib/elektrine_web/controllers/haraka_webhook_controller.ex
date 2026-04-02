@@ -2,12 +2,12 @@ defmodule ElektrineWeb.HarakaWebhookController do
   use ElektrineEmailWeb, :controller
   require Logger
   alias Elektrine.Email.ForwardedMessage
-  alias Elektrine.EmailConfig
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.InboundRouting
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
+  alias Elektrine.EmailConfig
   alias Elektrine.InternalAPI
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -798,10 +798,7 @@ defmodule ElektrineWeb.HarakaWebhookController do
     webhook_api_key =
       InternalAPI.api_key(["PHOENIX_API_KEY", "HARAKA_INBOUND_API_KEY", "HARAKA_API_KEY"])
 
-    if not Elektrine.Strings.present?(webhook_api_key) do
-      Logger.error("SECURITY: Webhook authentication configuration error")
-      {:error, :unauthorized}
-    else
+    if Elektrine.Strings.present?(webhook_api_key) do
       case List.first(Plug.Conn.get_req_header(conn, "x-api-key")) do
         nil ->
           {:error, :unauthorized}
@@ -813,6 +810,9 @@ defmodule ElektrineWeb.HarakaWebhookController do
             {:error, :unauthorized}
           end
       end
+    else
+      Logger.error("SECURITY: Webhook authentication configuration error")
+      {:error, :unauthorized}
     end
   end
 

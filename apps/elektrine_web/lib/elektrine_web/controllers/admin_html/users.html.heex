@@ -15,14 +15,14 @@
           </div>
 
           <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-            <.icon name="hero-globe-alt" class="w-3 h-3 sm:w-4 sm:h-4 text-orange-500" />
+            <.icon name="hero-globe-alt" class="w-3 h-3 sm:w-4 sm:h-4 text-warning" />
             <span class="font-medium">{@ip_stats.unique_registration_ips}</span>
             <span class="opacity-60 hidden sm:inline">unique registration IPs</span>
             <span class="opacity-60 sm:hidden">reg IPs</span>
           </div>
 
           <div class="flex items-center gap-1 p-2 bg-base-200 rounded">
-            <.icon name="hero-computer-desktop" class="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />
+            <.icon name="hero-computer-desktop" class="w-3 h-3 sm:w-4 sm:h-4 text-info" />
             <span class="font-medium">{@ip_stats.unique_login_ips}</span>
             <span class="opacity-60 hidden sm:inline">unique login IPs</span>
             <span class="opacity-60 sm:hidden">login IPs</span>
@@ -143,7 +143,7 @@
                     <div class="text-xs">
                       <%= for alias <- user.aliases do %>
                         <div class="flex items-center gap-1 mb-1">
-                          <span class="font-medium text-xs text-purple-700">
+                          <span class="font-medium text-xs text-primary">
                             {alias.alias_email}
                           </span>
                           <.form
@@ -197,10 +197,10 @@
                   <div class="text-xs space-y-1">
                     <%= if user.registration_ip do %>
                       <div class="flex items-start gap-1 min-w-0">
-                        <span class="text-orange-600 font-medium flex-shrink-0">Reg:</span>
+                        <span class="text-warning font-medium flex-shrink-0">Reg:</span>
                         <.link
                           href={~p"/pripyat/users?search=#{user.registration_ip}"}
-                          class="font-medium text-xs hover:text-orange-600 hover:underline break-all min-w-0"
+                          class="font-medium text-xs hover:text-warning hover:underline break-all min-w-0"
                           title={"Search users with registration IP #{user.registration_ip}"}
                         >
                           {user.registration_ip}
@@ -218,10 +218,10 @@
 
                     <%= if user.last_login_ip do %>
                       <div class="flex items-start gap-1 min-w-0">
-                        <span class="text-blue-600 font-medium flex-shrink-0">Login:</span>
+                        <span class="text-info font-medium flex-shrink-0">Login:</span>
                         <.link
                           href={~p"/pripyat/users?search=#{user.last_login_ip}"}
-                          class="font-medium text-xs hover:text-blue-600 hover:underline break-all min-w-0"
+                          class="font-medium text-xs hover:text-info hover:underline break-all min-w-0"
                           title={"Search users with login IP #{user.last_login_ip}"}
                         >
                           {user.last_login_ip}

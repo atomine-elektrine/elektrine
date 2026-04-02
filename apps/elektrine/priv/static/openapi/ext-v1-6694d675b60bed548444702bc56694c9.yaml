@@ -1,0 +1,545 @@
+openapi: 3.0.3
+info:
+  title: Elektrine External API
+  version: "1.0.0"
+  description: Versioned external API for PAT-based integrations.
+servers:
+  - url: https://example.com
+security:
+  - bearerAuth: []
+paths:
+  /api/ext/v1/capabilities:
+    get:
+      summary: Inspect token capabilities and allowed endpoints
+      responses:
+        "200":
+          description: Token capabilities
+  /api/ext/v1/me:
+    get:
+      summary: Inspect the authenticated user and token metadata
+      responses:
+        "200":
+          description: Current user
+  /api/ext/v1/search:
+    get:
+      summary: Global search
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Search results
+  /api/ext/v1/search/actions:
+    get:
+      summary: List available actions for token scopes
+      responses:
+        "200":
+          description: Action list
+  /api/ext/v1/search/actions/execute:
+    post:
+      summary: Execute an action by command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: string
+      responses:
+        "200":
+          description: Action executed
+  /api/ext/v1/email/messages:
+    get:
+      summary: List email messages across the authenticated user's mailboxes
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+        - in: query
+          name: folder
+          schema:
+            type: string
+        - in: query
+          name: mailbox_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message list
+    post:
+      summary: Send an email message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                text_body:
+                  type: string
+                html_body:
+                  type: string
+                cc:
+                  type: string
+                bcc:
+                  type: string
+      responses:
+        "201":
+          description: Email sent
+  /api/ext/v1/email/messages/{id}:
+    get:
+      summary: Get a single email message
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Email message
+  /api/ext/v1/chat/conversations:
+    get:
+      summary: List chat conversations
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Conversation list
+  /api/ext/v1/chat/conversations/{id}:
+    get:
+      summary: Get a chat conversation with recent messages
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation detail
+  /api/ext/v1/chat/conversations/{id}/messages:
+    get:
+      summary: List messages for a chat conversation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: before_id
+          schema:
+            type: integer
+        - in: query
+          name: after_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Conversation message list
+    post:
+      summary: Send a message to a chat conversation
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                message_type:
+                  type: string
+                  enum: [text, image, file, voice]
+                media_urls:
+                  type: array
+                  items:
+                    type: string
+                reply_to_id:
+                  type: integer
+      responses:
+        "201":
+          description: Conversation message created
+  /api/ext/v1/social/feed:
+    get:
+      summary: List home or public social feed posts
+      parameters:
+        - in: query
+          name: scope
+          schema:
+            type: string
+            enum: [home, public]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Feed posts
+  /api/ext/v1/social/posts/{id}:
+    get:
+      summary: Get a visible social post
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Social post
+  /api/ext/v1/social/posts:
+    post:
+      summary: Create a timeline post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                visibility:
+                  type: string
+                  enum: [public, unlisted, followers, friends, private]
+                title:
+                  type: string
+                media_urls:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Timeline post created
+  /api/ext/v1/social/users/{user_id}/posts:
+    get:
+      summary: List visible posts for a specific user
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: User post list
+  /api/ext/v1/contacts:
+    get:
+      summary: List address book contacts
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Contact list
+  /api/ext/v1/contacts/{id}:
+    get:
+      summary: Get a single address book contact
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact detail
+  /api/ext/v1/calendars:
+    get:
+      summary: List calendars
+      responses:
+        "200":
+          description: Calendar list
+    post:
+      summary: Create calendar
+      responses:
+        "201":
+          description: Calendar created
+  /api/ext/v1/calendars/{id}/events:
+    get:
+      summary: List events for a calendar
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event list
+    post:
+      summary: Create calendar event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "201":
+          description: Event created
+  /api/ext/v1/events/{id}:
+    put:
+      summary: Update event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event updated
+    delete:
+      summary: Delete event
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Event deleted
+  /api/ext/v1/password-manager/entries:
+    get:
+      summary: List encrypted vault entries
+      responses:
+        "200":
+          description: Entry list
+    post:
+      summary: Create encrypted vault entry
+      responses:
+        "201":
+          description: Entry created
+  /api/ext/v1/password-manager/entries/{id}:
+    get:
+      summary: Get encrypted vault entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry
+    delete:
+      summary: Delete vault entry
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry deleted
+  /api/ext/v1/password-manager/vault/setup:
+    post:
+      summary: Configure encrypted vault verifier
+      responses:
+        "201":
+          description: Vault configured
+  /api/ext/v1/exports:
+    get:
+      summary: List exports
+      responses:
+        "200":
+          description: Export list
+    post:
+      summary: Create export
+      responses:
+        "202":
+          description: Export queued
+  /api/ext/v1/exports/{id}:
+    get:
+      summary: Get export status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Export status
+    delete:
+      summary: Delete export
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Export deleted
+  /api/ext/v1/exports/{id}/download:
+    get:
+      summary: Download completed export
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Export file
+  /api/ext/v1/webhooks:
+    get:
+      summary: List webhooks and recent deliveries
+      responses:
+        "200":
+          description: Webhook list
+    post:
+      summary: Create webhook
+      responses:
+        "201":
+          description: Webhook created
+  /api/ext/v1/webhooks/{id}:
+    get:
+      summary: Get webhook and recent deliveries
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Webhook details
+    delete:
+      summary: Delete webhook
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Webhook deleted
+  /api/ext/v1/webhooks/{id}/test:
+    post:
+      summary: Send test webhook delivery
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Test sent
+  /api/ext/v1/webhooks/{id}/rotate-secret:
+    post:
+      summary: Rotate webhook secret
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Secret rotated
+  /api/ext/v1/webhooks/{id}/deliveries:
+    get:
+      summary: List webhook delivery history
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delivery list
+  /api/ext/v1/webhooks/{id}/deliveries/{delivery_id}/replay:
+    post:
+      summary: Replay a webhook delivery
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: delivery_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "202":
+          description: Replay queued
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: PAT

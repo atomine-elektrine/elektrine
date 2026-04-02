@@ -3,7 +3,9 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   alias Elektrine.Constants
   alias Elektrine.Domains
   alias Elektrine.Profiles
+  alias Elektrine.Profiles.UserProfile
   alias Elektrine.StaticSites
+  alias Elektrine.Theme
   alias ElektrineWeb.Platform.Integrations
 
   @max_links Constants.max_profile_links()
@@ -1177,8 +1179,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     # Generate complementary colors
     %{
       accent_color: base_color,
-      # Always white for readability
-      text_color: "#ffffff",
+      text_color: UserProfile.default(:text_color),
       # Much darker version for page background
       background_color: darken_color(base_color, 0.8),
       # Slightly lighter than page for container
@@ -1192,15 +1193,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     }
   end
 
-  defp hex_to_rgb("#" <> hex) do
-    {r, _} = Integer.parse(String.slice(hex, 0, 2), 16)
-    {g, _} = Integer.parse(String.slice(hex, 2, 2), 16)
-    {b, _} = Integer.parse(String.slice(hex, 4, 2), 16)
-    {r, g, b}
-  end
-
-  # Default purple
-  defp hex_to_rgb(_hex), do: {139, 92, 246}
+  defp hex_to_rgb(hex), do: Theme.hex_to_rgb(hex)
 
   defp rgb_to_hex(r, g, b) do
     r = min(255, max(0, round(r)))
@@ -1214,28 +1207,20 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   defp darken_color(hex, factor) do
-    {r, g, b} = hex_to_rgb(hex)
-    rgb_to_hex(r * (1 - factor), g * (1 - factor), b * (1 - factor))
+    Theme.darken(hex, factor)
   end
 
   defp lighten_color(hex, factor) do
-    {r, g, b} = hex_to_rgb(hex)
-    rgb_to_hex(r + (255 - r) * factor, g + (255 - g) * factor, b + (255 - b) * factor)
+    Theme.lighten(hex, factor)
   end
 
   def badge_preview_style(badge_color, accent_color \\ nil) do
-    badge_color = badge_color || "#8a7cc2"
+    badge_color = badge_color || UserProfile.default(:accent_color)
     accent_color = accent_color || badge_color
 
-    {r, g, b} = hex_to_rgb(badge_color)
+    {from_color, to_color} = Theme.gradient_pair(badge_color)
 
-    from_color =
-      "rgb(#{max(0, round(r * 0.5))}, #{max(0, round(g * 0.5))}, #{max(0, round(b * 0.5))})"
-
-    to_color =
-      "rgb(#{max(0, round(r * 0.65))}, #{max(0, round(g * 0.65))}, #{max(0, round(b * 0.65))})"
-
-    "background: linear-gradient(to right, #{from_color}, #{to_color}); box-shadow: 0 2px 8px #{badge_color}60, 0 1px 3px rgba(0, 0, 0, 0.5); border: 1px solid #{accent_color}40;"
+    "background: linear-gradient(to right, #{from_color}, #{to_color}); box-shadow: 0 2px 8px #{Theme.rgba(badge_color, 0.38)}, 0 1px 3px #{Theme.rgba(Theme.dark_text_color(), 0.5)}; border: 1px solid #{Theme.rgba(accent_color, 0.25)};"
   end
 
   defp shift_hue(hex, degrees) do

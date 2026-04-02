@@ -20,13 +20,7 @@ defmodule Mix.Tasks.Arblarg.Conformance do
     run_test_suite(@core_conformance_test)
     run_test_suite(@extension_conformance_test)
 
-    extension_statuses =
-      ArblargProfiles.extension_registry()
-      |> Enum.map(fn extension ->
-        extension_supported? = extension["events"] != [] and extension["stability"] != "reserved"
-        {extension["urn"], extension_supported?}
-      end)
-      |> Map.new()
+    extension_statuses = ArblargProfiles.conformance_verified_extension_statuses()
 
     write_profile_badges(extension_statuses)
     write_extension_badges(extension_statuses)

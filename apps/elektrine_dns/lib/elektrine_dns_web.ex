@@ -45,7 +45,7 @@ defmodule ElektrineDNSWeb do
 
       import Phoenix.HTML
       import ElektrineWeb.CoreComponents
-      import ElektrineWeb.Components.Platform.ENav
+      import ElektrineDNSWeb.Components.Platform.ENav
 
       alias Phoenix.LiveView.JS
 

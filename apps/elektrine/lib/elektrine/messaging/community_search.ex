@@ -29,9 +29,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
     # Normalize query
     query = String.trim(query) |> String.downcase()
 
-    if not Elektrine.Strings.present?(query) do
-      []
-    else
+    if Elektrine.Strings.present?(query) do
       # Search local communities
       local_results = search_local_communities(query, limit)
 
@@ -47,6 +45,8 @@ defmodule Elektrine.Messaging.CommunitySearch do
       (local_results ++ federated_results)
       |> Enum.take(limit)
       |> add_membership_info(user_id)
+    else
+      []
     end
   end
 

@@ -93,12 +93,12 @@ defmodule ElektrineSocialWeb do
 
       import Phoenix.HTML
       import ElektrineWeb.CoreComponents
-      import ElektrineWeb.Components.User.Avatar
-      import ElektrineWeb.Components.Loaders.Skeleton
-      import ElektrineWeb.Components.UI.ImageModal
-      import ElektrineWeb.Components.Social.PostActions
-      import ElektrineWeb.Components.Social.PostReactions
-      import ElektrineWeb.Components.Social.FediverseFollow
+      import Elektrine.Components.User.Avatar
+      import Elektrine.Components.Loaders.Skeleton
+      import ElektrineSocialWeb.Components.UI.ImageModal
+      import ElektrineSocialWeb.Components.Social.PostActions
+      import ElektrineSocialWeb.Components.Social.PostReactions
+      import ElektrineSocialWeb.Components.Social.FediverseFollow
 
       alias Elektrine.Utils.SafeConvert
       alias Phoenix.LiveView.JS

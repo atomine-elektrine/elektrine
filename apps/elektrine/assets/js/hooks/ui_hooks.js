@@ -1010,33 +1010,97 @@ export const DetailsPreserve = {
 // Scroll to top button that appears when scrolled down
 export const ScrollToTop = {
   mounted() {
-    this.scrollThreshold = 400 // Show button after scrolling 400px
+    this.scrollThreshold = 400
+    this.scrollContainer = this.getScrollContainer()
+    this.scrollTarget = this.scrollContainer === window ? window : this.scrollContainer
+    this.ticking = false
 
     this.handleScroll = () => {
-      if (window.scrollY > this.scrollThreshold) {
-        this.el.classList.remove('opacity-0', 'pointer-events-none')
-        this.el.classList.add('opacity-100', 'pointer-events-auto')
-      } else {
-        this.el.classList.remove('opacity-100', 'pointer-events-auto')
-        this.el.classList.add('opacity-0', 'pointer-events-none')
-      }
+      if (this.ticking) return
+
+      this.ticking = true
+      window.requestAnimationFrame(() => {
+        this.ticking = false
+        this.syncVisibility()
+      })
     }
 
-    this.el.addEventListener('click', () => {
-      window.scrollTo({
+    this.handleClick = () => {
+      const target = this.scrollContainer === window
+        ? window
+        : (this.scrollContainer || document.scrollingElement || document.documentElement)
+
+      target.scrollTo({
         top: 0,
         behavior: 'smooth'
       })
-    })
+    }
 
-    window.addEventListener('scroll', this.handleScroll, { passive: true })
+    this.el.addEventListener('click', this.handleClick)
+    this.scrollTarget.addEventListener('scroll', this.handleScroll, { passive: true })
+    window.addEventListener('resize', this.handleScroll, { passive: true })
+    this.syncVisibility()
+  },
 
-    // Initial check
-    this.handleScroll()
+  updated() {
+    const nextScrollContainer = this.getScrollContainer()
+
+    if (nextScrollContainer === this.scrollContainer) {
+      this.syncVisibility()
+      return
+    }
+
+    this.scrollTarget?.removeEventListener('scroll', this.handleScroll)
+    this.scrollContainer = nextScrollContainer
+    this.scrollTarget = this.scrollContainer === window ? window : this.scrollContainer
+    this.scrollTarget.addEventListener('scroll', this.handleScroll, { passive: true })
+    this.syncVisibility()
   },
 
   destroyed() {
-    window.removeEventListener('scroll', this.handleScroll)
+    this.scrollTarget?.removeEventListener('scroll', this.handleScroll)
+    window.removeEventListener('resize', this.handleScroll)
+    this.el.removeEventListener('click', this.handleClick)
+  },
+
+  getScrollContainer() {
+    const rootId = this.el.dataset.scrollRoot
+    const root = rootId ? document.getElementById(rootId) : this.el.parentElement
+    let current = root
+
+    while (current && current !== document.body) {
+      if (this.isScrollable(current)) return current
+      current = current.parentElement
+    }
+
+    return window
+  },
+
+  isScrollable(element) {
+    if (!element) return false
+
+    const styles = window.getComputedStyle(element)
+    const canScroll = ['auto', 'scroll', 'overlay'].includes(styles.overflowY)
+
+    return canScroll && element.scrollHeight > element.clientHeight + 1
+  },
+
+  getScrollTop() {
+    if (this.scrollContainer === window) {
+      return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+    }
+
+    return this.scrollContainer?.scrollTop || 0
+  },
+
+  syncVisibility() {
+    if (this.getScrollTop() > this.scrollThreshold) {
+      this.el.classList.remove('opacity-0', 'pointer-events-none')
+      this.el.classList.add('opacity-100', 'pointer-events-auto')
+    } else {
+      this.el.classList.remove('opacity-100', 'pointer-events-auto')
+      this.el.classList.add('opacity-0', 'pointer-events-none')
+    }
   }
 }
 

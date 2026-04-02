@@ -2,6 +2,7 @@ defmodule ElektrineWeb.Router do
   use ElektrineWeb, :router
 
   import ElektrineWeb.UserAuth
+  require ElektrinePasswordManagerWeb.Routes
 
   @default_profile_host_scope "*.#{Application.compile_env(:elektrine, :primary_domain, "example.com")}"
 
@@ -1252,10 +1253,7 @@ defmodule ElektrineWeb.Router do
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
     pipe_through([:api_vault_authenticated, :api_pat_vault_read_scope])
 
-    scope "/", alias: false do
-      get("/entries", ElektrinePasswordManagerWeb.API.VaultController, :index)
-      get("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :show)
-    end
+    ElektrinePasswordManagerWeb.Routes.api_read_routes()
   end
 
   scope "/api/ext/v1/dns", ElektrineWeb.API do
@@ -1286,13 +1284,7 @@ defmodule ElektrineWeb.Router do
   scope "/api/ext/v1/password-manager", ElektrineWeb.API do
     pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
 
-    scope "/", alias: false do
-      post("/vault/setup", ElektrinePasswordManagerWeb.API.VaultController, :setup)
-      delete("/vault", ElektrinePasswordManagerWeb.API.VaultController, :delete_vault)
-      post("/entries", ElektrinePasswordManagerWeb.API.VaultController, :create)
-      put("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :update)
-      delete("/entries/:id", ElektrinePasswordManagerWeb.API.VaultController, :delete)
-    end
+    ElektrinePasswordManagerWeb.Routes.api_write_routes()
   end
 
   scope "/api/ext/v1/exports", ElektrineWeb.API do
@@ -1574,9 +1566,7 @@ defmodule ElektrineWeb.Router do
         :download
       )
 
-      scope "/", alias: false do
-        live("/account/password-manager", ElektrinePasswordManagerWeb.VaultLive, :index)
-      end
+      ElektrinePasswordManagerWeb.Routes.live_routes()
 
       live("/settings/rss", SettingsLive.RSS, :index)
 

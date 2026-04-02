@@ -180,37 +180,7 @@ defmodule Elektrine.Profiles.ProfileLink do
   Gets the brand color for a platform.
   """
   def get_platform_color(platform) do
-    case platform do
-      "youtube" -> "#FF0000"
-      "discord" -> "#5865F2"
-      "instagram" -> "#E4405F"
-      "twitter" -> "#000000"
-      "tiktok" -> "#000000"
-      "telegram" -> "#26A5E4"
-      "soundcloud" -> "#FF5500"
-      "twitch" -> "#9146FF"
-      "reddit" -> "#FF4500"
-      "spotify" -> "#1DB954"
-      "pinterest" -> "#E60023"
-      "linkedin" -> "#0A66C2"
-      "steam" -> "#000000"
-      "bitcoin" -> "#F7931A"
-      "ethereum" -> "#627EEA"
-      "gitlab" -> "#FC6D26"
-      "facebook" -> "#1877F2"
-      "whatsapp" -> "#25D366"
-      "threads" -> "#000000"
-      "github" -> "#000000"
-      "paypal" -> "#00457C"
-      "adobe" -> "#FF0000"
-      "vk" -> "#0077FF"
-      "email" -> "#EA4335"
-      "signal" -> "#3A76F0"
-      "litecoin" -> "#345D9D"
-      "snapchat" -> "#FFFC00"
-      # Default orange
-      _ -> "#fb923c"
-    end
+    Elektrine.Theme.platform_brand_color(platform)
   end
 
   @doc """

@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Admin.VPNController do
 
   def dashboard(conn, _params) do
     servers = Elektrine.VPN.list_servers()
+    self_host_server = Enum.find(servers, &Elektrine.VPN.self_host_server?/1)
 
     # Get total stats
     total_configs = Elektrine.Repo.aggregate(Elektrine.VPN.UserConfig, :count, :id)
@@ -48,6 +49,7 @@ defmodule ElektrineWeb.Admin.VPNController do
 
     render(conn, :vpn_dashboard,
       servers: servers,
+      self_host_server: self_host_server,
       total_configs: total_configs,
       total_active_configs: total_active_configs,
       total_bandwidth: total_bandwidth,

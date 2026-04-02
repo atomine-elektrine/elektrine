@@ -1,31 +1,37 @@
 # Core Self-hosting
 
-`core` is the default self-host profile:
+`core` is the default self-host profile. It includes the Phoenix app and
+Postgres only.
 
-- Phoenix app
-- Postgres
-- no Haraka
-- no VPN
-- no onion
-- no edge proxy
+It does not include:
+
+- Haraka
+- VPN
+- onion hosting
+- an edge proxy
+
+## Start
 
 1. Copy `.env.example` to `.env.production` and fill in real values.
-   For the bundled Docker Postgres service, keep `DATABASE_SSL_ENABLED=false`.
-2. Start the stack:
+2. Keep `DATABASE_SSL_ENABLED=false` if you are using the bundled Docker Postgres service.
+3. Start the stack:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,vault
 ```
 
-3. Run migrations once the database is healthy:
+4. Run migrations once the database is healthy:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,vault --skip-up
 ```
 
-Optional add-ons:
+## Add-ons
 
 - add Caddy with `--profile caddy`
 - add self-hosted STUN/TURN for chat calls with `--profile turn`
+- add Docker-managed WireGuard with `--modules chat,social,vault,vpn`
 - add Bluesky PDS with `-f deploy/docker/compose.bluesky.yml`
-- see `mail.md`, `turn.md`, `vpn.md`, and `../addons/onion.md` for advanced modules
+
+See `mail.md`, `turn.md`, `vpn.md`, and `../addons/onion.md` for the optional
+services.

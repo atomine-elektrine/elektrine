@@ -2,8 +2,8 @@ defmodule Elektrine.DNS.QueryTest do
   use ExUnit.Case, async: true
 
   alias Elektrine.DNS.Query
-  alias Elektrine.DNS.Zone
   alias Elektrine.DNS.Record
+  alias Elektrine.DNS.Zone
 
   setup do
     zone = %Zone{
@@ -30,7 +30,7 @@ defmodule Elektrine.DNS.QueryTest do
           type: "DS",
           content: "A1B2C3D4",
           ttl: 300,
-          key_tag: 12345,
+          key_tag: 12_345,
           algorithm: 13,
           digest_type: 2
         },

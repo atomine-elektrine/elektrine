@@ -370,10 +370,15 @@ defmodule Elektrine.Messaging.Federation.ExtensionEvents do
               is_integer(remote_actor_id) and is_atom(action) and is_map(options) and
               is_map(context) do
     case call(context, :ensure_authoritative_channel_event_context, [data, remote_domain]) do
-      {:ok, _server, _channel} ->
-        :ok
+      {:ok, _server, authoritative_channel} ->
+        call(context, :ensure_remote_actor_governance_permission, [
+          authoritative_channel,
+          remote_actor_id,
+          action,
+          options
+        ])
 
-      _ ->
+      _error ->
         call(context, :ensure_remote_actor_governance_permission, [
           mirror_channel,
           remote_actor_id,

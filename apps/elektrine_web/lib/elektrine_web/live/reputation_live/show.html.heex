@@ -178,21 +178,21 @@
                 "--rep-node-surface-top: oklch(var(--b1) / 0.98); " <>
                 "--rep-node-surface-bottom: oklch(var(--b2) / 0.92); " <>
                 "--rep-node-border-strong: oklch(var(--bc) / 0.24); " <>
-                "--rep-node-border-soft: rgba(148, 163, 184, 0.22); " <>
+              "--rep-node-border-soft: color-mix(in srgb, var(--color-base-content) 22%, transparent); " <>
                 "--rep-node-ring: oklch(var(--bc) / 0.12); " <>
                 "--rep-node-text: oklch(var(--bc) / 0.96); " <>
                 "--rep-node-subtle: oklch(var(--bc) / 0.74); " <>
-                "--rep-node-text-inverse: rgba(248, 250, 252, 0.98); " <>
-                "--rep-node-subtle-inverse: rgba(226, 232, 240, 0.78); " <>
-                "--rep-neutral-tint: rgba(148, 163, 184, 0.12); " <>
-                "--rep-ink-wash: rgba(15, 23, 42, 0.05); " <>
+              "--rep-node-text-inverse: color-mix(in srgb, var(--color-base-content) 98%, transparent); " <>
+              "--rep-node-subtle-inverse: color-mix(in srgb, var(--color-base-content) 78%, transparent); " <>
+              "--rep-neutral-tint: color-mix(in srgb, var(--color-base-content) 12%, transparent); " <>
+              "--rep-ink-wash: color-mix(in srgb, var(--color-base-100) 5%, transparent); " <>
                 "--rep-glow: oklch(var(--p) / 0.18); " <>
                 "--rep-glow-soft: oklch(var(--p) / 0.1); " <>
                 "--rep-edge-strong: oklch(var(--p) / 0.44); " <>
                 "--rep-edge-accent: oklch(var(--p) / 0.3); " <>
                 "--rep-edge-muted: oklch(var(--bc) / 0.24); " <>
                 "--rep-edge-soft: oklch(var(--bc) / 0.14); " <>
-                "--rep-shadow: rgba(15, 23, 42, 0.16);"
+              "--rep-shadow: color-mix(in srgb, var(--color-base-100) 16%, transparent);"
             }
           >
             <div class="card bg-base-100 shadow-sm border border-base-300">
@@ -211,10 +211,10 @@
                   data-graph={Jason.encode!(@reputation_graph)}
                   style="
                     background:
-                      radial-gradient(circle at 18% 20%, rgba(56, 189, 248, 0.16), transparent 26%),
-                      radial-gradient(circle at 78% 18%, rgba(244, 114, 182, 0.14), transparent 24%),
-                      radial-gradient(circle at 54% 78%, rgba(251, 191, 36, 0.12), transparent 28%),
-                      linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+                      radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--color-info) 16%, transparent), transparent 26%),
+                      radial-gradient(circle at 78% 18%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 24%),
+                      radial-gradient(circle at 54% 78%, color-mix(in srgb, var(--color-warning) 12%, transparent), transparent 28%),
+                      linear-gradient(180deg, color-mix(in srgb, var(--color-base-100) 96%, transparent), color-mix(in srgb, var(--color-base-100) 98%, transparent));
                   "
                   class="relative h-[540px] rounded-lg border border-base-300 bg-base-100 overflow-hidden sm:h-[620px]"
                 >

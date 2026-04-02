@@ -30,6 +30,7 @@ elektrine-*.tar
 /apps/*/priv/static/assets/
 /apps/*/priv/static/cache_manifest.json
 /apps/*/priv/static/uploads/
+/apps/*/priv/static/**/*.gz
 
 # Node.js
 /apps/*/assets/node_modules/

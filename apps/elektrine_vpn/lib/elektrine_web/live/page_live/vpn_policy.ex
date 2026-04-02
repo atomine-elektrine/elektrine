@@ -2,6 +2,7 @@ defmodule ElektrineWeb.PageLive.VPNPolicy do
   use ElektrineVPNWeb, :live_view
 
   alias Elektrine.EmailAddresses
+  import ElektrineVPNWeb.Components.Platform.ElektrineNav
 
   on_mount {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}
 
@@ -13,7 +14,7 @@ defmodule ElektrineWeb.PageLive.VPNPolicy do
     ~H"""
     <div>
       <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
-        <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
+        <.elektrine_nav active_tab="" class="mb-6" current_user={@current_user} />
 
         <div id="vpn-policy-card" class="card panel-card">
           <div class="card-body">

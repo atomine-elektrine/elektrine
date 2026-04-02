@@ -906,10 +906,12 @@ defmodule ElektrineWeb.DNSLive.Index do
   defp save_record(zone, nil, params), do: DNS.create_record(zone, params)
 
   defp save_record(zone, record_id, params) do
-    with %Record{} = record <- DNS.get_record(record_id, zone.id) do
-      DNS.update_record(record, params)
-    else
-      _ -> {:error, DNS.change_record(%Record{}, params) |> Map.put(:action, :insert)}
+    case DNS.get_record(record_id, zone.id) do
+      %Record{} = record ->
+        DNS.update_record(record, params)
+
+      _ ->
+        {:error, DNS.change_record(%Record{}, params) |> Map.put(:action, :insert)}
     end
   end
 

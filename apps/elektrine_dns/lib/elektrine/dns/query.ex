@@ -9,15 +9,13 @@ defmodule Elektrine.DNS.Query do
   def answer(packet, opts \\ []) when is_binary(packet) do
     case Packet.decode_query(packet) do
       {:ok, query} ->
-        cond do
-          any_query?(query) ->
-            Packet.encode_response(query, [], :refused,
-              transport: Keyword.get(opts, :transport),
-              recursion_available: DNS.recursive_enabled?()
-            )
-
-          true ->
-            route_query(packet, query, opts)
+        if any_query?(query) do
+          Packet.encode_response(query, [], :refused,
+            transport: Keyword.get(opts, :transport),
+            recursion_available: DNS.recursive_enabled?()
+          )
+        else
+          route_query(packet, query, opts)
         end
 
       {:error, :format_error} ->
@@ -29,9 +27,10 @@ defmodule Elektrine.DNS.Query do
   end
 
   defp route_query(packet, query, opts) do
-    with {:ok, zone} <- fetch_zone(query.qname) do
-      answer_for_zone(query, zone, opts)
-    else
+    case fetch_zone(query.qname) do
+      {:ok, zone} ->
+        answer_for_zone(query, zone, opts)
+
       {:error, :not_authoritative} ->
         if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
           Elektrine.DNS.Recursive.resolve(packet, opts)

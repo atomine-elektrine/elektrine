@@ -40,7 +40,7 @@ defmodule ElektrineWeb.Components.UI.Modal do
     >
       <div
         id={"#{@id}-bg"}
-        class="modal-backdrop bg-black/50 transition-opacity"
+        class="modal-backdrop bg-base-content/50 transition-opacity"
         aria-hidden="true"
       />
       <div

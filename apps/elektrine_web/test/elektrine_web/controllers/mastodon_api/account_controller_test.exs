@@ -13,7 +13,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountControllerTest do
     {:ok, app} =
       OAuth.create_app(%{
         client_name: "test-app-#{System.unique_integer([:positive])}",
-        redirect_uris: "urn:ietf:wg:oauth:2.0:oob",
+        redirect_uris: "https://client.example/callback",
         scopes: ["read", "write", "write:mutes"]
       })
 

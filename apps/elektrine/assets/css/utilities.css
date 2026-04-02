@@ -48,6 +48,43 @@
 }
 
 /* --------------------------------------------------------------------------
+   PROFILE THEME UTILITIES
+   -------------------------------------------------------------------------- */
+
+.profile-overlay-surface {
+  background-color: color-mix(in srgb, var(--profile-bg, var(--color-base-100)) 30%, transparent);
+}
+
+.profile-overlay-surface-strong {
+  background-color: color-mix(in srgb, var(--profile-bg, var(--color-base-100)) 60%, transparent);
+}
+
+.profile-tooltip-surface {
+  background-color: color-mix(in srgb, var(--profile-bg, var(--color-base-100)) 80%, transparent);
+  color: var(--profile-text, var(--color-base-content));
+}
+
+.profile-text-muted {
+  color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 70%, transparent);
+}
+
+.profile-text-subtle {
+  color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 55%, transparent);
+}
+
+.profile-text-faint {
+  color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 40%, transparent);
+}
+
+.profile-divider-soft {
+  background-color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 20%, transparent);
+}
+
+.profile-border-soft {
+  border-color: color-mix(in srgb, var(--profile-text, var(--color-base-content)) 18%, transparent);
+}
+
+/* --------------------------------------------------------------------------
    CHAT
    -------------------------------------------------------------------------- */
 
@@ -72,57 +109,57 @@
 }
 
 #chat-container .badge-error {
-  background-color: #dc2626 !important;
-  border-color: #dc2626 !important;
-  color: #ffffff !important;
+  background-color: var(--color-error) !important;
+  border-color: var(--color-error) !important;
+  color: var(--theme-text-inverse) !important;
 }
 
 #chat-container .text-error {
-  color: #f87171 !important;
+  color: var(--theme-chat-error-text-soft) !important;
 }
 
 #chat-container .bg-error {
-  background-color: #dc2626 !important;
-  color: #ffffff !important;
+  background-color: var(--color-error) !important;
+  color: var(--theme-text-inverse) !important;
 }
 
 #chat-container .bg-error\/20 {
-  background-color: rgba(220, 38, 38, 0.2) !important;
+  background-color: var(--theme-chat-error-soft) !important;
 }
 
 #chat-container .border-error {
-  border-color: #dc2626 !important;
+  border-color: var(--color-error) !important;
 }
 
 #chat-container .btn-error {
   background:
-    linear-gradient(135deg, rgba(220, 38, 38, 0.24), rgba(220, 38, 38, 0.1) 55%, rgba(0, 0, 0, 0) 100%),
+    var(--theme-chat-error-button-overlay),
     linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.9)) !important;
-  border-color: rgba(220, 38, 38, 0.52) !important;
-  color: rgba(254, 226, 226, 0.98) !important;
+  border-color: var(--theme-chat-error-button-border) !important;
+  color: var(--theme-chat-error-button-text) !important;
 }
 
 #chat-container .btn-error:hover {
   background:
-    linear-gradient(135deg, rgba(220, 38, 38, 0.32), rgba(220, 38, 38, 0.14) 55%, rgba(0, 0, 0, 0) 100%),
+    var(--theme-chat-error-button-overlay-hover),
     linear-gradient(135deg, oklch(var(--b1) / 0.96), oklch(var(--b2) / 0.9)) !important;
-  border-color: rgba(220, 38, 38, 0.64) !important;
+  border-color: var(--theme-chat-error-button-border-hover) !important;
 }
 
 #chat-container .hover\:text-error:hover {
-  color: #fca5a5 !important;
+  color: var(--theme-chat-error-text-strong) !important;
 }
 
 #chat-container .hover\:border-error\/50:hover {
-  border-color: rgba(220, 38, 38, 0.5) !important;
+  border-color: var(--theme-chat-error-border-50) !important;
 }
 
 #chat-container .progress-error::-webkit-progress-value {
-  background-color: #dc2626 !important;
+  background-color: var(--color-error) !important;
 }
 
 #chat-container .progress-error::-moz-progress-bar {
-  background-color: #dc2626 !important;
+  background-color: var(--color-error) !important;
 }
 
 
@@ -141,17 +178,17 @@
 .message-selected,
 .card.message-selected,
 div.message-selected {
-  background-color: rgba(138, 124, 194, 0.1) !important;
-  border-color: rgba(138, 124, 194, 0.45) !important;
-  box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.18) !important;
+  background-color: var(--theme-message-selected-bg) !important;
+  border-color: var(--theme-message-selected-border) !important;
+  box-shadow: 0 0 0 1px var(--theme-message-selected-shadow) !important;
 }
 
 .message-selected:hover,
 .card.message-selected:hover,
 div.message-selected:hover {
-  background-color: rgba(138, 124, 194, 0.15) !important;
-  border-color: rgba(138, 124, 194, 0.62) !important;
-  box-shadow: 0 0 0 1px rgba(138, 124, 194, 0.26) !important;
+  background-color: var(--theme-message-selected-bg-hover) !important;
+  border-color: var(--theme-message-selected-border-hover) !important;
+  box-shadow: 0 0 0 1px var(--theme-message-selected-shadow-hover) !important;
 }
 
 /* --------------------------------------------------------------------------

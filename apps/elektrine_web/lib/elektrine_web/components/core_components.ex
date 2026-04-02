@@ -29,6 +29,7 @@ defmodule ElektrineWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   # UI Components
+  alias ElektrineWeb.Components.UI.ActionToolbar
   alias ElektrineWeb.Components.UI.Badge
   alias ElektrineWeb.Components.UI.BrandIcon
   alias ElektrineWeb.Components.UI.Button
@@ -43,7 +44,6 @@ defmodule ElektrineWeb.CoreComponents do
   alias ElektrineWeb.Components.UI.PillSwitcher
   alias ElektrineWeb.Components.UI.SectionHeader
   alias ElektrineWeb.Components.UI.StatsRow
-  alias ElektrineWeb.Components.UI.ActionToolbar
   alias ElektrineWeb.Components.UI.Table
 
   # Layout Components
@@ -433,10 +433,25 @@ defmodule ElektrineWeb.CoreComponents do
     tone_vars =
       case assigns.kind do
         :error ->
-          "--flash-accent: rgba(239, 68, 68, 0.92); --flash-accent-soft: rgba(239, 68, 68, 0.25); --flash-tint-start: rgba(239, 68, 68, 0.2); --flash-tint-mid: rgba(239, 68, 68, 0.08); --flash-border: rgba(239, 68, 68, 0.48); --flash-icon: rgba(248, 113, 113, 0.98);"
+          Elektrine.Theme.inline_vars(%{
+            "--flash-accent" => "color-mix(in srgb, var(--color-error) 92%, transparent)",
+            "--flash-accent-soft" => "color-mix(in srgb, var(--color-error) 25%, transparent)",
+            "--flash-tint-start" => "color-mix(in srgb, var(--color-error) 20%, transparent)",
+            "--flash-tint-mid" => "color-mix(in srgb, var(--color-error) 8%, transparent)",
+            "--flash-border" => "color-mix(in srgb, var(--color-error) 48%, transparent)",
+            "--flash-icon" =>
+              "color-mix(in srgb, var(--color-error) 72%, var(--color-error-content) 28%)"
+          })
 
         _ ->
-          "--flash-accent: rgba(34, 197, 94, 0.9); --flash-accent-soft: rgba(34, 197, 94, 0.24); --flash-tint-start: rgba(34, 197, 94, 0.16); --flash-tint-mid: rgba(34, 197, 94, 0.06); --flash-border: rgba(34, 197, 94, 0.42); --flash-icon: rgba(34, 197, 94, 0.96);"
+          Elektrine.Theme.inline_vars(%{
+            "--flash-accent" => "color-mix(in srgb, var(--color-success) 90%, transparent)",
+            "--flash-accent-soft" => "color-mix(in srgb, var(--color-success) 24%, transparent)",
+            "--flash-tint-start" => "color-mix(in srgb, var(--color-success) 16%, transparent)",
+            "--flash-tint-mid" => "color-mix(in srgb, var(--color-success) 6%, transparent)",
+            "--flash-border" => "color-mix(in srgb, var(--color-success) 42%, transparent)",
+            "--flash-icon" => "color-mix(in srgb, var(--color-success) 96%, transparent)"
+          })
       end
 
     assigns = assign(assigns, :tone_vars, tone_vars)

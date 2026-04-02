@@ -54,7 +54,7 @@ defmodule ElektrineWeb.OIDCControllerTest do
       conn =
         get(
           conn,
-          ~p"/oauth/authorize?client_id=#{app.client_id}&response_type=code&scope=openid%20profile"
+          ~p"/oauth/authorize?client_id=#{app.client_id}&response_type=code&scope=openid%20profile&code_challenge=challenge-123&code_challenge_method=plain"
         )
 
       assert redirected_to(conn) == "/login"
@@ -75,7 +75,7 @@ defmodule ElektrineWeb.OIDCControllerTest do
       authorize_conn =
         get(
           conn,
-          ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile%20email&state=state-123&nonce=nonce-abc"
+          ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile%20email&state=state-123&nonce=nonce-abc&code_challenge=challenge-123&code_challenge_method=plain"
         )
 
       assert html_response(authorize_conn, 200) =~ "Citizen Console"
@@ -88,7 +88,9 @@ defmodule ElektrineWeb.OIDCControllerTest do
           "response_type" => "code",
           "scope" => "openid profile email",
           "state" => "state-123",
-          "nonce" => "nonce-abc"
+          "nonce" => "nonce-abc",
+          "code_challenge" => "challenge-123",
+          "code_challenge_method" => "plain"
         })
 
       redirect_url = redirected_to(approval_conn, 302)
@@ -103,7 +105,8 @@ defmodule ElektrineWeb.OIDCControllerTest do
           "client_id" => app.client_id,
           "client_secret" => app.client_secret,
           "code" => code,
-          "redirect_uri" => "https://client.example/callback"
+          "redirect_uri" => "https://client.example/callback",
+          "code_verifier" => "challenge-123"
         })
 
       assert %{
@@ -177,8 +180,45 @@ defmodule ElektrineWeb.OIDCControllerTest do
     end
   end
 
+  test "rejects authorization requests without pkce", %{conn: conn} do
+    user = user_fixture(%{username: "oidcnopkce"})
+
+    {:ok, app} =
+      OAuth.create_app(%{
+        client_name: "No PKCE",
+        redirect_uris: "https://client.example/callback",
+        scopes: ["openid", "profile"]
+      })
+
+    conn = log_in_user(conn, user)
+
+    conn =
+      get(
+        conn,
+        ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile"
+      )
+
+    assert json_response(conn, 400) == %{"error" => "invalid_request"}
+  end
+
+  test "rejects insecure redirect uris during registration" do
+    assert {:error, changeset} =
+             OAuth.create_app(%{
+               client_name: "Insecure Console",
+               redirect_uris: "http://client.example/callback",
+               scopes: ["openid"]
+             })
+
+    assert "contains invalid URI" in errors_on(changeset).redirect_uris
+  end
+
   defp log_in_user(conn, user) do
-    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+    token =
+      Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+        "user_id" => user.id,
+        "password_changed_at" =>
+          user.last_password_change && DateTime.to_unix(user.last_password_change)
+      })
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
@@ -189,5 +229,13 @@ defmodule ElektrineWeb.OIDCControllerTest do
     [_header, payload, _signature] = String.split(token, ".")
     {:ok, decoded} = Base.url_decode64(payload, padding: false)
     Jason.decode!(decoded)
+  end
+
+  defp errors_on(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
+      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
   end
 end

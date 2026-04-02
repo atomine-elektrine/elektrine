@@ -91,9 +91,8 @@ defmodule Elektrine.Files do
   end
 
   def get_file_by_path(user_id, path) when is_binary(path) do
-    with {:ok, normalized_path} <- normalize_file_path(path) do
-      Repo.get_by(StoredFile, user_id: user_id, path: normalized_path)
-    else
+    case normalize_file_path(path) do
+      {:ok, normalized_path} -> Repo.get_by(StoredFile, user_id: user_id, path: normalized_path)
       _ -> nil
     end
   end
@@ -430,8 +429,16 @@ defmodule Elektrine.Files do
   def share_inline_view?(_share), do: false
 
   def inline_viewable_content_type?(content_type) when is_binary(content_type) do
-    String.starts_with?(content_type, ["image/", "video/", "audio/", "text/"]) or
-      content_type in ["application/pdf", "application/json"]
+    normalized =
+      content_type
+      |> String.downcase()
+      |> String.split(";", parts: 2)
+      |> List.first()
+      |> to_string()
+      |> String.trim()
+
+    String.starts_with?(normalized, ["image/", "video/", "audio/"]) or
+      normalized in ["application/pdf", "application/json", "text/plain"]
   end
 
   def inline_viewable_content_type?(_), do: false
@@ -819,7 +826,7 @@ defmodule Elektrine.Files do
   end
 
   defp apply_file_filter(files, "shared") do
-    Enum.filter(files, &(length(&1.shares || []) > 0))
+    Enum.filter(files, &match?([_ | _], &1.shares || []))
   end
 
   defp apply_file_filter(files, _filter), do: files

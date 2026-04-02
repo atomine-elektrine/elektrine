@@ -5,8 +5,12 @@ defmodule Elektrine.Messaging.CommunityFlair do
 
   schema "community_flairs" do
     field :name, :string
-    field :text_color, :string, default: "#FFFFFF"
-    field :background_color, :string, default: "#4B5563"
+    field :text_color, :string, default: Elektrine.Theme.community_flair_default_text_color()
+
+    field :background_color,
+          :string,
+          default: Elektrine.Theme.community_flair_default_background_color()
+
     field :position, :integer, default: 0
     field :is_mod_only, :boolean, default: false
     field :is_enabled, :boolean, default: true
