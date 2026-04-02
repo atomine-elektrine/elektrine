@@ -903,10 +903,10 @@ defmodule Elektrine.Social do
        when is_map(attachment) and is_binary(alt_text) do
     trimmed = String.trim(alt_text)
 
-    if not Elektrine.Strings.present?(trimmed) do
-      attachment
-    else
+    if Elektrine.Strings.present?(trimmed) do
       Map.put(attachment, "alt_text", trimmed)
+    else
+      attachment
     end
   end
 
@@ -2104,13 +2104,13 @@ defmodule Elektrine.Social do
 
   defp validate_title_if_present(title) when is_binary(title) do
     # Treat empty/whitespace titles as nil (optional)
-    if not Elektrine.Strings.present?(title) do
-      {:ok, nil}
-    else
+    if Elektrine.Strings.present?(title) do
       case ContentValidator.validate_title(title) do
         {:ok, validated} -> {:ok, validated}
         error -> error
       end
+    else
+      {:ok, nil}
     end
   end
 

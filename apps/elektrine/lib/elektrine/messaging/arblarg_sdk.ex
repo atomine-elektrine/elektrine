@@ -1595,9 +1595,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp normalize_private_key(key) when is_binary(key) do
     trimmed = String.trim(key)
 
-    if not Elektrine.Strings.present?(trimmed) do
-      {:error, :invalid_private_key}
-    else
+    if Elektrine.Strings.present?(trimmed) do
       case decode_32_byte_key(trimmed) do
         {:ok, decoded} ->
           {:ok, decoded}
@@ -1606,6 +1604,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
           {_public_key, private_key} = derive_keypair_from_secret(trimmed)
           {:ok, private_key}
       end
+    else
+      {:error, :invalid_private_key}
     end
   end
 
@@ -1620,9 +1620,7 @@ defmodule Elektrine.Messaging.ArblargSDK do
   defp normalize_public_key(key) when is_binary(key) do
     trimmed = String.trim(key)
 
-    if not Elektrine.Strings.present?(trimmed) do
-      {:error, :invalid_public_key}
-    else
+    if Elektrine.Strings.present?(trimmed) do
       case decode_32_byte_key(trimmed) do
         {:ok, decoded} ->
           {:ok, decoded}
@@ -1630,6 +1628,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
         :error ->
           {:error, :invalid_public_key}
       end
+    else
+      {:error, :invalid_public_key}
     end
   end
 
@@ -1664,11 +1664,11 @@ defmodule Elektrine.Messaging.ArblargSDK do
       {:error, :invalid_public_key} ->
         trimmed = String.trim(key)
 
-        if not Elektrine.Strings.present?(trimmed) do
-          {:error, :invalid_public_key}
-        else
+        if Elektrine.Strings.present?(trimmed) do
           {public_key, _private_key} = derive_keypair_from_secret(trimmed)
           {:ok, public_key}
+        else
+          {:error, :invalid_public_key}
         end
     end
   end

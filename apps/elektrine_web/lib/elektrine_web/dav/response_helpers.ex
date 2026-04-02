@@ -263,7 +263,7 @@ defmodule ElektrineWeb.DAV.ResponseHelpers do
   end
 
   defp build_prop_xml({:calendar_color, value}) do
-    "      <A:calendar-color>#{escape_xml(value || "#3b82f6")}</A:calendar-color>"
+    "      <A:calendar-color>#{escape_xml(value || Elektrine.Theme.default_value("color_primary"))}</A:calendar-color>"
   end
 
   defp build_prop_xml({:calendar_timezone, value}) do

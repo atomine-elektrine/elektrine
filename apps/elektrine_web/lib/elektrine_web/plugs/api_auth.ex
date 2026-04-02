@@ -157,18 +157,16 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   end
 
   defp fetch_active_user(user_id) do
-    try do
-      user = Accounts.get_user!(user_id)
+    user = Accounts.get_user!(user_id)
 
-      case Authentication.ensure_user_active(user) do
-        :ok -> {:ok, user}
-        {:error, reason} -> {:error, reason}
-      end
-    rescue
-      Ecto.NoResultsError ->
-        Events.auth(:api_token, :failure, %{reason: :user_not_found})
-        {:error, :invalid_token}
+    case Authentication.ensure_user_active(user) do
+      :ok -> {:ok, user}
+      {:error, reason} -> {:error, reason}
     end
+  rescue
+    Ecto.NoResultsError ->
+      Events.auth(:api_token, :failure, %{reason: :user_not_found})
+      {:error, :invalid_token}
   end
 
   defp parse_token(token) when is_binary(token) do

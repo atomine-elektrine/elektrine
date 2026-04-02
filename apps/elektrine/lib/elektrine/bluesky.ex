@@ -354,10 +354,10 @@ defmodule Elektrine.Bluesky do
   defp require_user_value(value, reason) when is_binary(value) do
     trimmed = String.trim(value)
 
-    if not Elektrine.Strings.present?(trimmed) do
-      {:error, reason}
-    else
+    if Elektrine.Strings.present?(trimmed) do
       {:ok, trimmed}
+    else
+      {:error, reason}
     end
   end
 
@@ -969,10 +969,10 @@ defmodule Elektrine.Bluesky do
   end
 
   defp blank_to_default(value, default) when is_binary(value) do
-    if not Elektrine.Strings.present?(value) do
-      default
-    else
+    if Elektrine.Strings.present?(value) do
       value
+    else
+      default
     end
   end
 

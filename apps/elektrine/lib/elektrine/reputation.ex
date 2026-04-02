@@ -10,14 +10,6 @@ defmodule Elektrine.Reputation do
 
   @sample_limit 4
 
-  @palette %{
-    0 => %{accent: "#94a3b8", surface: "#f8fafc", glow: "rgba(148, 163, 184, 0.28)"},
-    1 => %{accent: "#0ea5e9", surface: "#f0f9ff", glow: "rgba(14, 165, 233, 0.28)"},
-    2 => %{accent: "#10b981", surface: "#ecfdf5", glow: "rgba(16, 185, 129, 0.28)"},
-    3 => %{accent: "#f59e0b", surface: "#fffbeb", glow: "rgba(245, 158, 11, 0.28)"},
-    4 => %{accent: "#ef4444", surface: "#fef2f2", glow: "rgba(239, 68, 68, 0.28)"}
-  }
-
   def search_public_users(query, limit \\ 8) do
     query = query |> to_string() |> String.trim()
 
@@ -67,7 +59,7 @@ defmodule Elektrine.Reputation do
 
   def build_public_graph(%User{} = user, viewer \\ nil) do
     trust_info = TrustLevel.get_level_info(user.trust_level)
-    palette = Map.get(@palette, user.trust_level, @palette[0])
+    palette = Elektrine.Theme.reputation_palette(user.trust_level)
     handle = display_handle(user)
     account_age_days = account_age_days(user)
     follower_count = Profiles.get_follower_count(user.id)

@@ -3,7 +3,7 @@ defmodule ElektrineWeb.EmailController do
 
   alias Elektrine.Email
   alias Elektrine.EmailAddresses
-  import ElektrineWeb.Components.Email.Display
+  import ElektrineEmailWeb.Components.Email.Display
 
   def delete(conn, %{"id" => id}) do
     user = conn.assigns.current_user

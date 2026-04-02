@@ -120,18 +120,18 @@ defmodule ElektrineWeb.StorageLive do
 
       # If message has no content, mark as deleted; otherwise just clear media
       result =
-        if not Elektrine.Strings.present?(message.content) do
+        if Elektrine.Strings.present?(message.content) do
+          # Clear media from message but keep the message text
+          changeset =
+            Elektrine.Messaging.Message.changeset(message, %{media_urls: [], media_metadata: %{}})
+
+          Elektrine.Repo.update(changeset)
+        else
           # Directly mark as deleted since we already verified ownership
           changeset =
             Elektrine.Messaging.Message.changeset(message, %{
               deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)
             })
-
-          Elektrine.Repo.update(changeset)
-        else
-          # Clear media from message but keep the message text
-          changeset =
-            Elektrine.Messaging.Message.changeset(message, %{media_urls: [], media_metadata: %{}})
 
           Elektrine.Repo.update(changeset)
         end

@@ -6,7 +6,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.Helpers do
   import Phoenix.Component
   import Phoenix.LiveView
   alias Elektrine.Messaging.Messages, as: MessagingMessages
-  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   # Apply timeline filter to socket
   def apply_timeline_filter(socket) do

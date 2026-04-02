@@ -141,10 +141,10 @@ defmodule Elektrine.Messaging.Federation.Discovery do
       |> to_string()
       |> String.trim(".")
 
-    if not Elektrine.Strings.present?(normalized) do
-      {:error, :invalid_domain}
-    else
+    if Elektrine.Strings.present?(normalized) do
       {:ok, normalized}
+    else
+      {:error, :invalid_domain}
     end
   end
 

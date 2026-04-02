@@ -6,10 +6,19 @@ defmodule Elektrine.Profiles.UserBadge do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @default_badge_color Elektrine.Theme.default_value("color_primary")
+  @staff_badge_color Elektrine.Theme.default_value("color_error")
+  @admin_badge_color Elektrine.Theme.default_value("color_error")
+  @moderator_badge_color Elektrine.Theme.default_value("color_success")
+  @supporter_badge_color Elektrine.Theme.default_value("color_warning")
+  @developer_badge_color Elektrine.Theme.default_value("color_primary")
+  @contributor_badge_color @default_badge_color
+  @beta_tester_badge_color Elektrine.Theme.default_value("color_secondary")
+
   schema "user_badges" do
     field :badge_type, :string
     field :badge_text, :string
-    field :badge_color, :string, default: "#22d3ee"
+    field :badge_color, :string, default: @default_badge_color
     field :badge_icon, :string
     field :tooltip, :string
     field :position, :integer, default: 0
@@ -45,6 +54,10 @@ defmodule Elektrine.Profiles.UserBadge do
 
   def badge_types, do: @badge_types
 
+  def default(field) when is_atom(field) do
+    Map.get(%__MODULE__{}, field)
+  end
+
   @doc """
   Returns default properties for a given badge type.
   """
@@ -53,7 +66,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "staff" ->
         %{
           badge_text: "Staff",
-          badge_color: "#dc2626",
+          badge_color: @staff_badge_color,
           badge_icon: "hero-check-badge",
           tooltip: "Elektrine Staff Member"
         }
@@ -61,7 +74,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "verified" ->
         %{
           badge_text: "Verified",
-          badge_color: "#22d3ee",
+          badge_color: @default_badge_color,
           badge_icon: "hero-check-badge",
           tooltip: "Verified Account"
         }
@@ -69,7 +82,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "admin" ->
         %{
           badge_text: "Admin",
-          badge_color: "#dc2626",
+          badge_color: @admin_badge_color,
           badge_icon: "hero-check-badge",
           tooltip: "Administrator"
         }
@@ -77,7 +90,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "moderator" ->
         %{
           badge_text: "Moderator",
-          badge_color: "#16a34a",
+          badge_color: @moderator_badge_color,
           badge_icon: "hero-shield-exclamation",
           tooltip: "Community Moderator"
         }
@@ -85,7 +98,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "supporter" ->
         %{
           badge_text: "Supporter",
-          badge_color: "#f59e0b",
+          badge_color: @supporter_badge_color,
           badge_icon: "hero-heart",
           tooltip: "Platform Supporter"
         }
@@ -93,7 +106,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "developer" ->
         %{
           badge_text: "Developer",
-          badge_color: "#8a7cc2",
+          badge_color: @developer_badge_color,
           badge_icon: "hero-code-bracket",
           tooltip: "Developer"
         }
@@ -101,7 +114,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "contributor" ->
         %{
           badge_text: "Contributor",
-          badge_color: "#22d3ee",
+          badge_color: @contributor_badge_color,
           badge_icon: "hero-star",
           tooltip: "Platform Contributor"
         }
@@ -109,7 +122,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "beta_tester" ->
         %{
           badge_text: "Beta Tester",
-          badge_color: "#c7796b",
+          badge_color: @beta_tester_badge_color,
           badge_icon: "hero-beaker",
           tooltip: "Beta Tester"
         }
@@ -117,7 +130,7 @@ defmodule Elektrine.Profiles.UserBadge do
       "custom" ->
         %{
           badge_text: "Custom",
-          badge_color: "#22d3ee",
+          badge_color: @default_badge_color,
           badge_icon: nil,
           tooltip: "Custom Badge"
         }
@@ -125,7 +138,7 @@ defmodule Elektrine.Profiles.UserBadge do
       _ ->
         %{
           badge_text: "",
-          badge_color: "#22d3ee",
+          badge_color: @default_badge_color,
           badge_icon: nil,
           tooltip: ""
         }

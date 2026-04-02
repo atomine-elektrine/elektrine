@@ -7,7 +7,7 @@
     <h1 class="mt-2 text-3xl font-bold">Create VPN Server</h1>
 
     <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-      Register a new WireGuard server so it can issue configs, report usage, and accept managed clients.
+      Register an extra WireGuard server for multi-node or non-default setups.
     </p>
   </div>
 
@@ -17,11 +17,11 @@
       <h3 class="font-bold">Deployment Checklist</h3>
 
       <div class="text-sm mt-1">
-        <p>1. Fill in details below and enter "AUTO" for public key</p>
-
-        <p>2. Copy the API key shown after creation</p>
-
-        <p>3. Deploy VPN server with API key - public key auto-registers!</p>
+        <p>Most self-hosters do not need this form.</p>
+        <p>
+          For a single server, set `VPN_SELFHOST_PUBLIC_IP` and `VPN_SELFHOST_PUBLIC_KEY` in `.env.production`.
+        </p>
+        <p>Use this page only when you want to add another managed WireGuard node manually.</p>
       </div>
     </div>
   </div>

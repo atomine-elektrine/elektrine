@@ -114,9 +114,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
         %{"content" => content, "reply_to_id" => reply_to_id},
         socket
       ) do
-    if not Elektrine.Strings.present?(content) do
-      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-    else
+    if Elektrine.Strings.present?(content) do
       user = socket.assigns.current_user
 
       case resolve_parent_for_reply(socket, reply_to_id) do
@@ -182,6 +180,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.ReplyOperations do
         {:error, :invalid_reply_target} ->
           {:noreply, put_flash(socket, :error, "Reply target is no longer available")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     end
   end
 

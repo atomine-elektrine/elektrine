@@ -42,6 +42,7 @@ Run these before opening a PR:
 ```bash
 mix format
 mix compile --warnings-as-errors
+mix credo --strict
 mix test
 ```
 

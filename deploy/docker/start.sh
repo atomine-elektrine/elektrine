@@ -7,6 +7,8 @@ ONION_TLS_DIR="/data/certs/live"
 ONION_TLS_CERT="$ONION_TLS_DIR/onion-cert.pem"
 ONION_TLS_KEY="$ONION_TLS_DIR/onion-key.pem"
 ONION_TLS_HOST_CACHE="$ONION_TLS_DIR/onion-hostname.txt"
+VPN_DATA_DIR="/data/vpn"
+VPN_PRIVATE_KEY_FILE="$VPN_DATA_DIR/wg-private.key"
 ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
 
 is_truthy() {
@@ -44,6 +46,12 @@ configure_role() {
       jobs_default="false"
       tor_default="false"
       ;;
+    vpn)
+      web_default="false"
+      jobs_default="false"
+      mail_default="false"
+      tor_default="false"
+      ;;
     *)
       echo "Unknown Elektrine runtime role: $role" >&2
       exit 1
@@ -55,6 +63,102 @@ configure_role() {
   export ELEKTRINE_ENABLE_JOBS="${ELEKTRINE_ENABLE_JOBS:-$jobs_default}"
   export ELEKTRINE_ENABLE_MAIL="${ELEKTRINE_ENABLE_MAIL:-$mail_default}"
   export ELEKTRINE_ENABLE_TOR="${ELEKTRINE_ENABLE_TOR:-$tor_default}"
+}
+
+derive_vpn_public_key() {
+  if [ -n "${VPN_SELFHOST_PUBLIC_KEY:-}" ] || [ -z "${VPN_SELFHOST_PRIVATE_KEY:-}" ]; then
+    return
+  fi
+
+  if ! command -v wg >/dev/null 2>&1; then
+    echo "WireGuard tools are not installed; cannot derive VPN_SELFHOST_PUBLIC_KEY" >&2
+    return
+  fi
+
+  export VPN_SELFHOST_PUBLIC_KEY
+  VPN_SELFHOST_PUBLIC_KEY="$(printf '%s' "$VPN_SELFHOST_PRIVATE_KEY" | wg pubkey | tr -d '\r\n')"
+}
+
+ensure_vpn_private_key() {
+  if [ -n "${VPN_SELFHOST_PRIVATE_KEY:-}" ]; then
+    return
+  fi
+
+  mkdir -p "$VPN_DATA_DIR"
+  chmod 700 "$VPN_DATA_DIR"
+
+  if [ -s "$VPN_PRIVATE_KEY_FILE" ]; then
+    export VPN_SELFHOST_PRIVATE_KEY
+    VPN_SELFHOST_PRIVATE_KEY="$(tr -d '\r\n' < "$VPN_PRIVATE_KEY_FILE")"
+    return
+  fi
+
+  if ! command -v wg >/dev/null 2>&1; then
+    echo "WireGuard tools are not installed; cannot generate VPN_SELFHOST_PRIVATE_KEY" >&2
+    exit 1
+  fi
+
+  umask 077
+  wg genkey | tee "$VPN_PRIVATE_KEY_FILE" >/dev/null
+  export VPN_SELFHOST_PRIVATE_KEY
+  VPN_SELFHOST_PRIVATE_KEY="$(tr -d '\r\n' < "$VPN_PRIVATE_KEY_FILE")"
+  echo "Generated WireGuard private key at $VPN_PRIVATE_KEY_FILE"
+}
+
+detect_vpn_public_ip() {
+  local detected=""
+
+  if [ -n "${VPN_SELFHOST_PUBLIC_IP:-}" ] || [ -n "${VPN_SELFHOST_ENDPOINT_HOST:-}" ]; then
+    return
+  fi
+
+  if command -v ip >/dev/null 2>&1; then
+    detected="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") {print $(i + 1); exit}}')"
+  fi
+
+  if [ -n "$detected" ]; then
+    export VPN_SELFHOST_PUBLIC_IP
+    VPN_SELFHOST_PUBLIC_IP="$detected"
+    echo "Detected VPN_SELFHOST_PUBLIC_IP=$VPN_SELFHOST_PUBLIC_IP"
+  else
+    echo "Warning: could not detect VPN_SELFHOST_PUBLIC_IP; set VPN_SELFHOST_ENDPOINT_HOST or VPN_SELFHOST_PUBLIC_IP if client configs need a reachable endpoint" >&2
+  fi
+}
+
+configure_wireguard_interface() {
+  local interface="${VPN_SELFHOST_WG_INTERFACE:-wg0}"
+  local address="${VPN_SELFHOST_ADDRESS:-10.8.0.1/24}"
+  local listen_port="${VPN_SELFHOST_LISTEN_PORT:-443}"
+  local mtu="${VPN_SELFHOST_LINK_MTU:-}"
+  local private_key_file
+
+  if [ -z "${VPN_SELFHOST_PRIVATE_KEY:-}" ]; then
+    echo "VPN_SELFHOST_PRIVATE_KEY is required for the vpn runtime role" >&2
+    exit 1
+  fi
+
+  if ! command -v wg >/dev/null 2>&1 || ! command -v ip >/dev/null 2>&1; then
+    echo "wireguard-tools and iproute2 are required for the vpn runtime role" >&2
+    exit 1
+  fi
+
+  private_key_file="$(mktemp)"
+  trap 'rm -f "$private_key_file"' RETURN
+  umask 077
+  printf '%s\n' "$VPN_SELFHOST_PRIVATE_KEY" > "$private_key_file"
+
+  if ! ip link show dev "$interface" >/dev/null 2>&1; then
+    ip link add dev "$interface" type wireguard
+  fi
+
+  wg set "$interface" private-key "$private_key_file" listen-port "$listen_port"
+  ip address replace "$address" dev "$interface"
+
+  if [ -n "$mtu" ]; then
+    ip link set mtu "$mtu" up dev "$interface"
+  else
+    ip link set up dev "$interface"
+  fi
 }
 
 base64_no_wrap() {
@@ -139,6 +243,13 @@ write_onion_tls_cert() {
 }
 
 configure_role "$ROLE"
+
+if [ "$ROLE" = "vpn" ]; then
+  ensure_vpn_private_key
+  derive_vpn_public_key
+  detect_vpn_public_ip
+  configure_wireguard_interface
+fi
 
 if is_truthy "$ELEKTRINE_ENABLE_TOR"; then
   # Start Tor in background (it will run as the current user - nobody)

@@ -1,7 +1,10 @@
 <%= cond do %>
   <% assigns[:not_found] -> %>
     <!-- Not Found Error Page (invalid handle format) -->
-    <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+    <div
+      class="min-h-screen flex items-center justify-center p-4 bg-base-100"
+      style="background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
+    >
       <div class="max-w-md w-full">
         <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
           <div class="text-center">
@@ -24,7 +27,10 @@
     </div>
   <% assigns[:is_private] -> %>
     <!-- Private Profile Error Page -->
-    <div class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 to-gray-800">
+    <div
+      class="min-h-screen flex items-center justify-center p-4 bg-base-100"
+      style="background: linear-gradient(180deg, oklch(var(--b1) / 0.98) 0%, oklch(var(--b2) / 0.94) 100%);"
+    >
       <div class="max-w-md w-full">
         <div class="bg-base-200 rounded-lg shadow-2xl p-8 border border-base-300">
           <div class="text-center">
@@ -64,25 +70,28 @@
   <% true -> %>
     <% # Define CSS custom properties for dynamic colors
     is_default_profile = !Map.get(assigns, :is_custom, false)
+    accent_color = profile_css_color(@profile, :accent_color, is_default_profile)
+    text_color = profile_css_color(@profile, :text_color, is_default_profile)
+    background_color = profile_css_color(@profile, :background_color, is_default_profile)
 
-    accent_color =
-      (@profile && @profile.accent_color) ||
-        if(is_default_profile, do: "#60a5fa", else: "#22d3ee")
+    icon_color =
+      if is_default_profile,
+        do: accent_color,
+        else: (@profile && @profile.icon_color) || profile_color(@profile, :icon_color)
 
-    text_color =
-      (@profile && @profile.text_color) || if(is_default_profile, do: "#f1f5f9", else: "#ffffff")
+    profile_accent_hex =
+      if is_default_profile,
+        do: profile_hex_fallback(:accent_color),
+        else: profile_color(@profile, :accent_color)
 
-    background_color =
-      (@profile && @profile.background_color) ||
-        if(is_default_profile, do: "#111827", else: "#000000")
-
-    icon_color = (@profile && @profile.icon_color) || accent_color %>
+    button_text_color = button_text_color(@profile, is_default_profile) %>
     <style>
       #profile-container {
         --profile-accent: <%= accent_color %>;
         --profile-text: <%= text_color %>;
         --profile-bg: <%= background_color %>;
         --profile-icon: <%= icon_color %>;
+        --profile-button-text: <%= button_text_color %>;
       }
     </style>
     <div
@@ -91,7 +100,7 @@
       data-profile-handle={@user.handle || @user.username}
       data-profile-user-id={@user.id}
       data-current-user-id={@current_user && @current_user.id}
-      data-profile-accent={accent_color}
+      data-profile-accent={profile_accent_hex}
       data-main-domain={@profile_navigation_domain || Elektrine.Domains.primary_profile_domain()}
       data-local-domain={Elektrine.Domains.default_user_handle_domain()}
       phx-hook={
@@ -118,7 +127,7 @@
 
             # Video background
             @profile && @profile.background_url && @profile.background_type == "video" ->
-              "background-color: #{@profile.background_color || "#000000"};"
+              "background-color: #{profile_color(@profile, :background_color)};"
 
             # Image background
             @profile && @profile.background_url && @profile.background_type == "image" ->
@@ -130,7 +139,7 @@
 
             # Gradient (default)
             @profile && @profile.background_type == "gradient" ->
-              "background: linear-gradient(135deg, #080808 0%, #151515 25%, #1a1a1a 50%, #1f1f1f 75%, #0d0d0d 100%);"
+              "background: linear-gradient(135deg, color-mix(in srgb, var(--profile-bg) 78%, var(--color-base-100) 22%) 0%, color-mix(in srgb, var(--profile-bg) 68%, var(--color-base-100) 32%) 25%, color-mix(in srgb, var(--profile-bg) 58%, var(--color-base-100) 42%) 50%, color-mix(in srgb, var(--profile-bg) 66%, var(--color-base-100) 34%) 75%, color-mix(in srgb, var(--profile-bg) 82%, var(--color-base-100) 18%) 100%);"
 
             # Fallback for profiles without background_type set
             @profile && @profile.background_color ->
@@ -138,7 +147,7 @@
 
             # Default gradient
             true ->
-              "background: linear-gradient(135deg, #080808 0%, #151515 25%, #1a1a1a 50%, #1f1f1f 75%, #0d0d0d 100%);"
+              "background: linear-gradient(135deg, color-mix(in srgb, var(--profile-bg) 78%, var(--color-base-100) 22%) 0%, color-mix(in srgb, var(--profile-bg) 68%, var(--color-base-100) 32%) 25%, color-mix(in srgb, var(--profile-bg) 58%, var(--color-base-100) 42%) 50%, color-mix(in srgb, var(--profile-bg) 66%, var(--color-base-100) 34%) 75%, color-mix(in srgb, var(--profile-bg) 82%, var(--color-base-100) 18%) 100%);"
           end
 
         font_style =
@@ -185,7 +194,10 @@
             @profile ->
               opacity = @profile.profile_opacity || 1.0
               blur = @profile.profile_blur || 0
-              container_color = @profile.container_background_color || "#000000"
+
+              container_color =
+                @profile.container_background_color || profile_color(@profile, :background_color)
+
               container_opacity = @profile.container_opacity || 0.4
 
               # Build container background - always apply it
@@ -199,8 +211,8 @@
                 end
 
               # Convert hex to rgba with opacity
-              {r, g, b} = hex_to_rgb(container_color)
-              container_bg = "background-color: rgba(#{r}, #{g}, #{b}, #{adjusted_opacity});"
+              container_bg =
+                "background-color: #{Elektrine.Theme.rgba(container_color, adjusted_opacity)};"
 
               "opacity: #{opacity}; z-index: 10; position: relative; #{container_bg} #{if blur > 0, do: "backdrop-filter: blur(#{blur}px); -webkit-backdrop-filter: blur(#{blur}px);", else: ""}"
 
@@ -217,10 +229,13 @@
             if is_default_profile do
               "z-index: 5; background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-left: 1px solid oklch(var(--bc) / 0.14);"
             else
-              container_color = (@profile && @profile.container_background_color) || "#000000"
+              container_color =
+                (@profile && @profile.container_background_color) ||
+                  profile_color(@profile, :background_color)
+
               container_opacity = (@profile && @profile.container_opacity) || 0.4
-              {cr, cg, cb} = hex_to_rgb(container_color)
-              "z-index: 5; background-color: rgba(#{cr}, #{cg}, #{cb}, #{container_opacity});"
+
+              "z-index: 5; background-color: #{Elektrine.Theme.rgba(container_color, container_opacity)};"
             end %>
           <!-- Desktop: Slide-out blade -->
           <div
@@ -451,17 +466,22 @@
                               media_count = length(content_source.media_urls) %>
                               <div class="mt-2 relative">
                                 <%= if is_video do %>
-                                  <div class="w-full h-20 rounded bg-black/30 flex items-center justify-center">
-                                    <.icon name="hero-play-circle" class="w-8 h-8 text-white/70" />
+                                  <div class="w-full h-20 rounded profile-overlay-surface flex items-center justify-center">
+                                    <.icon
+                                      name="hero-play-circle"
+                                      class="w-8 h-8 text-[var(--profile-text)] opacity-70"
+                                    />
                                   </div>
                                 <% else %>
                                   <%= if is_audio do %>
-                                    <div class="w-full h-12 rounded bg-black/30 flex items-center justify-center gap-2">
+                                    <div class="w-full h-12 rounded profile-overlay-surface flex items-center justify-center gap-2">
                                       <.icon
                                         name="hero-musical-note"
-                                        class="w-5 h-5 text-white/70"
+                                        class="w-5 h-5 text-[var(--profile-text)] opacity-70"
                                       />
-                                      <span class="text-xs text-white/70">Audio</span>
+                                      <span class="text-xs text-[var(--profile-text)] opacity-70">
+                                        Audio
+                                      </span>
                                     </div>
                                   <% else %>
                                     <img
@@ -472,7 +492,7 @@
                                   <% end %>
                                 <% end %>
                                 <%= if media_count > 1 do %>
-                                  <div class="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                                  <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded">
                                     +{media_count - 1}
                                   </div>
                                 <% end %>
@@ -552,7 +572,7 @@
         <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
           <.container_pattern
             pattern={@profile.container_pattern}
-            color={@profile.pattern_color || "#ffffff"}
+            color={@profile.pattern_color || profile_color(@profile, :text_color)}
             id={"container-pattern-#{@user.id}"}
             animated={@profile.pattern_animated || false}
             speed={@profile.pattern_animation_speed || "normal"}
@@ -620,30 +640,31 @@
                   end
 
                 # CSS custom properties for avatar effects
-                accent_color =
-                  (@profile && @profile.accent_color) ||
-                    if(is_default_profile, do: "#60a5fa", else: "#22d3ee")
+                accent_color = profile_css_color(@profile, :accent_color, is_default_profile)
 
-                {ar, ag, ab} = hex_to_rgb(accent_color)
-                accent_light = lighten_color(accent_color, 0.2) %>
+                accent_light =
+                  if is_default_profile,
+                    do:
+                      "color-mix(in srgb, var(--profile-accent) 78%, var(--color-base-content) 22%)",
+                    else: lighten_color(profile_color(@profile, :accent_color), 0.2) %>
                 <%= cond do %>
                   <% @profile && @profile.use_discord_avatar && @discord_data && @discord_data.avatar -> %>
                     <img
                       src={@discord_data.avatar}
                       alt={@user.handle || @user.username}
                       class={"w-24 h-24 rounded-full border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
-                      style={"border-color: #{accent_color}50; --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                      style={"border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent); --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
                     />
                   <% @user.avatar -> %>
                     <div
                       class={"w-24 h-24 mx-auto rounded-full #{avatar_effect_class}"}
-                      style={"--avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                      style={"--avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
                     >
                       <.user_avatar
                         user={@user}
                         size="2xl"
                         class="w-24 h-24 border-4 shadow-2xl rounded-full"
-                        style={"border-color: #{accent_color}50;"}
+                        style="border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent);"
                       />
                     </div>
                   <% true -> %>
@@ -651,7 +672,7 @@
                     <.placeholder_avatar
                       size="3xl"
                       class={"border-4 shadow-2xl mx-auto #{avatar_effect_class}"}
-                      style={"border-color: #{accent_color}50; background: #{accent_color}; --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light}; --avatar-accent-rgb: #{ar}, #{ag}, #{ab};"}
+                      style={"border-color: color-mix(in srgb, var(--profile-accent) 50%, transparent); background: var(--profile-accent); --avatar-accent: #{accent_color}; --avatar-accent-light: #{accent_light};"}
                     />
                 <% end %>
               </div>
@@ -693,17 +714,29 @@
                 if @profile do
                   case @profile.username_effect do
                     effect when effect in ["glow", "neon", "outline", "pixelated"] ->
-                      glow_color = @profile.username_glow_color || "#8a7cc2"
+                      glow_color =
+                        @profile.username_glow_color ||
+                          profile_color(@profile, :username_glow_color)
+
                       intensity = @profile.username_glow_intensity || 10
                       "--glow-color: #{glow_color}; --glow-intensity: #{intensity}px"
 
                     effect when effect in ["shadow", "double"] ->
-                      shadow_color = @profile.username_shadow_color || "#000000"
+                      shadow_color =
+                        @profile.username_shadow_color ||
+                          profile_color(@profile, :username_shadow_color)
+
                       "--shadow-color: #{shadow_color}"
 
                     "gradient" ->
-                      gradient_from = @profile.username_gradient_from || "#8a7cc2"
-                      gradient_to = @profile.username_gradient_to || "#c7796b"
+                      gradient_from =
+                        @profile.username_gradient_from ||
+                          profile_color(@profile, :username_glow_color)
+
+                      gradient_to =
+                        @profile.username_gradient_to ||
+                          Elektrine.Theme.default_value("color_secondary")
+
                       "--gradient-from: #{gradient_from}; --gradient-to: #{gradient_to}"
 
                     _ ->
@@ -743,7 +776,10 @@
                     <span class="ml-1.5 flex-shrink-0">
                       <.verification_badge
                         size="lg"
-                        color={(@profile && @profile.tick_color) || "#1d9bf0"}
+                        color={
+                          (@profile && @profile.tick_color) ||
+                            profile_color(@profile, :tick_color)
+                        }
                         tooltip="Verified Account"
                       />
                     </span>
@@ -761,41 +797,10 @@
             <%= if @user_badges && length(@user_badges) > 0 do %>
               <div class="flex items-center justify-center gap-1.5 mt-2 flex-wrap px-2">
                 <%= for badge <- @user_badges do %>
-                  <% # Get profile theme colors
-                  profile_accent = (@profile && @profile.accent_color) || "#22d3ee"
-                  _profile_text = (@profile && @profile.text_color) || "#ffffff"
-                  _profile_bg = (@profile && @profile.background_color) || "#000000"
-
-                  # Badge background: use badge color if set, otherwise blend with profile accent
-                  base_badge_color = badge.badge_color || profile_accent
-
-                  # Parse badge color to get darker gradient shades (like trending/discover)
-                  {r, g, b} = hex_to_rgb(base_badge_color)
-
-                  # Create darker gradient colors - from very dark (50%) to darker (65%)
-                  from_r = max(0, round(r * 0.5))
-                  from_g = max(0, round(g * 0.5))
-                  from_b = max(0, round(b * 0.5))
-
-                  to_r = max(0, round(r * 0.65))
-                  to_g = max(0, round(g * 0.65))
-                  to_b = max(0, round(b * 0.65))
-
-                  from_color = "rgb(#{from_r}, #{from_g}, #{from_b})"
-                  to_color = "rgb(#{to_r}, #{to_g}, #{to_b})"
-
-                  # Always use white text for readability
-                  text_color = "#ffffff"
-
-                  # Border with accent color hint
-                  {ar, ag, ab} = hex_to_rgb(profile_accent)
-                  border_color = "rgba(#{ar}, #{ag}, #{ab}, 0.3)"
-
-                  # Shadow color from accent with low opacity
-                  shadow_color = "rgba(#{ar}, #{ag}, #{ab}, 0.2)" %>
+                  <% base_badge_color = badge.badge_color || "var(--profile-accent)" %>
                   <span
                     class={"inline-flex items-center gap-1 px-2.5 py-1 rounded font-semibold text-xs transition-all duration-200 hover:opacity-95 #{if @profile && @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-lg", else: ""}"}
-                    style={"background: linear-gradient(to right, #{from_color}, #{to_color}); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #{text_color}; border: 1px solid #{border_color}; box-shadow: 0 2px 4px #{shadow_color};"}
+                    style={"--badge-base: #{base_badge_color}; background: linear-gradient(to right, color-mix(in srgb, var(--badge-base) 50%, var(--color-base-100) 50%), color-mix(in srgb, var(--badge-base) 65%, var(--color-base-100) 35%)); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); color: #{Elektrine.Theme.inverse_text_color()}; border: 1px solid color-mix(in srgb, var(--profile-accent) 30%, transparent); box-shadow: 0 2px 4px color-mix(in srgb, var(--profile-accent) 20%, transparent);"}
                     title={badge.tooltip}
                   >
                     <span class="tracking-wide">{badge.badge_text || badge.badge_type}</span>
@@ -831,9 +836,7 @@
             
 <!-- Friend & Follow Buttons -->
             <%= if @current_user && @current_user.id != @user.id do %>
-              <% # Determine button text color based on accent color luminance
-              btn_accent = (@profile && @profile.accent_color) || "#22d3ee"
-              btn_text_color = if light_color?(btn_accent), do: "#000000", else: "#ffffff" %>
+              <% btn_text_color = button_text_color(@profile, is_default_profile) %>
               <div class="mb-4 flex gap-2 justify-center flex-wrap">
                 <!-- Friend Button -->
                 <%= cond do %>
@@ -969,14 +972,14 @@
                     data-text={Elektrine.Markdown.to_text(@profile.description)}
                     data-speed={@profile.typewriter_speed || "normal"}
                     class={"text-sm leading-relaxed #{if not @profile.text_background, do: "px-2 sm:px-0", else: ""} #{if @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""}"}
-                    style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}; min-height: 1.25rem;"}
+                    style={"color: #{profile_css_color(@profile, :text_color, is_default_profile)}; min-height: 1.25rem;"}
                   >
                     &nbsp;
                   </div>
                 <% else %>
                   <div
                     class={"text-sm leading-relaxed prose prose-sm prose-invert max-w-none #{if not @profile.text_background, do: "px-2 sm:px-0", else: ""} #{if @profile.background_url && @profile.background_type in ["image", "video"], do: "drop-shadow-md", else: ""}"}
-                    style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}"}
+                    style={"color: #{profile_css_color(@profile, :text_color, is_default_profile)}"}
                   >
                     {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@profile.description))}
                   </div>
@@ -991,7 +994,7 @@
                   else: "flex items-center justify-center mt-2"
               }>
                 <svg
-                  class="w-4 h-4 mr-2 text-gray-400"
+                  class="w-4 h-4 mr-2 text-[var(--profile-text)] opacity-60"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1009,7 +1012,7 @@
                     d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                   />
                 </svg>
-                <p class="text-gray-400 text-sm">{@profile.location}</p>
+                <p class="text-[var(--profile-text)] opacity-60 text-sm">{@profile.location}</p>
               </div>
             <% end %>
           </div>
@@ -1104,11 +1107,11 @@
                       >
                         <div
                           class={"flex items-center justify-center w-12 h-12 rounded-full bg-base-200/80 border border-base-300/70 hover:bg-base-300/80 transition-all duration-300 #{highlight_class}"}
-                          style={"border-color: #{(@profile && @profile.accent_color) || "#fb923c"}50; --link-accent: #{(@profile && @profile.accent_color) || "#fb923c"};"}
+                          style={"border-color: #{border_overlay_color(@profile, is_default_profile, 0.3)}; --link-accent: var(--profile-accent);"}
                         >
                           <div
-                            class="group-hover:text-white transition-colors"
-                            style={"color: #{(@profile && @profile.icon_color) || (@profile && @profile.accent_color) || "#fb923c"}"}
+                            class="group-hover:text-[var(--profile-text)] transition-colors"
+                            style="color: var(--profile-icon);"
                           >
                             {Phoenix.HTML.raw(
                               Elektrine.Profiles.ProfileLink.get_platform_svg(link.platform)
@@ -1117,10 +1120,13 @@
                         </div>
                         
 <!-- Tooltip -->
-                        <div class="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-3 py-1.5 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
+                        <div class="absolute -top-12 left-1/2 transform -translate-x-1/2 profile-tooltip-surface px-3 py-1.5 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none whitespace-nowrap">
                           {link.title}
                           <%= if link.description do %>
-                            <br /><span class="text-xs text-gray-300">{link.description}</span>
+                            <br />
+                            <span class="text-xs profile-text-muted">
+                              {link.description}
+                            </span>
                           <% end %>
                         </div>
                       </a>
@@ -1135,7 +1141,7 @@
                       <%= if section do %>
                         <h3
                           class="text-center font-bold text-base sm:text-lg mb-2 sm:mb-3"
-                          style={"color: #{(@profile && @profile.text_color) || "white"}"}
+                          style={"color: #{profile_css_color(@profile, :text_color, is_default_profile)}"}
                         >
                           {section}
                         </h3>
@@ -1168,7 +1174,7 @@
                               else: nil
                           }
                           class={"group relative flex items-center min-h-14 sm:min-h-16 px-4 sm:px-6 py-3 sm:py-4 rounded-lg transition-all duration-300 hover:scale-105 active:scale-95 #{highlight_class}"}
-                          style={"background-color: #{(@profile && @profile.accent_color) || "#ffffff"}; color: #{(@profile && @profile.background_color) || "#000000"}; border: 2px solid #{(@profile && @profile.background_color) || "#000000"}; box-shadow: 2px 3px 0 #{(@profile && @profile.background_color) || "#000000"}; --link-accent: #{(@profile && @profile.accent_color) || "#ffffff"};"}
+                          style="background-color: var(--profile-accent); color: var(--profile-bg); border: 2px solid var(--profile-bg); box-shadow: 2px 3px 0 var(--profile-bg); --link-accent: var(--profile-accent);"
                         >
                           <%= if Map.get(link, :thumbnail_url) do %>
                             <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg mr-3 sm:mr-4 flex-shrink-0 overflow-hidden">
@@ -1203,26 +1209,25 @@
                       alt="Discord avatar"
                       class="w-10 h-10 rounded-full"
                     />
-                    <div class={"absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white #{
+                    <div class={"absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-base-100 #{
                 case @discord_data.status do
-                  "online" -> "bg-green-500"
-                  "idle" -> "bg-yellow-500"
-                  "dnd" -> "bg-red-800"
-                  _ -> "bg-gray-500"
+                  status -> presence_status_class(status)
                 end
               }"}>
                     </div>
                   </div>
                   <div class="text-center">
-                    <p class="text-white font-medium text-sm">{@discord_data.username}</p>
-                    <p class="text-gray-300 text-xs">
+                    <p class="text-[var(--profile-text)] font-medium text-sm">
+                      {@discord_data.username}
+                    </p>
+                    <p class="profile-text-muted text-xs">
                       {Elektrine.Discord.format_status(@discord_data)}
                     </p>
                     
 <!-- Discord ID (click to copy) -->
                     <button
                       data-copy-to-clipboard={@profile.discord_user_id}
-                      class="text-gray-500 text-xs hover:text-gray-300 transition-colors mt-1 group cursor-pointer"
+                      class="profile-text-faint text-xs hover:text-[var(--profile-text)] transition-colors mt-1 group cursor-pointer"
                       title="Click to copy Discord ID"
                     >
                       <span>ID: {@profile.discord_user_id}</span>
@@ -1231,7 +1236,7 @@
                     
 <!-- Custom Status -->
                     <%= if @discord_data.custom_status do %>
-                      <p class="text-gray-400 text-xs italic mt-1">
+                      <p class="profile-text-subtle text-xs italic mt-1">
                         "{@discord_data.custom_status}"
                       </p>
                     <% end %>
@@ -1239,7 +1244,7 @@
 <!-- Current Activity -->
                     <%= if @discord_data.activities != [] do %>
                       <%= for activity <- Enum.take(@discord_data.activities, 1) do %>
-                        <p class="text-purple-300 text-xs mt-1">
+                        <p class="text-secondary text-xs mt-1">
                           <%= case activity.type do %>
                             <% 0 -> %>
                               Playing {activity.name}
@@ -1258,7 +1263,7 @@
                     
 <!-- Spotify -->
                     <%= if @discord_data.spotify do %>
-                      <div class="flex items-center justify-center mt-2 text-xs text-green-400">
+                      <div class="flex items-center justify-center mt-2 text-xs text-success">
                         <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
                         <span class="truncate max-w-48">
                           {@discord_data.spotify.song} - {@discord_data.spotify.artist}
@@ -1278,13 +1283,15 @@
                 <div class="flex items-center mb-3">
                   <div
                     class="h-4 w-4 mr-2"
-                    style={"color: #{(@profile && @profile.accent_color) || "#fb923c"}"}
+                    style="color: var(--profile-accent);"
                   >
                     <.icon name="hero-musical-note" class="h-4 w-4" />
                   </div>
-                  <span class="text-white font-semibold text-sm">Now Playing</span>
+                  <span class="text-[var(--profile-text)] font-semibold text-sm">
+                    Now Playing
+                  </span>
                   <%= if @profile.music_title do %>
-                    <span class="text-gray-300 text-sm ml-2">{@profile.music_title}</span>
+                    <span class="profile-text-muted text-sm ml-2">{@profile.music_title}</span>
                   <% end %>
                 </div>
                 
@@ -1313,7 +1320,7 @@
                     <%= if widget.title do %>
                       <h3
                         class="card-title text-base sm:text-lg mb-2 sm:mb-3"
-                        style={"color: #{(@profile && @profile.text_color) || "white"}"}
+                        style={"color: #{profile_css_color(@profile, :text_color, is_default_profile)}"}
                       >
                         {widget.title}
                       </h3>
@@ -1323,7 +1330,7 @@
                       <% "text" -> %>
                         <div
                           class="prose prose-sm max-w-none"
-                          style={"color: #{(@profile && @profile.text_color) || "#d1d5db"}"}
+                          style={"color: #{profile_css_color(@profile, :text_color, is_default_profile)}"}
                         >
                           {Phoenix.HTML.raw(
                             Phoenix.HTML.html_escape(widget.content)
@@ -1418,31 +1425,28 @@
                                   alt="Discord avatar"
                                   class="w-12 h-12 rounded-full"
                                 />
-                                <div class={"absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white #{
+                                <div class={"absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-base-100 #{
                             case widget_discord_data.status do
-                              "online" -> "bg-green-500"
-                              "idle" -> "bg-yellow-500"
-                              "dnd" -> "bg-red-800"
-                              _ -> "bg-gray-500"
+                              status -> presence_status_class(status)
                             end
                           }"}>
                                 </div>
                               </div>
                               <div class="flex-1">
-                                <p class="text-white font-medium text-sm">
+                                <p class="text-[var(--profile-text)] font-medium text-sm">
                                   {widget_discord_data.username}
                                 </p>
-                                <p class="text-gray-300 text-xs">
+                                <p class="profile-text-muted text-xs">
                                   {Elektrine.Discord.format_status(widget_discord_data)}
                                 </p>
                                 <%= if widget_discord_data.custom_status do %>
-                                  <p class="text-gray-400 text-xs italic mt-1">
+                                  <p class="profile-text-subtle text-xs italic mt-1">
                                     "{widget_discord_data.custom_status}"
                                   </p>
                                 <% end %>
                                 <%= if widget_discord_data.activities != [] do %>
                                   <%= for activity <- Enum.take(widget_discord_data.activities, 1) do %>
-                                    <p class="text-purple-300 text-xs mt-1">
+                                    <p class="text-secondary text-xs mt-1">
                                       <%= case activity.type do %>
                                         <% 0 -> %>
                                           Playing {activity.name}
@@ -1459,7 +1463,7 @@
                                   <% end %>
                                 <% end %>
                                 <%= if widget_discord_data.spotify do %>
-                                  <div class="flex items-center mt-2 text-xs text-green-400">
+                                  <div class="flex items-center mt-2 text-xs text-success">
                                     <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
                                     <span class="truncate">
                                       {widget_discord_data.spotify.song} - {widget_discord_data.spotify.artist}
@@ -1503,14 +1507,14 @@
                     <span class={
                       if is_default_profile,
                         do: "text-base-content text-sm font-medium",
-                        else: "text-white text-sm font-medium"
+                        else: "text-[var(--profile-text)] text-sm font-medium"
                     }>
                       {if @profile, do: @profile.page_views || 0, else: 0}
                     </span>
                     <span class={
                       if is_default_profile,
                         do: "text-base-content/60 text-xs",
-                        else: "text-gray-300 text-xs"
+                        else: "profile-text-muted text-xs"
                     }>
                       views
                     </span>
@@ -1520,7 +1524,7 @@
                   <div class={
                     if is_default_profile,
                       do: "w-px h-4 bg-base-300",
-                      else: "w-px h-4 bg-white/20"
+                      else: "w-px h-4 profile-divider-soft"
                   }>
                   </div>
                 <% end %>
@@ -1532,14 +1536,14 @@
                     <span class={
                       if is_default_profile,
                         do: "text-base-content text-sm font-medium",
-                        else: "text-white text-sm font-medium"
+                        else: "text-[var(--profile-text)] text-sm font-medium"
                     }>
                       #{@user_number}
                     </span>
                     <span class={
                       if is_default_profile,
                         do: "text-base-content/60 text-xs",
-                        else: "text-gray-300 text-xs"
+                        else: "profile-text-muted text-xs"
                     }>
                       uid
                     </span>
@@ -1557,13 +1561,15 @@
       <% # Use same styling as middle column
       mobile_timeline_style =
         if is_default_profile do
-          "--profile-text: #{(@profile && @profile.text_color) || "#f1f5f9"}; --profile-accent: #{(@profile && @profile.accent_color) || "#60a5fa"}; background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-top: 1px solid oklch(var(--bc) / 0.14);"
+          "--profile-text: var(--color-base-content); --profile-accent: var(--color-primary); background: linear-gradient(145deg, oklch(var(--b1) / 0.95), oklch(var(--b2) / 0.9)); border-top: 1px solid oklch(var(--bc) / 0.14);"
         else
-          mobile_container_color = (@profile && @profile.container_background_color) || "#000000"
-          mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
-          {mr, mg, mb} = hex_to_rgb(mobile_container_color)
+          mobile_container_color =
+            (@profile && @profile.container_background_color) ||
+              profile_color(@profile, :background_color)
 
-          "--profile-text: #{(@profile && @profile.text_color) || "white"}; --profile-accent: #{(@profile && @profile.accent_color) || "#22d3ee"}; background-color: rgba(#{mr}, #{mg}, #{mb}, #{mobile_container_opacity});"
+          mobile_container_opacity = (@profile && @profile.container_opacity) || 0.4
+
+          "--profile-text: #{profile_color(@profile, :text_color)}; --profile-accent: #{profile_color(@profile, :accent_color)}; background-color: #{Elektrine.Theme.rgba(mobile_container_color, mobile_container_opacity)};"
         end %>
       <div
         class="sm:hidden w-full max-w-full px-4 pt-4 pb-4"
@@ -1731,21 +1737,29 @@
                         media_count = length(content_source.media_urls) %>
                         <div class="mt-2 relative">
                           <%= if is_video do %>
-                            <div class="w-full h-20 rounded bg-black/30 flex items-center justify-center">
-                              <.icon name="hero-play-circle" class="w-8 h-8 text-white/70" />
+                            <div class="w-full h-20 rounded profile-overlay-surface flex items-center justify-center">
+                              <.icon
+                                name="hero-play-circle"
+                                class="w-8 h-8 text-[var(--profile-text)] opacity-70"
+                              />
                             </div>
                           <% else %>
                             <%= if is_audio do %>
-                              <div class="w-full h-12 rounded bg-black/30 flex items-center justify-center gap-2">
-                                <.icon name="hero-musical-note" class="w-5 h-5 text-white/70" />
-                                <span class="text-xs text-white/70">Audio</span>
+                              <div class="w-full h-12 rounded profile-overlay-surface flex items-center justify-center gap-2">
+                                <.icon
+                                  name="hero-musical-note"
+                                  class="w-5 h-5 text-[var(--profile-text)] opacity-70"
+                                />
+                                <span class="text-xs text-[var(--profile-text)] opacity-70">
+                                  Audio
+                                </span>
                               </div>
                             <% else %>
                               <img src={full_url} alt="" class="w-full h-20 object-cover rounded" />
                             <% end %>
                           <% end %>
                           <%= if media_count > 1 do %>
-                            <div class="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                            <div class="absolute bottom-1 right-1 profile-overlay-surface-strong text-[var(--profile-text)] text-xs px-1.5 py-0.5 rounded">
                               +{media_count - 1}
                             </div>
                           <% end %>
@@ -2066,9 +2080,9 @@
         close_mode={:data}
         close_action="close-modal"
         max_width="max-w-4xl"
-        box_class="p-2 bg-black/90"
+        box_class="p-2 bg-base-100/90"
         header_class="flex justify-end mb-2"
-        close_button_class="text-white"
+        close_button_class="text-base-content"
       >
         <div class="flex items-center justify-center">
           <img

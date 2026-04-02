@@ -1240,10 +1240,15 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
        when is_map(data) and is_binary(remote_domain) and is_map(mirror_channel) and
               is_integer(remote_actor_id) and is_atom(action) and is_map(context) do
     case call(context, :ensure_authoritative_channel_event_context, [data, remote_domain]) do
-      {:ok, _server, _channel} ->
-        :ok
+      {:ok, _server, authoritative_channel} ->
+        call(context, :ensure_remote_actor_governance_permission, [
+          authoritative_channel,
+          remote_actor_id,
+          action,
+          %{remote_actor_id: remote_actor_id}
+        ])
 
-      _ ->
+      _error ->
         call(context, :ensure_remote_actor_governance_permission, [
           mirror_channel,
           remote_actor_id,

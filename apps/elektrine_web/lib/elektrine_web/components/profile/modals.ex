@@ -16,7 +16,10 @@ defmodule ElektrineWeb.Components.Profile.Modals do
     ~H"""
     <div class="mb-6 flex justify-center">
       <%= if @qr_code do %>
-        <div class="inline-block rounded-lg bg-white p-3 border-2 border-base-300 shadow-lg">
+        <div
+          class="inline-block rounded-lg p-3 border-2 border-base-300 shadow-lg"
+          style={"background-color: #{Elektrine.Theme.inverse_text_color()};"}
+        >
           {Phoenix.HTML.raw(@qr_code)}
         </div>
       <% end %>
@@ -48,7 +51,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
         <.share_platform_link
           href={"https://twitter.com/intent/tweet?url=#{URI.encode(@profile_url)}&text=Check%20out%20#{@user.username}'s%20profile"}
           platform="twitter"
-          bg_class="bg-black"
+          bg_class="bg-base-content"
           label="X"
           title="Share on X"
           target="_blank"
@@ -57,7 +60,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
         <.share_platform_link
           href={"https://www.facebook.com/sharer/sharer.php?u=#{URI.encode(@profile_url)}"}
           platform="facebook"
-          bg_class="bg-[#1877F2]"
+          bg_class="bg-info"
           label="Facebook"
           title="Share on Facebook"
           target="_blank"
@@ -66,7 +69,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
         <.share_platform_link
           href={"https://www.linkedin.com/sharing/share-offsite/?url=#{URI.encode(@profile_url)}"}
           platform="linkedin"
-          bg_class="bg-[#0A66C2]"
+          bg_class="bg-primary"
           label="LinkedIn"
           title="Share on LinkedIn"
           target="_blank"
@@ -75,7 +78,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
         <.share_platform_link
           href={"mailto:?subject=Check%20out%20#{@user.username}'s%20profile&body=#{URI.encode(@profile_url)}"}
           platform="email"
-          bg_class="bg-gray-600"
+          bg_class="bg-base-content/70"
           label="Email"
           title="Share via Email"
         />
@@ -101,7 +104,7 @@ defmodule ElektrineWeb.Components.Profile.Modals do
       class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-base-200 transition-colors"
       title={@title}
     >
-      <div class={["w-12 h-12 rounded-full flex items-center justify-center text-white", @bg_class]}>
+      <div class={["w-12 h-12 rounded-full flex items-center justify-center text-base-100", @bg_class]}>
         {Phoenix.HTML.raw(Elektrine.Profiles.ProfileLink.get_platform_svg(@platform))}
       </div>
       <span class="text-xs">{@label}</span>
@@ -112,7 +115,12 @@ defmodule ElektrineWeb.Components.Profile.Modals do
   defp build_qr_code(profile_url) do
     profile_url
     |> EQRCode.encode()
-    |> EQRCode.svg(width: 200, height: 200, background_color: "#ffffff", color: "#000000")
+    |> EQRCode.svg(
+      width: 200,
+      height: 200,
+      background_color: Elektrine.Theme.inverse_text_color(),
+      color: Elektrine.Theme.dark_text_color()
+    )
   rescue
     _ -> nil
   end

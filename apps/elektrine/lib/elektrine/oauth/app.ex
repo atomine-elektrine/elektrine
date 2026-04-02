@@ -292,11 +292,18 @@ defmodule Elektrine.OAuth.App do
     end
   end
 
-  defp valid_redirect_uri?("urn:ietf:wg:oauth:2.0:oob"), do: true
-
   defp valid_redirect_uri?(uri) do
     case URI.parse(uri) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) ->
+      %URI{scheme: "https", host: host, fragment: nil} when not is_nil(host) ->
+        true
+
+      %URI{scheme: "http", host: "localhost", fragment: nil} ->
+        true
+
+      %URI{scheme: "http", host: "127.0.0.1", fragment: nil} ->
+        true
+
+      %URI{scheme: "http", host: "::1", fragment: nil} ->
         true
 
       _ ->

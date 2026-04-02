@@ -12,10 +12,10 @@ defmodule ElektrineWeb.EmailLive.Operations.ContactOperations do
     Logger.info("Contact search: #{query}")
 
     contacts =
-      if not Elektrine.Strings.present?(query) do
-        Elektrine.Email.Contacts.list_contacts(socket.assigns.current_user.id)
-      else
+      if Elektrine.Strings.present?(query) do
         Elektrine.Email.Contacts.search_contacts(socket.assigns.current_user.id, query)
+      else
+        Elektrine.Email.Contacts.list_contacts(socket.assigns.current_user.id)
       end
 
     Logger.info("Found #{length(contacts)} contacts")

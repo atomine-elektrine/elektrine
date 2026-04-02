@@ -62,9 +62,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
   def handle_event("subscribe", %{"relay_url" => relay_url}, socket) do
     relay_url = String.trim(relay_url)
 
-    if not Elektrine.Strings.present?(relay_url) do
-      {:noreply, put_flash(socket, :error, "Please enter a relay URL")}
-    else
+    if Elektrine.Strings.present?(relay_url) do
       socket = assign(socket, :adding, true)
 
       case Relay.subscribe(relay_url, socket.assigns.current_user.id) do
@@ -82,6 +80,8 @@ defmodule ElektrineWeb.AdminLive.Relays do
            |> assign(:adding, false)
            |> put_flash(:error, "Failed to subscribe: #{inspect(reason)}")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "Please enter a relay URL")}
     end
   end
 

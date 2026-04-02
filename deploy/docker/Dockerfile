@@ -130,7 +130,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
       apt-get update -y && \
-      apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libvips42 tor tini gnupg && \
+      apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libvips42 tor tini gnupg wireguard-tools iproute2 && \
       apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done

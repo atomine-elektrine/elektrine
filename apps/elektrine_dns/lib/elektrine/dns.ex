@@ -189,14 +189,15 @@ defmodule Elektrine.DNS do
   def verify_zone(%Zone{} = zone) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    with :ok <- verify_nameservers(zone) do
-      update_zone(zone, %{
-        status: "verified",
-        verified_at: zone.verified_at || now,
-        last_checked_at: now,
-        last_error: nil
-      })
-    else
+    case verify_nameservers(zone) do
+      :ok ->
+        update_zone(zone, %{
+          status: "verified",
+          verified_at: zone.verified_at || now,
+          last_checked_at: now,
+          last_error: nil
+        })
+
       {:error, reason} ->
         update_zone(zone, %{status: "pending", last_checked_at: now, last_error: reason})
     end
@@ -209,7 +210,7 @@ defmodule Elektrine.DNS do
       Application.get_env(:elektrine, :dns, [])
       |> Keyword.get(:nameservers, [])
 
-    case Enum.reject(configured, &is_nil_or_blank/1) do
+    case Enum.reject(configured, &nil_or_blank?/1) do
       [] -> derive_nameservers()
       nameservers -> nameservers
     end
@@ -346,9 +347,9 @@ defmodule Elektrine.DNS do
     Application.get_env(:elektrine, :primary_domain)
   end
 
-  defp is_nil_or_blank(nil), do: true
-  defp is_nil_or_blank(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
-  defp is_nil_or_blank(_), do: false
+  defp nil_or_blank?(nil), do: true
+  defp nil_or_blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
+  defp nil_or_blank?(_), do: false
 
   defp verify_nameservers(%Zone{domain: domain}) do
     expected = nameservers() |> Enum.map(&String.downcase/1) |> Enum.sort()
@@ -389,7 +390,7 @@ defmodule Elektrine.DNS do
   defp refresh_authority_cache do
     case Process.whereis(ZoneCache) do
       nil -> :ok
-      _pid -> ZoneCache.refresh()
+      _pid -> ZoneCache.refresh(caller: self())
     end
   end
 

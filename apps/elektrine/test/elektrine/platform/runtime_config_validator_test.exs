@@ -48,7 +48,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
     assert "email module requires one of PHOENIX_API_KEY, HARAKA_INBOUND_API_KEY, HARAKA_API_KEY, INTERNAL_API_KEY or ELEKTRINE_MASTER_SECRET" in errors
   end
 
-  test "requires a VPN fleet registration key when vpn is enabled" do
+  test "requires either fleet bootstrap or self-hosted wireguard credentials when vpn is enabled" do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(
                env: %{},
@@ -60,7 +60,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
 
     assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances" in errors
 
-    assert "vpn module requires VPN_FLEET_REGISTRATION_KEY" in errors
+    assert "vpn module requires either VPN_FLEET_REGISTRATION_KEY or self-hosted WireGuard credentials via VPN_SELFHOST_PRIVATE_KEY/VPN_SELFHOST_PUBLIC_KEY; set VPN_SELFHOST_ENDPOINT_HOST or VPN_SELFHOST_PUBLIC_IP to avoid endpoint autodetection" in errors
   end
 
   test "ignores disabled modules even when they are compiled" do
@@ -86,6 +86,20 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                  "VPN_FLEET_REGISTRATION_KEY" => "fleet-key"
                },
                enabled_modules: [:email, :vpn],
+               environment: :prod
+             )
+  end
+
+  test "accepts self-hosted wireguard configuration without a fleet key" do
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "SESSION_SIGNING_SALT" => "signing-salt",
+                 "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                 "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.10",
+                 "VPN_SELFHOST_PRIVATE_KEY" => "server-private-key"
+               },
+               enabled_modules: [:vpn],
                environment: :prod
              )
   end

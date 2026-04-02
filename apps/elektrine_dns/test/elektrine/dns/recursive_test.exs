@@ -155,7 +155,7 @@ defmodule Elektrine.DNS.RecursiveTest do
              serial: 1,
              refresh: 3600,
              retry: 600,
-             expire: 86400,
+             expire: 86_400,
              minimum: 30,
              ttl: 120
            }
@@ -254,7 +254,7 @@ defmodule Elektrine.DNS.RecursiveTest do
            %{
              name: query.qname,
              type: :ds,
-             key_tag: 12345,
+             key_tag: 12_345,
              algorithm: 13,
              digest_type: 2,
              content: "A1B2C3D4",

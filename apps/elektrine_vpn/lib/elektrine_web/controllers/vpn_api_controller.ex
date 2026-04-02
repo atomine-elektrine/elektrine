@@ -1,7 +1,8 @@
 defmodule ElektrineWeb.VPNAPIController do
   @moduledoc """
-  API endpoints for VPN servers to interact with the platform.
-  These endpoints are called by the WireGuard server management scripts.
+  API endpoints for VPN servers and self-hosted WireGuard integrations.
+  These endpoints are used by external/fleet-managed nodes; the one-box default path
+  now reconciles directly in-app.
 
   ## Active Enforcement of Banned/Suspended Users
 
@@ -41,68 +42,7 @@ defmodule ElektrineWeb.VPNAPIController do
   def get_peers(conn, %{"server_id" => server_id}) do
     server_id = String.to_integer(server_id)
 
-    # Try cache first
-    case Elektrine.VPN.PeerCache.get(server_id) do
-      nil ->
-        # Cache miss - fetch from DB
-        server = VPN.get_server!(server_id)
-
-        # Get active configs for users who are not banned/suspended
-        active_configs =
-          from(uc in Elektrine.VPN.UserConfig,
-            join: u in Elektrine.Accounts.User,
-            on: u.id == uc.user_id,
-            where:
-              uc.vpn_server_id == ^server_id and
-                uc.status == "active" and
-                u.banned == false and
-                u.suspended == false,
-            select: %{
-              public_key: uc.public_key,
-              allocated_ip: uc.allocated_ip,
-              allowed_ips: uc.allowed_ips,
-              persistent_keepalive: uc.persistent_keepalive,
-              rate_limit_mbps: uc.rate_limit_mbps
-            }
-          )
-          |> Elektrine.Repo.all()
-
-        # Get configs that should be removed (suspended, revoked, or banned users)
-        peers_to_remove =
-          from(uc in Elektrine.VPN.UserConfig,
-            left_join: u in Elektrine.Accounts.User,
-            on: u.id == uc.user_id,
-            where:
-              uc.vpn_server_id == ^server_id and
-                (uc.status in ["suspended", "revoked"] or
-                   u.banned == true or
-                   u.suspended == true),
-            select: %{
-              public_key: uc.public_key
-            }
-          )
-          |> Elektrine.Repo.all()
-
-        response = %{
-          server: %{
-            id: server.id,
-            name: server.name,
-            internal_ip_range: server.internal_ip_range,
-            dns_servers: server.dns_servers
-          },
-          peers: active_configs,
-          remove_peers: peers_to_remove
-        }
-
-        # Cache it
-        Elektrine.VPN.PeerCache.put(server_id, response)
-
-        json(conn, response)
-
-      cached_response ->
-        # Cache hit
-        json(conn, cached_response)
-    end
+    json(conn, VPN.peer_sync_snapshot(server_id))
   end
 
   @doc """
@@ -116,56 +56,7 @@ defmodule ElektrineWeb.VPNAPIController do
 
     Logger.debug("VPN Stats received for server #{server_id}: #{length(peers)} peers")
 
-    # Batch update: find all configs in one query
-    public_keys = Enum.map(peers, & &1["public_key"])
-
-    user_configs =
-      from(uc in Elektrine.VPN.UserConfig,
-        join: u in Elektrine.Accounts.User,
-        on: u.id == uc.user_id,
-        where:
-          uc.vpn_server_id == ^server_id and
-            uc.public_key in ^public_keys,
-        preload: [user: []]
-      )
-      |> Elektrine.Repo.all()
-      |> Enum.map(&{&1.public_key, &1})
-      |> Map.new()
-
-    # Update stats in memory (fast!)
-    Enum.each(peers, fn peer ->
-      if user_config = Map.get(user_configs, peer["public_key"]) do
-        bytes_sent = peer["bytes_sent"] || 0
-        bytes_received = peer["bytes_received"] || 0
-
-        # Record in StatsAggregator (in-memory, very fast)
-        Elektrine.VPN.StatsAggregator.record_bandwidth(
-          server_id,
-          user_config.id,
-          bytes_sent,
-          bytes_received
-        )
-
-        # Check and update quota in background
-        Task.start(fn ->
-          try do
-            check_and_update_quota(
-              user_config,
-              bytes_sent,
-              bytes_received,
-              peer["last_handshake"]
-            )
-          rescue
-            e ->
-              Logger.error(
-                "Failed to update quota for user_config #{user_config.id}: #{inspect(e)}"
-              )
-          end
-        end)
-      else
-        Logger.warning("No user_config found for peer: #{peer["public_key"]}")
-      end
-    end)
+    :ok = VPN.report_peer_stats(server_id, peers)
 
     json(conn, %{status: "ok", updated: length(peers)})
   end
@@ -181,18 +72,7 @@ defmodule ElektrineWeb.VPNAPIController do
       }) do
     server_id = String.to_integer(server_id)
 
-    # Record heartbeat in HealthMonitor (in-memory, fast)
-    Elektrine.VPN.HealthMonitor.heartbeat(server_id)
-
-    # Update DB asynchronously (non-blocking)
-    spawn(fn ->
-      server = VPN.get_server!(server_id)
-
-      VPN.update_server(server, %{
-        current_users: current_users,
-        status: status
-      })
-    end)
+    :ok = VPN.report_server_heartbeat(server_id, current_users, status)
 
     json(conn, %{status: "ok"})
   end
@@ -405,165 +285,6 @@ defmodule ElektrineWeb.VPNAPIController do
       conn
       |> put_status(404)
       |> json(%{error: "User config not found"})
-    end
-  end
-
-  # Private functions
-
-  defp send_quota_notifications(user_config, quota_percent) do
-    # Load user with email
-    user = Elektrine.Repo.get!(Elektrine.Accounts.User, user_config.user_id)
-
-    # Store last notification in metadata to avoid spam
-    last_notification = get_in(user_config.metadata, ["last_quota_notification"]) || 0
-
-    cond do
-      # 100%+ (suspended) - send once
-      quota_percent >= 100 && last_notification < 100 ->
-        Elektrine.Platform.Integrations.send_vpn_quota_notification(
-          :suspended,
-          user,
-          user_config
-        )
-
-        update_notification_metadata(user_config, 100)
-
-      # 90% warning - send once
-      quota_percent >= 90 && last_notification < 90 ->
-        Elektrine.Platform.Integrations.send_vpn_quota_notification(
-          :warning,
-          user,
-          user_config,
-          90
-        )
-
-        update_notification_metadata(user_config, 90)
-
-      # 80% warning - send once
-      quota_percent >= 80 && last_notification < 80 ->
-        Elektrine.Platform.Integrations.send_vpn_quota_notification(
-          :warning,
-          user,
-          user_config,
-          80
-        )
-
-        update_notification_metadata(user_config, 80)
-
-      true ->
-        :ok
-    end
-  end
-
-  defp update_notification_metadata(user_config, threshold) do
-    new_metadata = Map.put(user_config.metadata || %{}, "last_quota_notification", threshold)
-
-    from(uc in Elektrine.VPN.UserConfig, where: uc.id == ^user_config.id)
-    |> Elektrine.Repo.update_all(set: [metadata: new_metadata])
-  end
-
-  defp check_and_update_quota(user_config, bytes_sent, bytes_received, last_handshake) do
-    now = DateTime.utc_now()
-
-    # Check if user is banned or suspended (site-wide)
-    user = Elektrine.Repo.get!(Elektrine.Accounts.User, user_config.user_id)
-
-    # If user is banned or suspended, revoke their VPN access immediately
-    if user.banned || user.suspended do
-      # Revoke the config and invalidate cache
-      from(uc in Elektrine.VPN.UserConfig, where: uc.id == ^user_config.id)
-      |> Elektrine.Repo.update_all(set: [status: "revoked"])
-
-      Elektrine.VPN.PeerCache.invalidate(user_config.vpn_server_id)
-
-      {:ok, :revoked_banned_user}
-    else
-      # Initialize quota period if not set
-      quota_period_start = user_config.quota_period_start || now
-
-      # Check if we need to reset the quota (monthly)
-      quota_period_start =
-        if DateTime.diff(now, quota_period_start, :day) >= 30 do
-          # Reset quota for new month
-          now
-        else
-          quota_period_start
-        end
-
-      # Calculate bandwidth delta (handles VPN server restarts)
-      previous_total = user_config.bytes_sent + user_config.bytes_received
-      current_total = bytes_sent + bytes_received
-
-      # If current < previous, server restarted (counters reset to 0)
-      # In this case, add current_total as new usage
-      # Otherwise, add the delta
-      bandwidth_delta =
-        if current_total < previous_total do
-          # Server restarted, track new session
-          current_total
-        else
-          # Normal case: accumulate delta
-          current_total - previous_total
-        end
-
-      # Calculate quota used (reset if period changed, otherwise accumulate)
-      quota_used_bytes =
-        if quota_period_start == user_config.quota_period_start do
-          # Same period: add delta to existing quota usage
-          user_config.quota_used_bytes + bandwidth_delta
-        else
-          # New period: reset quota and start fresh
-          current_total
-        end
-
-      # Check if over quota and suspend if necessary (105% grace period)
-      quota_percent =
-        if user_config.bandwidth_quota_bytes > 0,
-          do: quota_used_bytes / user_config.bandwidth_quota_bytes * 100,
-          else: 0
-
-      # Send email notifications at thresholds
-      spawn(fn ->
-        send_quota_notifications(user_config, quota_percent)
-      end)
-
-      # Suspend at 105% to give users a grace period
-      new_status =
-        if quota_percent > 105 && user_config.status == "active" do
-          "suspended"
-        else
-          user_config.status
-        end
-
-      # Update database
-      updates = [
-        bytes_sent: bytes_sent,
-        bytes_received: bytes_received,
-        quota_period_start: quota_period_start,
-        quota_used_bytes: quota_used_bytes,
-        status: new_status
-      ]
-
-      updates =
-        if last_handshake do
-          case DateTime.from_iso8601(last_handshake) do
-            {:ok, datetime, _} -> Keyword.put(updates, :last_handshake_at, datetime)
-            _ -> updates
-          end
-        else
-          updates
-        end
-
-      result =
-        from(uc in Elektrine.VPN.UserConfig, where: uc.id == ^user_config.id)
-        |> Elektrine.Repo.update_all(set: updates)
-
-      # Invalidate cache if status changed
-      if new_status != user_config.status do
-        Elektrine.VPN.PeerCache.invalidate(user_config.vpn_server_id)
-      end
-
-      result
     end
   end
 

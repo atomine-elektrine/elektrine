@@ -27,7 +27,7 @@ defmodule ElektrineVPN.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   defp elixirc_options do
-    if Mix.env() == :test do
+    if Mix.env() in [:dev, :test] do
       [ignore_module_conflict: true]
     else
       []

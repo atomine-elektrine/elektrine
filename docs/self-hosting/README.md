@@ -1,15 +1,15 @@
 # Self-hosting
 
-Supported profiles:
+Start with the default `core` deployment, then add only the pieces you need.
 
-- `core`: app + Postgres only
+## Profiles
+
+- `core`: app and Postgres only
 - `mail`: separate Haraka deployment layered on top of the `email` module
-- `vpn`: enable the `vpn` module and fleet registration key
+- `vpn`: optional Docker-managed WireGuard, with optional fleet mode
 - `addons`: Caddy edge, Bluesky PDS, onion hosting, and client artifacts
 
-Start with `core`, then add only the pieces you actually need.
-
-Guides:
+## Guides
 
 - `docker.md`
 - `core.md`

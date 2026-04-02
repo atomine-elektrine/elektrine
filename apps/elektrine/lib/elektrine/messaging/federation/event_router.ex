@@ -15,11 +15,6 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
 
   @bootstrap_server_upsert_event_type ArblargSDK.bootstrap_server_upsert_event_type()
   @dm_message_create_event_type ArblargSDK.dm_message_create_event_type()
-  @community_extension_event_types ArblargSDK.roles_event_types() ++
-                                     ArblargSDK.permissions_event_types() ++
-                                     ArblargSDK.threads_event_types() ++
-                                     ArblargSDK.presence_event_types() ++
-                                     ArblargSDK.moderation_event_types()
 
   def event_server_id(data) when is_map(data) do
     refs = data["refs"] || %{}
@@ -70,14 +65,7 @@ defmodule Elektrine.Messaging.Federation.EventRouter do
                    extension_event_context()
                  ) do
               {:error, :unhandled_event_type} ->
-                if canonical_event_type in @community_extension_event_types do
-                  case ArblargSDK.validate_event_payload(canonical_event_type, data) do
-                    :ok -> :ok
-                    _ -> {:error, :invalid_event_payload}
-                  end
-                else
-                  {:error, :unsupported_event_type}
-                end
+                {:error, :unsupported_event_type}
 
               result ->
                 result

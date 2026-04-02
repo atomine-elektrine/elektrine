@@ -6,14 +6,14 @@ defmodule ElektrineWeb.MailSecurityController do
 
   def mta_sts(conn, _params) do
     with domain when is_binary(domain) <- mta_sts_domain(conn.host),
-         %{id: zone_id, domain: zone_domain} <- apply(@dns_module, :get_zone_by_domain, [domain]),
+         %{id: zone_id, domain: zone_domain} <- @dns_module.get_zone_by_domain(domain),
          %{enabled: true, settings: settings} <-
-           apply(@dns_module, :get_zone_service_config, [zone_id, "mail"]) do
+           @dns_module.get_zone_service_config(zone_id, "mail") do
       conn
       |> put_resp_content_type("text/plain")
       |> send_resp(
         :ok,
-        apply(@mail_security_module, :mta_sts_policy, [zone_domain, settings || %{}])
+        @mail_security_module.mta_sts_policy(zone_domain, settings || %{})
       )
     else
       _ ->

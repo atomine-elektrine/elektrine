@@ -100,11 +100,29 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp maybe_validate_vpn(errors, enabled_modules, env) do
     if :vpn in enabled_modules do
-      require_present(
-        errors,
-        env_value(env, "VPN_FLEET_REGISTRATION_KEY"),
-        "vpn module requires VPN_FLEET_REGISTRATION_KEY"
-      )
+      fleet_key = env_value(env, "VPN_FLEET_REGISTRATION_KEY")
+      self_host_ip = env_value(env, "VPN_SELFHOST_PUBLIC_IP")
+      self_host_endpoint = env_value(env, "VPN_SELFHOST_ENDPOINT_HOST")
+      self_host_key = env_value(env, "VPN_SELFHOST_PUBLIC_KEY")
+      self_host_private_key = env_value(env, "VPN_SELFHOST_PRIVATE_KEY")
+
+      cond do
+        present?(fleet_key) ->
+          errors
+
+        (present?(self_host_ip) or present?(self_host_endpoint)) and
+            (present?(self_host_key) or present?(self_host_private_key)) ->
+          errors
+
+        present?(self_host_private_key) or present?(self_host_key) ->
+          errors
+
+        true ->
+          [
+            "vpn module requires either VPN_FLEET_REGISTRATION_KEY or self-hosted WireGuard credentials via VPN_SELFHOST_PRIVATE_KEY/VPN_SELFHOST_PUBLIC_KEY; set VPN_SELFHOST_ENDPOINT_HOST or VPN_SELFHOST_PUBLIC_IP to avoid endpoint autodetection"
+            | errors
+          ]
+      end
     else
       errors
     end
@@ -122,10 +140,10 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     do: errors
 
   defp require_present(errors, value, message) when is_binary(value) do
-    if not Elektrine.Strings.present?(value) do
-      [message | errors]
-    else
+    if Elektrine.Strings.present?(value) do
       errors
+    else
+      [message | errors]
     end
   end
 

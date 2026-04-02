@@ -106,8 +106,8 @@
                 <div class="flex items-center justify-between p-3 bg-base-200 rounded-lg">
                   <div class="flex items-center gap-2">
                     <span
-                      class="badge text-white font-medium"
-                      style={badge_gradient_style(badge.badge_color)}
+                      class="badge font-medium"
+                      style={badge_gradient_style(badge.badge_color) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
                     >
                       <%= if badge.badge_icon do %>
                         <span class="mr-1">{badge.badge_icon}</span>
@@ -156,42 +156,82 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="flex items-center gap-2">
-          <span class="badge bg-purple-500 text-white">Staff</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("staff")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Staff
+          </span>
           <span class="text-xs text-base-content/60">Staff member</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-green-600 text-white">Verified</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("verified")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Verified
+          </span>
           <span class="text-xs text-base-content/60">Verified account</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-amber-500 text-white">Supporter</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("supporter")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Supporter
+          </span>
           <span class="text-xs text-base-content/60">Platform supporter</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-blue-600 text-white">Developer</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("developer")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Developer
+          </span>
           <span class="text-xs text-base-content/60">Developer</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-red-900 text-white">Admin</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("admin")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Admin
+          </span>
           <span class="text-xs text-base-content/60">Administrator</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-purple-600 text-white">Moderator</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("moderator")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Moderator
+          </span>
           <span class="text-xs text-base-content/60">Moderator</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-purple-600 text-white">Contributor</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("contributor")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Contributor
+          </span>
           <span class="text-xs text-base-content/60">Active contributor</span>
         </div>
 
         <div class="flex items-center gap-2">
-          <span class="badge bg-pink-600 text-white">Beta Tester</span>
+          <span
+            class="badge"
+            style={badge_gradient_style(get_badge_color("beta_tester")) <> " color: #{Elektrine.Theme.inverse_text_color()};"}
+          >
+            Beta Tester
+          </span>
           <span class="text-xs text-base-content/60">Beta tester</span>
         </div>
       </div>

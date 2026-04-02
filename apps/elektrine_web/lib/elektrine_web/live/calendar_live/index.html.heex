@@ -56,7 +56,7 @@
                   phx-click="toggle_calendar"
                   phx-value-id={calendar.id}
                   class="checkbox checkbox-sm"
-                  style={"--chkbg: #{calendar.color}; --chkfg: white;"}
+                  style={"--chkbg: #{calendar.color}; --chkfg: #{Elektrine.Theme.contrast_text(calendar.color)};"}
                 />
                 <span class="flex-1 truncate text-sm">{calendar.name}</span>
               </label>
@@ -169,8 +169,8 @@
                         <button
                           phx-click="view_event"
                           phx-value-id={event.id}
-                          class="w-full text-left px-1 py-0.5 text-[10px] sm:text-xs rounded truncate text-white"
-                          style={"background-color: #{event.calendar.color}"}
+                          class="w-full text-left px-1 py-0.5 text-[10px] sm:text-xs rounded truncate"
+                          style={"background-color: #{event.calendar.color}; color: #{Elektrine.Theme.contrast_text(event.calendar.color)};"}
                         >
                           <span class="hidden sm:inline">
                             <%= if not event.all_day do %>
@@ -485,7 +485,8 @@
             name="calendar[color]"
             value={
               @calendar_changeset.changes[:color] ||
-                (@editing_calendar && @editing_calendar.color) || "#3b82f6"
+                (@editing_calendar && @editing_calendar.color) ||
+                Elektrine.Theme.default_value("color_primary")
             }
             class="w-full h-10 rounded cursor-pointer"
           />

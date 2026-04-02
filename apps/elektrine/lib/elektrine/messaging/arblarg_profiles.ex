@@ -173,6 +173,26 @@ defmodule Elektrine.Messaging.ArblargProfiles do
     |> Enum.uniq()
   end
 
+  def conformance_verified_extension_statuses do
+    community_verified =
+      @extension_definitions
+      |> Enum.filter(&(&1.profile_requirement == @community_profile_id))
+      |> Enum.map(&{&1.urn, true})
+
+    optional_unverified =
+      @extension_definitions
+      |> Enum.reject(
+        &(&1.urn == "urn:arblarg:ext:bootstrap:1" or
+            &1.profile_requirement == @community_profile_id)
+      )
+      |> Enum.map(&{&1.urn, false})
+
+    Map.new([
+      {"urn:arblarg:ext:bootstrap:1", true}
+      | community_verified ++ optional_unverified
+    ])
+  end
+
   def profile_badges(opts \\ []) do
     [core_profile_badge(opts), community_profile_badge(opts)]
   end

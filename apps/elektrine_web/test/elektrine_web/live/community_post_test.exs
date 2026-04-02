@@ -40,7 +40,12 @@ defmodule ElektrineWeb.CommunityPostTest do
 
   # Helper to log in a user for LiveView tests
   defp log_in_user(conn, user) do
-    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+    token =
+      Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+        "user_id" => user.id,
+        "password_changed_at" =>
+          user.last_password_change && DateTime.to_unix(user.last_password_change)
+      })
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})

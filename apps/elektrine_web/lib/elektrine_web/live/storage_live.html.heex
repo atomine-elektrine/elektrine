@@ -290,13 +290,13 @@
                 <div class="w-10 h-10 flex-shrink-0 bg-base-300 rounded flex items-center justify-center">
                   <%= cond do %>
                     <% String.ends_with?(file.path, [".html", ".htm"]) -> %>
-                      <.icon name="hero-document-text" class="w-5 h-5 text-orange-500" />
+                      <.icon name="hero-document-text" class="w-5 h-5 text-warning" />
                     <% String.ends_with?(file.path, ".css") -> %>
-                      <.icon name="hero-paint-brush" class="w-5 h-5 text-blue-500" />
+                      <.icon name="hero-paint-brush" class="w-5 h-5 text-info" />
                     <% String.ends_with?(file.path, ".js") -> %>
-                      <.icon name="hero-code-bracket" class="w-5 h-5 text-yellow-500" />
+                      <.icon name="hero-code-bracket" class="w-5 h-5 text-warning" />
                     <% String.starts_with?(file.content_type, "image/") -> %>
-                      <.icon name="hero-photo" class="w-5 h-5 text-green-500" />
+                      <.icon name="hero-photo" class="w-5 h-5 text-success" />
                     <% true -> %>
                       <.icon name="hero-document" class="w-5 h-5 text-base-content/60" />
                   <% end %>

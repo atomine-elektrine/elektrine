@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.ChatLive.Components.GroupModal do
   @moduledoc false
   use ElektrineChatWeb, :live_component
-  import ElektrineWeb.Components.User.Avatar
+  import Elektrine.Components.User.Avatar
   alias ElektrineWeb.ChatLive.HandleFormatter
 
   attr :group_name, :string, default: ""

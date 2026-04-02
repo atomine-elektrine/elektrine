@@ -11,12 +11,12 @@ defmodule ElektrineWeb.ChatLive.Index do
   alias Elektrine.Messaging.Federation.VoiceCalls
   alias Elektrine.Messaging.Message
   alias Elektrine.Uploads
-  import ElektrineWeb.Components.User.Avatar
-  import ElektrineWeb.Components.User.UsernameEffects
-  import ElektrineWeb.Components.Social.ContentJourney
-  import ElektrineWeb.Components.Chat.Call
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.EmbeddedPost
+  import Elektrine.Components.User.Avatar
+  import Elektrine.Components.User.UsernameEffects
+  import ElektrineChatWeb.Components.Social.ContentJourney
+  import ElektrineChatWeb.Components.Chat.Call
+  import ElektrineChatWeb.Components.Platform.ENav
+  import ElektrineChatWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.Live.NotificationHelpers
   import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1, render_custom_emojis: 1]
 
@@ -2507,7 +2507,7 @@ defmodule ElektrineWeb.ChatLive.Index do
     <!-- Report Modal -->
     <%= if @show_report_modal do %>
       <.live_component
-        module={ElektrineWeb.Components.ReportModal}
+        module={Elektrine.Components.ReportModal}
         id="report-modal"
         reporter_id={@current_user.id}
         reportable_type={@report_type}

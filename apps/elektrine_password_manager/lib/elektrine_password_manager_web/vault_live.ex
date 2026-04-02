@@ -8,6 +8,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
   alias Elektrine.PasswordManager
   alias Elektrine.PasswordManager.Payloads
   alias Elektrine.PasswordManager.VaultEntry
+  alias ElektrinePasswordManagerWeb.Components.Platform.ENav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -148,7 +149,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
         data-vault-verifier={Payloads.encode_payload(@vault_verifier)}
       >
         <section class="mx-auto w-full max-w-7xl space-y-6">
-          <ElektrineWeb.Components.Platform.ENav.e_nav
+          <ENav.e_nav
             active_tab="vault"
             current_user={@current_user}
           />

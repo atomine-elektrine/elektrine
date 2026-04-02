@@ -78,3 +78,121 @@ body.has-blinkenlights { background-image: none !important;
 } .footer-wordmark-glow { opacity: 0.78;
 } .footer-wordmark-glow:hover { opacity: 1 !important;
 }
+
+:root {
+  --theme-text-default: var(--color-base-content, #d1d5db);
+  --theme-text-inverse: #ffffff;
+  --theme-selection-bg: color-mix(in srgb, var(--color-base-content, #d1d5db) 18%, transparent);
+  --theme-scrollbar-thumb: color-mix(in srgb, var(--color-base-content, #d1d5db) 26%, transparent);
+  --theme-scrollbar-thumb-hover: color-mix(in srgb, var(--color-base-content, #d1d5db) 38%, transparent);
+
+  --theme-surface-elevated-shadow: 0 1px 3px color-mix(in srgb, #000000 12%, transparent), 0 1px 2px color-mix(in srgb, #000000 24%, transparent);
+  --theme-surface-interactive-shadow: 0 1px 2px color-mix(in srgb, #0f172a 8%, transparent), 0 2px 8px color-mix(in srgb, #0f172a 5%, transparent);
+  --theme-surface-hover-shadow: 0 4px 12px color-mix(in srgb, #000000 10%, transparent);
+  --theme-navbar-shadow: 0 12px 28px -24px color-mix(in srgb, #08101e 72%, transparent);
+  --theme-modal-backdrop: color-mix(in srgb, #0a0e14 56%, transparent);
+
+  --theme-link-color: color-mix(in srgb, var(--color-primary, #8a7cc2) 88%, #ffffff 12%);
+  --theme-link-color-hover: color-mix(in srgb, var(--color-primary, #8a7cc2) 72%, #000000 28%);
+  --theme-email-text: color-mix(in srgb, var(--color-base-content, #e4e7eb) 18%, #000000 82%);
+  --theme-email-wrapper-bg: #ffffff;
+  --theme-email-wrapper-text: color-mix(in srgb, var(--color-base-content, #e4e7eb) 26%, #000000 74%);
+
+  --theme-btn-ghost-text: color-mix(in srgb, var(--color-base-content, #e4e7eb) 88%, var(--color-primary, #8a7cc2) 12%);
+  --theme-btn-ghost-bg: color-mix(in srgb, var(--color-base-300, #202833) 84%, var(--color-primary, #8a7cc2) 16%);
+  --theme-btn-outline-border: color-mix(in srgb, var(--color-base-300, #202833) 84%, var(--color-base-content, #e4e7eb) 16%);
+  --theme-btn-outline-bg: color-mix(in srgb, var(--color-base-200, #151b22) 92%, var(--color-base-100, #101419) 8%);
+  --theme-btn-outline-border-hover: color-mix(in srgb, var(--color-base-300, #202833) 74%, var(--color-base-content, #e4e7eb) 26%);
+  --theme-btn-outline-bg-hover: color-mix(in srgb, var(--color-base-300, #202833) 84%, var(--color-base-200, #151b22) 16%);
+  --theme-btn-neutral-bg: color-mix(in srgb, var(--color-base-300, #202833) 90%, var(--color-base-200, #151b22) 10%);
+  --theme-btn-neutral-border: color-mix(in srgb, var(--color-base-300, #202833) 82%, var(--color-base-content, #e4e7eb) 18%);
+  --theme-btn-neutral-bg-hover: color-mix(in srgb, var(--color-base-300, #202833) 78%, var(--color-base-200, #151b22) 22%);
+  --theme-btn-neutral-border-hover: color-mix(in srgb, var(--color-base-300, #202833) 74%, var(--color-base-content, #e4e7eb) 26%);
+  --theme-input-border: color-mix(in srgb, var(--color-base-300, #202833) 72%, var(--theme-text-inverse) 28%);
+  --theme-input-highlight: color-mix(in srgb, var(--color-primary, #8a7cc2) 28%, transparent);
+  --theme-input-highlight-strong: color-mix(in srgb, var(--color-primary, #8a7cc2) 42%, transparent);
+  --theme-input-highlight-shadow: color-mix(in srgb, var(--color-primary, #8a7cc2) 12%, transparent);
+  --theme-input-inset-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 2.5%, transparent);
+  --theme-navbar-bg: color-mix(in srgb, var(--color-base-100, #101419) 88%, var(--color-base-200, #151b22) 12%);
+  --theme-navbar-border: color-mix(in srgb, var(--color-base-300, #202833) 84%, var(--color-base-content, #e4e7eb) 16%);
+  --theme-nav-link: color-mix(in srgb, var(--color-base-content, #e4e7eb) 88%, var(--color-primary, #8a7cc2) 12%);
+  --theme-error-badge-bg: var(--color-error, #ef4444);
+  --theme-error-badge-border: var(--color-error, #ef4444);
+  --theme-table-row-hover: color-mix(in srgb, var(--color-base-200, #151b22) 90%, var(--color-base-300, #202833) 10%);
+
+  --theme-chat-error-soft: color-mix(in srgb, var(--color-error, #dc2626) 20%, transparent);
+  --theme-chat-error-text-soft: color-mix(in srgb, var(--color-error, #dc2626) 55%, var(--theme-text-inverse) 45%);
+  --theme-chat-error-text-strong: color-mix(in srgb, var(--color-error, #dc2626) 35%, var(--theme-text-inverse) 65%);
+  --theme-chat-error-border-50: color-mix(in srgb, var(--color-error, #dc2626) 50%, transparent);
+  --theme-chat-error-button-overlay: linear-gradient(135deg, color-mix(in srgb, var(--color-error, #dc2626) 24%, transparent), color-mix(in srgb, var(--color-error, #dc2626) 10%, transparent) 55%, transparent 100%);
+  --theme-chat-error-button-overlay-hover: linear-gradient(135deg, color-mix(in srgb, var(--color-error, #dc2626) 32%, transparent), color-mix(in srgb, var(--color-error, #dc2626) 14%, transparent) 55%, transparent 100%);
+  --theme-chat-error-button-border: color-mix(in srgb, var(--color-error, #dc2626) 52%, transparent);
+  --theme-chat-error-button-border-hover: color-mix(in srgb, var(--color-error, #dc2626) 64%, transparent);
+  --theme-chat-error-button-text: color-mix(in srgb, var(--theme-text-inverse) 98%, var(--color-error, #dc2626) 2%);
+  --theme-message-selected-bg: color-mix(in srgb, var(--color-primary, #8a7cc2) 10%, transparent);
+  --theme-message-selected-border: color-mix(in srgb, var(--color-primary, #8a7cc2) 45%, transparent);
+  --theme-message-selected-shadow: color-mix(in srgb, var(--color-primary, #8a7cc2) 18%, transparent);
+  --theme-message-selected-bg-hover: color-mix(in srgb, var(--color-primary, #8a7cc2) 15%, transparent);
+  --theme-message-selected-border-hover: color-mix(in srgb, var(--color-primary, #8a7cc2) 62%, transparent);
+  --theme-message-selected-shadow-hover: color-mix(in srgb, var(--color-primary, #8a7cc2) 26%, transparent);
+
+  --theme-effect-orb-cyan: radial-gradient(circle, color-mix(in srgb, var(--color-primary, #8a7cc2) 34%, transparent), color-mix(in srgb, var(--color-secondary, #dc2626) 16%, transparent), transparent);
+  --theme-effect-orb-red: radial-gradient(circle, color-mix(in srgb, var(--color-secondary, #dc2626) 40%, transparent), color-mix(in srgb, var(--color-error, #ff0000) 20%, transparent), transparent);
+  --theme-effect-orb-orange: radial-gradient(circle, color-mix(in srgb, var(--color-warning, #f97316) 40%, transparent), color-mix(in srgb, #fbbf24 20%, transparent), transparent);
+  --theme-effect-orb-purple: radial-gradient(circle, color-mix(in srgb, var(--color-primary, #8a7cc2) 34%, transparent), color-mix(in srgb, #a297cf 16%, transparent), transparent);
+  --theme-effect-gradient-cyan: linear-gradient(45deg, var(--color-primary, #8a7cc2) 30%, var(--color-secondary, #c7796b) 50%, var(--color-primary, #8a7cc2) 70%);
+  --theme-effect-gradient-red: linear-gradient(45deg, color-mix(in srgb, var(--color-error, #dc2626) 86%, #000000 14%) 30%, #ff0000 50%, color-mix(in srgb, var(--color-error, #dc2626) 86%, #000000 14%) 70%);
+  --theme-effect-gradient-orange: linear-gradient(45deg, var(--color-warning, #f97316) 30%, #fbbf24 50%, var(--color-warning, #f97316) 70%);
+  --theme-effect-gradient-purple: linear-gradient(45deg, var(--color-primary, #8a7cc2) 30%, #a297cf 50%, var(--color-primary, #8a7cc2) 70%);
+  --theme-effect-rainbow: linear-gradient(90deg, #ff0000 0%, #ff7f00 16.67%, #ffff00 33.33%, #00ff00 50%, #0000ff 66.67%, #4b0082 83.33%, #9400d3 100%);
+  --theme-effect-fire: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #ff7f00, #ff0000);
+  --theme-effect-holographic: linear-gradient(90deg, #ff00ff 0%, #00ffff 25%, #00ff00 50%, #ffff00 75%, #ff00ff 100%);
+  --theme-effect-chrome: linear-gradient(90deg, #888888, #ffffff, #cccccc, #888888, #ffffff);
+  --theme-effect-retro: linear-gradient(180deg, #ff00ff 0%, #00ffff 100%);
+  --theme-effect-gold-frame: linear-gradient(135deg, #c41e3a 0%, #8b0000 50%, #c41e3a 100%);
+  --theme-effect-gold-surface: linear-gradient(45deg, #ffd700 0%, #ffed4e 25%, #ffa500 50%, #ffed4e 75%, #ffd700 100%);
+  --theme-effect-gold-frame-shadow: color-mix(in srgb, #c41e3a 60%, transparent);
+  --theme-effect-gold-inner-glow: color-mix(in srgb, #ffd700 30%, transparent);
+  --theme-effect-gold-outer-glow: color-mix(in srgb, #ffd700 80%, transparent);
+  --theme-effect-gold-outer-accent: color-mix(in srgb, #ffa500 40%, transparent);
+  --theme-effect-gold-top-highlight: color-mix(in srgb, #ffffff 50%, transparent);
+  --theme-effect-gold-bottom-shadow: color-mix(in srgb, #8b0000 30%, transparent);
+  --theme-effect-mark-glow: conic-gradient(from 0deg, color-mix(in srgb, var(--color-primary, #8a7cc2) 8%, transparent), color-mix(in srgb, var(--color-warning, #ffa500) 10%, transparent), color-mix(in srgb, var(--color-secondary, #ff4500) 10%, transparent), color-mix(in srgb, var(--color-primary, #8a7cc2) 8%, transparent));
+  --theme-effect-kitsune-glow: radial-gradient(circle at center, color-mix(in srgb, var(--color-secondary, #ff4500) 8%, transparent) 0%, color-mix(in srgb, var(--color-warning, #ffa500) 4%, transparent) 40%, color-mix(in srgb, var(--color-primary, #8a7cc2) 2.5%, transparent) 70%, transparent 100%);
+  --theme-effect-kitsune-glow-alt: radial-gradient(circle at center, color-mix(in srgb, #ffd700 10%, transparent) 0%, color-mix(in srgb, var(--color-secondary, #ff4500) 5%, transparent) 40%, color-mix(in srgb, #08c3d6 4%, transparent) 70%, transparent 100%);
+  --theme-effect-mark-hover-shadow: drop-shadow(0 0 8px color-mix(in srgb, var(--color-primary, #8a7cc2) 54%, transparent));
+  --theme-effect-fire-shadow: drop-shadow(0 0 4px color-mix(in srgb, #ff6400 60%, transparent)) drop-shadow(0 0 8px color-mix(in srgb, #ff3200 40%, transparent));
+  --theme-effect-ice-color: #a0d8f1;
+  --theme-effect-ice-highlight: color-mix(in srgb, var(--theme-effect-ice-color) 78%, #ffffff 22%);
+  --theme-effect-ice-shadow: 0 0 10px color-mix(in srgb, #add8e6 80%, transparent), 0 0 20px color-mix(in srgb, #87cefa 60%, transparent), 0 0 30px color-mix(in srgb, #6495ed 40%, transparent), 2px 2px 4px color-mix(in srgb, #ffffff 30%, transparent);
+  --theme-effect-chrome-shadow: drop-shadow(1px 1px 2px color-mix(in srgb, #000000 50%, transparent));
+  --theme-effect-retro-shadow: drop-shadow(2px 2px 0px #ff00ff) drop-shadow(2px 2px 0px #00ffff);
+  --theme-effect-outline-stroke: var(--glow-color, var(--color-primary, #8a7cc2));
+  --theme-effect-shadow-color: var(--shadow-color, #000000);
+  --theme-effect-glitch-cyan: #00fffc;
+  --theme-effect-glitch-magenta: #fc00ff;
+  --theme-effect-glitch-yellow: #fffc00;
+  --theme-avatar-accent-color: var(--avatar-accent, var(--color-primary, #8a7cc2));
+  --theme-avatar-accent-light-color: var(--avatar-accent-light, color-mix(in srgb, var(--theme-avatar-accent-color) 72%, #ffffff 28%));
+  --theme-link-accent-color: var(--link-accent, var(--color-primary, #8a7cc2));
+  --theme-link-border-shadow: color-mix(in srgb, var(--theme-link-accent-color) 20%, transparent);
+  --theme-link-shine: linear-gradient(45deg, transparent 30%, color-mix(in srgb, #ffffff 30%, transparent) 50%, transparent 70%);
+  --theme-image-zoom-overlay: color-mix(in srgb, #000000 40%, transparent);
+}
+
+html[data-theme="dark"],
+:root[data-theme="dark"],
+[data-theme="dark"],
+[data-theme=dark] {
+  --color-primary: var(--theme-override-color-primary, oklch(63% 0.11 296)) !important;
+  --color-secondary: var(--theme-override-color-secondary, oklch(60% 0.14 22)) !important;
+  --color-accent: var(--theme-override-color-accent, oklch(66% 0.10 314)) !important;
+  --color-base-100: var(--theme-override-color-base-100, #101419) !important;
+  --color-base-200: var(--theme-override-color-base-200, #151b22) !important;
+  --color-base-300: var(--theme-override-color-base-300, #202833) !important;
+  --color-base-content: var(--theme-override-color-base-content, #e4e7eb) !important;
+  --color-info: var(--theme-override-color-info, oklch(61% 0.12 275)) !important;
+  --color-success: var(--theme-override-color-success, oklch(65% 0.20 145)) !important;
+  --color-warning: var(--theme-override-color-warning, oklch(68% 0.22 35)) !important;
+  --color-error: var(--theme-override-color-error, oklch(58% 0.26 20)) !important;
+}

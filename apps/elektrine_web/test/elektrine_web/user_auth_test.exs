@@ -78,4 +78,25 @@ defmodule ElektrineWeb.UserAuthTest do
              )
     end
   end
+
+  describe "fetch_current_user/2" do
+    test "rejects sessions issued before the last password change", %{conn: conn} do
+      user = user_fixture()
+
+      stale_token =
+        Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+          "user_id" => user.id,
+          "password_changed_at" =>
+            DateTime.to_unix(DateTime.add(user.last_password_change, -60, :second))
+        })
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_session(:user_token, stale_token)
+        |> UserAuth.fetch_current_user([])
+
+      assert conn.assigns.current_user == nil
+    end
+  end
 end

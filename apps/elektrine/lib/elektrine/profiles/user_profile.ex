@@ -7,6 +7,14 @@ defmodule Elektrine.Profiles.UserProfile do
   import Ecto.Changeset
   alias Elektrine.Markdown
 
+  @default_accent_color Elektrine.Theme.default_value("color_primary")
+  @default_text_color Elektrine.Theme.inverse_text_color()
+  @default_background_color Elektrine.Theme.default_value("color_base_100")
+  @default_icon_color Elektrine.Theme.default_value("color_primary")
+  @default_username_glow_color Elektrine.Theme.default_value("color_primary")
+  @default_username_shadow_color Elektrine.Theme.default_value("color_base_100")
+  @default_tick_color Elektrine.Theme.default_value("color_primary")
+
   schema "user_profiles" do
     field :display_name, :string
     field :description, :string
@@ -14,10 +22,10 @@ defmodule Elektrine.Profiles.UserProfile do
     field :page_title, :string
     field :favicon_url, :string
     field :theme, :string, default: "blue"
-    field :accent_color, :string, default: "#22d3ee"
-    field :text_color, :string, default: "#ffffff"
-    field :background_color, :string, default: "#1e293b"
-    field :icon_color, :string, default: "#22d3ee"
+    field :accent_color, :string, default: @default_accent_color
+    field :text_color, :string, default: @default_text_color
+    field :background_color, :string, default: @default_background_color
+    field :icon_color, :string, default: @default_icon_color
     field :profile_opacity, :float, default: 1.0
     field :profile_blur, :integer, default: 0
     field :container_background_color, :string
@@ -57,15 +65,15 @@ defmodule Elektrine.Profiles.UserProfile do
 
     # Username text effects
     field :username_effect, :string, default: "none"
-    field :username_glow_color, :string, default: "#22d3ee"
+    field :username_glow_color, :string, default: @default_username_glow_color
     field :username_glow_intensity, :integer, default: 10
-    field :username_shadow_color, :string, default: "#1e293b"
+    field :username_shadow_color, :string, default: @default_username_shadow_color
     field :username_gradient_from, :string
     field :username_gradient_to, :string
     field :username_animation_speed, :string, default: "normal"
 
     # Verified badge color
-    field :tick_color, :string, default: "#22d3ee"
+    field :tick_color, :string, default: @default_tick_color
 
     # Typewriter effect
     field :typewriter_effect, :boolean, default: false
@@ -94,6 +102,11 @@ defmodule Elektrine.Profiles.UserProfile do
       preload_order: [asc: :position]
 
     timestamps()
+  end
+
+  @doc false
+  def default(field) when is_atom(field) do
+    Map.get(%__MODULE__{}, field)
   end
 
   @doc false

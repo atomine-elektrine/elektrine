@@ -122,7 +122,7 @@
                             />
                           <% end %>
 
-                          <div class="absolute inset-0 bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center text-xs font-medium">
+                          <div class="absolute inset-0 bg-base-100/45 text-base-content opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center text-xs font-medium">
                             {gettext("Change")}
                           </div>
                         </div>
@@ -1188,6 +1188,8 @@
               phx-change="validate"
               class="space-y-4 sm:space-y-6"
             >
+              <% effective_theme_defaults = Elektrine.Theme.effective_overrides(%{}) %>
+              <% theme_overrides = Ecto.Changeset.get_field(@changeset, :theme_overrides) || %{} %>
               <!-- Language/Locale -->
               <div>
                 <label class="label">
@@ -1366,7 +1368,58 @@
                 </div>
               </div>
 
-              <div class="card-actions justify-end mt-4 sm:mt-6">
+              <div class="border-t border-base-300/60 pt-4 sm:pt-6 space-y-4">
+                <div>
+                  <h3 class="text-base font-semibold">Site Theme</h3>
+                  <p class="text-sm text-base-content/60 mt-1">
+                    Customize the shared application palette. Changes apply across the website.
+                  </p>
+                  <p class="text-xs text-base-content/50 mt-2">
+                    Reset clears your personal theme overrides and falls back to the site defaults.
+                  </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  <%= for field <- Elektrine.Theme.editor_fields() do %>
+                    <label class="flex items-center gap-4 rounded-xl border border-base-300/60 bg-base-200/40 p-4">
+                      <input
+                        type="color"
+                        name={"user[theme_overrides][#{field.key}]"}
+                        value={
+                          Map.get(
+                            theme_overrides,
+                            field.key,
+                            Map.get(effective_theme_defaults, field.key, field.default)
+                          )
+                        }
+                        class="h-14 w-14 rounded-lg border-0 cursor-pointer bg-transparent"
+                      />
+
+                      <div class="min-w-0">
+                        <div class="font-medium">{field.label}</div>
+                        <div class="text-sm text-base-content/65">{field.description}</div>
+                        <div class="mt-1 text-xs text-base-content/50 font-mono">
+                          {Map.get(
+                            theme_overrides,
+                            field.key,
+                            Map.get(effective_theme_defaults, field.key, field.default)
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="card-actions justify-end mt-4 sm:mt-6 gap-3">
+                <button
+                  type="submit"
+                  name="action"
+                  value="reset_theme_defaults"
+                  class="btn btn-ghost w-full sm:w-auto"
+                >
+                  Reset Theme
+                </button>
                 <.button class="btn-primary w-full sm:w-auto">{gettext("Save Changes")}</.button>
               </div>
             </.form>

@@ -6,13 +6,28 @@
       </p>
       <h1 class="mt-2 text-3xl font-bold">VPN Servers</h1>
       <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-        Monitor WireGuard capacity, review usage trends, and manage server inventory from one place.
+        Monitor WireGuard access, review usage trends, and manage your server inventory from one place.
       </p>
     </div>
     <a href={~p"/pripyat/vpn/servers/new"} class="btn btn-secondary">
       <.icon name="hero-plus" class="w-5 h-5" /> Add Server
     </a>
   </div>
+
+  <%= if @self_host_server do %>
+    <div class="alert alert-info mb-6">
+      <.icon name="hero-home-modern" class="w-5 h-5" />
+      <div>
+        <h2 class="font-bold">Single-server self-hosted WireGuard</h2>
+        <p class="text-sm mt-1">
+          This node was bootstrapped from `VPN_SELFHOST_*` env vars and is reconciled directly by the app against
+          your local WireGuard interface. Server ID
+          <span class="font-mono">{@self_host_server.id}</span>
+          is only needed for debugging or external integrations.
+        </p>
+      </div>
+    </div>
+  <% end %>
   
 <!-- Stats Cards -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -224,6 +239,10 @@
         <div class="text-center py-12">
           <.icon name="hero-server-stack" class="w-16 h-16 mx-auto mb-4 text-base-content/30" />
           <p class="text-base-content/60">No VPN servers configured</p>
+          <p class="text-sm text-base-content/50 mt-2 max-w-md mx-auto">
+            For a normal one-box install, set `VPN_SELFHOST_PUBLIC_IP` and
+            `VPN_SELFHOST_PUBLIC_KEY` in `.env.production` and restart the app.
+          </p>
           <a href={~p"/pripyat/vpn/servers/new"} class="btn btn-secondary btn-sm mt-4">
             Add First Server
           </a>

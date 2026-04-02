@@ -1167,7 +1167,7 @@
                 <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
                   <div id={stream_id} class="timeline-stream-entry">
                     <.live_component
-                      module={ElektrineWeb.Components.Social.TimelineStreamPost}
+                      module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
                       id={"timeline-stream-post-#{post.id}"}
                       post={post}
                       first_recent_post_id={first_recent_post_id}
@@ -1308,7 +1308,7 @@
                         <p class="text-xs text-error mt-1">{suggestion.reason}</p>
                       </div>
 
-                      <ElektrineWeb.Components.Social.FollowButton.local_follow_button
+                      <ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button
                         id={"suggested-follow-#{suggestion.id}"}
                         user_id={suggestion.id}
                         user_follows={@user_follows}
@@ -1334,7 +1334,7 @@
   <!-- Report Modal -->
   <%= if @show_report_modal && @current_user do %>
     <.live_component
-      module={ElektrineWeb.Components.ReportModal}
+      module={Elektrine.Components.ReportModal}
       id="report-modal"
       reporter_id={@current_user.id}
       reportable_type={@report_type}
@@ -1446,6 +1446,7 @@
   <button
     id="scroll-to-top"
     phx-hook="ScrollToTop"
+    data-scroll-root="timeline-container"
     class="fixed bottom-6 right-6 z-50 btn btn-circle btn-primary opacity-0 pointer-events-none transition-all duration-300"
     aria-label="Scroll to top"
   >

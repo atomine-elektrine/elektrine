@@ -24,9 +24,9 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
   use ElektrineSocialWeb, :controller
 
   alias Elektrine.Accounts
-  alias Elektrine.Accounts.User
   alias Elektrine.Accounts.Blocking
   alias Elektrine.Accounts.Muting
+  alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging.Message
   alias Elektrine.Profiles

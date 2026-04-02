@@ -8,9 +8,9 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{Messaging, Profiles, Repo, Social}
   alias Elektrine.Social.Recommendations
-  alias ElektrineWeb.Components.Social.PostUtilities
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.LemmyPost
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.LemmyPost
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
   @community_feed_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
@@ -395,9 +395,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   def handle_event("search_communities", %{"query" => query}, socket) do
     query = String.trim(query)
 
-    if not Elektrine.Strings.present?(query) do
-      {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
-    else
+    if Elektrine.Strings.present?(query) do
       results =
         Messaging.CommunitySearch.search_communities(query,
           user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
@@ -409,6 +407,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
        |> assign(:search_query, query)
        |> assign(:search_results, results)
        |> assign(:searching, false)}
+    else
+      {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
     end
   end
 
@@ -923,9 +923,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
-    if not Elektrine.Strings.present?(remote_handle) do
-      {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
-    else
+    if Elektrine.Strings.present?(remote_handle) do
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
       lv_pid = self()
 
@@ -937,6 +935,8 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       end)
 
       {:noreply, socket}
+    else
+      {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
     end
   end
 

@@ -145,7 +145,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                 >
                   <.link
                     navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
-                    class="font-medium hover:text-purple-600 transition-colors duration-200 truncate"
+                    class="font-medium hover:text-primary transition-colors duration-200 truncate"
                     phx-click="stop_propagation"
                   >
                     {raw(

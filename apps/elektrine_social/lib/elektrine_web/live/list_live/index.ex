@@ -3,7 +3,7 @@ defmodule ElektrineWeb.ListLive.Index do
 
   alias Elektrine.Social
 
-  import ElektrineWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Platform.ENav
 
   @discover_fetch_limit 50
   @discover_display_limit 20

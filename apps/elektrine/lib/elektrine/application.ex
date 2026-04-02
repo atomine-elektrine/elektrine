@@ -12,6 +12,7 @@ defmodule Elektrine.Application do
     children =
       core_children() ++
         jobs_children() ++
+        vpn_children() ++
         web_children() ++
         mail_children()
 
@@ -93,10 +94,7 @@ defmodule Elektrine.Application do
         Elektrine.DAV.RateLimiter,
         Elektrine.SecurityAlerts.Cache,
         ElektrineWeb.Presence
-      ] ++
-        social_web_children() ++
-        vpn_web_children() ++
-        [ElektrineWeb.Endpoint]
+      ] ++ social_web_children() ++ [ElektrineWeb.Endpoint]
     else
       []
     end
@@ -149,15 +147,28 @@ defmodule Elektrine.Application do
     end
   end
 
-  defp vpn_web_children do
+  defp vpn_children do
     if Modules.compiled?(:vpn) and Modules.enabled?(:vpn) do
-      [
+      base_children = [
         Elektrine.VPN.PeerCache,
         Elektrine.VPN.HealthMonitor,
         Elektrine.VPN.StatsAggregator
       ]
+
+      if self_host_vpn_node?() do
+        base_children ++ [Elektrine.VPN.SelfHostedServer, Elektrine.VPN.SelfHostedReconciler]
+      else
+        base_children
+      end
     else
       []
+    end
+  end
+
+  defp self_host_vpn_node? do
+    case System.get_env("VPN_SELFHOST_NODE") do
+      value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
+      _ -> false
     end
   end
 end

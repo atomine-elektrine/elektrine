@@ -28,8 +28,8 @@ defmodule Elektrine.DNS.ZoneCache do
     end
   end
 
-  def refresh do
-    GenServer.call(__MODULE__, :refresh)
+  def refresh(opts \\ []) do
+    GenServer.call(__MODULE__, {:refresh, opts})
   end
 
   @impl true
@@ -47,8 +47,8 @@ defmodule Elektrine.DNS.ZoneCache do
   end
 
   @impl true
-  def handle_call(:refresh, _from, state) do
-    {:reply, :ok, refresh_cache(state)}
+  def handle_call({:refresh, opts}, _from, state) do
+    {:reply, :ok, refresh_cache(state, opts)}
   end
 
   @impl true
@@ -57,18 +57,21 @@ defmodule Elektrine.DNS.ZoneCache do
     {:noreply, refresh_cache(state)}
   end
 
-  defp refresh_cache(state) do
+  defp refresh_cache(state, opts \\ []) do
     :ets.delete_all_objects(@table)
+
+    repo_opts = Keyword.take(opts, [:caller])
 
     try do
       Zone
       |> preload(:records)
-      |> Repo.all()
+      |> Repo.all(repo_opts)
       |> Enum.each(fn zone ->
         :ets.insert(@table, {String.downcase(zone.domain), zone})
       end)
     rescue
       Postgrex.Error -> :ok
+      DBConnection.OwnershipError -> :ok
     end
 
     state

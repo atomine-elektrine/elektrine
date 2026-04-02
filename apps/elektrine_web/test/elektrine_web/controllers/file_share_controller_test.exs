@@ -37,6 +37,8 @@ defmodule ElektrineWeb.FileShareControllerTest do
              "attachment; filename=\"hello.txt\""
            ]
 
+    assert get_resp_header(conn, "cache-control") == ["public, max-age=300"]
+
     assert Repo.get!(Files.FileShare, share.id).download_count == 1
   end
 
@@ -48,6 +50,41 @@ defmodule ElektrineWeb.FileShareControllerTest do
 
     conn = post(conn, ~p"/files/share/#{protected_share.token}", %{"password" => "secret-pass"})
     assert redirected_to(conn) == ~p"/files/share/#{protected_share.token}"
+
+    conn =
+      build_conn()
+      |> init_test_session(%{"file_share_access" => [protected_share.token]})
+      |> get(~p"/files/share/#{protected_share.token}")
+
+    assert get_resp_header(conn, "cache-control") == ["private, no-store"]
+  end
+
+  test "share password throttling resists ipv6 rotation within a /64", %{
+    conn: conn,
+    user: user,
+    stored_file: file
+  } do
+    {:ok, protected_share} = Files.create_share(user.id, file.id, %{password: "secret-pass"})
+
+    attempts = [1, 2, 3, 4, 5]
+
+    Enum.each(attempts, fn host_part ->
+      conn =
+        conn
+        |> recycle()
+        |> Map.put(:remote_ip, {0x2001, 0x0DB8, 0x1234, 0x5678, 0, 0, 0, host_part})
+        |> post(~p"/files/share/#{protected_share.token}", %{"password" => "wrong-pass"})
+
+      assert response(conn, 401) =~ "Password was incorrect"
+    end)
+
+    conn =
+      conn
+      |> recycle()
+      |> Map.put(:remote_ip, {0x2001, 0x0DB8, 0x1234, 0x5678, 0, 0, 0, 99})
+      |> post(~p"/files/share/#{protected_share.token}", %{"password" => "wrong-pass"})
+
+    assert response(conn, 429) =~ "Too many attempts"
   end
 
   test "renders inline for view-mode shares", %{conn: conn, user: user} do
@@ -60,6 +97,22 @@ defmodule ElektrineWeb.FileShareControllerTest do
 
     assert response(conn, 200) == "view me"
     assert get_resp_header(conn, "content-disposition") == []
+  end
+
+  test "forces html shares to download even in view mode", %{conn: conn, user: user} do
+    upload = temp_upload("hello.html", "<script>alert(1)</script>")
+    upload = %{upload | content_type: "text/html"}
+
+    {:ok, html_file} = Files.upload_file(user, "shared", upload)
+    {:ok, view_share} = Files.create_share(user.id, html_file.id, %{access_level: "view"})
+
+    conn = get(conn, ~p"/files/share/#{view_share.token}")
+
+    assert response(conn, 200) == "<script>alert(1)</script>"
+
+    assert get_resp_header(conn, "content-disposition") == [
+             "attachment; filename=\"hello.html\""
+           ]
   end
 
   test "returns 404 for revoked share links", %{conn: conn, user: user, share: share} do

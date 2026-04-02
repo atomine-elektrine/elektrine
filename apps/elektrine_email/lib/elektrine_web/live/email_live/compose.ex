@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.EmailLive.Compose do
   use ElektrineEmailWeb, :live_view
   import ElektrineWeb.EmailLive.EmailHelpers
-  import ElektrineWeb.Components.Platform.ElektrineNav
+  import ElektrineEmailWeb.Components.Platform.ElektrineNav
   import Ecto.Query
   alias Elektrine.Constants
   alias Elektrine.Email

@@ -2,7 +2,7 @@ defmodule ElektrineWeb.VPNLive.Index do
   use ElektrineVPNWeb, :live_view
 
   alias Elektrine.VPN
-  import ElektrineWeb.Components.Platform.ElektrineNav
+  import ElektrineVPNWeb.Components.Platform.ElektrineNav
 
   @impl true
   def mount(_params, session, socket) do

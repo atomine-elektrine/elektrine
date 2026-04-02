@@ -14,26 +14,27 @@ defmodule ElektrineWeb.OIDCController do
   end
 
   def authorize(conn, params) do
-    with {:ok, request} <- authorization_request(params) do
-      case conn.assigns[:current_user] do
-        nil ->
-          conn
-          |> put_session(:user_return_to, current_request_path(conn))
-          |> redirect(to: ~p"/login")
+    case authorization_request(params) do
+      {:ok, request} ->
+        case conn.assigns[:current_user] do
+          nil ->
+            conn
+            |> put_session(:user_return_to, current_request_path(conn))
+            |> redirect(to: ~p"/login")
 
-        user ->
-          if request.app.trusted do
-            redirect_with_code(conn, request, user)
-          else
-            render(conn, :authorize,
-              app: request.app,
-              scopes: request.scopes,
-              params: request.params,
-              current_user: user
-            )
-          end
-      end
-    else
+          user ->
+            if request.app.trusted do
+              redirect_with_code(conn, request, user)
+            else
+              render(conn, :authorize,
+                app: request.app,
+                scopes: request.scopes,
+                params: request.params,
+                current_user: user
+              )
+            end
+        end
+
       {:error, redirect_uri, error, state} when is_binary(redirect_uri) ->
         redirect(conn, external: redirect_error_uri(redirect_uri, error, state))
 
@@ -45,11 +46,12 @@ defmodule ElektrineWeb.OIDCController do
   end
 
   def approve(conn, %{"decision" => "deny"} = params) do
-    with {:ok, request} <- authorization_request(params) do
-      redirect(conn,
-        external: redirect_error_uri(request.redirect_uri, "access_denied", request.state)
-      )
-    else
+    case authorization_request(params) do
+      {:ok, request} ->
+        redirect(conn,
+          external: redirect_error_uri(request.redirect_uri, "access_denied", request.state)
+        )
+
       {:error, :invalid_request} ->
         conn
         |> put_status(:bad_request)
@@ -208,6 +210,14 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
+  defp validate_pkce(%{"code_challenge" => code_challenge} = params) do
+    if blank_to_nil(code_challenge) do
+      invalid_request_error(params)
+    else
+      :ok
+    end
+  end
+
   defp validate_pkce(%{
          "code_challenge_method" => _invalid,
          "redirect_uri" => redirect_uri,
@@ -215,7 +225,7 @@ defmodule ElektrineWeb.OIDCController do
        }),
        do: invalid_request_error(%{"redirect_uri" => redirect_uri, "state" => state})
 
-  defp validate_pkce(_params), do: :ok
+  defp validate_pkce(_params), do: invalid_request_error(%{})
 
   defp invalid_scope_error(params) do
     redirect_uri = params["redirect_uri"] || ""

@@ -1,20 +1,20 @@
 defmodule ElektrineWeb.RemotePostLive.Show do
   use ElektrineSocialWeb, :live_view
 
+  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging
   alias Elektrine.Social
-  alias ElektrineWeb.Components.Social.PostUtilities
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.{Interactions, SurfaceHelpers, Threading}
 
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.HtmlHelpers
-  import ElektrineWeb.Components.Loaders.Skeleton
+  import Elektrine.Components.Loaders.Skeleton
 
   @submitted_preview_poll_attempts 10
   @submitted_preview_poll_interval_ms 1_000
@@ -1020,7 +1020,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
             </div>
           <% end %>
 
-          <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+          <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
             wrapper_class=""
             content={@reply_content}
             textarea_id="remote-post-reply-textarea"
@@ -3534,9 +3534,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if not Elektrine.Strings.present?(content) do
-        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-      else
+      if Elektrine.Strings.present?(content) do
         user = socket.assigns.current_user
         comment_id = socket.assigns.replying_to_comment_id
 
@@ -3604,6 +3602,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to process comment")}
         end
+      else
+        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       end
     end
   end
@@ -3620,9 +3620,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to reply")}
     else
-      if not Elektrine.Strings.present?(content) do
-        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-      else
+      if Elektrine.Strings.present?(content) do
         user = socket.assigns.current_user
         post = socket.assigns.post
 
@@ -3750,6 +3748,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
               {:noreply, put_flash(socket, :error, "Failed to process remote post")}
           end
         end
+      else
+        {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
       end
     end
   end

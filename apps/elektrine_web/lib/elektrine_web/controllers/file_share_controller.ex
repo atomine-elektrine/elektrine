@@ -1,7 +1,9 @@
 defmodule ElektrineWeb.FileShareController do
   use ElektrineWeb, :controller
 
+  alias Elektrine.Auth.RateLimiter
   alias Elektrine.Files
+  alias ElektrineWeb.ClientIP
 
   def show(conn, %{"token" => token}) do
     with %Files.FileShare{} = share <- Files.get_active_share(token),
@@ -22,12 +24,28 @@ defmodule ElektrineWeb.FileShareController do
   def authorize(conn, %{"token" => token, "password" => password}) do
     case Files.get_active_share(token) do
       %Files.FileShare{} = share ->
-        if Files.verify_share_password(share, password) do
-          conn
-          |> put_session("file_share_access", grant_token_access(conn, token))
-          |> redirect(to: ~p"/files/share/#{token}")
-        else
-          render_password_prompt(conn, token, 401, "Password was incorrect")
+        rate_limit_key = share_rate_limit_key(conn, token)
+
+        case RateLimiter.check_rate_limit(rate_limit_key) do
+          {:ok, :allowed} ->
+            if Files.verify_share_password(share, password) do
+              RateLimiter.record_successful_attempt(rate_limit_key)
+
+              conn
+              |> put_session("file_share_access", grant_token_access(conn, token))
+              |> redirect(to: ~p"/files/share/#{token}")
+            else
+              RateLimiter.record_failed_attempt(rate_limit_key)
+              render_password_prompt(conn, token, 401, "Password was incorrect")
+            end
+
+          {:error, {:rate_limited, retry_after, _reason}} ->
+            render_password_prompt(
+              conn,
+              token,
+              429,
+              "Too many attempts. Try again in #{retry_after} seconds."
+            )
         end
 
       _ ->
@@ -38,7 +56,7 @@ defmodule ElektrineWeb.FileShareController do
   defp deliver_share(conn, share, file, binary) do
     conn =
       conn
-      |> put_resp_header("cache-control", "public, max-age=300")
+      |> put_resp_header("cache-control", share_cache_control(share))
       |> put_resp_header("x-content-type-options", "nosniff")
 
     if Files.share_inline_view?(share) do
@@ -62,8 +80,31 @@ defmodule ElektrineWeb.FileShareController do
     (get_session(conn, "file_share_access", []) ++ [token]) |> Enum.uniq()
   end
 
+  defp share_rate_limit_key(conn, token) do
+    "file_share:" <> token <> ":" <> ClientIP.rate_limit_ip(conn)
+  end
+
+  defp share_cache_control(share) do
+    if Files.share_requires_password?(share) do
+      "private, no-store"
+    else
+      "public, max-age=300"
+    end
+  end
+
   defp render_password_prompt(conn, token, status \\ 200, error_message \\ nil) do
     csrf_token = Plug.CSRFProtection.get_csrf_token()
+    page_bg = Elektrine.Theme.default_value("color_base_100")
+    text_color = Elektrine.Theme.default_value("color_base_content")
+    card_bg = Elektrine.Theme.rgba(Elektrine.Theme.default_value("color_base_200"), 0.92)
+    card_border = Elektrine.Theme.rgba(Elektrine.Theme.inverse_text_color(), 0.08)
+    card_shadow = Elektrine.Theme.rgba(Elektrine.Theme.dark_text_color(), 0.35)
+    input_border = Elektrine.Theme.rgba(Elektrine.Theme.inverse_text_color(), 0.12)
+    input_bg = Elektrine.Theme.default_value("color_base_200")
+    button_from = Elektrine.Theme.default_value("color_primary")
+    button_to = Elektrine.Theme.default_value("color_accent")
+    button_text = Elektrine.Theme.inverse_text_color()
+    error_color = Elektrine.Theme.rgba(Elektrine.Theme.default_value("color_error"), 0.75)
 
     body = """
     <!DOCTYPE html>
@@ -73,13 +114,13 @@ defmodule ElektrineWeb.FileShareController do
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
         <title>Protected Share</title>
         <style>
-          body { font-family: Inter, system-ui, sans-serif; background: #111827; color: #f9fafb; margin: 0; min-height: 100vh; display: grid; place-items: center; }
-          .card { width: min(28rem, calc(100vw - 2rem)); background: rgba(31, 41, 55, 0.92); border: 1px solid rgba(255,255,255,0.08); border-radius: 1.5rem; padding: 2rem; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
+          body { font-family: Inter, system-ui, sans-serif; background: #{page_bg}; color: #{text_color}; margin: 0; min-height: 100vh; display: grid; place-items: center; }
+          .card { width: min(28rem, calc(100vw - 2rem)); background: #{card_bg}; border: 1px solid #{card_border}; border-radius: 1.5rem; padding: 2rem; box-shadow: 0 20px 60px #{card_shadow}; }
           h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
-          p { color: #d1d5db; line-height: 1.6; }
-          input { width: 100%; margin-top: 1rem; border-radius: 0.9rem; border: 1px solid rgba(255,255,255,0.12); background: #0f172a; color: white; padding: 0.9rem 1rem; box-sizing: border-box; }
-          button { margin-top: 1rem; width: 100%; border: 0; border-radius: 0.9rem; background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; padding: 0.9rem 1rem; font-weight: 600; cursor: pointer; }
-          .error { color: #fca5a5; margin-top: 0.75rem; }
+          p { color: #{text_color}; line-height: 1.6; opacity: 0.84; }
+          input { width: 100%; margin-top: 1rem; border-radius: 0.9rem; border: 1px solid #{input_border}; background: #{input_bg}; color: #{text_color}; padding: 0.9rem 1rem; box-sizing: border-box; }
+          button { margin-top: 1rem; width: 100%; border: 0; border-radius: 0.9rem; background: linear-gradient(135deg, #{button_from}, #{button_to}); color: #{button_text}; padding: 0.9rem 1rem; font-weight: 600; cursor: pointer; }
+          .error { color: #{error_color}; margin-top: 0.75rem; }
         </style>
       </head>
       <body>

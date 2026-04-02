@@ -15,11 +15,29 @@ env:
   MIX_ENV: test
   ELIXIR_VERSION: '1.19.4'
   OTP_VERSION: '28'
+  DB_HOST: localhost
+  DB_NAME: elektrine_test
+  DB_USER: postgres
+  DB_PASSWORD: postgres
 
 jobs:
   quality_checks:
     name: Code Quality (Format + Compile)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: elektrine_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d elektrine_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v6
@@ -54,3 +72,9 @@ jobs:
 
       - name: Compile with warnings treated as errors
         run: mix compile --warnings-as-errors
+
+      - name: Run Credo
+        run: mix credo --strict
+
+      - name: Run test suite
+        run: mix test

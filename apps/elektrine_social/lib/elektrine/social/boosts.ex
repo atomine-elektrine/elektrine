@@ -165,9 +165,7 @@ defmodule Elektrine.Social.Boosts do
     _quoted = Repo.get!(Message, quoted_message_id)
 
     # Validate content is not empty
-    if not Elektrine.Strings.present?(content) do
-      {:error, :empty_quote}
-    else
+    if Elektrine.Strings.present?(content) do
       visibility = Keyword.get(opts, :visibility, "public")
 
       # Get or create user's timeline conversation (same as regular posts)
@@ -212,6 +210,8 @@ defmodule Elektrine.Social.Boosts do
         {:error, changeset} ->
           {:error, changeset}
       end
+    else
+      {:error, :empty_quote}
     end
   end
 

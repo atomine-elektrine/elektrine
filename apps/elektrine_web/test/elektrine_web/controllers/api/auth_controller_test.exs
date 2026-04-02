@@ -2,8 +2,8 @@ defmodule ElektrineWeb.API.AuthControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Accounts
-  alias Elektrine.AccountsFixtures
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.AccountsFixtures
   alias ElektrineWeb.Plugs.APIAuth
 
   describe "POST /api/auth/login" do

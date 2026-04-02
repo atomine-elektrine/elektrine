@@ -59,10 +59,10 @@ defmodule Elektrine.Messaging.Server do
           |> String.replace(~r/javascript:/i, "")
           |> String.trim()
 
-        if not Elektrine.Strings.present?(cleaned_name) do
-          add_error(changeset, :name, "cannot be empty")
-        else
+        if Elektrine.Strings.present?(cleaned_name) do
           put_change(changeset, :name, cleaned_name)
+        else
+          add_error(changeset, :name, "cannot be empty")
         end
 
       _ ->

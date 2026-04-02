@@ -524,20 +524,22 @@ defmodule Elektrine.Subscriptions do
             checkout
 
           _ ->
-            with {:ok, updated_checkout} <-
-                   checkout
-                   |> RegistrationCheckout.fulfill_changeset(%{
-                     stripe_customer_id: stripe_field(session, :customer),
-                     stripe_payment_intent_id: stripe_field(session, :payment_intent),
-                     customer_email: registration_customer_email(session),
-                     fulfilled_at:
-                       from_unix(stripe_field(session, :created)) ||
-                         DateTime.utc_now() |> DateTime.truncate(:second),
-                     status: "fulfilled"
-                   })
-                   |> Repo.update() do
-              Repo.preload(updated_checkout, :invite_code)
-            else
+            case
+
+            checkout
+            |> RegistrationCheckout.fulfill_changeset(%{
+              stripe_customer_id: stripe_field(session, :customer),
+              stripe_payment_intent_id: stripe_field(session, :payment_intent),
+              customer_email: registration_customer_email(session),
+              fulfilled_at:
+                from_unix(stripe_field(session, :created)) ||
+                  DateTime.utc_now() |> DateTime.truncate(:second),
+              status: "fulfilled"
+            })
+            |> Repo.update do
+              {:ok, updated_checkout} ->
+                Repo.preload(updated_checkout, :invite_code)
+
               {:error, reason} ->
                 Repo.rollback(reason)
             end

@@ -7,9 +7,9 @@ defmodule Elektrine.OIDC do
   alias Elektrine.ActivityPub.SigningKey, as: ActivityPubSigningKey
   alias Elektrine.Domains
   alias Elektrine.EmailAddresses
-  alias Elektrine.OIDC.SigningKey
   alias Elektrine.OAuth.Scopes
   alias Elektrine.OAuth.Token
+  alias Elektrine.OIDC.SigningKey
   alias Elektrine.Uploads
 
   @openid_scopes ["openid", "profile", "email"]

@@ -45,7 +45,7 @@ defmodule Elektrine.Calendar do
           user_id: user_id,
           name: "Default",
           is_default: true,
-          color: "#3b82f6"
+          color: Elektrine.Theme.calendar_default_color()
         })
 
       calendar ->

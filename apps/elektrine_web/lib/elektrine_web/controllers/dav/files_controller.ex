@@ -144,14 +144,14 @@ defmodule ElektrineWeb.DAV.FilesController do
     if user.username != username do
       ResponseHelpers.send_forbidden(conn)
     else
-      cond do
-        file = Files.get_file_by_path(user.id, path) ->
+      case Files.get_file_by_path(user.id, path) do
+        file when not is_nil(file) ->
           case Files.delete_file(user.id, file.id) do
             :ok -> ResponseHelpers.send_no_content(conn)
             {:error, _reason} -> send_resp(conn, 500, "Failed to delete file")
           end
 
-        true ->
+        _ ->
           case Files.delete_folder(user.id, path) do
             :ok -> ResponseHelpers.send_no_content(conn)
             {:error, _reason} -> ResponseHelpers.send_not_found(conn)
@@ -169,8 +169,8 @@ defmodule ElektrineWeb.DAV.FilesController do
     else
       with [destination] <- get_req_header(conn, "destination"),
            {:ok, destination_path} <- parse_destination(destination, username) do
-        cond do
-          file = Files.get_file_by_path(user.id, source_path) ->
+        case Files.get_file_by_path(user.id, source_path) do
+          file when not is_nil(file) ->
             case Files.rename_file(user.id, file.id, Path.basename(destination_path)) do
               {:ok, renamed} ->
                 case Files.move_file(
@@ -186,7 +186,7 @@ defmodule ElektrineWeb.DAV.FilesController do
                 send_resp(conn, 409, "Could not move file")
             end
 
-          true ->
+          _ ->
             case Files.move_folder(
                    user.id,
                    source_path,

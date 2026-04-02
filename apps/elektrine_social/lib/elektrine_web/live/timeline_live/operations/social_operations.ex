@@ -79,9 +79,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
   end
 
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
-    if not Elektrine.Strings.present?(remote_handle) do
-      {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
-    else
+    if Elektrine.Strings.present?(remote_handle) do
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
       lv_pid = self()
 
@@ -93,6 +91,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.SocialOperations do
       end)
 
       {:noreply, socket}
+    else
+      {:noreply, assign(socket, remote_user_preview: nil, remote_user_loading: false)}
     end
   end
 

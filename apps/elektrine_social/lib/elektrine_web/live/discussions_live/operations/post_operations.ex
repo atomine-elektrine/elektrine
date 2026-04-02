@@ -549,9 +549,7 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
         Messaging.add_member_to_conversation(community.id, user_id, "member")
       end
 
-      if not Elektrine.Strings.present?(content) do
-        {:noreply, notify_error(socket, "Reply cannot be empty")}
-      else
+      if Elektrine.Strings.present?(content) do
         case Messaging.create_text_message(
                community.id,
                user_id,
@@ -655,6 +653,8 @@ defmodule ElektrineWeb.DiscussionsLive.Operations.PostOperations do
           {:error, _error} ->
             {:noreply, notify_error(socket, "Failed to post reply")}
         end
+      else
+        {:noreply, notify_error(socket, "Reply cannot be empty")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to reply")}

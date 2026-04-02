@@ -287,9 +287,7 @@ defmodule Elektrine.ActivityPub do
   def local_username_from_uri(uri) when is_binary(uri) do
     normalized_uri = String.trim(uri)
 
-    if not Elektrine.Strings.present?(normalized_uri) do
-      {:error, :invalid_uri}
-    else
+    if Elektrine.Strings.present?(normalized_uri) do
       case URI.parse(normalized_uri) do
         %URI{host: host, path: path} when is_binary(host) and is_binary(path) ->
           if Elektrine.Domains.local_activitypub_domain?(String.downcase(host)) do
@@ -310,6 +308,8 @@ defmodule Elektrine.ActivityPub do
         _ ->
           {:error, :invalid_uri}
       end
+    else
+      {:error, :invalid_uri}
     end
   end
 

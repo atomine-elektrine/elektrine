@@ -315,9 +315,7 @@ defmodule ElektrineWeb.API.ExtEmailController do
   defp build_outbound_email(mailbox, params) do
     to = Map.get(params, "to")
 
-    if not Elektrine.Strings.present?(to) do
-      {:error, :missing_to}
-    else
+    if Elektrine.Strings.present?(to) do
       {:ok,
        %{
          from: mailbox.email,
@@ -334,6 +332,8 @@ defmodule ElektrineWeb.API.ExtEmailController do
          is_nil(value) || (is_binary(value) and not Elektrine.Strings.present?(value))
        end)
        |> Map.new()}
+    else
+      {:error, :missing_to}
     end
   end
 

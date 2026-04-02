@@ -1,11 +1,11 @@
 defmodule ElektrineWeb.TimelineLive.Post do
   use ElektrineSocialWeb, :live_view
-  import ElektrineWeb.Components.Social.ContentJourney
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.EmbeddedPost
+  import ElektrineSocialWeb.Components.Social.ContentJourney
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.HtmlHelpers
-  import ElektrineWeb.Components.User.Avatar
-  import ElektrineWeb.Components.User.UsernameEffects
+  import Elektrine.Components.User.Avatar
+  import Elektrine.Components.User.UsernameEffects
   use Phoenix.Component
 
   alias Elektrine.Messaging.Messages, as: MessagingMessages
@@ -320,7 +320,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
                 <% end %>
               </div>
 
-              <ElektrineWeb.Components.Social.RemotePostShared.inline_reply_form
+              <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
                 wrapper_class=""
                 content={@reply_content}
                 hidden_fields={[{"reply_to_id", @reply.id}]}
@@ -474,9 +474,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
   end
 
   def handle_event("create_reply", %{"content" => content} = params, socket) do
-    if not Elektrine.Strings.present?(content) do
-      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
-    else
+    if Elektrine.Strings.present?(content) do
       # Determine what we're replying to - either a specific reply or the main post
       reply_to_id =
         case Map.get(params, "reply_to_id") do
@@ -588,6 +586,8 @@ defmodule ElektrineWeb.TimelineLive.Post do
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to post reply")}
       end
+    else
+      {:noreply, put_flash(socket, :error, "Reply cannot be empty")}
     end
   end
 

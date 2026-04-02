@@ -117,7 +117,13 @@ defmodule ElektrineWeb.Admin.ChatMessagesControllerTest do
   end
 
   defp log_in_as(conn, user) do
-    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", user.id)
+    token =
+      Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+        "user_id" => user.id,
+        "password_changed_at" =>
+          user.last_password_change && DateTime.to_unix(user.last_password_change)
+      })
+
     now = System.system_time(:second)
 
     conn

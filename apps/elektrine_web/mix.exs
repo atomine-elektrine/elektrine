@@ -40,6 +40,8 @@ defmodule ElektrineWeb.MixProject do
     [
       ElektrinePasswordManagerWeb.API.VaultController,
       ElektrinePasswordManagerWeb.VaultLive,
+      Phoenix.LiveReloader,
+      Phoenix.LiveReloader.Socket,
       ElektrineWeb.ActivityPubController,
       ElektrineWeb.Admin.AliasesController,
       ElektrineWeb.Admin.ChatMessagesController,
@@ -108,7 +110,8 @@ defmodule ElektrineWeb.MixProject do
 
   defp deps do
     [
-      internal_dep(:elektrine)
+      internal_dep(:elektrine),
+      internal_dep(:elektrine_password_manager)
     ]
   end
 

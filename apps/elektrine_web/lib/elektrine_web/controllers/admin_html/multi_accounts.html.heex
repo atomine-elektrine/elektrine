@@ -65,12 +65,12 @@
 
         <div class="space-y-4">
           <%= for group <- @multi_account_data.registration_ip_groups do %>
-            <div class="border border-orange-200 rounded-lg p-4 bg-orange-50 dark:bg-orange-900/20 dark:border-orange-800">
+            <div class="border border-warning/30 rounded-lg p-4 bg-warning/10">
               <div class="flex items-start justify-between mb-3 gap-4">
                 <div class="flex items-start gap-2 min-w-0 flex-1">
                   <.icon
                     name="hero-globe-alt"
-                    class="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5"
+                    class="w-5 h-5 text-warning flex-shrink-0 mt-0.5"
                   /> <span class="font-medium text-sm font-semibold break-all">{group.ip}</span>
                   <div class="badge badge-warning flex-shrink-0">{group.count} users</div>
                 </div>
@@ -116,7 +116,7 @@
                                   />
                                 </div>
                               <% else %>
-                                <div class="bg-orange-500 text-white rounded-lg w-8 h-8">
+                                <div class="bg-warning text-warning-content rounded-lg w-8 h-8">
                                   <span class="text-xs font-bold flex items-center justify-center h-full">
                                     {String.first(user.username) |> String.upcase()}
                                   </span>
@@ -158,7 +158,7 @@
                               </div>
                             <% end %>
                           <% else %>
-                            <span class="text-gray-400">Never</span>
+                            <span class="text-base-content/45">Never</span>
                           <% end %>
                         </td>
 
@@ -239,14 +239,14 @@
     <div class="card panel-card">
       <div class="card-body text-center">
         <%= if @search_query != "" do %>
-          <.icon name="hero-magnifying-glass" class="w-16 h-16 text-gray-400 mx-auto mb-4" />
+          <.icon name="hero-magnifying-glass" class="w-16 h-16 text-base-content/40 mx-auto mb-4" />
           <h2 class="text-xl font-semibold mb-2">No Results Found</h2>
 
           <p class="opacity-70">
             No multi-account activity found for "<strong>{@search_query}</strong>".
           </p>
         <% else %>
-          <.icon name="hero-check-circle" class="w-16 h-16 text-green-500 mx-auto mb-4" />
+          <.icon name="hero-check-circle" class="w-16 h-16 text-success mx-auto mb-4" />
           <h2 class="text-xl font-semibold mb-2">No Multi-Account Activity Detected</h2>
 
           <p class="opacity-70">

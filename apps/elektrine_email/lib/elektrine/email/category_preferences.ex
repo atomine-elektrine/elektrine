@@ -17,9 +17,7 @@ defmodule Elektrine.Email.CategoryPreferences do
     sender_email = extract_email(from_email)
     sender_domain = extract_domain(sender_email)
 
-    if not Elektrine.Strings.present?(sender_email) do
-      nil
-    else
+    if Elektrine.Strings.present?(sender_email) do
       case get_sender_preference(user_id, sender_email) do
         %CategoryPreference{} = preference ->
           %{
@@ -46,6 +44,8 @@ defmodule Elektrine.Email.CategoryPreferences do
               nil
           end
       end
+    else
+      nil
     end
   end
 

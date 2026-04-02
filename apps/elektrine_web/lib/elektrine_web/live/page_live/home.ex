@@ -62,7 +62,10 @@ defmodule ElektrineWeb.PageLive.Home do
     </script>
 
     <div class="relative min-h-screen overflow-hidden text-base-content">
-      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(138,124,194,0.1),transparent_34%),radial-gradient(circle_at_82%_18%,rgba(199,121,107,0.08),transparent_20%)]">
+      <div
+        class="pointer-events-none absolute inset-0"
+        style="background: radial-gradient(circle at top, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 34%), radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--color-secondary) 8%, transparent), transparent 20%);"
+      >
       </div>
 
       <div class="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
@@ -81,7 +84,7 @@ defmodule ElektrineWeb.PageLive.Home do
                     Doctrine
                   </div>
                   <div class="space-y-4">
-                    <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
+                    <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
                       Software for sovereignty.
                     </h1>
                     <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
@@ -161,17 +164,17 @@ defmodule ElektrineWeb.PageLive.Home do
                   <div class="space-y-3">
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
                       <div class="text-xs uppercase tracking-[0.18em] opacity-50">Ownership</div>
-                      <div class="mt-1 text-sm font-medium text-white">Host it yourself</div>
+                      <div class="mt-1 text-sm font-medium text-base-content">Host it yourself</div>
                     </div>
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
                       <div class="text-xs uppercase tracking-[0.18em] opacity-50">Composition</div>
-                      <div class="mt-1 text-sm font-medium text-white">
+                      <div class="mt-1 text-sm font-medium text-base-content">
                         Compose only what you need
                       </div>
                     </div>
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
                       <div class="text-xs uppercase tracking-[0.18em] opacity-50">Identity</div>
-                      <div class="mt-1 text-sm font-medium text-white">
+                      <div class="mt-1 text-sm font-medium text-base-content">
                         Accounts and domains stay yours
                       </div>
                     </div>
@@ -191,7 +194,7 @@ defmodule ElektrineWeb.PageLive.Home do
                             <.icon name={module.icon} class="h-4 w-4 opacity-80" />
                           </div>
                           <div>
-                            <p class="text-sm font-medium text-white">{module.name}</p>
+                            <p class="text-sm font-medium text-base-content">{module.name}</p>
                             <p class="text-xs uppercase tracking-[0.18em] opacity-50">
                               {module.detail}
                             </p>
@@ -211,7 +214,7 @@ defmodule ElektrineWeb.PageLive.Home do
             <%= for stat <- home_stats(@stats, @federation, @sys) do %>
               <div class="rounded-lg border border-base-300 bg-base-200/70 px-4 py-3">
                 <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
-                <p class="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                <p class="mt-2 text-2xl font-semibold text-base-content">{stat.value}</p>
               </div>
             <% end %>
           </div>

@@ -3,8 +3,8 @@ defmodule Elektrine.DNS.ManagedRecords do
 
   import Ecto.Query, warn: false
 
-  alias Elektrine.DNS.Record
   alias Elektrine.DNS.MailSecurity
+  alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
   alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
@@ -50,18 +50,19 @@ defmodule Elektrine.DNS.ManagedRecords do
               end
             end)
 
-            Enum.reduce(desired, MapSet.new(), fn attrs, adopted_ids ->
-              record =
-                Repo.get_by(Record, zone_id: zone.id, managed_key: attrs.managed_key) ||
-                  adoptable_record(zone.id, attrs, adopted_ids) || %Record{}
+            _adopted_ids =
+              Enum.reduce(desired, MapSet.new(), fn attrs, adopted_ids ->
+                record =
+                  Repo.get_by(Record, zone_id: zone.id, managed_key: attrs.managed_key) ||
+                    adoptable_record(zone.id, attrs, adopted_ids) || %Record{}
 
-              updated =
-                record
-                |> Record.changeset(Map.merge(attrs, %{zone_id: zone.id}))
-                |> Repo.insert_or_update!()
+                updated =
+                  record
+                  |> Record.changeset(Map.merge(attrs, %{zone_id: zone.id}))
+                  |> Repo.insert_or_update!()
 
-              if record.id, do: MapSet.put(adopted_ids, updated.id), else: adopted_ids
-            end)
+                if record.id, do: MapSet.put(adopted_ids, updated.id), else: adopted_ids
+              end)
 
             Repo.update!(
               ZoneServiceConfig.changeset(config, %{

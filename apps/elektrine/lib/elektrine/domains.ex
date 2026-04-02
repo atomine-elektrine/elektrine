@@ -90,10 +90,10 @@ defmodule Elektrine.Domains do
   def default_profile_url_for_handle(handle) when is_binary(handle) do
     normalized_handle = String.trim(handle)
 
-    if not Elektrine.Strings.present?(normalized_handle) do
-      nil
-    else
+    if Elektrine.Strings.present?(normalized_handle) do
       "https://#{normalized_handle}.#{default_profile_domain()}"
+    else
+      nil
     end
   end
 
@@ -105,12 +105,12 @@ defmodule Elektrine.Domains do
   def profile_urls_for_handle(handle) when is_binary(handle) do
     normalized_handle = String.trim(handle)
 
-    if not Elektrine.Strings.present?(normalized_handle) do
-      []
-    else
+    if Elektrine.Strings.present?(normalized_handle) do
       configured_profile_base_domains()
       |> Enum.map(&"https://#{normalized_handle}.#{&1}")
       |> Enum.uniq()
+    else
+      []
     end
   end
 
@@ -253,11 +253,11 @@ defmodule Elektrine.Domains do
   def local_addresses_for_username(username) when is_binary(username) do
     normalized_username = String.trim(username)
 
-    if not Elektrine.Strings.present?(normalized_username) do
-      []
-    else
+    if Elektrine.Strings.present?(normalized_username) do
       supported_email_domains()
       |> Enum.map(&"#{normalized_username}@#{&1}")
+    else
+      []
     end
   end
 
@@ -444,9 +444,7 @@ defmodule Elektrine.Domains do
       |> String.trim()
       |> String.trim_leading("@")
 
-    if not Elektrine.Strings.present?(clean_handle) do
-      nil
-    else
+    if Elektrine.Strings.present?(clean_handle) do
       case profile_custom_domain_for_host(host) do
         %{domain: domain} ->
           "https://#{domain}"
@@ -455,6 +453,8 @@ defmodule Elektrine.Domains do
           base_domain = profile_base_domain_for_host(host) || primary_profile_domain()
           "https://#{URI.encode_www_form(clean_handle)}.#{base_domain}"
       end
+    else
+      nil
     end
   end
 
@@ -478,10 +478,10 @@ defmodule Elektrine.Domains do
   def profile_custom_domain_for_host(host) when is_binary(host) do
     normalized_host = normalize_host(host)
 
-    if not Elektrine.Strings.present?(normalized_host) do
-      nil
-    else
+    if Elektrine.Strings.present?(normalized_host) do
       maybe_profile_custom_domains(:get_verified_custom_domain_for_host, [normalized_host])
+    else
+      nil
     end
   end
 

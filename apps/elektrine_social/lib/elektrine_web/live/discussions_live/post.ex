@@ -1,13 +1,13 @@
 defmodule ElektrineWeb.DiscussionsLive.Post do
   use ElektrineSocialWeb, :live_view
   import Ecto.Query
-  import ElektrineWeb.Components.Social.ContentJourney
-  import ElektrineWeb.Components.Social.Poll
-  import ElektrineWeb.Components.Social.PostActions
-  import ElektrineWeb.Components.User.UsernameEffects
+  import ElektrineSocialWeb.Components.Social.ContentJourney
+  import ElektrineSocialWeb.Components.Social.Poll
+  import ElektrineSocialWeb.Components.Social.PostActions
+  import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.Live.NotificationHelpers
-  import ElektrineWeb.Components.Platform.ENav
-  import ElektrineWeb.Components.Social.EmbeddedPost
+  import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.EmbeddedPost
   import ElektrineWeb.HtmlHelpers
 
   alias Elektrine.{Messaging, Social}

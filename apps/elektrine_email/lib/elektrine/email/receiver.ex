@@ -1,10 +1,10 @@
 defmodule Elektrine.Email.Receiver do
   @moduledoc "Handles incoming email processing functionality.\n"
   alias Elektrine.Email
-  alias Elektrine.EmailConfig
   alias Elektrine.Email.ForwardedMessage
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.MailboxEncryption
+  alias Elektrine.EmailConfig
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   require Logger
@@ -97,9 +97,7 @@ defmodule Elektrine.Email.Receiver do
 
     case webhook_secret do
       secret when is_binary(secret) ->
-        if not Elektrine.Strings.present?(secret) do
-          if allow_insecure, do: :ok, else: {:error, :missing_webhook_secret}
-        else
+        if Elektrine.Strings.present?(secret) do
           provided =
             params["webhook_secret"] || params["signature"] || params["token"] || params["auth"]
 
@@ -108,6 +106,8 @@ defmodule Elektrine.Email.Receiver do
           else
             {:error, :invalid_webhook_signature}
           end
+        else
+          if allow_insecure, do: :ok, else: {:error, :missing_webhook_secret}
         end
 
       _ when allow_insecure ->

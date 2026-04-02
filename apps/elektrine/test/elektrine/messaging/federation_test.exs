@@ -842,6 +842,17 @@ defmodule Elektrine.Messaging.FederationTest do
               %{
                 "refs" => %{"server_id" => server_id, "channel_id" => channel_id},
                 "membership" => %{
+                  "actor" => canonical_actor("host", room_origin),
+                  "role" => "admin",
+                  "state" => "active",
+                  "joined_at" => DateTime.to_iso8601(timestamp),
+                  "updated_at" => DateTime.to_iso8601(timestamp),
+                  "metadata" => %{"source" => "snapshot-admin-membership"}
+                }
+              },
+              %{
+                "refs" => %{"server_id" => server_id, "channel_id" => channel_id},
+                "membership" => %{
                   "actor" => canonical_actor("alice", participant_origin),
                   "role" => "member",
                   "state" => "active",
@@ -856,7 +867,7 @@ defmodule Elektrine.Messaging.FederationTest do
               %{
                 "refs" => %{"server_id" => server_id, "channel_id" => channel_id},
                 "ban" => %{
-                  "actor" => canonical_actor("alice", participant_origin),
+                  "actor" => canonical_actor("host", room_origin),
                   "target" => canonical_actor("bob", banned_origin),
                   "state" => "active",
                   "reason" => "spam",
@@ -892,7 +903,7 @@ defmodule Elektrine.Messaging.FederationTest do
               "payload" => %{
                 "server" => %{"id" => server_id},
                 "channel" => %{"id" => channel_id},
-                "actor" => canonical_actor("alice", participant_origin),
+                "actor" => canonical_actor("host", room_origin),
                 "role" => %{
                   "id" => "urn:remote-b.example:roles:ops",
                   "name" => "Ops",
@@ -1695,12 +1706,177 @@ defmodule Elektrine.Messaging.FederationTest do
       refute Repo.get_by(FederationMembershipState, conversation_id: channel.id)
     end
 
+    test "rejects governance events in a local room when the remote actor lacks room permissions" do
+      owner = AccountsFixtures.user_fixture()
+      remote_domain = "remote.example"
+      {:ok, server} = Messaging.create_server(owner.id, %{name: "local-governance-room"})
+
+      {:ok, channel} =
+        Messaging.create_server_channel(server.id, owner.id, %{
+          name: "shared",
+          description: "local shared room"
+        })
+
+      {:ok, snapshot} = Federation.build_server_snapshot(server.id, messages_per_channel: 1)
+      local_server_id = get_in(snapshot, ["server", "id"])
+      local_channel_id = get_in(snapshot, ["channels", Access.at(0), "id"])
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://#{remote_domain}/users/alice",
+          username: "alice",
+          domain: remote_domain,
+          inbox_url: "https://#{remote_domain}/users/alice/inbox",
+          public_key: "test-public-key"
+        })
+        |> Repo.insert!()
+
+      timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      Repo.insert!(%FederationMembershipState{
+        conversation_id: channel.id,
+        remote_actor_id: remote_actor.id,
+        origin_domain: remote_domain,
+        role: "member",
+        state: "active",
+        joined_at_remote: timestamp,
+        updated_at_remote: timestamp,
+        metadata: %{}
+      })
+
+      role_event =
+        signed_event(
+          "role.upsert",
+          remote_domain,
+          "channel:#{local_channel_id}",
+          1,
+          %{
+            "server" => %{"id" => local_server_id, "name" => server.name, "is_public" => true},
+            "channel" => %{"id" => local_channel_id, "name" => channel.name, "position" => 0},
+            "refs" => %{"server_id" => local_server_id, "channel_id" => local_channel_id},
+            "actor" => canonical_actor("alice", remote_domain, uri: remote_actor.uri),
+            "role" => %{
+              "id" => "role-ops",
+              "name" => "Ops",
+              "position" => 1,
+              "permissions" => ["manage_roles"]
+            }
+          }
+        )
+
+      assert {:error, :not_authorized_for_room} =
+               Federation.receive_event(role_event, remote_domain)
+
+      refute Repo.get_by(FederationExtensionEvent,
+               event_type: ArblargSDK.canonical_event_type("role.upsert"),
+               event_key: "role:role-ops:channel:#{channel.id}"
+             )
+    end
+
+    test "grants remote admins governance permissions in a local room ACL" do
+      owner = AccountsFixtures.user_fixture()
+      remote_domain = "remote.example"
+      {:ok, server} = Messaging.create_server(owner.id, %{name: "local-governance-admin-room"})
+
+      {:ok, channel} =
+        Messaging.create_server_channel(server.id, owner.id, %{
+          name: "shared",
+          description: "local shared room"
+        })
+
+      {:ok, snapshot} = Federation.build_server_snapshot(server.id, messages_per_channel: 1)
+      local_server_id = get_in(snapshot, ["server", "id"])
+      local_channel_id = get_in(snapshot, ["channels", Access.at(0), "id"])
+
+      suffix = System.unique_integer([:positive])
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://#{remote_domain}/users/mod-#{suffix}",
+          username: "mod-#{suffix}",
+          domain: remote_domain,
+          inbox_url: "https://#{remote_domain}/users/mod-#{suffix}/inbox",
+          public_key: "test-public-key"
+        })
+        |> Repo.insert!()
+
+      timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      Repo.insert!(%FederationMembershipState{
+        conversation_id: channel.id,
+        remote_actor_id: remote_actor.id,
+        origin_domain: remote_domain,
+        role: "admin",
+        state: "active",
+        joined_at_remote: timestamp,
+        updated_at_remote: timestamp,
+        metadata: %{}
+      })
+
+      role_event =
+        signed_event(
+          "role.upsert",
+          remote_domain,
+          "channel:#{local_channel_id}",
+          1,
+          %{
+            "server" => %{"id" => local_server_id, "name" => server.name, "is_public" => true},
+            "channel" => %{"id" => local_channel_id, "name" => channel.name, "position" => 0},
+            "refs" => %{"server_id" => local_server_id, "channel_id" => local_channel_id},
+            "actor" => canonical_actor("mod-#{suffix}", remote_domain, uri: remote_actor.uri),
+            "role" => %{
+              "id" => "role-ops",
+              "name" => "Ops",
+              "position" => 1,
+              "permissions" => ["manage_roles"]
+            }
+          }
+        )
+
+      assert :ok =
+               Elektrine.Messaging.RoomACL.authorize_remote_actor_action(
+                 channel,
+                 remote_actor.id,
+                 :role_upsert,
+                 %{remote_actor_id: remote_actor.id}
+               )
+
+      assert :ok = ArblargSDK.validate_event_envelope(role_event)
+    end
+
     test "materializes accepted invites for local users in mirrored rooms" do
       local_user = AccountsFixtures.user_fixture()
       channel = mirrored_channel_fixture()
       server = Repo.get!(Server, channel.server_id)
       stream_id = "channel:#{channel.federated_source}"
       local_domain = Federation.local_domain()
+      suffix = System.unique_integer([:positive])
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://remote.example/users/mod-#{suffix}",
+          username: "mod-#{suffix}",
+          domain: "remote.example",
+          inbox_url: "https://remote.example/users/mod-#{suffix}/inbox",
+          public_key: "test-public-key"
+        })
+        |> Repo.insert!()
+
+      timestamp = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      Repo.insert!(%FederationMembershipState{
+        conversation_id: channel.id,
+        remote_actor_id: remote_actor.id,
+        origin_domain: "remote.example",
+        role: "admin",
+        state: "active",
+        joined_at_remote: timestamp,
+        updated_at_remote: timestamp,
+        metadata: %{}
+      })
 
       invite_event =
         signed_event(
@@ -1720,7 +1896,8 @@ defmodule Elektrine.Messaging.FederationTest do
               "position" => 0
             },
             "invite" => %{
-              "actor" => canonical_actor("mod", "remote.example"),
+              "actor" =>
+                canonical_actor("mod-#{suffix}", "remote.example", uri: remote_actor.uri),
               "target" =>
                 canonical_actor(local_user.username, local_domain,
                   uri: "https://#{local_domain}/users/#{local_user.username}"
@@ -2136,12 +2313,32 @@ defmodule Elektrine.Messaging.FederationTest do
       channel_id = "https://remote.example/_arblarg/channels/911"
       stream_id = "channel:#{channel_id}"
 
+      membership_event =
+        signed_event(
+          "membership.upsert",
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
+            "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
+            "membership" => %{
+              "actor" => canonical_actor("mod", remote_domain),
+              "role" => "admin",
+              "state" => "active",
+              "joined_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "updated_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+              "metadata" => %{"source" => "test"}
+            }
+          }
+        )
+
       invite_event =
         signed_event(
           "invite.upsert",
           remote_domain,
           stream_id,
-          1,
+          2,
           %{
             "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
             "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},
@@ -2156,6 +2353,8 @@ defmodule Elektrine.Messaging.FederationTest do
             }
           }
         )
+
+      assert {:ok, :applied} = Federation.receive_event(membership_event, remote_domain)
 
       assert {:ok, :applied} = Federation.receive_event(invite_event, remote_domain)
 
@@ -2177,7 +2376,7 @@ defmodule Elektrine.Messaging.FederationTest do
           "ban.upsert",
           remote_domain,
           stream_id,
-          2,
+          3,
           %{
             "server" => %{"id" => server_id, "name" => "remote", "is_public" => true},
             "channel" => %{"id" => channel_id, "name" => "general", "position" => 0},

@@ -8,10 +8,7 @@ defmodule ElektrineWeb.MailAutoconfig do
   end
 
   def autodiscover_encryption(settings) do
-    cond do
-      MailClientSettings.starttls?(settings) -> "TLS"
-      true -> nil
-    end
+    if MailClientSettings.starttls?(settings), do: "TLS"
   end
 
   def plist_bool_tag(settings) do
