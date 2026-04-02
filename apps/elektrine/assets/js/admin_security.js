@@ -228,6 +228,11 @@ function bindSensitiveForm(form) {
     .forEach((submitter) => bindSensitiveConfirm(submitter, form))
 
   form.addEventListener('submit', async (event) => {
+    if (form.dataset.adminResignSkip === 'true') {
+      delete form.dataset.adminResignSkip
+      return
+    }
+
     if (form.dataset.adminResignInFlight === 'true') return
 
     event.preventDefault()
@@ -236,8 +241,9 @@ function bindSensitiveForm(form) {
     try {
       const grantToken = await signFormAction(form)
       upsertGrantInput(form, grantToken)
+      form.dataset.adminResignSkip = 'true'
       delete form.dataset.adminResignInFlight
-      HTMLFormElement.prototype.submit.call(form)
+      requestFormSubmit(form)
     } catch (error) {
       delete form.dataset.adminResignInFlight
       notifyAdminSecurityError(error.message || 'Passkey confirmation failed.')

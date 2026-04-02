@@ -104,7 +104,26 @@ defmodule ElektrineWeb.MixProject do
       ElektrineWeb.VPNAPIController,
       ElektrineWeb.VPNLive.Index,
       ElektrineWeb.WebFingerController,
-      ElektrineWeb.WKDController
+      ElektrineWeb.WKDController,
+      Elektrine.DNS,
+      Elektrine.DNS.MailSecurity,
+      ElektrineSocialWeb.Components.UI.ImageModal,
+      ElektrineSocialWeb.Components.Social.ContentJourney,
+      ElektrineSocialWeb.Components.Social.PostReactions,
+      ElektrineSocialWeb.Components.Social.FediverseFollow,
+      ElektrineSocialWeb.Components.Social.RemotePostShared,
+      ElektrineSocialWeb.Components.Social.TimelineStreamPost,
+      ElektrineSocialWeb.Components.Social.PostActions,
+      ElektrineSocialWeb.Components.Social.FollowButton,
+      ElektrineSocialWeb.Components.Social.LemmyPost,
+      ElektrineSocialWeb.Components.User.HoverCard,
+      ElektrineSocialWeb.Components.Social.PollDisplay,
+      ElektrineSocialWeb.Components.Social.Poll,
+      ElektrineSocialWeb.Components.Social.PostUtilities,
+      ElektrineSocialWeb.Components.Social.TimelinePost,
+      ElektrineSocialWeb.Components.Social.EmbeddedPost,
+      ElektrineSocialWeb.Components.Social.RSSItem,
+      ElektrineSocialWeb.Components.Social.ReplyItem
     ]
   end
 

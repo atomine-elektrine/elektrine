@@ -28,11 +28,21 @@ defmodule ElektrineChat.MixProject do
   defp elixirc_paths(_), do: ["lib"]
 
   defp elixirc_options do
+    opts = [no_warn_undefined: no_warn_undefined()]
+
     if Mix.env() == :test do
-      [ignore_module_conflict: true]
+      Keyword.put(opts, :ignore_module_conflict, true)
     else
-      []
+      opts
     end
+  end
+
+  defp no_warn_undefined do
+    [
+      ElektrineSocialWeb.Components.UI.ImageModal,
+      ElektrineSocialWeb.Components.Social.ContentJourney,
+      ElektrineSocialWeb.Components.Social.EmbeddedPost
+    ]
   end
 
   defp deps do

@@ -5,6 +5,7 @@ defmodule Elektrine.Email.CustomDomainsTest do
 
   alias Elektrine.Email
   alias Elektrine.Email.CustomDomain
+  alias Elektrine.EmailConfig
   alias Elektrine.Repo
 
   defmodule TestTxtResolver do
@@ -102,6 +103,17 @@ defmodule Elektrine.Email.CustomDomainsTest do
     body = Jason.decode!(request.body)
     assert body["selector"] == "default"
     assert body["private_key"] =~ "BEGIN RSA PRIVATE KEY"
+  end
+
+  test "custom domain HTTP client defaults to the fully qualified Finch client" do
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.delete(Application.get_env(:elektrine, :email, []), :custom_domain_http_client)
+    )
+
+    assert EmailConfig.email_setting(:custom_domain_http_client, Elektrine.Email.DKIM.FinchClient) ==
+             Elektrine.Email.DKIM.FinchClient
   end
 
   test "dns_records_for_custom_domain includes MX, SPF, DKIM, and DMARC templates" do

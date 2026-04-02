@@ -55,7 +55,7 @@ defmodule Elektrine.EmailConfig do
   end
 
   def haraka_http_client do
-    email_setting(:haraka_http_client, FinchClient)
+    email_setting(:haraka_http_client, Elektrine.Email.HarakaClient.FinchClient)
   end
 
   defp mailer_config do
