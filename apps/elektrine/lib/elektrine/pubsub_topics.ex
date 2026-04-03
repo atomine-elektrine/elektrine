@@ -131,6 +131,11 @@ defmodule Elektrine.PubSubTopics do
   def user_vpn(user_id), do: "user:#{user_id}:vpn"
 
   @doc """
+  Topic for self-hosted VPN reconcile triggers.
+  """
+  def vpn_self_hosted_reconcile, do: "vpn:self_hosted:reconcile"
+
+  @doc """
   Topic for the unified per-user event stream consumed by clients.
   """
   def user_events(user_id), do: "user:#{user_id}:events"

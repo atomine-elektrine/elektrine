@@ -8,7 +8,15 @@ export const NotificationVisibility = {
     this.setupIntersectionObserver()
   },
 
+  autoMarkReadEnabled() {
+    return this.el.dataset.autoMarkRead !== 'false'
+  },
+
   setupIntersectionObserver() {
+    if (!this.autoMarkReadEnabled()) {
+      return
+    }
+
     // Options for the intersection observer
     const options = {
       root: null, // Use the viewport as the root
@@ -88,6 +96,20 @@ export const NotificationVisibility = {
   },
 
   updated() {
+    if (!this.autoMarkReadEnabled()) {
+      if (this.observer) {
+        this.observer.disconnect()
+        this.observer = null
+      }
+
+      return
+    }
+
+    if (!this.observer) {
+      this.setupIntersectionObserver()
+      return
+    }
+
     // When the DOM updates, check for new notifications to observe
     this.observeNotifications()
   },

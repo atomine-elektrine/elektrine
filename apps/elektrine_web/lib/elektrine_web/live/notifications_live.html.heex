@@ -111,7 +111,12 @@
       </div>
     </div>
 
-    <div id="notifications-list" class="space-y-3" phx-hook="NotificationVisibility">
+    <div
+      id="notifications-list"
+      class="space-y-3"
+      phx-hook="NotificationVisibility"
+      data-auto-mark-read={to_string(@filter != :unread)}
+    >
       <%= if @loading_notifications do %>
         <div class="space-y-3">
           <%= for _i <- 1..4 do %>
