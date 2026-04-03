@@ -1,5 +1,5 @@
 defmodule Elektrine.StaticSitesTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.StaticSites

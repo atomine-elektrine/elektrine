@@ -4,6 +4,7 @@ defmodule Elektrine.Email.PGPTest do
   import ExUnit.CaptureLog
 
   alias Elektrine.Accounts
+  alias Elektrine.Domains
   alias Elektrine.Email.Contact
   alias Elektrine.Email.PGP
   alias Elektrine.Email.PgpKeyCache
@@ -265,12 +266,12 @@ defmodule Elektrine.Email.PGPTest do
       %{user: user}
     end
 
-    test "returns key for user with example.com email", %{user: user} do
+    test "returns key for user with a local email domain", %{user: user} do
       user
       |> Ecto.Changeset.change(%{pgp_public_key: "test key"})
       |> Repo.update!()
 
-      email = "#{user.username}@example.com"
+      email = "#{user.username}@#{Domains.primary_email_domain()}"
       assert {:ok, "test key"} = PGP.get_key_by_email(email)
     end
 
@@ -279,7 +280,7 @@ defmodule Elektrine.Email.PGPTest do
     end
 
     test "returns error when user has no key", %{user: user} do
-      email = "#{user.username}@example.com"
+      email = "#{user.username}@#{Domains.primary_email_domain()}"
       assert {:error, :no_key} = PGP.get_key_by_email(email)
     end
 
@@ -442,7 +443,7 @@ defmodule Elektrine.Email.PGPTest do
     } do
       status =
         PGP.recipient_encryption_status(
-          ["#{local_user.username}@example.com", contact.email],
+          ["#{local_user.username}@#{Domains.primary_email_domain()}", contact.email],
           sender.id,
           fetch_remote: false
         )

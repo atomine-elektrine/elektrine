@@ -240,8 +240,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
 
   describe "check_local_domain_spoofing/2" do
     test "detects spoofing from external sender claiming local domain" do
-      # External sender claiming to be from example.com
-      from = "admin@example.com"
+      from = "admin@#{Elektrine.Domains.primary_email_domain()}"
       # No authenticated user (nil)
       result = HeaderSanitizer.check_local_domain_spoofing(from, nil)
 
@@ -249,7 +248,7 @@ defmodule Elektrine.Email.HeaderSanitizerTest do
     end
 
     test "allows authenticated local users" do
-      from = "user@example.com"
+      from = "user@#{Elektrine.Domains.primary_email_domain()}"
       # Simulating authenticated user context
       result = HeaderSanitizer.check_local_domain_spoofing(from, %{authenticated: true})
 

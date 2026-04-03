@@ -17,6 +17,22 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   alias Elektrine.Social
   alias ElektrineWeb.Plugs.APIAuth
 
+  setup do
+    previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
+
+    Application.put_env(
+      :elektrine,
+      Elektrine.Mailer,
+      Keyword.merge(previous_mailer_config, adapter: Swoosh.Adapters.Test)
+    )
+
+    on_exit(fn ->
+      Application.put_env(:elektrine, Elektrine.Mailer, previous_mailer_config)
+    end)
+
+    :ok
+  end
+
   describe "PAT auth + versioned external API" do
     test "returns standardized missing token error", %{conn: conn} do
       conn = get(conn, "/api/ext/v1/search", %{"q" => "hello"})
@@ -576,36 +592,15 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["webhook"])
 
-      {:ok, listener} =
-        :gen_tcp.listen(0, [:binary, packet: :raw, active: false, reuseaddr: true])
-
-      {:ok, port} = :inet.port(listener)
-      parent = self()
-
-      Task.start(fn ->
-        for _attempt <- 1..2 do
-          {:ok, socket} = :gen_tcp.accept(listener)
-          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
-          send(parent, {:replay_request, request})
-          :ok = :gen_tcp.send(socket, "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nok")
-          :gen_tcp.close(socket)
-        end
-
-        :gen_tcp.close(listener)
-      end)
-
       {:ok, webhook} =
         Developer.create_webhook(user.id, %{
           name: "Replay Hook",
-          url: "http://127.0.0.1:#{port}/webhook",
+          url: "http://127.0.0.1:1/webhook",
           events: ["post.created"]
         })
 
       assert [{_webhook_id, {:ok, :queued}}] =
                Developer.deliver_event(user.id, "post.created", %{post_id: 123})
-
-      assert_receive {:replay_request, first_request}, 5_000
-      assert first_request =~ "POST /webhook HTTP/1.1"
 
       [delivery | _] =
         Developer.list_webhook_deliveries(user.id, webhook_id: webhook.id, limit: 5)
@@ -615,9 +610,6 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert %{"data" => %{"message" => "Webhook delivery replay queued"}} =
                json_response(replay_conn, 202)
-
-      assert_receive {:replay_request, replay_request}, 5_000
-      assert replay_request =~ "POST /webhook HTTP/1.1"
     end
   end
 

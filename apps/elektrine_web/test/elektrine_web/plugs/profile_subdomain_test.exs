@@ -12,6 +12,21 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
   alias ElektrineWeb.Plugs.ProfileSubdomain
 
+  setup do
+    original = Application.get_env(:elektrine, :profile_base_domains)
+    Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+    on_exit(fn ->
+      if is_nil(original) do
+        Application.delete_env(:elektrine, :profile_base_domains)
+      else
+        Application.put_env(:elektrine, :profile_base_domains, original)
+      end
+    end)
+
+    :ok
+  end
+
   describe "subdomain extraction" do
     test "extracts handle from valid subdomain" do
       conn =

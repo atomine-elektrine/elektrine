@@ -3,7 +3,10 @@ defmodule Elektrine.AccountsFixtures do
 
   alias Elektrine.Accounts
 
-  def unique_user_username, do: "user#{System.unique_integer([:positive])}"
+  def unique_user_username do
+    "u" <> (Ecto.UUID.generate() |> String.replace("-", "") |> String.slice(0, 19))
+  end
+
   def valid_user_password, do: "hello world!"
 
   def valid_user_attributes(attrs \\ %{}) do

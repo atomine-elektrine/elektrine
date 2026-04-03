@@ -1,13 +1,14 @@
 defmodule Elektrine.Email.AliasTest do
   use Elektrine.DataCase
 
+  alias Elektrine.Domains
   alias Elektrine.Email.Alias
 
   describe "changeset/2" do
     test "with valid attributes" do
       attrs = %{
-        alias_email: "tester@example.com",
-        target_email: "user@example.com",
+        alias_email: "tester@#{Domains.primary_email_domain()}",
+        target_email: "user@example.net",
         user_id: 1,
         enabled: true,
         description: "Test alias"
@@ -28,7 +29,7 @@ defmodule Elektrine.Email.AliasTest do
     test "validates email format for alias_email" do
       attrs = %{
         alias_email: "invalid-email",
-        target_email: "user@example.com",
+        target_email: "user@example.net",
         user_id: 1
       }
 
@@ -39,7 +40,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "validates email format for target_email" do
       attrs = %{
-        alias_email: "tester@example.com",
+        alias_email: "tester@#{Domains.primary_email_domain()}",
         target_email: "invalid-email",
         user_id: 1
       }
@@ -51,8 +52,8 @@ defmodule Elektrine.Email.AliasTest do
 
     test "prevents alias_email and target_email from being the same" do
       attrs = %{
-        alias_email: "tester@example.com",
-        target_email: "tester@example.com",
+        alias_email: "tester@#{Domains.primary_email_domain()}",
+        target_email: "tester@#{Domains.primary_email_domain()}",
         user_id: 1
       }
 
@@ -65,8 +66,8 @@ defmodule Elektrine.Email.AliasTest do
     test "validates length constraints" do
       # Test local part max length (30 chars) - will trigger before overall 255 limit
       attrs = %{
-        alias_email: String.duplicate("a", 50) <> "@example.com",
-        target_email: String.duplicate("b", 250) <> "@example.com",
+        alias_email: String.duplicate("a", 50) <> "@#{Domains.primary_email_domain()}",
+        target_email: String.duplicate("b", 250) <> "@example.net",
         description: String.duplicate("c", 501),
         user_id: 1
       }
@@ -85,7 +86,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "allows alias without target_email" do
       attrs = %{
-        alias_email: "tester@example.com",
+        alias_email: "tester@#{Domains.primary_email_domain()}",
         user_id: 1,
         enabled: true,
         description: "Test alias without forwarding"
@@ -98,7 +99,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "allows alias with empty target_email" do
       attrs = %{
-        alias_email: "tester@example.com",
+        alias_email: "tester@#{Domains.primary_email_domain()}",
         target_email: "",
         user_id: 1,
         enabled: true
@@ -111,7 +112,7 @@ defmodule Elektrine.Email.AliasTest do
 
     test "validates allowed domains for alias_email" do
       # Valid domains
-      for domain <- ["example.com", "example.com"] do
+      for domain <- Domains.supported_email_domains() do
         attrs = %{
           alias_email: "tester@#{domain}",
           user_id: 1
@@ -123,7 +124,7 @@ defmodule Elektrine.Email.AliasTest do
     end
 
     test "rejects invalid domains for alias_email" do
-      invalid_domains = ["gmail.com", "example.com", "mydomain.org", "test.net"]
+      invalid_domains = ["gmail.com", "example.net", "mydomain.org", "test.net"]
 
       for domain <- invalid_domains do
         attrs = %{
@@ -144,7 +145,13 @@ defmodule Elektrine.Email.AliasTest do
 
     test "domain validation is case insensitive" do
       # Mixed case domains should work
-      for domain <- ["ELEKTRINE.COM", "Elektrine.Com", "eLeKtRiNe.CoM"] do
+      local_domain = Domains.primary_email_domain()
+
+      for domain <- [
+            String.upcase(local_domain),
+            String.capitalize(local_domain),
+            String.upcase(local_domain)
+          ] do
         attrs = %{
           alias_email: "tester@#{domain}",
           user_id: 1
@@ -162,7 +169,7 @@ defmodule Elektrine.Email.AliasTest do
 
       for short_name <- short_usernames do
         attrs = %{
-          alias_email: "#{short_name}@example.com",
+          alias_email: "#{short_name}@#{Domains.primary_email_domain()}",
           user_id: 1
         }
 
@@ -182,7 +189,7 @@ defmodule Elektrine.Email.AliasTest do
 
       for valid_name <- valid_usernames do
         attrs = %{
-          alias_email: "#{valid_name}@example.com",
+          alias_email: "#{valid_name}@#{Domains.primary_email_domain()}",
           user_id: 1
         }
 
@@ -194,7 +201,7 @@ defmodule Elektrine.Email.AliasTest do
       four_char_name = "abcd"
 
       attrs = %{
-        alias_email: "#{four_char_name}@example.com",
+        alias_email: "#{four_char_name}@#{Domains.primary_email_domain()}",
         user_id: 1
       }
 

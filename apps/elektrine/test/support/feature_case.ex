@@ -9,9 +9,20 @@ defmodule ElektrineWeb.FeatureCase do
   use ExUnit.CaseTemplate
 
   using do
+    chromedriver_skip_reason =
+      if System.find_executable("chromedriver") do
+        nil
+      else
+        "chromedriver not installed"
+      end
+
     quote do
       use Wallaby.Feature
       @moduletag :feature
+
+      if unquote(chromedriver_skip_reason) do
+        @moduletag skip: unquote(chromedriver_skip_reason)
+      end
 
       alias Elektrine.Repo
       alias Wallaby.Query
@@ -115,6 +126,8 @@ defmodule ElektrineWeb.FeatureCase do
   end
 
   setup tags do
+    {:ok, _} = Application.ensure_all_started(:wallaby)
+
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Elektrine.Repo)
 
     unless tags[:async] do

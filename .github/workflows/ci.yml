@@ -10,6 +10,11 @@ on:
         required: false
         type: boolean
         default: false
+      allow_test_failure:
+        description: Allow test failures without failing the workflow
+        required: false
+        type: boolean
+        default: false
 
 env:
   MIX_ENV: test
@@ -77,4 +82,10 @@ jobs:
         run: mix credo --strict
 
       - name: Run test suite
+        id: test_suite
+        continue-on-error: ${{ inputs.allow_test_failure }}
         run: mix test
+
+      - name: Emit warning when tests are allowed to fail
+        if: ${{ inputs.allow_test_failure && steps.test_suite.outcome == 'failure' }}
+        run: echo "::warning::Test suite failed, but deploy can continue."

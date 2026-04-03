@@ -14,7 +14,7 @@ defmodule ElektrineWeb.Admin.VPNControllerTest do
         |> log_in_as(admin)
         |> get("/pripyat/vpn")
 
-      assert html_response(conn, 200) =~ "VPN Management"
+      assert html_response(conn, 200) =~ "VPN Dashboard"
     end
   end
 

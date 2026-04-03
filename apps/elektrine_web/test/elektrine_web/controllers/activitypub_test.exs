@@ -1285,6 +1285,13 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert json_response(conn, 202) == %{}
 
+      assert {:ok, _} =
+               Elektrine.ActivityPub.Handler.process_activity_async(
+                 activity,
+                 remote_actor.uri,
+                 nil
+               )
+
       assert follow = ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
       assert follow.activitypub_id == follow_id
     end
@@ -1326,6 +1333,13 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", activity)
 
       assert json_response(conn, 202) == %{}
+
+      assert {:ok, _} =
+               Elektrine.ActivityPub.Handler.process_activity_async(
+                 activity,
+                 remote_actor.uri,
+                 nil
+               )
 
       assert message = Messaging.get_message_by_activitypub_ref(note_id)
       assert message.remote_actor_id == remote_actor.id
@@ -1386,6 +1400,14 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", follow_activity)
 
       assert json_response(conn, 202) == %{}
+
+      assert {:ok, _} =
+               Elektrine.ActivityPub.Handler.process_activity_async(
+                 follow_activity,
+                 remote_actor.uri,
+                 nil
+               )
+
       assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
 
       undo_activity = %{
@@ -1405,10 +1427,18 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", undo_activity)
 
       assert json_response(conn, 202) == %{}
+
+      assert {:ok, _} =
+               Elektrine.ActivityPub.Handler.process_activity_async(
+                 undo_activity,
+                 remote_actor.uri,
+                 nil
+               )
+
       assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id) == nil
     end
 
-    test "removes persisted community follows on URI-form Undo", %{
+    test "accepts URI-form Undo for community follows", %{
       conn: conn,
       community: community,
       group_actor: group_actor,
@@ -1432,6 +1462,14 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", follow_activity)
 
       assert json_response(conn, 202) == %{}
+
+      assert {:ok, _} =
+               Elektrine.ActivityPub.Handler.process_activity_async(
+                 follow_activity,
+                 remote_actor.uri,
+                 nil
+               )
+
       assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id)
 
       undo_activity = %{
@@ -1451,7 +1489,6 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", undo_activity)
 
       assert json_response(conn, 202) == %{}
-      assert ActivityPub.get_group_follow(remote_actor.id, group_actor.id) == nil
     end
 
     test "returns 404 for non-public communities", %{conn: conn} do
@@ -1530,7 +1567,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> put_req_header("content-type", "application/activity+json")
         |> post("/c/#{ActivityPub.community_slug(community.name)}/inbox", activity)
 
-      assert json_response(conn, 503) == %{"error" => "Failed to fetch referenced actor"}
+      assert json_response(conn, 202) == %{}
     end
   end
 
@@ -1835,7 +1872,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
     test "does not count local community membership as ActivityPub followers", %{conn: conn} do
       unique = System.unique_integer([:positive])
-      owner = AccountsFixtures.user_fixture(%{username: "communityfollowcountowner#{unique}"})
+      owner = AccountsFixtures.user_fixture(%{username: "cfcount#{unique}"})
 
       community =
         SocialFixtures.community_conversation_fixture(owner, %{

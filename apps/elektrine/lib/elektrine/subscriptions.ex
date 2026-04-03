@@ -521,23 +521,25 @@ defmodule Elektrine.Subscriptions do
 
         case checkout.status do
           "fulfilled" ->
-            checkout
+            ensure_registration_invite_code(checkout)
 
           _ ->
-            case checkout
-                 |> RegistrationCheckout.fulfill_changeset(%{
-                   stripe_customer_id: stripe_field(session, :customer),
-                   stripe_payment_intent_id: stripe_field(session, :payment_intent),
-                   customer_email: registration_customer_email(session),
-                   fulfilled_at:
-                     from_unix(stripe_field(session, :created)) ||
-                       DateTime.utc_now() |> DateTime.truncate(:second),
-                   status: "fulfilled"
-                 })
-                 |> Repo.update() do
-              {:ok, updated_checkout} ->
-                Repo.preload(updated_checkout, :invite_code)
-
+            with {:ok, invite_code_id} <- ensure_registration_invite_code_id(checkout),
+                 {:ok, updated_checkout} <-
+                   checkout
+                   |> RegistrationCheckout.fulfill_changeset(%{
+                     stripe_customer_id: stripe_field(session, :customer),
+                     stripe_payment_intent_id: stripe_field(session, :payment_intent),
+                     customer_email: registration_customer_email(session),
+                     fulfilled_at:
+                       from_unix(stripe_field(session, :created)) ||
+                         DateTime.utc_now() |> DateTime.truncate(:second),
+                     status: "fulfilled",
+                     invite_code_id: invite_code_id
+                   })
+                   |> Repo.update() do
+              Repo.preload(updated_checkout, :invite_code)
+            else
               {:error, reason} ->
                 Repo.rollback(reason)
             end
@@ -1229,4 +1231,26 @@ defmodule Elektrine.Subscriptions do
 
   defp format_stripe_error(%Stripe.Error{message: message}), do: message
   defp format_stripe_error(reason), do: inspect(reason)
+
+  defp ensure_registration_invite_code(%RegistrationCheckout{} = checkout) do
+    case ensure_registration_invite_code_id(checkout) do
+      {:ok, _invite_code_id} -> Repo.preload(checkout, :invite_code)
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp ensure_registration_invite_code_id(%RegistrationCheckout{invite_code_id: invite_code_id})
+       when is_integer(invite_code_id),
+       do: {:ok, invite_code_id}
+
+  defp ensure_registration_invite_code_id(%RegistrationCheckout{} = checkout) do
+    case Elektrine.Accounts.create_invite_code(%{
+           max_uses: 1,
+           note:
+             "Paid registration checkout #{checkout.stripe_checkout_session_id || checkout.id}"
+         }) do
+      {:ok, invite_code} -> {:ok, invite_code.id}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 end

@@ -22,8 +22,13 @@ defmodule ElektrineWeb.AppPasswordsLiveTest do
   test "redirects unauthenticated users to login", %{conn: conn} do
     assert {:error, reason} = live(conn, ~p"/account/app-passwords")
 
-    assert match?({:redirect, %{to: "/login"}}, reason) or
-             match?({:live_redirect, %{to: "/login"}}, reason)
+    redirect_to =
+      case reason do
+        {:redirect, %{to: to}} -> to
+        {:live_redirect, %{to: to}} -> to
+      end
+
+    assert String.starts_with?(redirect_to, "/login")
   end
 
   test "resets app name input after creating an app password", %{conn: conn} do
@@ -34,13 +39,15 @@ defmodule ElektrineWeb.AppPasswordsLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/app-passwords")
 
+    assert has_element?(view, "form[id^='create-app-password-form-']")
+
     assert has_element?(
              view,
-             "#create-app-password-form input[name='app_password[name]'][value='']"
+             "input[name='app_password[name]'][value='']"
            )
 
     view
-    |> form("#create-app-password-form", %{
+    |> form("form[id^='create-app-password-form-']", %{
       "app_password" => %{
         "name" => "Thunderbird on laptop",
         "expires_at" => "never"
@@ -48,11 +55,11 @@ defmodule ElektrineWeb.AppPasswordsLiveTest do
     })
     |> render_submit()
 
-    assert render(view) =~ "App Password Created!"
+    assert render(view) =~ "App Password Created"
 
     assert has_element?(
              view,
-             "#create-app-password-form input[name='app_password[name]'][value='']"
+             "input[name='app_password[name]'][value='']"
            )
 
     refute has_element?(

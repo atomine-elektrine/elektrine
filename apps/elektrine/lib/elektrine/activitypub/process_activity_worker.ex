@@ -51,7 +51,11 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
     domain = actor_domain(actor_uri)
 
     # Discard jobs that are too old (prevents infinite snooze loops)
-    job_age = DateTime.diff(DateTime.utc_now(), inserted_at, :second)
+    job_age =
+      case inserted_at do
+        %DateTime{} = timestamp -> DateTime.diff(DateTime.utc_now(), timestamp, :second)
+        _ -> 0
+      end
 
     if job_age > @max_job_age_seconds do
       Logger.warning("Activity #{activity["id"]} too old (#{job_age}s), discarding")

@@ -5,11 +5,11 @@ defmodule ElektrineWeb.PageControllerTest do
     conn = get(conn, ~p"/")
     html = html_response(conn, 200)
 
-    assert html =~ "Software you can own."
+    assert html =~ "Software for sovereignty."
 
     assert html =~
-             ~r/Elektrine is a modular platform for operators who want to run internet\s+services under their own control\./
+             ~r/Elektrine is a modular platform for people who want to run communications,\s+identity, and infrastructure under their own control\./
 
-    assert html =~ "Sign in"
+    assert html =~ "Sign up"
   end
 end

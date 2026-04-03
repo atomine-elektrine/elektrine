@@ -66,7 +66,12 @@ defmodule Elektrine.FilesTest do
     assert Enum.map(root_view.files, & &1.id) == [root_file.id]
 
     assert {:ok, project_view} = Files.list_folder(user.id, "projects")
-    assert Enum.map(project_view.folders, & &1.path) == ["projects/alpha", "projects/beta"]
+
+    assert Enum.sort(Enum.map(project_view.folders, & &1.path)) == [
+             "projects/alpha",
+             "projects/beta"
+           ]
+
     assert project_view.files == []
   end
 

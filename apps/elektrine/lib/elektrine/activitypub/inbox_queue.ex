@@ -32,6 +32,23 @@ defmodule Elektrine.ActivityPub.InboxQueue do
 
         {:ok, :shed}
 
+      test_mode_bypass?() ->
+        item = %{
+          activity: activity,
+          actor_uri: actor_uri,
+          target_user_id: target_user_id,
+          activity_id: activity_id,
+          queued_at: System.system_time(:millisecond)
+        }
+
+        case Elektrine.JobQueue.insert(build_job(item)) do
+          {:ok, _job} ->
+            {:ok, :queued}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
       true ->
         if activity_id do
           mark_queued(activity_id)
@@ -220,6 +237,10 @@ defmodule Elektrine.ActivityPub.InboxQueue do
 
   defp actor_domain(_) do
     "unknown"
+  end
+
+  defp test_mode_bypass? do
+    not Elektrine.Async.async_enabled?()
   end
 
   defp overload_drop?(activity) do
