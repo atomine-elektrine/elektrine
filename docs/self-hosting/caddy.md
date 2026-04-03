@@ -47,10 +47,15 @@ For wildcard/external certificate mode, also set:
 - `CADDY_MANAGED_SITE_1_CERT_PATH`
 - `CADDY_MANAGED_SITE_1_KEY_PATH`
 
+For wildcard issuance directly in Caddy through Cloudflare DNS, set instead:
+
+- `CLOUDFLARE_API_TOKEN`
+
 When you deploy through `scripts/deploy/docker_deploy.sh`, you usually do not
 need to set `CADDY_CONFIG_PATH` manually. The deploy tooling auto-selects the
-wildcard-external Caddyfile when it sees wildcard site entries together with
-mounted cert/key paths.
+wildcard Cloudflare Caddyfile when it sees wildcard site entries together with
+`CLOUDFLARE_API_TOKEN`, or the wildcard-external Caddyfile when it sees mounted
+cert/key paths.
 
 ## Deploy
 
@@ -65,12 +70,20 @@ CADDY_MANAGED_SITE_1="example.com *.example.com"
 CADDY_MANAGED_SITE_2="alt.example.net *.alt.example.net"
 ```
 
-Mount the directory that contains your certs with `CADDY_TLS_MOUNT_DIR`, then
-set the matching `CADDY_MANAGED_SITE_*_CERT_PATH` / `..._KEY_PATH` values to
-container paths. If you bypass the deploy script and run raw `docker compose`,
-set `CADDY_CONFIG_PATH` yourself to `../caddy/Caddyfile.wildcard-external` for
-the edge-only profile or `../caddy/Caddyfile.baremetal.wildcard-external` for
-the full stack.
+If you use external wildcard certs, mount the directory that contains your certs
+with `CADDY_TLS_MOUNT_DIR`, then set the matching `CADDY_MANAGED_SITE_*_CERT_PATH`
+and `..._KEY_PATH` values to container paths.
+
+If you use Cloudflare DNS challenge instead, set `CLOUDFLARE_API_TOKEN` and let
+the deploy wrapper select the wildcard Cloudflare Caddyfile automatically.
+
+If you bypass the deploy script and run raw `docker compose`, set
+`CADDY_CONFIG_PATH` yourself to one of:
+
+- `../caddy/Caddyfile.wildcard-cloudflare`
+- `../caddy/Caddyfile.baremetal.wildcard-cloudflare`
+- `../caddy/Caddyfile.wildcard-external`
+- `../caddy/Caddyfile.baremetal.wildcard-external`
 
 If you only need a few explicit hosts and want Caddy itself to manage them,
 keep using the stock `Caddyfile` and do not put wildcard hosts into
@@ -81,7 +94,8 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 - raw server IP access is expected to work over `http://` for first-run bootstrap
 - raw server IP access is not expected to work over `https://`
 - for full browser interactivity over raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>`
-- wildcard external mode keeps Caddy stock; certificate issuance happens outside Caddy
+- wildcard external mode keeps certificate issuance outside Caddy
+- wildcard Cloudflare mode lets Caddy issue and renew wildcard certs directly
 - wildcard external mode is the recommended path for high-volume username subdomains
 - stock on-demand TLS is still available in the default Caddyfile for explicit-host setups
 - `mta-sts.<domain>` is treated as a built-in host so MTA-STS policy delivery can use the same edge

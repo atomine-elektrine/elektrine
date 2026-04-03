@@ -109,12 +109,28 @@ interactivity over the raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>` in
 `.env.production`.
 
 If you need one wildcard cert for many username subdomains, switch to the
-wildcard external-cert Caddyfile with:
+wildcard Caddy path with either Cloudflare DNS challenge or an external cert.
+
+For Cloudflare DNS challenge in Caddy, set:
+
+- `CADDY_MANAGED_SITE_1="example.com *.example.com"`
+- `CLOUDFLARE_API_TOKEN=<cloudflare dns token>`
+
+For external wildcard certs, set:
 
 - `CADDY_MANAGED_SITE_1="example.com *.example.com"`
 - `CADDY_TLS_MOUNT_DIR=/opt/elektrine/certs`
-- `CADDY_MANAGED_SITE_1_CERT_PATH=/opt/elektrine/certs/example.com.fullchain.pem`
-- `CADDY_MANAGED_SITE_1_KEY_PATH=/opt/elektrine/certs/example.com.key.pem`
+
+The deploy wrapper now infers the cert paths automatically as:
+
+- `/opt/elektrine/certs/example.com.fullchain.pem`
+- `/opt/elektrine/certs/example.com.key.pem`
+
+Override `CADDY_MANAGED_SITE_1_CERT_PATH` and `CADDY_MANAGED_SITE_1_KEY_PATH`
+only if your cert files live somewhere else or use a different filename.
+
+When `CLOUDFLARE_API_TOKEN` is set together with wildcard hosts, the deploy
+wrapper now selects the Cloudflare wildcard Caddyfile automatically.
 
 Then renew that wildcard certificate outside Docker and keep the host cert
 directory mounted read-only into the Caddy container. `scripts/deploy/docker_deploy.sh`

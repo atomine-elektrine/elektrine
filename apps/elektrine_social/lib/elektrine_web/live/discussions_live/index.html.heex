@@ -19,6 +19,8 @@
     |> Enum.reject(&MapSet.member?(@joined_community_ids, &1.id))
     |> Enum.take(6)
 
+  discover_remote_communities = Enum.take(@filtered_discover_remote_communities || [], 6)
+
   spotlight_communities = Enum.take(@filtered_popular_communities || [], 3)
   trending_threads = Enum.take(@filtered_discussions || [], 4)
   recent_threads = Enum.take(@filtered_recent_activity || [], 4)
@@ -38,7 +40,7 @@
   current_view_status =
     case @current_view do
       "communities" ->
-        "#{joined_count} joined · #{length(discover_cards)} to discover · #{length(active_thread_cards)} active threads"
+        "#{joined_count} joined · #{length(discover_cards) + length(discover_remote_communities)} to discover · #{length(active_thread_cards)} active threads"
 
       "feed" ->
         "#{length(@filtered_community_posts || [])} posts · sort #{String.capitalize(@feed_sort || "new")}"
@@ -706,6 +708,95 @@
                       <% else %>
                         <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-6 text-sm text-base-content/60">
                           No new communities matched this category.
+                        </div>
+                      <% end %>
+                    </section>
+
+                    <section class="space-y-3">
+                      <h2 class="text-xl font-semibold">Fediverse Communities</h2>
+
+                      <%= if discover_remote_communities != [] do %>
+                        <div class="grid gap-3 xl:grid-cols-2">
+                          <%= for actor <- discover_remote_communities do %>
+                            <.link
+                              href={community_route(actor)}
+                              class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors"
+                            >
+                              <div class="card-body p-4 gap-4">
+                                <div class="flex items-start gap-3">
+                                  <%= if actor.avatar_url do %>
+                                    <img
+                                      src={actor.avatar_url}
+                                      class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                                      alt={actor.username}
+                                    />
+                                  <% else %>
+                                    <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
+                                      <.icon name="hero-globe-alt" class="w-6 h-6" />
+                                    </div>
+                                  <% end %>
+                                  <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                      <h3 class="font-semibold truncate">
+                                        {raw(community_display_name_markup(actor))}
+                                      </h3>
+                                      <span class="badge badge-outline badge-sm">
+                                        {community_category_label(actor)}
+                                      </span>
+                                      <span class="badge badge-outline badge-sm">Remote</span>
+                                    </div>
+                                    <p class="text-xs text-base-content/50 mt-1">
+                                      {community_address(actor)}
+                                    </p>
+                                    <%= if actor.summary do %>
+                                      <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                        {raw(
+                                          PostUtilities.render_content_preview(
+                                            actor.summary,
+                                            actor.domain
+                                          )
+                                        )}
+                                      </p>
+                                    <% end %>
+                                  </div>
+                                </div>
+                                <div class="flex items-center justify-between gap-3">
+                                  <div class="flex flex-wrap gap-3 text-xs text-base-content/60">
+                                    <span class="flex items-center gap-1">
+                                      <.icon name="hero-globe-alt" class="w-3.5 h-3.5" />
+                                      Federated community
+                                    </span>
+                                    <%= if creator = community_creator_markup(actor) do %>
+                                      <span class="truncate">{raw(creator)}</span>
+                                    <% end %>
+                                  </div>
+                                  <%= if @current_user do %>
+                                    <button
+                                      type="button"
+                                      id={"discover-follow-community-#{actor.id}"}
+                                      phx-click="follow_remote_group"
+                                      phx-value-actor_id={actor.id}
+                                      class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                                      phx-hook="StopPropagation"
+                                    >
+                                      <span class="phx-click-loading:hidden">Follow</span>
+                                      <span class="hidden items-center phx-click-loading:inline-flex">
+                                        <.spinner size="sm" class="mr-1" /> Following...
+                                      </span>
+                                    </button>
+                                  <% else %>
+                                    <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+                                      Sign in
+                                    </.link>
+                                  <% end %>
+                                </div>
+                              </div>
+                            </.link>
+                          <% end %>
+                        </div>
+                      <% else %>
+                        <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-6 text-sm text-base-content/60">
+                          No fediverse communities are cached for this category yet.
                         </div>
                       <% end %>
                     </section>
