@@ -15,6 +15,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_tests:
+        description: Run the test suite
+        required: false
+        type: boolean
+        default: true
 
 env:
   MIX_ENV: test
@@ -82,10 +87,11 @@ jobs:
         run: mix credo --strict
 
       - name: Run test suite
+        if: ${{ inputs.run_tests }}
         id: test_suite
         continue-on-error: ${{ inputs.allow_test_failure }}
         run: mix test
 
       - name: Emit warning when tests are allowed to fail
-        if: ${{ inputs.allow_test_failure && steps.test_suite.outcome == 'failure' }}
+        if: ${{ inputs.run_tests && inputs.allow_test_failure && steps.test_suite.outcome == 'failure' }}
         run: echo "::warning::Test suite failed, but deploy can continue."

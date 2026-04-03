@@ -34,9 +34,3 @@ updates:
         update-types:
           - "minor"
           - "patch"
-
-  # Docker (for VPN)
-  - package-ecosystem: "docker"
-    directory: "/vpn-elektrine"
-    schedule:
-      interval: "weekly"
