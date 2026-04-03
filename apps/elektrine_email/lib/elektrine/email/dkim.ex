@@ -317,13 +317,7 @@ defmodule Elektrine.Email.DKIM do
   end
 
   defp email_config do
-    [
-      custom_domain_http_client:
-        Elektrine.EmailConfig.email_setting(
-          :custom_domain_http_client,
-          Elektrine.Email.DKIM.FinchClient
-        )
-    ]
+    Elektrine.RuntimeEnv.app_config(:email, [])
   end
 
   defp http_client do

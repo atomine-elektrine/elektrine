@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.Domains
   alias ElektrineWeb.Plugs.DAVAuth
 
   # Helper to create a test user
@@ -145,7 +146,7 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
     test "authenticates with email format username" do
       user = create_test_user()
       token = create_app_password(user)
-      email = "#{user.username}@example.com"
+      email = "#{user.username}@#{Domains.primary_email_domain()}"
       auth = basic_auth_header(email, token)
 
       conn =

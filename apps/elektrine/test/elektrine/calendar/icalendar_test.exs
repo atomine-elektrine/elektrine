@@ -2,6 +2,7 @@ defmodule Elektrine.Calendar.ICalendarTest do
   use ExUnit.Case, async: true
 
   alias Elektrine.Calendar.ICalendar
+  alias Elektrine.Domains
 
   describe "parse/1" do
     test "parses a simple event" do
@@ -314,7 +315,7 @@ defmodule Elektrine.Calendar.ICalendarTest do
 
       assert {:ok, icalendar} = ICalendar.generate(event)
       assert String.contains?(icalendar, "UID:")
-      assert String.contains?(icalendar, "@example.com")
+      assert String.contains?(icalendar, "@#{Domains.primary_email_domain()}")
     end
   end
 
@@ -324,7 +325,7 @@ defmodule Elektrine.Calendar.ICalendarTest do
       uid2 = ICalendar.generate_uid()
 
       assert uid1 != uid2
-      assert String.ends_with?(uid1, "@example.com")
+      assert String.ends_with?(uid1, "@#{Domains.primary_email_domain()}")
     end
   end
 

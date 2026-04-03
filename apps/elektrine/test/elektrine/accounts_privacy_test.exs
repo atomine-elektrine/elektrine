@@ -215,7 +215,7 @@ defmodule Elektrine.AccountsPrivacyTest do
     {privacy_attrs, user_attrs} = Map.split(attrs, privacy_keys)
 
     base_attrs = %{
-      username: "user#{System.unique_integer([:positive])}",
+      username: "u" <> (Ecto.UUID.generate() |> String.replace("-", "") |> String.slice(0, 19)),
       password: "hello world!",
       password_confirmation: "hello world!"
     }

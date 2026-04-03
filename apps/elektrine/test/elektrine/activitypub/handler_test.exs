@@ -151,12 +151,14 @@ defmodule Elektrine.ActivityPub.HandlerTest do
 
   describe "extract_local_mentions/1" do
     test "extracts username from example.net mention" do
+      local_domain = Elektrine.Domains.instance_domain()
+
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://example.net/users/testuser",
-            "name" => "@testuser@example.net"
+            "href" => "https://#{local_domain}/users/testuser",
+            "name" => "@testuser@#{local_domain}"
           }
         ]
       }
@@ -166,12 +168,14 @@ defmodule Elektrine.ActivityPub.HandlerTest do
     end
 
     test "extracts username from example.com mention" do
+      local_domain = Elektrine.Domains.primary_email_domain()
+
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://example.com/users/testuser",
-            "name" => "@testuser@example.com"
+            "href" => "https://#{local_domain}/users/testuser",
+            "name" => "@testuser@#{local_domain}"
           }
         ]
       }
@@ -196,17 +200,24 @@ defmodule Elektrine.ActivityPub.HandlerTest do
     end
 
     test "extracts multiple local mentions from both domains" do
+      domains =
+        Elektrine.Domains.activitypub_domains()
+        |> Enum.take(2)
+
+      [first_domain | rest] = domains
+      second_domain = List.first(rest) || first_domain
+
       object = %{
         "tag" => [
           %{
             "type" => "Mention",
-            "href" => "https://example.net/users/alice",
-            "name" => "@alice@example.net"
+            "href" => "https://#{first_domain}/users/alice",
+            "name" => "@alice@#{first_domain}"
           },
           %{
             "type" => "Mention",
-            "href" => "https://example.com/users/bob",
-            "name" => "@bob@example.com"
+            "href" => "https://#{second_domain}/users/bob",
+            "name" => "@bob@#{second_domain}"
           },
           %{
             "type" => "Mention",

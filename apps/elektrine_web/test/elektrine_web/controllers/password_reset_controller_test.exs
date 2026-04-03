@@ -22,12 +22,24 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
   end
 
   setup do
+    previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
+
+    Application.put_env(
+      :elektrine,
+      Elektrine.Mailer,
+      Keyword.merge(previous_mailer_config, adapter: Swoosh.Adapters.Test)
+    )
+
     {:ok, user} =
       Accounts.create_user(%{
         username: "testuser",
         password: "password123456",
         password_confirmation: "password123456"
       })
+
+    on_exit(fn ->
+      Application.put_env(:elektrine, Elektrine.Mailer, previous_mailer_config)
+    end)
 
     %{user: user}
   end

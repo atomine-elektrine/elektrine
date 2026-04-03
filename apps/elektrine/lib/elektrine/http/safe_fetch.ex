@@ -74,6 +74,9 @@ defmodule Elektrine.HTTP.SafeFetch do
     receive do
       message ->
         case Mint.HTTP.stream(conn, message) do
+          :unknown ->
+            receive_loop(conn, ref, acc, max_body_bytes, receive_timeout)
+
           {:ok, conn, responses} ->
             case handle_responses(conn, ref, responses, acc, max_body_bytes) do
               {:continue, conn, acc} ->

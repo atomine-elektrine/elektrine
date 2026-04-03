@@ -642,7 +642,7 @@ defmodule Elektrine.AppCache do
   Warms up cache for a user after login.
   """
   def warm_user_cache(user_id, mailbox_id) do
-    Task.start(fn ->
+    Elektrine.Async.start(fn ->
       # Warm user data
       try do
         user = Elektrine.Accounts.get_user!(user_id)

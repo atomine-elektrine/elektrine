@@ -3,6 +3,7 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
 
   alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Domains
   alias Elektrine.Repo
   alias Elektrine.Subscriptions.Product
   alias Elektrine.System, as: SystemSettings
@@ -39,7 +40,7 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
 
       conn = get(conn, ~p"/register")
       response = html_response(conn, 200)
-      assert response =~ "Buy Invite"
+      assert response =~ "Pay One-Time Fee"
       assert response =~ "$5.00"
     end
 
@@ -202,7 +203,7 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
       # Verify mailbox was created
       mailbox = Elektrine.Email.get_user_mailbox(user.id)
       assert mailbox
-      assert String.contains?(mailbox.email, "@example.com")
+      assert String.contains?(mailbox.email, "@#{Domains.primary_email_domain()}")
 
       # Storage is now tracked on User, not Mailbox
       assert user.storage_used_bytes == 0

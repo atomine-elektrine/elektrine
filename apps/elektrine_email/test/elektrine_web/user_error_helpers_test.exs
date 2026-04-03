@@ -3,6 +3,7 @@ defmodule ElektrineWeb.UserErrorHelpersTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Domains
   alias Elektrine.Email
   alias Elektrine.Email.Alias
   alias ElektrineWeb.UserErrorHelpers
@@ -27,7 +28,7 @@ defmodule ElektrineWeb.UserErrorHelpersTest do
 
       changeset =
         Alias.changeset(%Alias{}, %{
-          alias_email: "abc@example.com",
+          alias_email: "abc@#{Domains.primary_email_domain()}",
           user_id: user.id
         })
 

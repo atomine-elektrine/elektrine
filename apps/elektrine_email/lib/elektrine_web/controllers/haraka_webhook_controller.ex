@@ -675,7 +675,11 @@ defmodule ElektrineWeb.HarakaWebhookController do
 
     from = get_header_value(params, "from", "mail_from") || ""
     subject = extract_subject(params)
-    Task.start(fn -> Elektrine.SecurityAlerts.send_spoofing_alert(from, recipient, subject) end)
+
+    Elektrine.Async.run(fn ->
+      Elektrine.SecurityAlerts.send_spoofing_alert(from, recipient, subject)
+    end)
+
     :ok
   end
 

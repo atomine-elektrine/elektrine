@@ -87,7 +87,10 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     user = user_fixture(%{username: "conflictingprofiledomain"})
 
     assert {:error, changeset} =
-             Profiles.create_custom_domain(user, %{"domain" => "foo.example.com"})
+             Profiles.create_custom_domain(
+               user,
+               %{"domain" => "foo.#{Domains.primary_profile_domain()}"}
+             )
 
     assert "conflicts with an existing profile host" in errors_on(changeset).domain
   end
@@ -113,7 +116,7 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     refute Enum.any?(records, &(&1.type in ["A", "AAAA"]))
   end
 
-  test "dns_records_for_custom_domain falls back to the primary profile hostname" do
+  test "dns_records_for_custom_domain falls back to the configured routing target" do
     custom_domain = %CustomDomain{
       domain: "fallback.example",
       verification_token: "fallback-token"
@@ -124,7 +127,7 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     assert Enum.any?(records, fn record ->
              record.type == "ALIAS/CNAME" and
                record.host == "fallback.example" and
-               record.value == Domains.primary_profile_domain()
+               record.value == Domains.profile_custom_domain_routing_target()
            end)
   end
 end

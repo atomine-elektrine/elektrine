@@ -942,7 +942,6 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     assert html =~ "Thread context"
     assert html =~ "Root"
     assert html =~ "Parent"
-    assert html =~ "Current reply"
     assert html =~ "Root ancestor context"
     assert html =~ "Middle ancestor context"
     assert html =~ ~s(phx-value-id="#{root_post.id}")

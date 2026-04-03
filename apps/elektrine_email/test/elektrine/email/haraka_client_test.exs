@@ -1,6 +1,7 @@
 defmodule Elektrine.Email.HarakaClientTest do
   use ExUnit.Case, async: false
 
+  alias Elektrine.EmailAddresses
   alias Elektrine.Email.HarakaClient
   alias Elektrine.EmailConfig
 
@@ -97,7 +98,7 @@ defmodule Elektrine.Email.HarakaClientTest do
              })
 
     [request] = MockHarakaHTTPClient.requests()
-    assert request.url == "https://mail.example.com/api/v1/send"
+    assert request.url == "#{EmailAddresses.mail_base_url()}/api/v1/send"
   end
 
   test "uses HARAKA_HTTP_API_KEY as the outbound API key alias" do
@@ -122,7 +123,7 @@ defmodule Elektrine.Email.HarakaClientTest do
   test "rewrites the legacy haraka host to the mail subdomain" do
     Application.put_env(:elektrine, Elektrine.Mailer,
       api_key: "mailer-api-key",
-      base_url: "https://haraka.example.com"
+      base_url: "https://haraka.#{Elektrine.Domains.primary_email_domain()}"
     )
 
     assert {:ok, %{message_id: "queued-message"}} =
@@ -134,7 +135,7 @@ defmodule Elektrine.Email.HarakaClientTest do
              })
 
     [request] = MockHarakaHTTPClient.requests()
-    assert request.url == "https://mail.example.com/api/v1/send"
+    assert request.url == "#{EmailAddresses.mail_base_url()}/api/v1/send"
   end
 
   test "base64-encodes raw attachment binaries before JSON encoding" do

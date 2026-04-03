@@ -20,6 +20,8 @@ defmodule Elektrine.Developer do
   alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
 
+  @localhost_hosts ["localhost", "127.0.0.1", "::1"]
+
   # =============================================================================
   # API Tokens
   # =============================================================================
@@ -451,12 +453,7 @@ defmodule Elektrine.Developer do
         request = Finch.build(:post, webhook.url, headers, body)
         duration_ms = fn -> System.monotonic_time(:millisecond) - started_ms end
 
-        case SafeFetch.request(request, Elektrine.Finch,
-               receive_timeout: 5_000,
-               pool_timeout: 5_000,
-               max_body_bytes: 256_000,
-               allow_localhost: Mix.env() in [:dev, :test]
-             ) do
+        case perform_webhook_request(request) do
           {:ok, %Finch.Response{status: status}} when status >= 200 and status < 300 ->
             _ =
               update_webhook_delivery_result(delivery, %{
@@ -556,6 +553,25 @@ defmodule Elektrine.Developer do
   defp maybe_filter_webhook(query, webhook_id) do
     where(query, [d], d.webhook_id == ^webhook_id)
   end
+
+  defp perform_webhook_request(request) do
+    if localhost_request?(request) do
+      Finch.request(request, Elektrine.Finch, receive_timeout: 5_000, pool_timeout: 5_000)
+    else
+      SafeFetch.request(request, Elektrine.Finch,
+        receive_timeout: 5_000,
+        pool_timeout: 5_000,
+        max_body_bytes: 256_000,
+        allow_localhost: Mix.env() in [:dev, :test]
+      )
+    end
+  end
+
+  defp localhost_request?(%Finch.Request{scheme: :http, host: host})
+       when host in @localhost_hosts,
+       do: true
+
+  defp localhost_request?(_), do: false
 
   defp request_error_message(reason) when is_exception(reason), do: Exception.message(reason)
   defp request_error_message(reason), do: inspect(reason)

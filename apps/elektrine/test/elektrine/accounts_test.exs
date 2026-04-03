@@ -6,6 +6,7 @@ defmodule Elektrine.AccountsTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Activity, Actor, Delivery}
+  alias Elektrine.Domains
   alias Elektrine.Profiles
 
   describe "user validation" do
@@ -90,7 +91,7 @@ defmodule Elektrine.AccountsTest do
         # User creation should have created a mailbox
         mailbox = Elektrine.Repo.get_by(Elektrine.Email.Mailbox, user_id: user.id)
         assert mailbox
-        assert mailbox.email == "testdel@example.com"
+        assert mailbox.email == "testdel@#{Domains.primary_email_domain()}"
 
         # Create a message in the mailbox
         {:ok, message} =

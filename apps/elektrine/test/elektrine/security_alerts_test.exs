@@ -2,6 +2,7 @@ defmodule Elektrine.SecurityAlertsTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.Accounts
+  alias Elektrine.Domains
   alias Elektrine.Email
   alias Elektrine.EmailAddresses
   alias Elektrine.SecurityAlerts
@@ -42,7 +43,8 @@ defmodule Elektrine.SecurityAlertsTest do
       assert {:ok, _deleted_mailbox} = Email.delete_mailbox(mailbox)
     end
 
-    spoofed_address = "spoof#{System.unique_integer([:positive])}@example.com"
+    spoofed_address =
+      "spoof#{System.unique_integer([:positive])}@#{Domains.primary_email_domain()}"
 
     assert {:ok, _alias} =
              Email.create_alias(%{
@@ -81,7 +83,8 @@ defmodule Elektrine.SecurityAlertsTest do
       })
       |> Elektrine.Repo.update!()
 
-    spoofed_address = "spoof#{System.unique_integer([:positive])}@example.com"
+    spoofed_address =
+      "spoof#{System.unique_integer([:positive])}@#{Domains.primary_email_domain()}"
 
     assert {:ok, _alias} =
              Email.create_alias(%{

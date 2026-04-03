@@ -252,7 +252,7 @@ defmodule Elektrine.Email.Cached do
     AppCache.warm_user_cache(user_id, mailbox_id)
 
     # Also warm email-specific data
-    Task.start(fn ->
+    Elektrine.Async.start(fn ->
       # Load counts
       unread_count(mailbox_id)
       feed_messages_count(mailbox_id)

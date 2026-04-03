@@ -6,6 +6,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
 
   use Elektrine.DataCase
   alias Elektrine.Accounts
+  alias Elektrine.Domains
   alias Elektrine.Email
 
   describe "mailbox management" do
@@ -24,7 +25,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
 
       assert mailbox.user_id == user.id
-      assert mailbox.email == "#{user.username}@example.com"
+      assert mailbox.email == "#{user.username}@#{Domains.primary_email_domain()}"
 
       # Test retrieval
       retrieved = Email.get_user_mailbox(user.id)
@@ -40,7 +41,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       assert found_mailbox.user_id == user.id
 
       # Test with non-existent email
-      assert Email.get_mailbox_by_email("nonexistent@example.com") == nil
+      assert Email.get_mailbox_by_email("nonexistent@example.net") == nil
     end
 
     test "get_user_mailbox prefers the canonical mailbox when legacy duplicates exist", %{
@@ -71,7 +72,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
 
     test "update_mailbox_email keeps username in sync for cross-domain lookup", %{user: user} do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
-      new_email = "renamed@example.com"
+      new_email = "renamed@#{Domains.primary_email_domain()}"
 
       alternate_domain =
         Elektrine.Domains.supported_email_domains()
@@ -92,7 +93,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
     test "transition_mailbox_for_username_change creates a domain-agnostic mailbox", %{user: user} do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
       renamed_user = %{user | username: "renamed"}
-      new_email = "renamed@example.com"
+      new_email = "renamed@#{Domains.primary_email_domain()}"
 
       alternate_domain =
         Elektrine.Domains.supported_email_domains()

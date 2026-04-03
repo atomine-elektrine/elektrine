@@ -2,6 +2,7 @@ defmodule Elektrine.Email.VCardTest do
   use ExUnit.Case, async: true
 
   alias Elektrine.Email.VCard
+  alias Elektrine.Domains
 
   describe "parse/1" do
     test "parses a simple vCard" do
@@ -269,8 +270,8 @@ defmodule Elektrine.Email.VCardTest do
       uid2 = VCard.generate_uid()
 
       assert uid1 != uid2
-      assert String.ends_with?(uid1, "@example.com")
-      assert String.ends_with?(uid2, "@example.com")
+      assert String.ends_with?(uid1, "@#{Domains.primary_email_domain()}")
+      assert String.ends_with?(uid2, "@#{Domains.primary_email_domain()}")
     end
 
     test "generates valid UUID format" do
@@ -278,7 +279,7 @@ defmodule Elektrine.Email.VCardTest do
       # Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx@example.com
       assert String.match?(
                uid,
-               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@elektrine\.com$/
+               ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@#{Regex.escape(Domains.primary_email_domain())}$/
              )
     end
   end

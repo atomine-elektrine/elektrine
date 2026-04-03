@@ -1,5 +1,5 @@
 defmodule Elektrine.RuntimeEnvTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Elektrine.RuntimeEnv
 

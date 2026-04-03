@@ -4,18 +4,21 @@ defmodule Elektrine.Email.InboundRoutingTest do
   import Elektrine.AccountsFixtures
   import Elektrine.EmailFixtures
 
+  alias Elektrine.Domains
   alias Elektrine.Email
   alias Elektrine.Email.InboundRouting
 
   describe "resolve_recipient_mailbox/2" do
     test "prefers rcpt_to for mailing list style deliveries" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "routeuser@example.com"})
+
+      mailbox =
+        mailbox_fixture(%{user_id: user.id, email: "routeuser@#{Domains.primary_email_domain()}"})
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
                  "debian-user@lists.debian.org",
-                 "routeuser@example.com"
+                 "routeuser@#{Domains.primary_email_domain()}"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -23,12 +26,14 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
     test "resolves plus addressing to the base mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "plusroute@example.com"})
+
+      mailbox =
+        mailbox_fixture(%{user_id: user.id, email: "plusroute@#{Domains.primary_email_domain()}"})
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
                  "news@lists.example.org",
-                 "plusroute+tag@example.com"
+                 "plusroute+tag@#{Domains.primary_email_domain()}"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -36,12 +41,17 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
     test "resolves supported cross-domain recipient to the same mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "crossroute@example.com"})
+
+      mailbox =
+        mailbox_fixture(%{
+          user_id: user.id,
+          email: "crossroute@#{Domains.primary_email_domain()}"
+        })
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
-                 "crossroute@example.com",
-                 "crossroute@example.com"
+                 "crossroute@#{Domains.primary_email_domain()}",
+                 "crossroute@#{Domains.primary_email_domain()}"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -50,12 +60,12 @@ defmodule Elektrine.Email.InboundRoutingTest do
     test "returns forwarding tuple for aliases with external targets" do
       user = user_fixture()
       local_part = "aliasroute#{System.unique_integer([:positive])}"
-      alias_email = "#{local_part}@example.com"
+      alias_email = "#{local_part}@#{Domains.primary_email_domain()}"
 
       assert {:ok, _alias} =
                Email.create_alias(%{
                  username: local_part,
-                 domain: "example.com",
+                 domain: Domains.primary_email_domain(),
                  target_email: "target@example.net",
                  user_id: user.id
                })
@@ -92,24 +102,28 @@ defmodule Elektrine.Email.InboundRoutingTest do
   describe "validate_mailbox_route/3" do
     test "accepts supported cross-domain recipient for mailbox" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@example.com"})
+
+      mailbox =
+        mailbox_fixture(%{user_id: user.id, email: "owner@#{Domains.primary_email_domain()}"})
 
       assert :ok =
                InboundRouting.validate_mailbox_route(
                  "list@lists.example.org",
-                 "owner@example.com",
+                 "owner@#{Domains.primary_email_domain()}",
                  mailbox
                )
     end
 
     test "rejects mismatched recipient to mailbox routing" do
       user = user_fixture()
-      mailbox = mailbox_fixture(%{user_id: user.id, email: "owner@example.com"})
+
+      mailbox =
+        mailbox_fixture(%{user_id: user.id, email: "owner@#{Domains.primary_email_domain()}"})
 
       assert {:error, reason} =
                InboundRouting.validate_mailbox_route(
-                 "other@example.com",
-                 "other@example.com",
+                 "other@example.net",
+                 "other@example.net",
                  mailbox
                )
 
@@ -119,9 +133,11 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
   describe "routing classification" do
     test "outbound_email?/2 identifies local -> external envelopes" do
-      assert InboundRouting.outbound_email?("user@example.com", "friend@example.com")
-      refute InboundRouting.outbound_email?("user@example.com", "friend@example.com")
-      refute InboundRouting.outbound_email?("sender@example.com", "user@example.com")
+      local = "user@#{Domains.primary_email_domain()}"
+
+      assert InboundRouting.outbound_email?(local, "friend@example.net")
+      refute InboundRouting.outbound_email?("user@example.net", "friend@example.org")
+      refute InboundRouting.outbound_email?("sender@example.net", local)
     end
 
     test "loopback_email?/3 detects recent sent-message loopbacks" do

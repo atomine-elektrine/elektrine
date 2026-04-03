@@ -183,7 +183,7 @@ defmodule ElektrineWeb.PresenceTest do
           online: false
         )
 
-      assert html =~ "bg-gray-400"
+      assert html =~ "bg-base-content/40"
     end
   end
 end

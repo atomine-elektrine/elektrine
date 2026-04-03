@@ -570,7 +570,7 @@ config :elektrine,
   session_signing_salt: RuntimeSecrets.session_signing_salt(runtime_env),
   session_encryption_salt: RuntimeSecrets.session_encryption_salt(runtime_env)
 
-if :email in enabled_platform_modules do
+if config_env() != :test and :email in enabled_platform_modules do
   config :elektrine, Elektrine.Mailer,
     adapter: Elektrine.Email.HarakaAdapter,
     api_key:

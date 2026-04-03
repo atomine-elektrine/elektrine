@@ -4,6 +4,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.{Profiles, StaticSites}
+  alias Elektrine.Domains
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
 
@@ -29,13 +30,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   describe "static site serving" do
     test "redirects app-host profile roots to username subdomains", %{user: user} do
+      host = Domains.primary_profile_domain()
+
       conn =
         Plug.Test.conn(:get, "/#{user.handle}")
-        |> Map.put(:host, "example.com")
+        |> Map.put(:host, host)
         |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://#{user.handle}.example.com/"]
+      assert get_resp_header(conn, "location") == ["https://#{user.handle}.#{host}/"]
     end
 
     test "serves index.html on username subdomains", %{user: user, html_content: html_content} do
@@ -74,13 +77,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
     end
 
     test "redirects app-host static assets to username subdomains", %{user: user} do
+      host = Domains.primary_profile_domain()
+
       conn =
         Plug.Test.conn(:get, "/#{user.handle}/style.css")
-        |> Map.put(:host, "example.com")
+        |> Map.put(:host, host)
         |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://#{user.handle}.example.com/style.css"]
+      assert get_resp_header(conn, "location") == ["https://#{user.handle}.#{host}/style.css"]
     end
 
     test "serves static assets on subdomains when subdomain_handle is assigned", %{

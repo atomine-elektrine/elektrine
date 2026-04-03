@@ -34,7 +34,9 @@ defmodule ElektrineWeb.Admin.ChatMessagesControllerTest do
         |> log_in_as(admin)
         |> get("/pripyat/arblarg/messages/#{message.id}/view")
 
-      assert html_response(conn, 200) =~ "Arblarg Chat Message"
+      response = html_response(conn, 200)
+      assert response =~ "Arblarg"
+      assert response =~ message.content
 
       log = latest_message_log(admin.id, message.id)
       assert log.action == "view_chat_message"
