@@ -14,7 +14,7 @@ defmodule Elektrine.VPNTest do
           public_ip: "198.51.100.10",
           endpoint_host: "hk-vpn.example.com",
           public_key: "server-public-key-1",
-          endpoint_port: 443,
+          endpoint_port: 51_820,
           client_mtu: 1280,
           internal_ip_range: "10.8.0.0/24"
         })
@@ -23,7 +23,7 @@ defmodule Elektrine.VPNTest do
 
       config_file = VPN.generate_config_file(config)
 
-      assert config_file =~ "Endpoint = hk-vpn.example.com:443"
+      assert config_file =~ "Endpoint = hk-vpn.example.com:51820"
       assert config_file =~ "MTU = 1280"
     end
 
@@ -52,7 +52,7 @@ defmodule Elektrine.VPNTest do
   end
 
   describe "auto_register_server/1" do
-    test "defaults to udp 443 and a low mtu" do
+    test "defaults to udp 51820 and a low mtu" do
       {:ok, server} =
         VPN.auto_register_server(%{
           name: "Auto Edge",
@@ -61,7 +61,7 @@ defmodule Elektrine.VPNTest do
           public_key: "server-public-key-3"
         })
 
-      assert server.endpoint_port == 443
+      assert server.endpoint_port == 51_820
       assert server.client_mtu == 1280
     end
   end
@@ -79,7 +79,7 @@ defmodule Elektrine.VPNTest do
       assert server.name == "example.com"
       assert server.location == "Self-hosted"
       assert server.public_ip == "203.0.113.50"
-      assert server.endpoint_port == 51820
+      assert server.endpoint_port == 51_820
       assert server.client_mtu == 1280
       assert VPN.self_host_server?(server)
       assert is_binary(server.api_key)

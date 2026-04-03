@@ -13,7 +13,7 @@ defmodule Elektrine.VPN.Server do
     field :public_ip, :string
     field :endpoint_host, :string
     field :public_key, :string
-    field :endpoint_port, :integer, default: 443
+    field :endpoint_port, :integer, default: 51_820
     field :client_mtu, :integer, default: 1280
     field :internal_ip_range, :string
     field :dns_servers, :string, default: "1.1.1.1, 1.0.0.1"

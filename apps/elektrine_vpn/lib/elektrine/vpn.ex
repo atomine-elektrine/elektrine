@@ -213,7 +213,7 @@ defmodule Elektrine.VPN do
       |> Map.put_new(:max_users, 1000)
       |> Map.put_new(:current_users, 0)
       |> Map.put_new(:minimum_trust_level, 0)
-      |> Map.put_new(:endpoint_port, 443)
+      |> Map.put_new(:endpoint_port, 51_820)
       |> Map.put_new(:client_mtu, 1280)
       |> Map.put_new(:dns_servers, "1.1.1.1, 1.0.0.1")
       |> Map.put_new(:internal_ip_range, "10.8.0.0/24")
@@ -497,7 +497,7 @@ defmodule Elektrine.VPN do
         public_key: public_key,
         endpoint_port:
           env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
-            env_value(env, "VPN_SELFHOST_LISTEN_PORT") || 443,
+            env_value(env, "VPN_SELFHOST_LISTEN_PORT") || 51_820,
         client_mtu: env_value(env, "VPN_SELFHOST_CLIENT_MTU") || 1280,
         internal_ip_range: env_value(env, "VPN_SELFHOST_INTERNAL_IP_RANGE") || "10.8.0.0/24",
         dns_servers: env_value(env, "VPN_SELFHOST_DNS_SERVERS") || "1.1.1.1, 1.0.0.1",
