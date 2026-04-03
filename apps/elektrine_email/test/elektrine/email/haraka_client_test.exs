@@ -1,8 +1,8 @@
 defmodule Elektrine.Email.HarakaClientTest do
   use ExUnit.Case, async: false
 
-  alias Elektrine.EmailAddresses
   alias Elektrine.Email.HarakaClient
+  alias Elektrine.EmailAddresses
   alias Elektrine.EmailConfig
 
   defmodule MockHarakaHTTPClient do

@@ -1,8 +1,8 @@
 defmodule Elektrine.Email.VCardTest do
   use ExUnit.Case, async: true
 
-  alias Elektrine.Email.VCard
   alias Elektrine.Domains
+  alias Elektrine.Email.VCard
 
   describe "parse/1" do
     test "parses a simple vCard" do

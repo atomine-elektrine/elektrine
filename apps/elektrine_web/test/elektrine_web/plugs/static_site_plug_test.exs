@@ -3,8 +3,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.{Profiles, StaticSites}
   alias Elektrine.Domains
+  alias Elektrine.{Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
 
