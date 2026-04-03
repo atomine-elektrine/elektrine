@@ -72,13 +72,14 @@ defmodule Elektrine.VPNTest do
         VPN.ensure_self_host_server(%{
           "PRIMARY_DOMAIN" => "example.com",
           "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.50",
-          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key"
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key",
+          "VPN_SELFHOST_LISTEN_PORT" => "51820"
         })
 
       assert server.name == "example.com"
       assert server.location == "Self-hosted"
       assert server.public_ip == "203.0.113.50"
-      assert server.endpoint_port == 443
+      assert server.endpoint_port == 51820
       assert server.client_mtu == 1280
       assert VPN.self_host_server?(server)
       assert is_binary(server.api_key)
@@ -107,6 +108,18 @@ defmodule Elektrine.VPNTest do
       assert updated.location == "Closet rack"
       assert updated.public_key == "self-host-public-key-b"
       assert updated.endpoint_host == "vpn.example.com"
+    end
+
+    test "prefers explicit endpoint port over listen port" do
+      {:ok, server} =
+        VPN.ensure_self_host_server(%{
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.52",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key-c",
+          "VPN_SELFHOST_LISTEN_PORT" => "51820",
+          "VPN_SELFHOST_ENDPOINT_PORT" => "443"
+        })
+
+      assert server.endpoint_port == 443
     end
   end
 

@@ -25,6 +25,7 @@ Defaults:
 
 - `VPN_SELFHOST_ADDRESS=10.8.0.1/24`
 - `VPN_SELFHOST_LISTEN_PORT=443`
+- `VPN_SELFHOST_ENDPOINT_PORT=<same as listen port by default>`
 - `VPN_SELFHOST_INTERNAL_IP_RANGE=10.8.0.0/24`
 - `VPN_SELFHOST_DNS_SERVERS=1.1.1.1, 1.0.0.1`
 
@@ -35,6 +36,9 @@ Optional labels:
 
 If neither `VPN_SELFHOST_ENDPOINT_HOST` nor `VPN_SELFHOST_PUBLIC_IP` is set,
 the `vpn` container falls back to outbound IP autodetection.
+
+If `VPN_SELFHOST_ENDPOINT_PORT` is unset, generated client configs use
+`VPN_SELFHOST_LISTEN_PORT` so future deploys keep advertising the live WireGuard port.
 
 If you are not using WireGuard, remove `vpn` from `ELEKTRINE_ENABLED_MODULES`.
 

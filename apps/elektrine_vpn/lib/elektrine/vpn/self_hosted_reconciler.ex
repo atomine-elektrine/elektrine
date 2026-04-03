@@ -11,6 +11,11 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
   @default_interval_seconds 60
   @default_active_window_seconds 180
 
+  def reconcile_now do
+    if Process.whereis(__MODULE__), do: GenServer.cast(__MODULE__, :reconcile_now)
+    :ok
+  end
+
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -25,6 +30,12 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
   def handle_info(:reconcile, state) do
     reconcile_once()
     schedule_reconcile()
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast(:reconcile_now, state) do
+    reconcile_once()
     {:noreply, state}
   end
 

@@ -5,7 +5,7 @@ defmodule Elektrine.VPN do
 
   import Ecto.Query, warn: false
   alias Elektrine.{PubSubTopics, Repo}
-  alias Elektrine.VPN.{ConnectionLog, Server, UserConfig}
+  alias Elektrine.VPN.{ConnectionLog, SelfHostedReconciler, Server, UserConfig}
 
   require Logger
 
@@ -338,6 +338,7 @@ defmodule Elektrine.VPN do
           # Don't increment current_users - that's based on actual connections
           # Invalidate peer cache for this server
           Elektrine.VPN.PeerCache.invalidate(server_id)
+          SelfHostedReconciler.reconcile_now()
 
           config = Repo.preload(config, [:vpn_server])
           broadcast_vpn_event(user_id, {:vpn_config_created, config})
@@ -364,6 +365,7 @@ defmodule Elektrine.VPN do
         # Invalidate cache if status changed
         if Map.has_key?(attrs, :status) do
           Elektrine.VPN.PeerCache.invalidate(user_config.vpn_server_id)
+          SelfHostedReconciler.reconcile_now()
         end
 
         updated_config = Repo.preload(updated_config, [:vpn_server])
@@ -388,6 +390,7 @@ defmodule Elektrine.VPN do
         # Don't decrement current_users - that's based on actual connections
         # Invalidate peer cache for this server
         Elektrine.VPN.PeerCache.invalidate(server_id)
+        SelfHostedReconciler.reconcile_now()
 
         broadcast_vpn_event(deleted_config.user_id, {:vpn_config_deleted, deleted_config.id})
 
@@ -492,7 +495,9 @@ defmodule Elektrine.VPN do
         public_ip: public_ip,
         endpoint_host: env_value(env, "VPN_SELFHOST_ENDPOINT_HOST"),
         public_key: public_key,
-        endpoint_port: env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") || 443,
+        endpoint_port:
+          env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
+            env_value(env, "VPN_SELFHOST_LISTEN_PORT") || 443,
         client_mtu: env_value(env, "VPN_SELFHOST_CLIENT_MTU") || 1280,
         internal_ip_range: env_value(env, "VPN_SELFHOST_INTERNAL_IP_RANGE") || "10.8.0.0/24",
         dns_servers: env_value(env, "VPN_SELFHOST_DNS_SERVERS") || "1.1.1.1, 1.0.0.1",
