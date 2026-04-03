@@ -53,5 +53,6 @@ fleet that self-registers nodes through the API.
 ## Notes
 
 - the `vpn` service runs with `host` networking and `NET_ADMIN` so it can own the WireGuard interface
+- enable `net.ipv4.ip_forward=1` and, if you use IPv6 routing, `net.ipv6.conf.all.forwarding=1` on the host before starting the `vpn` profile
 - `scripts/deploy/docker_deploy.sh` enables the `vpn` profile automatically when the `vpn` module is selected
 - if you need a different interface name, set `VPN_SELFHOST_WG_INTERFACE`

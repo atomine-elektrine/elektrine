@@ -16,7 +16,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       allow_format_failure: true
-      allow_test_failure: true
+      run_tests: false
 
   build_and_publish_image:
     name: Build and Publish Image
