@@ -21,7 +21,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
-  @session_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
   @overview_feed_limit 20
   @overview_feed_step 20
@@ -2410,9 +2409,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp maybe_note_dwell_interest(socket, post_id, dwell_time_ms) do
     if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
-      socket
-      |> note_positive_signal(find_overview_post(socket.assigns.all_posts, post_id))
-      |> schedule_feed_rerank()
+      note_positive_signal(socket, find_overview_post(socket.assigns.all_posts, post_id))
     else
       socket
     end
@@ -2480,7 +2477,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     Map.put(session_context, :engagement_rate, total_interactions / total_views)
   end
 
-  defp schedule_feed_rerank(socket, delay_ms \\ @session_rerank_delay_ms) do
+  defp schedule_feed_rerank(socket, delay_ms) do
     if is_reference(socket.assigns[:feed_rerank_ref]) do
       Process.cancel_timer(socket.assigns.feed_rerank_ref)
     end

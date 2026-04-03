@@ -35,6 +35,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:page_title, "Communities")
       |> assign(:communities, [])
       |> assign(:followed_remote_communities, [])
+      |> assign(:discover_remote_communities, [])
       |> assign(:public_communities, [])
       |> assign(:trending_discussions, [])
       |> assign(:federated_discussions, [])
@@ -60,6 +61,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       |> assign(:filtered_popular_communities, [])
       |> assign(:filtered_community_posts, [])
       |> assign(:filtered_remote_communities, [])
+      |> assign(:filtered_discover_remote_communities, [])
       |> assign(:joined_community_ids, MapSet.new())
       |> assign(:search_query, "")
       |> assign(:search_results, [])
@@ -241,6 +243,9 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     filtered_popular_communities =
       filter_popular_communities_by_category(socket.assigns.popular_communities, category)
 
+    filtered_discover_remote_communities =
+      filter_communities_by_category(socket.assigns.discover_remote_communities, category)
+
     filtered_community_posts =
       socket.assigns.followed_community_posts
       |> filter_community_posts_by_category(category)
@@ -259,6 +264,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:filtered_federated_discussions, filtered_federated_discussions)
      |> assign(:filtered_recent_activity, filtered_recent_activity)
      |> assign(:filtered_popular_communities, filtered_popular_communities)
+     |> assign(:filtered_discover_remote_communities, filtered_discover_remote_communities)
      |> assign(:filtered_community_posts, filtered_community_posts)}
   end
 
@@ -1330,6 +1336,12 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
           end,
           []
         ),
+      discover_remote_communities:
+        load_with_fallback(
+          :discover_remote_communities,
+          fn -> get_discover_remote_communities(user && user.id, limit: 8) end,
+          []
+        ),
       followed_community_posts:
         load_with_fallback(
           :followed_community_posts,
@@ -1379,6 +1391,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
     trending_discussions = results.trending_discussions
     federated_discussions = results.federated_discussions
     followed_remote_communities = results.followed_remote_communities
+    discover_remote_communities = results.discover_remote_communities
     followed_community_posts = results.followed_community_posts
     recent_activity = results.recent_activity
     popular_communities = results.popular_communities
@@ -1440,6 +1453,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      socket
      |> assign(:communities, communities)
      |> assign(:followed_remote_communities, followed_remote_communities)
+     |> assign(:discover_remote_communities, discover_remote_communities)
      |> assign(:public_communities, public_communities)
      |> assign(:trending_discussions, trending_discussions)
      |> assign(:federated_discussions, federated_discussions)
@@ -1455,6 +1469,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
      |> assign(:filtered_popular_communities, popular_communities)
      |> assign(:filtered_community_posts, filtered_followed_posts)
      |> assign(:filtered_remote_communities, followed_remote_communities)
+     |> assign(:filtered_discover_remote_communities, discover_remote_communities)
      |> assign(:joined_community_ids, joined_community_ids)
      |> assign(:post_interactions, post_interactions)
      |> assign(:lemmy_counts, lemmy_counts)
@@ -1519,6 +1534,35 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
       order_by: [desc: f.inserted_at]
     )
     |> Repo.all()
+  end
+
+  defp get_discover_remote_communities(user_id, opts) do
+    limit = Keyword.get(opts, :limit, 8)
+
+    excluded_actor_ids =
+      if is_integer(user_id) do
+        from(f in Profiles.Follow,
+          where: f.follower_id == ^user_id and not is_nil(f.remote_actor_id),
+          select: f.remote_actor_id
+        )
+        |> Repo.all()
+      else
+        []
+      end
+
+    default_domain = Elektrine.Domains.default_user_handle_domain()
+
+    from(a in Actor,
+      where:
+        a.actor_type == "Group" and is_nil(a.community_id) and not is_nil(a.domain) and
+          a.domain != ^default_domain,
+      order_by: [desc: a.last_fetched_at, desc: a.inserted_at],
+      limit: ^(limit * 3)
+    )
+    |> Repo.all()
+    |> Enum.reject(&(&1.id in excluded_actor_ids))
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.take(limit)
   end
 
   defp get_followed_community_posts(user_id, opts) do

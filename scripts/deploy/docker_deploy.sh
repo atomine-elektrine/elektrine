@@ -138,21 +138,24 @@ fi
 infer_caddy_config_default() {
   local site1_values="${CADDY_MANAGED_SITE_1:-}"
   local site2_values="${CADDY_MANAGED_SITE_2:-}"
+  local cloudflare_token="${CLOUDFLARE_API_TOKEN:-}"
 
   if [[ "$site1_values" == *"*."* ]]; then
-    if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+    if [[ -z "$cloudflare_token" && ( -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ) ]]; then
       echo "Error: CADDY_MANAGED_SITE_1 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_1 for the stock Caddy setup." >&2
-      echo "Hint: or provide CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH for a wildcard certificate." >&2
+      echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
+      echo "Hint: or provide CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
   fi
 
   if [[ "$site2_values" == *"*."* ]]; then
-    if [[ -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
+    if [[ -z "$cloudflare_token" && ( -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ) ]]; then
       echo "Error: CADDY_MANAGED_SITE_2 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_2 for the stock Caddy setup." >&2
-      echo "Hint: or provide CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH for a wildcard certificate." >&2
+      echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
+      echo "Hint: or provide CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
   fi
@@ -165,6 +168,7 @@ infer_caddy_config_default() {
   local default_path="../caddy/Caddyfile.baremetal"
   local external_path="../caddy/Caddyfile.baremetal.external-certs"
   local wildcard_path="../caddy/Caddyfile.baremetal.wildcard-external"
+  local wildcard_cloudflare_path="../caddy/Caddyfile.baremetal.wildcard-cloudflare"
 
   local site_values="$site1_values $site2_values"
   local has_wildcard=0
@@ -182,7 +186,9 @@ infer_caddy_config_default() {
     has_external_cert=1
   fi
 
-  if [[ "$has_external_cert" -eq 1 && "$has_wildcard" -eq 1 ]]; then
+  if [[ -n "$cloudflare_token" && "$has_wildcard" -eq 1 ]]; then
+    printf '%s' "$wildcard_cloudflare_path"
+  elif [[ "$has_external_cert" -eq 1 && "$has_wildcard" -eq 1 ]]; then
     printf '%s' "$wildcard_path"
   elif [[ "$has_external_cert" -eq 1 ]]; then
     printf '%s' "$external_path"
@@ -190,6 +196,55 @@ infer_caddy_config_default() {
     printf '%s' "$default_path"
   fi
 }
+
+infer_cert_base_name() {
+  local site_values="$1"
+  local token=""
+
+  for token in $site_values; do
+    token="${token#*.}"
+
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+populate_wildcard_cert_defaults() {
+  local tls_mount_dir="${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}"
+  local site1_values="${CADDY_MANAGED_SITE_1:-}"
+  local site2_values="${CADDY_MANAGED_SITE_2:-}"
+  local cert_base_name=""
+
+  if [[ "$site1_values" == *"*."* ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+      cert_base_name="$(infer_cert_base_name "$site1_values")" || cert_base_name=""
+
+      if [[ -n "$cert_base_name" ]]; then
+        CADDY_MANAGED_SITE_1_CERT_PATH="${CADDY_MANAGED_SITE_1_CERT_PATH:-$tls_mount_dir/$cert_base_name.fullchain.pem}"
+        CADDY_MANAGED_SITE_1_KEY_PATH="${CADDY_MANAGED_SITE_1_KEY_PATH:-$tls_mount_dir/$cert_base_name.key.pem}"
+        export CADDY_MANAGED_SITE_1_CERT_PATH CADDY_MANAGED_SITE_1_KEY_PATH
+      fi
+    fi
+  fi
+
+  if [[ "$site2_values" == *"*."* ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
+      cert_base_name="$(infer_cert_base_name "$site2_values")" || cert_base_name=""
+
+      if [[ -n "$cert_base_name" ]]; then
+        CADDY_MANAGED_SITE_2_CERT_PATH="${CADDY_MANAGED_SITE_2_CERT_PATH:-$tls_mount_dir/$cert_base_name.fullchain.pem}"
+        CADDY_MANAGED_SITE_2_KEY_PATH="${CADDY_MANAGED_SITE_2_KEY_PATH:-$tls_mount_dir/$cert_base_name.key.pem}"
+        export CADDY_MANAGED_SITE_2_CERT_PATH CADDY_MANAGED_SITE_2_KEY_PATH
+      fi
+    fi
+  fi
+}
+
+populate_wildcard_cert_defaults
 
 INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
 
