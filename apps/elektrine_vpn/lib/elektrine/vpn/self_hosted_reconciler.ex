@@ -3,6 +3,7 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
 
   use GenServer
 
+  alias Elektrine.PubSubTopics
   alias Elektrine.VPN
   alias Elektrine.VPN.WireGuardAdapter
 
@@ -12,7 +13,12 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
   @default_active_window_seconds 180
 
   def reconcile_now do
-    if Process.whereis(__MODULE__), do: GenServer.cast(__MODULE__, :reconcile_now)
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      PubSubTopics.vpn_self_hosted_reconcile(),
+      :reconcile_now
+    )
+
     :ok
   end
 
@@ -22,6 +28,7 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
 
   @impl true
   def init(_opts) do
+    Phoenix.PubSub.subscribe(Elektrine.PubSub, PubSubTopics.vpn_self_hosted_reconcile())
     send(self(), :reconcile)
     {:ok, %{}}
   end
@@ -30,6 +37,12 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
   def handle_info(:reconcile, state) do
     reconcile_once()
     schedule_reconcile()
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:reconcile_now, state) do
+    reconcile_once()
     {:noreply, state}
   end
 

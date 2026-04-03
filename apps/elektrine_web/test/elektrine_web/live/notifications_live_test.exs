@@ -136,6 +136,20 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     assert rendered =~ "No unread system notifications."
   end
 
+  test "unread filter disables auto-marking visible notifications", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    notification_fixture(viewer, %{title: "Stay visible", body: "Unread body"})
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?filter=unread&source=all")
+
+    assert html =~ ~s(data-auto-mark-read="false")
+    assert render(view) =~ ~s(data-auto-mark-read="false")
+  end
+
   test "single notifications without a body do not render duplicate detail text", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 
