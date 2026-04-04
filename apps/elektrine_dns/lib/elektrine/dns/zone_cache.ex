@@ -6,6 +6,8 @@ defmodule Elektrine.DNS.ZoneCache do
   use GenServer
   import Ecto.Query, only: [preload: 2]
 
+  require Logger
+
   alias Elektrine.DNS.Zone
   alias Elektrine.Repo
 
@@ -58,23 +60,31 @@ defmodule Elektrine.DNS.ZoneCache do
   end
 
   defp refresh_cache(state, opts \\ []) do
-    :ets.delete_all_objects(@table)
-
     repo_opts = Keyword.take(opts, [:caller])
 
-    try do
-      Zone
-      |> preload(:records)
-      |> Repo.all(repo_opts)
-      |> Enum.each(fn zone ->
-        :ets.insert(@table, {String.downcase(zone.domain), zone})
-      end)
-    rescue
-      Postgrex.Error -> :ok
-      DBConnection.OwnershipError -> :ok
+    case load_zones(repo_opts) do
+      {:ok, zones} ->
+        :ets.delete_all_objects(@table)
+
+        Enum.each(zones, fn zone ->
+          :ets.insert(@table, {String.downcase(zone.domain), zone})
+        end)
+
+      {:error, error} ->
+        Logger.warning("DNS zone cache refresh failed: #{Exception.message(error)}")
     end
 
     state
+  end
+
+  defp load_zones(repo_opts) do
+    {:ok,
+     Zone
+     |> preload(:records)
+     |> Repo.all(repo_opts)}
+  rescue
+    error in [Postgrex.Error, DBConnection.OwnershipError] ->
+      {:error, error}
   end
 
   defp schedule_refresh(refresh_interval_ms)

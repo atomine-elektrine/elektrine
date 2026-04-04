@@ -1686,7 +1686,7 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp filter_communities_by_category(communities, category) do
-    Enum.filter(communities, fn community -> community.community_category == category end)
+    Enum.filter(communities, fn community -> community_category(community) == category end)
   end
 
   defp filter_discussions_by_category(discussions, "all") do
@@ -1821,6 +1821,20 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   defp infer_community_category(_) do
     "general"
   end
+
+  defp community_category(%Messaging.Conversation{community_category: category})
+       when is_binary(category),
+       do: category
+
+  defp community_category(%Actor{} = actor), do: infer_community_category(actor.uri)
+
+  defp community_category(%{community_category: category}) when is_binary(category), do: category
+
+  defp community_category(%{category: category}) when is_binary(category), do: category
+
+  defp community_category(%{community: community}), do: community_category(community)
+  defp community_category(%{remote_actor: actor}), do: community_category(actor)
+  defp community_category(_), do: "general"
 
   defp filter_community_posts_by_category(posts, "all") do
     posts
@@ -2431,11 +2445,11 @@ defmodule ElektrineWeb.DiscussionsLive.Index do
   end
 
   defp community_category_label(%Messaging.Conversation{} = community) do
-    community.community_category |> to_string() |> String.replace("_", " ") |> String.capitalize()
+    community |> community_category() |> String.replace("_", " ") |> String.capitalize()
   end
 
   defp community_category_label(%Actor{} = actor) do
-    actor.uri |> infer_community_category() |> String.replace("_", " ") |> String.capitalize()
+    actor |> community_category() |> String.replace("_", " ") |> String.capitalize()
   end
 
   defp community_category_label(%{category: category}) when is_binary(category) do

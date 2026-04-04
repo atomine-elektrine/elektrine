@@ -1200,27 +1200,38 @@ defmodule Elektrine.Messaging.Messages do
     limit = Keyword.get(opts, :limit, 10)
     viewer_id = Keyword.get(opts, :viewer_id)
 
-    from(m in Message,
-      join: c in Conversation,
-      on: c.id == m.conversation_id,
-      left_join: cm in ConversationMember,
-      on: cm.conversation_id == c.id and cm.user_id == ^viewer_id,
-      where:
-        m.sender_id == ^user_id and
-          m.post_type == "discussion" and
-          is_nil(m.deleted_at) and
-          c.type == "community" and
-          (c.is_public == true or m.sender_id == ^viewer_id or not is_nil(cm.id)),
-      order_by: [desc: m.inserted_at],
-      limit: ^limit,
-      preload: [
-        sender: [:profile],
-        conversation: [],
-        link_preview: [],
-        flair: [],
-        hashtags: []
-      ]
-    )
+    query =
+      from(m in Message,
+        join: c in Conversation,
+        on: c.id == m.conversation_id,
+        where:
+          m.sender_id == ^user_id and
+            m.post_type == "discussion" and
+            is_nil(m.deleted_at) and
+            c.type == "community",
+        order_by: [desc: m.inserted_at],
+        limit: ^limit,
+        preload: [
+          sender: [:profile],
+          conversation: [],
+          link_preview: [],
+          flair: [],
+          hashtags: []
+        ]
+      )
+
+    query =
+      if is_integer(viewer_id) do
+        from([m, c] in query,
+          left_join: cm in ConversationMember,
+          on: cm.conversation_id == c.id and cm.user_id == ^viewer_id,
+          where: c.is_public == true or m.sender_id == ^viewer_id or not is_nil(cm.id)
+        )
+      else
+        from([_m, c] in query, where: c.is_public == true)
+      end
+
+    query
     |> Repo.all()
     |> Message.decrypt_messages()
   end
