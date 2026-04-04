@@ -2,8 +2,8 @@ defmodule Elektrine.Messaging.MessagesTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Messaging.{Conversation, Message}
+  alias Elektrine.Messaging.Messages
   alias Elektrine.Repo
 
   test "get_user_discussion_posts/2 allows anonymous viewers for public communities" do
