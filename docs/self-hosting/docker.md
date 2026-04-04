@@ -58,7 +58,7 @@ Minimal first-run values are usually:
 By default, the DNS service derives:
 
 - nameservers as `ns1.<PRIMARY_DOMAIN>` and `ns2.<PRIMARY_DOMAIN>`
-- SOA contact as `hostmaster.<PRIMARY_DOMAIN>`
+- SOA contact as `admin.<PRIMARY_DOMAIN>`
 
 Override those only if you want custom DNS branding via `DNS_NAMESERVERS` or `DNS_SOA_RNAME`.
 

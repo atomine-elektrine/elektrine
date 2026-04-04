@@ -305,8 +305,8 @@ if [[ "$DO_UP" -eq 1 ]]; then
 fi
 
 if [[ "$DO_MIGRATE" -eq 1 ]]; then
-  MIGRATION_POOL_SIZE="${MIGRATION_POOL_SIZE:-1}"
-  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" -e "POOL_SIZE=1" app bin/elektrine eval "Elektrine.Release.migrate()"
+  MIGRATION_POOL_SIZE="${MIGRATION_POOL_SIZE:-2}"
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" -e "POOL_SIZE=2" app bin/elektrine eval "Elektrine.Release.migrate()"
 fi
 
 if [[ "$DO_UP" -eq 1 ]]; then

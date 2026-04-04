@@ -7,6 +7,7 @@ defmodule Elektrine.DNS do
 
   alias Elektrine.Accounts.User
   alias Elektrine.DNS.ManagedRecords
+  alias Elektrine.DNS.QueryStat
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
   alias Elektrine.DNS.ZoneCache
@@ -260,6 +261,110 @@ defmodule Elektrine.DNS do
     |> Keyword.get(:recursive_timeout, 3_000)
   end
 
+  def track_query(%{zone: %Zone{id: zone_id}, authoritative: true} = result, transport)
+      when transport in ["udp", "tcp"] do
+    attrs = %{
+      zone_id: zone_id,
+      query_date: Date.utc_today(),
+      qname: normalize_dns_name(result.qname),
+      qtype: normalize_dns_metric_value(result.qtype),
+      rcode: normalize_dns_metric_value(result.rcode),
+      transport: transport,
+      query_count: 1
+    }
+
+    %QueryStat{}
+    |> QueryStat.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: [inc: [query_count: 1]],
+      conflict_target: [:zone_id, :query_date, :qname, :qtype, :rcode, :transport],
+      returning: false
+    )
+
+    :ok
+  rescue
+    _ -> :ok
+  end
+
+  def track_query(_result, _transport), do: :ok
+
+  def get_zone_query_stats(zone_id) when is_integer(zone_id) do
+    today = Date.utc_today()
+    week_ago = Date.add(today, -6)
+
+    %{
+      total_queries: total_queries(zone_id),
+      queries_today: queries_since(zone_id, today),
+      queries_this_week: queries_since(zone_id, week_ago),
+      nxdomain_queries: rcode_queries(zone_id, "NXDOMAIN")
+    }
+  end
+
+  def get_zone_query_stats(_), do: empty_query_stats()
+
+  def get_zone_daily_query_counts(zone_id, days \\ 30)
+
+  def get_zone_daily_query_counts(zone_id, days) when is_integer(zone_id) and days > 0 do
+    start_date = Date.add(Date.utc_today(), -days + 1)
+    end_date = Date.utc_today()
+
+    actual_counts =
+      from(qs in QueryStat,
+        where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
+        group_by: qs.query_date,
+        select: %{date: qs.query_date, count: sum(qs.query_count)}
+      )
+      |> Repo.all()
+      |> Map.new(fn %{date: date, count: count} -> {date, count || 0} end)
+
+    Date.range(start_date, end_date)
+    |> Enum.map(fn date -> %{date: date, count: Map.get(actual_counts, date, 0)} end)
+  end
+
+  def get_zone_daily_query_counts(_, _), do: []
+
+  def get_zone_query_type_breakdown(zone_id, limit \\ 10)
+
+  def get_zone_query_type_breakdown(zone_id, limit) when is_integer(zone_id) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id,
+      group_by: qs.qtype,
+      select: %{qtype: qs.qtype, count: sum(qs.query_count)},
+      order_by: [desc: sum(qs.query_count), asc: qs.qtype],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  def get_zone_query_type_breakdown(_, _), do: []
+
+  def get_zone_top_names(zone_id, limit \\ 10)
+
+  def get_zone_top_names(zone_id, limit) when is_integer(zone_id) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id,
+      group_by: qs.qname,
+      select: %{qname: qs.qname, count: sum(qs.query_count)},
+      order_by: [desc: sum(qs.query_count), asc: qs.qname],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  def get_zone_top_names(_, _), do: []
+
+  def get_zone_rcode_breakdown(zone_id) when is_integer(zone_id) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id,
+      group_by: qs.rcode,
+      select: %{rcode: qs.rcode, count: sum(qs.query_count)},
+      order_by: [desc: sum(qs.query_count), asc: qs.rcode]
+    )
+    |> Repo.all()
+  end
+
+  def get_zone_rcode_breakdown(_), do: []
+
   def max_udp_payload do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:max_udp_payload, 1232)
@@ -338,8 +443,8 @@ defmodule Elektrine.DNS do
 
   defp derive_soa_rname do
     case primary_domain() do
-      nil -> "hostmaster.example.com"
-      domain -> "hostmaster.#{domain}"
+      nil -> "admin.example.com"
+      domain -> "admin.#{domain}"
     end
   end
 
@@ -379,6 +484,54 @@ defmodule Elektrine.DNS do
 
   defp normalize_service(service) when is_binary(service), do: String.downcase(service)
   defp normalize_service(service), do: to_string(service) |> String.downcase()
+
+  defp empty_query_stats do
+    %{total_queries: 0, queries_today: 0, queries_this_week: 0, nxdomain_queries: 0}
+  end
+
+  defp total_queries(zone_id) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id,
+      select: sum(qs.query_count)
+    )
+    |> Repo.one()
+    |> Kernel.||(0)
+  end
+
+  defp queries_since(zone_id, start_date) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
+      select: sum(qs.query_count)
+    )
+    |> Repo.one()
+    |> Kernel.||(0)
+  end
+
+  defp rcode_queries(zone_id, rcode) do
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id and qs.rcode == ^rcode,
+      select: sum(qs.query_count)
+    )
+    |> Repo.one()
+    |> Kernel.||(0)
+  end
+
+  defp normalize_dns_metric_value(value) when is_atom(value),
+    do: value |> Atom.to_string() |> String.upcase()
+
+  defp normalize_dns_metric_value(value) when is_binary(value),
+    do: value |> String.trim() |> String.upcase()
+
+  defp normalize_dns_metric_value(value), do: value |> to_string() |> String.upcase()
+
+  defp normalize_dns_name(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.trim_trailing(".")
+    |> String.downcase()
+  end
+
+  defp normalize_dns_name(value), do: value |> to_string() |> normalize_dns_name()
 
   defp refresh_authority_cache_after_write({:ok, _result} = result) do
     refresh_authority_cache()

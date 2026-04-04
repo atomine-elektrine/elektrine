@@ -4,7 +4,7 @@ defmodule Elektrine.Release do
   installed.
   """
   @app :elektrine
-  @default_migration_pool_size 1
+  @default_migration_pool_size 2
   @default_migration_timeout_ms 120_000
   @default_retry_attempts 30
   @default_retry_delay_ms 3_000

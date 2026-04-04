@@ -26,8 +26,9 @@ defmodule Elektrine.DNS.UDPServer do
       {:ok, :udp} ->
         Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
           try do
-            response = Elektrine.DNS.Query.answer(packet, client_ip: host, transport: :udp)
-            :gen_udp.send(socket, host, port, response)
+            result = Elektrine.DNS.Query.resolve(packet, client_ip: host, transport: :udp)
+            Elektrine.DNS.track_query(result, "udp")
+            :gen_udp.send(socket, host, port, result.response)
           after
             Elektrine.DNS.RequestGuard.finish_request(:udp)
           end

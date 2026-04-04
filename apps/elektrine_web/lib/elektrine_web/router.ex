@@ -1583,6 +1583,7 @@ defmodule ElektrineWeb.Router do
 
       # DNS
       live("/dns", DNSLive.Index, :index)
+      live("/dns/analytics", DNSLive.Analytics, :analytics)
 
       # Contacts
       live("/contacts", ContactsLive.Index, :index)
