@@ -11,13 +11,15 @@ defmodule ElektrineWeb.UserAuth do
   alias Elektrine.Constants
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.ClientIP
+  alias ElektrineWeb.Endpoint
   alias ElektrineWeb.Platform.Integrations
+  alias ElektrineWeb.SessionConfig
 
   # Make the remember me cookie valid for 60 days.
   # If you want to customize, set :elektrine, :user_remember_me_cookie_max_age
   @max_age Constants.session_max_age_seconds()
   @remember_me_cookie "_elektrine_web_user_remember_me"
-  @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax"]
+  @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax", http_only: true]
 
   @doc """
   Logs the user in.
@@ -158,7 +160,7 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp maybe_write_remember_me_cookie(conn, token, _user, %{"remember_me" => "true"}) do
-    put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
+    put_resp_cookie(conn, @remember_me_cookie, token, remember_me_options(conn))
   end
 
   defp maybe_write_remember_me_cookie(conn, _token, _user, _params) do
@@ -194,6 +196,8 @@ defmodule ElektrineWeb.UserAuth do
   for more information on this.
   """
   def log_out_user(conn) do
+    maybe_invalidate_current_user_sessions(conn.assigns[:current_user])
+
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
@@ -236,7 +240,8 @@ defmodule ElektrineWeb.UserAuth do
   defp user_session_claims(user) do
     %{
       "user_id" => user.id,
-      "password_changed_at" => password_changed_at_unix(user)
+      "password_changed_at" => password_changed_at_unix(user),
+      "auth_valid_after" => auth_valid_after_unix(user)
     }
   end
 
@@ -255,8 +260,11 @@ defmodule ElektrineWeb.UserAuth do
   defp session_user_id(%{"user_id" => user_id}) when is_integer(user_id), do: user_id
   defp session_user_id(_claims), do: nil
 
-  defp session_claims_valid?(user, %{"password_changed_at" => changed_at}) do
-    password_changed_at_unix(user) == changed_at
+  defp session_claims_valid?(user, %{
+         "password_changed_at" => changed_at,
+         "auth_valid_after" => valid_after
+       }) do
+    password_changed_at_unix(user) == changed_at and auth_valid_after_unix(user) == valid_after
   end
 
   defp session_claims_valid?(_user, _claims), do: false
@@ -266,6 +274,21 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp password_changed_at_unix(_user), do: nil
+
+  defp auth_valid_after_unix(%{auth_valid_after: %DateTime{} = valid_after}) do
+    DateTime.to_unix(valid_after)
+  end
+
+  defp auth_valid_after_unix(_user), do: nil
+
+  defp maybe_invalidate_current_user_sessions(%{} = user) do
+    case Accounts.invalidate_auth_sessions(user) do
+      {:ok, _user} -> Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
+      _ -> :ok
+    end
+  end
+
+  defp maybe_invalidate_current_user_sessions(_), do: :ok
 
   @doc """
   Confirms if the current user is authenticated.
@@ -389,10 +412,16 @@ defmodule ElektrineWeb.UserAuth do
           |> Phoenix.Controller.render(:"404")
           |> halt()
         else
-          # SECURITY: Verify admin session IP hasn't changed (session hijacking detection)
-          conn
-          |> verify_admin_session_ip(user)
-          |> AdminSecurity.enforce_controller_security(user)
+          case verify_admin_session_ip(conn, user) do
+            {:ok, conn} ->
+              AdminSecurity.enforce_controller_security(conn, user)
+
+            {:error, reason, conn} ->
+              conn
+              |> put_flash(:error, AdminSecurity.error_message(reason))
+              |> redirect(to: AdminSecurity.elevation_redirect_path(conn.request_path))
+              |> halt()
+          end
         end
 
       %{banned: true} ->
@@ -447,23 +476,25 @@ defmodule ElektrineWeb.UserAuth do
           "Admin session IP binding: Initializing IP for user #{user.id} (#{user.username}) - IP: #{current_ip}"
         )
 
-        put_session(conn, :admin_session_ip, current_ip)
+        {:ok, put_session(conn, :admin_session_ip, current_ip)}
 
       # IP matches - allow access
       session_ip == current_ip ->
-        conn
+        {:ok, conn}
 
-      # IP changed - log and rebind to avoid false positives on dynamic proxy paths.
-      # Admins behind CDNs/Tor/mobile networks can legitimately present different
-      # client IPs between requests.
+      # IP changed - require the admin to re-elevate instead of silently rebinding.
       true ->
         require Logger
 
         Logger.warning(
-          "SECURITY ALERT: Admin session IP mismatch detected for user #{user.id} (#{user.username}). Session IP: #{session_ip}, Current IP: #{current_ip}. Rebinding admin session IP."
+          "SECURITY ALERT: Admin session IP mismatch detected for user #{user.id} (#{user.username}). Session IP: #{session_ip}, Current IP: #{current_ip}. Rejecting admin session."
         )
 
-        put_session(conn, :admin_session_ip, current_ip)
+        {:error, :admin_ip_changed, conn}
     end
+  end
+
+  defp remember_me_options(conn) do
+    Keyword.put(@remember_me_options, :secure, SessionConfig.secure_cookies?(conn))
   end
 end

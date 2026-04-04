@@ -766,18 +766,18 @@ defmodule ElektrineWeb.FilesLive do
   defp folder_tree_item_class(current_folder, path) do
     cond do
       current_folder == path ->
-        "bg-primary text-primary-content shadow-sm"
+        "border-primary/30 bg-primary/12 text-primary shadow-sm"
 
       path != "" and String.starts_with?(current_folder, path <> "/") ->
-        "bg-primary/10 text-primary"
+        "border-primary/15 bg-primary/6 text-primary/90"
 
       true ->
-        "text-base-content/70 hover:bg-base-200/80"
+        "text-base-content/78 hover:border-base-300 hover:bg-base-200/70 hover:text-base-content"
     end
   end
 
-  defp tree_toggle_class(true), do: "text-primary"
-  defp tree_toggle_class(false), do: "text-base-content/35"
+  defp tree_toggle_class(true), do: "text-primary hover:bg-primary/10"
+  defp tree_toggle_class(false), do: "text-base-content/45 hover:bg-base-200"
 
   defp tree_levels(depth) when depth > 0, do: Enum.to_list(1..depth)
   defp tree_levels(_depth), do: []
@@ -877,6 +877,22 @@ defmodule ElektrineWeb.FilesLive do
 
   defp visible_share_count(files),
     do: Enum.reduce(files, 0, fn file, acc -> acc + length(file.shares || []) end)
+
+  defp storage_usage_percent(%{used_bytes: used, available_bytes: available})
+       when is_integer(used) and is_integer(available) do
+    total = used + available
+
+    if total <= 0 do
+      0
+    else
+      used
+      |> Kernel./(total)
+      |> Kernel.*(100)
+      |> Float.round(1)
+    end
+  end
+
+  defp storage_usage_percent(_), do: 0
 
   defp share_url(share), do: url(~p"/files/share/#{share.token}")
   defp share_password_protected?(share), do: Files.share_requires_password?(share)

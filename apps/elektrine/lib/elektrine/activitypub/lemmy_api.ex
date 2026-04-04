@@ -3,6 +3,8 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   Helper module for fetching data from Lemmy instances via their JSON API.
   """
 
+  alias Elektrine.HTTP.SafeFetch
+
   @doc """
   Fetch post counts (upvotes, downvotes, score, comments) from a Lemmy instance.
   Returns nil if the post is not from a Lemmy instance or if the fetch fails.
@@ -13,8 +15,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         api_url = "https://#{domain}/api/v3/post?id=#{post_id}"
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case Finch.build(:get, api_url, headers)
-             |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+        case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"post_view" => %{"counts" => counts}}} ->
@@ -54,8 +55,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
     api_url = "https://#{domain}/api/v3/community?name=#{URI.encode_www_form(community_name)}"
     headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-    case Finch.build(:get, api_url, headers)
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+    case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"community_view" => %{"counts" => counts}}} ->
@@ -123,8 +123,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         api_url = "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&limit=100"
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case Finch.build(:get, api_url, headers)
-             |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+        case safe_request(:get, api_url, headers, nil, receive_timeout: 10_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"comments" => comments}} ->
@@ -178,8 +177,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
 
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case Finch.build(:get, api_url, headers)
-             |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+        case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"comments" => comments}} ->
@@ -325,8 +323,9 @@ defmodule Elektrine.ActivityPub.LemmyApi do
       %URI{host: domain} when is_binary(domain) ->
         resolve_url = "https://#{domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-        case Finch.build(:get, resolve_url, [{"Accept", "application/json"}])
-             |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+        case safe_request(:get, resolve_url, [{"Accept", "application/json"}], nil,
+               receive_timeout: 10_000
+             ) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"post" => %{"post" => %{"id" => post_id}}}} when is_integer(post_id) ->
@@ -358,4 +357,9 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   end
 
   defp parse_count(_), do: 0
+
+  defp safe_request(method, url, headers, body, opts) do
+    request = Finch.build(method, url, headers, body || "")
+    SafeFetch.request(request, Elektrine.Finch, opts)
+  end
 end

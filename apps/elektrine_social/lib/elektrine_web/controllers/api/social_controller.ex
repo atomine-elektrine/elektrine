@@ -11,6 +11,7 @@ defmodule ElektrineWeb.API.SocialController do
   alias Elektrine.Profiles
   alias Elektrine.Social
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
+  alias Elektrine.Uploads
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -100,9 +101,15 @@ defmodule ElektrineWeb.API.SocialController do
         |> json(%{error: "Post not found"})
 
       post ->
-        conn
-        |> put_status(:ok)
-        |> json(%{post: format_post(post, user.id)})
+        if can_view_post?(post, user.id) do
+          conn
+          |> put_status(:ok)
+          |> json(%{post: format_post(post, user.id)})
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Post not found"})
+        end
     end
   end
 
@@ -184,16 +191,30 @@ defmodule ElektrineWeb.API.SocialController do
   def like_post(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case Social.like_post(user.id, parse_int(id, 0)) do
-      {:ok, _} ->
-        conn
-        |> put_status(:ok)
-        |> json(%{message: "Post liked"})
+    case Messages.get_timeline_post(parse_int(id, 0)) do
+      post when not is_nil(post) ->
+        if can_view_post?(post, user.id) do
+          case Social.like_post(user.id, post.id) do
+            {:ok, _} ->
+              conn
+              |> put_status(:ok)
+              |> json(%{message: "Post liked"})
 
-      {:error, reason} ->
+            {:error, reason} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to like post: #{inspect(reason)}"})
+          end
+        else
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Post not found"})
+        end
+
+      _ ->
         conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "Failed to like post: #{inspect(reason)}"})
+        |> put_status(:not_found)
+        |> json(%{error: "Post not found"})
     end
   end
 
@@ -268,15 +289,22 @@ defmodule ElektrineWeb.API.SocialController do
   def list_comments(conn, %{"post_id" => post_id} = params) do
     user = conn.assigns[:current_user]
     limit = parse_int(params["limit"], 50)
+    post = Messages.get_timeline_post(parse_int(post_id, 0))
 
-    # Get replies to this post
-    comments =
-      Social.get_unified_replies(parse_int(post_id, 0))
-      |> Enum.take(limit)
+    if post && can_view_post?(post, user.id) do
+      comments =
+        Social.get_unified_replies(parse_int(post_id, 0))
+        |> Enum.filter(&can_view_post?(&1, user.id))
+        |> Enum.take(limit)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{comments: Enum.map(comments, &format_comment(&1, user.id))})
+      conn
+      |> put_status(:ok)
+      |> json(%{comments: Enum.map(comments, &format_comment(&1, user.id))})
+    else
+      conn
+      |> put_status(:not_found)
+      |> json(%{error: "Post not found"})
+    end
   end
 
   @doc """
@@ -286,20 +314,29 @@ defmodule ElektrineWeb.API.SocialController do
   def create_comment(conn, %{"post_id" => post_id} = params) do
     user = conn.assigns[:current_user]
     content = params["content"] || ""
+    parent_post = Messages.get_timeline_post(parse_int(post_id, 0))
 
     # Comments are replies to posts
-    opts = [reply_to_id: parse_int(post_id, 0)]
+    opts =
+      [reply_to_id: parse_int(post_id, 0)]
+      |> maybe_put_parent_visibility(parent_post)
 
-    case Social.create_timeline_post(user.id, content, opts) do
-      {:ok, comment} ->
-        conn
-        |> put_status(:created)
-        |> json(%{comment: format_comment(comment, user.id)})
+    if parent_post && can_view_post?(parent_post, user.id) do
+      case Social.create_timeline_post(user.id, content, opts) do
+        {:ok, comment} ->
+          conn
+          |> put_status(:created)
+          |> json(%{comment: format_comment(comment, user.id)})
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: format_errors(changeset)})
+        {:error, changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: format_errors(changeset)})
+      end
+    else
+      conn
+      |> put_status(:not_found)
+      |> json(%{error: "Post not found"})
     end
   end
 
@@ -404,11 +441,27 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def user_followers(conn, %{"user_id" => user_id}) do
     current_user = conn.assigns[:current_user]
-    followers = Profiles.get_followers(parse_int(user_id, 0))
 
-    conn
-    |> put_status(:ok)
-    |> json(%{users: Enum.map(followers, &format_user(&1, current_user.id))})
+    try do
+      target_user = Accounts.get_user!(parse_int(user_id, 0))
+
+      if can_view_profile?(target_user, current_user) do
+        followers = Profiles.get_followers(target_user.id)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{users: Enum.map(followers, &format_user(&1, current_user.id))})
+      else
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+      end
+    rescue
+      Ecto.NoResultsError ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+    end
   end
 
   @doc """
@@ -417,11 +470,27 @@ defmodule ElektrineWeb.API.SocialController do
   """
   def user_following(conn, %{"user_id" => user_id}) do
     current_user = conn.assigns[:current_user]
-    following = Profiles.get_following(parse_int(user_id, 0))
 
-    conn
-    |> put_status(:ok)
-    |> json(%{users: Enum.map(following, &format_user(&1, current_user.id))})
+    try do
+      target_user = Accounts.get_user!(parse_int(user_id, 0))
+
+      if can_view_profile?(target_user, current_user) do
+        following = Profiles.get_following(target_user.id)
+
+        conn
+        |> put_status(:ok)
+        |> json(%{users: Enum.map(following, &format_user(&1, current_user.id))})
+      else
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+      end
+    rescue
+      Ecto.NoResultsError ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+    end
   end
 
   @doc """
@@ -580,9 +649,15 @@ defmodule ElektrineWeb.API.SocialController do
     try do
       user = Accounts.get_user!(parse_int(id, 0))
 
-      conn
-      |> put_status(:ok)
-      |> json(%{user: format_user(user, current_user.id)})
+      if can_view_profile?(user, current_user) do
+        conn
+        |> put_status(:ok)
+        |> json(%{user: format_user(user, current_user.id)})
+      else
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "User not found"})
+      end
     rescue
       Ecto.NoResultsError ->
         conn
@@ -672,20 +747,29 @@ defmodule ElektrineWeb.API.SocialController do
     sort_by = params["sort_by"] || "recent"
     pagination_opts = timeline_pagination_opts(params)
 
-    posts =
-      Social.get_discussion_posts(
-        parse_int(community_id, 0),
-        [limit: limit, sort_by: sort_by] ++ pagination_opts
-      )
+    try do
+      _community = Messaging.get_conversation!(parse_int(community_id, 0), user.id)
 
-    next_cursor = get_next_cursor(posts, limit)
+      posts =
+        Social.get_discussion_posts(
+          parse_int(community_id, 0),
+          [limit: limit, sort_by: sort_by] ++ pagination_opts
+        )
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      posts: Enum.map(posts, &format_post(&1, user.id)),
-      next_cursor: next_cursor
-    })
+      next_cursor = get_next_cursor(posts, limit)
+
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        posts: Enum.map(posts, &format_post(&1, user.id)),
+        next_cursor: next_cursor
+      })
+    rescue
+      Ecto.NoResultsError ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Community not found"})
+    end
   end
 
   @doc """
@@ -874,11 +958,34 @@ defmodule ElektrineWeb.API.SocialController do
 
   defp get_next_cursor(_, _), do: nil
 
+  defp can_view_post?(post, viewer_id) do
+    owner? = not is_nil(post.sender_id) and viewer_id == post.sender_id
+    approved? = post.approval_status in ["approved", nil]
+
+    visible? =
+      case post.visibility do
+        "public" -> true
+        "unlisted" -> true
+        "followers" -> owner? or Profiles.following?(viewer_id, post.sender_id)
+        "friends" -> owner? or Friends.are_friends?(viewer_id, post.sender_id)
+        "private" -> owner?
+        _ -> false
+      end
+
+    visible? and is_nil(post.deleted_at) and (approved? or owner?)
+  end
+
+  defp maybe_put_parent_visibility(opts, %{visibility: visibility}) when is_binary(visibility) do
+    Keyword.put(opts, :visibility, visibility)
+  end
+
+  defp maybe_put_parent_visibility(opts, _), do: opts
+
   defp format_post(post, current_user_id) do
     %{
       id: post.id,
       content: post.content,
-      media_urls: post.media_urls || [],
+      media_urls: Enum.map(post.media_urls || [], &Uploads.attachment_url(&1, post)),
       author_id: post.sender_id,
       community_id: post.conversation_id,
       visibility: post.visibility || "public",
@@ -949,6 +1056,10 @@ defmodule ElektrineWeb.API.SocialController do
       is_following: Profiles.following?(current_user_id, user.id),
       is_followed_by: Profiles.following?(user.id, current_user_id)
     }
+  end
+
+  defp can_view_profile?(user, current_user) do
+    Accounts.can_view_profile?(user, current_user) == {:ok, :allowed}
   end
 
   defp format_friend_request(request, _current_user_id) do

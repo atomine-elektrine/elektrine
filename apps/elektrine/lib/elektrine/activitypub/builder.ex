@@ -480,8 +480,7 @@ defmodule Elektrine.ActivityPub.Builder do
 
       Enum.with_index(message.media_urls)
       |> Enum.map(fn {key, idx} ->
-        # Convert S3 key to full public URL
-        full_url = Elektrine.Uploads.media_url(key)
+        full_url = Elektrine.Uploads.attachment_url(key, message)
         media_type = guess_media_type(full_url)
 
         # Use appropriate ActivityPub type based on media type

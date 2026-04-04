@@ -35,8 +35,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   end
 
   defp provided_key(conn, _opts) do
-    List.first(get_req_header(conn, "x-api-key")) || authorization_key(conn) ||
-      conn.params["token"]
+    List.first(get_req_header(conn, "x-api-key")) || authorization_key(conn)
   end
 
   defp authorization_key(conn) do

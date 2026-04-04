@@ -1198,15 +1198,19 @@ defmodule Elektrine.Messaging.Messages do
   """
   def get_user_discussion_posts(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
+    viewer_id = Keyword.get(opts, :viewer_id)
 
     from(m in Message,
       join: c in Conversation,
       on: c.id == m.conversation_id,
+      left_join: cm in ConversationMember,
+      on: cm.conversation_id == c.id and cm.user_id == ^viewer_id,
       where:
         m.sender_id == ^user_id and
           m.post_type == "discussion" and
           is_nil(m.deleted_at) and
-          c.type == "community",
+          c.type == "community" and
+          (c.is_public == true or m.sender_id == ^viewer_id or not is_nil(cm.id)),
       order_by: [desc: m.inserted_at],
       limit: ^limit,
       preload: [

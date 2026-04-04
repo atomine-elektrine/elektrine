@@ -7,6 +7,7 @@ defmodule Elektrine.Bluesky do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Security.URLValidator
   alias Elektrine.Uploads
   @post_collection "app.bsky.feed.post"
   @like_collection "app.bsky.feed.like"
@@ -376,7 +377,10 @@ defmodule Elektrine.Bluesky do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host}
       when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        {:ok, url}
+        case URLValidator.validate(url) do
+          :ok -> {:ok, url}
+          {:error, _reason} -> {:error, :invalid_service_url}
+        end
 
       _ ->
         {:error, :invalid_service_url}
@@ -1150,24 +1154,15 @@ defmodule Elektrine.Bluesky do
   end
 
   defp local_media_path_for("/uploads/" <> rest) do
-    uploads_dir =
-      Application.get_env(:elektrine, :uploads, [])
-      |> Keyword.get(:uploads_dir, "priv/static/uploads")
-
-    path = Path.join(uploads_dir, rest)
-    {:ok, path, guess_media_type(rest)}
+    safe_local_media_path(rest, guess_media_type(rest))
   end
 
   defp local_media_path_for(source) do
     adapter = Application.get_env(:elektrine, :uploads, []) |> Keyword.get(:adapter, :local)
 
     if adapter == :local and local_media_key?(source) do
-      uploads_dir =
-        Application.get_env(:elektrine, :uploads, [])
-        |> Keyword.get(:uploads_dir, "priv/static/uploads")
-
       normalized = source |> String.trim_leading("/") |> String.trim_leading("uploads/")
-      {:ok, Path.join(uploads_dir, normalized), guess_media_type(source)}
+      safe_local_media_path(normalized, guess_media_type(source))
     else
       :error
     end
@@ -1179,6 +1174,21 @@ defmodule Elektrine.Bluesky do
 
   defp local_media_key?(_source) do
     false
+  end
+
+  defp safe_local_media_path(relative_path, fallback_content_type) do
+    uploads_dir =
+      Application.get_env(:elektrine, :uploads, [])
+      |> Keyword.get(:uploads_dir, "priv/static/uploads")
+      |> Path.expand()
+
+    candidate_path = Path.expand(relative_path, uploads_dir)
+
+    if String.starts_with?(candidate_path, uploads_dir <> "/") or candidate_path == uploads_dir do
+      {:ok, candidate_path, fallback_content_type}
+    else
+      :error
+    end
   end
 
   defp media_alt_text(%Message{media_metadata: media_metadata}, media_source, index) do

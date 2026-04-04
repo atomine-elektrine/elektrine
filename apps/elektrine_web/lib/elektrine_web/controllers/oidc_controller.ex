@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.OIDCController do
   use ElektrineWeb, :controller
 
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.OAuth
   alias Elektrine.OAuth.App
   alias Elektrine.OIDC
@@ -23,7 +24,7 @@ defmodule ElektrineWeb.OIDCController do
             |> redirect(to: ~p"/login")
 
           user ->
-            if request.app.trusted do
+            if trusted_app_for_user?(request.app, user) do
               redirect_with_code(conn, request, user)
             else
               render(conn, :authorize,
@@ -93,7 +94,9 @@ defmodule ElektrineWeb.OIDCController do
          {:ok, oauth_token} <- OAuth.get_token(token),
          true <- OAuth.token_valid?(oauth_token),
          true <- OIDC.openid_request?(oauth_token.scopes),
-         user when not is_nil(user) <- oauth_token.user do
+         user when not is_nil(user) <- oauth_token.user,
+         :ok <- Authentication.ensure_user_active(user),
+         false <- oauth_token_older_than_auth_boundary?(user, oauth_token) do
       json(conn, OIDC.userinfo_claims(user, oauth_token.scopes, issuer(conn)))
     else
       _ ->
@@ -118,7 +121,7 @@ defmodule ElektrineWeb.OIDCController do
         |> put_status(:created)
         |> json(%{
           client_id: app.client_id,
-          client_secret: app.client_secret,
+          client_secret: OAuth.App.client_secret_value(app),
           client_id_issued_at: DateTime.to_unix(app.inserted_at),
           client_secret_expires_at: 0,
           client_name: app.client_name,
@@ -148,7 +151,12 @@ defmodule ElektrineWeb.OIDCController do
          }) do
       {:ok, auth} ->
         redirect(conn,
-          external: redirect_code_uri(request.redirect_uri, auth.token, request.state)
+          external:
+            redirect_code_uri(
+              request.redirect_uri,
+              Elektrine.OAuth.Authorization.token_value(auth),
+              request.state
+            )
         )
 
       {:error, _changeset} ->
@@ -201,8 +209,7 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
-  defp validate_pkce(%{"code_challenge_method" => method} = params)
-       when method in ["plain", "S256"] do
+  defp validate_pkce(%{"code_challenge_method" => method} = params) when method == "S256" do
     if blank_to_nil(params["code_challenge"]) do
       :ok
     else
@@ -228,24 +235,29 @@ defmodule ElektrineWeb.OIDCController do
   defp validate_pkce(_params), do: invalid_request_error(%{})
 
   defp invalid_scope_error(params) do
-    redirect_uri = params["redirect_uri"] || ""
-
-    if redirect_uri == "" do
-      {:error, :invalid_request}
-    else
-      {:error, redirect_uri, "invalid_scope", params["state"]}
+    case safe_error_redirect_uri(params) do
+      {:ok, redirect_uri} -> {:error, redirect_uri, "invalid_scope", params["state"]}
+      :error -> {:error, :invalid_request}
     end
   end
 
   defp invalid_request_error(params) do
-    redirect_uri = blank_to_nil(params["redirect_uri"])
-
-    if redirect_uri do
-      {:error, redirect_uri, "invalid_request", params["state"]}
-    else
-      {:error, :invalid_request}
+    case safe_error_redirect_uri(params) do
+      {:ok, redirect_uri} -> {:error, redirect_uri, "invalid_request", params["state"]}
+      :error -> {:error, :invalid_request}
     end
   end
+
+  defp safe_error_redirect_uri(%{"client_id" => client_id} = params) do
+    with %App{} = app <- OAuth.get_app_by_client_id(client_id),
+         {:ok, redirect_uri} <- resolve_redirect_uri(app, params["redirect_uri"]) do
+      {:ok, redirect_uri}
+    else
+      _ -> :error
+    end
+  end
+
+  defp safe_error_redirect_uri(_params), do: :error
 
   defp redirect_code_uri(redirect_uri, code, state) do
     redirect_uri
@@ -312,5 +324,18 @@ defmodule ElektrineWeb.OIDCController do
 
   defp translate_errors(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+  end
+
+  defp trusted_app_for_user?(%{trusted: true, user_id: owner_id}, user) do
+    is_nil(owner_id) or owner_id == user.id
+  end
+
+  defp trusted_app_for_user?(_app, _user), do: false
+
+  defp oauth_token_older_than_auth_boundary?(user, oauth_token) do
+    case user.auth_valid_after do
+      %DateTime{} = valid_after -> DateTime.compare(oauth_token.inserted_at, valid_after) == :lt
+      _ -> false
+    end
   end
 end

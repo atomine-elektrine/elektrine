@@ -9,6 +9,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
   use Phoenix.Component
 
   alias Elektrine.Messaging.Messages, as: MessagingMessages
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
 
   # Recursive component to render nested replies
@@ -712,7 +713,7 @@ defmodule ElektrineWeb.TimelineLive.Post do
 
   def handle_event("open_external_link", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("open_external_link", _params, socket) do
@@ -1257,5 +1258,12 @@ defmodule ElektrineWeb.TimelineLive.Post do
   def handle_info(_msg, socket) do
     # Catch-all for unhandled messages (like presence_diff broadcasts)
     {:noreply, socket}
+  end
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
+    end
   end
 end

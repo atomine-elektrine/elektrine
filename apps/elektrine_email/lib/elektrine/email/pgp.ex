@@ -652,13 +652,20 @@ defmodule Elektrine.Email.PGP do
   end
 
   defp encrypt_with_gpg(plaintext, public_key_armors) do
-    temp_dir = Path.join(System.tmp_dir!(), "pgp_encrypt_#{System.unique_integer([:positive])}")
+    temp_dir =
+      Path.join(
+        System.tmp_dir!(),
+        "pgp_encrypt_#{Base.encode16(:crypto.strong_rand_bytes(16), case: :lower)}"
+      )
+
     input_file = Path.join(temp_dir, "message.txt")
     encrypted_file = input_file <> ".asc"
 
     try do
       File.mkdir_p!(temp_dir)
+      File.chmod!(temp_dir, 0o700)
       File.write!(input_file, plaintext)
+      File.chmod!(input_file, 0o600)
 
       key_files =
         public_key_armors
@@ -666,6 +673,7 @@ defmodule Elektrine.Email.PGP do
         |> Enum.map(fn {armor, index} ->
           key_file = Path.join(temp_dir, "recipient_#{index}.asc")
           File.write!(key_file, armor)
+          File.chmod!(key_file, 0o600)
           key_file
         end)
 

@@ -91,8 +91,12 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :not_found}
 
       user ->
-        followers = get_followers(user, params) |> preload_account_subjects()
-        json(conn, Enum.map(followers, &render_account(&1, for_user)))
+        if can_view_profile?(user, for_user) do
+          followers = get_followers(user, params) |> preload_account_subjects()
+          json(conn, Enum.map(followers, &render_account(&1, for_user)))
+        else
+          {:error, :not_found}
+        end
     end
   end
 
@@ -105,8 +109,12 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
         {:error, :not_found}
 
       user ->
-        following = get_following(user, params) |> preload_account_subjects()
-        json(conn, Enum.map(following, &render_account(&1, for_user)))
+        if can_view_profile?(user, for_user) do
+          following = get_following(user, params) |> preload_account_subjects()
+          json(conn, Enum.map(following, &render_account(&1, for_user)))
+        else
+          {:error, :not_found}
+        end
     end
   end
 
@@ -358,6 +366,12 @@ defmodule ElektrineWeb.MastodonAPI.AccountController do
 
   defp parse_int(value, _default) when is_integer(value), do: value
   defp parse_int(_, default), do: default
+
+  defp can_view_profile?(user, nil), do: user.profile_visibility == "public"
+
+  defp can_view_profile?(user, viewer) do
+    Accounts.can_view_profile?(user, viewer) == {:ok, :allowed}
+  end
 
   defp parse_bool(value, _default) when is_boolean(value), do: value
 

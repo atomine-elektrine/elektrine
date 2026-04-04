@@ -13,8 +13,10 @@ defmodule ElektrineWeb.MastodonAPI.AppController do
 
   use ElektrineSocialWeb, :controller
 
+  alias Elektrine.API.RateLimiter, as: APIRateLimiter
   alias Elektrine.OAuth
   alias Elektrine.OAuth.Scopes
+  alias ElektrineWeb.ClientIP
 
   action_fallback(ElektrineWeb.MastodonAPI.FallbackController)
 
@@ -35,20 +37,22 @@ defmodule ElektrineWeb.MastodonAPI.AppController do
   Returns the app credentials including client_id and client_secret.
   """
   def create(conn, params) do
-    scopes = Scopes.fetch_scopes(params, ["read"])
-    user_id = get_user_id(conn)
+    with :ok <- check_app_registration_rate_limit(conn) do
+      scopes = Scopes.fetch_scopes(params, ["read"])
+      user_id = get_user_id(conn)
 
-    app_attrs =
-      params
-      |> Map.take(["client_name", "redirect_uris", "website"])
-      |> string_keys_to_atoms()
-      |> Map.put(:scopes, scopes)
-      |> maybe_put_user_id(user_id)
+      app_attrs =
+        params
+        |> Map.take(["client_name", "redirect_uris", "website"])
+        |> string_keys_to_atoms()
+        |> Map.put(:scopes, scopes)
+        |> maybe_put_user_id(user_id)
 
-    with {:ok, app} <- OAuth.create_app(app_attrs) do
-      conn
-      |> put_status(:ok)
-      |> json(render_app(app))
+      with {:ok, app} <- OAuth.create_app(app_attrs) do
+        conn
+        |> put_status(:ok)
+        |> json(render_app(app))
+      end
     end
   end
 
@@ -80,6 +84,16 @@ defmodule ElektrineWeb.MastodonAPI.AppController do
   defp get_user_id(%{assigns: %{user: %{id: user_id}}}), do: user_id
   defp get_user_id(_conn), do: nil
 
+  defp check_app_registration_rate_limit(conn) do
+    identifier = "oauth_app_registration:#{ClientIP.rate_limit_ip(conn)}"
+    APIRateLimiter.record_attempt(identifier)
+
+    case APIRateLimiter.check_rate_limit(identifier) do
+      {:ok, _remaining} -> :ok
+      {:error, _reason} -> {:error, :too_many_requests, "Too many app registration attempts"}
+    end
+  end
+
   defp string_keys_to_atoms(map) do
     Map.new(map, fn {k, v} -> {String.to_existing_atom(k), v} end)
   rescue
@@ -96,7 +110,7 @@ defmodule ElektrineWeb.MastodonAPI.AppController do
       website: app.website,
       redirect_uri: app.redirect_uris,
       client_id: app.client_id,
-      client_secret: app.client_secret,
+      client_secret: OAuth.App.client_secret_value(app),
       vapid_key: get_vapid_key()
     }
   end

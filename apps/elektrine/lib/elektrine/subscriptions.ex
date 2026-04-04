@@ -322,7 +322,7 @@ defmodule Elektrine.Subscriptions do
     from(c in RegistrationCheckout,
       where:
         c.stripe_checkout_session_id == ^String.trim(session_id) and
-          c.lookup_token == ^String.trim(lookup_token)
+          c.lookup_token == ^RegistrationCheckout.hash_lookup_token(String.trim(lookup_token))
     )
     |> Repo.one()
     |> case do
@@ -340,7 +340,9 @@ defmodule Elektrine.Subscriptions do
     if lookup_token == "" do
       nil
     else
-      from(c in RegistrationCheckout, where: c.lookup_token == ^lookup_token)
+      from(c in RegistrationCheckout,
+        where: c.lookup_token == ^RegistrationCheckout.hash_lookup_token(lookup_token)
+      )
       |> Repo.one()
       |> case do
         %RegistrationCheckout{} = checkout -> Repo.preload(checkout, :invite_code)
@@ -1169,7 +1171,8 @@ defmodule Elektrine.Subscriptions do
          true <- present?(lookup_token) do
       attrs = %{
         stripe_checkout_session_id: session_id,
-        lookup_token: lookup_token,
+        lookup_token: RegistrationCheckout.hash_lookup_token(lookup_token),
+        plain_lookup_token: lookup_token,
         product_slug: product_slug,
         stripe_customer_id: stripe_field(session, :customer),
         stripe_payment_intent_id: stripe_field(session, :payment_intent),

@@ -27,6 +27,7 @@ defmodule Elektrine.ActivityPub do
 
   alias Elektrine.Accounts.User
   alias Elektrine.Async
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Messaging.{Conversation, Conversations}
   alias Elektrine.Security.URLValidator
   alias Elektrine.Telemetry.Events
@@ -1660,8 +1661,7 @@ defmodule Elektrine.ActivityPub do
       %URI{host: domain} when is_binary(domain) ->
         resolve_url = "https://#{domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-        case Finch.build(:get, resolve_url, [{"Accept", "application/json"}])
-             |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+        case safe_get(resolve_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"post" => %{"post" => %{"id" => post_id}}}} when is_integer(post_id) ->
@@ -1699,8 +1699,9 @@ defmodule Elektrine.ActivityPub do
               resolve_url =
                 "https://#{community_domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-              case Finch.build(:get, resolve_url, [{"Accept", "application/json"}])
-                   |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+              case safe_get(resolve_url, [{"Accept", "application/json"}],
+                     receive_timeout: 10_000
+                   ) do
                 {:ok, %Finch.Response{status: 200, body: body}} ->
                   case Jason.decode(body) do
                     {:ok, %{"post" => %{"post" => %{"id" => local_post_id}}}} ->
@@ -1736,8 +1737,7 @@ defmodule Elektrine.ActivityPub do
   defp fetch_lemmy_comments_from_instance(domain, post_id, post_url, limit) do
     api_url = "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&limit=#{limit}&sort=Top"
 
-    case Finch.build(:get, api_url, [{"Accept", "application/json"}])
-         |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+    case safe_get(api_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"comments" => comments}} when is_list(comments) ->
@@ -1813,16 +1813,16 @@ defmodule Elektrine.ActivityPub do
         search_url =
           "https://#{domain}/api/v2/search?q=#{URI.encode_www_form(post_ap_id)}&type=statuses&resolve=true&limit=1"
 
-        case Finch.build(:get, search_url, [{"Accept", "application/json"}])
-             |> Finch.request(Elektrine.Finch, receive_timeout: 15_000) do
+        case safe_get(search_url, [{"Accept", "application/json"}], receive_timeout: 15_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"statuses" => [%{"id" => status_id, "uri" => root_uri} = root_status | _]}} ->
                 # Step 2: Fetch context (ancestors + descendants)
                 context_url = "https://#{domain}/api/v1/statuses/#{status_id}/context"
 
-                case Finch.build(:get, context_url, [{"Accept", "application/json"}])
-                     |> Finch.request(Elektrine.Finch, receive_timeout: 15_000) do
+                case safe_get(context_url, [{"Accept", "application/json"}],
+                       receive_timeout: 15_000
+                     ) do
                   {:ok, %Finch.Response{status: 200, body: context_body}} ->
                     case Jason.decode(context_body) do
                       {:ok, %{"ancestors" => ancestors, "descendants" => descendants}}
@@ -2121,5 +2121,10 @@ defmodule Elektrine.ActivityPub do
       where: c.type == "community" and c.is_public == true
     )
     |> Repo.one()
+  end
+
+  defp safe_get(url, headers, opts) do
+    request = Finch.build(:get, url, headers)
+    SafeFetch.request(request, Elektrine.Finch, opts)
   end
 end

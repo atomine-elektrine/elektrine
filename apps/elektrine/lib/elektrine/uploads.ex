@@ -956,7 +956,7 @@ defmodule Elektrine.Uploads do
   def attachment_url(attachment, conversation \\ nil)
 
   def attachment_url(attachment, conversation) when is_binary(attachment) do
-    is_private = conversation && conversation.type == "dm"
+    is_private = private_attachment_context?(conversation)
 
     if is_private do
       attachment_url_presigned(attachment)
@@ -964,6 +964,14 @@ defmodule Elektrine.Uploads do
       attachment_url_direct(attachment)
     end
   end
+
+  defp private_attachment_context?(%{type: "dm"}), do: true
+
+  defp private_attachment_context?(%{visibility: visibility})
+       when visibility in ["followers", "friends", "private"],
+       do: true
+
+  defp private_attachment_context?(_), do: false
 
   defp attachment_url_direct(attachment) when is_binary(attachment) do
     case get_config(:adapter) do
@@ -989,10 +997,11 @@ defmodule Elektrine.Uploads do
   end
 
   defp local_attachment_url(attachment) do
-    if String.starts_with?(attachment, "/") do
-      attachment
-    else
-      "/uploads/#{local_attachment_key(attachment)}"
+    key = local_attachment_key(attachment)
+
+    case local_private_attachment_url(key) do
+      url when is_binary(url) -> url
+      _ -> "/uploads/#{key}"
     end
   end
 

@@ -6,8 +6,10 @@ defmodule Elektrine.RSS.FetchFeedWorker do
 
   require Logger
 
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.RSS
   alias Elektrine.RSS.Feed
+  alias Elektrine.Security.URLValidator
 
   @user_agent "Elektrine/1.0 (RSS Reader)"
 
@@ -26,8 +28,9 @@ defmodule Elektrine.RSS.FetchFeedWorker do
   defp fetch_and_process(%Feed{} = feed) do
     headers = build_headers(feed)
 
-    case Finch.build(:get, feed.url, headers)
-         |> Finch.request(Elektrine.Finch, receive_timeout: 30_000) do
+    request = Finch.build(:get, feed.url, headers)
+
+    case SafeFetch.request(request, Elektrine.Finch, receive_timeout: 30_000) do
       {:ok, %Finch.Response{status: 200, body: body, headers: resp_headers}} ->
         process_feed(feed, body, resp_headers)
 
@@ -48,10 +51,20 @@ defmodule Elektrine.RSS.FetchFeedWorker do
             {:error, :redirect_without_location}
 
           new_url ->
-            Logger.info("Feed #{feed.id} redirected to #{new_url}")
-            RSS.update_feed(feed, %{url: new_url})
-            # Retry with new URL
-            {:snooze, 5}
+            case validate_redirect_target(new_url) do
+              {:ok, safe_url} ->
+                Logger.info("Feed #{feed.id} redirected to #{safe_url}")
+                RSS.update_feed(feed, %{url: safe_url})
+                {:snooze, 5}
+
+              {:error, _reason} ->
+                RSS.update_feed(feed, %{
+                  last_error: "Unsafe redirect target",
+                  last_fetched_at: DateTime.utc_now()
+                })
+
+                {:error, :unsafe_redirect_target}
+            end
         end
 
       {:ok, %Finch.Response{status: status}} ->
@@ -162,4 +175,13 @@ defmodule Elektrine.RSS.FetchFeedWorker do
   end
 
   defp detect_image(_), do: nil
+
+  defp validate_redirect_target(url) when is_binary(url) do
+    case URLValidator.validate(url) do
+      :ok -> {:ok, String.trim(url)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp validate_redirect_target(_), do: {:error, :invalid_url}
 end

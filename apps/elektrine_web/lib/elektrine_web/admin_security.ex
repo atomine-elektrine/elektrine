@@ -197,6 +197,9 @@ defmodule ElektrineWeb.AdminSecurity do
   def error_message(:device_binding_failed),
     do: "Device binding check failed. Re-elevate your admin session."
 
+  def error_message(:admin_ip_changed),
+    do: "Admin IP changed. Re-elevate your admin session."
+
   def error_message(:admin_access_expired),
     do: "Admin access expired. Re-elevate to continue."
 
@@ -213,6 +216,26 @@ defmodule ElektrineWeb.AdminSecurity do
 
   def action_grant_ttl_seconds,
     do: config(:action_grant_ttl_seconds, @default_action_grant_ttl_seconds)
+
+  def recent_admin_confirmation?(session) when is_map(session) do
+    now = now_seconds()
+
+    case session_value(session, @admin_last_resign_at_key) do
+      last_resign_at when is_integer(last_resign_at) ->
+        now - last_resign_at <= action_grant_ttl_seconds()
+
+      _ ->
+        false
+    end
+  end
+
+  def recent_admin_confirmation?(_session), do: false
+
+  def session_admin_ip(session) when is_map(session) do
+    session_value(session, :admin_session_ip)
+  end
+
+  def session_admin_ip(_session), do: nil
 
   defp ensure_passkey_enrolled(conn, user) do
     if passkey_required?() and not Passkeys.has_passkeys?(user) do

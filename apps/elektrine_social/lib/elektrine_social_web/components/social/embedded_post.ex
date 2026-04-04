@@ -115,7 +115,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
               else: %{} %>
           <div class="mt-3 grid grid-cols-1 gap-2">
             <%= for {media_url, idx} <- Enum.with_index(@shared_message.media_urls) do %>
-              <% full_url = Elektrine.Uploads.attachment_url(media_url)
+              <% full_url = Elektrine.Uploads.attachment_url(media_url, @shared_message)
               alt_text = Map.get(alt_texts, to_string(idx), "Shared media")
               is_video = String.match?(full_url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
               is_audio = String.match?(full_url, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i) %>

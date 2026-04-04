@@ -9,6 +9,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   alias Elektrine.ActorPaths
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.{Repo, Social}
+  alias Elektrine.Security.SafeExternalURL
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.RemotePostLive.SurfaceHelpers
 
@@ -1261,7 +1262,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   end
 
   def handle_event("open_external_post", %{"url" => url}, socket) do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("show_reply_form", %{"post_id" => post_id}, socket) do
@@ -2084,7 +2085,7 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
 
   def handle_event("open_external_link", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("open_external_link", _params, socket) do
@@ -2961,4 +2962,11 @@ defmodule ElektrineWeb.RemoteUserLive.Show do
   defp error_to_string(err), do: "Upload error: #{inspect(err)}"
 
   defp current_user_missing?(socket), do: is_nil(socket.assigns[:current_user])
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
+    end
+  end
 end

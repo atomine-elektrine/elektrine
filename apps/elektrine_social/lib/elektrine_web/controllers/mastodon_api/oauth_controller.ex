@@ -14,9 +14,12 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
   use ElektrineSocialWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.Passkeys
+  alias Elektrine.API.RateLimiter, as: APIRateLimiter
   alias Elektrine.OAuth
   alias Elektrine.OAuth.Scopes
   alias Elektrine.OIDC
+  alias ElektrineWeb.ClientIP
 
   action_fallback(ElektrineWeb.MastodonAPI.FallbackController)
 
@@ -51,9 +54,16 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
   Revokes an access token.
   """
   def revoke(conn, %{"token" => token}) do
-    case OAuth.revoke_token(token) do
-      :ok -> json(conn, %{})
-      {:error, :not_found} -> json(conn, %{})
+    with {:ok, app} <-
+           get_app_from_credentials(%{
+             "client_id" => conn.params["client_id"],
+             "client_secret" => conn.params["client_secret"],
+             "_conn_authorization_header" => get_req_header(conn, "authorization")
+           }),
+         :ok <- OAuth.revoke_token(app, token) do
+      json(conn, %{})
+    else
+      _ -> json(conn, %{})
     end
   end
 
@@ -77,7 +87,7 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
 
   defp handle_authorization_code(conn, params) do
     with {:ok, app} <- get_app_from_credentials(params),
-         {:ok, auth} <- OAuth.get_authorization(app, params["code"]),
+         {:ok, auth} <- OAuth.consume_authorization(app, params["code"]),
          :ok <- validate_redirect_uri(auth, params),
          :ok <- validate_pkce(auth, params),
          {:ok, token} <- OAuth.exchange_token(app, auth) do
@@ -105,13 +115,26 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
     if password_grant_enabled?() do
       scopes = Scopes.fetch_scopes(params, ["read"])
 
-      with {:ok, app} <- get_app_from_credentials(params),
+      with :ok <- enforce_password_grant_rate_limit(conn, params),
+           {:ok, app} <- get_app_from_credentials(params),
            {:ok, user} <- authenticate_user(params["username"], params["password"]),
+           :ok <- ensure_password_grant_allowed(user),
            {:ok, token} <- OAuth.create_token(app, user, %{scopes: scopes}) do
+        clear_password_grant_rate_limit(conn, params)
         render_token(conn, token)
       else
         {:error, :invalid_credentials} ->
           {:error, :unprocessable_entity, "Invalid username or password"}
+
+        {:error, :second_factor_required} ->
+          {:error, :unprocessable_entity,
+           "Password grant is not allowed for accounts with 2FA or passkeys"}
+
+        {:error, :invalid_scope} ->
+          {:error, :unprocessable_entity, "Invalid scope"}
+
+        {:error, :rate_limited} ->
+          {:error, :too_many_requests, "Too many password grant attempts"}
 
         error ->
           error
@@ -172,6 +195,34 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
 
   defp authenticate_user(_, _), do: {:error, :invalid_credentials}
 
+  defp ensure_password_grant_allowed(user) do
+    if user.two_factor_enabled || Passkeys.has_passkeys?(user) do
+      {:error, :second_factor_required}
+    else
+      :ok
+    end
+  end
+
+  defp enforce_password_grant_rate_limit(conn, params) do
+    identifier = password_grant_rate_limit_key(conn, params)
+
+    APIRateLimiter.record_attempt(identifier)
+
+    case APIRateLimiter.check_rate_limit(identifier) do
+      {:ok, _remaining} -> :ok
+      {:error, _reason} -> {:error, :rate_limited}
+    end
+  end
+
+  defp clear_password_grant_rate_limit(conn, params) do
+    APIRateLimiter.clear_limits(password_grant_rate_limit_key(conn, params))
+  end
+
+  defp password_grant_rate_limit_key(conn, params) do
+    username = to_string(params["username"] || "")
+    "oauth_password_grant:#{ClientIP.rate_limit_ip(conn)}:#{String.downcase(username)}"
+  end
+
   defp password_grant_enabled? do
     Application.get_env(:elektrine, :oauth_password_grant_enabled, false)
   end
@@ -180,12 +231,12 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
     expires_in = DateTime.diff(token.valid_until, DateTime.utc_now())
 
     response = %{
-      access_token: token.token,
+      access_token: OAuth.Token.access_token_value(token),
       token_type: "Bearer",
       scope: Scopes.to_string(token.scopes),
       created_at: DateTime.to_unix(token.inserted_at),
       expires_in: max(expires_in, 0),
-      refresh_token: token.refresh_token
+      refresh_token: OAuth.Token.refresh_token_value(token)
     }
 
     response = maybe_put_id_token(response, token, opts)
@@ -242,7 +293,6 @@ defmodule ElektrineWeb.MastodonAPI.OAuthController do
        })
        when is_binary(challenge) and is_binary(verifier) do
     case method || "plain" do
-      "plain" -> if verifier == challenge, do: :ok, else: {:error, :invalid_grant}
       "S256" -> if pkce_s256(verifier) == challenge, do: :ok, else: {:error, :invalid_grant}
       _ -> {:error, :invalid_grant}
     end

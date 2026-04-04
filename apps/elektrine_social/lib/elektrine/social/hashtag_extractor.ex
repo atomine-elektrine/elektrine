@@ -51,7 +51,7 @@ defmodule Elektrine.Social.HashtagExtractor do
         on: h.id == ph.hashtag_id,
         where:
           h.normalized_name == ^normalized_name and
-            m.visibility in ["public", "followers", "unlisted"] and
+            m.visibility in ["public", "unlisted"] and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             (not is_nil(m.sender_id) or not is_nil(m.remote_actor_id)),

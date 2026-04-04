@@ -3,6 +3,7 @@ defmodule Elektrine.Accounts.Passkeys do
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.{PasskeyCredential, User}
   alias Elektrine.AppCache
+  alias Elektrine.OAuth
   alias Elektrine.Repo
   require Logger
   @challenge_timeout 300_000
@@ -77,7 +78,18 @@ defmodule Elektrine.Accounts.Passkeys do
         created_user_agent: metadata[:user_agent]
       }
 
-      %PasskeyCredential{} |> PasskeyCredential.create_changeset(attrs) |> Repo.insert()
+      case %PasskeyCredential{} |> PasskeyCredential.create_changeset(attrs) |> Repo.insert() do
+        {:ok, credential} ->
+          Elektrine.Accounts.invalidate_auth_sessions(user)
+          OAuth.delete_user_tokens(user)
+          Elektrine.Accounts.Authentication.revoke_all_app_passwords(user.id)
+          Elektrine.Developer.revoke_all_api_tokens(user.id)
+          ElektrineWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
+          {:ok, credential}
+
+        error ->
+          error
+      end
     else
       {:error, reason} -> {:error, reason}
     end
@@ -253,8 +265,22 @@ defmodule Elektrine.Accounts.Passkeys do
   @doc ~s|Delete a passkey|
   def delete_passkey(%User{} = user, passkey_id) do
     case get_user_passkey(user, passkey_id) do
-      nil -> {:error, :not_found}
-      credential -> Repo.delete(credential)
+      nil ->
+        {:error, :not_found}
+
+      credential ->
+        case Repo.delete(credential) do
+          {:ok, deleted} ->
+            Elektrine.Accounts.invalidate_auth_sessions(user)
+            OAuth.delete_user_tokens(user)
+            Elektrine.Accounts.Authentication.revoke_all_app_passwords(user.id)
+            Elektrine.Developer.revoke_all_api_tokens(user.id)
+            ElektrineWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
+            {:ok, deleted}
+
+          error ->
+            error
+        end
     end
   end
 

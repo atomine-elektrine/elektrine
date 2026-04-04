@@ -437,8 +437,19 @@ defmodule Elektrine.Files do
       |> to_string()
       |> String.trim()
 
-    String.starts_with?(normalized, ["image/", "video/", "audio/"]) or
-      normalized in ["application/pdf", "application/json", "text/plain"]
+    cond do
+      normalized in ["image/svg+xml", "image/svg+xml-compressed"] ->
+        false
+
+      String.starts_with?(normalized, ["image/", "video/", "audio/"]) ->
+        true
+
+      normalized in ["application/pdf", "application/json", "text/plain"] ->
+        true
+
+      true ->
+        false
+    end
   end
 
   def inline_viewable_content_type?(_), do: false
@@ -975,7 +986,15 @@ defmodule Elektrine.Files do
   defp expires_at_from_option(_), do: {:error, :invalid_share_expiry}
 
   defp normalize_content_type(content_type, filename) do
-    value = to_string(content_type || "") |> String.trim()
+    value =
+      content_type
+      |> to_string()
+      |> String.trim()
+      |> String.downcase()
+      |> String.split(";", parts: 2)
+      |> List.first()
+      |> to_string()
+
     if value == "", do: MIME.from_path(filename || "") || "application/octet-stream", else: value
   end
 

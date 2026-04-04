@@ -28,12 +28,12 @@ defmodule ElektrineWeb.Plugs.APIAuth do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] ->
         case verify_token_with_user(token) do
-          {:ok, user, should_refresh} ->
+          {:ok, user, parsed, should_refresh} ->
             Events.auth(:api_token, :success, %{reason: :token_valid})
             conn = assign(conn, :current_user, user)
 
             if should_refresh do
-              {:ok, new_token} = generate_token(user.id)
+              {:ok, new_token} = generate_token(user.id, parsed.issued_at)
               put_resp_header(conn, "x-refreshed-token", new_token)
             else
               conn
@@ -63,10 +63,14 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   @doc """
   Generates a JWT token for a user
   """
-  def generate_token(user_id) do
+  def generate_token(user_id, issued_at \\ nil) do
     # Simple token format: base64(user_id:timestamp:signature)
+    user = Accounts.get_user!(user_id)
     timestamp = System.system_time(:second)
-    data = "#{user_id}:#{timestamp}"
+    issued_at = issued_at || timestamp
+    password_changed_at = password_changed_at_unix(user)
+    auth_valid_after = auth_valid_after_unix(user)
+    data = "#{user_id}:#{timestamp}:#{issued_at}:#{password_changed_at}:#{auth_valid_after}"
     signature = sign_data(data)
     token = Base.url_encode64("#{data}:#{signature}")
     {:ok, token}
@@ -79,14 +83,14 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   """
   def verify_token_internal(token) do
     case verify_token_with_user(token) do
-      {:ok, user, _should_refresh} -> {:ok, user.id}
+      {:ok, user, _parsed, _should_refresh} -> {:ok, user.id}
       {:error, reason} -> {:error, reason}
     end
   end
 
   def verify_user_token(token) do
     case verify_token_with_user(token) do
-      {:ok, user, _should_refresh} -> {:ok, user}
+      {:ok, user, _parsed, _should_refresh} -> {:ok, user}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -119,27 +123,29 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   def revoke_token(_), do: {:error, :invalid_token}
 
   defp verify_token(token) do
-    with {:ok, %{user_id: user_id, timestamp: timestamp, signature: signature, data: data}} <-
+    with {:ok,
+          %{user_id: user_id, timestamp: timestamp, signature: signature, data: data} = parsed} <-
            parse_token(token),
          true <- verify_signature(data, signature),
          {:ok, false} <- token_revoked?(token) do
       now = System.system_time(:second)
       token_age = now - timestamp
+      absolute_age = now - parsed.issued_at
 
       cond do
         token_age < 0 ->
           {:error, :invalid_token}
 
-        token_age >= @max_token_age ->
+        token_age >= @max_token_age or absolute_age >= @max_token_age ->
           {:error, :token_expired}
 
         token_age >= @max_token_age - @refresh_threshold ->
           # Token is valid but should be refreshed (less than 7 days remaining)
-          {:ok, user_id, true}
+          {:ok, user_id, parsed, true}
 
         true ->
           # Token is valid and doesn't need refresh yet
-          {:ok, user_id, false}
+          {:ok, user_id, parsed, false}
       end
     else
       false -> {:error, :invalid_signature}
@@ -150,9 +156,10 @@ defmodule ElektrineWeb.Plugs.APIAuth do
   end
 
   defp verify_token_with_user(token) do
-    with {:ok, user_id, should_refresh} <- verify_token(token),
-         {:ok, user} <- fetch_active_user(user_id) do
-      {:ok, user, should_refresh}
+    with {:ok, user_id, parsed, should_refresh} <- verify_token(token),
+         {:ok, user} <- fetch_active_user(user_id),
+         :ok <- validate_password_changed_at(user, parsed) do
+      {:ok, user, parsed, should_refresh}
     end
   end
 
@@ -171,16 +178,23 @@ defmodule ElektrineWeb.Plugs.APIAuth do
 
   defp parse_token(token) when is_binary(token) do
     with {:ok, decoded} <- Base.url_decode64(token),
-         [user_id, timestamp, signature] <- String.split(decoded, ":"),
+         [user_id, timestamp, issued_at, password_changed_at, auth_valid_after, signature] <-
+           String.split(decoded, ":"),
          {user_id_int, ""} <- Integer.parse(user_id),
          {timestamp_int, ""} <- Integer.parse(timestamp),
+         {issued_at_int, ""} <- Integer.parse(issued_at),
+         {password_changed_at_int, ""} <- Integer.parse(password_changed_at),
+         {auth_valid_after_int, ""} <- Integer.parse(auth_valid_after),
          true <- timestamp_int > 0 do
       {:ok,
        %{
          user_id: user_id_int,
          timestamp: timestamp_int,
+         issued_at: issued_at_int,
+         password_changed_at: password_changed_at_int,
+         auth_valid_after: auth_valid_after_int,
          signature: signature,
-         data: "#{user_id}:#{timestamp}"
+         data: "#{user_id}:#{timestamp}:#{issued_at}:#{password_changed_at}:#{auth_valid_after}"
        }}
     else
       _ -> {:error, :invalid_token}
@@ -223,5 +237,32 @@ defmodule ElektrineWeb.Plugs.APIAuth do
 
   defp get_secret_key do
     Application.get_env(:elektrine, ElektrineWeb.Endpoint)[:secret_key_base]
+  end
+
+  defp validate_password_changed_at(user, %{
+         password_changed_at: changed_at,
+         auth_valid_after: valid_after
+       }) do
+    if password_changed_at_unix(user) == changed_at and auth_valid_after_unix(user) == valid_after do
+      :ok
+    else
+      {:error, :token_stale}
+    end
+  end
+
+  defp validate_password_changed_at(_user, _parsed), do: {:error, :invalid_token}
+
+  defp password_changed_at_unix(user) do
+    case user.last_password_change do
+      %DateTime{} = changed_at -> DateTime.to_unix(changed_at, :second)
+      _ -> 0
+    end
+  end
+
+  defp auth_valid_after_unix(user) do
+    case user.auth_valid_after do
+      %DateTime{} = valid_after -> DateTime.to_unix(valid_after, :second)
+      _ -> 0
+    end
   end
 end

@@ -671,7 +671,13 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
   Generate Phoenix Token for user authentication in channels.
   """
   def generate_user_token(user_id) do
-    Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user_id)
+    user = Elektrine.Accounts.get_user!(user_id)
+
+    Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", %{
+      "user_id" => user.id,
+      "password_changed_at" => password_changed_at_unix(user),
+      "auth_valid_after" => auth_valid_after_unix(user)
+    })
   end
 
   @doc """
@@ -768,4 +774,18 @@ defmodule ElektrineWeb.ChatLive.Operations.Helpers do
   end
 
   def render_message_content(content), do: content
+
+  defp password_changed_at_unix(user) do
+    case user.last_password_change do
+      %DateTime{} = changed_at -> DateTime.to_unix(changed_at, :second)
+      _ -> 0
+    end
+  end
+
+  defp auth_valid_after_unix(user) do
+    case user.auth_valid_after do
+      %DateTime{} = valid_after -> DateTime.to_unix(valid_after, :second)
+      _ -> 0
+    end
+  end
 end

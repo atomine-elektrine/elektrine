@@ -23,6 +23,7 @@ defmodule Elektrine.OAuth.App do
     field(:website, :string)
     field(:client_id, :string)
     field(:client_secret, :string)
+    field(:plain_client_secret, :string, virtual: true)
     field(:trusted, :boolean, default: false)
 
     belongs_to(:user, User)
@@ -39,7 +40,7 @@ defmodule Elektrine.OAuth.App do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(struct, params) do
     struct
-    |> cast(params, [:client_name, :redirect_uris, :scopes, :website, :trusted, :user_id])
+    |> cast(params, [:client_name, :redirect_uris, :scopes, :website, :user_id])
     |> validate_length(:client_name, max: 255)
     |> validate_length(:website, max: 2048)
   end
@@ -56,9 +57,12 @@ defmodule Elektrine.OAuth.App do
       |> validate_redirect_uris()
 
     if changeset.valid? do
+      client_secret = generate_token()
+
       changeset
       |> put_change(:client_id, generate_token())
-      |> put_change(:client_secret, generate_token())
+      |> put_change(:client_secret, hash_secret(client_secret))
+      |> put_change(:plain_client_secret, client_secret)
     else
       changeset
     end
@@ -155,7 +159,10 @@ defmodule Elektrine.OAuth.App do
   """
   @spec get_by_credentials(String.t(), String.t()) :: t() | nil
   def get_by_credentials(client_id, client_secret) do
-    Repo.get_by(__MODULE__, client_id: client_id, client_secret: client_secret)
+    from(a in __MODULE__,
+      where: a.client_id == ^client_id and a.client_secret == ^hash_secret(client_secret)
+    )
+    |> Repo.one()
   end
 
   @doc """
@@ -210,8 +217,13 @@ defmodule Elektrine.OAuth.App do
   def rotate_secret(%User{} = user, id) do
     case get_user_app(user, id) do
       %__MODULE__{} = app ->
+        client_secret = generate_token()
+
         app
-        |> change(%{client_secret: generate_token()})
+        |> change(%{
+          client_secret: hash_secret(client_secret),
+          plain_client_secret: client_secret
+        })
         |> Repo.update()
 
       nil ->
@@ -261,6 +273,15 @@ defmodule Elektrine.OAuth.App do
       |> Repo.all()
 
     {:ok, apps, count}
+  end
+
+  def client_secret_value(%__MODULE__{plain_client_secret: plain}) when is_binary(plain),
+    do: plain
+
+  def client_secret_value(_), do: nil
+
+  defp hash_secret(secret) when is_binary(secret) do
+    :crypto.hash(:sha256, secret) |> Base.encode16(case: :lower)
   end
 
   # Private functions

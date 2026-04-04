@@ -306,40 +306,6 @@ export const FileExplorer = {
       this.openRow(row)
     }
 
-    this.onContextMenu = (event) => {
-      const row = event.target.closest('[data-row-token]')
-      if (row && !row.contains(event.target.closest(this.interactiveSelector))) {
-        event.preventDefault()
-
-        const rowIndex = Number(row.dataset.rowIndex || 0)
-        this.anchorRowIndex = rowIndex
-        this.setActiveRow(rowIndex)
-        this.setSelection([row.dataset.rowToken])
-
-        this.pushEvent('show_context_menu', {
-          x: event.clientX,
-          y: event.clientY,
-          kind: row.dataset.rowMenuKind || row.dataset.rowKind,
-          token: row.dataset.rowToken,
-          id: row.dataset.rowMenuId || row.dataset.rowOpenId,
-          path: row.dataset.rowMenuPath || row.dataset.rowOpenPath
-        })
-
-        return
-      }
-
-      const surface = event.target.closest('[data-context-surface]')
-      if (!surface || event.target.closest(this.interactiveSelector)) return
-
-      event.preventDefault()
-      this.pushEvent('show_context_menu', {
-        x: event.clientX,
-        y: event.clientY,
-        kind: surface.dataset.contextKind || 'blank',
-        path: surface.dataset.contextPath || ''
-      })
-    }
-
     this.clearDropTarget = () => {
       if (!this.lastDropTarget) return
       this.lastDropTarget.classList.remove('bg-primary/15', 'ring-1', 'ring-primary/30')
@@ -538,7 +504,6 @@ export const FileExplorer = {
 
     this.el.addEventListener('click', this.onClick)
     this.el.addEventListener('dblclick', this.onDoubleClick)
-    this.el.addEventListener('contextmenu', this.onContextMenu)
     this.el.addEventListener('dragstart', this.onDragStart)
     this.el.addEventListener('dragend', this.onDragEnd)
     this.el.addEventListener('dragover', this.onDragOver)
@@ -558,7 +523,6 @@ export const FileExplorer = {
   destroyed() {
     if (this.onClick) this.el.removeEventListener('click', this.onClick)
     if (this.onDoubleClick) this.el.removeEventListener('dblclick', this.onDoubleClick)
-    if (this.onContextMenu) this.el.removeEventListener('contextmenu', this.onContextMenu)
     if (this.onDragStart) this.el.removeEventListener('dragstart', this.onDragStart)
     if (this.onDragEnd) this.el.removeEventListener('dragend', this.onDragEnd)
     if (this.onDragOver) this.el.removeEventListener('dragover', this.onDragOver)

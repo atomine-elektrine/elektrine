@@ -83,15 +83,7 @@ function notify(message, type = "error", title = "Mailbox") {
 }
 
 function cacheLoginPassword(password) {
-  if (typeof password !== "string" || password.trim() === "") return
-
-  window.sessionStorage.setItem(
-    LOGIN_PASSWORD_STORAGE_KEY,
-    JSON.stringify({
-      password,
-      storedAt: Date.now()
-    })
-  )
+  void password
 }
 
 function clearCachedLoginPassword() {
@@ -99,27 +91,8 @@ function clearCachedLoginPassword() {
 }
 
 function getCachedLoginPassword() {
-  const serialized = window.sessionStorage.getItem(LOGIN_PASSWORD_STORAGE_KEY)
-  if (!serialized) return null
-
-  try {
-    const parsed = JSON.parse(serialized)
-
-    if (
-      typeof parsed.password !== "string" ||
-        parsed.password.trim() === "" ||
-        typeof parsed.storedAt !== "number" ||
-        Date.now() - parsed.storedAt > LOGIN_PASSWORD_TTL_MS
-    ) {
-      clearCachedLoginPassword()
-      return null
-    }
-
-    return parsed.password
-  } catch (_error) {
-    clearCachedLoginPassword()
-    return null
-  }
+  clearCachedLoginPassword()
+  return null
 }
 
 function mailboxStorageKey(mailboxId) {

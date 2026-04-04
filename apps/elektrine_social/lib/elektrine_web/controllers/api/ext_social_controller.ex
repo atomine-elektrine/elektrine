@@ -9,6 +9,7 @@ defmodule ElektrineWeb.API.ExtSocialController do
   alias Elektrine.Messaging.Messages
   alias Elektrine.Profiles
   alias Elektrine.Social
+  alias Elektrine.Uploads
   alias ElektrineWeb.API.Response
 
   @default_limit 20
@@ -211,7 +212,7 @@ defmodule ElektrineWeb.API.ExtSocialController do
       post_type: post.post_type,
       content: post.content,
       title: post.title,
-      media_urls: post.media_urls || [],
+      media_urls: Enum.map(post.media_urls || [], &Uploads.attachment_url(&1, post)),
       visibility: post.visibility || "public",
       content_warning: post.content_warning,
       sensitive: post.sensitive || false,

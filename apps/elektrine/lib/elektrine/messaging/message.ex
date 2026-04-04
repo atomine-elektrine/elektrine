@@ -753,7 +753,7 @@ defmodule Elektrine.Messaging.Message do
         # Validate all URLs are from trusted domains
         invalid_urls =
           Enum.filter(urls, fn url ->
-            not trusted_media_url?(url)
+            not trusted_media_url?(url, get_field(changeset, :sender_id))
           end)
 
         if invalid_urls != [] do
@@ -782,22 +782,19 @@ defmodule Elektrine.Messaging.Message do
     end
   end
 
-  defp trusted_media_url?(url) do
+  defp trusted_media_url?(url, sender_id) do
     # Allow local uploads (paths starting with /uploads/)
     cond do
       String.starts_with?(url, "/uploads/") ->
-        true
+        owned_public_media_key?(String.trim_leading(url, "/uploads/"), sender_id)
 
       # Allow S3/R2 keys (paths starting with various attachment folders)
-      String.starts_with?(url, "attachments/") or
-        String.starts_with?(url, "chat-attachments/") or
-        String.starts_with?(url, "timeline-attachments/") or
+      String.starts_with?(url, "timeline-attachments/") or
         String.starts_with?(url, "discussion-attachments/") or
         String.starts_with?(url, "gallery-attachments/") or
-        String.starts_with?(url, "email-attachments/") or
         String.starts_with?(url, "avatars/") or
           String.starts_with?(url, "backgrounds/") ->
-        true
+        owned_public_media_key?(url, sender_id)
 
       # Allow HTTPS URLs from trusted domains
       true ->
@@ -824,6 +821,24 @@ defmodule Elektrine.Messaging.Message do
           uri.host in trusted_domains
     end
   end
+
+  defp owned_public_media_key?(key, sender_id) when is_binary(key) and is_integer(sender_id) do
+    normalized = String.trim_leading(key, "/")
+
+    case String.split(normalized, "/", parts: 2) do
+      [prefix, filename]
+      when prefix in ["timeline-attachments", "discussion-attachments", "gallery-attachments"] ->
+        String.starts_with?(filename, "#{sender_id}_")
+
+      [prefix, _filename] when prefix in ["avatars", "backgrounds"] ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp owned_public_media_key?(_key, _sender_id), do: false
 
   defp emoji?(grapheme) do
     # Simple emoji detection - check for common emoji codepoints

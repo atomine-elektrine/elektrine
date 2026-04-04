@@ -9,6 +9,7 @@ defmodule Elektrine.ActivityPub.Publisher do
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.HTTPSignature
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Security.URLValidator
 
   @doc """
@@ -124,7 +125,7 @@ defmodule Elektrine.ActivityPub.Publisher do
       # Build and send the request
       request = Finch.build(:post, inbox_url, all_headers, body)
 
-      case Finch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
+      case SafeFetch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
         {:ok, %Finch.Response{status: status}} when status in 200..299 ->
           Logger.info("Successfully delivered to #{inbox_url}")
           {:ok, :delivered}

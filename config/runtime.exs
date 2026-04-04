@@ -798,7 +798,7 @@ if config_env() == :prod do
     end
   end
 
-  pool_size = env_int.("POOL_SIZE", 20)
+  pool_size = env_int.("POOL_SIZE", 10)
   queue_target_ms = env_int.("DB_QUEUE_TARGET_MS", 2_000)
   queue_interval_ms = env_int.("DB_QUEUE_INTERVAL_MS", 5_000)
   query_timeout_ms = env_int.("DB_TIMEOUT_MS", 30_000)

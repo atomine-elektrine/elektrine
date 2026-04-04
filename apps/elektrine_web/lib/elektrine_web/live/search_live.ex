@@ -206,7 +206,7 @@ defmodule ElektrineWeb.SearchLive do
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
       <.e_nav active_tab="search" current_user={@current_user} />
 
-      <div class="space-y-4">
+      <div class="space-y-6">
         <div class="card bg-base-100 shadow-sm border border-base-300">
           <div class="card-body gap-4">
             <div class="flex items-start justify-between gap-3">
@@ -316,54 +316,56 @@ defmodule ElektrineWeb.SearchLive do
           </div>
 
           <%= if @results != [] do %>
-            <.floating_panel>
-              <div class="card-body p-2">
-                <.pill_switcher
-                  event="filter_results"
-                  param="type"
-                  active={@active_filter}
-                  options={[
-                    %{value: "all", label: "All", count: length(@results)}
-                    | Enum.map(get_available_types(@results), fn type ->
-                        %{
-                          value: type,
-                          label: format_result_type(type),
-                          count: count_by_type(@results, type)
-                        }
-                      end)
-                  ]}
-                />
-              </div>
-            </.floating_panel>
+            <div class="space-y-6">
+              <.floating_panel>
+                <div class="card-body p-2">
+                  <.pill_switcher
+                    event="filter_results"
+                    param="type"
+                    active={@active_filter}
+                    options={[
+                      %{value: "all", label: "All", count: length(@results)}
+                      | Enum.map(get_available_types(@results), fn type ->
+                          %{
+                            value: type,
+                            label: format_result_type(type),
+                            count: count_by_type(@results, type)
+                          }
+                        end)
+                    ]}
+                  />
+                </div>
+              </.floating_panel>
 
-            <.floating_panel class="overflow-hidden">
-              <div class="divide-y divide-base-200">
-                <%= for result <- @filtered_results do %>
-                  <.link
-                    navigate={result.url}
-                    class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
-                  >
-                    <div class="min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class={"badge badge-sm " <> type_badge_class(result.type)}>
-                          {format_result_type(result.type)}
-                        </span>
-                        <%= if result.type == "federated" && result[:actor_domain] do %>
-                          <span class="badge badge-ghost badge-sm">{result.actor_domain}</span>
+              <.floating_panel class="overflow-hidden">
+                <div class="divide-y divide-base-200">
+                  <%= for result <- @filtered_results do %>
+                    <.link
+                      navigate={result.url}
+                      class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-base-200/70 transition-colors"
+                    >
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-2 mb-1">
+                          <span class={"badge badge-sm " <> type_badge_class(result.type)}>
+                            {format_result_type(result.type)}
+                          </span>
+                          <%= if result.type == "federated" && result[:actor_domain] do %>
+                            <span class="badge badge-ghost badge-sm">{result.actor_domain}</span>
+                          <% end %>
+                        </div>
+                        <p class="font-medium truncate">{result.title}</p>
+                        <%= if result.content do %>
+                          <p class="text-sm opacity-70 truncate">{result.content}</p>
                         <% end %>
                       </div>
-                      <p class="font-medium truncate">{result.title}</p>
-                      <%= if result.content do %>
-                        <p class="text-sm opacity-70 truncate">{result.content}</p>
-                      <% end %>
-                    </div>
-                    <div class="text-xs opacity-60 whitespace-nowrap">
-                      {format_relative_time(result.updated_at)}
-                    </div>
-                  </.link>
-                <% end %>
-              </div>
-            </.floating_panel>
+                      <div class="text-xs opacity-60 whitespace-nowrap">
+                        {format_relative_time(result.updated_at)}
+                      </div>
+                    </.link>
+                  <% end %>
+                </div>
+              </.floating_panel>
+            </div>
           <% else %>
             <.floating_panel>
               <.empty_state

@@ -10,6 +10,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Messaging.ArblargSDK
 
   alias Elektrine.Messaging.{
@@ -271,7 +272,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     headers = call(context, :signed_headers, [peer, "POST", path, "", body])
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5000
          ) do
@@ -1004,7 +1005,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     headers = call(context, :signed_headers, [peer, "GET", path, "", ""])
     request = Finch.build(:get, url, headers)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5000
          ) do
@@ -1139,7 +1140,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     headers = call(context, :signed_headers, [peer, "GET", path, query_string, ""])
     request = Finch.build(:get, url, headers)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5000
          ) do

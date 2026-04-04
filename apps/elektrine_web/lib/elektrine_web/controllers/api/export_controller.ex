@@ -128,27 +128,36 @@ defmodule ElektrineWeb.API.ExportController do
   GET /api/export/:id/download
   Downloads the export file.
 
-  Requires a valid download_token query parameter.
-  This endpoint does not require session authentication, only the token.
+  Requires both session authentication and the export download token.
   """
   def download(conn, %{"id" => id} = params) do
+    user = conn.assigns[:current_user]
     download_token = params["token"]
 
-    if is_nil(download_token) || download_token == "" do
-      Response.error(conn, :bad_request, "missing_parameter", "Missing required parameter: token")
-    else
-      case Developer.get_export_by_token(download_token) do
-        nil ->
-          Response.error(conn, :not_found, "not_found", "Export not found or invalid token")
+    cond do
+      is_nil(user) ->
+        Response.error(conn, :unauthorized, "unauthorized", "Authentication required")
 
-        export ->
-          # Verify the ID matches
-          if to_string(export.id) != to_string(id) do
-            Response.error(conn, :not_found, "not_found", "Export not found")
-          else
-            serve_export_file(conn, export)
-          end
-      end
+      is_nil(download_token) || download_token == "" ->
+        Response.error(
+          conn,
+          :bad_request,
+          "missing_parameter",
+          "Missing required parameter: token"
+        )
+
+      true ->
+        case Developer.get_export_by_token(download_token) do
+          nil ->
+            Response.error(conn, :not_found, "not_found", "Export not found or invalid token")
+
+          export ->
+            if to_string(export.id) != to_string(id) or export.user_id != user.id do
+              Response.error(conn, :not_found, "not_found", "Export not found")
+            else
+              serve_export_file(conn, export)
+            end
+        end
     end
   end
 
@@ -227,8 +236,8 @@ defmodule ElektrineWeb.API.ExportController do
   end
 
   # Generate download URL only for completed exports
-  defp download_url(%DataExport{status: "completed", download_token: token, id: id}) do
-    "/api/export/#{id}/download?token=#{token}"
+  defp download_url(%DataExport{status: "completed", id: id}) do
+    "/api/ext/v1/exports/#{id}/download"
   end
 
   defp download_url(_), do: nil
