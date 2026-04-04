@@ -4,11 +4,14 @@ defmodule Elektrine.Subscriptions.RegistrationCheckout do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Accounts.User
+
   @statuses ~w(pending fulfilled)
 
   schema "registration_checkouts" do
     field :stripe_checkout_session_id, :string
     field :lookup_token, :string
+    field :plain_lookup_token, :string, virtual: true
     field :product_slug, :string
     field :stripe_customer_id, :string
     field :stripe_payment_intent_id, :string
@@ -59,4 +62,9 @@ defmodule Elektrine.Subscriptions.RegistrationCheckout do
     |> validate_required([:status])
     |> validate_inclusion(:status, @statuses)
   end
+
+  def hash_lookup_token(token) when is_binary(token), do: User.hash_sensitive_token(token)
+
+  def lookup_token_value(%__MODULE__{plain_lookup_token: token}) when is_binary(token), do: token
+  def lookup_token_value(_), do: nil
 end

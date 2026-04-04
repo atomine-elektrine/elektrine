@@ -13,6 +13,7 @@ defmodule ElektrineWeb.Plugs.MastodonAPIAuth do
 
   import Plug.Conn
 
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.OAuth
   alias Elektrine.OAuth.Token
 
@@ -63,14 +64,29 @@ defmodule ElektrineWeb.Plugs.MastodonAPIAuth do
   end
 
   defp validate_token(%Token{} = token) do
-    if OAuth.token_valid?(token) do
-      :ok
-    else
-      {:error, :token_expired}
+    cond do
+      not OAuth.token_valid?(token) ->
+        {:error, :token_expired}
+
+      is_nil(token.user) ->
+        {:error, :invalid_token}
+
+      token_older_than_auth_boundary?(token.user, token) ->
+        {:error, :invalid_token}
+
+      true ->
+        Authentication.ensure_user_active(token.user)
     end
   end
 
   defp validate_token(_), do: {:error, :invalid_token}
+
+  defp token_older_than_auth_boundary?(user, token) do
+    case user.auth_valid_after do
+      %DateTime{} = valid_after -> DateTime.compare(token.inserted_at, valid_after) == :lt
+      _ -> false
+    end
+  end
 
   defp validate_scopes(_token, []), do: :ok
 

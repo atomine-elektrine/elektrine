@@ -139,3 +139,9 @@ export function loginWithAccount(serverUrl, username, password) {
     }
   )
 }
+
+export function logoutWithAccount(settings) {
+  return request(settings, "/api/auth/logout", {
+    method: "POST"
+  })
+}

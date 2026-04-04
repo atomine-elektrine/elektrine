@@ -5,6 +5,7 @@ defmodule Elektrine.Accounts.Authentication do
   alias Elektrine.DB.WriteGuard
   alias Elektrine.Email
   alias Elektrine.Email.Mailbox
+  alias Elektrine.OAuth
   alias Elektrine.Repo
   require Logger
 
@@ -108,6 +109,7 @@ defmodule Elektrine.Accounts.Authentication do
              end
            end) do
         {:ok, updated_user} ->
+          invalidate_long_lived_credentials(updated_user)
           {:ok, updated_user}
 
         {:error, %Ecto.Changeset{} = changeset} ->
@@ -181,6 +183,9 @@ defmodule Elektrine.Accounts.Authentication do
             try do
               case Repo.update(changeset) do
                 {:ok, updated_user} ->
+                  Elektrine.Accounts.invalidate_auth_sessions(updated_user)
+                  invalidate_long_lived_credentials(updated_user)
+
                   case Repo.reload(updated_user) do
                     nil ->
                       Logger.error("2FA: User reload failed after update")
@@ -215,7 +220,15 @@ defmodule Elektrine.Accounts.Authentication do
 
   @doc ~s|Disables 2FA for a user.\n|
   def disable_two_factor(%User{} = user) do
-    user |> User.disable_two_factor_changeset() |> Repo.update()
+    case user |> User.disable_two_factor_changeset() |> Repo.update() do
+      {:ok, updated_user} ->
+        Elektrine.Accounts.invalidate_auth_sessions(updated_user)
+        invalidate_long_lived_credentials(updated_user)
+        {:ok, updated_user}
+
+      error ->
+        error
+    end
   end
 
   @doc ~s|Verifies a 2FA code (TOTP or backup code) for a user.\n|
@@ -365,6 +378,12 @@ defmodule Elektrine.Accounts.Authentication do
     AppPassword |> where(user_id: ^user_id) |> order_by(desc: :inserted_at) |> Repo.all()
   end
 
+  def revoke_all_app_passwords(user_id) do
+    AppPassword
+    |> where(user_id: ^user_id)
+    |> Repo.delete_all()
+  end
+
   @doc ~s|Creates a new app password for a user.\nReturns {:ok, app_password} with the raw token attached, or {:error, changeset}.\n|
   def create_app_password(user_id, attrs) do
     attrs = Map.put(attrs, :user_id, user_id)
@@ -397,9 +416,15 @@ defmodule Elektrine.Accounts.Authentication do
 
     case get_user_by_username_or_email(username) do
       {:ok, user} ->
-        case verify_app_password(user.id, clean_token) do
-          {:ok, _app_password} -> {:ok, user}
-          {:error, _} -> {:error, {:invalid_token, user}}
+        case ensure_user_active(user) do
+          :ok ->
+            case verify_app_password(user.id, clean_token) do
+              {:ok, _app_password} -> {:ok, user}
+              {:error, _} -> {:error, {:invalid_token, user}}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, _} ->
@@ -444,6 +469,13 @@ defmodule Elektrine.Accounts.Authentication do
       end,
       on_read_only: {:ok, app_password}
     )
+  end
+
+  defp invalidate_long_lived_credentials(%User{} = user) do
+    OAuth.delete_user_tokens(user)
+    revoke_all_app_passwords(user.id)
+    Elektrine.Developer.revoke_all_api_tokens(user.id)
+    ElektrineWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
   end
 
   defp get_user_by_username_or_email(identifier) do
@@ -609,7 +641,14 @@ defmodule Elektrine.Accounts.Authentication do
 
       %User{} = user ->
         if User.valid_password_reset_token?(user) do
-          user |> User.password_reset_with_token_changeset(attrs) |> Repo.update()
+          case user |> User.password_reset_with_token_changeset(attrs) |> Repo.update() do
+            {:ok, updated_user} ->
+              invalidate_long_lived_credentials(updated_user)
+              {:ok, updated_user}
+
+            error ->
+              error
+          end
         else
           {:error, :invalid_token}
         end

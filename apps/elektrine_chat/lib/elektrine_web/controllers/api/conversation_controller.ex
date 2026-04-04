@@ -5,6 +5,7 @@ defmodule ElektrineWeb.API.ConversationController do
   use ElektrineChatWeb, :controller
 
   alias Elektrine.Messaging
+  alias Elektrine.Uploads
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -717,7 +718,7 @@ defmodule ElektrineWeb.API.ConversationController do
       id: message.id,
       content: message.content,
       message_type: message.message_type,
-      media_urls: message.media_urls,
+      media_urls: attachment_urls_for_message(message),
       sender_id: message.sender_id,
       sender: format_user(message.sender),
       reply_to_id: message.reply_to_id,
@@ -727,6 +728,10 @@ defmodule ElektrineWeb.API.ConversationController do
       deleted_at: message.deleted_at,
       created_at: message.inserted_at
     }
+  end
+
+  defp attachment_urls_for_message(message) do
+    Enum.map(message.media_urls || [], &Uploads.attachment_url(&1, %{type: "dm"}))
   end
 
   defp format_remote_join_request(request) when is_map(request) do
@@ -769,8 +774,7 @@ defmodule ElektrineWeb.API.ConversationController do
       _member ->
         case Elektrine.Uploads.upload_chat_attachment(upload, user.id) do
           {:ok, metadata} ->
-            # Build the full URL
-            url = Elektrine.Uploads.media_url(metadata.key)
+            url = Elektrine.Uploads.attachment_url(metadata.key, %{type: "dm"})
 
             conn
             |> put_status(:created)

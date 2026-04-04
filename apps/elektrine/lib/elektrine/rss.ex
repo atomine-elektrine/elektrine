@@ -4,8 +4,10 @@ defmodule Elektrine.RSS do
   """
 
   import Ecto.Query
+  import Ecto.Changeset
   alias Elektrine.Repo
   alias Elektrine.RSS.{Feed, Item, Subscription}
+  alias Elektrine.Security.URLValidator
 
   ## Feeds
 
@@ -15,14 +17,20 @@ defmodule Elektrine.RSS do
   def get_or_create_feed(url) do
     normalized_url = normalize_url(url)
 
-    case Repo.get_by(Feed, url: normalized_url) do
-      nil ->
-        %Feed{}
-        |> Feed.changeset(%{url: normalized_url, status: "pending"})
-        |> Repo.insert()
+    case URLValidator.validate(normalized_url) do
+      :ok ->
+        case Repo.get_by(Feed, url: normalized_url) do
+          nil ->
+            %Feed{}
+            |> Feed.changeset(%{url: normalized_url, status: "pending"})
+            |> Repo.insert()
 
-      feed ->
-        {:ok, feed}
+          feed ->
+            {:ok, feed}
+        end
+
+      {:error, _reason} ->
+        {:error, invalid_feed_url_changeset(normalized_url)}
     end
   end
 
@@ -36,7 +44,11 @@ defmodule Elektrine.RSS do
   """
   def get_feed_by_url(url) do
     normalized_url = normalize_url(url)
-    Repo.get_by(Feed, url: normalized_url)
+
+    case URLValidator.validate(normalized_url) do
+      :ok -> Repo.get_by(Feed, url: normalized_url)
+      {:error, _reason} -> nil
+    end
   end
 
   @doc """
@@ -262,5 +274,11 @@ defmodule Elektrine.RSS do
       # Build normalized URL
       URI.to_string(uri)
     end)
+  end
+
+  defp invalid_feed_url_changeset(url) do
+    %Feed{}
+    |> Feed.changeset(%{url: url})
+    |> add_error(:url, "must be a public http or https URL")
   end
 end

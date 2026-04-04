@@ -269,10 +269,10 @@ defmodule ElektrineWeb.DNSLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl space-y-6 px-4 pb-2 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl space-y-8 px-4 pb-2 sm:px-6 lg:px-8">
       <.e_nav active_tab="dns" current_user={@current_user} class="mb-6" />
 
-      <div class="space-y-6">
+      <div class="space-y-8">
         <div class="grid gap-6">
           <div class="card panel-card">
             <div class="card-body p-6 space-y-6">
@@ -312,11 +312,11 @@ defmodule ElektrineWeb.DNSLive.Index do
               <% end %>
 
               <div class="rounded-xl border border-base-300 bg-base-200/30 p-4">
-                <div class="flex items-center gap-3">
+                <div class="flex items-start gap-3">
                   <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-base-100 text-primary">
                     <.icon name="hero-plus-circle" class="h-5 w-5" />
                   </div>
-                  <div>
+                  <div class="space-y-1.5">
                     <h3 class="font-semibold">Add zone</h3>
                     <p class="text-sm text-base-content/65">Create a new authoritative zone.</p>
                   </div>
@@ -328,7 +328,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                   phx-change="zone_validate"
                   phx-submit="zone_create"
                 >
-                  <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <div class="grid gap-x-4 gap-y-6 md:grid-cols-[minmax(0,1fr)_220px]">
                     <.input
                       field={@zone_form[:domain]}
                       label="Domain"
@@ -587,20 +587,30 @@ defmodule ElektrineWeb.DNSLive.Index do
           <div class="order-1 space-y-6">
             <div class="card panel-card">
               <div class="card-body p-6">
-                <div class="flex items-center justify-between gap-3">
-                  <h3 class="card-title text-lg">Records</h3>
+                <div class="flex items-start justify-between gap-3">
+                  <div class="space-y-1">
+                    <h3 class="card-title text-lg">Records</h3>
+                    <p class="text-sm text-base-content/70">
+                      Review every record in this zone. Managed records stay read-only here.
+                    </p>
+                  </div>
                 </div>
 
                 <%= if @editing_record_id do %>
-                  <div class="mt-4 rounded-xl border border-base-300 bg-base-200/30 p-4">
-                    <h4 class="font-semibold">Edit record</h4>
+                  <div class="mt-5 space-y-4 rounded-xl border border-base-300 bg-base-200/30 p-5">
+                    <div class="space-y-1">
+                      <h4 class="font-semibold">Edit record</h4>
+                      <p class="text-sm text-base-content/65">
+                        Update the hostname, record type, and any type-specific fields.
+                      </p>
+                    </div>
                     <.simple_form
                       for={@record_form}
                       bare={true}
                       phx-change="record_validate"
                       phx-submit="record_create"
                     >
-                      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <div class="grid gap-x-4 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
                         <.input
                           field={@record_form[:name]}
                           label="Name"
@@ -715,8 +725,13 @@ defmodule ElektrineWeb.DNSLive.Index do
 
             <div class="card panel-card">
               <div class="card-body p-6">
-                <div class="flex items-center justify-between gap-3">
-                  <h3 class="card-title text-lg">Add record</h3>
+                <div class="flex items-start justify-between gap-3">
+                  <div class="space-y-1">
+                    <h3 class="card-title text-lg">Add record</h3>
+                    <p class="text-sm text-base-content/70">
+                      Use `@` for the apex or a short host like `www`, `mail`, or `vpn`.
+                    </p>
+                  </div>
                 </div>
                 <.simple_form
                   for={@record_form}
@@ -724,7 +739,7 @@ defmodule ElektrineWeb.DNSLive.Index do
                   phx-change="record_validate"
                   phx-submit="record_create"
                 >
-                  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                  <div class="grid gap-x-4 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
                     <.input field={@record_form[:name]} label="Name" placeholder="@ or www" required />
                     <.input
                       field={@record_form[:type]}
@@ -758,8 +773,13 @@ defmodule ElektrineWeb.DNSLive.Index do
 
             <%= if @active_zone.status != "verified" do %>
               <div class="card panel-card">
-                <div class="card-body p-6">
-                  <h3 class="card-title text-lg">Setup</h3>
+                <div class="card-body space-y-4 p-6">
+                  <div class="space-y-1">
+                    <h3 class="card-title text-lg">Setup</h3>
+                    <p class="text-sm text-base-content/70">
+                      Add these onboarding records at your DNS provider, then run verification again.
+                    </p>
+                  </div>
                   <div class="overflow-x-auto">
                     <table class="table table-sm">
                       <thead>

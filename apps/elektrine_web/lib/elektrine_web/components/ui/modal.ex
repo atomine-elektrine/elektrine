@@ -36,11 +36,11 @@ defmodule ElektrineWeb.Components.UI.Modal do
       phx-mounted={@show && show_modal(@id)}
       phx-remove={hide_modal(@id)}
       data-cancel={JS.exec(@on_cancel, "phx-remove")}
-      class="modal modal-open z-50 hidden"
+      class="modal modal-open fixed inset-0 z-50 hidden"
     >
       <div
         id={"#{@id}-bg"}
-        class="modal-backdrop bg-base-content/50 transition-opacity"
+        class="modal-backdrop fixed inset-0 bg-base-content/50 transition-opacity"
         aria-hidden="true"
       />
       <div

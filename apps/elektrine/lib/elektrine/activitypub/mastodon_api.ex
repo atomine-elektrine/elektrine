@@ -8,6 +8,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
 
   require Logger
   alias Elektrine.Domains
+  alias Elektrine.HTTP.SafeFetch
 
   @doc """
   Fetch status counts (favourites, reblogs, replies) from a Mastodon-compatible instance.
@@ -77,8 +78,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
         api_url = "https://#{domain}/api/v1/statuses/#{status_id}/context"
         headers = build_headers()
 
-        case Finch.build(:get, api_url, headers)
-             |> Finch.request(Elektrine.Finch, receive_timeout: 10_000) do
+        case safe_request(:get, api_url, headers, nil, receive_timeout: 10_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"descendants" => descendants} = context} ->
@@ -273,8 +273,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
     api_url = "https://#{domain}/api/v1/statuses/#{status_id}"
     headers = build_headers()
 
-    case Finch.build(:get, api_url, headers)
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+    case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         parse_status_response(body)
 
@@ -296,8 +295,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
     headers = [{"Content-Type", "application/json"} | build_headers()]
     body = Jason.encode!(%{"noteId" => note_id})
 
-    case Finch.build(:post, api_url, headers, body)
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+    case safe_request(:post, api_url, headers, body, receive_timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: response_body}} ->
         case Jason.decode(response_body) do
           {:ok, note} ->
@@ -333,8 +331,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   defp fetch_account_list(api_url) do
     headers = build_headers()
 
-    case Finch.build(:get, api_url, headers)
-         |> Finch.request(Elektrine.Finch, receive_timeout: 5_000) do
+    case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, accounts} when is_list(accounts) ->
@@ -370,6 +367,11 @@ defmodule Elektrine.ActivityPub.MastodonApi do
       {"Accept", "application/json"},
       {"User-Agent", "Elektrine/1.0 (ActivityPub; +#{Domains.public_base_url()})"}
     ]
+  end
+
+  defp safe_request(method, url, headers, body, opts) do
+    request = Finch.build(method, url, headers, body || "")
+    SafeFetch.request(request, Elektrine.Finch, opts)
   end
 
   defp get_activitypub_id(%{activitypub_id: id}) when is_binary(id), do: id

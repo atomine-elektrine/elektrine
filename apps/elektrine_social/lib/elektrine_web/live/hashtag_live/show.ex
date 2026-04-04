@@ -2,6 +2,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
   use ElektrineSocialWeb, :live_view
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
@@ -342,7 +343,7 @@ defmodule ElektrineWeb.HashtagLive.Show do
   end
 
   def handle_event("open_external_link", %{"url" => url}, socket) do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event(
@@ -754,5 +755,12 @@ defmodule ElektrineWeb.HashtagLive.Show do
 
   defp hashtag_post_preloads do
     Elektrine.Messaging.Messages.timeline_post_preloads()
+  end
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
+    end
   end
 end

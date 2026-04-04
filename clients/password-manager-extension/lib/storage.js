@@ -1,4 +1,5 @@
-const SETTINGS_KEYS = ["serverUrl", "apiToken"]
+const SETTINGS_KEYS = ["serverUrl"]
+const TOKEN_KEY = "apiToken"
 const PASSPHRASE_KEY = "vaultPassphrase"
 const PENDING_SAVES_KEY = "pendingLoginSaves"
 const STAGED_FILLS_KEY = "stagedEntryFills"
@@ -60,17 +61,21 @@ function storageRemove(areaName, keys) {
 
 export async function getSettings() {
   const values = await storageGet("local", SETTINGS_KEYS)
+  const tokenValues = await storageGet("session", TOKEN_KEY)
 
   return {
     serverUrl: values.serverUrl || "",
-    apiToken: values.apiToken || ""
+    apiToken: tokenValues[TOKEN_KEY] || ""
   }
 }
 
 export async function saveSettings(settings) {
   await storageSet("local", {
-    serverUrl: (settings.serverUrl || "").trim(),
-    apiToken: (settings.apiToken || "").trim()
+    serverUrl: (settings.serverUrl || "").trim()
+  })
+
+  await storageSet("session", {
+    [TOKEN_KEY]: (settings.apiToken || "").trim()
   })
 }
 

@@ -88,6 +88,12 @@ defmodule Elektrine.OAuth do
   @spec get_authorization(App.t(), String.t()) :: {:ok, Authorization.t()} | {:error, :not_found}
   def get_authorization(app, token), do: Authorization.get_by_token(app, token)
 
+  @doc """
+  Atomically consumes an authorization code for a specific app.
+  """
+  @spec consume_authorization(App.t(), String.t()) :: {:ok, Authorization.t()} | {:error, any()}
+  def consume_authorization(app, token), do: Authorization.consume_token(app, token)
+
   # Token functions
 
   @doc """
@@ -137,6 +143,9 @@ defmodule Elektrine.OAuth do
   """
   @spec revoke_token(String.t()) :: :ok | {:error, :not_found}
   def revoke_token(token), do: Token.revoke(token)
+
+  @spec revoke_token(App.t(), String.t()) :: :ok | {:error, :not_found}
+  def revoke_token(app, token), do: Token.revoke(app, token)
 
   @doc """
   Deletes all tokens and authorizations for a user.

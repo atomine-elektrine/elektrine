@@ -11,6 +11,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     FederationSessionClient
   }
 
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Messaging.Federation.Transport
   alias Elektrine.Repo
 
@@ -453,7 +454,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
 
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5_000
          ) do
@@ -496,7 +497,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
 
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5_000
          ) do
@@ -541,7 +542,7 @@ defmodule Elektrine.Messaging.Federation.Delivery do
 
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, Elektrine.Finch,
+    case SafeFetch.request(request, Elektrine.Finch,
            receive_timeout: call(context, :delivery_timeout_ms, []),
            pool_timeout: 5_000
          ) do

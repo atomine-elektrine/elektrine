@@ -5,7 +5,10 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.LemmyApi
+  alias Elektrine.Friends
   alias Elektrine.Messaging
+  alias Elektrine.Profiles
+  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
@@ -1176,31 +1179,39 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       else
         case Elektrine.Messaging.get_message_by_activitypub_id(decoded_post_id) do
           %{} = msg ->
-            msg = preload_cached_message_associations(msg)
+            if can_view_local_post?(msg, socket.assigns[:current_user]) do
+              msg = preload_cached_message_associations(msg)
 
-            cached_is_community = PostUtilities.community_post?(msg)
+              cached_is_community = PostUtilities.community_post?(msg)
 
-            # Build post object from cached message
-            post_object = build_post_object_from_message(msg)
+              # Build post object from cached message
+              post_object = build_post_object_from_message(msg)
 
-            socket
-            |> assign(:local_message, msg)
-            |> assign(:post, post_object)
-            |> assign(:remote_actor, msg.remote_actor)
-            |> assign(:is_community_post, socket.assigns.is_community_post || cached_is_community)
-            |> assign(:replies_loading, true)
-            |> assign(:loading, false)
-            |> assign(
-              :page_title,
-              msg.title || "Post by @#{(msg.remote_actor && msg.remote_actor.username) || "user"}"
-            )
-            |> assign_reply_parent_fallback(post_object, msg)
-            |> ensure_submitted_link_preview(
-              post_object,
-              msg,
-              msg.remote_actor && msg.remote_actor.domain
-            )
-            |> maybe_track_trust_detail_view(msg, "remote_post_detail")
+              socket
+              |> assign(:local_message, msg)
+              |> assign(:post, post_object)
+              |> assign(:remote_actor, msg.remote_actor)
+              |> assign(
+                :is_community_post,
+                socket.assigns.is_community_post || cached_is_community
+              )
+              |> assign(:replies_loading, true)
+              |> assign(:loading, false)
+              |> assign(
+                :page_title,
+                msg.title ||
+                  "Post by @#{(msg.remote_actor && msg.remote_actor.username) || "user"}"
+              )
+              |> assign_reply_parent_fallback(post_object, msg)
+              |> ensure_submitted_link_preview(
+                post_object,
+                msg,
+                msg.remote_actor && msg.remote_actor.domain
+              )
+              |> maybe_track_trust_detail_view(msg, "remote_post_detail")
+            else
+              socket
+            end
 
           nil ->
             socket
@@ -1321,7 +1332,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     attachments =
       if msg.media_urls && msg.media_urls != [] do
         Enum.map(msg.media_urls, fn url ->
-          full_url = Elektrine.Uploads.attachment_url(url)
+          full_url = Elektrine.Uploads.attachment_url(url, msg)
           %{"type" => "Image", "url" => full_url, "mediaType" => "image/jpeg"}
         end)
       else
@@ -2257,22 +2268,26 @@ defmodule ElektrineWeb.RemotePostLive.Show do
         socket
 
       message ->
-        # Build meta tags from local message
-        description = build_og_description(message.content)
-        image = get_first_media_url(message.media_urls)
+        if can_view_local_post?(message, socket.assigns[:current_user]) do
+          # Build meta tags from local message
+          description = build_og_description(message.content)
+          image = get_first_media_url(message.media_urls, message)
 
-        sender_username =
-          case message.sender do
-            %{username: username} when is_binary(username) and username != "" -> username
-            _ -> "unknown"
-          end
+          sender_username =
+            case message.sender do
+              %{username: username} when is_binary(username) and username != "" -> username
+              _ -> "unknown"
+            end
 
-        title = message.title || "Post by #{sender_username}"
+          title = message.title || "Post by #{sender_username}"
 
-        socket
-        |> assign(:page_title, title)
-        |> assign(:meta_description, description)
-        |> assign(:og_image, image)
+          socket
+          |> assign(:page_title, title)
+          |> assign(:meta_description, description)
+          |> assign(:og_image, image)
+        else
+          socket
+        end
     end
   end
 
@@ -2281,32 +2296,36 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     # First check if we have it cached locally
     case Elektrine.Messaging.get_message_by_activitypub_id(post_id) do
       %{} = msg ->
-        # Preload associations for actor info
-        msg = Elektrine.Repo.preload(msg, [:remote_actor, :sender])
+        if can_view_local_post?(msg, socket.assigns[:current_user]) do
+          # Preload associations for actor info
+          msg = Elektrine.Repo.preload(msg, [:remote_actor, :sender])
 
-        # We have it cached locally
-        description = build_og_description(msg.content)
-        image = get_first_media_url(msg.media_urls)
+          # We have it cached locally
+          description = build_og_description(msg.content)
+          image = get_first_media_url(msg.media_urls, msg)
 
-        # Try to get actor info
-        actor_name =
-          cond do
-            msg.remote_actor && msg.remote_actor.username ->
-              "@#{msg.remote_actor.username}@#{msg.remote_actor.domain}"
+          # Try to get actor info
+          actor_name =
+            cond do
+              msg.remote_actor && msg.remote_actor.username ->
+                "@#{msg.remote_actor.username}@#{msg.remote_actor.domain}"
 
-            msg.sender && msg.sender.username ->
-              "@#{msg.sender.username}"
+              msg.sender && msg.sender.username ->
+                "@#{msg.sender.username}"
 
-            true ->
-              nil
-          end
+              true ->
+                nil
+            end
 
-        page_title = msg.title || (actor_name && "Post by #{actor_name}") || "Remote Post"
+          page_title = msg.title || (actor_name && "Post by #{actor_name}") || "Remote Post"
 
-        socket
-        |> assign(:page_title, page_title)
-        |> assign(:meta_description, description)
-        |> assign(:og_image, image)
+          socket
+          |> assign(:page_title, page_title)
+          |> assign(:meta_description, description)
+          |> assign(:og_image, image)
+        else
+          socket
+        end
 
       nil ->
         # Not cached - do a quick fetch with short timeout for SEO
@@ -2381,14 +2400,14 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   defp build_og_description(_), do: nil
 
   # Get first media URL for OG image
-  defp get_first_media_url(nil), do: nil
-  defp get_first_media_url([]), do: nil
+  defp get_first_media_url(nil, _context), do: nil
+  defp get_first_media_url([], _context), do: nil
 
-  defp get_first_media_url(urls) when is_list(urls) do
+  defp get_first_media_url(urls, context) when is_list(urls) do
     Enum.find_value(urls, fn
       url when is_binary(url) ->
         if Elektrine.Strings.present?(url) do
-          full_url = Elektrine.Uploads.attachment_url(url)
+          full_url = Elektrine.Uploads.attachment_url(url, context)
 
           if is_binary(full_url) &&
                String.match?(full_url, ~r/\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i) do
@@ -2403,7 +2422,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
     end)
   end
 
-  defp get_first_media_url(_), do: nil
+  defp get_first_media_url(_, _context), do: nil
 
   @impl true
   def handle_info({:load_local_post, message_id}, socket) do
@@ -2419,7 +2438,13 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           [replies: [sender: [:profile], remote_actor: []]]
       )
 
-    if message do
+    if message && can_view_local_post?(message, socket.assigns[:current_user]) do
+      visible_replies =
+        (message.replies || [])
+        |> Enum.filter(&can_view_local_post?(&1, socket.assigns[:current_user]))
+
+      message = %{message | replies: visible_replies}
+
       # Convert local message to ActivityPub-like format for the template
       sender = message.sender
       base_url = ElektrineWeb.Endpoint.url()
@@ -2430,7 +2455,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
           message.media_urls
           |> Enum.filter(&(is_binary(&1) && &1 != ""))
           |> Enum.map(fn url ->
-            full_url = Elektrine.Uploads.attachment_url(url)
+            full_url = Elektrine.Uploads.attachment_url(url, message)
 
             %{
               "type" => "Image",
@@ -2472,7 +2497,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
       # Convert replies to ActivityPub-like format
       local_replies =
-        Enum.map(message.replies || [], fn reply ->
+        message.replies
+        |> Enum.map(fn reply ->
           {actor_uri, local_user, is_local_reply} =
             cond do
               reply.sender && Elektrine.Strings.present?(reply.sender.username) ->
@@ -2591,7 +2617,8 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       {:noreply,
        socket
        |> assign(:loading, false)
-       |> assign(:load_error, "Post not found")}
+       |> assign(:load_error, "Post not found")
+       |> push_navigate(to: ~p"/")}
     end
   end
 
@@ -3494,7 +3521,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
 
   def handle_event("open_external_link", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("open_external_link", _params, socket) do
@@ -4310,4 +4337,40 @@ defmodule ElektrineWeb.RemotePostLive.Show do
   defp hydrate_ancestor_surface_data(socket, _), do: socket
 
   defp current_user_missing?(socket), do: is_nil(socket.assigns[:current_user])
+
+  defp can_view_local_post?(message, current_user) do
+    viewer_id = current_user && current_user.id
+    owner? = not is_nil(message.sender_id) and viewer_id == message.sender_id
+    approved? = message.approval_status in ["approved", nil]
+
+    visible? =
+      case message.visibility do
+        "public" ->
+          true
+
+        "unlisted" ->
+          true
+
+        "followers" ->
+          owner? or (is_integer(viewer_id) and Profiles.following?(viewer_id, message.sender_id))
+
+        "friends" ->
+          owner? or (is_integer(viewer_id) and Friends.are_friends?(viewer_id, message.sender_id))
+
+        "private" ->
+          owner?
+
+        _ ->
+          false
+      end
+
+    visible? and is_nil(message.deleted_at) and (approved? or owner?)
+  end
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
+    end
+  end
 end

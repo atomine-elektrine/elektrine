@@ -12,6 +12,18 @@ config :elektrine,
 
 ci_env? = System.get_env("CI") in ["true", "1"]
 
+test_pool_size =
+  case System.get_env("TEST_POOL_SIZE") || System.get_env("POOL_SIZE") do
+    nil ->
+      min(System.schedulers_online() * 2, 16)
+
+    value ->
+      case Integer.parse(value) do
+        {int, ""} when int > 0 -> int
+        _ -> min(System.schedulers_online() * 2, 16)
+      end
+  end
+
 test_db_username =
   System.get_env("DB_USER") ||
     System.get_env("POSTGRES_USER") ||
@@ -45,7 +57,7 @@ config :elektrine,
          username: test_db_username,
          database: "#{test_db_name}#{System.get_env("MIX_TEST_PARTITION")}",
          pool: Ecto.Adapters.SQL.Sandbox,
-         pool_size: System.schedulers_online() * 2
+         pool_size: test_pool_size
        ] ++ test_db_connection_opts
 
 # Isolate mail protocol listeners from any local services on default ports.

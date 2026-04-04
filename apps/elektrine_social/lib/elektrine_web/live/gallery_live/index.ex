@@ -361,7 +361,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
     photo = Enum.find(socket.assigns.filtered_posts, fn post -> post.id == photo_id end)
 
     if photo && photo.media_urls && photo.media_urls != [] do
-      images = Enum.map(photo.media_urls, &Elektrine.Uploads.attachment_url/1)
+      images = Enum.map(photo.media_urls, &Elektrine.Uploads.attachment_url(&1, photo))
 
       {:noreply,
        socket
@@ -893,7 +893,8 @@ defmodule ElektrineWeb.GalleryLive.Index do
         from(m in Messaging.Message,
           where:
             m.post_type == "gallery" and is_nil(m.deleted_at) and
-              m.sender_id in ^following_user_ids,
+              m.sender_id in ^following_user_ids and
+              m.visibility in ["public", "unlisted", "followers"],
           order_by: [desc: m.inserted_at],
           limit: ^limit,
           preload: [sender: [:profile]]
@@ -916,6 +917,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
             from(m in Messaging.Message,
               where:
                 m.federated == true and m.remote_actor_id in ^following_remote_actor_ids and
+                  m.visibility in ["public", "unlisted", "followers"] and
                   is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
                   fragment("array_length(?, 1)", m.media_urls) > 0,
               order_by: [desc: m.inserted_at],
@@ -979,6 +981,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
         end
 
       Elektrine.Repo.all(query)
+      |> Enum.filter(&can_view_gallery_post?(&1, user))
     else
       []
     end
@@ -1013,6 +1016,7 @@ defmodule ElektrineWeb.GalleryLive.Index do
         end
 
       Elektrine.Repo.all(query)
+      |> Enum.filter(&can_view_gallery_post?(&1, user))
     else
       []
     end
@@ -1472,12 +1476,12 @@ defmodule ElektrineWeb.GalleryLive.Index do
     |> List.first()
     |> case do
       nil -> nil
-      url -> Elektrine.Uploads.attachment_url(url)
+      url -> Elektrine.Uploads.attachment_url(url, post)
     end
   end
 
   defp gallery_image_urls(post) do
-    Enum.map(post.media_urls || [], &Elektrine.Uploads.attachment_url/1)
+    Enum.map(post.media_urls || [], &Elektrine.Uploads.attachment_url(&1, post))
   end
 
   defp gallery_image?(post) do
@@ -1521,4 +1525,17 @@ defmodule ElektrineWeb.GalleryLive.Index do
 
   defp format_gallery_count(value) when is_integer(value), do: Integer.to_string(value)
   defp format_gallery_count(_), do: "0"
+
+  defp can_view_gallery_post?(post, user) do
+    owner? = user && post.sender_id == user.id
+
+    case post.visibility do
+      "public" -> true
+      "unlisted" -> true
+      "followers" -> owner? || (user && Elektrine.Profiles.following?(user.id, post.sender_id))
+      "friends" -> owner? || (user && Elektrine.Friends.are_friends?(user.id, post.sender_id))
+      "private" -> owner?
+      _ -> false
+    end
+  end
 end

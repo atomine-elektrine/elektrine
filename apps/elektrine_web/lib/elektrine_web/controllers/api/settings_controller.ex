@@ -2,7 +2,7 @@ defmodule ElektrineWeb.API.SettingsController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
-  alias Elektrine.Accounts.User
+  alias Elektrine.Accounts.Authentication
   alias Elektrine.Bluesky.Managed, as: BlueskyManaged
   alias Elektrine.Profiles
   alias Elektrine.Repo
@@ -183,15 +183,11 @@ defmodule ElektrineWeb.API.SettingsController do
       }) do
     user = conn.assigns[:current_user]
 
-    # Update password using User changeset (includes current_password validation)
-    changeset =
-      User.password_changeset(user, %{
-        current_password: current_password,
-        password: new_password,
-        password_confirmation: new_password
-      })
-
-    case Repo.update(changeset) do
+    case Authentication.update_user_password(user, %{
+           current_password: current_password,
+           password: new_password,
+           password_confirmation: new_password
+         }) do
       {:ok, _updated_user} ->
         conn
         |> put_status(:ok)

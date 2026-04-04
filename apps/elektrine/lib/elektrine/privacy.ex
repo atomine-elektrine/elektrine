@@ -178,7 +178,7 @@ defmodule Elektrine.Privacy do
             {:ok, :allowed}
 
           "followers" ->
-            if Profiles.following?(profile_owner_id, viewer_id) do
+            if Profiles.following?(viewer_id, profile_owner_id) do
               {:ok, :allowed}
             else
               {:error, :privacy_restricted}

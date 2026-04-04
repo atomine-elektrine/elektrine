@@ -1807,7 +1807,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <%= if @post.quoted_message.media_urls && length(@post.quoted_message.media_urls) > 0 do %>
             <div class="mt-2 flex gap-1">
               <%= for media_url <- Enum.take(@post.quoted_message.media_urls, 2) do %>
-                <% full_url = Elektrine.Uploads.attachment_url(media_url) %>
+                <% full_url = Elektrine.Uploads.attachment_url(media_url, @post.quoted_message) %>
                 <img src={full_url} alt="" class="w-16 h-16 rounded object-cover" />
               <% end %>
               <%= if length(@post.quoted_message.media_urls) > 2 do %>
@@ -2136,7 +2136,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     (post.media_urls || [])
     |> Enum.with_index()
     |> Enum.reduce([], fn {media_url, index}, entries ->
-      case Elektrine.Uploads.attachment_url(media_url) do
+      case Elektrine.Uploads.attachment_url(media_url, post) do
         full_url when is_binary(full_url) and full_url != "" ->
           {width, height} = media_dimensions(metadata, attachments, index)
           is_video = video_url?(full_url)

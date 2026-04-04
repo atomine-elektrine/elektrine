@@ -39,6 +39,7 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      POOL_SIZE: ${APP_POOL_SIZE:-10}
       PHX_HOST: ${PHX_HOST:-example.com}
       PHX_SERVER: "true"
       MIX_ENV: prod
@@ -77,6 +78,7 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      POOL_SIZE: ${WORKER_POOL_SIZE:-5}
       PHX_HOST: ${PHX_HOST:-example.com}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: worker
@@ -112,6 +114,7 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@127.0.0.1/elektrine_prod
+      POOL_SIZE: ${VPN_POOL_SIZE:-2}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: vpn
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
@@ -152,6 +155,7 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      POOL_SIZE: ${MAIL_POOL_SIZE:-5}
       PHX_HOST: ${PHX_HOST:-example.com}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: mail
@@ -193,6 +197,7 @@ services:
       - ../../.env.production
     environment:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      POOL_SIZE: ${DNS_POOL_SIZE:-3}
       MIX_ENV: prod
       RELEASE_NAME: ${RELEASE_NAME:-elektrine}
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}

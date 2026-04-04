@@ -155,6 +155,9 @@ defmodule Elektrine.Developer do
           Authentication.ensure_user_active(token.user) != :ok ->
             {:error, :account_inactive}
 
+          token_older_than_auth_boundary?(token) ->
+            {:error, :token_revoked}
+
           true ->
             touch_api_token(token, ip_address)
 
@@ -181,6 +184,14 @@ defmodule Elektrine.Developer do
       {:error, :insufficient_scope}
     end
   end
+
+  defp token_older_than_auth_boundary?(
+         %ApiToken{user: %{auth_valid_after: %DateTime{} = valid_after}} = token
+       ) do
+    DateTime.compare(token.inserted_at, valid_after) == :lt
+  end
+
+  defp token_older_than_auth_boundary?(_), do: false
 
   @doc """
   Counts active tokens for a user.
@@ -634,7 +645,10 @@ defmodule Elektrine.Developer do
   """
   def get_export_by_token(download_token) do
     DataExport
-    |> where([e], e.download_token == ^download_token)
+    |> where(
+      [e],
+      e.download_token == ^Elektrine.Accounts.User.hash_sensitive_token(download_token)
+    )
     |> preload(:user)
     |> Repo.one()
   end

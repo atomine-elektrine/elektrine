@@ -192,20 +192,28 @@
               <label class="label"><span class="font-semibold">{gettext("From")}</span></label>
               <%= if length(@available_from_addresses) > 1 do %>
                 <.form :let={_f} for={%{}} phx-change="change_from_address" class="w-full">
-                  <select
-                    name="from_address"
-                    class="select select-bordered w-full !block font-medium text-sm"
-                    value={@from_address}
-                  >
-                    <%= for address <- @available_from_addresses do %>
-                      <option value={address} selected={address == @from_address}>
-                        {address}
-                      </option>
-                    <% end %>
-                  </select>
+                  <div class="relative">
+                    <select
+                      name="from_address"
+                      class="select select-bordered w-full !block pr-10 font-medium text-sm normal-case tracking-normal appearance-auto"
+                      value={@from_address}
+                      autocomplete="off"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                    >
+                      <%= for address <- @available_from_addresses do %>
+                        <option value={address} selected={address == @from_address}>
+                          {address}
+                        </option>
+                      <% end %>
+                    </select>
+                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base-content/60">
+                      <.icon name="hero-chevron-down" class="h-4 w-4" />
+                    </span>
+                  </div>
                 </.form>
               <% else %>
-                <div class="input input-bordered bg-base-200/50 flex items-center font-medium text-sm overflow-hidden">
+                <div class="input input-bordered bg-base-200/50 flex items-center font-medium text-sm normal-case tracking-normal overflow-hidden">
                   <span class="truncate">{@from_address}</span>
                 </div>
               <% end %>
@@ -243,6 +251,9 @@
                   phx-value-field="to"
                   id="to-tag-input"
                   placeholder={gettext("Add email...")}
+                  autocomplete="off"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
                   class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @to_input_error, do: "text-error"}"}
                 />
               </div>
@@ -253,7 +264,7 @@
               <!-- To: Autocomplete Dropdown -->
               <%= if assigns[:showing_to_suggestions] && @showing_to_suggestions do %>
                 <div
-                  class="absolute z-50 mt-1 w-full rounded-lg max-h-60 overflow-y-auto"
+                  class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
                   phx-hook="SuggestionDropdown"
                   id="to-suggestions-dropdown"
                 >
@@ -338,6 +349,9 @@
                     phx-value-field="cc"
                     id="cc-tag-input"
                     placeholder={gettext("Add email...")}
+                    autocomplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @cc_input_error, do: "text-error"}"}
                   />
                 </div>
@@ -348,7 +362,7 @@
                 <!-- CC: Autocomplete Dropdown -->
                 <%= if assigns[:showing_cc_suggestions] && @showing_cc_suggestions do %>
                   <div
-                    class="absolute z-50 mt-1 w-full rounded-lg max-h-60 overflow-y-auto"
+                    class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
                     phx-hook="SuggestionDropdown"
                     id="cc-suggestions-dropdown"
                   >
@@ -413,6 +427,9 @@
                     phx-value-field="bcc"
                     id="bcc-tag-input"
                     placeholder={gettext("Add email...")}
+                    autocomplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     class={"flex-1 min-w-[7rem] sm:min-w-[150px] outline-none bg-transparent border-none focus:outline-none focus:ring-0 text-sm #{if @bcc_input_error, do: "text-error"}"}
                   />
                 </div>
@@ -423,7 +440,7 @@
                 <!-- BCC: Autocomplete Dropdown -->
                 <%= if assigns[:showing_bcc_suggestions] && @showing_bcc_suggestions do %>
                   <div
-                    class="absolute z-50 mt-1 w-full rounded-lg max-h-60 overflow-y-auto"
+                    class="absolute z-50 mt-1 w-full rounded-lg border border-base-300 bg-base-200/95 text-base-content shadow-xl backdrop-blur-sm max-h-60 overflow-y-auto"
                     phx-hook="SuggestionDropdown"
                     id="bcc-suggestions-dropdown"
                   >

@@ -9,6 +9,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias Elektrine.Platform.Modules
   alias Elektrine.Profiles
   alias Elektrine.Repo
+  alias Elektrine.Security.SafeExternalURL
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
@@ -762,7 +763,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_event("open_external_link", %{"url" => url}, socket) do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
@@ -2816,5 +2817,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
       preload: [sender: [:profile], conversation: [], link_preview: [], hashtags: []]
     )
     |> Elektrine.Repo.all()
+  end
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
+    end
   end
 end

@@ -301,37 +301,15 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
   def generate_key_pair do
     private_key = :public_key.generate_key({:rsa, 2048, 65_537})
 
+    {:RSAPrivateKey, _, modulus, exponent, _, _, _, _, _, _, _} = private_key
+    public_key = {:RSAPublicKey, modulus, exponent}
+
     private_pem =
       :public_key.pem_encode([:public_key.pem_entry_encode(:RSAPrivateKey, private_key)])
 
-    temp_dir = System.tmp_dir!()
-    private_path = Path.join(temp_dir, "temp_private_#{:rand.uniform(999_999)}.pem")
-    public_path = Path.join(temp_dir, "temp_public_#{:rand.uniform(999_999)}.pem")
+    public_pem =
+      :public_key.pem_encode([:public_key.pem_entry_encode(:SubjectPublicKeyInfo, public_key)])
 
-    try do
-      File.write!(private_path, private_pem)
-
-      case System.cmd("openssl", ["rsa", "-in", private_path, "-pubout", "-out", public_path],
-             stderr_to_stdout: true
-           ) do
-        {_output, 0} ->
-          public_pem = File.read!(public_path)
-          {public_pem, private_pem}
-
-        {error_output, _code} ->
-          Logger.error("OpenSSL failed to generate public key: #{error_output}")
-          {extract_public_key_basic(private_key), private_pem}
-      end
-    after
-      File.rm(private_path)
-      File.rm(public_path)
-    end
-  end
-
-  defp extract_public_key_basic(
-         {:RSAPrivateKey, _version, modulus, exponent, _d, _p, _q, _e1, _e2, _c, _other}
-       ) do
-    rsa_public_key = {:RSAPublicKey, modulus, exponent}
-    :public_key.pem_encode([:public_key.pem_entry_encode(:RSAPublicKey, rsa_public_key)])
+    {public_pem, private_pem}
   end
 end

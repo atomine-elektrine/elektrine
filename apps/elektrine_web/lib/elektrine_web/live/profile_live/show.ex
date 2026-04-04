@@ -249,24 +249,32 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
   @impl true
   def handle_event("show_followers", _params, socket) do
-    followers = Profiles.get_followers(socket.assigns.user.id, limit: 50)
+    if socket.assigns[:is_private] do
+      {:noreply, socket}
+    else
+      followers = Profiles.get_followers(socket.assigns.user.id, limit: 50)
 
-    {:noreply,
-     socket
-     |> assign(:show_followers, true)
-     |> assign(:show_following, false)
-     |> assign(:followers_list, followers)}
+      {:noreply,
+       socket
+       |> assign(:show_followers, true)
+       |> assign(:show_following, false)
+       |> assign(:followers_list, followers)}
+    end
   end
 
   @impl true
   def handle_event("show_following", _params, socket) do
-    following = Profiles.get_following(socket.assigns.user.id, limit: 50)
+    if socket.assigns[:is_private] do
+      {:noreply, socket}
+    else
+      following = Profiles.get_following(socket.assigns.user.id, limit: 50)
 
-    {:noreply,
-     socket
-     |> assign(:show_following, true)
-     |> assign(:show_followers, false)
-     |> assign(:following_list, following)}
+      {:noreply,
+       socket
+       |> assign(:show_following, true)
+       |> assign(:show_followers, false)
+       |> assign(:following_list, following)}
+    end
   end
 
   @impl true
@@ -588,7 +596,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
       Task.async(fn ->
         {Integrations.profile_timeline_posts(user_id, limit: 5, viewer_id: viewer_id),
          Integrations.profile_pinned_posts(user_id, viewer_id: viewer_id),
-         Messaging.get_user_discussion_posts(user_id, limit: 5)}
+         Messaging.get_user_discussion_posts(user_id, limit: 5, viewer_id: viewer_id)}
       end)
 
     stats_task =

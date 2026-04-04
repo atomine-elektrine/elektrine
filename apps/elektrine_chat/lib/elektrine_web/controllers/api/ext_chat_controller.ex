@@ -11,6 +11,7 @@ defmodule ElektrineWeb.API.ExtChatController do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.{ChatMessages, Conversation, ConversationMember}
   alias Elektrine.Repo
+  alias Elektrine.Uploads
   alias ElektrineWeb.API.Response
 
   @chat_types ~w(dm group channel)
@@ -318,7 +319,7 @@ defmodule ElektrineWeb.API.ExtChatController do
       id: message.id,
       content: message.content,
       message_type: message.message_type,
-      media_urls: message.media_urls || [],
+      media_urls: attachment_urls_for_message(message),
       media_metadata: message.media_metadata || %{},
       conversation_id: message.conversation_id,
       sender_id: message.sender_id,
@@ -329,6 +330,10 @@ defmodule ElektrineWeb.API.ExtChatController do
       deleted_at: message.deleted_at,
       inserted_at: message.inserted_at
     }
+  end
+
+  defp attachment_urls_for_message(message) do
+    Enum.map(message.media_urls || [], &Uploads.attachment_url(&1, %{type: "dm"}))
   end
 
   defp format_reply_to(nil), do: nil

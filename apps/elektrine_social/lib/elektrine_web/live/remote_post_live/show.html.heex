@@ -271,7 +271,10 @@
 <!-- Images -->
               <%= if @local_message.media_urls && length(@local_message.media_urls) > 0 do %>
                 <% all_urls =
-                  Enum.map(@local_message.media_urls, &Elektrine.Uploads.attachment_url/1) %>
+                  Enum.map(
+                    @local_message.media_urls,
+                    &Elektrine.Uploads.attachment_url(&1, @local_message)
+                  ) %>
                 <ElektrineSocialWeb.Components.Social.RemotePostShared.media_gallery
                   urls={all_urls}
                   layout={:auto}

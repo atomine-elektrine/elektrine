@@ -372,7 +372,7 @@
             <% full_media_urls =
               (@post.media_urls || [])
               |> Enum.flat_map(fn media_url ->
-                case Elektrine.Uploads.attachment_url(media_url) do
+                case Elektrine.Uploads.attachment_url(media_url, @post) do
                   url when is_binary(url) and url != "" -> [url]
                   _ -> []
                 end

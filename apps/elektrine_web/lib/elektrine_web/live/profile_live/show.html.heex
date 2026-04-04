@@ -455,7 +455,9 @@
 <!-- Media preview -->
                             <%= if has_media do %>
                               <% first_media = List.first(content_source.media_urls)
-                              full_url = Elektrine.Uploads.attachment_url(first_media)
+
+                              full_url =
+                                Elektrine.Uploads.attachment_url(first_media, content_source)
 
                               is_video =
                                 String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
@@ -1731,7 +1733,7 @@
 
                       <%= if has_media do %>
                         <% first_media = List.first(content_source.media_urls)
-                        full_url = Elektrine.Uploads.attachment_url(first_media)
+                        full_url = Elektrine.Uploads.attachment_url(first_media, content_source)
                         is_video = String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
                         is_audio = String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
                         media_count = length(content_source.media_urls) %>

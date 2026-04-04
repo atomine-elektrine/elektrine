@@ -5,6 +5,7 @@ defmodule Elektrine.Messaging.Servers do
 
   import Ecto.Query, warn: false
   require Logger
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
@@ -440,7 +441,10 @@ defmodule Elektrine.Messaging.Servers do
     headers = Federation.signed_headers(peer, "GET", path, query_string, "")
     request = Finch.build(:get, url, headers)
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: timeout_ms, pool_timeout: 2_000) do
+    case SafeFetch.request(request, Elektrine.Finch,
+           receive_timeout: timeout_ms,
+           pool_timeout: 2_000
+         ) do
       {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 ->
         case Jason.decode(body) do
           {:ok, payload} ->

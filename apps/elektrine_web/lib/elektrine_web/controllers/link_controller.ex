@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.LinkController do
   use ElektrineWeb, :controller
   alias Elektrine.{Profiles, Repo}
+  alias Elektrine.Security.SafeExternalURL
   require Logger
 
   def click(conn, %{"id" => link_id}) do
@@ -46,25 +47,10 @@ defmodule ElektrineWeb.LinkController do
   # Validates external URLs to prevent open redirect attacks
   defp validate_external_url(url) when is_binary(url) do
     case URI.parse(url) do
-      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and not is_nil(host) ->
-        # Block localhost and internal IPs
-        cond do
-          # Block localhost in various forms
-          host in ["localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"] ->
-            {:error, :localhost_redirect}
-
-          # Block local network IPs (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
-          String.starts_with?(host, "10.") or
-            String.starts_with?(host, "192.168.") or
-              String.match?(host, ~r/^172\.(1[6-9]|2[0-9]|3[0-1])\./) ->
-            {:error, :local_network_redirect}
-
-          # Block IPv6 localhost and link-local
-          String.contains?(host, "::") ->
-            {:error, :ipv6_local_redirect}
-
-          true ->
-            :ok
+      %URI{scheme: scheme} when scheme in ["http", "https"] ->
+        case SafeExternalURL.normalize(url) do
+          {:ok, _safe_url} -> :ok
+          {:error, reason} -> {:error, reason}
         end
 
       %URI{scheme: scheme} when scheme in ["mailto", "tel"] ->

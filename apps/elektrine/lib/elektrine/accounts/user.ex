@@ -4,6 +4,8 @@ defmodule Elektrine.Accounts.User do
   import Ecto.Changeset
   import Ecto.Query, warn: false
 
+  alias Elektrine.Security.URLValidator
+
   schema "users" do
     # Authentication
     field :username, :string
@@ -41,6 +43,7 @@ defmodule Elektrine.Accounts.User do
     field :password_reset_token, :string
     field :password_reset_token_expires_at, :utc_datetime
     field :last_password_change, :utc_datetime
+    field :auth_valid_after, :utc_datetime
     field :locale, :string, default: "en"
     field :timezone, :string
     field :time_format, :string, default: "12"
@@ -904,10 +907,38 @@ defmodule Elektrine.Accounts.User do
     |> normalize_optional_string(:bluesky_identifier)
     |> normalize_optional_string(:bluesky_app_password)
     |> normalize_optional_string(:bluesky_pds_url)
+    |> normalize_bluesky_pds_url()
     |> validate_length(:bluesky_identifier, max: 255)
     |> validate_length(:bluesky_app_password, max: 255)
     |> validate_length(:bluesky_pds_url, max: 255)
+    |> validate_bluesky_pds_url()
     |> require_bluesky_credentials_when_enabled()
+  end
+
+  defp normalize_bluesky_pds_url(changeset) do
+    case get_change(changeset, :bluesky_pds_url) do
+      value when is_binary(value) and value != "" ->
+        normalized =
+          value
+          |> then(fn url ->
+            if String.starts_with?(url, ["http://", "https://"]), do: url, else: "https://" <> url
+          end)
+          |> String.trim_trailing("/")
+
+        put_change(changeset, :bluesky_pds_url, normalized)
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_bluesky_pds_url(changeset) do
+    validate_change(changeset, :bluesky_pds_url, fn :bluesky_pds_url, value ->
+      case URLValidator.validate(value) do
+        :ok -> []
+        {:error, _reason} -> [bluesky_pds_url: "must be a public http or https URL"]
+      end
+    end)
   end
 
   defp normalize_optional_string(changeset, field) do

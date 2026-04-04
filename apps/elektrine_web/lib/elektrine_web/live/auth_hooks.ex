@@ -40,6 +40,35 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineWeb.VPNLive.Index
   ]
 
+  @admin_read_only_events MapSet.new([
+                            "clear_search",
+                            "close_modal",
+                            "close_report_modal",
+                            "filter",
+                            "filter_change",
+                            "instances_next_page",
+                            "instances_prev_page",
+                            "load_more",
+                            "next_page",
+                            "prev_page",
+                            "refresh",
+                            "search",
+                            "search_user",
+                            "set_filter_status",
+                            "show_add_block_modal",
+                            "show_add_modal",
+                            "show_policy_modal",
+                            "switch_tab",
+                            "sync_policy_form",
+                            "update_new_domain",
+                            "update_new_reason",
+                            "update_policy_form",
+                            "view_report",
+                            "view_reported_item",
+                            "actors_next_page",
+                            "actors_prev_page"
+                          ])
+
   # Flash helper for auth on-mount hooks
   defp notify_error(socket, message), do: Phoenix.LiveView.put_flash(socket, :error, message)
 
@@ -132,22 +161,23 @@ defmodule ElektrineWeb.Live.AuthHooks do
           socket = socket |> redirect(to: ~p"/")
           {:halt, socket}
         else
-          # Verify admin session IP hasn't changed (match controller security)
-          {:cont, socket} = verify_admin_session_ip(socket, session, user)
+          peer_data = get_connect_info(socket, :peer_data)
 
-          case AdminSecurity.validate_live_admin_session(session, user) do
-            :ok ->
-              socket =
-                socket
-                |> assign_admin_security_metadata(session)
-                |> attach_hook(
-                  :enforce_admin_event_security,
-                  :handle_event,
-                  &enforce_admin_live_event_security/3
-                )
+          with :ok <- verify_live_admin_session_ip(session, peer_data),
+               :ok <- AdminSecurity.validate_live_admin_session(session, user) do
+            socket =
+              socket
+              |> assign(:admin_session_ip, AdminSecurity.session_admin_ip(session))
+              |> assign(:admin_peer_ip, peer_ip(peer_data))
+              |> assign_admin_security_metadata(session)
+              |> attach_hook(
+                :enforce_admin_event_security,
+                :handle_event,
+                &enforce_admin_live_event_security/3
+              )
 
-              {:cont, socket}
-
+            {:cont, socket}
+          else
             {:error, reason} ->
               socket =
                 socket
@@ -217,19 +247,15 @@ defmodule ElektrineWeb.Live.AuthHooks do
   # LiveView modules that require authentication
   defp requires_auth_module?(module), do: module in @authenticated_live_modules
 
-  # Verify admin session IP hasn't changed (session hijacking detection)
-  defp verify_admin_session_ip(socket, session, _user) do
-    session_ip = session["admin_session_ip"]
-    # Note: In LiveView we don't have direct access to conn.remote_ip
-    # This check is less robust than controller version, but still provides some protection
+  defp verify_live_admin_session_ip(session, peer_data) do
+    session_ip = AdminSecurity.session_admin_ip(session)
+    current_ip = peer_ip(peer_data)
 
-    if session_ip do
-      # IP was stored in session during controller login
-      # We can't verify it changed here, but the controller will catch it
-      {:cont, socket}
-    else
-      # No IP stored - this should not happen for new logins, but allow for compatibility
-      {:cont, socket}
+    cond do
+      is_nil(session_ip) -> :ok
+      is_nil(current_ip) -> {:error, :admin_ip_changed}
+      session_ip == current_ip -> :ok
+      true -> {:error, :admin_ip_changed}
     end
   end
 
@@ -238,9 +264,10 @@ defmodule ElektrineWeb.Live.AuthHooks do
     |> assign(:admin_auth_method, session["admin_auth_method"])
     |> assign(:admin_access_expires_at, parse_session_int(session["admin_access_expires_at"]))
     |> assign(:admin_elevated_until, parse_session_int(session["admin_elevated_until"]))
+    |> assign(:admin_last_resign_at, parse_session_int(session["admin_last_resign_at"]))
   end
 
-  defp enforce_admin_live_event_security(_event, _params, socket) do
+  defp enforce_admin_live_event_security(event, _params, socket) do
     now = System.system_time(:second)
     auth_method = socket.assigns[:admin_auth_method]
     access_expires_at = socket.assigns[:admin_access_expires_at] || 0
@@ -252,17 +279,60 @@ defmodule ElektrineWeb.Live.AuthHooks do
     passkey_ok = not passkey_required? or auth_method == "passkey"
     ttl_ok = access_expires_at >= now and elevated_until >= now
 
-    if passkey_ok and ttl_ok do
+    confirmation_ok =
+      recent_admin_confirmation?(socket.assigns[:admin_last_resign_at]) ||
+        not requires_recent_admin_confirmation?(event)
+
+    ip_ok =
+      case {socket.assigns[:admin_session_ip], socket.assigns[:admin_peer_ip]} do
+        {nil, _} ->
+          true
+
+        {session_ip, peer_ip} when is_binary(session_ip) and is_binary(peer_ip) ->
+          session_ip == peer_ip
+
+        _ ->
+          false
+      end
+
+    if passkey_ok and ttl_ok and confirmation_ok and ip_ok do
       {:cont, socket}
     else
+      reason =
+        cond do
+          not ip_ok -> :admin_ip_changed
+          not confirmation_ok -> :action_grant_required
+          true -> :elevation_required
+        end
+
       socket =
         socket
-        |> notify_error(AdminSecurity.error_message(:elevation_required))
+        |> notify_error(AdminSecurity.error_message(reason))
         |> push_navigate(to: AdminSecurity.elevation_redirect_path("/pripyat"))
 
       {:halt, socket}
     end
   end
+
+  defp requires_recent_admin_confirmation?(event) when is_binary(event) do
+    not MapSet.member?(@admin_read_only_events, event)
+  end
+
+  defp requires_recent_admin_confirmation?(_event), do: true
+
+  defp recent_admin_confirmation?(last_resign_at) when is_integer(last_resign_at) do
+    System.system_time(:second) - last_resign_at <= AdminSecurity.action_grant_ttl_seconds()
+  end
+
+  defp recent_admin_confirmation?(_), do: false
+
+  defp peer_ip(%{address: address}) do
+    address |> :inet.ntoa() |> to_string()
+  rescue
+    _ -> nil
+  end
+
+  defp peer_ip(_), do: nil
 
   defp parse_session_int(value) when is_integer(value), do: value
 
@@ -339,8 +409,11 @@ defmodule ElektrineWeb.Live.AuthHooks do
     end
   end
 
-  defp session_claims_valid?(user, %{"password_changed_at" => changed_at}) do
-    password_changed_at_unix(user) == changed_at
+  defp session_claims_valid?(user, %{
+         "password_changed_at" => changed_at,
+         "auth_valid_after" => valid_after
+       }) do
+    password_changed_at_unix(user) == changed_at and auth_valid_after_unix(user) == valid_after
   end
 
   defp session_claims_valid?(_user, _claims), do: false
@@ -350,4 +423,10 @@ defmodule ElektrineWeb.Live.AuthHooks do
   end
 
   defp password_changed_at_unix(_user), do: nil
+
+  defp auth_valid_after_unix(%{auth_valid_after: %DateTime{} = valid_after}) do
+    DateTime.to_unix(valid_after)
+  end
+
+  defp auth_valid_after_unix(_user), do: nil
 end

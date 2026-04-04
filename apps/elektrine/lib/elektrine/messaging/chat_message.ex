@@ -331,7 +331,10 @@ defmodule Elektrine.Messaging.ChatMessage do
         changeset
 
       urls when is_list(urls) ->
-        invalid_urls = Enum.filter(urls, fn url -> not trusted_media_url?(url) end)
+        invalid_urls =
+          Enum.filter(urls, fn url ->
+            not trusted_media_url?(url, get_field(changeset, :sender_id))
+          end)
 
         if invalid_urls != [] do
           add_error(changeset, :media_urls, "contains untrusted media URLs")
@@ -344,16 +347,16 @@ defmodule Elektrine.Messaging.ChatMessage do
     end
   end
 
-  defp trusted_media_url?(url) do
+  defp trusted_media_url?(url, sender_id) do
     cond do
       String.starts_with?(url, "/uploads/") ->
-        true
+        owned_chat_media_key?(String.trim_leading(url, "/uploads/"), sender_id)
 
       String.starts_with?(url, "chat-attachments/") ->
-        true
+        owned_chat_media_key?(url, sender_id)
 
       String.starts_with?(url, "attachments/") ->
-        true
+        owned_chat_media_key?(url, sender_id)
 
       true ->
         trusted_domains = [
@@ -372,6 +375,20 @@ defmodule Elektrine.Messaging.ChatMessage do
         uri.scheme == "https" and uri.host in trusted_domains
     end
   end
+
+  defp owned_chat_media_key?(key, sender_id) when is_binary(key) and is_integer(sender_id) do
+    normalized = String.trim_leading(key, "/")
+
+    case String.split(normalized, "/", parts: 2) do
+      [prefix, filename] when prefix in ["chat-attachments", "attachments"] ->
+        String.starts_with?(filename, "#{sender_id}_")
+
+      _ ->
+        false
+    end
+  end
+
+  defp owned_chat_media_key?(_key, _sender_id), do: false
 
   defp determine_media_type(media_urls) do
     if Enum.any?(media_urls, &String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif)$/i)) do

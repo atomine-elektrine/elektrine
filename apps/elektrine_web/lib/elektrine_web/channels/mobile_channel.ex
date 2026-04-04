@@ -6,7 +6,7 @@ defmodule ElektrineWeb.MobileChannel do
   use ElektrineWeb, :channel
   require Logger
 
-  alias Elektrine.{Accounts, Notifications, Profiles}
+  alias Elektrine.{Accounts, Friends, Notifications, Profiles, Uploads}
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.Federation
   alias Elektrine.PubSubTopics
@@ -756,9 +756,19 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("like_post", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Integrations.social_like_post(user_id, post_id) do
-      {:ok, _} -> {:reply, {:ok, %{message: "Post liked"}}, socket}
-      {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
+    case Elektrine.Messaging.Messages.get_timeline_post(post_id) do
+      post when not is_nil(post) ->
+        if can_view_mobile_post?(post, user_id) do
+          case Integrations.social_like_post(user_id, post_id) do
+            {:ok, _} -> {:reply, {:ok, %{message: "Post liked"}}, socket}
+            {:error, reason} -> {:reply, {:error, %{reason: inspect(reason)}}, socket}
+          end
+        else
+          {:reply, {:error, %{reason: "not_found"}}, socket}
+        end
+
+      _ ->
+        {:reply, {:error, %{reason: "not_found"}}, socket}
     end
   end
 
@@ -920,7 +930,7 @@ defmodule ElektrineWeb.MobileChannel do
       sender: format_user(message.sender),
       content: message.content,
       message_type: message.message_type,
-      media_urls: message.media_urls || [],
+      media_urls: Enum.map(message.media_urls || [], &Uploads.attachment_url(&1, %{type: "dm"})),
       media_metadata: message.media_metadata || %{},
       reply_to_id: message.reply_to_id,
       edited_at: message.edited_at,
@@ -967,6 +977,19 @@ defmodule ElektrineWeb.MobileChannel do
       avatar: user.avatar_url,
       verified: user.verified || false
     }
+  end
+
+  defp can_view_mobile_post?(post, viewer_id) do
+    owner? = not is_nil(post.sender_id) and viewer_id == post.sender_id
+
+    case post.visibility do
+      "public" -> true
+      "unlisted" -> true
+      "followers" -> owner? or Profiles.following?(viewer_id, post.sender_id)
+      "friends" -> owner? or Friends.are_friends?(viewer_id, post.sender_id)
+      "private" -> owner?
+      _ -> false
+    end
   end
 
   defp format_comment(comment) do

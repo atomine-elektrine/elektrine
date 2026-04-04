@@ -1,4 +1,4 @@
-import { listEntries, loginWithAccount, normalizeServerUrl } from "./lib/api.js"
+import { listEntries, loginWithAccount, logoutWithAccount, normalizeServerUrl } from "./lib/api.js"
 import {
   clearSessionPassphrase,
   getSettings,
@@ -141,6 +141,9 @@ async function handleSignOut() {
 
   try {
     setBusy(refs.signOutButton, true)
+    if (state.settings.apiToken) {
+      await logoutWithAccount(state.settings)
+    }
     await clearSessionPassphrase()
 
     state.settings = {
@@ -151,7 +154,7 @@ async function handleSignOut() {
     await saveSettings(state.settings)
     refs.accountPassword.value = ""
     renderConnectionState()
-    setStatus("Signed out on this browser.", "success")
+    setStatus("Signed out successfully.", "success")
   } catch (error) {
     setStatus(error.message, "error")
   } finally {

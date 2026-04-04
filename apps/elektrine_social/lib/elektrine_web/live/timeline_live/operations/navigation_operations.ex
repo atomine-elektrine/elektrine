@@ -6,6 +6,8 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
 
   import Phoenix.LiveView
 
+  alias Elektrine.Security.SafeExternalURL
+
   use Phoenix.VerifiedRoutes,
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
@@ -88,7 +90,7 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
   # Open an external link in the current window.
   def handle_event("open_external_link", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, redirect(socket, external: url)}
+    {:noreply, redirect_to_external_url(socket, url)}
   end
 
   def handle_event("open_external_link", _params, socket) do
@@ -97,7 +99,10 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
 
   # Open an external post URL in a new window.
   def handle_event("open_external_post", %{"url" => url}, socket) do
-    {:noreply, push_event(socket, "open_url", %{url: url})}
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> {:noreply, push_event(socket, "open_url", %{url: safe_url})}
+      {:error, _reason} -> {:noreply, put_flash(socket, :error, "Invalid external URL")}
+    end
   end
 
   # Navigate to the original content location.
@@ -197,6 +202,13 @@ defmodule ElektrineWeb.TimelineLive.Operations.NavigationOperations do
       post
     else
       _ -> nil
+    end
+  end
+
+  defp redirect_to_external_url(socket, url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> redirect(socket, external: safe_url)
+      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
     end
   end
 end

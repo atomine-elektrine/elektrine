@@ -27,6 +27,8 @@ defmodule Elektrine.Developer.DataExport do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Accounts.User
+
   @valid_types ~w(email social chat contacts calendar account full)
   @valid_formats ~w(json csv mbox vcf ical zip)
   @valid_statuses ~w(pending processing completed failed expired)
@@ -43,6 +45,7 @@ defmodule Elektrine.Developer.DataExport do
     field :item_count, :integer
     field :filters, :map, default: %{}
     field :download_token, :string
+    field :plain_download_token, :string, virtual: true
     field :download_count, :integer, default: 0
     field :expires_at, :utc_datetime
     field :started_at, :utc_datetime
@@ -169,9 +172,17 @@ defmodule Elektrine.Developer.DataExport do
       changeset
     else
       token = Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
-      put_change(changeset, :download_token, token)
+
+      changeset
+      |> put_change(:download_token, User.hash_sensitive_token(token))
+      |> put_change(:plain_download_token, token)
     end
   end
+
+  def download_token_value(%__MODULE__{plain_download_token: token}) when is_binary(token),
+    do: token
+
+  def download_token_value(_), do: nil
 
   # Set default expiry
   defp set_expiry(changeset) do

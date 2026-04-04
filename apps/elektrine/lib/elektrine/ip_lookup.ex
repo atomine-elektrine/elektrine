@@ -5,6 +5,7 @@ defmodule Elektrine.IpLookup do
   """
 
   require Logger
+  alias Elektrine.HTTP.SafeFetch
 
   @doc """
   Looks up geolocation information for an IP address.
@@ -29,18 +30,17 @@ defmodule Elektrine.IpLookup do
          as: nil
        }}
     else
-      url =
-        "http://ip-api.com/json/#{ip_address}?fields=status,message,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query"
+      url = "https://ipwho.is/#{URI.encode_www_form(ip_address)}"
 
       request = Finch.build(:get, url)
 
-      case Finch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
+      case SafeFetch.request(request, Elektrine.Finch, receive_timeout: 10_000) do
         {:ok, %Finch.Response{status: 200, body: body}} ->
           case Jason.decode(body) do
-            {:ok, %{"status" => "success"} = data} ->
+            {:ok, %{"success" => true} = data} ->
               {:ok, format_lookup_result(data)}
 
-            {:ok, %{"status" => "fail", "message" => message}} ->
+            {:ok, %{"success" => false, "message" => message}} ->
               {:error, message}
 
             {:ok, _} ->
@@ -61,32 +61,40 @@ defmodule Elektrine.IpLookup do
   end
 
   defp private_ip?(ip) do
-    case String.split(ip, ".") do
-      # IPv4 private ranges
-      ["10" | _] ->
+    case :inet.parse_address(String.to_charlist(ip)) do
+      {:ok, {10, _, _, _}} ->
         true
 
-      ["172", second | _] ->
-        case Integer.parse(second) do
-          {num, _} when num >= 16 and num <= 31 -> true
-          _ -> false
-        end
-
-      ["192", "168" | _] ->
+      {:ok, {172, second, _, _}} when second >= 16 and second <= 31 ->
         true
 
-      # Loopback
-      ["127" | _] ->
+      {:ok, {192, 168, _, _}} ->
         true
 
-      # Link-local
-      ["169", "254" | _] ->
+      {:ok, {127, _, _, _}} ->
         true
+
+      {:ok, {169, 254, _, _}} ->
+        true
+
+      {:ok, {0, 0, 0, 0, 0, 0, 0, 1}} ->
+        true
+
+      {:ok, {0, 0, 0, 0, 0, 65_535, 127, _}} ->
+        true
+
+      {:ok, {first, second, _, _, _, _, _, _}} ->
+        unique_local_ipv6?(first) or link_local_ipv6?(first, second)
 
       _ ->
         false
     end
   end
+
+  defp unique_local_ipv6?(first), do: first >= 64_512 and first <= 65_023
+
+  defp link_local_ipv6?(65_152, second), do: second >= 32_768 and second <= 49_151
+  defp link_local_ipv6?(_, _), do: false
 
   defp get_private_ip_description(ip) do
     cond do
@@ -101,18 +109,22 @@ defmodule Elektrine.IpLookup do
 
   defp format_lookup_result(data) do
     %{
-      ip: data["query"],
+      ip: data["ip"],
       country: data["country"],
-      country_code: data["countryCode"],
-      region: data["regionName"],
+      country_code: data["country_code"],
+      region: data["region"],
       city: data["city"],
-      zip: data["zip"],
-      latitude: data["lat"],
-      longitude: data["lon"],
-      timezone: data["timezone"],
-      isp: data["isp"],
-      org: data["org"],
-      as: data["as"]
+      zip: data["postal"],
+      latitude: data["latitude"],
+      longitude: data["longitude"],
+      timezone: get_in(data, ["timezone", "id"]),
+      isp: get_in(data, ["connection", "isp"]),
+      org: get_in(data, ["connection", "org"]),
+      as: format_as_number(get_in(data, ["connection", "asn"]))
     }
   end
+
+  defp format_as_number(asn) when is_integer(asn), do: "AS#{asn}"
+  defp format_as_number(asn) when is_binary(asn), do: asn
+  defp format_as_number(_), do: nil
 end

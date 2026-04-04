@@ -1244,13 +1244,21 @@ defmodule Elektrine.Social do
   Broadcasts a timeline post to followers via PubSub.
   """
   def broadcast_timeline_post(message) do
-    # Broadcast to all followers in a single batch query
     follower_ids =
-      from(f in Follow,
-        where: f.followed_id == ^message.sender_id,
-        select: f.follower_id
-      )
-      |> Repo.all()
+      case message.visibility do
+        visibility when visibility in ["public", "unlisted", "followers"] ->
+          from(f in Follow,
+            where: f.followed_id == ^message.sender_id,
+            select: f.follower_id
+          )
+          |> Repo.all()
+
+        "friends" ->
+          Friends.list_friends(message.sender_id) |> Enum.map(& &1.id)
+
+        _ ->
+          []
+      end
 
     # Broadcast to all followers using Task.async_stream for better performance
     Task.async_stream(

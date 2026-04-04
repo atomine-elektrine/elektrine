@@ -438,6 +438,17 @@ defmodule Elektrine.Accounts do
   defdelegate update_user_status(user, status, message \\ nil), to: Tracking
   defdelegate get_user_status(user_id), to: Tracking
 
+  @doc """
+  Invalidates existing browser/session tokens for a user.
+  """
+  def invalidate_auth_sessions(%User{} = user) do
+    user
+    |> Ecto.Changeset.change(%{
+      auth_valid_after: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.update()
+  end
+
   ## Invite Codes
 
   @doc """
@@ -1220,7 +1231,7 @@ defmodule Elektrine.Accounts do
     normalized_token = String.trim(to_string(lookup_token))
 
     RegistrationCheckout
-    |> where([c], c.lookup_token == ^normalized_token)
+    |> where([c], c.lookup_token == ^RegistrationCheckout.hash_lookup_token(normalized_token))
     |> lock("FOR UPDATE")
     |> repo.one()
   end

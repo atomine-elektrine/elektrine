@@ -3,7 +3,9 @@ defmodule ElektrineWeb.API.AuthController do
 
   alias Elektrine.Accounts
   alias Elektrine.EmailAddresses
+  alias Elektrine.OAuth
   alias ElektrineWeb.ClientIP
+  alias ElektrineWeb.Endpoint
   alias ElektrineWeb.Plugs.APIAuth
 
   action_fallback ElektrineWeb.FallbackController
@@ -13,16 +15,13 @@ defmodule ElektrineWeb.API.AuthController do
   Authenticates a user and returns a token
   """
   def login(conn, %{"username" => username, "password" => password} = params) do
-    # Get identifier for rate limiting (use IP + username)
-    remote_ip = get_remote_ip(conn)
-    identifier = "#{remote_ip}:#{username}"
+    identifiers = login_rate_limit_identifiers(conn, username)
 
-    # Check rate limit before attempting authentication
-    case Elektrine.Auth.RateLimiter.check_rate_limit(identifier) do
-      {:ok, :allowed} ->
-        attempt_login(conn, username, password, Map.get(params, "two_factor_code"), identifier)
+    case check_login_rate_limits(identifiers) do
+      :ok ->
+        attempt_login(conn, username, password, Map.get(params, "two_factor_code"), identifiers)
 
-      {:error, {:rate_limited, retry_after, reason}} ->
+      {:error, retry_after, reason} ->
         conn
         |> put_status(:too_many_requests)
         |> put_resp_header("retry-after", to_string(retry_after))
@@ -40,12 +39,12 @@ defmodule ElektrineWeb.API.AuthController do
     |> json(%{error: "Username and password are required"})
   end
 
-  defp attempt_login(conn, username, password, two_factor_code, identifier) do
+  defp attempt_login(conn, username, password, two_factor_code, identifiers) do
     case Accounts.Authentication.authenticate_user(username, password) do
       {:ok, user} ->
         case verify_api_second_factor(user, two_factor_code) do
           :ok ->
-            Elektrine.Auth.RateLimiter.clear_limits(identifier)
+            clear_login_rate_limits(identifiers)
             {:ok, token} = APIAuth.generate_token(user.id)
 
             conn
@@ -64,14 +63,14 @@ defmodule ElektrineWeb.API.AuthController do
             })
 
           {:error, :two_factor_required} ->
-            Elektrine.Auth.RateLimiter.record_attempt(identifier)
+            record_login_rate_limit_attempts(identifiers)
 
             conn
             |> put_status(:unauthorized)
             |> json(%{error: "Two-factor code required", reason: "two_factor_required"})
 
           {:error, :invalid_two_factor_code} ->
-            Elektrine.Auth.RateLimiter.record_attempt(identifier)
+            record_login_rate_limit_attempts(identifiers)
 
             conn
             |> put_status(:unauthorized)
@@ -80,7 +79,7 @@ defmodule ElektrineWeb.API.AuthController do
 
       {:error, :invalid_credentials} ->
         # Record failed attempt for rate limiting
-        Elektrine.Auth.RateLimiter.record_attempt(identifier)
+        record_login_rate_limit_attempts(identifiers)
 
         conn
         |> put_status(:unauthorized)
@@ -88,7 +87,7 @@ defmodule ElektrineWeb.API.AuthController do
 
       {:error, {:banned, reason}} ->
         # Record failed attempt for rate limiting
-        Elektrine.Auth.RateLimiter.record_attempt(identifier)
+        record_login_rate_limit_attempts(identifiers)
 
         conn
         |> put_status(:forbidden)
@@ -96,7 +95,7 @@ defmodule ElektrineWeb.API.AuthController do
 
       {:error, {:suspended, until, reason}} ->
         # Record failed attempt for rate limiting
-        Elektrine.Auth.RateLimiter.record_attempt(identifier)
+        record_login_rate_limit_attempts(identifiers)
 
         conn
         |> put_status(:forbidden)
@@ -104,12 +103,36 @@ defmodule ElektrineWeb.API.AuthController do
 
       {:error, _reason} ->
         # Record failed attempt for rate limiting
-        Elektrine.Auth.RateLimiter.record_attempt(identifier)
+        record_login_rate_limit_attempts(identifiers)
 
         conn
         |> put_status(:unauthorized)
         |> json(%{error: "Authentication failed"})
     end
+  end
+
+  defp login_rate_limit_identifiers(conn, username) do
+    ip = ClientIP.rate_limit_ip(conn)
+    normalized_username = String.downcase(to_string(username || ""))
+    ["#{ip}:#{normalized_username}", "ip:#{ip}", "user:#{normalized_username}"]
+  end
+
+  defp check_login_rate_limits(identifiers) do
+    identifiers
+    |> Enum.find_value(:ok, fn identifier ->
+      case Elektrine.Auth.RateLimiter.check_rate_limit(identifier) do
+        {:ok, :allowed} -> nil
+        {:error, {:rate_limited, retry_after, reason}} -> {:error, retry_after, reason}
+      end
+    end)
+  end
+
+  defp record_login_rate_limit_attempts(identifiers) do
+    Enum.each(identifiers, &Elektrine.Auth.RateLimiter.record_attempt/1)
+  end
+
+  defp clear_login_rate_limits(identifiers) do
+    Enum.each(identifiers, &Elektrine.Auth.RateLimiter.clear_limits/1)
   end
 
   defp verify_api_second_factor(%{two_factor_enabled: true} = user, code) when is_binary(code) do
@@ -133,6 +156,10 @@ defmodule ElektrineWeb.API.AuthController do
       {:ok, token} ->
         case APIAuth.revoke_token(token) do
           :ok ->
+            Accounts.invalidate_auth_sessions(conn.assigns.current_user)
+            OAuth.delete_user_tokens(conn.assigns.current_user)
+            Endpoint.broadcast("user_socket:#{conn.assigns.current_user.id}", "disconnect", %{})
+
             conn
             |> put_status(:ok)
             |> json(%{message: "Logged out successfully"})
@@ -170,11 +197,6 @@ defmodule ElektrineWeb.API.AuthController do
         updated_at: user.updated_at
       }
     })
-  end
-
-  # Get remote IP with proxy header support
-  defp get_remote_ip(conn) do
-    ClientIP.client_ip(conn)
   end
 
   defp extract_bearer_token(conn) do

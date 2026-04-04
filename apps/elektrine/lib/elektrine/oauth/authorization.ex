@@ -23,6 +23,7 @@ defmodule Elektrine.OAuth.Authorization do
 
   schema "oauth_authorizations" do
     field(:token, :string)
+    field(:plain_token, :string, virtual: true)
     field(:scopes, {:array, :string}, default: [])
     field(:valid_until, :utc_datetime)
     field(:used, :boolean, default: false)
@@ -77,35 +78,50 @@ defmodule Elektrine.OAuth.Authorization do
       :code_challenge_method
     ])
     |> validate_required([:app_id, :scopes])
-    |> validate_inclusion(:code_challenge_method, ["plain", "S256"])
+    |> validate_inclusion(:code_challenge_method, ["S256"])
     |> validate_code_challenge_requirements()
     |> add_token()
     |> add_lifetime()
   end
 
   @doc """
-  Marks an authorization as used and returns it if valid.
+  Atomically consumes an authorization code and returns it if valid.
   """
-  @spec use_token(Authorization.t()) ::
-          {:ok, Authorization.t()} | {:error, Ecto.Changeset.t()} | {:error, String.t()}
-  def use_token(%Authorization{used: false, valid_until: valid_until} = auth) do
-    if DateTime.diff(DateTime.utc_now(), valid_until) < 0 do
-      auth
-      |> use_changeset(%{used: true})
-      |> Repo.update()
-    else
-      {:error, "authorization code expired"}
+  @spec consume_token(App.t(), String.t()) :: {:ok, t()} | {:error, :not_found | String.t()}
+  def consume_token(%App{id: app_id}, token) do
+    Repo.transaction(fn ->
+      query =
+        from(a in __MODULE__,
+          where: a.app_id == ^app_id and a.token == ^hash_secret(token),
+          where: a.used == false and a.valid_until > ^DateTime.utc_now(),
+          lock: "FOR UPDATE"
+        )
+
+      case Repo.one(query) do
+        nil ->
+          Repo.rollback(:not_found)
+
+        auth ->
+          case Repo.update(use_changeset(auth, %{used: true})) do
+            {:ok, used_auth} -> used_auth
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+      end
+    end)
+    |> case do
+      {:ok, auth} -> {:ok, auth}
+      {:error, :not_found} -> {:error, :not_found}
+      {:error, %Ecto.Changeset{} = changeset} -> {:error, changeset}
+      {:error, reason} -> {:error, reason}
     end
   end
-
-  def use_token(%Authorization{used: true}), do: {:error, "authorization code already used"}
 
   @doc """
   Gets an authorization by token for a specific app.
   """
   @spec get_by_token(App.t(), String.t()) :: {:ok, t()} | {:error, :not_found}
   def get_by_token(%App{id: app_id}, token) do
-    query = from(a in __MODULE__, where: a.app_id == ^app_id and a.token == ^token)
+    query = from(a in __MODULE__, where: a.app_id == ^app_id and a.token == ^hash_secret(token))
 
     case Repo.one(query) do
       nil -> {:error, :not_found}
@@ -159,7 +175,10 @@ defmodule Elektrine.OAuth.Authorization do
 
   defp add_token(changeset) do
     token = :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
-    put_change(changeset, :token, token)
+
+    changeset
+    |> put_change(:token, hash_secret(token))
+    |> put_change(:plain_token, token)
   end
 
   defp add_lifetime(changeset) do
@@ -171,13 +190,20 @@ defmodule Elektrine.OAuth.Authorization do
     put_change(changeset, :valid_until, valid_until)
   end
 
+  def token_value(%Authorization{plain_token: token}) when is_binary(token), do: token
+  def token_value(_), do: nil
+
+  defp hash_secret(secret) when is_binary(secret) do
+    :crypto.hash(:sha256, secret) |> Base.encode16(case: :lower)
+  end
+
   defp validate_code_challenge_requirements(changeset) do
     code_challenge = get_field(changeset, :code_challenge)
     code_challenge_method = get_field(changeset, :code_challenge_method)
 
     cond do
       is_binary(code_challenge) and code_challenge != "" and is_nil(code_challenge_method) ->
-        put_change(changeset, :code_challenge_method, "plain")
+        put_change(changeset, :code_challenge_method, "S256")
 
       is_binary(code_challenge_method) and code_challenge_method != "" and
           not is_binary(code_challenge) ->
