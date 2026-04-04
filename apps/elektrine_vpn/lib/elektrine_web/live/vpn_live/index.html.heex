@@ -4,7 +4,7 @@
 
   <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
     <!-- Sidebar -->
-    <div class="order-2 lg:order-1 w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col">
+    <div class="order-2 lg:order-1 w-full lg:w-72 xl:w-80 flex-shrink-0 flex flex-col space-y-5">
       <!-- Available Servers Card -->
       <div
         id="vpn-servers-card"
@@ -96,7 +96,7 @@
 
       <div
         id="vpn-info-card"
-        class="card panel-card rounded-box mt-3"
+        class="card panel-card rounded-box"
       >
         <div class="card-body p-4">
           <div class="flex-1 min-w-0">
@@ -106,7 +106,7 @@
                 do: gettext("Create a WireGuard config for your self-hosted server"),
                 else: gettext("Create configs for managed WireGuard servers")}
             </p>
-            <div class="mt-3">
+            <div class="mt-4">
               <.link
                 href={~p"/vpn/policy"}
                 class="link link-primary text-xs flex items-center gap-1"
@@ -122,14 +122,14 @@
 <!-- How to Use Section -->
       <div
         id="vpn-instructions-card"
-        class="card panel-card rounded-box mt-3"
+        class="card panel-card rounded-box"
       >
         <div class="card-body p-4">
-          <h3 class="font-semibold text-sm mb-3">{gettext("Setup Instructions")}</h3>
+          <h3 class="font-semibold text-sm mb-4">{gettext("Setup Instructions")}</h3>
 
-          <div class="text-sm text-base-content/70 space-y-3">
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Install WireGuard")}</p>
+          <div class="text-sm text-base-content/70 space-y-4">
+            <div class="space-y-1.5">
+              <p class="font-medium text-base-content">{gettext("Install WireGuard")}</p>
               <p class="text-xs">
                 <a
                   href="https://www.wireguard.com/install/"
@@ -141,14 +141,14 @@
               </p>
             </div>
 
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Import Config")}</p>
+            <div class="space-y-1.5">
+              <p class="font-medium text-base-content">{gettext("Import Config")}</p>
               <p class="text-xs">{gettext("Desktop: Download .conf file")}</p>
               <p class="text-xs">{gettext("Mobile: Scan QR code")}</p>
             </div>
 
-            <div>
-              <p class="font-medium text-base-content mb-1">{gettext("Connect")}</p>
+            <div class="space-y-1.5">
+              <p class="font-medium text-base-content">{gettext("Connect")}</p>
               <p class="text-xs">{gettext("Activate the tunnel in WireGuard")}</p>
             </div>
           </div>
