@@ -277,8 +277,7 @@ defmodule ElektrineWeb.DNSLive.Index do
         result =
           linked_domain
           |> expected_linked_domain_records(linked_kind)
-          |> Enum.reject(&review_only_record?/1)
-          |> Enum.reject(&record_exists_for_expected?(zone, &1))
+          |> Enum.reject(&(review_only_record?(&1) or record_exists_for_expected?(zone, &1)))
           |> Enum.reduce_while({:ok, 0}, fn expected_record, {:ok, count} ->
             case DNS.create_record(zone, expected_record_to_attrs(zone, expected_record)) do
               {:ok, _record} -> {:cont, {:ok, count + 1}}
@@ -1177,7 +1176,7 @@ defmodule ElektrineWeb.DNSLive.Index do
     module = Module.concat([Elektrine, Email, CustomDomains])
 
     if Code.ensure_loaded?(module) and function_exported?(module, :list_user_custom_domains, 1) do
-      apply(module, :list_user_custom_domains, [user_id])
+      module.list_user_custom_domains(user_id)
     else
       []
     end
@@ -1188,7 +1187,7 @@ defmodule ElektrineWeb.DNSLive.Index do
 
     if Code.ensure_loaded?(module) and
          function_exported?(module, :dns_records_for_custom_domain, 1) do
-      apply(module, :dns_records_for_custom_domain, [custom_domain])
+      module.dns_records_for_custom_domain(custom_domain)
     else
       []
     end
