@@ -53,8 +53,9 @@ defmodule Elektrine.DNS.TCPServer do
     try do
       with {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, 5_000),
            {:ok, packet} <- :gen_tcp.recv(socket, length, 5_000) do
-        response = Elektrine.DNS.Query.answer(packet, client_ip: client_ip, transport: :tcp)
-        :gen_tcp.send(socket, <<byte_size(response)::16, response::binary>>)
+        result = Elektrine.DNS.Query.resolve(packet, client_ip: client_ip, transport: :tcp)
+        Elektrine.DNS.track_query(result, "tcp")
+        :gen_tcp.send(socket, <<byte_size(result.response)::16, result.response::binary>>)
       end
     after
       Elektrine.DNS.RequestGuard.finish_request(:tcp)
