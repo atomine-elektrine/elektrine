@@ -875,9 +875,6 @@ defmodule ElektrineWeb.FilesLive do
     end
   end
 
-  defp visible_share_count(files),
-    do: Enum.reduce(files, 0, fn file, acc -> acc + length(file.shares || []) end)
-
   defp storage_usage_percent(%{used_bytes: used, available_bytes: available})
        when is_integer(used) and is_integer(available) do
     total = used + available
