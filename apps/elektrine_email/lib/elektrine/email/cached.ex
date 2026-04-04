@@ -58,8 +58,29 @@ defmodule Elektrine.Email.Cached do
   end
 
   @doc """
-  Gets cached feed messages paginated.
+  Gets cached unread messages paginated.
   """
+  def list_unread_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :unread, page, per_page, fn ->
+        Email.list_unread_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached read messages paginated.
+  """
+  def list_read_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :read, page, per_page, fn ->
+        Email.list_read_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
   def list_feed_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
     {:ok, result} =
       Cache.get_messages(mailbox_id, :feed, page, per_page, fn ->
@@ -100,6 +121,90 @@ defmodule Elektrine.Email.Cached do
     {:ok, result} =
       Cache.get_messages(mailbox_id, :reply_later, page, per_page, fn ->
         Email.list_reply_later_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached sent messages paginated.
+  """
+  def list_sent_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :sent, page, per_page, fn ->
+        Email.list_sent_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached draft messages paginated.
+  """
+  def list_drafts_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :drafts, page, per_page, fn ->
+        Email.list_drafts_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached spam messages paginated.
+  """
+  def list_spam_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :spam, page, per_page, fn ->
+        Email.list_spam_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached trash messages paginated.
+  """
+  def list_trash_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :trash, page, per_page, fn ->
+        Email.list_trash_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached archived messages paginated.
+  """
+  def list_archived_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, :archive, page, per_page, fn ->
+        Email.list_archived_messages_paginated(mailbox_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached folder messages paginated.
+  """
+  def list_folder_messages(mailbox_id, folder_id, user_id, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_messages(mailbox_id, {:folder, folder_id}, page, per_page, fn ->
+        Email.list_folder_messages(folder_id, user_id, page, per_page)
+      end)
+
+    result
+  end
+
+  @doc """
+  Gets cached search results.
+  """
+  def search_messages(user_id, mailbox_id, query, page \\ 1, per_page \\ 20) do
+    {:ok, result} =
+      Cache.get_search_results(user_id, query, {mailbox_id, page, per_page}, fn ->
+        Email.search_messages(mailbox_id, query, page, per_page)
       end)
 
     result

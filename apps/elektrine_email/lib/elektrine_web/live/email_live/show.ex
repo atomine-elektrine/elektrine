@@ -5,6 +5,7 @@ defmodule ElektrineWeb.EmailLive.Show do
   import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email
+  alias Elektrine.Email.Cached
 
   @impl true
   def mount(%{"id" => message_identifier} = params, session, socket) do
@@ -21,17 +22,19 @@ defmodule ElektrineWeb.EmailLive.Show do
     # Try to find message by hash first, then by ID
     # Both lookups now validate ownership
     message_result =
-      case Email.get_message_by_hash(message_identifier) do
-        %Email.Message{} = msg ->
-          # Validate ownership for hash-based lookup
-          Email.get_user_message(msg.id, user.id)
+      case Email.get_user_message_by_hash(message_identifier, user.id) do
+        {:ok, %Email.Message{} = message} ->
+          {:ok, message}
 
-        nil ->
+        {:error, :message_not_found} ->
           # Fallback to ID lookup for backwards compatibility
           case Integer.parse(message_identifier) do
             {id, ""} -> Email.get_user_message(id, user.id)
             _ -> {:error, :invalid_identifier}
           end
+
+        {:error, _} = error ->
+          error
       end
 
     case message_result do
@@ -56,17 +59,21 @@ defmodule ElektrineWeb.EmailLive.Show do
   end
 
   defp load_message(message, params, socket, user, mailbox) do
-    unread_count = Email.unread_count(mailbox.id)
+    # Mark message as read if not already read
+    message =
+      if message.read do
+        message
+      else
+        {:ok, updated_message} = Email.mark_as_read(message)
+        updated_message
+      end
+
+    unread_count = Cached.unread_count(mailbox.id)
     thread_messages = Email.list_thread_messages(message, mailbox.id)
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "mailbox:#{mailbox.id}")
-    end
-
-    # Mark message as read if not already read
-    unless message.read do
-      {:ok, _} = Email.mark_as_read(message)
     end
 
     # Get storage info

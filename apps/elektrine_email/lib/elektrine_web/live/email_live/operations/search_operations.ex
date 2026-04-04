@@ -5,13 +5,14 @@ defmodule ElektrineWeb.EmailLive.Operations.SearchOperations do
 
   import Phoenix.Component
 
-  alias Elektrine.Email
+  alias Elektrine.Email.Cached
 
   def handle_event("search", %{"search" => %{"query" => query}}, socket) do
     if Elektrine.Strings.present?(query) do
       mailbox = socket.assigns.mailbox
+      user = socket.assigns.current_user
 
-      results = Email.search_messages(mailbox.id, query)
+      results = Cached.search_messages(user.id, mailbox.id, query)
 
       {:noreply,
        socket

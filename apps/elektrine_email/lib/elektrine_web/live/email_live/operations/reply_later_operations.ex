@@ -107,7 +107,7 @@ defmodule ElektrineWeb.EmailLive.Operations.ReplyLaterOperations do
 
         socket =
           if filter == "aliases" do
-            aliases = Email.list_aliases(user.id)
+            aliases = Cached.get_aliases(user.id)
             alias_changeset = Email.change_alias(%Email.Alias{})
             mailbox_changeset = Email.change_mailbox_forwarding(mailbox)
 
@@ -136,28 +136,28 @@ defmodule ElektrineWeb.EmailLive.Operations.ReplyLaterOperations do
         |> assign(:current_filter, filter)
 
       "sent" ->
-        pagination = Email.list_sent_messages_paginated(mailbox.id, page, per_page)
+        pagination = Cached.list_sent_messages_paginated(mailbox.id, page, per_page)
 
         socket
         |> assign(:messages, pagination.messages)
         |> assign(:pagination, pagination)
 
       "spam" ->
-        pagination = Email.list_spam_messages_paginated(mailbox.id, page, per_page)
+        pagination = Cached.list_spam_messages_paginated(mailbox.id, page, per_page)
 
         socket
         |> assign(:messages, pagination.messages)
         |> assign(:pagination, pagination)
 
       "trash" ->
-        pagination = Email.list_trash_messages_paginated(mailbox.id, page, per_page)
+        pagination = Cached.list_trash_messages_paginated(mailbox.id, page, per_page)
 
         socket
         |> assign(:messages, pagination.messages)
         |> assign(:pagination, pagination)
 
       "archive" ->
-        pagination = Email.list_archived_messages_paginated(mailbox.id, page, per_page)
+        pagination = Cached.list_archived_messages_paginated(mailbox.id, page, per_page)
 
         socket
         |> assign(:messages, pagination.messages)
@@ -180,13 +180,13 @@ defmodule ElektrineWeb.EmailLive.Operations.ReplyLaterOperations do
 
   defp load_inbox_messages_paginated(mailbox_id, filter, page, per_page) do
     case filter do
-      "unread" -> Email.list_unread_messages_paginated(mailbox_id, page, per_page)
-      "read" -> Email.list_read_messages_paginated(mailbox_id, page, per_page)
-      "digest" -> Email.list_feed_messages_paginated(mailbox_id, page, per_page)
-      "ledger" -> Email.list_ledger_messages_paginated(mailbox_id, page, per_page)
-      "stack" -> Email.list_stack_messages_paginated(mailbox_id, page, per_page)
-      "boomerang" -> Email.list_reply_later_messages_paginated(mailbox_id, page, per_page)
-      _ -> Email.list_inbox_messages_paginated(mailbox_id, page, per_page)
+      "unread" -> Cached.list_unread_messages_paginated(mailbox_id, page, per_page)
+      "read" -> Cached.list_read_messages_paginated(mailbox_id, page, per_page)
+      "digest" -> Cached.list_feed_messages_paginated(mailbox_id, page, per_page)
+      "ledger" -> Cached.list_ledger_messages_paginated(mailbox_id, page, per_page)
+      "stack" -> Cached.list_stack_messages_paginated(mailbox_id, page, per_page)
+      "boomerang" -> Cached.list_reply_later_messages_paginated(mailbox_id, page, per_page)
+      _ -> Cached.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
 end

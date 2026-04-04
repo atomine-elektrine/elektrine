@@ -91,6 +91,40 @@ defmodule Elektrine.Email.Messages do
   end
 
   @doc """
+  Gets a message by hash for a specific user with ownership validation.
+  """
+  def get_user_message_by_hash(hash, user_id)
+      when is_binary(hash) and is_integer(user_id) do
+    case Repo.one(
+           from m in Message,
+             join: mb in Mailbox,
+             on: mb.id == m.mailbox_id,
+             where: m.hash == ^hash,
+             select: {m, mb.user_id, mb.email}
+         ) do
+      {message, ^user_id, _mailbox_email} ->
+        {:ok, Message.decrypt_content(message, user_id)}
+
+      {message, nil, mailbox_email} ->
+        case Elektrine.Email.verify_email_ownership(mailbox_email, user_id) do
+          {:ok, _ownership_type} ->
+            Logger.info("Granted access to orphaned mailbox message for verified user #{user_id}")
+            {:ok, Message.decrypt_content(message, user_id)}
+
+          {:error, _reason} ->
+            Logger.warning("Denied access to orphaned mailbox message for user #{user_id}")
+            {:error, :access_denied}
+        end
+
+      {_message, _other_user_id, _mailbox_email} ->
+        {:error, :access_denied}
+
+      nil ->
+        {:error, :message_not_found}
+    end
+  end
+
+  @doc """
   Gets a single message by its message_id for a specific mailbox.
   Returns nil if the Message does not exist for that mailbox.
   This is used to prevent duplicate message creation.
