@@ -415,7 +415,7 @@ defmodule ElektrineWeb.EmailLive.Index do
           socket =
             if filter == "aliases" do
               # Handle aliases specially - no pagination needed
-              aliases = Email.list_aliases(user.id)
+              aliases = Cached.get_aliases(user.id)
               alias_changeset = Email.change_alias(%Email.Alias{})
               mailbox_changeset = Email.change_mailbox_forwarding(mailbox)
 
@@ -444,35 +444,35 @@ defmodule ElektrineWeb.EmailLive.Index do
           |> assign(:current_filter, filter)
 
         "sent" ->
-          pagination = Email.list_sent_messages_paginated(mailbox.id, page, per_page)
+          pagination = Cached.list_sent_messages_paginated(mailbox.id, page, per_page)
 
           socket
           |> assign(:messages, pagination.messages)
           |> assign(:pagination, pagination)
 
         "drafts" ->
-          pagination = Email.list_drafts_messages_paginated(mailbox.id, page, per_page)
+          pagination = Cached.list_drafts_messages_paginated(mailbox.id, page, per_page)
 
           socket
           |> assign(:messages, pagination.messages)
           |> assign(:pagination, pagination)
 
         "spam" ->
-          pagination = Email.list_spam_messages_paginated(mailbox.id, page, per_page)
+          pagination = Cached.list_spam_messages_paginated(mailbox.id, page, per_page)
 
           socket
           |> assign(:messages, pagination.messages)
           |> assign(:pagination, pagination)
 
         "trash" ->
-          pagination = Email.list_trash_messages_paginated(mailbox.id, page, per_page)
+          pagination = Cached.list_trash_messages_paginated(mailbox.id, page, per_page)
 
           socket
           |> assign(:messages, pagination.messages)
           |> assign(:pagination, pagination)
 
         "archive" ->
-          pagination = Email.list_archived_messages_paginated(mailbox.id, page, per_page)
+          pagination = Cached.list_archived_messages_paginated(mailbox.id, page, per_page)
 
           socket
           |> assign(:messages, pagination.messages)
@@ -483,7 +483,7 @@ defmodule ElektrineWeb.EmailLive.Index do
 
           results =
             if Elektrine.Strings.present?(query) do
-              Email.search_messages(mailbox.id, query, page, per_page)
+              Cached.search_messages(user.id, mailbox.id, query, page, per_page)
             else
               %{
                 messages: [],
@@ -566,7 +566,13 @@ defmodule ElektrineWeb.EmailLive.Index do
 
           result =
             if folder_id do
-              Email.list_folder_messages(String.to_integer(folder_id), user.id, page, per_page)
+              Cached.list_folder_messages(
+                mailbox.id,
+                String.to_integer(folder_id),
+                user.id,
+                page,
+                per_page
+              )
             else
               %{
                 messages: [],
@@ -578,7 +584,8 @@ defmodule ElektrineWeb.EmailLive.Index do
               }
             end
 
-          total_pages = if result.total > 0, do: ceil(result.total / per_page), else: 0
+          total_pages =
+            if result.total > 0, do: ceil(result.total / per_page), else: 0
 
           socket
           |> assign(:messages, result.messages)
@@ -622,32 +629,25 @@ defmodule ElektrineWeb.EmailLive.Index do
   defp load_inbox_messages_paginated(mailbox_id, filter, page, per_page) do
     case filter do
       "unread" ->
-        # Use efficient paginated query
-        Email.list_unread_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_unread_messages_paginated(mailbox_id, page, per_page)
 
       "read" ->
-        # Use efficient paginated query
-        Email.list_read_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_read_messages_paginated(mailbox_id, page, per_page)
 
       "digest" ->
-        # Use existing paginated function
-        Email.list_feed_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_feed_messages_paginated(mailbox_id, page, per_page)
 
       "ledger" ->
-        # Use existing paginated function
-        Email.list_ledger_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_ledger_messages_paginated(mailbox_id, page, per_page)
 
       "stack" ->
-        # Use existing paginated function
-        Email.list_stack_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_stack_messages_paginated(mailbox_id, page, per_page)
 
       "boomerang" ->
-        # Use existing paginated function
-        Email.list_reply_later_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_reply_later_messages_paginated(mailbox_id, page, per_page)
 
       _ ->
-        # Use proper inbox messages pagination
-        Email.list_inbox_messages_paginated(mailbox_id, page, per_page)
+        Cached.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
 

@@ -10,6 +10,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
 
   alias Elektrine.Domains
   alias Elektrine.Email
+  alias Elektrine.Email.Cached
   alias ElektrineWeb.UserErrorHelpers
 
   def handle_event("create_alias", params, socket) do
@@ -33,7 +34,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
 
       case Email.create_alias(alias_creation_params) do
         {:ok, _alias} ->
-          aliases = Email.list_aliases(user.id)
+          aliases = Cached.get_aliases(user.id)
           alias_changeset = Email.change_alias(%Email.Alias{})
 
           {:noreply,
@@ -73,7 +74,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
       alias ->
         case Email.update_alias(alias, %{enabled: !alias.enabled}) do
           {:ok, _alias} ->
-            aliases = Email.list_aliases(user.id)
+            aliases = Cached.get_aliases(user.id)
             status = if alias.enabled, do: "disabled", else: "enabled"
 
             {:noreply,
@@ -106,7 +107,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
       alias ->
         case Email.delete_alias(alias) do
           {:ok, _alias} ->
-            aliases = Email.list_aliases(user.id)
+            aliases = Cached.get_aliases(user.id)
 
             {:noreply,
              socket
@@ -151,7 +152,7 @@ defmodule ElektrineWeb.EmailLive.Operations.AliasOperations do
     case Email.update_alias(alias_to_update, alias_params) do
       {:ok, _updated_alias} ->
         # Reload aliases list
-        aliases = Email.list_aliases(socket.assigns.current_user.id)
+        aliases = Cached.get_aliases(socket.assigns.current_user.id)
 
         {:noreply,
          socket

@@ -51,6 +51,7 @@ defmodule Elektrine.Email do
   defdelegate get_message_internal(id), to: Elektrine.Email.Messages
   defdelegate get_message(id, mailbox_id), to: Elektrine.Email.Messages
   defdelegate get_message_by_hash(hash), to: Elektrine.Email.Messages
+  defdelegate get_user_message_by_hash(hash, user_id), to: Elektrine.Email.Messages
   defdelegate get_message_by_id(message_id, mailbox_id), to: Elektrine.Email.Messages
   defdelegate get_user_message(message_id, user_id), to: Elektrine.Email.Messages
   defdelegate list_user_messages(user_id, limit \\ 50, offset \\ 0), to: Elektrine.Email.Messages

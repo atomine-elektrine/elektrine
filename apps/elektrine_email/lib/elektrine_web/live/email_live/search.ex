@@ -108,7 +108,8 @@ defmodule ElektrineWeb.EmailLive.Search do
             # Refresh search results
             if socket.assigns.search_results do
               search_results =
-                Email.search_messages(
+                Cached.search_messages(
+                  socket.assigns.current_user.id,
                   socket.assigns.mailbox.id,
                   socket.assigns.search_query,
                   socket.assigns.search_results.page,
