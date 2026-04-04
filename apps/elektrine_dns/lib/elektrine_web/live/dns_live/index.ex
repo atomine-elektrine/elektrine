@@ -5,6 +5,7 @@ defmodule ElektrineWeb.DNSLive.Index do
   alias Elektrine.DNS.MailSecurity
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
+  alias Elektrine.Profiles.CustomDomains, as: ProfileCustomDomains
 
   @impl true
   def mount(params, _session, socket) do
@@ -21,6 +22,7 @@ defmodule ElektrineWeb.DNSLive.Index do
        |> assign(:record_types, DNS.supported_record_types())
        |> assign(:zones, zones)
        |> assign(:active_zone, active_zone)
+       |> assign(:linked_domains, linked_domains(active_zone, user.id))
        |> assign(:service_health, service_health(active_zone))
        |> assign(:service_forms, service_forms(active_zone))
        |> assign(:zone_settings_form, zone_settings_form(active_zone))
@@ -44,6 +46,7 @@ defmodule ElektrineWeb.DNSLive.Index do
      socket
      |> assign(:zones, zones)
      |> assign(:active_zone, active_zone)
+     |> assign(:linked_domains, linked_domains(active_zone, socket.assigns.current_user.id))
      |> assign(:service_health, service_health(active_zone))
      |> assign(:service_forms, service_forms(active_zone))
      |> assign(:zone_settings_form, zone_settings_form(active_zone))
@@ -267,6 +270,42 @@ defmodule ElektrineWeb.DNSLive.Index do
   end
 
   @impl true
+  def handle_event("linked_domain_apply", %{"kind" => kind, "domain" => domain}, socket) do
+    case {socket.assigns.active_zone,
+          load_linked_custom_domain(kind, domain, socket.assigns.current_user.id)} do
+      {%Zone{} = zone, {:ok, linked_domain, linked_kind}} ->
+        result =
+          linked_domain
+          |> expected_linked_domain_records(linked_kind)
+          |> Enum.reject(&review_only_record?/1)
+          |> Enum.reject(&record_exists_for_expected?(zone, &1))
+          |> Enum.reduce_while({:ok, 0}, fn expected_record, {:ok, count} ->
+            case DNS.create_record(zone, expected_record_to_attrs(zone, expected_record)) do
+              {:ok, _record} -> {:cont, {:ok, count + 1}}
+              {:error, changeset} -> {:halt, {:error, changeset}}
+            end
+          end)
+
+        case result do
+          {:ok, 0} ->
+            {:noreply, put_flash(socket, :info, "No missing records to add")}
+
+          {:ok, count} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Added #{count} DNS record#{if count == 1, do: "", else: "s"}")
+             |> push_patch(to: ~p"/dns?zone_id=#{zone.id}")}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Could not add the linked domain records")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not load linked custom domain")}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl space-y-8 px-4 pb-2 sm:px-6 lg:px-8">
@@ -406,6 +445,84 @@ defmodule ElektrineWeb.DNSLive.Index do
         </div>
 
         <%= if @active_zone do %>
+          <div class="order-2 card panel-card">
+            <div class="card-body space-y-4 p-6">
+              <div class="space-y-1">
+                <h3 class="card-title text-lg">Linked custom domains</h3>
+                <p class="text-sm text-base-content/70">
+                  Shows whether this DNS zone is already claimed in your profile or email custom domain settings.
+                </p>
+              </div>
+
+              <%= if @linked_domains == [] do %>
+                <p class="text-sm text-base-content/60">
+                  No profile or custom email domains from account settings currently match this zone.
+                </p>
+              <% else %>
+                <div class="space-y-3">
+                  <%= for linked_domain <- @linked_domains do %>
+                    <div class="rounded-xl border border-base-300 bg-base-200/30 p-4">
+                      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="space-y-2">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-semibold">{linked_domain.title}</p>
+                            <span class="badge badge-outline">{linked_domain.kind_label}</span>
+                            <span class={linked_domain_status_badge_class(linked_domain.status)}>
+                              {linked_domain.status}
+                            </span>
+                          </div>
+                          <p class="text-sm text-base-content/65">{linked_domain.summary}</p>
+                          <%= if linked_domain.last_error do %>
+                            <p class="text-sm text-warning">{linked_domain.last_error}</p>
+                          <% end %>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 lg:justify-end">
+                          <div class="text-sm text-base-content/60">
+                            {Enum.count(linked_domain.checks, &(&1.status == "ok"))}/{length(
+                              linked_domain.checks
+                            )} checks matched
+                          </div>
+                          <button
+                            :if={
+                              Enum.any?(
+                                linked_domain.checks,
+                                &(&1.status == "missing" and &1.addable)
+                              )
+                            }
+                            type="button"
+                            phx-click="linked_domain_apply"
+                            phx-value-kind={linked_domain.kind}
+                            phx-value-domain={linked_domain.domain}
+                            class="btn btn-sm btn-outline"
+                          >
+                            Add missing records
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3 text-sm">
+                        <%= for check <- linked_domain.checks do %>
+                          <div class="rounded-lg bg-base-100/70 px-3 py-2">
+                            <div class="flex items-center justify-between gap-3">
+                              <span>{check.label}</span>
+                              <span class={linked_domain_check_badge_class(check.status)}>
+                                {check.status}
+                              </span>
+                            </div>
+                            <p class="mt-1 break-all text-xs text-base-content/60">
+                              {check.detail}
+                            </p>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+
           <div class="order-3 card panel-card">
             <div class="card-body p-6">
               <div class="flex items-center justify-between gap-3">
@@ -951,6 +1068,251 @@ defmodule ElektrineWeb.DNSLive.Index do
     Enum.find(health, blank_service_health(service), &(&1.service == service))
   end
 
+  defp linked_domains(nil, _user_id), do: []
+
+  defp linked_domains(%Zone{} = zone, user_id) when is_integer(user_id) do
+    zone_domain = normalize_dns_name(zone.domain)
+
+    profile_domains =
+      user_id
+      |> ProfileCustomDomains.list_user_custom_domains()
+      |> Enum.filter(&(normalize_dns_name(&1.domain) == zone_domain))
+      |> Enum.map(&linked_domain_entry(&1, :profile, zone))
+
+    email_domains =
+      user_id
+      |> list_email_custom_domains()
+      |> Enum.filter(&(normalize_dns_name(&1.domain) == zone_domain))
+      |> Enum.map(&linked_domain_entry(&1, :email, zone))
+
+    profile_domains ++ email_domains
+  end
+
+  defp linked_domains(_, _user_id), do: []
+
+  defp linked_domain_entry(custom_domain, :profile, zone) do
+    checks =
+      custom_domain
+      |> ProfileCustomDomains.dns_records_for_custom_domain()
+      |> Enum.map(&linked_domain_check(zone, &1))
+
+    %{
+      domain: custom_domain.domain,
+      kind: "profile",
+      title: custom_domain.domain,
+      kind_label: "Profile",
+      status: custom_domain.status || "pending",
+      summary: "Profile custom domain configured in account settings.",
+      last_error: custom_domain.last_error,
+      checks: checks
+    }
+  end
+
+  defp linked_domain_entry(custom_domain, :email, zone) do
+    checks =
+      custom_domain
+      |> email_custom_domain_records()
+      |> Enum.map(&linked_domain_check(zone, &1))
+
+    %{
+      domain: custom_domain.domain,
+      kind: "email",
+      title: custom_domain.domain,
+      kind_label: "Email",
+      status: custom_domain.status || "pending",
+      summary: "Custom email domain configured in account settings.",
+      last_error: custom_domain.last_error || custom_domain.dkim_last_error,
+      checks: checks
+    }
+  end
+
+  defp linked_domain_check(zone, %{type: "ALIAS/CNAME", host: host, value: value, label: label}) do
+    if normalize_dns_name(host) == normalize_dns_name(zone.domain) do
+      %{
+        label: label,
+        status: "review",
+        addable: false,
+        detail: "Apex routing to #{value} is provider-specific. Review manually."
+      }
+    else
+      linked_domain_check(zone, %{type: "CNAME", host: host, value: value, label: label})
+    end
+  end
+
+  defp linked_domain_check(zone, expected_record) do
+    matching_record =
+      Enum.find(zone.records || [], &record_matches_expected?(&1, expected_record, zone))
+
+    %{
+      label: expected_record.label,
+      status: if(matching_record, do: "ok", else: "missing"),
+      addable: not review_only_record?(expected_record),
+      detail: linked_domain_check_detail(expected_record)
+    }
+  end
+
+  defp load_linked_custom_domain("profile", domain, user_id) do
+    case Enum.find(ProfileCustomDomains.list_user_custom_domains(user_id), &(&1.domain == domain)) do
+      nil -> :error
+      custom_domain -> {:ok, custom_domain, :profile}
+    end
+  end
+
+  defp load_linked_custom_domain("email", domain, user_id) do
+    case Enum.find(list_email_custom_domains(user_id), &(&1.domain == domain)) do
+      nil -> :error
+      custom_domain -> {:ok, custom_domain, :email}
+    end
+  end
+
+  defp load_linked_custom_domain(_, _, _), do: :error
+
+  defp expected_linked_domain_records(custom_domain, :profile),
+    do: ProfileCustomDomains.dns_records_for_custom_domain(custom_domain)
+
+  defp expected_linked_domain_records(custom_domain, :email),
+    do: email_custom_domain_records(custom_domain)
+
+  defp list_email_custom_domains(user_id) do
+    module = Module.concat([Elektrine, Email, CustomDomains])
+
+    if Code.ensure_loaded?(module) and function_exported?(module, :list_user_custom_domains, 1) do
+      apply(module, :list_user_custom_domains, [user_id])
+    else
+      []
+    end
+  end
+
+  defp email_custom_domain_records(custom_domain) do
+    module = Module.concat([Elektrine, Email, CustomDomains])
+
+    if Code.ensure_loaded?(module) and
+         function_exported?(module, :dns_records_for_custom_domain, 1) do
+      apply(module, :dns_records_for_custom_domain, [custom_domain])
+    else
+      []
+    end
+  end
+
+  defp review_only_record?(%{type: "ALIAS/CNAME", host: host}) do
+    host
+    |> normalize_dns_name()
+    |> String.starts_with?("www.")
+    |> Kernel.not()
+  end
+
+  defp review_only_record?(_), do: false
+
+  defp record_exists_for_expected?(%Zone{} = zone, expected_record) do
+    Enum.any?(zone.records || [], &record_matches_expected?(&1, expected_record, zone))
+  end
+
+  defp expected_record_to_attrs(%Zone{} = zone, expected_record) do
+    attrs = %{
+      "name" => expected_record_name(zone, expected_record.host),
+      "type" => normalize_expected_type(expected_record.type),
+      "content" => expected_record.value,
+      "ttl" => zone.default_ttl
+    }
+
+    case expected_record.priority do
+      nil -> attrs
+      priority -> Map.put(attrs, "priority", priority)
+    end
+  end
+
+  defp expected_record_name(%Zone{} = zone, host) do
+    zone_domain = normalize_dns_name(zone.domain)
+    normalized_host = normalize_dns_name(host)
+
+    cond do
+      normalized_host == zone_domain ->
+        "@"
+
+      String.ends_with?(normalized_host, "." <> zone_domain) ->
+        String.trim_trailing(normalized_host, "." <> zone_domain)
+
+      true ->
+        normalized_host
+    end
+  end
+
+  defp normalize_expected_type("ALIAS/CNAME"), do: "CNAME"
+  defp normalize_expected_type(type), do: type
+
+  defp record_matches_expected?(record, expected_record, zone) do
+    record_host = record_host(zone, record)
+    expected_host = normalize_dns_name(expected_record.host)
+    record_type = normalize_dns_name(record.type)
+    expected_type = normalize_dns_name(expected_record.type)
+
+    record_host == expected_host and
+      record_type == expected_type and
+      record_value_matches?(record, expected_record)
+  end
+
+  defp record_value_matches?(
+         %Record{type: "MX", content: content, priority: priority},
+         expected_record
+       ) do
+    normalize_dns_name(content) == normalize_dns_name(expected_record.value) and
+      (is_nil(expected_record.priority) or priority == expected_record.priority)
+  end
+
+  defp record_value_matches?(%Record{type: type, content: content}, expected_record)
+       when type in ["CNAME", "NS"] do
+    normalize_dns_name(content) == normalize_dns_name(expected_record.value)
+  end
+
+  defp record_value_matches?(%Record{content: content}, expected_record) do
+    normalize_record_value(content) == normalize_record_value(expected_record.value)
+  end
+
+  defp record_host(%Zone{} = zone, %Record{name: name}) do
+    zone_domain = normalize_dns_name(zone.domain)
+
+    case normalize_dns_name(name) do
+      "@" ->
+        zone_domain
+
+      record_name ->
+        if String.ends_with?(record_name, "." <> zone_domain) do
+          record_name
+        else
+          normalize_dns_name(record_name <> "." <> zone.domain)
+        end
+    end
+  end
+
+  defp linked_domain_check_detail(expected_record) do
+    base = "#{expected_record.type} #{expected_record.host} -> #{expected_record.value}"
+
+    if is_nil(expected_record.priority) do
+      base
+    else
+      base <> " (priority #{expected_record.priority})"
+    end
+  end
+
+  defp normalize_record_value(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim_trailing(".")
+    |> String.downcase()
+  end
+
+  defp normalize_record_value(value), do: value |> to_string() |> normalize_record_value()
+
+  defp normalize_dns_name(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.trim_trailing(".")
+    |> String.downcase()
+  end
+
+  defp normalize_dns_name(value), do: value |> to_string() |> normalize_dns_name()
+
   defp blank_service_health(service) do
     %{
       service: service,
@@ -1093,11 +1455,20 @@ defmodule ElektrineWeb.DNSLive.Index do
   defp service_badge_class("not_configured"), do: "badge badge-ghost"
   defp service_badge_class(_), do: "badge badge-outline"
 
+  defp linked_domain_status_badge_class("verified"), do: "badge badge-success badge-outline"
+  defp linked_domain_status_badge_class("pending"), do: "badge badge-warning badge-outline"
+  defp linked_domain_status_badge_class(_), do: "badge badge-outline"
+
   defp check_badge_class("ok"), do: "badge badge-success badge-outline"
   defp check_badge_class("conflict"), do: "badge badge-warning badge-outline"
   defp check_badge_class("missing"), do: "badge badge-error badge-outline"
   defp check_badge_class("drift"), do: "badge badge-warning badge-outline"
   defp check_badge_class(_), do: "badge badge-outline"
+
+  defp linked_domain_check_badge_class("ok"), do: "badge badge-success badge-outline"
+  defp linked_domain_check_badge_class("missing"), do: "badge badge-error badge-outline"
+  defp linked_domain_check_badge_class("review"), do: "badge badge-ghost"
+  defp linked_domain_check_badge_class(_), do: "badge badge-outline"
 
   defp format_zone_error(changeset) do
     changeset.errors
