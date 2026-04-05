@@ -29,6 +29,36 @@ defmodule Elektrine.DNSContextTest do
     assert updated.name == "ns1"
   end
 
+  test "normalizes escaped apex names on create" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "\\@",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "198.51.100.10"
+             })
+
+    assert record.name == "@"
+  end
+
+  test "rejects apex cname records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => zone.domain,
+               "type" => "CNAME",
+               "ttl" => 300,
+               "content" => "edge.elektrine.com"
+             })
+
+    assert "cannot be used at the zone apex" in errors_on(changeset).type
+  end
+
   defp unique_domain do
     "dnsctx#{System.unique_integer([:positive])}.example.com"
   end

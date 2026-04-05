@@ -70,6 +70,7 @@ defmodule Elektrine.DNS.QueryTest do
 
     assert header(response).ancount == 1
     assert header(response).rcode == 0
+    assert first_answer_name(response) == "example.com"
   end
 
   test "answers apex records stored as absolute names" do
@@ -94,6 +95,22 @@ defmodule Elektrine.DNS.QueryTest do
     assert txt_response =~ "v=spf1 -all"
     assert ns1_response =~ <<198, 51, 100, 11>>
     assert ns2_response =~ <<198, 51, 100, 12>>
+  end
+
+  test "answers apex MX records with the zone owner name" do
+    zone = %Zone{
+      domain: "mx.example.com",
+      records: [
+        %Record{name: "@", type: "MX", content: "mail.example.com", ttl: 300, priority: 10}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"mx.example.com", zone})
+
+    response = Query.answer(build_query("mx.example.com", 15))
+
+    assert header(response).ancount == 1
+    assert first_answer_name(response) == "mx.example.com"
   end
 
   test "returns cname answers for alias queries with requested A type" do
@@ -174,4 +191,56 @@ defmodule Elektrine.DNS.QueryTest do
        ) do
     %{ancount: ancount, nscount: nscount, arcount: arcount, rcode: Bitwise.band(flags, 0x000F)}
   end
+
+  defp first_answer_name(
+         <<_id::16, _flags::16, qd::16, ancount::16, _nscount::16, _arcount::16, rest::binary>> =
+           packet
+       )
+       when qd == 1 and ancount > 0 do
+    after_question = skip_question(rest)
+    {:ok, answer_name, _after_answer_name} = decode_name(after_question, packet)
+    answer_name
+  end
+
+  defp skip_question(rest) do
+    {_qname, rest} = consume_name(rest)
+    <<_qtype::16, _qclass::16, remaining::binary>> = rest
+    remaining
+  end
+
+  defp consume_name(<<0, rest::binary>>), do: {"", rest}
+
+  defp consume_name(<<len, _label::binary-size(len), rest::binary>>) do
+    consume_name(rest)
+  end
+
+  defp decode_name(data, packet), do: decode_name(data, packet, [], 0)
+
+  defp decode_name(_, _, _, 20), do: {:error, :compression_loop}
+
+  defp decode_name(<<0, rest::binary>>, _packet, labels, _depth),
+    do: {:ok, Enum.reverse(labels) |> Enum.join("."), rest}
+
+  defp decode_name(<<len, _::binary>> = data, packet, labels, depth)
+       when Bitwise.band(len, 0xC0) == 0xC0 do
+    <<ptr::16, rest::binary>> = data
+    offset = Bitwise.band(ptr, 0x3FFF)
+
+    with true <- offset < byte_size(packet),
+         {:ok, pointed, _} <-
+           decode_name(
+             binary_part(packet, offset, byte_size(packet) - offset),
+             packet,
+             [],
+             depth + 1
+           ) do
+      {:ok, (Enum.reverse(labels) ++ String.split(pointed, ".", trim: true)) |> Enum.join("."),
+       rest}
+    else
+      _ -> {:error, :bad_pointer}
+    end
+  end
+
+  defp decode_name(<<len, label::binary-size(len), rest::binary>>, packet, labels, depth),
+    do: decode_name(rest, packet, [label | labels], depth)
 end

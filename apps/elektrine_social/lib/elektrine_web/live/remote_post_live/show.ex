@@ -632,6 +632,15 @@ defmodule ElektrineWeb.RemotePostLive.Show do
       ancestor_count = length(ancestors_for_render) %>
       <%= if ancestors_for_render != [] do %>
         <section class="mb-4 space-y-2" aria-label="Conversation context">
+          <div class="flex items-center gap-2 text-[11px] text-base-content/70">
+            <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-200/70 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
+              <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Conversation context
+            </span>
+            <span>
+              {ancestor_count} earlier {if ancestor_count == 1, do: "post", else: "posts"} shown
+            </span>
+          </div>
+
           <%= for {ancestor, idx} <- Enum.with_index(ancestors_for_render) do %>
             <% parent_post = ancestor.post
             parent_actor = ancestor.actor
@@ -756,7 +765,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       navigate={"/remote/post/#{local_parent_id}"}
                       class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                     >
-                      Open parent post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                      Open previous post <.icon name="hero-arrow-right" class="w-3 h-3" />
                     </.link>
                     <%= if has_external_link do %>
                       <a
@@ -775,7 +784,7 @@ defmodule ElektrineWeb.RemotePostLive.Show do
                       navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
                       class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      View parent post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                      View previous post <.icon name="hero-arrow-right" class="w-3 h-3" />
                     </.link>
                   <% else %>
                     <div class="mt-2 text-xs opacity-60 break-all">

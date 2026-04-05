@@ -667,9 +667,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="mb-2 space-y-2">
         <div class="pl-6 pr-2 flex items-center gap-2 text-[11px]">
           <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-200/70 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
-            <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Thread context
+            <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Conversation context
           </span>
-          <span class="opacity-60">{@thread_node_count} posts in path</span>
+          <span class="opacity-60">
+            {@ancestor_count} earlier {if @ancestor_count == 1, do: "post", else: "posts"} shown
+          </span>
         </div>
 
         <%= for {ancestor, idx} <- Enum.with_index(@reply_ancestors) do %>
@@ -839,7 +841,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       </div>
     <% else %>
       <div class="mt-1 rounded-lg bg-base-100/50 px-2 py-1.5 text-xs opacity-60">
-        Open ancestor post
+        Open previous post
       </div>
     <% end %>
     """
@@ -847,14 +849,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp ancestor_position_label(index, total) when is_integer(index) and is_integer(total) do
     cond do
-      total <= 1 -> "Parent"
-      index == 0 -> "Root"
-      index == total - 1 -> "Parent"
-      true -> "Ancestor #{index + 1}"
+      total <= 1 -> "Replying to"
+      index == total - 1 -> "Replying to"
+      true -> "Earlier context"
     end
   end
 
-  defp ancestor_position_label(_, _), do: "Ancestor"
+  defp ancestor_position_label(_, _), do: "Earlier context"
 
   defp ancestor_author_subtitle(ancestor) when is_map(ancestor) do
     cond do
@@ -1452,10 +1453,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp ancestor_author_class(:external), do: "text-secondary"
   defp ancestor_author_class(_), do: ""
 
-  defp ancestor_role_badge_class("Root"),
+  defp ancestor_role_badge_class("Earlier context"),
     do: "badge-info border-info/50 bg-info/10 text-info-content"
 
-  defp ancestor_role_badge_class("Parent"),
+  defp ancestor_role_badge_class("Replying to"),
     do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
 
   defp ancestor_role_badge_class(_),
@@ -2903,7 +2904,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 phx-click="stop_propagation"
               >
                 <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                Open full origin thread
+                Open full conversation on origin
               </a>
             <% end %>
           </div>
