@@ -1727,6 +1727,7 @@ defmodule ElektrineWeb.Router do
       # Profile editing
       live("/account/profile/edit", ProfileLive.Edit, :edit)
       live("/account/profile/domains", ProfileLive.Domains, :index)
+      live("/account/profile/domains/analytics", ProfileLive.DomainAnalytics, :analytics)
       live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
       live("/account/storage", StorageLive)
       live("/account/files", FilesLive)

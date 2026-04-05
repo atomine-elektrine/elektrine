@@ -2,6 +2,7 @@ defmodule Elektrine.Components.User.UsernameEffects do
   @moduledoc false
   use Phoenix.Component
 
+  import Phoenix.HTML, only: [html_escape: 1, raw: 1, safe_to_string: 1]
   alias Elektrine.Profiles.UserProfile
 
   import Elektrine.Components.TrustLevelBadge
@@ -91,9 +92,20 @@ defmodule Elektrine.Components.User.UsernameEffects do
 
     is_verified = Map.get(user, :verified, false)
 
+    rendered_username =
+      if assigns.display_name do
+        username
+        |> html_escape()
+        |> safe_to_string()
+        |> render_custom_emojis()
+      else
+        username
+      end
+
     assigns =
       assign(assigns, %{
         username: username,
+        rendered_username: rendered_username,
         effect_class: effect_class,
         animation_class: animation_class,
         inline_styles: inline_styles,
@@ -116,7 +128,11 @@ defmodule Elektrine.Components.User.UsernameEffects do
         <%= if @show_at do %>
           @
         <% end %>
-        {@username}
+        <%= if @display_name do %>
+          {raw(@rendered_username)}
+        <% else %>
+          {@rendered_username}
+        <% end %>
       </span>
       <%= if @is_verified && @show_verified do %>
         <.verification_badge size={@verified_size} color={@verified_color} tooltip="Verified Account" />
@@ -217,4 +233,12 @@ defmodule Elektrine.Components.User.UsernameEffects do
 
     Enum.join(styles, "; ")
   end
+
+  defp render_custom_emojis(text) when is_binary(text) do
+    text
+    |> Elektrine.Emojis.render_custom_emojis()
+    |> elem(0)
+  end
+
+  defp render_custom_emojis(text), do: text
 end

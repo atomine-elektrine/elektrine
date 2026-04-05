@@ -61,6 +61,11 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
          socket
          |> put_flash(:error, "This server is not currently active.")}
 
+      {:error, :insufficient_trust_level} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "You do not have access to this VPN server.")}
+
       {:error, :no_available_ips} ->
         {:noreply,
          socket

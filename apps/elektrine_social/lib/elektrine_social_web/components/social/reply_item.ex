@@ -47,15 +47,26 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   attr :time_format, :string, default: "12h"
   attr :show_actions, :boolean, default: true
   attr :on_reply_click, :string, default: "show_reply_to_reply_form"
+  attr :variant, :atom, default: :default
 
   def reply_item(assigns) do
     # Normalize the reply to a consistent format
     normalized = normalize_reply(assigns.reply)
-    assigns = assign(assigns, :normalized, normalized)
+
+    container_class =
+      case assigns.variant do
+        :thread -> "timeline-thread-reply-card bg-base-100/90 rounded-2xl px-3 py-3"
+        _ -> "bg-base-50 rounded-lg p-3"
+      end
+
+    assigns =
+      assigns
+      |> assign(:normalized, normalized)
+      |> assign(:container_class, container_class)
 
     ~H"""
     <%= if @normalized.has_author do %>
-      <div class="bg-base-50 rounded-lg p-3">
+      <div class={@container_class}>
         <!-- Reply Header -->
         <div class="flex items-center gap-2 mb-2">
           <!-- Author Avatar -->

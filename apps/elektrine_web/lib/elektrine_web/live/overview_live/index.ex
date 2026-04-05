@@ -56,6 +56,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:user_saves, %{})
        |> assign(:user_follows, %{})
        |> assign(:pending_follows, %{})
+       |> assign(:remote_follow_overrides, %{})
        |> assign(:post_reactions, %{})
        |> assign(:filter, @default_filter)
        |> assign(:attention_filter, @default_attention_filter)
@@ -807,8 +808,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
-  def handle_event("toggle_follow_remote", %{"actor_id" => actor_id}, socket) do
-    case parse_positive_int(actor_id) do
+  def handle_event("toggle_follow_remote", params, socket) do
+    remote_actor_id = params["remote_actor_id"] || params["actor_id"]
+
+    case parse_positive_int(remote_actor_id) do
       {:ok, actor_id} ->
         current_user = socket.assigns.current_user
         is_following = Map.get(socket.assigns.user_follows, {:remote, actor_id}, false)
@@ -819,6 +822,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
               {:noreply,
                socket
                |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, false))
+               |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, false))
+               |> put_remote_follow_override(actor_id, :none)
+               |> push_remote_follow_state(actor_id, :none)
                |> sync_overview_posts_stream()}
 
             {:error, _} ->
@@ -831,6 +837,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
                socket
                |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, true))
                |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, true))
+               |> put_remote_follow_override(actor_id, :following)
+               |> push_remote_follow_state(actor_id, :following)
                |> sync_overview_posts_stream()}
 
             {:error, _} ->
@@ -2817,6 +2825,23 @@ defmodule ElektrineWeb.OverviewLive.Index do
       preload: [sender: [:profile], conversation: [], link_preview: [], hashtags: []]
     )
     |> Elektrine.Repo.all()
+  end
+
+  defp put_remote_follow_override(socket, remote_actor_id, state) do
+    update(socket, :remote_follow_overrides, fn overrides ->
+      Map.put(overrides || %{}, {:remote, remote_actor_id}, state)
+    end)
+  end
+
+  defp push_remote_follow_state(socket, remote_actor_id, state) when is_atom(state) do
+    push_remote_follow_state(socket, remote_actor_id, Atom.to_string(state))
+  end
+
+  defp push_remote_follow_state(socket, remote_actor_id, state) when is_binary(state) do
+    push_event(socket, "remote_follow_state_changed", %{
+      remote_actor_id: remote_actor_id,
+      state: state
+    })
   end
 
   defp redirect_to_external_url(socket, url) do

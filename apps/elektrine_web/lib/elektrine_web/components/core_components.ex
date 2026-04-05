@@ -292,6 +292,16 @@ defmodule ElektrineWeb.CoreComponents do
                 <.icon name="hero-chart-bar" class="w-4 h-4" /> {gettext("Profile Analytics")}
               </.link>
             </li>
+            <li>
+              <.link
+                navigate="/account/profile/domains/analytics"
+                class={
+                  account_setting_secondary_link_class(@selected_page, "profile-domain-analytics")
+                }
+              >
+                <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Domain Analytics")}
+              </.link>
+            </li>
           </ul>
 
           <div :if={@profile_url} class="divider my-4"></div>

@@ -2,6 +2,7 @@ defmodule Elektrine.VPNTest do
   use Elektrine.DataCase, async: true
 
   alias Elektrine.{Accounts, VPN}
+  alias Elektrine.Repo
 
   describe "generate_config_file/1" do
     test "uses endpoint host override and client mtu when present" do
@@ -63,6 +64,50 @@ defmodule Elektrine.VPNTest do
 
       assert server.endpoint_port == 51_820
       assert server.client_mtu == 1280
+    end
+  end
+
+  describe "server API keys" do
+    test "stores generated API keys hashed at rest" do
+      raw_api_key = "vpn-server-api-key"
+
+      {:ok, server} =
+        VPN.create_server(%{
+          name: "Secure Edge",
+          location: "Frankfurt",
+          public_ip: "198.51.100.12",
+          public_key: "server-public-key-4",
+          internal_ip_range: "10.10.0.0/24",
+          api_key: raw_api_key
+        })
+
+      assert String.starts_with?(server.api_key, "sha256:")
+      assert VPN.valid_server_api_key?(server, raw_api_key)
+      refute VPN.valid_server_api_key?(server, "wrong-key")
+    end
+  end
+
+  describe "create_user_config/2" do
+    test "rejects servers above the user's trust level" do
+      user = user_fixture()
+
+      {:ok, server} =
+        VPN.create_server(%{
+          name: "Trusted Edge",
+          location: "Tokyo",
+          public_ip: "198.51.100.13",
+          public_key: "server-public-key-5",
+          internal_ip_range: "10.11.0.0/24",
+          minimum_trust_level: 2
+        })
+
+      assert {:error, :insufficient_trust_level} = VPN.create_user_config(user.id, server.id)
+
+      Repo.update_all(Ecto.Query.from(u in Elektrine.Accounts.User, where: u.id == ^user.id),
+        set: [trust_level: 2]
+      )
+
+      assert {:ok, _config} = VPN.create_user_config(user.id, server.id)
     end
   end
 

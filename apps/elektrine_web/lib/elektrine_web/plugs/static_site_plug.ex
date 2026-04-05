@@ -131,6 +131,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         |> redirect(external: profile_subdomain_url(conn, handle, "/"))
         |> halt()
       else
+        conn = maybe_track_site_visit(conn, user.id, file.content_type, "/")
+
         # Serve the static site with security headers including CSP
         conn
         |> put_resp_content_type("text/html")
@@ -171,13 +173,15 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
-         file when not is_nil(file) <- StaticSites.get_file(user.id, asset_path),
+         file when not is_nil(file) <- resolve_static_site_file(user.id, asset_path),
          {:ok, content} <- StaticSites.get_file_content(file) do
       if isolate_static_site_on_subdomain?(conn, handle) do
         conn
         |> redirect(external: profile_subdomain_url(conn, handle, "/#{asset_path}"))
         |> halt()
       else
+        conn = maybe_track_site_visit(conn, user.id, file.content_type, "/#{asset_path}")
+
         # Sanitize content type
         safe_content_type = sanitize_content_type(file.content_type)
 
@@ -192,6 +196,77 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         conn
     end
   end
+
+  defp resolve_static_site_file(user_id, asset_path)
+       when is_integer(user_id) and is_binary(asset_path) do
+    asset_path
+    |> static_site_lookup_candidates()
+    |> Enum.find_value(&StaticSites.get_file(user_id, &1))
+  end
+
+  defp resolve_static_site_file(_, _), do: nil
+
+  defp maybe_track_site_visit(conn, profile_user_id, content_type, request_path)
+       when is_integer(profile_user_id) and is_binary(content_type) do
+    if String.starts_with?(content_type, "text/html") do
+      current_user = conn.assigns[:current_user]
+      viewer_user_id = if is_map(current_user), do: current_user.id, else: nil
+      {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
+      _ =
+        Profiles.track_profile_site_visit(profile_user_id,
+          viewer_user_id: viewer_user_id,
+          visitor_id: visitor_id,
+          ip_address: remote_ip_string(conn.remote_ip),
+          user_agent: get_req_header(conn, "user-agent") |> List.first(),
+          referer: get_req_header(conn, "referer") |> List.first(),
+          request_host: conn.host,
+          request_path: request_path
+        )
+
+      conn
+    else
+      conn
+    end
+  end
+
+  defp maybe_track_site_visit(conn, _profile_user_id, _content_type, _request_path), do: conn
+
+  defp ensure_profile_site_visitor_id(conn) do
+    case get_session(conn, :profile_site_visitor_id) do
+      visitor_id when is_binary(visitor_id) and visitor_id != "" ->
+        {conn, visitor_id}
+
+      _ ->
+        visitor_id = Ecto.UUID.generate()
+        {put_session(conn, :profile_site_visitor_id, visitor_id), visitor_id}
+    end
+  end
+
+  defp remote_ip_string(tuple) when is_tuple(tuple),
+    do: tuple |> :inet_parse.ntoa() |> to_string()
+
+  defp remote_ip_string(_), do: nil
+
+  defp static_site_lookup_candidates(asset_path) when is_binary(asset_path) do
+    trimmed_path = String.trim(asset_path)
+
+    cond do
+      trimmed_path == "" ->
+        []
+
+      String.ends_with?(trimmed_path, "/") ->
+        [trimmed_path <> "index.html"]
+
+      Path.extname(trimmed_path) != "" ->
+        [trimmed_path]
+
+      true ->
+        [trimmed_path, trimmed_path <> ".html", trimmed_path <> "/index.html"]
+    end
+  end
+
+  defp static_site_lookup_candidates(_), do: []
 
   defp isolate_static_site_on_subdomain?(conn, handle) do
     host = String.downcase(conn.host || "")

@@ -248,7 +248,7 @@
           </span>
         </div>
 
-        <%= if @server.api_key do %>
+        <%= if @server.api_key && !String.starts_with?(@server.api_key, "sha256:") do %>
           <div class="divider my-2"></div>
 
           <div>
@@ -256,6 +256,12 @@
 
             <code class="text-xs break-all bg-base-200 p-2 rounded block">{@server.api_key}</code>
           </div>
+        <% else %>
+          <div class="divider my-2"></div>
+
+          <p class="text-xs text-base-content/60">
+            API key material is stored hashed and is no longer viewable after creation.
+          </p>
         <% end %>
       </div>
     </div>

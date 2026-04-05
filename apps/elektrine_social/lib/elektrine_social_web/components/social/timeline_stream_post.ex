@@ -210,7 +210,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
 
         <% replies = Map.get(@post_replies, @post.id, []) %>
         <%= if length(replies) > 0 do %>
-          <div class="mt-3 pl-4 border-l-2 border-primary/60 space-y-3">
+          <div class="timeline-thread-replies mt-3 space-y-3">
             <%= for reply <- replies do %>
               <% normalized = ElektrineSocialWeb.Components.Social.ReplyItem.normalize_reply(reply)
 
@@ -219,22 +219,25 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                   Map.get(reply, :activitypub_id) ||
                   Map.get(reply, :ap_id) ||
                   normalized.ap_id %>
-              <.reply_item
-                reply={reply}
-                post={@post}
-                current_user={@current_user}
-                user_statuses={@user_statuses}
-                user_follows={@user_follows}
-                pending_follows={@pending_follows}
-                remote_follow_overrides={@remote_follow_overrides}
-                user_likes={@user_likes}
-                user_boosts={@user_boosts}
-                timezone={@timezone}
-                time_format={@time_format}
-              />
+              <div class="timeline-thread-reply-row">
+                <.reply_item
+                  reply={reply}
+                  post={@post}
+                  current_user={@current_user}
+                  user_statuses={@user_statuses}
+                  user_follows={@user_follows}
+                  pending_follows={@pending_follows}
+                  remote_follow_overrides={@remote_follow_overrides}
+                  user_likes={@user_likes}
+                  user_boosts={@user_boosts}
+                  timezone={@timezone}
+                  time_format={@time_format}
+                  variant={:thread}
+                />
+              </div>
 
               <%= if @current_user && @reply_to_reply_id == reply_target_id do %>
-                <div class="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
+                <div class="timeline-thread-inline-form mt-3 rounded-2xl border border-base-300 bg-base-200/80 p-3">
                   <div class="flex items-start gap-2">
                     <div class="w-8 h-8 flex-shrink-0">
                       <.user_avatar user={@current_user} size="xs" />
@@ -288,7 +291,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           </div>
         <% else %>
           <%= if (@post.reply_count || 0) > 0 do %>
-            <div class="mt-3 pl-4 border-l-2 border-base-300">
+            <div class="timeline-thread-replies timeline-thread-replies--stub mt-3">
               <%= if MapSet.member?(@loading_remote_replies, @post.id) do %>
                 <div class="flex items-center gap-2 text-sm text-base-content/70">
                   <.spinner size="xs" />

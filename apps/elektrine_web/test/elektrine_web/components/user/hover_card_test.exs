@@ -1,33 +1,13 @@
-defmodule ElektrineWeb.Components.User.UsernameEffectsTest do
+defmodule ElektrineWeb.Components.User.HoverCardTest do
   use ElektrineWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Repo
-  alias ElektrineWeb.Components.User.UsernameEffects
+  alias ElektrineSocialWeb.Components.User.HoverCard
 
-  test "renders remote dm search result maps without a profile key" do
-    user = %{
-      handle: "support@onegold.com",
-      id: nil,
-      username: "support",
-      avatar: nil,
-      display_name: "@support@onegold.com",
-      remote_handle: "support@onegold.com"
-    }
-
-    html =
-      render_component(&UsernameEffects.username_with_effects/1,
-        user: user,
-        display_name: true,
-        verified_size: "xs"
-      )
-
-    assert html =~ "@support@onegold.com"
-  end
-
-  test "renders custom emojis in display names" do
+  test "renders custom emojis in local hover card bios" do
     Repo.insert!(
       CustomEmoji.changeset(%CustomEmoji{}, %{
         shortcode: "blobcat",
@@ -41,9 +21,13 @@ defmodule ElektrineWeb.Components.User.UsernameEffectsTest do
       id: 123,
       username: "alice",
       handle: "alice",
+      inserted_at: ~N[2024-01-01 00:00:00],
       verified: false,
       profile: %{
-        display_name: "Alice :blobcat:",
+        display_name: "Alice",
+        description: "bio :blobcat:",
+        following_count: 1,
+        followers_count: 2,
         username_effect: nil,
         username_animation_speed: nil,
         username_glow_color: nil,
@@ -56,13 +40,19 @@ defmodule ElektrineWeb.Components.User.UsernameEffectsTest do
     }
 
     html =
-      render_component(&UsernameEffects.username_with_effects/1,
+      render_component(&HoverCard.user_hover_card/1,
         user: user,
-        display_name: true,
-        verified_size: "xs"
+        current_user: nil,
+        inner_block: [
+          %{
+            inner_block: fn _, _ ->
+              "@alice"
+            end
+          }
+        ]
       )
 
-    assert html =~ "Alice"
+    assert html =~ "bio"
     assert html =~ "custom-emoji"
     assert html =~ "blobcat.png"
   end
