@@ -265,6 +265,35 @@ defmodule ElektrineWeb.CoreComponents do
             </li>
           </ul>
 
+          <div class="divider my-4"></div>
+
+          <ul class="menu menu-compact w-full p-0 space-y-1">
+            <li>
+              <.link
+                navigate="/account/profile/edit"
+                class={account_setting_secondary_link_class(@selected_page, "profile")}
+              >
+                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate="/account/profile/domains"
+                class={account_setting_secondary_link_class(@selected_page, "profile-domains")}
+              >
+                <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Profile Domains")}
+              </.link>
+            </li>
+            <li>
+              <.link
+                navigate="/account/profile/analytics"
+                class={account_setting_secondary_link_class(@selected_page, "profile-analytics")}
+              >
+                <.icon name="hero-chart-bar" class="w-4 h-4" /> {gettext("Profile Analytics")}
+              </.link>
+            </li>
+          </ul>
+
           <div :if={@profile_url} class="divider my-4"></div>
 
           <ul :if={@profile_url} class="menu menu-compact w-full p-0 space-y-1">
@@ -392,7 +421,7 @@ defmodule ElektrineWeb.CoreComponents do
         if active? do
           "#{base} border-primary/40 bg-transparent text-primary shadow-sm"
         else
-          "#{base} border-transparent text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
+          "#{base} border-transparent text-base-content/80 hover:text-base-content hover:bg-base-200/60 hover:border-base-300"
         end
     end
   end
@@ -412,7 +441,7 @@ defmodule ElektrineWeb.CoreComponents do
   end
 
   defp profile_utility_link_class do
-    "btn btn-ghost btn-sm w-full justify-start border transition-all duration-200 border-transparent"
+    "text-sm rounded-lg flex w-full items-center gap-2 border border-transparent px-3 py-2 transition-all duration-200 text-base-content/70 hover:bg-base-200/80 hover:text-base-content"
   end
 
   @doc """

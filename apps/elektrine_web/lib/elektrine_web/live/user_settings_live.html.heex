@@ -41,13 +41,13 @@
             <div class="space-y-2">
               <.link
                 navigate={~p"/account/profile/edit"}
-                class="btn btn-ghost btn-sm w-full justify-start"
+                class={tab_link_class(nil, nil, :default)}
               >
                 <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
               </.link>
               <.link
                 navigate={~p"/account/storage"}
-                class="btn btn-ghost btn-sm w-full justify-start"
+                class={tab_link_class(nil, nil, :default)}
               >
                 <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
               </.link>

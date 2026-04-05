@@ -3,25 +3,52 @@
 // DragDrop hook for visual feedback on drag and drop uploads
 export const DragDrop = {
   mounted() {
-    this.el.addEventListener("dragenter", (e) => {
+    this.dragDepth = 0
+
+    this.onDragEnter = (e) => {
       e.preventDefault()
+      e.stopPropagation()
+      this.dragDepth += 1
       this.pushEvent("dragover", {})
-    })
+    }
 
-    this.el.addEventListener("dragover", (e) => {
+    this.onDragOver = (e) => {
       e.preventDefault()
-    })
+      e.stopPropagation()
 
-    this.el.addEventListener("dragleave", (e) => {
-      // Only trigger if leaving the drop zone entirely
-      if (!this.el.contains(e.relatedTarget)) {
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = "copy"
+      }
+    }
+
+    this.onDragLeave = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this.dragDepth = Math.max(this.dragDepth - 1, 0)
+
+      if (this.dragDepth === 0) {
         this.pushEvent("dragleave", {})
       }
-    })
+    }
 
-    this.el.addEventListener("drop", (e) => {
+    this.onDrop = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this.dragDepth = 0
       this.pushEvent("drop", {})
-    })
+    }
+
+    this.el.addEventListener("dragenter", this.onDragEnter)
+    this.el.addEventListener("dragover", this.onDragOver)
+    this.el.addEventListener("dragleave", this.onDragLeave)
+    this.el.addEventListener("drop", this.onDrop)
+  },
+
+  destroyed() {
+    this.el.removeEventListener("dragenter", this.onDragEnter)
+    this.el.removeEventListener("dragover", this.onDragOver)
+    this.el.removeEventListener("dragleave", this.onDragLeave)
+    this.el.removeEventListener("drop", this.onDrop)
   }
 }
 
