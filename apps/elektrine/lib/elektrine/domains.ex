@@ -70,18 +70,11 @@ defmodule Elektrine.Domains do
   @doc """
   Preferred built-in profile domain for user-facing URLs.
 
-  Falls back to the shortest configured profile base domain so vanity domains like
-  `z.org` can be preferred over longer primary domains without changing the
-  canonical instance domain.
+  Uses the configured primary profile domain so self-hosted deployments can control the
+  canonical built-in profile URL via environment configuration.
   """
   def default_profile_domain do
-    configured_profile_base_domains()
-    |> Enum.sort_by(fn domain -> {String.length(domain), domain} end)
-    |> List.first()
-    |> case do
-      nil -> primary_profile_domain()
-      domain -> domain
-    end
+    primary_profile_domain()
   end
 
   @doc """
@@ -450,8 +443,7 @@ defmodule Elektrine.Domains do
           "https://#{domain}"
 
         _ ->
-          base_domain = profile_base_domain_for_host(host) || primary_profile_domain()
-          "https://#{URI.encode_www_form(clean_handle)}.#{base_domain}"
+          "https://#{URI.encode_www_form(clean_handle)}.#{default_profile_domain()}"
       end
     else
       nil

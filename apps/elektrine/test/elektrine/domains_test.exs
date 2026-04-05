@@ -6,6 +6,8 @@ defmodule Elektrine.DomainsTest do
   setup do
     previous_port = System.get_env("PORT")
     previous_environment = Application.get_env(:elektrine, :environment)
+    previous_profile_base_domains = Application.get_env(:elektrine, :profile_base_domains)
+    previous_email_config = Application.get_env(:elektrine, :email)
 
     on_exit(fn ->
       if is_nil(previous_port),
@@ -16,6 +18,18 @@ defmodule Elektrine.DomainsTest do
         Application.delete_env(:elektrine, :environment)
       else
         Application.put_env(:elektrine, :environment, previous_environment)
+      end
+
+      if is_nil(previous_profile_base_domains) do
+        Application.delete_env(:elektrine, :profile_base_domains)
+      else
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_base_domains)
+      end
+
+      if is_nil(previous_email_config) do
+        Application.delete_env(:elektrine, :email)
+      else
+        Application.put_env(:elektrine, :email, previous_email_config)
       end
     end)
 
@@ -41,5 +55,21 @@ defmodule Elektrine.DomainsTest do
     System.put_env("PORT", "4100")
 
     assert Domains.inferred_base_url_for_domain("localhost") == "https://localhost"
+  end
+
+  test "uses the primary configured profile domain for built-in profile URLs" do
+    Application.put_env(:elektrine, :email, domain: "selfhost.test")
+    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])
+
+    assert Domains.default_profile_domain() == "selfhost.test"
+    assert Domains.default_profile_url_for_handle("alice") == "https://alice.selfhost.test"
+  end
+
+  test "canonicalizes profile URLs to the primary configured profile domain on built-in hosts" do
+    Application.put_env(:elektrine, :email, domain: "selfhost.test")
+    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])
+
+    assert Domains.profile_url_for_handle("alice", "alice.z.org") ==
+             "https://alice.selfhost.test"
   end
 end
