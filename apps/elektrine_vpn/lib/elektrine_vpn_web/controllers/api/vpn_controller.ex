@@ -128,6 +128,11 @@ defmodule ElektrineVPNWeb.API.VPNController do
             |> put_status(:unprocessable_entity)
             |> json(%{error: "VPN server is not active"})
 
+          {:error, :insufficient_trust_level} ->
+            conn
+            |> put_status(:forbidden)
+            |> json(%{error: "You do not have access to this VPN server"})
+
           {:error, %Ecto.Changeset{} = changeset} ->
             errors =
               Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->

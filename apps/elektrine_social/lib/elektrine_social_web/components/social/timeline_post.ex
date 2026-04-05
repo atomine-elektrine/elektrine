@@ -155,6 +155,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_gallery_post, is_gallery_post)
       |> assign(:click_event, click_event)
       |> assign(:reply_ancestors, reply_ancestors)
+      |> assign(:direct_reply_target, List.last(reply_ancestors))
       |> assign(:has_thread_context, assigns.show_thread_context && reply_ancestors != [])
       |> assign(:display_like_count, display_like_count)
       |> assign(:display_comment_count, display_comment_count)
@@ -164,14 +165,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       id={"#{@id_prefix}-entry-#{@post.id}"}
       class={[
         "space-y-2",
-        if(@has_thread_context,
-          do:
-            "relative rounded-lg border border-base-300/80 bg-gradient-to-br from-base-200/35 via-transparent to-base-100/30 p-2"
-        )
+        if(@has_thread_context, do: "timeline-thread-shell relative")
       ]}
     >
       <%= if @has_thread_context do %>
-        <span class="pointer-events-none absolute left-4 top-12 bottom-8 w-px rounded-full bg-gradient-to-b from-secondary/70 via-info/60 to-primary/70">
+        <span class="timeline-thread-shell__rail pointer-events-none absolute left-4 top-10 bottom-6 w-px rounded-full">
         </span>
       <% end %>
 
@@ -187,22 +185,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         show_ancestor_actions={@show_ancestor_actions}
       />
 
-      <%= if @has_thread_context do %>
-        <div class="pl-6">
-          <div class="mb-1 inline-flex items-center gap-2 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
-            <.icon name="hero-map-pin" class="h-3 w-3" /> Current reply
-          </div>
-        </div>
-      <% end %>
-
       <div class="relative">
         <div
           id={"#{@id_prefix}-card-#{@post.id}"}
           class={[
             "card panel-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 transition-shadow",
-            if(@has_thread_context, do: "ml-6 border border-primary/25"),
+            if(@has_thread_context,
+              do: "ml-6 timeline-thread-current-card border border-base-300/85"
+            ),
             if(@is_reply,
-              do: "border-l-4 border-l-error bg-error/5 border-t border-r border-b border-base-300",
+              do:
+                "border-l-2 border-l-base-300 bg-base-100/95 border-t border-r border-b border-base-300",
               else: "border border-base-300"
             )
           ]}
@@ -220,6 +213,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <div class="card-body timeline-post-card-body p-4 min-w-0 overflow-visible">
             <!-- Boosted By Indicator -->
             <.boost_indicator post={@post} />
+
+            <.inline_reply_target target={@direct_reply_target} />
             
     <!-- Post Header -->
             <.post_header
@@ -664,12 +659,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <%= if @ancestor_count > 0 do %>
-      <div class="mb-2 space-y-2">
-        <div class="pl-6 pr-2 flex items-center gap-2 text-[11px]">
-          <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-200/70 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
-            <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Conversation context
-          </span>
-          <span class="opacity-60">
+      <div class="timeline-thread-context mb-2 space-y-2">
+        <div class="pl-6 pr-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+          <span>In reply to</span>
+          <span class="opacity-60 normal-case tracking-normal">
             {@ancestor_count} earlier {if @ancestor_count == 1, do: "post", else: "posts"} shown
           </span>
         </div>
@@ -693,16 +686,19 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           boost_count = if(show_actions, do: ancestor_boost_count(ancestor), else: 0)
           reply_count = if(show_actions, do: ancestor_reply_count(ancestor), else: 0) %>
 
-          <div class="relative pl-6">
+          <div class="timeline-thread-context-row relative pl-6">
             <%= if idx < @ancestor_count - 1 do %>
-              <div class={"absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full #{colors.line}"}>
+              <div class={"timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full #{colors.line}"}>
               </div>
             <% end %>
 
-            <span class={"absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full ring-2 ring-base-100 #{colors.dot}"}>
+            <span class={"timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full ring-2 ring-base-100 #{colors.dot}"}>
             </span>
 
-            <div class={["rounded-lg border shadow-sm overflow-hidden", colors.card]}>
+            <div class={[
+              "timeline-thread-context-card rounded-lg border shadow-sm overflow-hidden",
+              colors.card
+            ]}>
               <%= if is_clickable do %>
                 <div
                   role="button"
@@ -844,6 +840,75 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         Open previous post
       </div>
     <% end %>
+    """
+  end
+
+  attr :target, :map, default: nil
+
+  defp inline_reply_target(assigns) do
+    ~H"""
+    <%= if is_map(@target) do %>
+      <% clickable = ancestor_clickable?(@target)
+      subtitle = ancestor_author_subtitle(@target) %>
+      <div class="timeline-inline-reply-target mb-3">
+        <div class="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45">
+          Replying to
+        </div>
+
+        <%= if clickable do %>
+          <div
+            role="button"
+            tabindex="0"
+            class="thread-context-card timeline-inline-reply-target__card w-full text-left"
+            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.click(); }"
+            {ancestor_click_attrs(@target)}
+          >
+            <.inline_reply_target_content target={@target} subtitle={subtitle} />
+          </div>
+        <% else %>
+          <div class="timeline-inline-reply-target__card">
+            <.inline_reply_target_content target={@target} subtitle={subtitle} />
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+    """
+  end
+
+  attr :target, :map, required: true
+  attr :subtitle, :string, default: nil
+
+  defp inline_reply_target_content(assigns) do
+    ~H"""
+    <div class="flex items-start gap-3 rounded-2xl border border-base-300/80 bg-base-200/45 px-3 py-2.5 transition-colors hover:bg-base-200/65">
+      <.ancestor_avatar ancestor={@target} />
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2 min-w-0 text-sm">
+          <span class={["truncate font-medium", ancestor_author_class(@target.author_info.type)]}>
+            {@target.author_info.name}
+          </span>
+          <%= if @subtitle do %>
+            <span class="truncate text-xs text-base-content/55">{@subtitle}</span>
+          <% end %>
+          <%= if ancestor_clickable?(@target) do %>
+            <span class="ml-auto flex-shrink-0 text-xs text-base-content/45">Open</span>
+          <% end %>
+        </div>
+
+        <div class="mt-1 text-sm text-base-content/75 line-clamp-3 break-words">
+          <%= if @target.preview_content do %>
+            {raw(
+              PostUtilities.render_content_preview(
+                @target.preview_content,
+                @target.instance_domain
+              )
+            )}
+          <% else %>
+            Previous post
+          <% end %>
+        </div>
+      </div>
+    </div>
     """
   end
 

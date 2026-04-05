@@ -136,6 +136,10 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     {:noreply, socket |> assign(:gallery_search, "") |> apply_gallery_filter()}
   end
 
+  def handle_event("stop_propagation", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("apply_tag_search", %{"tag" => tag}, socket) do
     normalized_tag = tag |> to_string() |> String.trim_leading("#") |> String.trim()
     {:noreply, socket |> assign(:gallery_search, normalized_tag) |> apply_gallery_filter()}

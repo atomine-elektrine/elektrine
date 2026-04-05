@@ -141,6 +141,21 @@
 .timeline-post-card .timeline-post-dropdown-menu { z-index: 260; position: absolute; overflow: visible;
 } .thread-context-card[role="button"] { cursor: pointer;
 } .thread-context-card[role="button"]:focus-visible { outline: 2px solid oklch(var(--p) / 0.55); outline-offset: -2px;
+.timeline-thread-shell { padding: 0.25rem 0;
+} .timeline-thread-shell__rail { background: color-mix(in oklab, oklch(var(--bc) / 0.16) 70%, transparent);
+} .timeline-thread-current-card { box-shadow: 0 10px 28px oklch(var(--bc) / 0.06);
+} .timeline-thread-context-card { border-color: color-mix(in oklab, oklch(var(--bc) / 0.1) 65%, transparent);
+} .timeline-thread-context-line { opacity: 0.45;
+} .timeline-thread-context-dot { box-shadow: 0 0 0 4px oklch(var(--b1));
+} .timeline-inline-reply-target { position: relative;
+} .timeline-inline-reply-target__card { display: block;
+} .timeline-thread-replies { position: relative; margin-left: 0.75rem; padding-left: 2.25rem;
+} .timeline-thread-replies::before { content: ""; position: absolute; left: 0.875rem; top: 0.5rem; bottom: 0.75rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, oklch(var(--bc) / 0.14), oklch(var(--bc) / 0.08));
+} .timeline-thread-replies--stub::before { bottom: 0;
+} .timeline-thread-reply-row { position: relative;
+} .timeline-thread-reply-row::before { content: ""; position: absolute; left: -1.375rem; top: 1.1rem; width: 0.95rem; height: 2px; border-radius: 9999px; background: oklch(var(--bc) / 0.12);
+} .timeline-thread-reply-card { border: 1px solid oklch(var(--bc) / 0.08); box-shadow: 0 6px 16px oklch(var(--bc) / 0.04);
+} .timeline-thread-inline-form { margin-left: 0.875rem;
 } /* -------------------------------------------------------------------------- MODALS -------------------------------------------------------------------------- */ .modal,
 .modal.modal-open { background: var(--theme-modal-backdrop);
 } .modal::backdrop { background: var(--theme-modal-backdrop);

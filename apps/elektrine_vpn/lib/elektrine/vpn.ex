@@ -11,6 +11,7 @@ defmodule Elektrine.VPN do
 
   @self_host_metadata_key "managed_by"
   @self_host_metadata_value "self_host_env"
+  @hashed_api_key_prefix "sha256:"
 
   ## Server functions
 
@@ -55,7 +56,7 @@ defmodule Elektrine.VPN do
   """
   def create_server(attrs \\ %{}) do
     %Server{}
-    |> Server.changeset(attrs)
+    |> Server.changeset(normalize_server_attrs(attrs))
     |> Repo.insert()
   end
 
@@ -221,7 +222,7 @@ defmodule Elektrine.VPN do
     case create_server(attrs) do
       {:ok, server} ->
         Logger.info("Auto-registered new VPN server: #{server.name} (ID: #{server.id})")
-        {:ok, server}
+        {:ok, %{server | api_key: api_key}}
 
       {:error, changeset} = error ->
         Logger.error("Failed to auto-register VPN server: #{inspect(changeset.errors)}")
@@ -251,7 +252,7 @@ defmodule Elektrine.VPN do
   """
   def update_server(%Server{} = server, attrs) do
     server
-    |> Server.changeset(attrs)
+    |> Server.changeset(normalize_server_attrs(attrs))
     |> Repo.update()
   end
 
@@ -313,7 +314,7 @@ defmodule Elektrine.VPN do
   Creates a user config with automatically generated WireGuard keys and IP allocation.
   """
   def create_user_config(user_id, server_id) do
-    with {:ok, _server} <- get_available_server(server_id),
+    with {:ok, _server} <- get_available_server(user_id, server_id),
          {:ok, keys} <- generate_wireguard_keypair(),
          {:ok, allocated_ip} <- allocate_ip_for_user(server_id) do
       # Encrypt private key before storing
@@ -428,10 +429,22 @@ defmodule Elektrine.VPN do
     """
   end
 
+  def valid_server_api_key?(%Server{api_key: stored_key}, api_key)
+      when is_binary(stored_key) and is_binary(api_key) do
+    if String.starts_with?(stored_key, @hashed_api_key_prefix) do
+      secure_compare(stored_key, hash_api_key(api_key))
+    else
+      secure_compare(stored_key, api_key)
+    end
+  end
+
+  def valid_server_api_key?(_server, _api_key), do: false
+
   ## Helper functions
 
-  defp get_available_server(server_id) do
+  defp get_available_server(user_id, server_id) do
     server = Repo.get(Server, server_id)
+    user_trust_level = get_user_trust_level(user_id)
 
     cond do
       is_nil(server) ->
@@ -439,6 +452,9 @@ defmodule Elektrine.VPN do
 
       server.status != "active" ->
         {:error, :server_not_active}
+
+      server.minimum_trust_level > user_trust_level ->
+        {:error, :insufficient_trust_level}
 
       true ->
         {:ok, server}
@@ -511,6 +527,54 @@ defmodule Elektrine.VPN do
   defp generate_api_key do
     :crypto.strong_rand_bytes(32) |> Base.encode64(padding: false)
   end
+
+  defp normalize_server_attrs(attrs) when is_map(attrs) do
+    case Map.get(attrs, :api_key) || Map.get(attrs, "api_key") do
+      value when is_binary(value) and value != "" ->
+        put_api_key(attrs, normalize_api_key(value))
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp normalize_server_attrs(attrs), do: attrs
+
+  defp put_api_key(attrs, value) when is_map(attrs) do
+    cond do
+      Map.has_key?(attrs, "api_key") -> Map.put(attrs, "api_key", value)
+      Map.has_key?(attrs, :api_key) -> Map.put(attrs, :api_key, value)
+      true -> Map.put(attrs, :api_key, value)
+    end
+  end
+
+  defp normalize_api_key(api_key) do
+    if String.starts_with?(api_key, @hashed_api_key_prefix) do
+      api_key
+    else
+      hash_api_key(api_key)
+    end
+  end
+
+  defp hash_api_key(api_key) do
+    @hashed_api_key_prefix <> Base.encode16(:crypto.hash(:sha256, api_key), case: :lower)
+  end
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
+
+  defp get_user_trust_level(user_id) when is_integer(user_id) do
+    case Repo.get(Elektrine.Accounts.User, user_id) do
+      %{trust_level: trust_level} when is_integer(trust_level) -> trust_level
+      _ -> 0
+    end
+  end
+
+  defp get_user_trust_level(_user_id), do: 0
 
   defp env_value(env, key) when is_map(env) do
     case Map.get(env, key) do

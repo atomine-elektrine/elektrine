@@ -25,6 +25,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineWeb.NotificationsLive,
     ElektrineWeb.OverviewLive.Index,
     ElektrineWeb.ProfileLive.Analytics,
+    ElektrineWeb.ProfileLive.DomainAnalytics,
     ElektrineWeb.ProfileLive.Domains,
     ElektrineWeb.ProfileLive.Edit,
     ElektrineWeb.SearchLive,

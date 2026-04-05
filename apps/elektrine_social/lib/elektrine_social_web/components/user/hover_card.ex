@@ -10,11 +10,14 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
     statics: ElektrineWeb.static_paths()
 
   alias Elektrine.AccountIdentifiers
-  import Phoenix.HTML, only: [raw: 1]
+  import Phoenix.HTML, only: [html_escape: 1, raw: 1, safe_to_string: 1]
   import ElektrineSocialWeb.Components.Social.FollowButton, only: [local_follow_button: 1]
   import Elektrine.Components.User.Avatar
   import Elektrine.Components.User.UsernameEffects
-  import ElektrineWeb.HtmlHelpers, only: [render_display_name_with_emojis: 2]
+
+  import ElektrineWeb.HtmlHelpers,
+    only: [render_custom_emojis: 2, render_display_name_with_emojis: 2]
+
   import ElektrineWeb.CoreComponents, only: [icon: 1, floating_panel: 1]
 
   @doc """
@@ -131,7 +134,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       
     <!-- Bio -->
       <%= if desc = get_profile_description(@user) do %>
-        <p class="text-sm line-clamp-3">{desc}</p>
+        <p class="text-sm line-clamp-3">{raw(render_text_with_emojis(desc))}</p>
       <% end %>
       
     <!-- Stats -->
@@ -216,7 +219,9 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       
     <!-- Bio -->
       <%= if Elektrine.Strings.present?(strip_html(@remote_actor.summary || "")) do %>
-        <p class="text-sm line-clamp-3">{strip_html(@remote_actor.summary)}</p>
+        <p class="text-sm line-clamp-3">
+          {raw(render_text_with_emojis(strip_html(@remote_actor.summary), @remote_actor.domain))}
+        </p>
       <% end %>
       
     <!-- Stats if available -->
@@ -379,4 +384,15 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
         nil
     end
   end
+
+  defp render_text_with_emojis(text, instance_domain \\ nil)
+
+  defp render_text_with_emojis(text, instance_domain) when is_binary(text) do
+    text
+    |> html_escape()
+    |> safe_to_string()
+    |> render_custom_emojis(instance_domain)
+  end
+
+  defp render_text_with_emojis(text, _instance_domain), do: text
 end

@@ -176,6 +176,7 @@ defmodule ElektrineWeb.PageLive.Home do
         name: "Accounts",
         detail: "Domains / identity / auth"
       },
+      %{icon: "hero-globe-alt-mini", name: "DNS", detail: "Authoritative / recursive"},
       %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg"},
       %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
@@ -184,6 +185,7 @@ defmodule ElektrineWeb.PageLive.Home do
     |> Enum.filter(fn module ->
       case module.name do
         "Email" -> Modules.enabled?(:email)
+        "DNS" -> Modules.enabled?(:dns)
         "Chat" -> Modules.enabled?(:chat)
         "Social" -> Modules.enabled?(:social)
         "VPN" -> Modules.enabled?(:vpn)

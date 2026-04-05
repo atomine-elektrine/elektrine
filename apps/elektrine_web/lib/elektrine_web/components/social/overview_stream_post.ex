@@ -32,7 +32,7 @@ defmodule ElektrineWeb.Components.Social.OverviewStreamPost do
         user_saves={@user_saves}
         user_follows={@user_follows}
         pending_follows={@pending_follows}
-        remote_follow_overrides={%{}}
+        remote_follow_overrides={assigns[:remote_follow_overrides] || %{}}
         user_statuses={@user_statuses}
         lemmy_counts={%{}}
         post_interactions={%{}}

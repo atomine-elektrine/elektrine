@@ -118,6 +118,8 @@ defmodule ElektrineWeb.ProfileController do
                               # Track profile view using the new accurate tracking system
                               viewer_user_id = if current_user, do: current_user.id, else: nil
 
+                              {updated_conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
                               Profiles.track_profile_view(user.id,
                                 viewer_user_id: viewer_user_id,
                                 ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
@@ -125,7 +127,17 @@ defmodule ElektrineWeb.ProfileController do
                                 referer: get_req_header(conn, "referer") |> List.first()
                               )
 
-                              updated_conn = record_profile_view(conn, prof.id)
+                              Profiles.track_profile_site_visit(user.id,
+                                viewer_user_id: viewer_user_id,
+                                visitor_id: visitor_id,
+                                ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                                user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                                referer: get_req_header(conn, "referer") |> List.first(),
+                                request_host: conn.host,
+                                request_path: conn.request_path
+                              )
+
+                              updated_conn = record_profile_view(updated_conn, prof.id)
                               updated_profile = Profiles.get_user_profile(user.id)
                               {updated_profile, updated_conn}
                             else
@@ -158,11 +170,23 @@ defmodule ElektrineWeb.ProfileController do
                     # Track profile view using the new accurate tracking system
                     viewer_user_id = if current_user, do: current_user.id, else: nil
 
+                    {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
                     Profiles.track_profile_view(profile.user_id,
                       viewer_user_id: viewer_user_id,
                       ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
                       user_agent: get_req_header(conn, "user-agent") |> List.first(),
                       referer: get_req_header(conn, "referer") |> List.first()
+                    )
+
+                    Profiles.track_profile_site_visit(profile.user_id,
+                      viewer_user_id: viewer_user_id,
+                      visitor_id: visitor_id,
+                      ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                      user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                      referer: get_req_header(conn, "referer") |> List.first(),
+                      request_host: conn.host,
+                      request_path: conn.request_path
                     )
 
                     # Record this view in session
@@ -769,6 +793,17 @@ defmodule ElektrineWeb.ProfileController do
     updated_views = Map.put(recent_views, "#{profile_id}_#{visitor_ip}", current_time)
 
     put_session(conn, :profile_views, updated_views)
+  end
+
+  defp ensure_profile_site_visitor_id(conn) do
+    case get_session(conn, :profile_site_visitor_id) do
+      visitor_id when is_binary(visitor_id) and visitor_id != "" ->
+        {conn, visitor_id}
+
+      _ ->
+        visitor_id = Ecto.UUID.generate()
+        {put_session(conn, :profile_site_visitor_id, visitor_id), visitor_id}
+    end
   end
 
   # Get visitor IP with proxy header support

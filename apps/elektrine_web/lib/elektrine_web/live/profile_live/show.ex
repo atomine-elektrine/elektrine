@@ -71,15 +71,27 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
         if connected?(socket) do
           viewer_user_id = current_user && current_user.id
-          viewer_session_id = session["_csrf_token"]
-          {ip_address, user_agent, referer} = get_connection_metadata(socket)
+          visitor_id = session["profile_site_visitor_id"] || session["_csrf_token"]
+
+          {ip_address, user_agent, referer, request_host, request_path} =
+            get_connection_metadata(socket)
 
           Profiles.track_profile_view(user.id,
             viewer_user_id: viewer_user_id,
-            viewer_session_id: viewer_session_id,
+            viewer_session_id: visitor_id,
             ip_address: ip_address,
             user_agent: user_agent,
             referer: referer
+          )
+
+          Profiles.track_profile_site_visit(user.id,
+            viewer_user_id: viewer_user_id,
+            visitor_id: visitor_id,
+            ip_address: ip_address,
+            user_agent: user_agent,
+            referer: referer,
+            request_host: request_host,
+            request_path: request_path
           )
         end
 
@@ -699,18 +711,29 @@ defmodule ElektrineWeb.ProfileLive.Show do
   defp lighten_color(hex, factor), do: Elektrine.Theme.lighten(hex, factor)
 
   defp get_connection_metadata(socket) do
+    connect_params = get_connect_params(socket) || %{}
+
     ip_address =
-      get_connect_params(socket)["remote_ip"] || get_connect_params(socket)["x_real_ip"] ||
-        "unknown"
+      connect_params["remote_ip"] || connect_params["x_real_ip"] || "unknown"
 
     user_agent =
-      get_connect_params(socket)["user_agent"] || get_connect_params(socket)["_user_agent"] ||
-        "unknown"
+      connect_params["user_agent"] || connect_params["_user_agent"] || "unknown"
 
-    referer =
-      get_connect_params(socket)["referer"] || get_connect_params(socket)["_referer"] || nil
+    referer = connect_params["referer"] || connect_params["_referer"] || nil
 
-    {to_string(ip_address), to_string(user_agent), referer}
+    request_host =
+      case socket.host_uri do
+        %URI{host: host} when is_binary(host) -> host
+        _ -> nil
+      end
+
+    request_path =
+      case socket.host_uri do
+        %URI{path: path} when is_binary(path) and path != "" -> path
+        _ -> "/"
+      end
+
+    {to_string(ip_address), to_string(user_agent), referer, request_host, request_path}
   end
 
   defp group_reply_chains(posts) when is_list(posts) do

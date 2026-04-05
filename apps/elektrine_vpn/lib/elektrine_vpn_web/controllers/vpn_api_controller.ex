@@ -306,10 +306,8 @@ defmodule ElektrineVPNWeb.VPNAPIController do
           |> halt()
 
         server ->
-          # Check if API key matches (use constant-time comparison to prevent timing attacks)
-          expected_key = "Bearer #{server.api_key}"
-
-          if Plug.Crypto.secure_compare(api_key, expected_key) do
+          if String.starts_with?(api_key, "Bearer ") and
+               VPN.valid_server_api_key?(server, String.trim_leading(api_key, "Bearer ")) do
             conn
           else
             conn
@@ -334,8 +332,7 @@ defmodule ElektrineVPNWeb.VPNAPIController do
     fleet_key = System.get_env("VPN_FLEET_REGISTRATION_KEY")
     expected = "Bearer #{fleet_key}"
 
-    # Use secure_compare to prevent timing attacks
-    if fleet_key && auth_header && Plug.Crypto.secure_compare(auth_header, expected) do
+    if fleet_key && auth_header && secure_compare(auth_header, expected) do
       conn
     else
       conn
@@ -352,4 +349,11 @@ defmodule ElektrineVPNWeb.VPNAPIController do
       end)
     end)
   end
+
+  defp secure_compare(left, right)
+       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
+    Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 end
