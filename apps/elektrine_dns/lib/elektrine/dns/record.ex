@@ -73,6 +73,7 @@ defmodule Elektrine.DNS.Record do
     |> validate_inclusion(:type, @types)
     |> validate_inclusion(:source, ["user", "system"])
     |> validate_number(:ttl, greater_than: 0, less_than_or_equal_to: 86_400)
+    |> validate_cname_constraints()
     |> normalize_type_specific_content()
     |> validate_type_specific_fields()
     |> foreign_key_constraint(:zone_id)
@@ -81,7 +82,14 @@ defmodule Elektrine.DNS.Record do
 
   defp normalize_name(nil), do: nil
   defp normalize_name(""), do: "@"
-  defp normalize_name(name), do: name |> String.trim() |> String.downcase()
+
+  defp normalize_name(name) do
+    case name |> String.trim() |> String.trim_trailing(".") |> String.downcase() do
+      "" -> "@"
+      "\\@" -> "@"
+      normalized -> normalized
+    end
+  end
 
   defp normalize_type(nil), do: nil
   defp normalize_type(type), do: type |> String.trim() |> String.upcase()
@@ -157,6 +165,13 @@ defmodule Elektrine.DNS.Record do
 
       _ ->
         changeset
+    end
+  end
+
+  defp validate_cname_constraints(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :name)} do
+      {"CNAME", "@"} -> add_error(changeset, :type, "cannot be used at the zone apex")
+      _ -> changeset
     end
   end
 

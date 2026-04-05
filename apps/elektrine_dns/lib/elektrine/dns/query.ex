@@ -172,6 +172,7 @@ defmodule Elektrine.DNS.Query do
           record_name(zone, record) == fqdn and
             (qtype == :any or normalize_type(record.type) == qtype)
         end)
+        |> Enum.map(&with_record_host(zone, &1))
 
       if exact_records != [] do
         exact_records
@@ -197,6 +198,7 @@ defmodule Elektrine.DNS.Query do
     |> Enum.filter(fn record ->
       record_name(zone, record) == fqdn and normalize_type(record.type) == :cname
     end)
+    |> Enum.map(&with_record_host(zone, &1))
   end
 
   defp name_exists?(zone, qname) do
@@ -229,6 +231,7 @@ defmodule Elektrine.DNS.Query do
     |> Enum.filter(fn record ->
       record_name(zone, record) in targets and normalize_type(record.type) in [:a, :aaaa]
     end)
+    |> Enum.map(&with_record_host(zone, &1))
   end
 
   defp record_name(_zone, %{host: host}), do: normalize_name(host)
@@ -268,9 +271,14 @@ defmodule Elektrine.DNS.Query do
           record_name(zone, record) == wildcard_name and
             (qtype == :any or normalize_type(record.type) == qtype)
         end)
+        |> Enum.map(&with_record_host(zone, &1))
 
       if records == [], do: nil, else: records
     end)
+  end
+
+  defp with_record_host(zone, record) do
+    Map.put(record, :host, record_name(zone, record))
   end
 
   defp wildcard_candidates(fqdn, zone_domain) do

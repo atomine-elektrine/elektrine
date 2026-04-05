@@ -557,7 +557,15 @@ defmodule Elektrine.DNS do
   end
 
   defp normalize_record_name(name, zone_domain) when is_binary(name) do
-    normalized_name = name |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+    normalized_name =
+      name
+      |> String.trim()
+      |> String.trim_trailing(".")
+      |> String.downcase()
+      |> case do
+        "\\@" -> "@"
+        value -> value
+      end
 
     normalized_zone =
       zone_domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()

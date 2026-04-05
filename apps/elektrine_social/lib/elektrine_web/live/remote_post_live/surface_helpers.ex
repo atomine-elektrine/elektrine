@@ -61,19 +61,18 @@ defmodule ElektrineWeb.RemotePostLive.SurfaceHelpers do
 
   def ancestor_role_label(index, total) when is_integer(index) and is_integer(total) do
     cond do
-      total <= 1 -> "Parent"
-      index == 0 -> "Root"
-      index == total - 1 -> "Parent"
-      true -> "Ancestor #{index + 1}"
+      total <= 1 -> "Replying to"
+      index == total - 1 -> "Replying to"
+      true -> "Earlier context"
     end
   end
 
-  def ancestor_role_label(_, _), do: "Ancestor"
+  def ancestor_role_label(_, _), do: "Earlier context"
 
-  def ancestor_role_badge_class("Root"),
+  def ancestor_role_badge_class("Earlier context"),
     do: "badge-info border-info/50 bg-info/10 text-info-content"
 
-  def ancestor_role_badge_class("Parent"),
+  def ancestor_role_badge_class("Replying to"),
     do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
 
   def ancestor_role_badge_class(_),
