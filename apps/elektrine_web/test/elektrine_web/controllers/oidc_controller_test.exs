@@ -4,6 +4,10 @@ defmodule ElektrineWeb.OIDCControllerTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.OAuth
+  alias Elektrine.OAuth.App
+
+  @pkce_verifier "challenge-123"
+  @pkce_challenge :crypto.hash(:sha256, @pkce_verifier) |> Base.url_encode64(padding: false)
 
   describe "openid configuration" do
     test "serves discovery metadata", %{conn: conn} do
@@ -54,7 +58,7 @@ defmodule ElektrineWeb.OIDCControllerTest do
       conn =
         get(
           conn,
-          ~p"/oauth/authorize?client_id=#{app.client_id}&response_type=code&scope=openid%20profile&code_challenge=challenge-123&code_challenge_method=plain"
+          ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile&state=state-123&code_challenge=#{@pkce_challenge}&code_challenge_method=S256"
         )
 
       assert redirected_to(conn) == "/login"
@@ -75,7 +79,7 @@ defmodule ElektrineWeb.OIDCControllerTest do
       authorize_conn =
         get(
           conn,
-          ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile%20email&state=state-123&nonce=nonce-abc&code_challenge=challenge-123&code_challenge_method=plain"
+          ~p"/oauth/authorize?client_id=#{app.client_id}&redirect_uri=https://client.example/callback&response_type=code&scope=openid%20profile%20email&state=state-123&nonce=nonce-abc&code_challenge=#{@pkce_challenge}&code_challenge_method=S256"
         )
 
       assert html_response(authorize_conn, 200) =~ "Citizen Console"
@@ -89,8 +93,8 @@ defmodule ElektrineWeb.OIDCControllerTest do
           "scope" => "openid profile email",
           "state" => "state-123",
           "nonce" => "nonce-abc",
-          "code_challenge" => "challenge-123",
-          "code_challenge_method" => "plain"
+          "code_challenge" => @pkce_challenge,
+          "code_challenge_method" => "S256"
         })
 
       redirect_url = redirected_to(approval_conn, 302)
@@ -103,10 +107,10 @@ defmodule ElektrineWeb.OIDCControllerTest do
         |> post(~p"/oauth/token", %{
           "grant_type" => "authorization_code",
           "client_id" => app.client_id,
-          "client_secret" => app.client_secret,
+          "client_secret" => App.client_secret_value(app),
           "code" => code,
           "redirect_uri" => "https://client.example/callback",
-          "code_verifier" => "challenge-123"
+          "code_verifier" => @pkce_verifier
         })
 
       assert %{
@@ -143,7 +147,7 @@ defmodule ElektrineWeb.OIDCControllerTest do
         |> post(~p"/oauth/token", %{
           "grant_type" => "refresh_token",
           "client_id" => app.client_id,
-          "client_secret" => app.client_secret,
+          "client_secret" => App.client_secret_value(app),
           "refresh_token" => refresh_token
         })
 
@@ -217,7 +221,8 @@ defmodule ElektrineWeb.OIDCControllerTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
     conn

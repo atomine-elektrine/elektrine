@@ -94,7 +94,7 @@ defmodule Elektrine.MessagingEncryptionTest do
 
     test "stores media message captions as plaintext", %{user1: user1, conversation: conversation} do
       content = "Check out this photo!"
-      media_urls = ["attachments/photo.jpg"]
+      media_urls = ["attachments/#{user1.id}_photo.jpg"]
 
       {:ok, message} =
         Messaging.create_media_message(
@@ -113,7 +113,7 @@ defmodule Elektrine.MessagingEncryptionTest do
     end
 
     test "handles empty content gracefully", %{user1: user1, conversation: conversation} do
-      media_urls = ["attachments/photo.jpg"]
+      media_urls = ["attachments/#{user1.id}_photo.jpg"]
 
       {:ok, message} =
         Messaging.create_media_message(

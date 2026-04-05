@@ -78,7 +78,7 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert conn.resp_body =~ "https://#{custom_domain}"
     end
 
-    test "verified custom domains ignore static-site mode and render the profile page", %{
+    test "verified custom domains serve the static site when static mode is enabled", %{
       conn: conn,
       user: user,
       profile: profile
@@ -110,8 +110,8 @@ defmodule ElektrineWeb.ProfileControllerTest do
         |> get("/")
 
       assert conn.status == 200
-      assert conn.resp_body =~ "Test User"
-      refute conn.resp_body =~ "STATIC SITE"
+      assert conn.resp_body =~ "STATIC SITE"
+      refute conn.resp_body =~ "Test User"
 
       assert Repo.reload!(profile).profile_mode == "static"
     end
@@ -225,7 +225,7 @@ defmodule ElektrineWeb.ProfileControllerTest do
         |> post("/profiles/#{target_user.handle}/follow")
 
       assert redirected_to(conn) == "/#{target_user.handle}"
-      assert get_flash(conn, :info) == "Followed @#{target_user.handle}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Followed @#{target_user.handle}"
       assert Profiles.following?(follower.id, target_user.id)
     end
 
@@ -239,7 +239,7 @@ defmodule ElektrineWeb.ProfileControllerTest do
         |> delete("/profiles/#{target_user.handle}/follow")
 
       assert redirected_to(conn) == "/#{target_user.handle}"
-      assert get_flash(conn, :info) == "Unfollowed @#{target_user.handle}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) == "Unfollowed @#{target_user.handle}"
       refute Profiles.following?(follower.id, target_user.id)
     end
   end
@@ -277,7 +277,8 @@ defmodule ElektrineWeb.ProfileControllerTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
     conn

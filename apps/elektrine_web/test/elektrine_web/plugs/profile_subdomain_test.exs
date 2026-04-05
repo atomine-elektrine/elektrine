@@ -288,34 +288,26 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   end
 
   describe "forwarded host headers" do
-    test "uses x-forwarded-host header when present" do
+    test "ignores x-forwarded-host header when present" do
       conn =
         Plug.Test.conn(:get, "/")
         |> Map.put(:host, "internal-server")
         |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.example.com")
         |> ProfileSubdomain.call([])
 
-      assert conn.assigns[:subdomain_handle] == "maxfield"
+      refute conn.assigns[:subdomain_handle]
+      assert conn.host == "internal-server"
     end
 
-    test "prioritizes subdomain host over main domain in forwarded headers" do
+    test "ignores comma-separated forwarded host values" do
       conn =
         Plug.Test.conn(:get, "/")
         |> Map.put(:host, "example.com")
         |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.example.com, example.com")
         |> ProfileSubdomain.call([])
 
-      assert conn.assigns[:subdomain_handle] == "maxfield"
-    end
-
-    test "prioritizes example.com subdomain host over main domain in forwarded headers" do
-      conn =
-        Plug.Test.conn(:get, "/")
-        |> Map.put(:host, "example.com")
-        |> Plug.Conn.put_req_header("x-forwarded-host", "maxfield.example.com, example.com")
-        |> ProfileSubdomain.call([])
-
-      assert conn.assigns[:subdomain_handle] == "maxfield"
+      refute conn.assigns[:subdomain_handle]
+      assert conn.host == "example.com"
     end
   end
 

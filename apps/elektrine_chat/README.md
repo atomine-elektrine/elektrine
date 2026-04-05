@@ -2,18 +2,18 @@
 
 Chat application boundary for the Elektrine umbrella.
 
-## What this app owns
+## What lives here
 
 - Chat-facing API surface used by web/mobile chat clients
-- Chat migration boundary away from the core `elektrine` app
-- Extracted Phoenix chat surface:
-  `/chat` LiveView, chat JSON APIs, PAT chat API, and admin Arblarg chat views
+- Chat LiveView surface, chat JSON APIs, PAT chat API, and admin Arblarg chat views
+- Chat-specific components and web helpers in `ElektrineChatWeb.*` and `ElektrineWeb.*`
 
 ## Notes
 
-- During migration, this app delegates behavior to `Elektrine.Messaging`.
+- The public facade is `ElektrineChat`.
+- Domain calls still delegate to `Elektrine.Messaging` today.
 - Reuses shared layouts/components from `elektrine_web` as the host shell.
-- Call sites should prefer `ElektrineChat` instead of `Elektrine.Messaging`.
+- Router-mounted modules in this app still use the shared `ElektrineWeb.*` namespace where that keeps route integration simple.
 
 ## License
 

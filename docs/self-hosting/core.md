@@ -3,6 +3,10 @@
 `core` is the default self-host profile. It includes the Phoenix app and
 Postgres only.
 
+This doc refers to the plain app-plus-Postgres baseline in
+`deploy/docker/compose.core.yml`. If you use `scripts/deploy/docker_deploy.sh`
+without overriding profiles, that wrapper defaults to `caddy`.
+
 It does not include:
 
 - Haraka
@@ -14,24 +18,23 @@ It does not include:
 
 1. Copy `.env.example` to `.env.production` and fill in real values.
 2. Keep `DATABASE_SSL_ENABLED=false` if you are using the bundled Docker Postgres service.
-3. Start the stack:
+3. Start the core stack:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault
+docker compose --env-file .env.production -f deploy/docker/compose.core.yml up -d --build
 ```
 
-4. Run migrations once the database is healthy:
-
-```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --skip-up
-```
+4. If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
+That path is for the generated multi-service stack and defaults to `caddy`
+unless you override profiles.
 
 ## Add-ons
 
-- add Caddy with `--profile caddy`
-- add self-hosted STUN/TURN for chat calls with `--profile turn`
-- add Docker-managed WireGuard with `--modules chat,social,vault,vpn`
-- add Bluesky PDS with `-f deploy/docker/compose.bluesky.yml`
+- Add Caddy with `--profile caddy`
+- Add self-hosted STUN/TURN for chat calls with `--profile turn`
+- Add Docker-managed WireGuard with `--modules chat,social,vault,vpn`
+- Add the dedicated DNS service with `--profile dns`
+- Add the Bluesky PDS with `--profile bluesky`
 
 See `mail.md`, `turn.md`, `vpn.md`, and `../addons/onion.md` for the optional
 services.

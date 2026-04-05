@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.CaddyTLSController do
   use ElektrineWeb, :controller
 
+  alias Elektrine.Accounts
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
@@ -82,9 +83,23 @@ defmodule ElektrineWeb.CaddyTLSController do
     profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
 
     host in Enum.reject(exact_domains, &is_nil/1) or
-      Enum.any?(profile_base_domains, fn base_domain ->
-        base_domain = to_string(base_domain)
-        String.ends_with?(host, "." <> base_domain)
-      end)
+      built_in_profile_host?(host, profile_base_domains)
+  end
+
+  defp built_in_profile_host?(host, profile_base_domains) do
+    Enum.any?(profile_base_domains, fn base_domain ->
+      base_domain = to_string(base_domain)
+
+      with true <- String.ends_with?(host, "." <> base_domain),
+           suffix = "." <> base_domain,
+           handle when handle not in [nil, ""] <-
+             host |> String.trim_trailing(suffix) |> String.trim(),
+           false <- String.contains?(handle, "."),
+           %{} <- Accounts.get_user_by_handle(handle) do
+        true
+      else
+        _ -> false
+      end
+    end)
   end
 end

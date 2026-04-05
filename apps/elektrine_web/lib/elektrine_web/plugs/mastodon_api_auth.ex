@@ -45,7 +45,7 @@ defmodule ElektrineWeb.Plugs.MastodonAPIAuth do
       {:error, reason} ->
         conn
         |> put_status(:unauthorized)
-        |> Phoenix.Controller.put_view(json: ElektrineWeb.MastodonAPI.ErrorView)
+        |> Phoenix.Controller.put_view(json: ElektrineSocialWeb.MastodonAPI.ErrorView)
         |> Phoenix.Controller.render(:error, error: error_message(reason))
         |> halt()
     end

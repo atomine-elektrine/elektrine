@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.TimelineLive.ReplyContextPreviewsTest do
+defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviewsTest do
   use Elektrine.DataCase, async: true
 
-  alias ElektrineWeb.TimelineLive.ReplyContextPreviews
+  alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
 
   test "candidate_refs returns only replies missing preview content" do
     posts = [

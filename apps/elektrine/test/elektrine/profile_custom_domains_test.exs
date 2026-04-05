@@ -108,7 +108,7 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     records = Profiles.dns_records_for_custom_domain(custom_domain)
 
     assert Enum.any?(records, fn record ->
-             record.type == "ALIAS/CNAME" and
+             record.type == "ALIAS" and
                record.host == "futureproof.example" and
                record.value == "profiles.edge.example"
            end)
@@ -125,7 +125,7 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     records = Profiles.dns_records_for_custom_domain(custom_domain)
 
     assert Enum.any?(records, fn record ->
-             record.type == "ALIAS/CNAME" and
+             record.type == "ALIAS" and
                record.host == "fallback.example" and
                record.value == Domains.profile_custom_domain_routing_target()
            end)

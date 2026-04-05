@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.RemotePostLiveShowTest do
+defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -8,7 +8,7 @@ defmodule ElektrineWeb.RemotePostLiveShowTest do
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
-  alias ElektrineWeb.RemotePostLive.Show
+  alias ElektrineSocialWeb.RemotePostLive.Show
 
   test "renders custom emoji in remote comment author display name" do
     actor =

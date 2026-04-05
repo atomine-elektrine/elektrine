@@ -1,33 +1,34 @@
 # Elektrine
 
-Elektrine is an Elixir umbrella application. The shared platform core lives in
-`apps/elektrine`, the Phoenix shell lives in `apps/elektrine_web`, and each
-product area ships as a separate umbrella app.
+Elektrine is an Elixir umbrella app. Shared runtime and persistence live in
+`apps/elektrine`, the Phoenix host app lives in `apps/elektrine_web`, and the
+product areas are split into their own umbrella apps.
 
 ## Layout
 
 - `apps/`: umbrella apps
-- `clients/`: client artifacts that are not part of the server deploy
+- `clients/`: client-side artifacts that are not shipped with the server release
 - `config/`: shared compile-time and runtime config
-- `deploy/`: Docker, Fly, edge, onion, and installer assets
-- `docs/`: platform, protocol, and deployment docs
-- `env/`: environment examples
-- `release_builder/`: subset release tooling
+- `deploy/`: Docker, Caddy, onion, and VPN deploy assets
+- `docs/`: architecture, protocol, and self-hosting docs
+- `env/`: example environment files
+- `release_builder/`: module-aware release build project
 - `scripts/`: release, deploy, and ops helpers
 
 ## Main apps
 
-- `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts, uploads, notifications, calendar, and the module registry
-- `apps/elektrine_web`: endpoint, router, plugs, layouts, admin shell, and shared web components
-- `apps/elektrine_chat`: chat UI and API
+- `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts, uploads, notifications, calendar, and module selection
+- `apps/elektrine_web`: endpoint, router, plugs, layouts, shared components, and the host shell
+- `apps/elektrine_chat`: chat facade plus chat LiveView and API surface
 - `apps/elektrine_social`: timeline, communities, federation, and social web surface
 - `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and email web surface
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
-- `apps/elektrine_password_manager`: password vault
+- `apps/elektrine_password_manager`: password vault domain and extracted vault routes
+- `apps/elektrine_dns`: managed DNS runtime, DNS API, and DNS LiveView surface
 
 Requests enter through `ElektrineWeb.Router`, pass through shared plugs and
-module guards, and then land in the controller or LiveView owned by the
-relevant app. Persistence stays centralized in `Elektrine.Repo`.
+module guards, and then land in the controller or LiveView mounted for the
+selected feature set. Persistence stays centralized in `Elektrine.Repo`.
 
 ## Identity Provider
 
@@ -55,6 +56,10 @@ Normal deployments use one public module switch:
 - release builds default to that same module list
 - `ELEKTRINE_RELEASE_MODULES` still exists as an advanced override when you need
   to compile more modules than you expose at runtime
+
+Supported module ids are `chat`, `social`, `email`, `vault`, `vpn`, and `dns`.
+`password-manager` and `password_manager` are accepted aliases for `vault` in
+the deploy scripts.
 
 In normal use, set `ELEKTRINE_ENABLED_MODULES` and leave
 `ELEKTRINE_RELEASE_MODULES` unset.
@@ -85,19 +90,20 @@ mix test apps/elektrine_email/test
 mix test apps/elektrine_social/test
 mix test apps/elektrine_vpn/test
 mix test apps/elektrine_password_manager/test
+mix test apps/elektrine_dns/test
 ```
 
 Frontend assets live under `apps/elektrine/assets`.
 
 ## Build And Deploy
 
-The supported path for hosted or subset installs is the subset builder:
+The supported path for hosted or subset installs is the release builder:
 
 ```bash
 scripts/release/deploy_release.sh --modules email,vpn
 ```
 
-This builds assets, selects the requested module apps, and writes the release
+This builds assets, selects the requested feature apps, and writes the release
 to `_deploy_release/`. `deploy/docker/Dockerfile` uses the same path.
 
 For Docker deployments, use the wrapper instead of invoking `docker compose`
@@ -123,6 +129,7 @@ The self-hosting docs are split by profile:
 
 - `core`: Phoenix app and Postgres only
 - `mail`: Haraka deployment layered on top of the `email` module
+- `dns`: optional authoritative DNS service enabled through the Docker `dns` profile
 - `vpn`: optional Docker-managed WireGuard on the same stack, with optional fleet mode
 - `addons`: Caddy edge, Bluesky PDS, onion hosting, and client artifacts
 
@@ -132,6 +139,7 @@ Start with:
 - `docs/self-hosting/docker.md`
 - `docs/self-hosting/core.md`
 - `docs/self-hosting/mail.md`
+- `docs/architecture/dns-module.md`
 - `docs/self-hosting/vpn.md`
 - `docs/addons/onion.md`
 - `docs/clients/password-manager-extension.md`

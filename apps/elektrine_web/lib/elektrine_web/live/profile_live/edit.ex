@@ -66,6 +66,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:selected_platform, "custom")
      |> assign(:static_site_files, static_site_files)
      |> assign(:static_site_storage, static_site_storage)
+     |> assign(:static_site_limit, user.storage_limit_bytes || 524_288_000)
      |> assign(:drag_over, false)
      |> assign(:editing_file, nil)
      |> assign(:file_content, nil)
@@ -926,13 +927,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
                 Logger.info("Successfully uploaded #{count} files")
                 {:ok, {:success, count}}
 
-              {:error, reason} ->
-                Logger.error("Upload failed: #{inspect(reason)}")
-                {:ok, {:error, reason}}
-
               {:error, :partial_upload, errors} ->
                 Logger.error("Partial upload, errors: #{inspect(errors)}")
                 {:ok, {:error, :partial_upload}}
+
+              {:error, reason} ->
+                Logger.error("Upload failed: #{inspect(reason)}")
+                {:ok, {:error, reason}}
             end
 
           {:error, reason} ->
@@ -957,10 +958,16 @@ defmodule ElektrineWeb.ProfileLive.Edit do
          |> notify_info("Site published. Uploaded #{count} files successfully")}
 
       [{:error, :storage_limit_exceeded}] ->
-        {:noreply, notify_error(socket, "Storage limit exceeded (50MB max)")}
+        {:noreply, notify_error(socket, "Storage limit exceeded")}
 
       [{:error, :file_limit_exceeded}] ->
-        {:noreply, notify_error(socket, "File limit exceeded (100 files max)")}
+        {:noreply, notify_error(socket, "File limit exceeded (1000 files max)")}
+
+      [{:error, {:upload_failed, reason}}] ->
+        {:noreply, notify_error(socket, "Storage backend error: #{inspect(reason)}")}
+
+      [{:error, :partial_upload}] ->
+        {:noreply, notify_error(socket, "Only part of the site uploaded")}
 
       [{:error, _reason}] ->
         {:noreply, notify_error(socket, "Failed to upload static site")}

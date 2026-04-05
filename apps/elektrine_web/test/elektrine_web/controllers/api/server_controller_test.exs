@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.API.ServerControllerTest do
+defmodule ElektrineChatWeb.API.ServerControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures

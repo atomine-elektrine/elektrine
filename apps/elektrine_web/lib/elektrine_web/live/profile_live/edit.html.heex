@@ -2670,7 +2670,8 @@
                     %{label: "Files", value: static_file_count},
                     %{
                       label: "Storage",
-                      value: "#{format_bytes(@static_site_storage || 0)} / 1 GB"
+                      value:
+                        "#{format_bytes(@static_site_storage || 0)} / #{format_bytes(@static_site_limit || 0)}"
                     }
                   ]} />
                   <.action_toolbar>
@@ -2861,14 +2862,16 @@
                     <div class="mb-2 flex justify-between text-sm">
                       <span class="text-base-content/70">Storage used</span>
                       <span class="font-mono text-base-content/85">
-                        {format_bytes(@static_site_storage || 0)} / 1 GB
+                        {format_bytes(@static_site_storage || 0)} / {format_bytes(
+                          @static_site_limit || 0
+                        )}
                       </span>
                     </div>
 
                     <progress
                       class="progress progress-primary w-full"
                       value={@static_site_storage || 0}
-                      max={1_000_000_000}
+                      max={@static_site_limit || 524_288_000}
                     />
                   </div>
                 </div>

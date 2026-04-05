@@ -43,6 +43,22 @@ defmodule ElektrineWeb.PrivateAttachmentControllerTest do
     assert get_resp_header(conn, "content-disposition") == ["inline; filename=\"private.txt\""]
   end
 
+  test "forces download for active content types", %{conn: conn, tmp_dir: tmp_dir} do
+    filepath = Path.join([tmp_dir, "chat-attachments", "private.html"])
+    File.write!(filepath, "<script>alert('xss')</script>")
+
+    url = Uploads.attachment_url("chat-attachments/private.html", %{type: "dm"})
+
+    conn = get(conn, url)
+
+    assert response(conn, 200) == "<script>alert('xss')</script>"
+    assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+
+    assert get_resp_header(conn, "content-disposition") == [
+             "attachment; filename=\"private.html\""
+           ]
+  end
+
   test "rejects invalid private attachment tokens", %{conn: conn} do
     conn = get(conn, "/api/private-attachments/invalid-token")
 

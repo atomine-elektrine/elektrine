@@ -7,7 +7,8 @@ The deploy flow is intentionally small:
 
 1. set `PRIMARY_DOMAIN`
 2. set `ELEKTRINE_MASTER_SECRET`
-3. deploy with `--profile turn`
+3. set `TURN_SHARED_SECRET`
+4. deploy with `--profile turn`
 
 Example:
 
@@ -19,8 +20,7 @@ What the profile does:
 
 - starts a coturn daemon on the host network
 - uses `PRIMARY_DOMAIN` as the default TURN/STUN hostname
-- derives REST auth credentials from `TURN_SHARED_SECRET` if set, otherwise from
-  `ELEKTRINE_MASTER_SECRET`
+- uses `TURN_SHARED_SECRET` for TURN REST auth credentials
 - makes the app advertise your own ICE servers to WebRTC clients automatically
 
 Defaults:

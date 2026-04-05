@@ -20,6 +20,7 @@ defmodule ElektrineWeb.UserAuth do
   @max_age Constants.session_max_age_seconds()
   @remember_me_cookie "_elektrine_web_user_remember_me"
   @remember_me_options [sign: true, max_age: @max_age, same_site: "Lax", http_only: true]
+  @recent_auth_session_key :user_recent_auth_at
 
   @doc """
   Logs the user in.
@@ -45,6 +46,7 @@ defmodule ElektrineWeb.UserAuth do
     conn
     |> renew_session()
     |> put_token_in_session(token)
+    |> mark_recent_auth()
     |> store_session_ip_for_admin(user, remote_ip)
     |> maybe_write_remember_me_cookie(token, user, params)
     |> maybe_put_session_values(opts[:session])
@@ -54,7 +56,9 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp maybe_put_flash(conn, nil), do: conn
-  defp maybe_put_flash(conn, {type, message}), do: put_flash(conn, type, message)
+
+  defp maybe_put_flash(conn, {type, message}),
+    do: conn |> ensure_flash_fetched() |> put_flash(type, message)
 
   @doc """
   Generates a login success flash message based on user state and auth method.
@@ -178,6 +182,23 @@ defmodule ElektrineWeb.UserAuth do
   defp put_token_in_session(conn, token) do
     put_session(conn, :user_token, token)
   end
+
+  def mark_recent_auth(conn) do
+    put_session(conn, @recent_auth_session_key, System.system_time(:second))
+  end
+
+  def recent_auth_session_key, do: @recent_auth_session_key
+
+  def recent_auth_ttl_seconds do
+    Application.get_env(:elektrine, :user_security, [])
+    |> Keyword.get(:recent_auth_ttl_seconds, 15 * 60)
+  end
+
+  def recent_auth_valid?(recent_auth_at) when is_integer(recent_auth_at) do
+    recent_auth_at + recent_auth_ttl_seconds() >= System.system_time(:second)
+  end
+
+  def recent_auth_valid?(_), do: false
 
   defp signed_in_path(_conn, user) do
     # Redirect to onboarding if not completed
@@ -305,6 +326,7 @@ defmodule ElektrineWeb.UserAuth do
           end
 
         conn
+        |> ensure_flash_fetched()
         |> put_flash(:error, message)
         |> log_out_user()
 
@@ -325,6 +347,7 @@ defmodule ElektrineWeb.UserAuth do
             end
 
           conn
+          |> ensure_flash_fetched()
           |> put_flash(:error, message)
           |> log_out_user()
         else
@@ -338,6 +361,7 @@ defmodule ElektrineWeb.UserAuth do
 
       nil ->
         conn
+        |> ensure_flash_fetched()
         |> put_flash(:error, "You must log in to access this page.")
         |> maybe_store_return_to()
         |> redirect(to: ~p"/login")
@@ -418,6 +442,7 @@ defmodule ElektrineWeb.UserAuth do
 
             {:error, reason, conn} ->
               conn
+              |> ensure_flash_fetched()
               |> put_flash(:error, AdminSecurity.error_message(reason))
               |> redirect(to: AdminSecurity.elevation_redirect_path(conn.request_path))
               |> halt()
@@ -496,5 +521,11 @@ defmodule ElektrineWeb.UserAuth do
 
   defp remember_me_options(conn) do
     Keyword.put(@remember_me_options, :secure, SessionConfig.secure_cookies?(conn))
+  end
+
+  defp ensure_flash_fetched(%Plug.Conn{assigns: %{flash: _}} = conn), do: conn
+
+  defp ensure_flash_fetched(conn) do
+    fetch_flash(conn, [])
   end
 end

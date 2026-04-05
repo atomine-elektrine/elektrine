@@ -27,7 +27,7 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "require_admin_access/2" do
-    test "rebinds admin session IP on mismatch instead of logging out", %{conn: conn} do
+    test "redirects admin to elevation when session IP changes", %{conn: conn} do
       user = user_fixture()
       {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})
       now = System.system_time(:second)
@@ -45,10 +45,13 @@ defmodule ElektrineWeb.UserAuthTest do
 
       conn = UserAuth.require_admin_access(conn, [])
 
+      assert conn.halted
       assert get_session(conn, :user_token) == "test-token"
-      assert get_session(conn, :admin_session_ip) == "203.0.113.25"
-      assert get_resp_header(conn, "location") == []
-      refute conn.halted
+
+      assert String.starts_with?(
+               hd(get_resp_header(conn, "location")),
+               "/pripyat/security/elevate"
+             )
     end
 
     test "redirects admin to elevation when elevation expires", %{conn: conn} do
@@ -87,7 +90,8 @@ defmodule ElektrineWeb.UserAuthTest do
         Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
           "user_id" => user.id,
           "password_changed_at" =>
-            DateTime.to_unix(DateTime.add(user.last_password_change, -60, :second))
+            DateTime.to_unix(DateTime.add(user.last_password_change, -60, :second)),
+          "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
         })
 
       conn =

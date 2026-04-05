@@ -2,7 +2,7 @@ defmodule ElektrineSocialWeb.Components.Social.FollowButton do
   @moduledoc """
   Shared follow button components for local users.
   """
-  use ElektrineWeb, :html
+  use ElektrineSocialWeb, :html
 
   attr :user_id, :integer, required: true
   attr :user_follows, :map, default: %{}

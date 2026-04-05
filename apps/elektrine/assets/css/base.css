@@ -75,8 +75,11 @@ body.has-blinkenlights { background-image: none !important;
 } .tilt-3d:hover { opacity: 0.8 !important; filter: brightness(1.5) drop-shadow(0 0 20px rgba(138, 124, 194, 0.42)) drop-shadow(0 0 40px rgba(138, 124, 194, 0.24)) drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
 } .hover-glow { transition: filter 0.3s ease, opacity 0.3s ease; will-change: filter, opacity; filter: drop-shadow(0 0 18px rgba(138, 124, 194, 0.2)) drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
 } .hover-glow:hover { opacity: 0.28 !important; filter: brightness(1.35) drop-shadow(0 0 20px rgba(138, 124, 194, 0.38)) drop-shadow(0 0 36px rgba(138, 124, 194, 0.18)) drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
-} .footer-wordmark-glow { opacity: 0.78;
+} .footer-brandmark { align-items: center; display: inline-flex; gap: 0.65rem; opacity: 0.94; filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.24));
+} .footer-brandmark-icon { flex: none; height: auto; opacity: 0.88; width: clamp(1.9rem, 8vw, 3.6rem);
+} .footer-wordmark-glow { -webkit-text-stroke: 1px rgba(255, 255, 255, 0.08); filter: drop-shadow(0 0 14px rgba(138, 124, 194, 0.14)) drop-shadow(0 4px 14px rgba(0, 0, 0, 0.2)); opacity: 0.92;
 } .footer-wordmark-glow:hover { opacity: 1 !important;
+} @media (max-width: 639px) { .footer-brandmark { gap: 0.45rem; opacity: 1; } .footer-brandmark-icon { opacity: 0.96; width: clamp(1.7rem, 10vw, 2.4rem); } .footer-wordmark-glow { -webkit-text-stroke-width: 1.15px; filter: drop-shadow(0 0 16px rgba(138, 124, 194, 0.18)) drop-shadow(0 3px 10px rgba(0, 0, 0, 0.28)); opacity: 1; }
 }
 
 :root {

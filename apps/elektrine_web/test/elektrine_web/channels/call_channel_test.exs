@@ -22,7 +22,7 @@ defmodule ElektrineWeb.CallChannelTest do
       })
       |> Repo.insert!()
 
-    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", caller.id)
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user_socket_claims(caller))
     {:ok, socket} = connect(UserSocket, %{"token" => token})
 
     {:ok, _join_payload, socket} =
@@ -84,7 +84,7 @@ defmodule ElektrineWeb.CallChannelTest do
       })
       |> Repo.insert!()
 
-    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user.id)
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user_socket_claims(user))
     {:ok, socket} = connect(UserSocket, %{"token" => token})
 
     {:ok, _join_payload, joined_socket} =
@@ -115,6 +115,18 @@ defmodule ElektrineWeb.CallChannelTest do
         "candidate:842163049 1 udp 1677729535 192.168.1.2 56143 typ srflx raddr 0.0.0.0 rport 0",
       "sdpMid" => "0",
       "sdpMLineIndex" => 0
+    }
+  end
+
+  defp user_socket_claims(user) do
+    %{
+      "user_id" => user.id,
+      "password_changed_at" => DateTime.to_unix(user.last_password_change, :second),
+      "auth_valid_after" =>
+        case user.auth_valid_after do
+          %DateTime{} = valid_after -> DateTime.to_unix(valid_after, :second)
+          _ -> 0
+        end
     }
   end
 end

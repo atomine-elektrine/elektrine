@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.MastodonAPI.InstanceControllerTest do
+defmodule ElektrineSocialWeb.MastodonAPI.InstanceControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   alias Elektrine.ActivityPub.Instance

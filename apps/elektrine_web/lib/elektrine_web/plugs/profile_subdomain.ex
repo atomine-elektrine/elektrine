@@ -41,11 +41,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     if bypass_subdomain_rewrite?(conn) do
       conn
     else
-      {host, _hosts} = get_request_host(conn)
-
-      conn =
-        conn
-        |> maybe_override_host(host)
+      host = request_host(conn)
 
       case extract_handle(host) do
         {:ok, handle, base_domain} ->
@@ -137,36 +133,6 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     end
   end
 
-  defp get_request_host(conn) do
-    forwarded_hosts =
-      [
-        "x-forwarded-host",
-        "x-original-host",
-        "x-host",
-        "cf-connecting-host",
-        "fly-forwarded-host"
-      ]
-      |> Enum.flat_map(&get_req_header(conn, &1))
-
-    hosts =
-      forwarded_hosts
-      |> Enum.flat_map(&parse_hosts/1)
-      |> Enum.concat(parse_hosts(forwarded_header_host(conn)))
-      |> Enum.concat(parse_hosts(conn.host))
-      |> Enum.reject(&(&1 == ""))
-
-    subdomain_host = Enum.find(hosts, &profile_subdomain_host?/1)
-
-    chosen = subdomain_host || Enum.max_by(hosts, &String.length/1, fn -> "" end)
-    {chosen, hosts}
-  end
-
-  defp profile_subdomain_host?(host) when is_binary(host) do
-    profile_base_domain(host) != nil
-  end
-
-  defp profile_subdomain_host?(_), do: false
-
   defp profile_base_domain(host) when is_binary(host) do
     normalized_host = String.downcase(host)
 
@@ -186,25 +152,10 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
 
   defp profile_base_domain(_), do: nil
 
-  defp parse_hosts(nil), do: []
+  defp request_host(%Plug.Conn{host: host}) when is_binary(host),
+    do: host |> String.downcase() |> String.split(":", parts: 2) |> List.first()
 
-  defp parse_hosts(host) when is_binary(host) do
-    host
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.map(&(String.split(&1, ":") |> List.first()))
-  end
-
-  defp maybe_override_host(conn, ""), do: conn
-
-  defp maybe_override_host(conn, host) do
-    if conn.host == host do
-      conn
-    else
-      %{conn | host: host}
-    end
-  end
+  defp request_host(_conn), do: ""
 
   defp bypass_subdomain_rewrite?(conn) do
     path = conn.request_path || ""
@@ -227,30 +178,6 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
       path in ["/favicon.ico", "/robots.txt", "/sitemap.xml"] -> true
       true -> false
     end
-  end
-
-  defp forwarded_header_host(conn) do
-    conn
-    |> get_req_header("forwarded")
-    |> List.first()
-    |> parse_forwarded_host()
-  end
-
-  defp parse_forwarded_host(nil), do: nil
-  defp parse_forwarded_host(""), do: nil
-
-  defp parse_forwarded_host(header) do
-    header
-    |> String.split(";")
-    |> Enum.find_value(fn segment ->
-      segment
-      |> String.trim()
-      |> String.split("=", parts: 2)
-      |> case do
-        ["host", value] -> String.trim(value, "\"")
-        _ -> nil
-      end
-    end)
   end
 
   defp asset_like_path?(path) when is_binary(path) do

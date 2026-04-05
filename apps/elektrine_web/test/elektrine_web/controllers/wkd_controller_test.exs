@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.WKDControllerTest do
+defmodule ElektrineEmailWeb.WKDControllerTest do
   use ElektrineWeb.ConnCase
 
   alias Elektrine.Accounts

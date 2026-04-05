@@ -204,6 +204,22 @@ defmodule Elektrine.DNS.QueryTest do
     assert response =~ <<203, 0, 113, 50>>
   end
 
+  test "returns servfail instead of crashing on invalid A record content" do
+    zone = %Zone{
+      domain: "invalid-a.example.com",
+      records: [
+        %Record{name: "@", type: "A", content: "not-an-ip", ttl: 300}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"invalid-a.example.com", zone})
+
+    response = Query.answer(build_query("invalid-a.example.com", 1))
+
+    assert header(response).ancount == 0
+    assert header(response).rcode == 2
+  end
+
   test "returns nxdomain for unknown names" do
     response = Query.answer(build_query("missing.example.com", 16))
     assert header(response).rcode == 3

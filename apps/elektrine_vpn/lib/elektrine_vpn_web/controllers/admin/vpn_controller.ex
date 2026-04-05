@@ -1,0 +1,301 @@
+defmodule ElektrineVPNWeb.Admin.VPNController do
+  use ElektrineVPNWeb, :controller
+
+  import Ecto.Query
+
+  plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
+
+  def dashboard(conn, _params) do
+    servers = Elektrine.VPN.list_servers()
+    self_host_server = Enum.find(servers, &Elektrine.VPN.self_host_server?/1)
+
+    # Get total stats
+    total_configs = Elektrine.Repo.aggregate(Elektrine.VPN.UserConfig, :count, :id)
+
+    total_active_configs =
+      from(uc in Elektrine.VPN.UserConfig, where: uc.status == "active")
+      |> Elektrine.Repo.aggregate(:count, :id)
+
+    # Calculate bandwidth analytics in SQL to avoid loading all configs into memory.
+    {total_bandwidth, total_quota} =
+      from(uc in Elektrine.VPN.UserConfig,
+        select:
+          {coalesce(sum(uc.quota_used_bytes), 0), coalesce(sum(uc.bandwidth_quota_bytes), 0)}
+      )
+      |> Elektrine.Repo.one()
+      |> case do
+        nil ->
+          {0, 0}
+
+        {bandwidth, quota} ->
+          {normalize_aggregate_total(bandwidth), normalize_aggregate_total(quota)}
+      end
+
+    quota_usage_percent = calculate_quota_usage_percent(total_bandwidth, total_quota)
+
+    # Get top bandwidth users
+    top_users =
+      from(uc in Elektrine.VPN.UserConfig,
+        where: uc.quota_used_bytes > 0,
+        order_by: [desc: uc.quota_used_bytes],
+        limit: 10,
+        preload: [:user, :vpn_server]
+      )
+      |> Elektrine.Repo.all()
+
+    user = conn.assigns.current_user
+    timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
+    time_format = if user && user.time_format, do: user.time_format, else: "12"
+
+    render(conn, :vpn_dashboard,
+      servers: servers,
+      self_host_server: self_host_server,
+      total_configs: total_configs,
+      total_active_configs: total_active_configs,
+      total_bandwidth: total_bandwidth,
+      quota_usage_percent: quota_usage_percent,
+      top_users: top_users,
+      timezone: timezone,
+      time_format: time_format
+    )
+  end
+
+  def new_server(conn, _params) do
+    changeset = Elektrine.VPN.change_server(%Elektrine.VPN.Server{})
+    render(conn, :new_vpn_server, changeset: changeset)
+  end
+
+  def create_server(conn, %{"server" => server_params}) do
+    # Generate API key for the server
+    api_key = :crypto.strong_rand_bytes(32) |> Base.encode64()
+    server_params = Map.put(server_params, "api_key", api_key)
+
+    case Elektrine.VPN.create_server(server_params) do
+      {:ok, _server} ->
+        conn
+        |> put_flash(:info, "VPN server created successfully! API Key: #{api_key}")
+        |> redirect(to: ~p"/pripyat/vpn")
+
+      {:error, changeset} ->
+        render(conn, :new_vpn_server, changeset: changeset)
+    end
+  end
+
+  def edit_server(conn, %{"id" => id}) do
+    server = Elektrine.VPN.get_server!(id)
+    changeset = Elektrine.VPN.change_server(server)
+    user = conn.assigns.current_user
+    timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
+    time_format = if user && user.time_format, do: user.time_format, else: "12"
+
+    render(conn, :edit_vpn_server,
+      server: server,
+      changeset: changeset,
+      timezone: timezone,
+      time_format: time_format
+    )
+  end
+
+  def update_server(conn, %{"id" => id, "server" => server_params}) do
+    server = Elektrine.VPN.get_server!(id)
+
+    case Elektrine.VPN.update_server(server, server_params) do
+      {:ok, updated_server} ->
+        # Invalidate cache when server config changes
+        Elektrine.VPN.PeerCache.invalidate(updated_server.id)
+
+        conn
+        |> put_flash(:info, "VPN server updated successfully")
+        |> redirect(to: ~p"/pripyat/vpn")
+
+      {:error, changeset} ->
+        user = conn.assigns.current_user
+        timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
+        time_format = if user && user.time_format, do: user.time_format, else: "12"
+
+        render(conn, :edit_vpn_server,
+          server: server,
+          changeset: changeset,
+          timezone: timezone,
+          time_format: time_format
+        )
+    end
+  end
+
+  def confirm_delete_server(conn, %{"id" => id}) do
+    server = Elektrine.VPN.get_server!(id)
+    user_config_count = Elektrine.VPN.count_server_user_configs(id)
+
+    render(conn, :confirm_delete_vpn_server,
+      server: server,
+      user_config_count: user_config_count
+    )
+  end
+
+  def delete_server(conn, %{"id" => id, "confirmed" => "true"}) do
+    server = Elektrine.VPN.get_server!(id)
+    user_config_count = Elektrine.VPN.count_server_user_configs(id)
+
+    case Elektrine.VPN.delete_server(server) do
+      {:ok, _server} ->
+        conn
+        |> put_flash(
+          :info,
+          "VPN server and #{user_config_count} user configuration(s) deleted successfully"
+        )
+        |> redirect(to: ~p"/pripyat/vpn")
+
+      {:error, _changeset} ->
+        conn
+        |> put_flash(:error, "Failed to delete server")
+        |> redirect(to: ~p"/pripyat/vpn")
+    end
+  end
+
+  def delete_server(conn, %{"id" => id}) do
+    # Redirect to confirmation page if not confirmed
+    redirect(conn, to: ~p"/pripyat/vpn/servers/#{id}/confirm-delete")
+  end
+
+  def users(conn, params) do
+    page = SafeConvert.parse_page(params)
+    per_page = 50
+    search_query = params |> Map.get("search", "") |> String.trim()
+    offset = (page - 1) * per_page
+
+    base_query =
+      from(uc in Elektrine.VPN.UserConfig,
+        preload: [:user, :vpn_server],
+        order_by: [desc: uc.inserted_at]
+      )
+
+    query =
+      if search_query == "" do
+        base_query
+      else
+        search_pattern = "%#{search_query}%"
+
+        from(uc in base_query,
+          join: u in assoc(uc, :user),
+          join: s in assoc(uc, :vpn_server),
+          where:
+            ilike(u.username, ^search_pattern) or
+              ilike(u.handle, ^search_pattern) or
+              ilike(s.name, ^search_pattern) or
+              ilike(uc.allocated_ip, ^search_pattern)
+        )
+      end
+
+    total_count = Elektrine.Repo.aggregate(query, :count, :id)
+    total_pages = ceil(total_count / per_page)
+
+    user_configs =
+      query
+      |> limit(^per_page)
+      |> offset(^offset)
+      |> Elektrine.Repo.all()
+
+    user = conn.assigns.current_user
+    timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
+    time_format = if user && user.time_format, do: user.time_format, else: "12"
+
+    render(conn, :vpn_users,
+      user_configs: user_configs,
+      page: page,
+      search_query: search_query,
+      total_pages: total_pages,
+      total_count: total_count,
+      timezone: timezone,
+      time_format: time_format
+    )
+  end
+
+  def edit_user_config(conn, %{"id" => id}) do
+    config =
+      Elektrine.VPN.UserConfig
+      |> Elektrine.Repo.get!(id)
+      |> Elektrine.Repo.preload([:user, :vpn_server])
+
+    changeset = Elektrine.VPN.UserConfig.changeset(config, %{})
+
+    render(conn, :edit_vpn_user_config, config: config, changeset: changeset)
+  end
+
+  def update_user_config(conn, %{"id" => id, "config" => config_params}) do
+    config =
+      Elektrine.VPN.UserConfig
+      |> Elektrine.Repo.get!(id)
+      |> Elektrine.Repo.preload([:user, :vpn_server])
+
+    # Convert GB to bytes for quota
+    config_params =
+      if quota_gb = config_params["bandwidth_quota_gb"] do
+        quota_bytes = (String.to_float(quota_gb) * 1_073_741_824) |> round()
+        Map.put(config_params, "bandwidth_quota_bytes", quota_bytes)
+      else
+        config_params
+      end
+
+    changeset = Elektrine.VPN.UserConfig.changeset(config, config_params)
+
+    case Elektrine.Repo.update(changeset) do
+      {:ok, _config} ->
+        # Invalidate cache so changes take effect immediately
+        Elektrine.VPN.PeerCache.invalidate(config.vpn_server_id)
+
+        conn
+        |> put_flash(:info, "VPN configuration updated successfully")
+        |> redirect(to: ~p"/pripyat/vpn/users")
+
+      {:error, changeset} ->
+        render(conn, :edit_vpn_user_config, config: config, changeset: changeset)
+    end
+  end
+
+  def reset_user_quota(conn, %{"id" => id}) do
+    config = Elektrine.Repo.get!(Elektrine.VPN.UserConfig, id)
+
+    changeset =
+      Elektrine.VPN.UserConfig.changeset(config, %{
+        quota_used_bytes: 0,
+        quota_period_start: DateTime.utc_now(),
+        status: "active"
+      })
+
+    case Elektrine.Repo.update(changeset) do
+      {:ok, config} ->
+        # Invalidate cache so user can reconnect immediately
+        Elektrine.VPN.PeerCache.invalidate(config.vpn_server_id)
+
+        conn
+        |> put_flash(:info, "Quota reset successfully")
+        |> redirect(to: ~p"/pripyat/vpn/users")
+
+      {:error, _changeset} ->
+        conn
+        |> put_flash(:error, "Failed to reset quota")
+        |> redirect(to: ~p"/pripyat/vpn/users")
+    end
+  end
+
+  defp normalize_aggregate_total(nil), do: 0
+  defp normalize_aggregate_total(value) when is_integer(value), do: value
+  defp normalize_aggregate_total(value) when is_float(value), do: round(value)
+
+  defp normalize_aggregate_total(%Decimal{} = value) do
+    value
+    |> Decimal.round(0)
+    |> Decimal.to_integer()
+  end
+
+  defp calculate_quota_usage_percent(total_bandwidth, total_quota) do
+    bandwidth = normalize_aggregate_total(total_bandwidth)
+    quota = normalize_aggregate_total(total_quota)
+
+    if quota > 0 do
+      round(bandwidth / quota * 100)
+    else
+      0
+    end
+  end
+end

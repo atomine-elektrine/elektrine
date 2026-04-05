@@ -941,21 +941,25 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
 
         case Messaging.admin_delete_message(message_id, socket.assigns.current_user) do
           {:ok, _message} ->
-            if socket.assigns.selected_report do
-              Reports.review_report(socket.assigns.selected_report, %{
-                status: "resolved",
-                action_taken: "content_removed",
-                reviewed_by_id: socket.assigns.current_user.id,
-                resolution_notes: "Message deleted by admin from reports dashboard"
-              })
-            end
+            case maybe_resolve_reports_after_message_delete(
+                   message_id,
+                   socket.assigns.current_user.id
+                 ) do
+              :ok ->
+                {:noreply,
+                 socket
+                 |> put_flash(:info, "Message deleted")
+                 |> assign(:selected_report, nil)
+                 |> load_reports()
+                 |> load_stats()}
 
-            {:noreply,
-             socket
-             |> put_flash(:info, "Message deleted")
-             |> assign(:selected_report, nil)
-             |> load_reports()
-             |> load_stats()}
+              {:error, _reason} ->
+                {:noreply,
+                 socket
+                 |> put_flash(:error, "Message deleted, but the report could not be resolved")
+                 |> load_reports()
+                 |> load_stats()}
+            end
 
           {:error, :already_deleted} ->
             {:noreply, put_flash(socket, :error, "Message has already been deleted")}
@@ -986,6 +990,24 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
   end
 
   # Private Functions
+
+  defp maybe_resolve_reports_after_message_delete(message_id, reviewer_id) do
+    reports =
+      Reports.get_reports_for("message", message_id)
+      |> Enum.filter(&(&1.status in ["pending", "reviewing"]))
+
+    Enum.reduce_while(reports, :ok, fn report, :ok ->
+      case Reports.review_report(Reports.get_report!(report.id), %{
+             status: "resolved",
+             action_taken: "content_removed",
+             reviewed_by_id: reviewer_id,
+             resolution_notes: "Message deleted by admin from reports dashboard"
+           }) do
+        {:ok, _updated_report} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
 
   defp load_reports(socket, filters \\ %{}) do
     filters =

@@ -12,6 +12,7 @@ defmodule ElektrineWeb.DAV.CalendarController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Calendar
+  alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.DAV.{Properties, ResponseHelpers}
 
   import SweetXml
@@ -528,7 +529,6 @@ defmodule ElektrineWeb.DAV.CalendarController do
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"
-    port = if conn.port in [80, 443], do: "", else: ":#{conn.port}"
-    "#{scheme}://#{conn.host}#{port}"
+    CanonicalURL.base_url(scheme)
   end
 end

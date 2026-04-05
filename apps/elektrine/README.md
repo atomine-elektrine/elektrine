@@ -2,20 +2,22 @@
 
 Core domain app for the Elektrine umbrella.
 
-## What this app owns
+## What lives here
 
 - Accounts, auth, and privacy settings
-- Shared persistence/runtime services consumed by other umbrella apps
+- Shared persistence and runtime services consumed by the other umbrella apps
 - ActivityPub domain logic and delivery workers
 - Calendar, contacts, profiles, notifications, and uploads
-- Repo/runtime services used by other umbrella apps
+- Module selection and shared platform wiring
 
-Chat-facing app API now lives in `../elektrine_chat`.
+This app still carries a large share of the cross-product domain code. Other
+apps depend on it for `Elektrine.Repo`, shared schemas, and shared services.
 
 ## Notes
 
-- `elektrine` is the main dependency for other umbrella apps.
+- `elektrine` is the main dependency for the feature apps.
 - Migrations for core domain tables live under `apps/elektrine/priv/repo/migrations`.
+- Chat call sites should prefer `ElektrineChat` over reaching into `Elektrine.Messaging` directly.
 
 ## License
 

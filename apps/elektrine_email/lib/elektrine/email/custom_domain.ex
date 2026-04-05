@@ -15,7 +15,7 @@ defmodule Elektrine.Email.CustomDomain do
     field :verification_token, :string
     field :dkim_selector, :string
     field :dkim_public_key, :string
-    field :dkim_private_key, :string, redact: true
+    field :dkim_private_key, Elektrine.Secrets.EncryptedString, redact: true
     field :dkim_synced_at, :utc_datetime
     field :dkim_last_error, :string
     field :status, :string, default: "pending"

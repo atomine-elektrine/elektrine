@@ -230,13 +230,13 @@ defmodule Elektrine.ActivityPub.Publisher do
 
   defp get_signing_info(%ActivityPub.Actor{username: "relay"} = actor, _opts) do
     # For relay actor, use dynamic URL to match current instance domain
-    private_key = get_in(actor.metadata, ["private_key"])
+    private_key = ActivityPub.Actor.metadata_private_key(actor)
     key_id = "#{ActivityPub.instance_url()}/relay#main-key"
     {private_key, key_id}
   end
 
   defp get_signing_info(%ActivityPub.Actor{} = actor, _opts) do
-    private_key = get_in(actor.metadata, ["private_key"])
+    private_key = ActivityPub.Actor.metadata_private_key(actor)
     key_id = "#{actor.uri}#main-key"
     {private_key, key_id}
   end

@@ -8,6 +8,7 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   import Plug.Conn
 
   alias Elektrine.RuntimeEnv
+  alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.ClientIP
 
   @behaviour Plug
@@ -50,7 +51,6 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   defp http_allowed_path?(_path), do: false
 
   defp https_destination(conn) do
-    query = if conn.query_string in [nil, ""], do: "", else: "?" <> conn.query_string
-    "https://#{conn.host}#{conn.request_path}#{query}"
+    CanonicalURL.url(conn.request_path, conn.query_string, "https")
   end
 end

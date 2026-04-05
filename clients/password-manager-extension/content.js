@@ -118,7 +118,7 @@
     ui.host.id = "elektrine-vault-inline-root"
     document.documentElement.appendChild(ui.host)
 
-    ui.shadow = ui.host.attachShadow({ mode: "open" })
+    ui.shadow = ui.host.attachShadow({ mode: "closed" })
     ui.shadow.innerHTML = `
       <style>
         :host {
@@ -1286,7 +1286,7 @@
   }
 
   function isSupportedPage() {
-    return /^https?:\/\//.test(location.href)
+    return /^https:\/\//.test(location.href)
   }
 
   function safeHost(value) {
@@ -1298,7 +1298,7 @@
   }
 
   function hostsRelated(left, right) {
-    return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
+    return left === right
   }
 
   function escapeHtml(value) {

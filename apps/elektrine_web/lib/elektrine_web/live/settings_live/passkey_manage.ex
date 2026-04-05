@@ -6,6 +6,7 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
 
   alias Elektrine.Accounts.PasskeyCredential
   alias Elektrine.Accounts.Passkeys
+  alias ElektrineWeb.UserAuth
 
   on_mount {ElektrineWeb.Live.AuthHooks, :require_authenticated_user}
 
@@ -205,39 +206,47 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
 
   @impl true
   def handle_event("start_registration", _params, socket) do
-    user = socket.assigns.current_user
-    host = get_request_host(socket)
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      host = get_request_host(socket)
 
-    case Passkeys.generate_registration_challenge(user, host: host) do
-      {:ok, challenge_data} ->
-        # Store challenge in socket for verification
-        socket =
-          socket
-          |> assign(:registering, true)
-          |> assign(:registration_challenge, challenge_data.challenge)
-          |> push_event("passkey_registration_challenge", %{
-            challenge_b64: challenge_data.challenge_b64,
-            rp_id: challenge_data.rp_id,
-            rp_name: challenge_data.rp_name,
-            user_id: challenge_data.user_id,
-            user_name: challenge_data.user_name,
-            user_display_name: challenge_data.user_display_name,
-            timeout: challenge_data.timeout,
-            attestation: challenge_data.attestation,
-            authenticator_selection: challenge_data.authenticator_selection,
-            exclude_credentials: challenge_data.exclude_credentials,
-            pub_key_cred_params: challenge_data.pub_key_cred_params,
-            suggested_name: "Passkey #{socket.assigns.passkey_count + 1}"
-          })
+      case Passkeys.generate_registration_challenge(user, host: host) do
+        {:ok, challenge_data} ->
+          socket =
+            socket
+            |> assign(:registering, true)
+            |> assign(:registration_challenge, challenge_data.challenge)
+            |> push_event("passkey_registration_challenge", %{
+              challenge_b64: challenge_data.challenge_b64,
+              rp_id: challenge_data.rp_id,
+              rp_name: challenge_data.rp_name,
+              user_id: challenge_data.user_id,
+              user_name: challenge_data.user_name,
+              user_display_name: challenge_data.user_display_name,
+              timeout: challenge_data.timeout,
+              attestation: challenge_data.attestation,
+              authenticator_selection: challenge_data.authenticator_selection,
+              exclude_credentials: challenge_data.exclude_credentials,
+              pub_key_cred_params: challenge_data.pub_key_cred_params,
+              suggested_name: "Passkey #{socket.assigns.passkey_count + 1}"
+            })
 
-        {:noreply, socket}
+          {:noreply, socket}
 
-      {:error, :passkey_limit_reached} ->
-        {:noreply,
-         assign(socket, :error, gettext("You have reached the maximum number of passkeys"))}
+        {:error, :passkey_limit_reached} ->
+          {:noreply,
+           assign(socket, :error, gettext("You have reached the maximum number of passkeys"))}
 
-      {:error, _reason} ->
-        {:noreply, assign(socket, :error, gettext("Failed to start passkey registration"))}
+        {:error, _reason} ->
+          {:noreply, assign(socket, :error, gettext("Failed to start passkey registration"))}
+      end
+    else
+      {:noreply,
+       assign(
+         socket,
+         :error,
+         gettext("Adding a passkey requires a recent login. Sign in again and retry.")
+       )}
     end
   end
 
@@ -327,21 +336,30 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
 
   @impl true
   def handle_event("delete_passkey", %{"id" => id}, socket) do
-    user = socket.assigns.current_user
-    passkey_id = String.to_integer(id)
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      passkey_id = String.to_integer(id)
 
-    case Passkeys.delete_passkey(user, passkey_id) do
-      {:ok, _} ->
-        passkeys = Passkeys.list_user_passkeys(user)
+      case Passkeys.delete_passkey(user, passkey_id) do
+        {:ok, _} ->
+          passkeys = Passkeys.list_user_passkeys(user)
 
-        {:noreply,
-         socket
-         |> assign(:passkeys, passkeys)
-         |> assign(:passkey_count, length(passkeys))
-         |> put_flash(:info, gettext("Passkey deleted"))}
+          {:noreply,
+           socket
+           |> assign(:passkeys, passkeys)
+           |> assign(:passkey_count, length(passkeys))
+           |> put_flash(:info, gettext("Passkey deleted"))}
 
-      {:error, _reason} ->
-        {:noreply, assign(socket, :error, gettext("Failed to delete passkey"))}
+        {:error, _reason} ->
+          {:noreply, assign(socket, :error, gettext("Failed to delete passkey"))}
+      end
+    else
+      {:noreply,
+       assign(
+         socket,
+         :error,
+         gettext("Deleting a passkey requires a recent login. Sign in again and retry.")
+       )}
     end
   end
 
@@ -372,5 +390,11 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
       %URI{host: host} when is_binary(host) -> host
       _ -> nil
     end
+  end
+
+  defp recent_auth_valid?(socket) do
+    socket.assigns
+    |> Map.get(:user_recent_auth_at)
+    |> UserAuth.recent_auth_valid?()
   end
 end

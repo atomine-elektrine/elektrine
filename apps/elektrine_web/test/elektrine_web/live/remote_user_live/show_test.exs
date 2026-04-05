@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.RemoteUserLive.ShowTest do
+defmodule ElektrineSocialWeb.RemoteUserLive.ShowTest do
   use ExUnit.Case, async: true
 
-  alias ElektrineWeb.RemoteUserLive.Show
+  alias ElektrineSocialWeb.RemoteUserLive.Show
 
   test "handles record_dwell_times for anonymous users" do
     socket = %{assigns: %{current_user: nil}}

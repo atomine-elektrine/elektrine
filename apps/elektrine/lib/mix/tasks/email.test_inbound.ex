@@ -123,7 +123,7 @@ defmodule Mix.Tasks.Email.TestInbound do
 
     try do
       # Process the email directly
-      result = ElektrineWeb.HarakaWebhookController.create(conn, params)
+      result = ElektrineEmailWeb.HarakaWebhookController.create(conn, params)
 
       case result do
         %{status: 200} ->

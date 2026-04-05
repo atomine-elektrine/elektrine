@@ -6,21 +6,22 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
   alias Elektrine.Accounts
   alias ElektrineWeb.AdminSecurity
+  alias ElektrineWeb.UserAuth
 
   # These pages live in the shared :main live_session for seamless navigation,
   # so authentication must be enforced explicitly during on_mount.
   @authenticated_live_modules [
-    ElektrineWeb.ChatLive.Index,
-    ElektrineWeb.ContactsLive.Index,
-    ElektrineWeb.EmailLive.Compose,
-    ElektrineWeb.EmailLive.Index,
-    ElektrineWeb.EmailLive.Raw,
-    ElektrineWeb.EmailLive.Search,
-    ElektrineWeb.EmailLive.Settings,
-    ElektrineWeb.EmailLive.Show,
+    ElektrineChatWeb.ChatLive.Index,
+    ElektrineEmailWeb.ContactsLive.Index,
+    ElektrineEmailWeb.EmailLive.Compose,
+    ElektrineEmailWeb.EmailLive.Index,
+    ElektrineEmailWeb.EmailLive.Raw,
+    ElektrineEmailWeb.EmailLive.Search,
+    ElektrineEmailWeb.EmailLive.Settings,
+    ElektrineEmailWeb.EmailLive.Show,
     ElektrineWeb.FriendsLive,
-    ElektrineWeb.ListLive.Index,
-    ElektrineWeb.ListLive.Show,
+    ElektrineSocialWeb.ListLive.Index,
+    ElektrineSocialWeb.ListLive.Show,
     ElektrineWeb.NotificationsLive,
     ElektrineWeb.OverviewLive.Index,
     ElektrineWeb.ProfileLive.Analytics,
@@ -37,7 +38,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineWeb.SettingsLive.TwoFactorSetup,
     ElektrineWeb.StorageLive,
     ElektrineWeb.UserSettingsLive,
-    ElektrineWeb.VPNLive.Index
+    ElektrineVPNWeb.VPNLive.Index
   ]
 
   @admin_read_only_events MapSet.new([
@@ -352,6 +353,13 @@ defmodule ElektrineWeb.Live.AuthHooks do
           fetch_user_by_token(user_token)
         end
       end)
+
+    socket =
+      assign(
+        socket,
+        :user_recent_auth_at,
+        parse_session_int(session[Atom.to_string(UserAuth.recent_auth_session_key())])
+      )
 
     # Add impersonation status
     socket = assign(socket, :is_impersonating, session["impersonating_admin_id"] != nil)

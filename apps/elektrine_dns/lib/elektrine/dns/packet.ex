@@ -69,6 +69,13 @@ defmodule Elektrine.DNS.Packet do
   end
 
   def encode_response(query, answers, rcode, opts \\ []) do
+    do_encode_response(query, answers, rcode, opts)
+  rescue
+    MatchError -> do_encode_response(query, [], :servfail, transport_opts(opts))
+    ArgumentError -> do_encode_response(query, [], :servfail, transport_opts(opts))
+  end
+
+  defp do_encode_response(query, answers, rcode, opts) do
     flags = flags_for_reply(query.rd, rcode, opts)
     question = encode_name(query.qname) <> <<encode_type(query.qtype)::16, 1::16>>
     answer_bin = Enum.map_join(answers, &encode_record(&1))
@@ -83,6 +90,13 @@ defmodule Elektrine.DNS.Packet do
         additional_bin::binary>>
 
     maybe_truncate_response(query, response, rcode, opts)
+  end
+
+  defp transport_opts(opts) do
+    case Keyword.fetch(opts, :transport) do
+      {:ok, transport} -> [transport: transport]
+      :error -> []
+    end
   end
 
   defp flags_for_reply(rd, rcode, opts \\ []) do

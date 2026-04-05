@@ -5,14 +5,13 @@ defmodule Elektrine.StaticSites do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.User
   alias Elektrine.Profiles.StaticSiteFile
   alias Elektrine.Profiles.UserProfile
   alias Elektrine.Repo
 
   require Logger
 
-  # 1GB total storage per user
-  @max_total_size 1_000_000_000
   # Up to 1000 files
   @max_files 1000
   # Maximum decompression ratio to prevent zip bombs (100:1)
@@ -215,11 +214,15 @@ defmodule Elektrine.StaticSites do
     case get_storage_config() do
       {:local, dir} ->
         path = Path.join(dir, key)
-        File.mkdir_p!(Path.dirname(path))
-        File.write!(path, binary)
-        # Store content type in a sidecar file for local storage
-        File.write!(path <> ".meta", content_type)
-        :ok
+
+        with :ok <- File.mkdir_p(Path.dirname(path)),
+             :ok <- File.write(path, binary),
+             # Store content type in a sidecar file for local storage
+             :ok <- File.write(path <> ".meta", content_type) do
+          :ok
+        else
+          {:error, reason} -> {:error, {:upload_failed, reason}}
+        end
 
       {:s3, bucket} ->
         case ExAws.S3.put_object(bucket, key, binary, content_type: content_type)
@@ -276,7 +279,7 @@ defmodule Elektrine.StaticSites do
   Uploads multiple files from a zip archive.
   """
   def upload_zip(user, zip_binary) do
-    with {:ok, files} <- extract_zip(zip_binary),
+    with {:ok, files} <- extract_zip(user.id, zip_binary),
          :ok <- validate_zip_limits(user.id, files) do
       results =
         Enum.map(files, fn {path, content} ->
@@ -365,9 +368,10 @@ defmodule Elektrine.StaticSites do
   defp validate_limits(user_id, new_file_size) do
     current_usage = total_storage_used(user_id)
     current_count = file_count(user_id)
+    storage_limit = user_storage_limit(user_id)
 
     cond do
-      current_usage + new_file_size > @max_total_size ->
+      current_usage + new_file_size > storage_limit ->
         {:error, :storage_limit_exceeded}
 
       current_count >= @max_files ->
@@ -382,9 +386,10 @@ defmodule Elektrine.StaticSites do
     total_size = Enum.reduce(files, 0, fn {_path, content}, acc -> acc + byte_size(content) end)
     file_count = length(files)
     current_usage = total_storage_used(user_id)
+    storage_limit = user_storage_limit(user_id)
 
     cond do
-      current_usage + total_size > @max_total_size ->
+      current_usage + total_size > storage_limit ->
         {:error, :storage_limit_exceeded}
 
       file_count > @max_files ->
@@ -404,8 +409,9 @@ defmodule Elektrine.StaticSites do
     "static_sites/#{user_id}/#{hex}/#{safe_filename}"
   end
 
-  defp extract_zip(zip_binary) do
+  defp extract_zip(user_id, zip_binary) do
     zip_size = byte_size(zip_binary)
+    storage_limit = user_storage_limit(user_id)
 
     # First, check zip structure without extracting to detect zip bombs
     # OTP 28+: Use zip_open with :memory option, then zip_list_dir
@@ -440,7 +446,7 @@ defmodule Elektrine.StaticSites do
 
                   {:error, :zip_bomb_detected}
 
-                total_uncompressed > @max_total_size ->
+                total_uncompressed > storage_limit ->
                   Logger.warning("Zip too large: #{total_uncompressed} bytes exceeds limit")
                   {:error, :storage_limit_exceeded}
 
@@ -497,6 +503,15 @@ defmodule Elektrine.StaticSites do
         {:error, {:invalid_zip, reason}}
     end
   end
+
+  defp user_storage_limit(user_id) do
+    case Repo.get(User, user_id) do
+      %User{storage_limit_bytes: limit} when is_integer(limit) and limit > 0 -> limit
+      _ -> default_storage_limit()
+    end
+  end
+
+  defp default_storage_limit, do: 524_288_000
 
   defp normalize_zip_path(path, all_files) do
     # If all files share a common root directory, strip it

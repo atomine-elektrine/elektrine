@@ -4,14 +4,17 @@ Thanks for contributing to Elektrine.
 
 ## Scope
 
-This repository is an umbrella project. All apps in `apps/` are open source under the same root `LICENSE`:
+This repository is an umbrella project. All apps in `apps/` are open source
+under the same root `LICENSE`:
 
 - `apps/elektrine`
 - `apps/elektrine_web`
+- `apps/elektrine_chat`
 - `apps/elektrine_email`
 - `apps/elektrine_social`
 - `apps/elektrine_vpn`
 - `apps/elektrine_password_manager`
+- `apps/elektrine_dns`
 
 ## License
 
@@ -32,6 +35,7 @@ mix setup
 5. Start the app:
 
 ```bash
+cd apps/elektrine
 mix phx.server
 ```
 

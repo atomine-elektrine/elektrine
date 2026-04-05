@@ -41,6 +41,12 @@ service stays off.
 - `email`
 - `vault`
 - `vpn`
+- `dns`
+
+Accepted aliases:
+
+- `password-manager`
+- `password_manager`
 
 Special values:
 
@@ -52,5 +58,5 @@ The builder always includes:
 - `elektrine`
 - `elektrine_web`
 
-Everything else is selected from `ELEKTRINE_ENABLED_MODULES` by default.
+Feature apps are selected from `ELEKTRINE_ENABLED_MODULES` by default.
 `ELEKTRINE_RELEASE_MODULES` is still available as an advanced build override.

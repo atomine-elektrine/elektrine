@@ -10,6 +10,8 @@ defmodule Elektrine.BlueskyManagedTest do
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
+  @service_url "https://bsky.social"
+
   defmodule MockHTTPClient do
     def put_responses(responses), do: Process.put(:bluesky_managed_mock_responses, responses)
     def clear_responses, do: Process.delete(:bluesky_managed_mock_responses)
@@ -46,10 +48,10 @@ defmodule Elektrine.BlueskyManagedTest do
       enabled: true,
       inbound_enabled: true,
       managed_enabled: true,
-      managed_service_url: "https://pds.example.com",
+      managed_service_url: @service_url,
       managed_domain: "bsky.example.com",
       managed_admin_password: "admin-password",
-      service_url: "https://pds.example.com",
+      service_url: @service_url,
       timeout_ms: 5_000,
       http_client: MockHTTPClient
     )
@@ -97,7 +99,7 @@ defmodule Elektrine.BlueskyManagedTest do
     assert updated_user.bluesky_identifier == "did:plc:testdid"
     assert updated_user.bluesky_did == "did:plc:testdid"
     assert updated_user.bluesky_app_password == "app-password-1"
-    assert updated_user.bluesky_pds_url == "https://pds.example.com"
+    assert updated_user.bluesky_pds_url == @service_url
 
     reloaded = Repo.get!(User, user.id)
     assert reloaded.bluesky_enabled
@@ -205,7 +207,7 @@ defmodule Elektrine.BlueskyManagedTest do
     Application.put_env(:elektrine, :bluesky,
       enabled: true,
       managed_enabled: false,
-      service_url: "https://pds.example.com",
+      service_url: @service_url,
       timeout_ms: 5_000,
       http_client: MockHTTPClient
     )
@@ -223,7 +225,7 @@ defmodule Elektrine.BlueskyManagedTest do
         "bluesky_enabled" => true,
         "bluesky_identifier" => "did:plc:testdid",
         "bluesky_app_password" => "old-app-password",
-        "bluesky_pds_url" => "https://pds.example.com"
+        "bluesky_pds_url" => @service_url
       })
 
     from(u in User, where: u.id == ^user.id)
@@ -275,7 +277,7 @@ defmodule Elektrine.BlueskyManagedTest do
         "bluesky_enabled" => true,
         "bluesky_identifier" => "did:plc:testdid",
         "bluesky_app_password" => "stale-app-password",
-        "bluesky_pds_url" => "https://pds.example.com"
+        "bluesky_pds_url" => @service_url
       })
 
     from(u in User, where: u.id == ^user.id)
@@ -328,7 +330,7 @@ defmodule Elektrine.BlueskyManagedTest do
         "bluesky_enabled" => true,
         "bluesky_identifier" => "did:plc:testdid",
         "bluesky_app_password" => "old-app-password",
-        "bluesky_pds_url" => "https://pds.example.com"
+        "bluesky_pds_url" => @service_url
       })
 
     from(u in User, where: u.id == ^user.id)
@@ -397,7 +399,7 @@ defmodule Elektrine.BlueskyManagedTest do
         "bluesky_enabled" => true,
         "bluesky_identifier" => "did:plc:testdid",
         "bluesky_app_password" => "old-app-password",
-        "bluesky_pds_url" => "https://pds.example.com"
+        "bluesky_pds_url" => @service_url
       })
 
     from(u in User, where: u.id == ^user.id)
@@ -452,7 +454,7 @@ defmodule Elektrine.BlueskyManagedTest do
         "bluesky_enabled" => true,
         "bluesky_identifier" => "did:plc:testdid",
         "bluesky_app_password" => "old-app-password",
-        "bluesky_pds_url" => "https://pds.example.com"
+        "bluesky_pds_url" => @service_url
       })
 
     from(u in User, where: u.id == ^user.id)

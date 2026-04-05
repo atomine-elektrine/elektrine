@@ -62,7 +62,7 @@ defmodule Elektrine.MixProject do
       Elektrine.Social.PostBoost,
       Elektrine.Social.PostLike,
       ElektrineWeb.Endpoint,
-      ElektrineWeb.HarakaWebhookController,
+      ElektrineEmailWeb.HarakaWebhookController,
       ElektrineWeb.Presence
     ]
   end

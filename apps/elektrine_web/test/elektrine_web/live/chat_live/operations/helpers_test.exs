@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.ChatLive.Operations.HelpersTest do
+defmodule ElektrineChatWeb.ChatLive.Operations.HelpersTest do
   use ExUnit.Case, async: true
 
-  alias ElektrineWeb.ChatLive.Operations.Helpers
+  alias ElektrineChatWeb.ChatLive.Operations.Helpers
 
   describe "scope_conversations_to_server/2" do
     test "keeps non-channel conversations and only selected server channels" do

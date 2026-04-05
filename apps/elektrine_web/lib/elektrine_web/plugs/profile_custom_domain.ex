@@ -31,8 +31,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    {host, _hosts} = get_request_host(conn)
-    conn = maybe_override_host(conn, host)
+    host = request_host(conn)
 
     case Profiles.get_verified_custom_domain_for_host(host) do
       %{domain: domain} = custom_domain ->
@@ -71,7 +70,13 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
 
   defp maybe_serve_custom_profile(conn, handle) do
     if conn.request_path == "/" do
-      %{conn | request_path: "/subdomain/#{handle}", path_info: ["subdomain", handle]}
+      case StaticSitePlug.call(conn, []) do
+        %{halted: true} = served_conn ->
+          served_conn
+
+        _ ->
+          %{conn | request_path: "/subdomain/#{handle}", path_info: ["subdomain", handle]}
+      end
     else
       case StaticSitePlug.call(conn, []) do
         %{halted: true} = served_conn ->
@@ -106,69 +111,8 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
 
   defp custom_domain_handle(%{user: %{username: username}}), do: username
 
-  defp get_request_host(conn) do
-    forwarded_hosts =
-      [
-        "x-forwarded-host",
-        "x-original-host",
-        "x-host",
-        "cf-connecting-host",
-        "fly-forwarded-host"
-      ]
-      |> Enum.flat_map(&get_req_header(conn, &1))
+  defp request_host(%Plug.Conn{host: host}) when is_binary(host),
+    do: host |> String.downcase() |> String.split(":", parts: 2) |> List.first()
 
-    hosts =
-      forwarded_hosts
-      |> Enum.flat_map(&parse_hosts/1)
-      |> Enum.concat(parse_hosts(forwarded_header_host(conn)))
-      |> Enum.concat(parse_hosts(conn.host))
-      |> Enum.reject(&(&1 == ""))
-
-    chosen = Enum.max_by(hosts, &String.length/1, fn -> "" end)
-    {chosen, hosts}
-  end
-
-  defp parse_hosts(nil), do: []
-
-  defp parse_hosts(host) when is_binary(host) do
-    host
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.map(&(String.split(&1, ":") |> List.first()))
-  end
-
-  defp forwarded_header_host(conn) do
-    conn
-    |> get_req_header("forwarded")
-    |> List.first()
-    |> parse_forwarded_host()
-  end
-
-  defp parse_forwarded_host(nil), do: nil
-  defp parse_forwarded_host(""), do: nil
-
-  defp parse_forwarded_host(header) do
-    header
-    |> String.split(";")
-    |> Enum.find_value(fn segment ->
-      segment
-      |> String.trim()
-      |> String.split("=", parts: 2)
-      |> case do
-        ["host", value] -> String.trim(value, "\"")
-        _ -> nil
-      end
-    end)
-  end
-
-  defp maybe_override_host(conn, ""), do: conn
-
-  defp maybe_override_host(conn, host) do
-    if conn.host == host do
-      conn
-    else
-      %{conn | host: host}
-    end
-  end
+  defp request_host(_conn), do: ""
 end

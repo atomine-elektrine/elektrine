@@ -5,6 +5,7 @@ defmodule ElektrineWeb.DAV.PrincipalController do
 
   use ElektrineWeb, :controller
 
+  alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.DAV.{Properties, ResponseHelpers}
 
   @doc """
@@ -31,7 +32,6 @@ defmodule ElektrineWeb.DAV.PrincipalController do
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"
-    port = if conn.port in [80, 443], do: "", else: ":#{conn.port}"
-    "#{scheme}://#{conn.host}#{port}"
+    CanonicalURL.base_url(scheme)
   end
 end

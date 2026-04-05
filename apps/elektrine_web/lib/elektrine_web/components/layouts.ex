@@ -103,25 +103,25 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.Admin.UsersController, :search_accounts} ->
         "Account Lookup"
 
-      {ElektrineWeb.Admin.AliasesController, :index} ->
+      {ElektrineEmailWeb.Admin.AliasesController, :index} ->
         "Aliases"
 
-      {ElektrineWeb.Admin.AliasesController, :forwarded_messages} ->
+      {ElektrineEmailWeb.Admin.AliasesController, :forwarded_messages} ->
         "Forwarded Messages"
 
-      {ElektrineWeb.Admin.MailboxesController, :index} ->
+      {ElektrineEmailWeb.Admin.MailboxesController, :index} ->
         "Mailboxes"
 
-      {ElektrineWeb.Admin.MessagesController, :index} ->
+      {ElektrineEmailWeb.Admin.MessagesController, :index} ->
         "Messages"
 
-      {ElektrineWeb.Admin.MessagesController, :view} ->
+      {ElektrineEmailWeb.Admin.MessagesController, :view} ->
         "View Message"
 
-      {ElektrineWeb.Admin.MessagesController, :user_messages} ->
+      {ElektrineEmailWeb.Admin.MessagesController, :user_messages} ->
         "User Messages"
 
-      {ElektrineWeb.Admin.MessagesController, :view_user_message} ->
+      {ElektrineEmailWeb.Admin.MessagesController, :view_user_message} ->
         "View User Message"
 
       {ElektrineWeb.Admin.MonitoringController, :active_users} ->
@@ -190,22 +190,22 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.Admin.SubscriptionsController, :edit} ->
         "Edit Product"
 
-      {ElektrineWeb.Admin.VPNController, :dashboard} ->
+      {ElektrineVPNWeb.Admin.VPNController, :dashboard} ->
         "VPN Dashboard"
 
-      {ElektrineWeb.Admin.VPNController, :new_server} ->
+      {ElektrineVPNWeb.Admin.VPNController, :new_server} ->
         "New VPN Server"
 
-      {ElektrineWeb.Admin.VPNController, :edit_server} ->
+      {ElektrineVPNWeb.Admin.VPNController, :edit_server} ->
         "Edit VPN Server"
 
-      {ElektrineWeb.Admin.VPNController, :confirm_delete_server} ->
+      {ElektrineVPNWeb.Admin.VPNController, :confirm_delete_server} ->
         "Delete VPN Server"
 
-      {ElektrineWeb.Admin.VPNController, :users} ->
+      {ElektrineVPNWeb.Admin.VPNController, :users} ->
         "VPN Users"
 
-      {ElektrineWeb.Admin.VPNController, :edit_user_config} ->
+      {ElektrineVPNWeb.Admin.VPNController, :edit_user_config} ->
         "Edit VPN User Config"
 
       _ ->

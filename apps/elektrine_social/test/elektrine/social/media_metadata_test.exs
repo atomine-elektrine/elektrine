@@ -42,11 +42,12 @@ defmodule Elektrine.Social.MediaMetadataTest do
 
   test "create_timeline_post and drafts preserve normalized attachment metadata" do
     user = AccountsFixtures.user_fixture()
+    media_key = "timeline-attachments/#{user.id}_test-image.png"
 
     media_metadata = %{
       "attachments" => [
         %{
-          key: "timeline-attachments/test-image.png",
+          key: media_key,
           content_type: "image/png",
           size: 12_345,
           width: 640,
@@ -58,7 +59,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
     {:ok, post} =
       Social.create_timeline_post(user.id, "Media metadata path",
         visibility: "public",
-        media_urls: ["timeline-attachments/test-image.png"],
+        media_urls: [media_key],
         media_metadata: media_metadata,
         alt_texts: %{"0" => "Uploaded alt"}
       )
@@ -69,7 +70,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
                "byte_size" => 12_345,
                "height" => 480,
                "mime_type" => "image/png",
-               "url" => "timeline-attachments/test-image.png",
+               "url" => media_key,
                "width" => 640
              }
            ] = post.media_metadata["attachments"]
@@ -77,7 +78,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
     {:ok, draft} =
       Drafts.save_draft(user.id,
         content: "Draft metadata path",
-        media_urls: ["timeline-attachments/test-image.png"],
+        media_urls: [media_key],
         media_metadata: media_metadata,
         alt_texts: %{"0" => "Draft alt"}
       )
@@ -87,7 +88,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
                "alt_text" => "Draft alt",
                "height" => 480,
                "mime_type" => "image/png",
-               "url" => "timeline-attachments/test-image.png",
+               "url" => media_key,
                "width" => 640
              }
            ] = draft.media_metadata["attachments"]
@@ -95,7 +96,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
     {:ok, updated_draft} =
       Drafts.save_draft(user.id,
         draft_id: draft.id,
-        media_urls: ["timeline-attachments/test-image.png"],
+        media_urls: [media_key],
         media_metadata: draft.media_metadata,
         alt_texts: %{"0" => "Updated draft alt"}
       )
@@ -105,7 +106,7 @@ defmodule Elektrine.Social.MediaMetadataTest do
                "alt_text" => "Updated draft alt",
                "height" => 480,
                "mime_type" => "image/png",
-               "url" => "timeline-attachments/test-image.png",
+               "url" => ^media_key,
                "width" => 640
              }
            ] = updated_draft.media_metadata["attachments"]

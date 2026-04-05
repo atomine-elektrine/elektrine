@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.Features.TimelineTest do
+defmodule ElektrineSocialWeb.Features.TimelineTest do
   use ElektrineWeb.FeatureCase, async: false
 
   feature "logged in user can view timeline", %{session: session} do

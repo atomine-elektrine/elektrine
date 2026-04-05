@@ -7,7 +7,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
   patch in place without a stream reinsert.
   """
 
-  use ElektrineWeb, :live_component
+  use ElektrineSocialWeb, :live_component
 
   alias Elektrine.AccountIdentifiers
   import ElektrineSocialWeb.Components.Social.ReplyItem, only: [reply_item: 1]

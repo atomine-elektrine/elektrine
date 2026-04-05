@@ -1,7 +1,9 @@
 defmodule Elektrine.StaticSitesTest do
   use Elektrine.DataCase, async: false
 
+  alias Elektrine.Accounts.User
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Repo
   alias Elektrine.StaticSites
 
   setup do
@@ -338,14 +340,31 @@ defmodule Elektrine.StaticSitesTest do
   end
 
   describe "storage limits" do
-    test "1GB storage limit", %{user: user} do
-      # Verify the module attribute is set correctly
-      # We can't easily test the full 1GB limit, but we can verify large files work
+    test "uses the user's storage quota", %{user: user} do
       # Create a 5MB file
       large_content = String.duplicate("x", 5_000_000)
       assert {:ok, _} = StaticSites.upload_file(user, "large.txt", large_content, "text/plain")
 
       assert StaticSites.total_storage_used(user.id) == 5_000_000
+    end
+
+    test "rejects uploads that exceed the user's storage quota", %{user: user} do
+      {1, _} =
+        Repo.update_all(
+          from(u in User, where: u.id == ^user.id),
+          set: [storage_limit_bytes: 100]
+        )
+
+      assert {:ok, _} =
+               StaticSites.upload_file(user, "small.txt", String.duplicate("a", 60), "text/plain")
+
+      assert {:error, :storage_limit_exceeded} =
+               StaticSites.upload_file(
+                 user,
+                 "overflow.txt",
+                 String.duplicate("b", 50),
+                 "text/plain"
+               )
     end
 
     test "1000 file limit allows many files", %{user: user} do

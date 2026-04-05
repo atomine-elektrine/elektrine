@@ -1,11 +1,11 @@
-defmodule ElektrineWeb.ChatLive.RouterTest do
+defmodule ElektrineChatWeb.ChatLive.RouterTest do
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
 
-  alias ElektrineWeb.ChatLive.Router
+  alias ElektrineChatWeb.ChatLive.Router
 
-  alias ElektrineWeb.ChatLive.Operations.{
+  alias ElektrineChatWeb.ChatLive.Operations.{
     CallOperations,
     ContextMenuOperations,
     ConversationOperations,

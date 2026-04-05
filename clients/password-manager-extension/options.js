@@ -1,12 +1,11 @@
 import { listEntries, loginWithAccount, logoutWithAccount, normalizeServerUrl } from "./lib/api.js"
-import {
-  clearSessionPassphrase,
-  getSettings,
-  saveSettings
-} from "./lib/storage.js"
+import { getSettings, saveSettings } from "./lib/storage.js"
 
 const state = {
   settings: { serverUrl: "", apiToken: "" }
+}
+const MESSAGE_TYPES = {
+  CLEAR_SESSION_PASSPHRASE: "vault:clear-session-passphrase"
 }
 
 const refs = {}
@@ -144,7 +143,7 @@ async function handleSignOut() {
     if (state.settings.apiToken) {
       await logoutWithAccount(state.settings)
     }
-    await clearSessionPassphrase()
+    await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
 
     state.settings = {
       serverUrl,
@@ -165,11 +164,29 @@ async function handleSignOut() {
 async function handleClearPassphrase() {
   try {
     setBusy(refs.clearPassphraseButton, true)
-    await clearSessionPassphrase()
+    await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
     setStatus("Session passphrase cleared.", "success")
   } catch (error) {
     setStatus(error.message, "error")
   } finally {
     setBusy(refs.clearPassphraseButton, false)
   }
+}
+
+function runtimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message))
+        return
+      }
+
+      if (!response?.ok) {
+        reject(new Error(response?.error || "Extension request failed."))
+        return
+      }
+
+      resolve(response)
+    })
+  })
 }

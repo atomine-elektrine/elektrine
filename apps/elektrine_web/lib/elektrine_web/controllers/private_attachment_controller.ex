@@ -9,12 +9,19 @@ defmodule ElektrineWeb.PrivateAttachmentController do
       filename = sanitize_filename(Path.basename(filepath))
       content_type = MIME.from_path(filepath)
 
-      conn
-      |> put_resp_content_type(content_type)
-      |> put_resp_header("cache-control", "private, max-age=3600")
-      |> put_resp_header("x-content-type-options", "nosniff")
-      |> put_resp_header("content-disposition", ~s(inline; filename="#{filename}"))
-      |> send_file(200, filepath)
+      conn =
+        conn
+        |> put_resp_header("cache-control", "private, max-age=3600")
+        |> put_resp_header("x-content-type-options", "nosniff")
+
+      if inline_safe_content_type?(content_type) do
+        conn
+        |> put_resp_content_type(content_type)
+        |> put_resp_header("content-disposition", ~s(inline; filename="#{filename}"))
+        |> send_file(200, filepath)
+      else
+        send_download(conn, {:file, filepath}, filename: filename, content_type: content_type)
+      end
     else
       {:error, :not_found} ->
         send_resp(conn, 404, "Not found")
@@ -36,4 +43,36 @@ defmodule ElektrineWeb.PrivateAttachmentController do
   end
 
   defp sanitize_filename(_), do: "download"
+
+  defp inline_safe_content_type?(content_type) when is_binary(content_type) do
+    normalized =
+      content_type
+      |> String.downcase()
+      |> String.split(";", parts: 2)
+      |> List.first()
+      |> String.trim()
+
+    cond do
+      normalized in [
+        "text/html",
+        "application/xhtml+xml",
+        "image/svg+xml",
+        "image/svg+xml-compressed",
+        "text/xml",
+        "application/xml"
+      ] ->
+        false
+
+      String.starts_with?(normalized, ["image/", "video/", "audio/"]) ->
+        true
+
+      normalized in ["application/pdf", "text/plain"] ->
+        true
+
+      true ->
+        false
+    end
+  end
+
+  defp inline_safe_content_type?(_), do: false
 end

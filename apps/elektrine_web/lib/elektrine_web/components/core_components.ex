@@ -8,7 +8,7 @@ defmodule ElektrineWeb.CoreComponents do
   - `ElektrineWeb.Components.UI.*` - User interface components (modal, button, form, table, icon)
   - `ElektrineWeb.Components.Layout.*` - Layout components (header, navigation, announcement)
   - `ElektrineWeb.Components.Datetime.*` - Datetime formatting components (local_time)
-  - `ElektrineWeb.Components.Email.*` - Email processing and display utilities
+  - `ElektrineEmailWeb.Components.Email.*` - Email processing and display utilities
 
   You can import this module with `use Phoenix.Component` to get access to all components,
   or import specific submodules for more granular control.

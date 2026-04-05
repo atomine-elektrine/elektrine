@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Autofill and manage Elektrine password vault entries from the browser toolbar.",
   "permissions": ["storage", "tabs", "activeTab", "clipboardWrite"],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "host_permissions": ["https://*/*"],
   "browser_specific_settings": {
     "gecko": {
       "id": "password-manager@elektrine.app",
@@ -23,7 +23,7 @@
   "options_page": "options.html",
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://*/*"],
+      "matches": ["https://*/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

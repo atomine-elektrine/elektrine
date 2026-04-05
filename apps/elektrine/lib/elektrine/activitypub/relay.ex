@@ -70,7 +70,7 @@ defmodule Elektrine.ActivityPub.Relay do
       last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
       # Store private key in metadata since actors table doesn't have private_key column
       # This is used for signing outgoing activities to relays
-      metadata: %{"private_key" => private_key}
+      metadata: ActivityPub.Actor.put_metadata_private_key(%{}, private_key)
     }
 
     %ActivityPub.Actor{}
