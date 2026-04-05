@@ -401,7 +401,7 @@ defmodule Elektrine.SubscriptionsTest do
 
     assert {:ok, %RegistrationCheckout{} = checkout} = Subscriptions.process_webhook_event(event)
     assert checkout.status == "fulfilled"
-    assert checkout.lookup_token == "lookup-token"
+    assert checkout.lookup_token == RegistrationCheckout.hash_lookup_token("lookup-token")
     assert checkout.product_slug == "registration"
     assert checkout.customer_email == "payer@example.com"
     assert checkout.invite_code_id

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Elektrine.Accounts
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
 
@@ -44,7 +45,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
         user_id: user.id
       })
 
-      conn = get(conn, allow_path(api_key, verified_domain))
+      conn = conn |> auth_conn(api_key) |> get(allow_path(verified_domain))
 
       assert conn.status == 200
       assert response(conn, 200) == "allowed"
@@ -62,7 +63,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
         user_id: user.id
       })
 
-      conn = get(conn, allow_path(api_key, "www.#{verified_domain}"))
+      conn = conn |> auth_conn(api_key) |> get(allow_path("www.#{verified_domain}"))
 
       assert conn.status == 200
       assert response(conn, 200) == "allowed"
@@ -80,14 +81,64 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
 
       on_exit(fn -> Application.put_env(:elektrine, :email, previous_email) end)
 
-      conn = get(conn, allow_path(api_key, "mta-sts.#{domain}"))
+      conn = conn |> auth_conn(api_key) |> get(allow_path("mta-sts.#{domain}"))
 
       assert conn.status == 200
       assert response(conn, 200) == "allowed"
     end
 
+    test "allows built-in profile subdomains only for real user handles", %{
+      conn: conn,
+      api_key: api_key
+    } do
+      user = user_fixture(%{username: "caddyhandle"})
+      {:ok, _user} = Accounts.update_user_handle(user, "caddyhandle")
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      conn = conn |> auth_conn(api_key) |> get(allow_path("caddyhandle.example.com"))
+
+      assert conn.status == 200
+      assert response(conn, 200) == "allowed"
+    end
+
+    test "rejects nonexistent built-in profile subdomains", %{conn: conn, api_key: api_key} do
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      conn = conn |> auth_conn(api_key) |> get(allow_path("missing.example.com"))
+
+      assert conn.status == 403
+      assert response(conn, 403) == "forbidden"
+    end
+
+    test "rejects multi-label built-in profile subdomains", %{conn: conn, api_key: api_key} do
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      conn = conn |> auth_conn(api_key) |> get(allow_path("foo.bar.example.com"))
+
+      assert conn.status == 403
+      assert response(conn, 403) == "forbidden"
+    end
+
     test "rejects unknown domains", %{conn: conn, api_key: api_key} do
-      conn = get(conn, allow_path(api_key, "unknown-profile-domain.test"))
+      conn = conn |> auth_conn(api_key) |> get(allow_path("unknown-profile-domain.test"))
 
       assert conn.status == 403
       assert response(conn, 403) == "forbidden"
@@ -104,14 +155,14 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
         user_id: user.id
       })
 
-      conn = get(conn, allow_path(api_key, pending_domain))
+      conn = conn |> auth_conn(api_key) |> get(allow_path(pending_domain))
 
       assert conn.status == 403
       assert response(conn, 403) == "forbidden"
     end
 
     test "returns bad request when domain is missing", %{conn: conn, api_key: api_key} do
-      conn = get(conn, "/_edge/tls/v1/allow?token=#{URI.encode_www_form(api_key)}")
+      conn = conn |> auth_conn(api_key) |> get("/_edge/tls/v1/allow")
 
       assert conn.status == 400
       assert response(conn, 400) == "missing domain"
@@ -123,7 +174,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
     } do
       Application.put_env(:elektrine, :enforce_https, true)
 
-      conn = get(conn, "/_edge/tls/v1/allow?token=#{URI.encode_www_form(api_key)}")
+      conn = conn |> auth_conn(api_key) |> get("/_edge/tls/v1/allow")
 
       assert conn.status == 400
       assert response(conn, 400) == "missing domain"
@@ -131,7 +182,15 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
     end
   end
 
-  defp allow_path(api_key, domain) do
-    "/_edge/tls/v1/allow?token=#{URI.encode_www_form(api_key)}&domain=#{URI.encode_www_form(domain)}"
+  defp auth_conn(conn, api_key) do
+    Plug.Conn.put_req_header(conn, "x-api-key", api_key)
+    |> Map.put(
+      :host,
+      Application.get_env(:elektrine, :primary_domain, "example.com") |> to_string()
+    )
+  end
+
+  defp allow_path(domain) do
+    "/_edge/tls/v1/allow?domain=#{URI.encode_www_form(domain)}"
   end
 end

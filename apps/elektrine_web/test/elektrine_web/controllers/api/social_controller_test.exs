@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.API.SocialControllerTest do
+defmodule ElektrineSocialWeb.API.SocialControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures

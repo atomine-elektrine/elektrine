@@ -214,16 +214,14 @@ defmodule Elektrine.DNS.Query do
   defp flatten_alias_record(zone, fqdn, qtype, record) do
     target = normalize_name(record.content)
 
-    cond do
-      target in ["", fqdn] ->
-        []
-
-      true ->
-        local_alias_records(zone, target, qtype, record.ttl)
-        |> case do
-          [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
-          records -> records
-        end
+    if target in ["", fqdn] do
+      []
+    else
+      local_alias_records(zone, target, qtype, record.ttl)
+      |> case do
+        [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
+        records -> records
+      end
     end
   end
 

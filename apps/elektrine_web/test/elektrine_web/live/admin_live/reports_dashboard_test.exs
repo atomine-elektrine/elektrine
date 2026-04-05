@@ -10,6 +10,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
   alias Elektrine.Repo
   alias Elektrine.Reports
   alias Elektrine.SocialFixtures
+  alias ElektrineWeb.AdminSecurity
 
   test "opens reported users in the admin edit flow", %{conn: conn} do
     admin = admin_user_fixture()
@@ -100,16 +101,14 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
-
-    now = System.system_time(:second)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
-    |> Plug.Conn.put_session(:admin_auth_method, "password")
-    |> Plug.Conn.put_session(:admin_access_expires_at, now + 900)
-    |> Plug.Conn.put_session(:admin_elevated_until, now + 300)
+    |> AdminSecurity.initialize_admin_session(user, auth_method: :passkey)
+    |> Plug.Conn.put_session(:admin_session_ip, "127.0.0.1")
   end
 end

@@ -4,7 +4,7 @@ defmodule ElektrineWeb.ImpersonationControllerTest do
   alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
 
-  describe "GET /pripyat/stop-impersonation" do
+  describe "POST /pripyat/stop-impersonation" do
     test "allows impersonated sessions to stop impersonating", %{conn: conn} do
       admin_user = AccountsFixtures.user_fixture() |> make_admin()
       impersonated_user = AccountsFixtures.user_fixture()
@@ -15,7 +15,7 @@ defmodule ElektrineWeb.ImpersonationControllerTest do
         |> log_in_as(impersonated_user)
         |> Plug.Conn.put_session(:impersonating_admin_id, admin_user.id)
         |> Plug.Conn.put_session(:impersonated_user_id, impersonated_user.id)
-        |> get("/pripyat/stop-impersonation")
+        |> post("/pripyat/stop-impersonation")
 
       assert redirected_to(conn) in ["/", "/onboarding"]
 
@@ -30,7 +30,7 @@ defmodule ElektrineWeb.ImpersonationControllerTest do
         conn
         |> with_elektrine_host()
         |> log_in_as(user)
-        |> get("/pripyat/stop-impersonation")
+        |> post("/pripyat/stop-impersonation")
 
       assert redirected_to(conn) == "/"
 
@@ -53,7 +53,8 @@ defmodule ElektrineWeb.ImpersonationControllerTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
     conn

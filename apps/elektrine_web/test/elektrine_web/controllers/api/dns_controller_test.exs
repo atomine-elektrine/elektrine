@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.API.DNSControllerTest do
+defmodule ElektrineDNSWeb.API.DNSControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   import Elektrine.AccountsFixtures

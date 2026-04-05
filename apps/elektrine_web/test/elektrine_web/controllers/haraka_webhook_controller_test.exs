@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.HarakaWebhookControllerTest do
+defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
   use ElektrineWeb.ConnCase
   import Elektrine.AccountsFixtures
   import Elektrine.EmailFixtures
@@ -454,7 +454,7 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     test "passes through already-decoded text from Haraka" do
       # Haraka sends pre-decoded UTF-8 text
       result =
-        ElektrineWeb.HarakaWebhookController.decode_mime_header_public("Hello World")
+        ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public("Hello World")
 
       assert result == "Hello World"
     end
@@ -462,27 +462,27 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     test "passes through Chinese text from Haraka" do
       # Haraka decodes GB2312/GBK/UTF-8 with postal-mime
       result =
-        ElektrineWeb.HarakaWebhookController.decode_mime_header_public("账号安全中心-绑定邮箱验证")
+        ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public("账号安全中心-绑定邮箱验证")
 
       assert result == "账号安全中心-绑定邮箱验证"
     end
 
     test "handles plain text headers" do
       result =
-        ElektrineWeb.HarakaWebhookController.decode_mime_header_public("Plain Text Subject")
+        ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public("Plain Text Subject")
 
       assert result == "Plain Text Subject"
     end
 
     test "handles empty headers" do
-      assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public("") == ""
-      assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public(nil) == ""
+      assert ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public("") == ""
+      assert ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public(nil) == ""
     end
 
     test "decodes RFC 2047 base64 encoded UTF-8 headers" do
       encoded = "=?UTF-8?B?eGloYTcxMUBnbWFpbC5jb20g55qE5a6J5YWo5o+Q6YaS?="
 
-      assert ElektrineWeb.HarakaWebhookController.decode_mime_header_public(encoded) ==
+      assert ElektrineEmailWeb.HarakaWebhookController.decode_mime_header_public(encoded) ==
                "xiha711@gmail.com 的安全提醒"
     end
   end
@@ -492,10 +492,10 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
       reason =
         "Haraka HTTP API returned status 400: HTTP 404: {\"error\":\"Mailbox does not exist\",\"bounce\":true,\"processing_time_ms\":195}"
 
-      assert ElektrineWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
+      assert ElektrineEmailWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
                {:forwarding_failed, :no_mailbox}
 
-      assert ElektrineWeb.HarakaWebhookController.bounce_status_public(
+      assert ElektrineEmailWeb.HarakaWebhookController.bounce_status_public(
                {:forwarding_failed, :no_mailbox}
              ) == {404, "Mailbox does not exist"}
     end
@@ -503,10 +503,10 @@ defmodule ElektrineWeb.HarakaWebhookControllerTest do
     test "keeps non-mailbox forwarding failures as retryable failures" do
       reason = "Haraka HTTP API returned status 503: upstream timeout"
 
-      assert ElektrineWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
+      assert ElektrineEmailWeb.HarakaWebhookController.classify_forwarding_failure_public(reason) ==
                :forwarding_failed
 
-      assert ElektrineWeb.HarakaWebhookController.bounce_status_public(:forwarding_failed) ==
+      assert ElektrineEmailWeb.HarakaWebhookController.bounce_status_public(:forwarding_failed) ==
                {503, "Temporary server error: :forwarding_failed"}
     end
   end

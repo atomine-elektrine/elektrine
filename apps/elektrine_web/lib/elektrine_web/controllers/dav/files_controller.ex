@@ -2,6 +2,7 @@ defmodule ElektrineWeb.DAV.FilesController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Files
+  alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.DAV.ResponseHelpers
 
   def propfind_home(conn, %{"username" => username}) do
@@ -296,7 +297,6 @@ defmodule ElektrineWeb.DAV.FilesController do
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"
-    port = if conn.port in [80, 443], do: "", else: ":#{conn.port}"
-    "#{scheme}://#{conn.host}#{port}"
+    CanonicalURL.base_url(scheme)
   end
 end

@@ -90,6 +90,16 @@ defmodule ElektrineWeb.Plugs.DAVAuth do
         Events.auth(:dav, :failure, %{reason: :user_not_found})
         request_auth(conn)
 
+      {:error, :account_banned} ->
+        Logger.warning("DAV auth failed - user banned: #{username} from #{ip}")
+        Events.auth(:dav, :failure, %{reason: :banned})
+        send_resp(conn, 403, "Account banned") |> halt()
+
+      {:error, :account_suspended} ->
+        Logger.warning("DAV auth failed - user suspended: #{username} from #{ip}")
+        Events.auth(:dav, :failure, %{reason: :suspended})
+        send_resp(conn, 403, "Account suspended") |> halt()
+
       {:error, {:invalid_token, user}} ->
         # User exists but app password is wrong - try regular password
         # Only allow regular password if 2FA is NOT enabled

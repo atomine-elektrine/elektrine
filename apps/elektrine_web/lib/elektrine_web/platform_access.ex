@@ -73,40 +73,40 @@ defmodule ElektrineWeb.PlatformAccess do
 
   @view_modules %{
     email: [
-      ElektrineWeb.EmailLive.Compose,
-      ElektrineWeb.EmailLive.Index,
-      ElektrineWeb.EmailLive.Raw,
-      ElektrineWeb.EmailLive.Search,
-      ElektrineWeb.EmailLive.Settings,
-      ElektrineWeb.EmailLive.Show
+      ElektrineEmailWeb.EmailLive.Compose,
+      ElektrineEmailWeb.EmailLive.Index,
+      ElektrineEmailWeb.EmailLive.Raw,
+      ElektrineEmailWeb.EmailLive.Search,
+      ElektrineEmailWeb.EmailLive.Settings,
+      ElektrineEmailWeb.EmailLive.Show
     ],
     vpn: [
-      ElektrineWeb.PageLive.VPNPolicy,
-      ElektrineWeb.VPNLive.Index
+      ElektrineVPNWeb.PageLive.VPNPolicy,
+      ElektrineVPNWeb.VPNLive.Index
     ],
     chat: [
-      ElektrineWeb.ChatLive.Index,
+      ElektrineChatWeb.ChatLive.Index,
       ElektrineWeb.FriendsLive
     ],
     social: [
-      ElektrineWeb.DiscussionsLive.Community,
-      ElektrineWeb.DiscussionsLive.Index,
-      ElektrineWeb.DiscussionsLive.Post,
-      ElektrineWeb.DiscussionsLive.Settings,
-      ElektrineWeb.GalleryLive.Index,
-      ElektrineWeb.HashtagLive.Show,
-      ElektrineWeb.ListLive.Index,
-      ElektrineWeb.ListLive.Show,
-      ElektrineWeb.RemotePostLive.Show,
-      ElektrineWeb.RemoteUserLive.Show,
-      ElektrineWeb.TimelineLive.Index,
-      ElektrineWeb.TimelineLive.Post
+      ElektrineSocialWeb.DiscussionsLive.Community,
+      ElektrineSocialWeb.DiscussionsLive.Index,
+      ElektrineSocialWeb.DiscussionsLive.Post,
+      ElektrineSocialWeb.DiscussionsLive.Settings,
+      ElektrineSocialWeb.GalleryLive.Index,
+      ElektrineSocialWeb.HashtagLive.Show,
+      ElektrineSocialWeb.ListLive.Index,
+      ElektrineSocialWeb.ListLive.Show,
+      ElektrineSocialWeb.RemotePostLive.Show,
+      ElektrineSocialWeb.RemoteUserLive.Show,
+      ElektrineSocialWeb.TimelineLive.Index,
+      ElektrineSocialWeb.TimelineLive.Post
     ],
     vault: [
       ElektrinePasswordManagerWeb.VaultLive
     ],
     dns: [
-      ElektrineWeb.DNSLive.Index
+      ElektrineDNSWeb.DNSLive.Index
     ]
   }
 

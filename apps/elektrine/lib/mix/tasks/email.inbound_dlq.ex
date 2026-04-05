@@ -117,7 +117,7 @@ defmodule Mix.Tasks.Email.InboundDlq do
 
       job =
         Oban.Job.new(args,
-          worker: "Elixir.ElektrineWeb.HarakaInboundWorker",
+          worker: "Elixir.ElektrineEmailWeb.HarakaInboundWorker",
           queue: "email_inbound",
           max_attempts: 10
         )

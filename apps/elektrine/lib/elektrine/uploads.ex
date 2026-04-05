@@ -975,8 +975,8 @@ defmodule Elektrine.Uploads do
 
   defp attachment_url_direct(attachment) when is_binary(attachment) do
     case get_config(:adapter) do
-      :local -> local_attachment_url(attachment)
       :s3 -> remote_attachment_url(attachment)
+      _ -> local_attachment_url(attachment)
     end
   end
 
@@ -997,11 +997,20 @@ defmodule Elektrine.Uploads do
   end
 
   defp local_attachment_url(attachment) do
-    key = local_attachment_key(attachment)
+    cond do
+      String.starts_with?(attachment, "http") ->
+        attachment
 
-    case local_private_attachment_url(key) do
-      url when is_binary(url) -> url
-      _ -> "/uploads/#{key}"
+      String.starts_with?(attachment, "/") ->
+        attachment
+
+      true ->
+        key = local_attachment_key(attachment)
+
+        case local_private_attachment_url(key) do
+          url when is_binary(url) -> url
+          _ -> "/uploads/#{key}"
+        end
     end
   end
 

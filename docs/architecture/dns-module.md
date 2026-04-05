@@ -2,14 +2,14 @@
 
 Elektrine DNS is a first-party DNS service implemented inside the umbrella.
 
-Initial architecture:
+Current layout:
 
 - `apps/elektrine_dns` contains the DNS runtime, schemas, and LiveView surface
 - the main `elektrine` release includes the DNS module for account/UI access
-- the dedicated DNS container runs the main `elektrine` release with DNS authority enabled at runtime
+- the dedicated DNS container runs the `elektrine_dns` release for authoritative service
 - zone and record state live in Postgres
 - `Elektrine.DNS.ZoneCache` mirrors authoritative zones into ETS for fast lookups
-- `Elektrine.DNS.Authority` is the starting point for the novel UDP/TCP authority process
+- `Elektrine.DNS.Authority` fronts the UDP/TCP authority process
 - `Elektrine.DNS.Recursive` provides an optional recursive forwarding path for non-authoritative queries
 
 External API scopes:

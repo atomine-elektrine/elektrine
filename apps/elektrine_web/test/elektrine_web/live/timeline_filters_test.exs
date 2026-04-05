@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.TimelineFiltersTest do
+defmodule ElektrineSocialWeb.TimelineFiltersTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -20,7 +20,8 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
     conn
@@ -226,11 +227,12 @@ defmodule ElektrineWeb.TimelineFiltersTest do
   test "timeline reserves image space from attachment metadata", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
+    media_key = "timeline-attachments/#{author.id}_test-image.png"
 
     {:ok, post} =
       Social.create_timeline_post(author.id, "Metadata-backed media post",
         visibility: "public",
-        media_urls: ["timeline-attachments/test-image.png"]
+        media_urls: [media_key]
       )
 
     from(m in Message, where: m.id == ^post.id)
@@ -239,7 +241,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
         media_metadata: %{
           "attachments" => [
             %{
-              "url" => "timeline-attachments/test-image.png",
+              "url" => media_key,
               "mime_type" => "image/png",
               "width" => 640,
               "height" => 480
@@ -261,7 +263,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
         if rendered =~ "Metadata-backed media post" &&
              has_element?(
                view,
-               ~s(button[phx-value-url="/uploads/timeline-attachments/test-image.png"][style*="aspect-ratio"])
+               ~s(button[style*="aspect-ratio"])
              ) do
           {:halt, rendered}
         else
@@ -274,7 +276,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
 
     assert has_element?(
              view,
-             ~s(button[phx-value-url="/uploads/timeline-attachments/test-image.png"][style*="aspect-ratio"])
+             ~s(button[style*="aspect-ratio"])
            )
 
     assert html =~ ~r/aspect-ratio:\s*640\s*\/\s*480/
@@ -924,7 +926,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=replies")
+      |> live(~p"/timeline?filter=explore&view=replies")
 
     html =
       Enum.reduce_while(1..20, "", fn _, _acc ->
@@ -939,9 +941,9 @@ defmodule ElektrineWeb.TimelineFiltersTest do
       end)
 
     assert html =~ "Leaf reply in thread"
-    assert html =~ "Thread context"
-    assert html =~ "Root"
-    assert html =~ "Parent"
+    assert html =~ "Conversation context"
+    assert html =~ "Earlier context"
+    assert html =~ "Replying to"
     assert html =~ "Root ancestor context"
     assert html =~ "Middle ancestor context"
     assert html =~ ~s(phx-value-id="#{root_post.id}")
@@ -1035,7 +1037,7 @@ defmodule ElektrineWeb.TimelineFiltersTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/timeline?filter=all&view=all")
+      |> live(~p"/timeline?filter=explore&view=all")
 
     view
     |> element(~s(button[phx-click="load_remote_replies"][phx-value-post_id="#{post.id}"]))

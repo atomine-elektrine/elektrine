@@ -234,9 +234,9 @@ services:
     network_mode: host
     command: >-
       /bin/sh -ec '
-      secret="${TURN_SHARED_SECRET:-$ELEKTRINE_MASTER_SECRET}";
+      secret="${TURN_SHARED_SECRET}";
       if [ -z "$secret" ]; then
-        echo "TURN_SHARED_SECRET or ELEKTRINE_MASTER_SECRET is required for the turn profile" >&2;
+        echo "TURN_SHARED_SECRET is required for the turn profile" >&2;
         exit 1;
       fi;
       set -- turnserver

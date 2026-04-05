@@ -625,7 +625,9 @@ defmodule Elektrine.BlueskyTest do
       |> Map.fetch!("record")
 
     assert record_payload["embed"]["$type"] == "app.bsky.embed.external"
-    assert record_payload["embed"]["external"]["uri"] =~ "/uploads/"
+
+    assert URI.parse(record_payload["embed"]["external"]["uri"]).path =~
+             "/api/private-attachments/"
   end
 
   test "mirrors likes and unlikes to Bluesky records" do

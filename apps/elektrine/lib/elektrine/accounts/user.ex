@@ -114,14 +114,14 @@ defmodule Elektrine.Accounts.User do
 
     # ActivityPub Federation
     field :activitypub_enabled, :boolean, default: true
-    field :activitypub_private_key, :string
+    field :activitypub_private_key, Elektrine.Secrets.EncryptedString
     field :activitypub_public_key, :string
     field :activitypub_manually_approve_followers, :boolean, default: true
 
     # Bluesky Cross-posting
     field :bluesky_enabled, :boolean, default: false
     field :bluesky_identifier, :string
-    field :bluesky_app_password, :string
+    field :bluesky_app_password, Elektrine.Secrets.EncryptedString
     field :bluesky_did, :string
     field :bluesky_pds_url, :string
     field :bluesky_inbound_cursor, :string

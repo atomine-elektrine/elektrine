@@ -1,10 +1,11 @@
-defmodule ElektrineWeb.MastodonAPI.AccountControllerTest do
+defmodule ElektrineSocialWeb.MastodonAPI.AccountControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 
   alias Elektrine.OAuth
+  alias Elektrine.OAuth.Token
 
   setup %{conn: conn} do
     user = user_fixture()
@@ -31,7 +32,7 @@ defmodule ElektrineWeb.MastodonAPI.AccountControllerTest do
     conn =
       conn
       |> put_req_header("accept", "application/json")
-      |> put_req_header("authorization", "Bearer #{token.token}")
+      |> put_req_header("authorization", "Bearer #{Token.access_token_value(token)}")
 
     %{conn: conn, user: user, target: target}
   end

@@ -90,7 +90,7 @@ defmodule Mix.Tasks.Email.Test do
     }
 
     # Process the webhook
-    case ElektrineWeb.HarakaWebhookController.create(
+    case ElektrineEmailWeb.HarakaWebhookController.create(
            webhook_payload["text_part"],
            webhook_payload["to"]
          ) do

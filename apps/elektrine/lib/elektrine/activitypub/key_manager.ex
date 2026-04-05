@@ -18,7 +18,7 @@ defmodule Elektrine.ActivityPub.KeyManager do
   Accepts a User struct, Actor struct, or user ID.
   """
   def ensure_user_has_keys(%ActivityPub.Actor{} = actor) do
-    private_key = get_in(actor.metadata, ["private_key"])
+    private_key = ActivityPub.Actor.metadata_private_key(actor)
 
     if actor.public_key && private_key do
       # Actor already has keys
@@ -67,7 +67,7 @@ defmodule Elektrine.ActivityPub.KeyManager do
     {public_key, private_key} = HTTPSignature.generate_key_pair()
 
     # Store private key in metadata, public key in dedicated field
-    updated_metadata = Map.put(actor.metadata || %{}, "private_key", private_key)
+    updated_metadata = ActivityPub.Actor.put_metadata_private_key(actor.metadata, private_key)
 
     actor
     |> Ecto.Changeset.change(%{

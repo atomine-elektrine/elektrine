@@ -104,7 +104,7 @@ defmodule Mix.Tasks.Email.InboundTest do
 
     # Test the controller function directly
     Mix.shell().info("Processing the test email...")
-    result = ElektrineWeb.HarakaWebhookController.create(conn, params)
+    result = ElektrineEmailWeb.HarakaWebhookController.create(conn, params)
 
     case result do
       %{status: 200} ->

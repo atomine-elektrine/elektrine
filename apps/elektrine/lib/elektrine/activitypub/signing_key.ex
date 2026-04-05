@@ -14,7 +14,7 @@ defmodule Elektrine.ActivityPub.SigningKey do
     belongs_to(:user, User)
     belongs_to(:remote_actor, RemoteActor)
     field(:public_key, :string)
-    field(:private_key, :string)
+    field(:private_key, Elektrine.Secrets.EncryptedString)
     timestamps()
   end
 

@@ -84,7 +84,7 @@ defmodule Elektrine.RSSTest do
 
     test "list_stale_feeds returns feeds needing refresh" do
       # Create an active feed with old last_fetched_at
-      {:ok, feed} = RSS.get_or_create_feed("https://stale.com/feed.xml")
+      {:ok, feed} = RSS.get_or_create_feed("https://example.org/stale.xml")
       old_time = DateTime.add(DateTime.utc_now(), -120, :minute)
 
       {:ok, feed} =
@@ -125,7 +125,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "subscribe creates subscription to feed", %{user: user} do
-      url = "https://blog.example.com/feed.xml"
+      url = "https://example.org/blog-feed.xml"
 
       {:ok, subscription} = RSS.subscribe(user.id, url)
 
@@ -136,7 +136,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "subscribe with options", %{user: user} do
-      url = "https://blog.example.com/feed.xml"
+      url = "https://example.org/blog-feed.xml"
 
       {:ok, subscription} =
         RSS.subscribe(user.id, url,
@@ -149,7 +149,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "subscribe prevents duplicate subscriptions", %{user: user} do
-      url = "https://blog.example.com/feed.xml"
+      url = "https://example.org/blog-feed.xml"
 
       {:ok, _subscription1} = RSS.subscribe(user.id, url)
       {:error, changeset} = RSS.subscribe(user.id, url)
@@ -158,7 +158,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "unsubscribe removes subscription", %{user: user} do
-      url = "https://blog.example.com/feed.xml"
+      url = "https://example.org/blog-feed.xml"
 
       {:ok, subscription} = RSS.subscribe(user.id, url)
       {:ok, _} = RSS.unsubscribe(user.id, subscription.feed_id)
@@ -173,8 +173,8 @@ defmodule Elektrine.RSSTest do
     end
 
     test "list_subscriptions returns user's subscriptions", %{user: user} do
-      {:ok, _sub1} = RSS.subscribe(user.id, "https://feed1.com/feed.xml")
-      {:ok, _sub2} = RSS.subscribe(user.id, "https://feed2.com/feed.xml")
+      {:ok, _sub1} = RSS.subscribe(user.id, "https://example.net/feed-1.xml")
+      {:ok, _sub2} = RSS.subscribe(user.id, "https://example.net/feed-2.xml")
 
       subscriptions = RSS.list_subscriptions(user.id)
 
@@ -183,12 +183,12 @@ defmodule Elektrine.RSSTest do
     end
 
     test "list_subscriptions preloads feed", %{user: user} do
-      {:ok, _sub} = RSS.subscribe(user.id, "https://feed.com/feed.xml")
+      {:ok, _sub} = RSS.subscribe(user.id, "https://example.net/feed.xml")
 
       [subscription] = RSS.list_subscriptions(user.id)
 
       assert Ecto.assoc_loaded?(subscription.feed)
-      assert subscription.feed.url == "https://feed.com/feed.xml"
+      assert subscription.feed.url == "https://example.net/feed.xml"
     end
 
     test "list_subscriptions returns empty for user with no subscriptions" do
@@ -203,7 +203,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "update_subscription updates subscription settings", %{user: user} do
-      {:ok, subscription} = RSS.subscribe(user.id, "https://feed.com/feed.xml")
+      {:ok, subscription} = RSS.subscribe(user.id, "https://example.net/feed.xml")
 
       {:ok, updated} =
         RSS.update_subscription(subscription, %{
@@ -225,7 +225,7 @@ defmodule Elektrine.RSSTest do
           password_confirmation: "SecurePassword123!"
         })
 
-      {:ok, feed} = RSS.get_or_create_feed("https://items.example.com/feed.xml")
+      {:ok, feed} = RSS.get_or_create_feed("https://example.com/items-feed.xml")
       RSS.update_feed(feed, %{status: "active", title: "Test Feed"})
 
       %{user: user, feed: feed}
@@ -236,7 +236,7 @@ defmodule Elektrine.RSSTest do
         guid: "item-1",
         title: "Test Article",
         content: "Article content",
-        url: "https://items.example.com/article-1",
+        url: "https://example.com/articles/article-1",
         published_at: DateTime.utc_now()
       }
 
@@ -341,7 +341,7 @@ defmodule Elektrine.RSSTest do
           guid: "timeline-item",
           title: "Timeline Article",
           summary: "Article summary",
-          url: "https://items.example.com/timeline-article",
+          url: "https://example.com/articles/timeline-article",
           published_at: DateTime.utc_now()
         })
 
@@ -388,7 +388,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "users can subscribe to the same feed", %{user1: user1, user2: user2} do
-      url = "https://shared.example.com/feed.xml"
+      url = "https://example.net/shared-feed.xml"
 
       {:ok, sub1} = RSS.subscribe(user1.id, url)
       {:ok, sub2} = RSS.subscribe(user2.id, url)
@@ -399,7 +399,7 @@ defmodule Elektrine.RSSTest do
     end
 
     test "subscription settings are independent per user", %{user1: user1, user2: user2} do
-      url = "https://shared.example.com/feed.xml"
+      url = "https://example.net/shared-feed.xml"
 
       {:ok, sub1} = RSS.subscribe(user1.id, url, display_name: "User 1 Name")
       {:ok, _sub2} = RSS.subscribe(user2.id, url, display_name: "User 2 Name")
@@ -414,8 +414,8 @@ defmodule Elektrine.RSSTest do
     end
 
     test "user items are isolated", %{user1: user1, user2: user2} do
-      {:ok, feed1} = RSS.get_or_create_feed("https://feed1.example.com/feed.xml")
-      {:ok, feed2} = RSS.get_or_create_feed("https://feed2.example.com/feed.xml")
+      {:ok, feed1} = RSS.get_or_create_feed("https://example.com/feed-1.xml")
+      {:ok, feed2} = RSS.get_or_create_feed("https://example.org/feed-2.xml")
 
       RSS.update_feed(feed1, %{status: "active"})
       RSS.update_feed(feed2, %{status: "active"})

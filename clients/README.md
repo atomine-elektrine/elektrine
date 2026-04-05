@@ -1,6 +1,5 @@
 # Clients
 
-Client-side artifacts that are not part of the Phoenix server deployment live
-here.
+Client-side artifacts that are not part of the Phoenix release live here.
 
-- `password-manager-extension/`
+- `password-manager-extension/`: browser extension for the vault APIs

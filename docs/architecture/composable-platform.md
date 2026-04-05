@@ -16,9 +16,15 @@ Current platform module ids:
 - `email`
 - `vault`
 - `vpn`
+- `dns`
+
+Accepted aliases:
+
+- `password-manager`
+- `password_manager`
 
 Operational rules:
 
 - use `scripts/release/deploy_release.sh` for hoster builds
 - use `deploy/docker/compose.core.yml` as the default self-host path
-- treat `email`, `vpn`, `onion`, and client artifacts as add-ons around the default self-host image
+- treat `email`, `dns`, `vpn`, `onion`, and client artifacts as add-ons around the default self-host image

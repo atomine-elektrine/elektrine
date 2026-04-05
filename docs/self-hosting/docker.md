@@ -3,6 +3,9 @@
 The Docker deployment keeps the main app and background services in one Compose
 stack.
 
+`scripts/deploy/docker_deploy.sh` is the module-aware wrapper around that stack.
+If you run it without explicit profiles, it defaults to `caddy`.
+
 ## Services
 
 - `app`
@@ -22,14 +25,14 @@ See `docs/self-hosting/caddy.md` for Caddy details.
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
-| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn` |
+| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn`, `dns` |
 | long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `vpn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
-Use this rule of thumb:
+Rule of thumb:
 
-- if it is a feature in the app, treat it as a module
-- if it opens ports or runs a dedicated daemon, treat it as a profile-backed service
+- If it is a feature in the app, treat it as a module.
+- If it opens ports or runs a dedicated daemon, treat it as a profile-backed service.
 
 `vpn` is the one intentional hybrid here: the app module stays enabled in
 Elektrine, and the Docker deploy adds the bundled `vpn` service so WireGuard
@@ -38,15 +41,15 @@ runs in the same stack.
 ## Host Layout
 
 1. clone this repo to `/opt/elektrine/app`
-2. copy `.env.minimal.example` to `/opt/elektrine/app/.env.production`
+2. copy `.env.example` or one of the smaller files under `env/` to `/opt/elektrine/app/.env.production`
 3. install Docker Engine with the Compose plugin
 4. install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts
 
 ## Environment Files
 
-- start from `.env.minimal.example` for the easiest first deploy
-- use `.env.example` only when you want the larger advanced template
+- start from `.env.example` for a first deploy
 - use the smaller files under `env/` as reference for feature-specific overrides
+- keep `.env.production` limited to the values you actually need on that host
 
 Minimal first-run values are usually:
 
@@ -93,8 +96,8 @@ scripts/deploy/build_and_push_image.sh --tag dev-$(git rev-parse --short HEAD)
 scripts/deploy/deploy_pushed_image.sh --host linuxuser@your-host --tag dev-$(git rev-parse --short HEAD)
 ```
 
-That path builds the main Elektrine image locally, pushes it to GHCR, then tells the
-remote host to pull and deploy it without rebuilding the app image there.
+That path builds the main Elektrine image locally, pushes it to GHCR, then has
+the remote host pull and deploy it without rebuilding the app image there.
 
 ## HTTPS
 

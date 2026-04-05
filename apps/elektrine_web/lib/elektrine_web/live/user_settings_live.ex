@@ -8,6 +8,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   alias Elektrine.Platform.Modules
   alias Elektrine.RSS
   alias ElektrineWeb.Platform.Integrations
+  alias ElektrineWeb.UserAuth
   on_mount({ElektrineWeb.Live.AuthHooks, :require_authenticated_user})
   @default_tab "profile"
   @setting_tabs [
@@ -1004,11 +1005,16 @@ defmodule ElektrineWeb.UserSettingsLive do
         {final_user, message} =
           if Elektrine.Strings.present?(recovery_email_param) &&
                recovery_email_param != old_recovery_email do
-            RecoveryEmailVerification.set_recovery_email(updated_user.id, recovery_email_param)
-            reloaded_user = Accounts.get_user!(socket.assigns.user.id)
+            if recent_auth_valid?(socket) do
+              RecoveryEmailVerification.set_recovery_email(updated_user.id, recovery_email_param)
+              reloaded_user = Accounts.get_user!(socket.assigns.user.id)
 
-            {reloaded_user,
-             "Settings updated. Please check your recovery email for a verification link."}
+              {reloaded_user,
+               "Settings updated. Please check your recovery email for a verification link."}
+            else
+              {updated_user,
+               "Settings updated, but changing your recovery email requires a recent login. Sign in again and retry."}
+            end
           else
             {updated_user, "Settings updated successfully"}
           end
@@ -1152,6 +1158,12 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp bluesky_managed_error_message(_) do
     "Could not update managed Bluesky connection"
+  end
+
+  defp recent_auth_valid?(socket) do
+    socket.assigns
+    |> Map.get(:user_recent_auth_at)
+    |> UserAuth.recent_auth_valid?()
   end
 
   defp format_bluesky_http_reason(reason) do

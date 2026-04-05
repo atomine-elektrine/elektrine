@@ -121,7 +121,11 @@ defmodule Elektrine.OAuth.Authorization do
   """
   @spec get_by_token(App.t(), String.t()) :: {:ok, t()} | {:error, :not_found}
   def get_by_token(%App{id: app_id}, token) do
-    query = from(a in __MODULE__, where: a.app_id == ^app_id and a.token == ^hash_secret(token))
+    query =
+      from(a in __MODULE__,
+        where: a.app_id == ^app_id and a.token == ^hash_secret(token),
+        where: a.used == false and a.valid_until > ^DateTime.utc_now()
+      )
 
     case Repo.one(query) do
       nil -> {:error, :not_found}

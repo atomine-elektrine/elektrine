@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.TimelinePostDetailTest do
+defmodule ElektrineSocialWeb.TimelinePostDetailTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Ecto.Query
@@ -14,41 +14,45 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
   describe "image posts on timeline detail page" do
     test "renders an image-only local post", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
+      media_key = "timeline-attachments/#{user.id}_test.jpg"
 
       {:ok, post} =
         Social.create_timeline_post(user.id, "",
           visibility: "public",
-          media_urls: ["timeline-attachments/test.jpg"]
+          media_urls: [media_key]
         )
 
       assert {:error, {:redirect, %{to: redirect_to}}} = live(conn, ~p"/timeline/post/#{post.id}")
       assert redirect_to == ~p"/remote/post/#{post.id}"
 
-      {:ok, _view, html} = live(conn, redirect_to)
+      {:ok, view, _html} = live(conn, redirect_to)
 
-      assert html =~ "/uploads/timeline-attachments/test.jpg"
+      assert has_element?(view, ~s(button[phx-click="open_image_modal"]))
+      assert has_element?(view, "img")
     end
 
     test "does not crash when media_urls contains blank entries", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
+      media_key = "timeline-attachments/#{user.id}_test.jpg"
 
       {:ok, post} =
         Social.create_timeline_post(user.id, "",
           visibility: "public",
-          media_urls: ["timeline-attachments/test.jpg"]
+          media_urls: [media_key]
         )
 
       Repo.update_all(
         from(m in Message, where: m.id == ^post.id),
-        set: [media_urls: ["", "timeline-attachments/test.jpg"]]
+        set: [media_urls: ["", media_key]]
       )
 
       assert {:error, {:redirect, %{to: redirect_to}}} = live(conn, ~p"/timeline/post/#{post.id}")
       assert redirect_to == ~p"/remote/post/#{post.id}"
 
-      {:ok, _view, html} = live(conn, redirect_to)
+      {:ok, view, _html} = live(conn, redirect_to)
 
-      assert html =~ "/uploads/timeline-attachments/test.jpg"
+      assert has_element?(view, ~s(button[phx-click="open_image_modal"]))
+      assert has_element?(view, "img")
     end
 
     test "does not crash when cached replies metadata is a URL string", %{conn: conn} do
@@ -204,9 +208,7 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
         })
 
       encoded_reply_id = URI.encode_www_form(reply_id)
-      {:ok, view, _initial_html} = live(conn, ~p"/remote/post/#{encoded_reply_id}")
-
-      html = render(view)
+      {:ok, _view, html} = live(conn, ~p"/remote/post/#{encoded_reply_id}")
       assert html =~ "Middle ancestor content"
       assert html =~ "Root ancestor content"
       assert html =~ ~s(href="#{parent_id}")
@@ -366,7 +368,8 @@ defmodule ElektrineWeb.TimelinePostDetailTest do
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
         "user_id" => user.id,
         "password_changed_at" =>
-          user.last_password_change && DateTime.to_unix(user.last_password_change)
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
     conn

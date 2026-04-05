@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.MediaProxyControllerTest do
+defmodule ElektrineSocialWeb.MediaProxyControllerTest do
   use ExUnit.Case, async: true
 
-  alias ElektrineWeb.MediaProxyController
+  alias ElektrineSocialWeb.MediaProxyController
 
   test "does not treat svg content as inline-safe" do
     assert MediaProxyController.inline_safe_content_type?("image/png")

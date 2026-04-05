@@ -2,23 +2,22 @@
 
 Social domain and extracted social web surface for the Elektrine umbrella.
 
-## What this app owns
+## What lives here
 
 - Timeline post creation and feed logic
 - Likes, boosts/quotes, bookmarks, and view tracking
 - Hashtags, lists, polls, and recommendations
 - Link preview and social background jobs
-- Extracted social web surfaces under `ElektrineWeb.*`
-  including timeline/community/list/gallery/remote-profile LiveViews,
-  authenticated and external social APIs, ActivityPub/WebFinger/NodeInfo,
-  Mastodon compatibility endpoints, media proxying, and interaction redirects
+- Timeline, community, list, gallery, hashtag, and remote-profile LiveViews
+- Social APIs, ActivityPub/WebFinger/NodeInfo, Mastodon compatibility endpoints, media proxying, and interaction redirects
+- Social components under both `ElektrineSocialWeb.*` and `ElektrineWeb.Components.Social.*`
 
 ## Notes
 
 - Builds on shared messaging/accounts contexts from `elektrine`.
 - Main API surface is `Elektrine.Social`.
-- `elektrine_web` mounts these modules as the host shell and keeps shared
-  layout/auth/navigation concerns.
+- `elektrine_web` mounts these modules as the host shell and keeps shared layout/auth/navigation concerns.
+- Router-mounted modules in this app still use `ElektrineWeb.*`; shared entrypoints for extracted surfaces live in `ElektrineSocialWeb`.
 
 ## License
 

@@ -240,31 +240,41 @@
 
         <ul tabindex="0" class="dropdown-content z-[1] menu p-2 rounded-box w-40">
           <li>
-            <a
-              href="/locale/switch?locale=en"
-              class={
-                if (@current_user && @current_user.locale == "en") ||
-                     (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "en"),
-                   do: "bg-primary/10 text-primary font-semibold",
-                   else: ""
-              }
-            >
-              <span class="font-medium">EN</span> English
-            </a>
+            <.form for={%{}} action={~p"/locale/switch"} method="post" class="contents">
+              <input type="hidden" name="locale" value="en" />
+              <button
+                type="submit"
+                class={
+                  "w-full text-left " <>
+                    if((@current_user && @current_user.locale == "en") ||
+                         (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "en"),
+                       do: "bg-primary/10 text-primary font-semibold",
+                       else: ""
+                    )
+                }
+              >
+                <span class="font-medium">EN</span> English
+              </button>
+            </.form>
           </li>
 
           <li>
-            <a
-              href="/locale/switch?locale=zh"
-              class={
-                if (@current_user && @current_user.locale == "zh") ||
-                     (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "zh"),
-                   do: "bg-primary/10 text-primary font-semibold",
-                   else: ""
-              }
-            >
-              <span class="font-medium">中</span> 中文
-            </a>
+            <.form for={%{}} action={~p"/locale/switch"} method="post" class="contents">
+              <input type="hidden" name="locale" value="zh" />
+              <button
+                type="submit"
+                class={
+                  "w-full text-left " <>
+                    if((@current_user && @current_user.locale == "zh") ||
+                         (!@current_user && Gettext.get_locale(ElektrineWeb.Gettext) == "zh"),
+                       do: "bg-primary/10 text-primary font-semibold",
+                       else: ""
+                    )
+                }
+              >
+                <span class="font-medium">中</span> 中文
+              </button>
+            </.form>
           </li>
         </ul>
       </div>
@@ -532,20 +542,28 @@
 </main>
 
 <footer class="relative min-h-[360px] flex items-center overflow-x-clip">
-  <div aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden">
-    <div class="absolute right-8 top-1/2 -translate-y-1/2 rotate-[-16deg]">
-      <span
-        class="footer-wordmark-glow pointer-events-auto inline-block whitespace-nowrap select-none bg-clip-text text-[clamp(2.15rem,6.5vw,4.75rem)] font-black uppercase tracking-[0.16em] text-transparent"
-        style={footer_wordmark_style(assigns)}
-      >
-        313k7r1n3
-      </span>
+  <div class="pointer-events-none absolute inset-0 overflow-hidden hidden sm:block">
+    <div class="absolute right-8 top-1/2 -translate-y-1/2 rotate-[-14deg]">
+      <div class="footer-brandmark">
+        <.link
+          navigate={~p"/"}
+          aria-label="Go to homepage"
+          class="pointer-events-auto inline-block"
+        >
+          <span
+            class="footer-wordmark-glow inline-block whitespace-nowrap select-none bg-clip-text text-[clamp(2.15rem,6.5vw,4.5rem)] font-black tracking-[0.14em] text-transparent"
+            style={footer_wordmark_style(assigns)}
+          >
+            313k7r1n3
+          </span>
+        </.link>
+      </div>
     </div>
   </div>
 
-  <div class="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+  <div class="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
     <!-- Main Footer Content -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8 text-center md:text-left">
+    <div class="grid grid-cols-2 gap-6 mb-6 text-center md:grid-cols-5 md:gap-8 md:mb-8 md:text-left">
       <!-- Company -->
       <div>
         <h3 class="font-semibold mb-3 text-sm">Company</h3>
@@ -673,8 +691,8 @@
       </div>
     </div>
     <!-- Bottom Bar -->
-    <div class="border-t border-base-300 pt-4">
-      <div class="flex flex-wrap justify-center items-center gap-4 text-xs opacity-60">
+    <div class="border-t border-base-300 pt-3 sm:pt-4">
+      <div class="flex flex-wrap justify-center items-center gap-3 sm:gap-4 text-xs opacity-60">
         <span class="font-serif-accent">© 2026 Elektrine. All rights reserved.</span>
         <span class="hidden sm:inline">•</span>
         <span data-live-clock>

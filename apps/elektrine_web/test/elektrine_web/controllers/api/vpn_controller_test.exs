@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.API.VPNControllerTest do
+defmodule ElektrineVPNWeb.API.VPNControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Accounts

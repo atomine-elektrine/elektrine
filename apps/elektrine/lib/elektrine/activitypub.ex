@@ -1301,7 +1301,7 @@ defmodule Elektrine.ActivityPub do
       community_id: community.id,
       published_at: community.inserted_at,
       last_fetched_at: DateTime.utc_now(),
-      metadata: %{"private_key" => private_key}
+      metadata: Actor.put_metadata_private_key(%{}, private_key)
     }
 
     case %Actor{}

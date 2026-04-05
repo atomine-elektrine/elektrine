@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.API.EmailControllerTest do
+defmodule ElektrineEmailWeb.API.EmailControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures

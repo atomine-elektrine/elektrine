@@ -22,7 +22,7 @@ defmodule ElektrineWeb.LayoutsTest do
       conn = %Plug.Conn{
         request_path: "/pripyat/vpn",
         private: %{
-          phoenix_controller: ElektrineWeb.Admin.VPNController,
+          phoenix_controller: ElektrineVPNWeb.Admin.VPNController,
           phoenix_action: :dashboard
         }
       }

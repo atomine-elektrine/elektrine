@@ -3,10 +3,8 @@ import { decryptValue, encryptValue, verifyPassphrase } from "./lib/crypto.js"
 import {
   clearPendingSave,
   clearStagedFill,
-  clearSessionPassphrase,
   getPendingSave,
   getStagedFill,
-  getSessionPassphrase,
   getSettings,
   setPendingSave,
   setStagedFill
@@ -14,6 +12,7 @@ import {
 
 const PENDING_SAVE_EXPIRY_MS = 5 * 60 * 1000
 const STAGED_FILL_EXPIRY_MS = 3 * 60 * 1000
+let sessionPassphrase = ""
 
 const MESSAGE_TYPES = {
   OPEN_OPTIONS: "ui:open-options",
@@ -27,6 +26,9 @@ const MESSAGE_TYPES = {
   RESOLVE_PENDING_SAVE: "vault:resolve-pending-save",
   SAVE_PENDING: "vault:save-pending",
   DISMISS_PENDING_SAVE: "vault:dismiss-pending-save"
+  ,GET_SESSION_PASSPHRASE: "vault:get-session-passphrase"
+  ,SET_SESSION_PASSPHRASE: "vault:set-session-passphrase"
+  ,CLEAR_SESSION_PASSPHRASE: "vault:clear-session-passphrase"
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -80,6 +82,17 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.DISMISS_PENDING_SAVE:
       await clearPendingSave(sender.tab?.id)
       return { dismissed: true }
+
+    case MESSAGE_TYPES.GET_SESSION_PASSPHRASE:
+      return { passphrase: sessionPassphrase }
+
+    case MESSAGE_TYPES.SET_SESSION_PASSPHRASE:
+      sessionPassphrase = typeof message.passphrase === "string" ? message.passphrase : ""
+      return { stored: true }
+
+    case MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE:
+      sessionPassphrase = ""
+      return { cleared: true }
 
     default:
       return { ignored: true }
@@ -307,7 +320,7 @@ async function getVaultSession() {
     return { status: "unconfigured", settings, entries }
   }
 
-  const passphrase = await getSessionPassphrase()
+  const passphrase = sessionPassphrase
 
   if (!passphrase) {
     return { status: "locked", settings, entries }
@@ -318,11 +331,11 @@ async function getVaultSession() {
       const valid = await verifyPassphrase(data.vault_verifier, passphrase)
 
       if (!valid) {
-        await clearSessionPassphrase()
+        sessionPassphrase = ""
         return { status: "locked", settings, entries }
       }
     } catch (_error) {
-      await clearSessionPassphrase()
+      sessionPassphrase = ""
       return { status: "locked", settings, entries }
     }
   }
@@ -465,7 +478,7 @@ function safeHost(url) {
 }
 
 function hostsRelated(left, right) {
-  return left === right || left.endsWith(`.${right}`) || right.endsWith(`.${left}`)
+  return left === right
 }
 
 function looksLikeLoginUrl(url) {

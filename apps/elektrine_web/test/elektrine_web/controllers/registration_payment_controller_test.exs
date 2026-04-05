@@ -78,7 +78,7 @@ defmodule ElektrineWeb.RegistrationPaymentControllerTest do
 
     Repo.insert!(%RegistrationCheckout{
       stripe_checkout_session_id: "cs_reg_success",
-      lookup_token: "access-token",
+      lookup_token: RegistrationCheckout.hash_lookup_token("access-token"),
       product_slug: "registration",
       status: "fulfilled",
       invite_code_id: invite_code.id
@@ -90,6 +90,13 @@ defmodule ElektrineWeb.RegistrationPaymentControllerTest do
         ~p"/register/purchase/success?checkout_session_id=cs_reg_success&access=access-token"
       )
 
+    assert redirected_to(conn) == "/register/purchase/success?checkout_session_id=cs_reg_success"
+
+    conn =
+      conn
+      |> Phoenix.ConnTest.recycle()
+      |> get(~p"/register/purchase/success?checkout_session_id=cs_reg_success")
+
     response = html_response(conn, 200)
 
     assert response =~ "Invite Ready"
@@ -100,7 +107,7 @@ defmodule ElektrineWeb.RegistrationPaymentControllerTest do
   test "GET /register/purchase/success shows a pending state before fulfillment", %{conn: conn} do
     Repo.insert!(%RegistrationCheckout{
       stripe_checkout_session_id: "cs_reg_pending",
-      lookup_token: "pending-token",
+      lookup_token: RegistrationCheckout.hash_lookup_token("pending-token"),
       product_slug: "registration",
       status: "pending"
     })
@@ -110,6 +117,13 @@ defmodule ElektrineWeb.RegistrationPaymentControllerTest do
         conn,
         ~p"/register/purchase/success?checkout_session_id=cs_reg_pending&access=pending-token"
       )
+
+    assert redirected_to(conn) == "/register/purchase/success?checkout_session_id=cs_reg_pending"
+
+    conn =
+      conn
+      |> Phoenix.ConnTest.recycle()
+      |> get(~p"/register/purchase/success?checkout_session_id=cs_reg_pending")
 
     response = html_response(conn, 200)
 

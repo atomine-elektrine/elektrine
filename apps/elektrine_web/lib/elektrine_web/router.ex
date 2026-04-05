@@ -223,7 +223,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
-    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineWeb.Plugs.JMAPAuth)
+    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineEmailWeb.Plugs.JMAPAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
@@ -231,7 +231,7 @@ defmodule ElektrineWeb.Router do
     # JMAP discovery (authenticated)
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineWeb.Plugs.JMAPAuth)
+    plug(ElektrineWeb.Plugs.OptionalDelegate, module: ElektrineEmailWeb.Plugs.JMAPAuth)
   end
 
   pipeline :autoconfig do
@@ -278,10 +278,10 @@ defmodule ElektrineWeb.Router do
   end
 
   # Media proxy for federation privacy (no auth required)
-  scope "/media_proxy", ElektrineWeb do
+  scope "/media_proxy", alias: false do
     pipe_through(:api)
 
-    get("/:signature/:encoded_url", MediaProxyController, :proxy)
+    get("/:signature/:encoded_url", ElektrineSocialWeb.MediaProxyController, :proxy)
   end
 
   scope "/api", ElektrineWeb do
@@ -388,13 +388,13 @@ defmodule ElektrineWeb.Router do
   end
 
   # WKD (Web Key Directory) for PGP public key discovery
-  scope "/.well-known/openpgpkey", ElektrineWeb do
+  scope "/.well-known/openpgpkey", alias: false do
     pipe_through(:api)
 
     # Direct method: /.well-known/openpgpkey/hu/{hash}
-    get("/hu/:hash", WKDController, :get_key)
+    get("/hu/:hash", ElektrineEmailWeb.WKDController, :get_key)
     # Policy file
-    get("/policy", WKDController, :policy)
+    get("/policy", ElektrineEmailWeb.WKDController, :policy)
   end
 
   # CalDAV routes
@@ -411,7 +411,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # CardDAV routes
-  scope "/addressbooks", ElektrineWeb.DAV do
+  scope "/addressbooks", ElektrineEmailWeb.DAV do
     pipe_through(:dav)
 
     match(:propfind, "/:username", AddressBookController, :propfind_home)
@@ -430,7 +430,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # JMAP discovery (RFC 8620)
-  scope "/.well-known", ElektrineWeb.JMAP do
+  scope "/.well-known", ElektrineEmailWeb.JMAP do
     pipe_through(:jmap_discovery)
 
     get("/jmap", SessionController, :session)
@@ -443,7 +443,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # JMAP API (RFC 8620, RFC 8621)
-  scope "/jmap", ElektrineWeb.JMAP do
+  scope "/jmap", ElektrineEmailWeb.JMAP do
     pipe_through(:jmap)
 
     post("/", APIController, :api)
@@ -453,20 +453,20 @@ defmodule ElektrineWeb.Router do
   end
 
   # ActivityPub federation routes
-  scope "/.well-known", ElektrineWeb do
+  scope "/.well-known", alias: false do
     pipe_through(:activitypub)
 
-    get("/webfinger", WebFingerController, :webfinger)
-    get("/host-meta", WebFingerController, :host_meta)
-    get("/nodeinfo", NodeinfoController, :well_known)
+    get("/webfinger", ElektrineSocialWeb.WebFingerController, :webfinger)
+    get("/host-meta", ElektrineSocialWeb.WebFingerController, :host_meta)
+    get("/nodeinfo", ElektrineSocialWeb.NodeinfoController, :well_known)
   end
 
   # Nodeinfo endpoints (outside .well-known scope)
-  scope "/nodeinfo", ElektrineWeb do
+  scope "/nodeinfo", alias: false do
     pipe_through(:activitypub)
 
-    get("/2.0", NodeinfoController, :nodeinfo_2_0)
-    get("/2.1", NodeinfoController, :nodeinfo_2_1)
+    get("/2.0", ElektrineSocialWeb.NodeinfoController, :nodeinfo_2_0)
+    get("/2.1", ElektrineSocialWeb.NodeinfoController, :nodeinfo_2_1)
   end
 
   # Routes that don't require authentication (MOVED BEFORE ActivityPub to prioritize browser requests)
@@ -477,9 +477,21 @@ defmodule ElektrineWeb.Router do
     get("/sitemap.xml", SitemapController, :index)
     get("/robots.txt", SitemapController, :robots)
 
-    # ActivityPub external interaction compatibility (Lemmy/Mastodon clients)
-    get("/authorize_interaction", ExternalInteractionController, :show)
-    get("/activitypub/externalInteraction", ExternalInteractionController, :show)
+    scope "/", alias: false do
+      # ActivityPub external interaction compatibility (Lemmy/Mastodon clients)
+      get("/authorize_interaction", ElektrineSocialWeb.ExternalInteractionController, :show)
+
+      get(
+        "/activitypub/externalInteraction",
+        ElektrineSocialWeb.ExternalInteractionController,
+        :show
+      )
+
+      # Unsubscribe routes (RFC 8058 support) - POST routes stay as controllers
+      post("/unsubscribe/:token", ElektrineEmailWeb.UnsubscribeController, :one_click)
+      post("/unsubscribe/confirm/:token", ElektrineEmailWeb.UnsubscribeController, :confirm)
+      post("/resubscribe", ElektrineEmailWeb.UnsubscribeController, :resubscribe)
+    end
 
     # Temporary email routes disabled
     # Guest temporary mail system has been disabled for security
@@ -490,11 +502,6 @@ defmodule ElektrineWeb.Router do
     # Public file shares
     get("/files/share/:token", FileShareController, :show)
     post("/files/share/:token", FileShareController, :authorize)
-
-    # Unsubscribe routes (RFC 8058 support) - POST routes stay as controllers
-    post("/unsubscribe/:token", UnsubscribeController, :one_click)
-    post("/unsubscribe/confirm/:token", UnsubscribeController, :confirm)
-    post("/resubscribe", UnsubscribeController, :resubscribe)
   end
 
   # Routes that are specifically for unauthenticated users
@@ -552,50 +559,55 @@ defmodule ElektrineWeb.Router do
   end
 
   # ActivityPub user routes (AFTER LiveView routes so browser requests hit LiveView first)
-  scope "/users/:username", ElektrineWeb do
+  scope "/users/:username", alias: false do
     pipe_through(:activitypub)
 
-    get("/", ActivityPubController, :actor)
-    post("/inbox", ActivityPubController, :inbox)
-    get("/outbox", ActivityPubController, :outbox)
-    get("/followers", ActivityPubController, :followers)
-    get("/following", ActivityPubController, :following)
-    get("/statuses/:id", ActivityPubController, :object)
+    get("/", ElektrineSocialWeb.ActivityPubController, :actor)
+    post("/inbox", ElektrineSocialWeb.ActivityPubController, :inbox)
+    get("/outbox", ElektrineSocialWeb.ActivityPubController, :outbox)
+    get("/followers", ElektrineSocialWeb.ActivityPubController, :followers)
+    get("/following", ElektrineSocialWeb.ActivityPubController, :following)
+    get("/statuses/:id", ElektrineSocialWeb.ActivityPubController, :object)
   end
 
   # ActivityPub community (Group) routes - Use /c/ prefix to avoid conflict with /communities/ LiveView
-  scope "/c/:name", ElektrineWeb do
+  scope "/c/:name", alias: false do
     pipe_through(:activitypub)
 
-    get("/", ActivityPubController, :community_actor)
-    post("/inbox", ActivityPubController, :community_inbox)
-    get("/outbox", ActivityPubController, :community_outbox)
-    get("/followers", ActivityPubController, :community_followers)
-    get("/moderators", ActivityPubController, :community_moderators)
-    get("/posts/:id", ActivityPubController, :community_object)
-    get("/posts/:id/activity", ActivityPubController, :community_object_activity)
+    get("/", ElektrineSocialWeb.ActivityPubController, :community_actor)
+    post("/inbox", ElektrineSocialWeb.ActivityPubController, :community_inbox)
+    get("/outbox", ElektrineSocialWeb.ActivityPubController, :community_outbox)
+    get("/followers", ElektrineSocialWeb.ActivityPubController, :community_followers)
+    get("/moderators", ElektrineSocialWeb.ActivityPubController, :community_moderators)
+    get("/posts/:id", ElektrineSocialWeb.ActivityPubController, :community_object)
+
+    get(
+      "/posts/:id/activity",
+      ElektrineSocialWeb.ActivityPubController,
+      :community_object_activity
+    )
   end
 
   # Relay actor inbox (for receiving Accept/Reject from relays)
-  scope "/relay", ElektrineWeb do
+  scope "/relay", alias: false do
     pipe_through(:activitypub)
 
-    get("/", ActivityPubController, :relay_actor)
-    post("/inbox", ActivityPubController, :inbox)
+    get("/", ElektrineSocialWeb.ActivityPubController, :relay_actor)
+    post("/inbox", ElektrineSocialWeb.ActivityPubController, :inbox)
   end
 
   # Shared inbox for federation
-  scope "/", ElektrineWeb do
+  scope "/", alias: false do
     pipe_through(:activitypub)
 
-    post("/inbox", ActivityPubController, :inbox)
+    post("/inbox", ElektrineSocialWeb.ActivityPubController, :inbox)
   end
 
   # Hashtag collection endpoint for federation
-  scope "/tags", ElektrineWeb do
+  scope "/tags", alias: false do
     pipe_through(:activitypub)
 
-    get("/:name", ActivityPubController, :hashtag_collection)
+    get("/:name", ElektrineSocialWeb.ActivityPubController, :hashtag_collection)
   end
 
   # API routes for OAuth and other JSON endpoints
@@ -648,12 +660,21 @@ defmodule ElektrineWeb.Router do
     # User status update
     post("/account/status", UserSettingsController, :set_status)
 
-    # Email attachment downloads
-    get(
-      "/email/message/:message_id/attachment/:attachment_id/download",
-      AttachmentController,
-      :download
-    )
+    scope "/", alias: false do
+      # Email attachment downloads
+      get(
+        "/email/message/:message_id/attachment/:attachment_id/download",
+        ElektrineEmailWeb.AttachmentController,
+        :download
+      )
+
+      # Email controller routes
+      delete("/email/:id", ElektrineEmailWeb.EmailController, :delete)
+      get("/email/:id/print", ElektrineEmailWeb.EmailController, :print)
+      get("/email/:id/download_eml", ElektrineEmailWeb.EmailController, :download_eml)
+      get("/email/:id/iframe_content", ElektrineEmailWeb.EmailController, :iframe_content)
+      get("/email/export/download/:id", ElektrineEmailWeb.EmailController, :download_export)
+    end
 
     # Personal file downloads
     get("/account/files/:id/download", FilesController, :download)
@@ -661,20 +682,12 @@ defmodule ElektrineWeb.Router do
 
     # NOTE: All LiveView routes moved to single public_content live_session at end of router
     # for seamless navigation. Auth is enforced by pipe_through :require_authenticated_user
-
-    # Email controller routes
-    delete("/email/:id", EmailController, :delete)
-    get("/email/:id/print", EmailController, :print)
-    get("/email/:id/download_eml", EmailController, :download_eml)
-    get("/email/:id/iframe_content", EmailController, :iframe_content)
-    get("/email/export/download/:id", EmailController, :download_export)
   end
 
   # Impersonation exit route (must be accessible while acting as a non-admin user)
   scope "/pripyat", ElektrineWeb do
     pipe_through([:browser, :require_authenticated_user])
 
-    get("/stop-impersonation", Admin.UsersController, :stop_impersonation)
     post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
   end
 
@@ -717,30 +730,43 @@ defmodule ElektrineWeb.Router do
     post("/users/:id/reset-password", Admin.UsersController, :reset_user_password)
     post("/users/:id/reset-2fa", Admin.UsersController, :reset_user_2fa)
 
-    # Alias management (Admin.AliasesController)
-    get("/aliases", Admin.AliasesController, :index)
-    post("/aliases/:id/toggle", Admin.AliasesController, :toggle)
-    delete("/aliases/:id", Admin.AliasesController, :delete)
-    get("/forwarded-messages", Admin.AliasesController, :forwarded_messages)
+    scope "/", alias: false do
+      # Alias management
+      get("/aliases", ElektrineEmailWeb.Admin.AliasesController, :index)
+      post("/aliases/:id/toggle", ElektrineEmailWeb.Admin.AliasesController, :toggle)
+      delete("/aliases/:id", ElektrineEmailWeb.Admin.AliasesController, :delete)
+      get("/forwarded-messages", ElektrineEmailWeb.Admin.AliasesController, :forwarded_messages)
 
-    # Mailbox management (Admin.MailboxesController)
-    get("/mailboxes", Admin.MailboxesController, :index)
-    delete("/mailboxes/:id", Admin.MailboxesController, :delete)
-    get("/custom-domains", Admin.CustomDomainsController, :index)
+      # Mailbox management
+      get("/mailboxes", ElektrineEmailWeb.Admin.MailboxesController, :index)
+      delete("/mailboxes/:id", ElektrineEmailWeb.Admin.MailboxesController, :delete)
+      get("/custom-domains", ElektrineEmailWeb.Admin.CustomDomainsController, :index)
 
-    # Message management (Admin.MessagesController)
-    get("/messages", Admin.MessagesController, :index)
-    get("/messages/:id/view", Admin.MessagesController, :view)
-    get("/messages/:id/raw", Admin.MessagesController, :view_raw)
-    get("/users/:id/messages", Admin.MessagesController, :user_messages)
-    get("/users/:user_id/messages/:id", Admin.MessagesController, :view_user_message)
-    get("/users/:user_id/messages/:id/raw", Admin.MessagesController, :view_user_message_raw)
-    get("/messages/:id/iframe", Admin.MessagesController, :iframe)
+      # Message management
+      get("/messages", ElektrineEmailWeb.Admin.MessagesController, :index)
+      get("/messages/:id/view", ElektrineEmailWeb.Admin.MessagesController, :view)
+      get("/messages/:id/raw", ElektrineEmailWeb.Admin.MessagesController, :view_raw)
+      get("/users/:id/messages", ElektrineEmailWeb.Admin.MessagesController, :user_messages)
 
-    # Arblarg chat message management (Admin.ChatMessagesController)
-    get("/arblarg/messages", Admin.ChatMessagesController, :index)
-    get("/arblarg/messages/:id/view", Admin.ChatMessagesController, :view)
-    get("/arblarg/messages/:id/raw", Admin.ChatMessagesController, :view_raw)
+      get(
+        "/users/:user_id/messages/:id",
+        ElektrineEmailWeb.Admin.MessagesController,
+        :view_user_message
+      )
+
+      get(
+        "/users/:user_id/messages/:id/raw",
+        ElektrineEmailWeb.Admin.MessagesController,
+        :view_user_message_raw
+      )
+
+      get("/messages/:id/iframe", ElektrineEmailWeb.Admin.MessagesController, :iframe)
+
+      # Arblarg chat message management
+      get("/arblarg/messages", ElektrineChatWeb.Admin.ChatMessagesController, :index)
+      get("/arblarg/messages/:id/view", ElektrineChatWeb.Admin.ChatMessagesController, :view)
+      get("/arblarg/messages/:id/raw", ElektrineChatWeb.Admin.ChatMessagesController, :view_raw)
+    end
 
     # Monitoring (Admin.MonitoringController)
     get("/active-users", Admin.MonitoringController, :active_users)
@@ -811,18 +837,26 @@ defmodule ElektrineWeb.Router do
     delete("/subscriptions/:id", Admin.SubscriptionsController, :delete)
     post("/subscriptions/:id/toggle", Admin.SubscriptionsController, :toggle)
 
-    # VPN management (Admin.VPNController)
-    get("/vpn", Admin.VPNController, :dashboard)
-    get("/vpn/servers/new", Admin.VPNController, :new_server)
-    post("/vpn/servers", Admin.VPNController, :create_server)
-    get("/vpn/servers/:id/edit", Admin.VPNController, :edit_server)
-    get("/vpn/servers/:id/confirm-delete", Admin.VPNController, :confirm_delete_server)
-    put("/vpn/servers/:id", Admin.VPNController, :update_server)
-    delete("/vpn/servers/:id", Admin.VPNController, :delete_server)
-    get("/vpn/users", Admin.VPNController, :users)
-    get("/vpn/users/:id/edit", Admin.VPNController, :edit_user_config)
-    put("/vpn/users/:id", Admin.VPNController, :update_user_config)
-    post("/vpn/users/:id/reset-quota", Admin.VPNController, :reset_user_quota)
+    scope "/", alias: false do
+      # VPN management
+      get("/vpn", ElektrineVPNWeb.Admin.VPNController, :dashboard)
+      get("/vpn/servers/new", ElektrineVPNWeb.Admin.VPNController, :new_server)
+      post("/vpn/servers", ElektrineVPNWeb.Admin.VPNController, :create_server)
+      get("/vpn/servers/:id/edit", ElektrineVPNWeb.Admin.VPNController, :edit_server)
+
+      get(
+        "/vpn/servers/:id/confirm-delete",
+        ElektrineVPNWeb.Admin.VPNController,
+        :confirm_delete_server
+      )
+
+      put("/vpn/servers/:id", ElektrineVPNWeb.Admin.VPNController, :update_server)
+      delete("/vpn/servers/:id", ElektrineVPNWeb.Admin.VPNController, :delete_server)
+      get("/vpn/users", ElektrineVPNWeb.Admin.VPNController, :users)
+      get("/vpn/users/:id/edit", ElektrineVPNWeb.Admin.VPNController, :edit_user_config)
+      put("/vpn/users/:id", ElektrineVPNWeb.Admin.VPNController, :update_user_config)
+      post("/vpn/users/:id/reset-quota", ElektrineVPNWeb.Admin.VPNController, :reset_user_quota)
+    end
   end
 
   # Admin LiveView routes - wrapped in live_session for authentication
@@ -868,7 +902,7 @@ defmodule ElektrineWeb.Router do
     pipe_through([:browser])
 
     delete("/logout", UserSessionController, :delete)
-    get("/locale/switch", LocaleController, :switch)
+    post("/locale/switch", LocaleController, :switch)
     get("/oauth/authorize", OIDCController, :authorize)
     post("/oauth/authorize", OIDCController, :approve)
   end
@@ -886,7 +920,7 @@ defmodule ElektrineWeb.Router do
   # like Tusky, Ivory, Ice Cubes, Elk, etc.
 
   # OAuth token endpoints (no auth required for token exchange)
-  scope "/oauth", ElektrineWeb.MastodonAPI do
+  scope "/oauth", ElektrineSocialWeb.MastodonAPI do
     pipe_through(:api)
 
     post("/token", OAuthController, :token)
@@ -908,7 +942,7 @@ defmodule ElektrineWeb.Router do
   end
 
   # Mastodon API v1 - Public endpoints (no auth required)
-  scope "/api/v1", ElektrineWeb.MastodonAPI do
+  scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
     pipe_through(:mastodon_api)
 
     # App registration
@@ -929,14 +963,14 @@ defmodule ElektrineWeb.Router do
   end
 
   # Mastodon API v2 - Public endpoints
-  scope "/api/v2", ElektrineWeb.MastodonAPI do
+  scope "/api/v2", ElektrineSocialWeb.MastodonAPI do
     pipe_through(:mastodon_api)
 
     get("/instance", InstanceController, :show_v2)
   end
 
   # Mastodon API v1 - Authenticated endpoints
-  scope "/api/v1", ElektrineWeb.MastodonAPI do
+  scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
     pipe_through(:mastodon_api_authenticated)
 
     # App credentials verification
@@ -954,23 +988,23 @@ defmodule ElektrineWeb.Router do
   end
 
   # Other scopes may use custom stacks.
-  scope "/api", ElektrineWeb do
+  scope "/api", alias: false do
     pipe_through(:api)
 
     # Email API endpoints
-    post("/haraka/inbound", HarakaWebhookController, :create)
-    post("/haraka/verify-recipient", HarakaWebhookController, :verify_recipient)
-    post("/haraka/auth", HarakaWebhookController, :auth)
-    get("/haraka/domains", HarakaWebhookController, :domains)
+    post("/haraka/inbound", ElektrineEmailWeb.HarakaWebhookController, :create)
+    post("/haraka/verify-recipient", ElektrineEmailWeb.HarakaWebhookController, :verify_recipient)
+    post("/haraka/auth", ElektrineEmailWeb.HarakaWebhookController, :auth)
+    get("/haraka/domains", ElektrineEmailWeb.HarakaWebhookController, :domains)
 
     # VPN API endpoints (called by WireGuard servers)
-    post("/vpn/register", VPNAPIController, :auto_register)
-    get("/vpn/:server_id/peers", VPNAPIController, :get_peers)
-    post("/vpn/:server_id/stats", VPNAPIController, :update_stats)
-    post("/vpn/:server_id/heartbeat", VPNAPIController, :heartbeat)
-    post("/vpn/:server_id/connection", VPNAPIController, :log_connection)
-    post("/vpn/:server_id/register-key", VPNAPIController, :register_key)
-    post("/vpn/:server_id/check-peer", VPNAPIController, :check_peer)
+    post("/vpn/register", ElektrineVPNWeb.VPNAPIController, :auto_register)
+    get("/vpn/:server_id/peers", ElektrineVPNWeb.VPNAPIController, :get_peers)
+    post("/vpn/:server_id/stats", ElektrineVPNWeb.VPNAPIController, :update_stats)
+    post("/vpn/:server_id/heartbeat", ElektrineVPNWeb.VPNAPIController, :heartbeat)
+    post("/vpn/:server_id/connection", ElektrineVPNWeb.VPNAPIController, :log_connection)
+    post("/vpn/:server_id/register-key", ElektrineVPNWeb.VPNAPIController, :register_key)
+    post("/vpn/:server_id/check-peer", ElektrineVPNWeb.VPNAPIController, :check_peer)
   end
 
   # Mobile app authentication - Always available for VPN access
@@ -982,182 +1016,284 @@ defmodule ElektrineWeb.Router do
   end
 
   # Mobile app authenticated endpoints - Always available for VPN
-  scope "/api", ElektrineWeb.API do
+  scope "/api", alias: false do
     pipe_through(:api_authenticated)
 
     # Auth endpoints (require token)
-    post("/auth/logout", AuthController, :logout)
-    get("/auth/me", AuthController, :me)
+    post("/auth/logout", ElektrineWeb.API.AuthController, :logout)
+    get("/auth/me", ElektrineWeb.API.AuthController, :me)
 
     # Settings endpoints
-    get("/settings", SettingsController, :index)
-    put("/settings/profile", SettingsController, :update_profile)
-    put("/settings/notifications", SettingsController, :update_notifications)
-    put("/settings/password", SettingsController, :update_password)
-    post("/settings/bluesky/enable", SettingsController, :enable_bluesky_managed)
+    get("/settings", ElektrineWeb.API.SettingsController, :index)
+    put("/settings/profile", ElektrineWeb.API.SettingsController, :update_profile)
+    put("/settings/notifications", ElektrineWeb.API.SettingsController, :update_notifications)
+    put("/settings/password", ElektrineWeb.API.SettingsController, :update_password)
+    post("/settings/bluesky/enable", ElektrineWeb.API.SettingsController, :enable_bluesky_managed)
 
     # VPN endpoints
-    get("/vpn/servers", VPNController, :index)
-    get("/vpn/configs", VPNController, :list_configs)
-    get("/vpn/configs/:id", VPNController, :show_config)
-    post("/vpn/configs", VPNController, :create_config)
-    delete("/vpn/configs/:id", VPNController, :delete_config)
+    get("/vpn/servers", ElektrineVPNWeb.API.VPNController, :index)
+    get("/vpn/configs", ElektrineVPNWeb.API.VPNController, :list_configs)
+    get("/vpn/configs/:id", ElektrineVPNWeb.API.VPNController, :show_config)
+    post("/vpn/configs", ElektrineVPNWeb.API.VPNController, :create_config)
+    delete("/vpn/configs/:id", ElektrineVPNWeb.API.VPNController, :delete_config)
 
     # Email API endpoints
-    get("/emails", EmailController, :index)
-    get("/emails/search", EmailController, :search)
-    get("/emails/counts", EmailController, :counts)
-    post("/emails/bulk", EmailController, :bulk_action)
-    get("/emails/:id", EmailController, :show)
-    get("/emails/:id/attachments", EmailController, :list_attachments)
-    get("/emails/:id/attachments/:attachment_id", EmailController, :attachment)
-    post("/emails/send", EmailController, :send_email)
-    put("/emails/:id", EmailController, :update)
-    put("/emails/:id/category", EmailController, :update_category)
-    put("/emails/:id/reply-later", EmailController, :set_reply_later)
-    delete("/emails/:id", EmailController, :delete)
+    get("/emails", ElektrineEmailWeb.API.EmailController, :index)
+    get("/emails/search", ElektrineEmailWeb.API.EmailController, :search)
+    get("/emails/counts", ElektrineEmailWeb.API.EmailController, :counts)
+    post("/emails/bulk", ElektrineEmailWeb.API.EmailController, :bulk_action)
+    get("/emails/:id", ElektrineEmailWeb.API.EmailController, :show)
+    get("/emails/:id/attachments", ElektrineEmailWeb.API.EmailController, :list_attachments)
+
+    get(
+      "/emails/:id/attachments/:attachment_id",
+      ElektrineEmailWeb.API.EmailController,
+      :attachment
+    )
+
+    post("/emails/send", ElektrineEmailWeb.API.EmailController, :send_email)
+    put("/emails/:id", ElektrineEmailWeb.API.EmailController, :update)
+    put("/emails/:id/category", ElektrineEmailWeb.API.EmailController, :update_category)
+    put("/emails/:id/reply-later", ElektrineEmailWeb.API.EmailController, :set_reply_later)
+    delete("/emails/:id", ElektrineEmailWeb.API.EmailController, :delete)
 
     # Alias management
-    get("/aliases", AliasController, :index)
-    post("/aliases", AliasController, :create)
-    get("/aliases/:id", AliasController, :show)
-    put("/aliases/:id", AliasController, :update)
-    delete("/aliases/:id", AliasController, :delete)
+    get("/aliases", ElektrineEmailWeb.API.AliasController, :index)
+    post("/aliases", ElektrineEmailWeb.API.AliasController, :create)
+    get("/aliases/:id", ElektrineEmailWeb.API.AliasController, :show)
+    put("/aliases/:id", ElektrineEmailWeb.API.AliasController, :update)
+    delete("/aliases/:id", ElektrineEmailWeb.API.AliasController, :delete)
 
     # Mailbox info
-    get("/mailbox", MailboxController, :show)
-    get("/mailbox/stats", MailboxController, :stats)
+    get("/mailbox", ElektrineEmailWeb.API.MailboxController, :show)
+    get("/mailbox/stats", ElektrineEmailWeb.API.MailboxController, :stats)
 
     # Device registration for push notifications
-    get("/devices", DeviceController, :index)
-    post("/devices", DeviceController, :create)
-    delete("/devices/:token", DeviceController, :delete)
+    get("/devices", ElektrineWeb.API.DeviceController, :index)
+    post("/devices", ElektrineWeb.API.DeviceController, :create)
+    delete("/devices/:token", ElektrineWeb.API.DeviceController, :delete)
 
     # Notifications
-    get("/notifications", NotificationController, :index)
-    post("/notifications/:id/read", NotificationController, :mark_read)
-    post("/notifications/read-all", NotificationController, :mark_all_read)
-    delete("/notifications/:id", NotificationController, :dismiss)
+    get("/notifications", ElektrineWeb.API.NotificationController, :index)
+    post("/notifications/:id/read", ElektrineWeb.API.NotificationController, :mark_read)
+    post("/notifications/read-all", ElektrineWeb.API.NotificationController, :mark_all_read)
+    delete("/notifications/:id", ElektrineWeb.API.NotificationController, :dismiss)
 
     # Chat/Messaging API
-    get("/servers", ServerController, :index)
-    post("/servers", ServerController, :create)
-    get("/servers/:id", ServerController, :show)
-    post("/servers/:server_id/join", ServerController, :join)
-    post("/servers/:server_id/channels", ServerController, :create_channel)
+    get("/servers", ElektrineChatWeb.API.ServerController, :index)
+    post("/servers", ElektrineChatWeb.API.ServerController, :create)
+    get("/servers/:id", ElektrineChatWeb.API.ServerController, :show)
+    post("/servers/:server_id/join", ElektrineChatWeb.API.ServerController, :join)
+    post("/servers/:server_id/channels", ElektrineChatWeb.API.ServerController, :create_channel)
 
-    get("/conversations", ConversationController, :index)
-    post("/conversations", ConversationController, :create)
-    get("/conversations/:id", ConversationController, :show)
-    put("/conversations/:id", ConversationController, :update)
-    delete("/conversations/:id", ConversationController, :delete)
+    get("/conversations", ElektrineChatWeb.API.ConversationController, :index)
+    post("/conversations", ElektrineChatWeb.API.ConversationController, :create)
+    get("/conversations/:id", ElektrineChatWeb.API.ConversationController, :show)
+    put("/conversations/:id", ElektrineChatWeb.API.ConversationController, :update)
+    delete("/conversations/:id", ElektrineChatWeb.API.ConversationController, :delete)
 
     # Conversation actions
-    post("/conversations/:conversation_id/join", ConversationController, :join)
-    post("/conversations/:conversation_id/leave", ConversationController, :leave)
-    post("/conversations/:conversation_id/read", ConversationController, :mark_read)
+    post(
+      "/conversations/:conversation_id/join",
+      ElektrineChatWeb.API.ConversationController,
+      :join
+    )
+
+    post(
+      "/conversations/:conversation_id/leave",
+      ElektrineChatWeb.API.ConversationController,
+      :leave
+    )
+
+    post(
+      "/conversations/:conversation_id/read",
+      ElektrineChatWeb.API.ConversationController,
+      :mark_read
+    )
 
     # Conversation members
-    get("/conversations/:conversation_id/members", ConversationController, :members)
-    post("/conversations/:conversation_id/members", ConversationController, :add_member)
+    get(
+      "/conversations/:conversation_id/members",
+      ElektrineChatWeb.API.ConversationController,
+      :members
+    )
+
+    post(
+      "/conversations/:conversation_id/members",
+      ElektrineChatWeb.API.ConversationController,
+      :add_member
+    )
 
     get(
       "/conversations/:conversation_id/remote-join-requests",
-      ConversationController,
+      ElektrineChatWeb.API.ConversationController,
       :pending_remote_join_requests
     )
 
     post(
       "/conversations/:conversation_id/remote-join-requests/approve",
-      ConversationController,
+      ElektrineChatWeb.API.ConversationController,
       :approve_remote_join_request
     )
 
     post(
       "/conversations/:conversation_id/remote-join-requests/decline",
-      ConversationController,
+      ElektrineChatWeb.API.ConversationController,
       :decline_remote_join_request
     )
 
     delete(
       "/conversations/:conversation_id/members/:user_id",
-      ConversationController,
+      ElektrineChatWeb.API.ConversationController,
       :remove_member
     )
 
     # Messages
-    get("/conversations/:conversation_id/messages", MessageController, :index)
-    post("/conversations/:conversation_id/messages", MessageController, :create)
-    put("/messages/:id", MessageController, :update)
-    delete("/messages/:id", MessageController, :delete)
+    get(
+      "/conversations/:conversation_id/messages",
+      ElektrineChatWeb.API.MessageController,
+      :index
+    )
+
+    post(
+      "/conversations/:conversation_id/messages",
+      ElektrineChatWeb.API.MessageController,
+      :create
+    )
+
+    put("/messages/:id", ElektrineChatWeb.API.MessageController, :update)
+    delete("/messages/:id", ElektrineChatWeb.API.MessageController, :delete)
 
     # Chat media upload
-    post("/conversations/:conversation_id/upload", ConversationController, :upload_media)
+    post(
+      "/conversations/:conversation_id/upload",
+      ElektrineChatWeb.API.ConversationController,
+      :upload_media
+    )
 
     # Message reactions
-    post("/messages/:message_id/reactions", MessageController, :add_reaction)
-    delete("/messages/:message_id/reactions/:emoji", MessageController, :remove_reaction)
+    post("/messages/:message_id/reactions", ElektrineChatWeb.API.MessageController, :add_reaction)
+
+    delete(
+      "/messages/:message_id/reactions/:emoji",
+      ElektrineChatWeb.API.MessageController,
+      :remove_reaction
+    )
 
     # Social/Timeline API
-    get("/social/timeline", SocialController, :timeline)
-    get("/social/timeline/public", SocialController, :public_timeline)
+    get("/social/timeline", ElektrineSocialWeb.API.SocialController, :timeline)
+    get("/social/timeline/public", ElektrineSocialWeb.API.SocialController, :public_timeline)
 
     # Posts
-    get("/social/posts/:id", SocialController, :show_post)
-    post("/social/posts", SocialController, :create_post)
-    delete("/social/posts/:id", SocialController, :delete_post)
+    get("/social/posts/:id", ElektrineSocialWeb.API.SocialController, :show_post)
+    post("/social/posts", ElektrineSocialWeb.API.SocialController, :create_post)
+    delete("/social/posts/:id", ElektrineSocialWeb.API.SocialController, :delete_post)
 
     # Post interactions
-    post("/social/posts/:id/like", SocialController, :like_post)
-    delete("/social/posts/:id/like", SocialController, :unlike_post)
-    post("/social/posts/:id/repost", SocialController, :repost)
-    delete("/social/posts/:id/repost", SocialController, :unrepost)
+    post("/social/posts/:id/like", ElektrineSocialWeb.API.SocialController, :like_post)
+    delete("/social/posts/:id/like", ElektrineSocialWeb.API.SocialController, :unlike_post)
+    post("/social/posts/:id/repost", ElektrineSocialWeb.API.SocialController, :repost)
+    delete("/social/posts/:id/repost", ElektrineSocialWeb.API.SocialController, :unrepost)
 
     # Comments
-    get("/social/posts/:post_id/comments", SocialController, :list_comments)
-    post("/social/posts/:post_id/comments", SocialController, :create_comment)
-    delete("/social/comments/:id", SocialController, :delete_comment)
-    post("/social/comments/:id/like", SocialController, :like_comment)
-    delete("/social/comments/:id/like", SocialController, :unlike_comment)
+    get(
+      "/social/posts/:post_id/comments",
+      ElektrineSocialWeb.API.SocialController,
+      :list_comments
+    )
+
+    post(
+      "/social/posts/:post_id/comments",
+      ElektrineSocialWeb.API.SocialController,
+      :create_comment
+    )
+
+    delete("/social/comments/:id", ElektrineSocialWeb.API.SocialController, :delete_comment)
+    post("/social/comments/:id/like", ElektrineSocialWeb.API.SocialController, :like_comment)
+    delete("/social/comments/:id/like", ElektrineSocialWeb.API.SocialController, :unlike_comment)
 
     # Following
-    get("/social/followers", SocialController, :list_followers)
-    get("/social/following", SocialController, :list_following)
+    get("/social/followers", ElektrineSocialWeb.API.SocialController, :list_followers)
+    get("/social/following", ElektrineSocialWeb.API.SocialController, :list_following)
 
     # User profiles and actions
-    get("/social/users/search", SocialController, :search_users)
-    get("/social/users/:id", SocialController, :show_user)
-    get("/social/users/:user_id/posts", SocialController, :user_posts)
-    get("/social/users/:user_id/followers", SocialController, :user_followers)
-    get("/social/users/:user_id/following", SocialController, :user_following)
-    post("/social/users/:user_id/follow", SocialController, :follow_user)
-    delete("/social/users/:user_id/follow", SocialController, :unfollow_user)
-    post("/social/users/:user_id/block", SocialController, :block_user)
-    delete("/social/users/:user_id/block", SocialController, :unblock_user)
+    get("/social/users/search", ElektrineSocialWeb.API.SocialController, :search_users)
+    get("/social/users/:id", ElektrineSocialWeb.API.SocialController, :show_user)
+    get("/social/users/:user_id/posts", ElektrineSocialWeb.API.SocialController, :user_posts)
+
+    get(
+      "/social/users/:user_id/followers",
+      ElektrineSocialWeb.API.SocialController,
+      :user_followers
+    )
+
+    get(
+      "/social/users/:user_id/following",
+      ElektrineSocialWeb.API.SocialController,
+      :user_following
+    )
+
+    post("/social/users/:user_id/follow", ElektrineSocialWeb.API.SocialController, :follow_user)
+
+    delete(
+      "/social/users/:user_id/follow",
+      ElektrineSocialWeb.API.SocialController,
+      :unfollow_user
+    )
+
+    post("/social/users/:user_id/block", ElektrineSocialWeb.API.SocialController, :block_user)
+    delete("/social/users/:user_id/block", ElektrineSocialWeb.API.SocialController, :unblock_user)
 
     # Friend requests
-    get("/social/friend-requests", SocialController, :list_friend_requests)
-    post("/social/friend-requests/:id/accept", SocialController, :accept_friend_request)
-    delete("/social/friend-requests/:id", SocialController, :reject_friend_request)
+    get("/social/friend-requests", ElektrineSocialWeb.API.SocialController, :list_friend_requests)
+
+    post(
+      "/social/friend-requests/:id/accept",
+      ElektrineSocialWeb.API.SocialController,
+      :accept_friend_request
+    )
+
+    delete(
+      "/social/friend-requests/:id",
+      ElektrineSocialWeb.API.SocialController,
+      :reject_friend_request
+    )
 
     # Communities
-    get("/social/communities", SocialController, :list_communities)
-    get("/social/communities/mine", SocialController, :my_communities)
-    get("/social/communities/search", SocialController, :search_communities)
-    get("/social/communities/:id", SocialController, :show_community)
-    get("/social/communities/:community_id/posts", SocialController, :community_posts)
-    post("/social/communities", SocialController, :create_community)
-    post("/social/communities/:id/join", SocialController, :join_community)
-    delete("/social/communities/:id/join", SocialController, :leave_community)
+    get("/social/communities", ElektrineSocialWeb.API.SocialController, :list_communities)
+    get("/social/communities/mine", ElektrineSocialWeb.API.SocialController, :my_communities)
+
+    get(
+      "/social/communities/search",
+      ElektrineSocialWeb.API.SocialController,
+      :search_communities
+    )
+
+    get("/social/communities/:id", ElektrineSocialWeb.API.SocialController, :show_community)
+
+    get(
+      "/social/communities/:community_id/posts",
+      ElektrineSocialWeb.API.SocialController,
+      :community_posts
+    )
+
+    post("/social/communities", ElektrineSocialWeb.API.SocialController, :create_community)
+    post("/social/communities/:id/join", ElektrineSocialWeb.API.SocialController, :join_community)
+
+    delete(
+      "/social/communities/:id/join",
+      ElektrineSocialWeb.API.SocialController,
+      :leave_community
+    )
 
     # Media upload
-    post("/social/upload", SocialController, :upload_media)
+    post("/social/upload", ElektrineSocialWeb.API.SocialController, :upload_media)
 
     # Data Export API
-    get("/exports", ExportController, :index)
-    post("/export", ExportController, :create)
-    get("/export/:id", ExportController, :show)
-    delete("/export/:id", ExportController, :delete)
+    get("/exports", ElektrineWeb.API.ExportController, :index)
+    post("/export", ElektrineWeb.API.ExportController, :create)
+    get("/export/:id", ElektrineWeb.API.ExportController, :show)
+    delete("/export/:id", ElektrineWeb.API.ExportController, :delete)
   end
 
   # External PAT-authenticated API endpoints for integrations.
@@ -1181,52 +1317,52 @@ defmodule ElektrineWeb.Router do
     post("/actions/execute", GlobalSearchController, :execute)
   end
 
-  scope "/api/ext/v1/email", ElektrineWeb.API do
+  scope "/api/ext/v1/email", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_email_read_scope])
 
-    get("/messages", ExtEmailController, :index)
-    get("/messages/:id", ExtEmailController, :show)
+    get("/messages", ElektrineEmailWeb.API.ExtEmailController, :index)
+    get("/messages/:id", ElektrineEmailWeb.API.ExtEmailController, :show)
   end
 
-  scope "/api/ext/v1/email", ElektrineWeb.API do
+  scope "/api/ext/v1/email", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_email_write_scope])
 
-    post("/messages", ExtEmailController, :create)
+    post("/messages", ElektrineEmailWeb.API.ExtEmailController, :create)
   end
 
-  scope "/api/ext/v1/chat", ElektrineWeb.API do
+  scope "/api/ext/v1/chat", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_chat_read_scope])
 
-    get("/conversations", ExtChatController, :index)
-    get("/conversations/:id", ExtChatController, :show)
-    get("/conversations/:id/messages", ExtChatController, :messages)
+    get("/conversations", ElektrineChatWeb.API.ExtChatController, :index)
+    get("/conversations/:id", ElektrineChatWeb.API.ExtChatController, :show)
+    get("/conversations/:id/messages", ElektrineChatWeb.API.ExtChatController, :messages)
   end
 
-  scope "/api/ext/v1/chat", ElektrineWeb.API do
+  scope "/api/ext/v1/chat", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_chat_write_scope])
 
-    post("/conversations/:id/messages", ExtChatController, :create)
+    post("/conversations/:id/messages", ElektrineChatWeb.API.ExtChatController, :create)
   end
 
-  scope "/api/ext/v1/social", ElektrineWeb.API do
+  scope "/api/ext/v1/social", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_social_read_scope])
 
-    get("/feed", ExtSocialController, :feed)
-    get("/posts/:id", ExtSocialController, :show)
-    get("/users/:user_id/posts", ExtSocialController, :user_posts)
+    get("/feed", ElektrineSocialWeb.API.ExtSocialController, :feed)
+    get("/posts/:id", ElektrineSocialWeb.API.ExtSocialController, :show)
+    get("/users/:user_id/posts", ElektrineSocialWeb.API.ExtSocialController, :user_posts)
   end
 
-  scope "/api/ext/v1/social", ElektrineWeb.API do
+  scope "/api/ext/v1/social", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_social_write_scope])
 
-    post("/posts", ExtSocialController, :create)
+    post("/posts", ElektrineSocialWeb.API.ExtSocialController, :create)
   end
 
-  scope "/api/ext/v1/contacts", ElektrineWeb.API do
+  scope "/api/ext/v1/contacts", alias: false do
     pipe_through([:api_pat_authenticated, :api_pat_contacts_read_scope])
 
-    get("/", ExtContactsController, :index)
-    get("/:id", ExtContactsController, :show)
+    get("/", ElektrineEmailWeb.API.ExtContactsController, :index)
+    get("/:id", ElektrineEmailWeb.API.ExtContactsController, :show)
   end
 
   scope "/api/ext/v1/calendars", ElektrineWeb.API do
@@ -1260,8 +1396,8 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_dns_read_scope])
 
     scope "/", alias: false do
-      get("/zones", ElektrineWeb.API.DNSController, :index)
-      get("/zones/:id", ElektrineWeb.API.DNSController, :show)
+      get("/zones", ElektrineDNSWeb.API.DNSController, :index)
+      get("/zones/:id", ElektrineDNSWeb.API.DNSController, :show)
     end
   end
 
@@ -1269,15 +1405,21 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_dns_write_scope])
 
     scope "/", alias: false do
-      post("/zones", ElektrineWeb.API.DNSController, :create)
-      put("/zones/:id", ElektrineWeb.API.DNSController, :update)
-      delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
-      post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
-      post("/zones/:id/services/:service/apply", ElektrineWeb.API.DNSController, :apply_service)
-      delete("/zones/:id/services/:service", ElektrineWeb.API.DNSController, :disable_service)
-      post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
-      put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
-      delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
+      post("/zones", ElektrineDNSWeb.API.DNSController, :create)
+      put("/zones/:id", ElektrineDNSWeb.API.DNSController, :update)
+      delete("/zones/:id", ElektrineDNSWeb.API.DNSController, :delete)
+      post("/zones/:id/verify", ElektrineDNSWeb.API.DNSController, :verify)
+
+      post(
+        "/zones/:id/services/:service/apply",
+        ElektrineDNSWeb.API.DNSController,
+        :apply_service
+      )
+
+      delete("/zones/:id/services/:service", ElektrineDNSWeb.API.DNSController, :disable_service)
+      post("/zones/:zone_id/records", ElektrineDNSWeb.API.DNSController, :create_record)
+      put("/zones/:zone_id/records/:id", ElektrineDNSWeb.API.DNSController, :update_record)
+      delete("/zones/:zone_id/records/:id", ElektrineDNSWeb.API.DNSController, :delete_record)
     end
   end
 
@@ -1353,8 +1495,8 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_dns_read_scope])
 
     scope "/", alias: false do
-      get("/zones", ElektrineWeb.API.DNSController, :index)
-      get("/zones/:id", ElektrineWeb.API.DNSController, :show)
+      get("/zones", ElektrineDNSWeb.API.DNSController, :index)
+      get("/zones/:id", ElektrineDNSWeb.API.DNSController, :show)
     end
   end
 
@@ -1362,15 +1504,21 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_dns_write_scope])
 
     scope "/", alias: false do
-      post("/zones", ElektrineWeb.API.DNSController, :create)
-      put("/zones/:id", ElektrineWeb.API.DNSController, :update)
-      delete("/zones/:id", ElektrineWeb.API.DNSController, :delete)
-      post("/zones/:id/verify", ElektrineWeb.API.DNSController, :verify)
-      post("/zones/:id/services/:service/apply", ElektrineWeb.API.DNSController, :apply_service)
-      delete("/zones/:id/services/:service", ElektrineWeb.API.DNSController, :disable_service)
-      post("/zones/:zone_id/records", ElektrineWeb.API.DNSController, :create_record)
-      put("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :update_record)
-      delete("/zones/:zone_id/records/:id", ElektrineWeb.API.DNSController, :delete_record)
+      post("/zones", ElektrineDNSWeb.API.DNSController, :create)
+      put("/zones/:id", ElektrineDNSWeb.API.DNSController, :update)
+      delete("/zones/:id", ElektrineDNSWeb.API.DNSController, :delete)
+      post("/zones/:id/verify", ElektrineDNSWeb.API.DNSController, :verify)
+
+      post(
+        "/zones/:id/services/:service/apply",
+        ElektrineDNSWeb.API.DNSController,
+        :apply_service
+      )
+
+      delete("/zones/:id/services/:service", ElektrineDNSWeb.API.DNSController, :disable_service)
+      post("/zones/:zone_id/records", ElektrineDNSWeb.API.DNSController, :create_record)
+      put("/zones/:zone_id/records/:id", ElektrineDNSWeb.API.DNSController, :update_record)
+      delete("/zones/:zone_id/records/:id", ElektrineDNSWeb.API.DNSController, :delete_record)
     end
   end
 
@@ -1483,50 +1631,81 @@ defmodule ElektrineWeb.Router do
       live("/privacy", PageLive.Privacy, :index)
       live("/faq", PageLive.FAQ, :index)
       live("/contact", PageLive.Contact, :index)
-      live("/vpn/policy", PageLive.VPNPolicy, :index)
+
+      scope "/", alias: false do
+        live("/vpn/policy", ElektrineVPNWeb.PageLive.VPNPolicy, :index)
+      end
 
       if Application.compile_env(:elektrine, :dev_routes) do
         # Flash testing page (LiveView path)
         live("/dev/flash-test", PageLive.DevFlashTest, :index)
       end
 
-      # Unsubscribe (GET only - POST stays as controller)
-      live("/unsubscribe/:token", UnsubscribeLive.Show, :show)
+      scope "/", alias: false do
+        # Unsubscribe (GET only - POST stays as controller)
+        live("/unsubscribe/:token", ElektrineEmailWeb.UnsubscribeLive.Show, :show)
+
+        # Communities (formerly Discussions)
+        live("/communities", ElektrineSocialWeb.DiscussionsLive.Index, :index)
+        live("/communities/:name", ElektrineSocialWeb.DiscussionsLive.Community, :show)
+        live("/communities/:name/settings", ElektrineSocialWeb.DiscussionsLive.Settings, :index)
+        live("/communities/:name/post/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
+
+        # Legacy redirects (backwards compatibility)
+        live("/discussions", ElektrineSocialWeb.DiscussionsLive.Index, :index)
+        live("/discussions/:name", ElektrineSocialWeb.DiscussionsLive.Community, :show)
+        live("/discussions/:name/settings", ElektrineSocialWeb.DiscussionsLive.Settings, :index)
+        live("/discussions/:name/post/:post_id", ElektrineSocialWeb.DiscussionsLive.Post, :show)
+
+        # Timeline
+        live("/timeline", ElektrineSocialWeb.TimelineLive.Index, :index)
+        live("/timeline/post/:id", ElektrineSocialWeb.TimelineLive.Post, :show)
+        live("/hashtag/:hashtag", ElektrineSocialWeb.HashtagLive.Show, :show)
+
+        # Lists
+        live("/lists", ElektrineSocialWeb.ListLive.Index, :index)
+        live("/lists/:id", ElektrineSocialWeb.ListLive.Show, :show)
+
+        # Gallery
+        live("/gallery", ElektrineSocialWeb.GalleryLive.Index, :index)
+
+        # Remote user profiles
+        live("/remote/:handle", ElektrineSocialWeb.RemoteUserLive.Show, :show)
+
+        # Remote post detail
+        live("/remote/post/:post_id", ElektrineSocialWeb.RemotePostLive.Show, :show)
+
+        # Chat/Messaging
+        live("/chat", ElektrineChatWeb.ChatLive.Index, :index)
+        live("/chat/:conversation_id", ElektrineChatWeb.ChatLive.Index, :conversation)
+        live("/chat/join/:conversation_id", ElektrineChatWeb.ChatLive.Index, :join)
+
+        # Email
+        live("/email", ElektrineEmailWeb.EmailLive.Index, :index)
+        live("/email/compose", ElektrineEmailWeb.EmailLive.Compose, :new)
+        live("/email/view/:id", ElektrineEmailWeb.EmailLive.Show, :show)
+        live("/email/:id/raw", ElektrineEmailWeb.EmailLive.Raw)
+        live("/email/search", ElektrineEmailWeb.EmailLive.Search, :search)
+        live("/email/settings", ElektrineEmailWeb.EmailLive.Settings, :index)
+
+        # VPN
+        live("/vpn", ElektrineVPNWeb.VPNLive.Index, :index)
+
+        # DNS
+        live("/dns", ElektrineDNSWeb.DNSLive.Index, :index)
+
+        # Contacts
+        live("/contacts", ElektrineEmailWeb.ContactsLive.Index, :index)
+        live("/contacts/:id", ElektrineEmailWeb.ContactsLive.Index, :show)
+
+        # Calendar
+        live("/calendar", ElektrineEmailWeb.EmailLive.Index, :calendar)
+      end
 
       # Overview
       live("/overview", OverviewLive.Index, :index)
       live("/reputation", ReputationLive.Show, :index)
       live("/reputation/:handle", ReputationLive.Show, :show)
-
-      # Communities (formerly Discussions)
-      live("/communities", DiscussionsLive.Index, :index)
-      live("/communities/:name", DiscussionsLive.Community, :show)
-      live("/communities/:name/settings", DiscussionsLive.Settings, :index)
-      live("/communities/:name/post/:post_id", DiscussionsLive.Post, :show)
-
-      # Legacy redirects (backwards compatibility)
-      live("/discussions", DiscussionsLive.Index, :index)
-      live("/discussions/:name", DiscussionsLive.Community, :show)
-      live("/discussions/:name/settings", DiscussionsLive.Settings, :index)
-      live("/discussions/:name/post/:post_id", DiscussionsLive.Post, :show)
-
-      # Timeline
-      live("/timeline", TimelineLive.Index, :index)
-      live("/timeline/post/:id", TimelineLive.Post, :show)
-      live("/hashtag/:hashtag", HashtagLive.Show, :show)
-
-      # Lists
-      live("/lists", ListLive.Index, :index)
-      live("/lists/:id", ListLive.Show, :show)
-
-      # Gallery
-      live("/gallery", GalleryLive.Index, :index)
-
-      # Remote user profiles
-      live("/remote/:handle", RemoteUserLive.Show, :show)
-
-      # Remote post detail
-      live("/remote/post/:post_id", RemotePostLive.Show, :show)
 
       # Subscription pages
       live("/subscribe/:product", SubscribeLive, :index)
@@ -1548,10 +1727,6 @@ defmodule ElektrineWeb.Router do
       live("/account/storage", StorageLive)
       live("/account/files", FilesLive)
 
-      # Chat/Messaging
-      live("/chat", ChatLive.Index, :index)
-      live("/chat/:conversation_id", ChatLive.Index, :conversation)
-      live("/chat/join/:conversation_id", ChatLive.Index, :join)
       live("/friends", FriendsLive, :index)
 
       # Notifications
@@ -1570,27 +1745,7 @@ defmodule ElektrineWeb.Router do
 
       live("/settings/rss", SettingsLive.RSS, :index)
 
-      # Email
-      live("/email", EmailLive.Index, :index)
-      live("/email/compose", EmailLive.Compose, :new)
-      live("/email/view/:id", EmailLive.Show, :show)
-      live("/email/:id/raw", EmailLive.Raw)
-      live("/email/search", EmailLive.Search, :search)
-      live("/email/settings", EmailLive.Settings, :index)
-
-      # VPN
-      live("/vpn", VPNLive.Index, :index)
-
-      # DNS
-      live("/dns", DNSLive.Index, :index)
       live("/dns/analytics", DNSLive.Analytics, :analytics)
-
-      # Contacts
-      live("/contacts", ContactsLive.Index, :index)
-      live("/contacts/:id", ContactsLive.Index, :show)
-
-      # Calendar
-      live("/calendar", EmailLive.Index, :calendar)
 
       # Global Search
       live("/search", SearchLive, :index)

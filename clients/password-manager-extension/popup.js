@@ -1,10 +1,5 @@
 import { createEntry, deleteVault, getEntry, listEntries, setupVault } from "./lib/api.js"
-import {
-  clearSessionPassphrase,
-  getSessionPassphrase,
-  getSettings,
-  setSessionPassphrase
-} from "./lib/storage.js"
+import { getSettings } from "./lib/storage.js"
 import {
   VERIFIER_TEXT,
   createPassword,
@@ -24,6 +19,11 @@ const state = {
 }
 
 const refs = {}
+const MESSAGE_TYPES = {
+  GET_SESSION_PASSPHRASE: "vault:get-session-passphrase",
+  SET_SESSION_PASSPHRASE: "vault:set-session-passphrase",
+  CLEAR_SESSION_PASSPHRASE: "vault:clear-session-passphrase"
+}
 
 document.addEventListener("DOMContentLoaded", init)
 
@@ -35,7 +35,7 @@ async function init() {
   renderCurrentSite()
 
   state.settings = await getSettings()
-  state.passphrase = await getSessionPassphrase()
+  state.passphrase = await getRuntimePassphrase()
 
   render()
 
@@ -190,7 +190,7 @@ async function validateSavedPassphrase() {
 }
 
 async function clearStoredPassphrase() {
-  await clearSessionPassphrase()
+  await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
 }
 
 async function handleSetupSubmit(event) {
@@ -211,7 +211,7 @@ async function handleSetupSubmit(event) {
     setBusy(refs.setupSubmitButton, true)
     const encryptedVerifier = await encryptValue(VERIFIER_TEXT, passphrase)
     await setupVault(state.settings, encryptedVerifier)
-    await setSessionPassphrase(passphrase)
+    await runtimeMessage({ type: MESSAGE_TYPES.SET_SESSION_PASSPHRASE, passphrase })
     state.passphrase = passphrase
     refs.setupForm.reset()
     await refreshVaultIndex()
@@ -240,7 +240,7 @@ async function handleUnlockSubmit(event) {
       throw new Error("Incorrect vault passphrase.")
     }
 
-    await setSessionPassphrase(passphrase)
+    await runtimeMessage({ type: MESSAGE_TYPES.SET_SESSION_PASSPHRASE, passphrase })
     state.passphrase = passphrase
     refs.unlockForm.reset()
     render()
@@ -500,8 +500,9 @@ function renderEntryCard({ entry, matchScore: entryMatchScore }) {
   const websiteHost = safeHost(entry.website)
   const fillDisabled = canFillCurrentTab() ? "" : "disabled"
   const badge = entryMatchScore > 0 ? '<span class="badge">Suggested</span>' : ""
-  const website = entry.website
-    ? `<a class="subtle" href="${escapeAttribute(entry.website)}" target="_blank" rel="noreferrer">${escapeHtml(websiteHost || entry.website)}</a>`
+  const websiteUrl = safeWebsiteUrl(entry.website)
+  const website = websiteUrl
+    ? `<a class="subtle" href="${escapeAttribute(websiteUrl)}" target="_blank" rel="noreferrer">${escapeHtml(websiteHost || websiteUrl)}</a>`
     : '<span class="subtle">No website saved</span>'
   const username = entry.login_username
     ? `<p class="entry-meta">${escapeHtml(entry.login_username)}</p>`
@@ -586,6 +587,15 @@ function safeHost(value) {
   }
 }
 
+function safeWebsiteUrl(value) {
+  try {
+    const url = new URL(value)
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : ""
+  } catch (_error) {
+    return ""
+  }
+}
+
 function canFillCurrentTab() {
   return Boolean(state.currentTab?.id) && /^https?:\/\//.test(state.currentTab?.url || "")
 }
@@ -594,6 +604,29 @@ function getActiveTab() {
   return new Promise((resolve) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       resolve(tabs?.[0] || null)
+    })
+  })
+}
+
+async function getRuntimePassphrase() {
+  const response = await runtimeMessage({ type: MESSAGE_TYPES.GET_SESSION_PASSPHRASE })
+  return response.passphrase || ""
+}
+
+function runtimeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message))
+        return
+      }
+
+      if (!response?.ok) {
+        reject(new Error(response?.error || "Extension request failed."))
+        return
+      }
+
+      resolve(response)
     })
   })
 }
