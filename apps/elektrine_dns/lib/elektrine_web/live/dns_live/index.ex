@@ -277,7 +277,7 @@ defmodule ElektrineWeb.DNSLive.Index do
         result =
           linked_domain
           |> expected_linked_domain_records(linked_kind)
-          |> Enum.reject(&(review_only_record?(&1) or record_exists_for_expected?(zone, &1)))
+          |> Enum.reject(&record_exists_for_expected?(zone, &1))
           |> Enum.reduce_while({:ok, 0}, fn expected_record, {:ok, count} ->
             case DNS.create_record(zone, expected_record_to_attrs(zone, expected_record)) do
               {:ok, _record} -> {:cont, {:ok, count + 1}}
@@ -1131,13 +1131,18 @@ defmodule ElektrineWeb.DNSLive.Index do
     }
   end
 
-  defp linked_domain_check(zone, %{type: "ALIAS/CNAME", host: host, value: value, label: label}) do
+  defp linked_domain_check(zone, %{type: "ALIAS", host: host, value: value, label: label}) do
     if normalize_dns_name(host) == normalize_dns_name(zone.domain) do
       %{
         label: label,
-        status: "review",
-        addable: false,
-        detail: "Apex routing to #{value} is provider-specific. Review manually."
+        status:
+          if(record_exists_for_expected?(zone, %{type: "ALIAS", host: host, value: value}),
+            do: "ok",
+            else: "missing"
+          ),
+        addable: true,
+        detail:
+          linked_domain_check_detail(%{type: "ALIAS", host: host, value: value, label: label})
       }
     else
       linked_domain_check(zone, %{type: "CNAME", host: host, value: value, label: label})
@@ -1151,7 +1156,7 @@ defmodule ElektrineWeb.DNSLive.Index do
     %{
       label: expected_record.label,
       status: if(matching_record, do: "ok", else: "missing"),
-      addable: not review_only_record?(expected_record),
+      addable: true,
       detail: linked_domain_check_detail(expected_record)
     }
   end
@@ -1199,15 +1204,6 @@ defmodule ElektrineWeb.DNSLive.Index do
     end
   end
 
-  defp review_only_record?(%{type: "ALIAS/CNAME", host: host}) do
-    host
-    |> normalize_dns_name()
-    |> String.starts_with?("www.")
-    |> Kernel.not()
-  end
-
-  defp review_only_record?(_), do: false
-
   defp record_exists_for_expected?(%Zone{} = zone, expected_record) do
     Enum.any?(zone.records || [], &record_matches_expected?(&1, expected_record, zone))
   end
@@ -1242,7 +1238,6 @@ defmodule ElektrineWeb.DNSLive.Index do
     end
   end
 
-  defp normalize_expected_type("ALIAS/CNAME"), do: "CNAME"
   defp normalize_expected_type(type), do: type
 
   defp record_matches_expected?(record, expected_record, zone) do
@@ -1265,7 +1260,7 @@ defmodule ElektrineWeb.DNSLive.Index do
   end
 
   defp record_value_matches?(%Record{type: type, content: content}, expected_record)
-       when type in ["CNAME", "NS"] do
+       when type in ["ALIAS", "CNAME", "NS"] do
     normalize_dns_name(content) == normalize_dns_name(expected_record.value)
   end
 

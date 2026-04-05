@@ -14,7 +14,7 @@ defmodule Elektrine.DNS do
   alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
 
-  @record_types ~w(A AAAA CAA CNAME DNSKEY DS MX NS SRV TLSA TXT)
+  @record_types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS MX NS SRV TLSA TXT)
 
   def list_user_zones(%User{id: user_id}), do: list_user_zones(user_id)
 
@@ -225,6 +225,11 @@ defmodule Elektrine.DNS do
   def recursive_enabled? do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:recursive_enabled, false)
+  end
+
+  def alias_resolver do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:alias_resolver, :inet_res)
   end
 
   def zone_cache_refresh_interval_ms do

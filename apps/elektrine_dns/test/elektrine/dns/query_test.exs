@@ -5,11 +5,33 @@ defmodule Elektrine.DNS.QueryTest do
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
 
+  defmodule AliasResolverStub do
+    def lookup(~c"edge.example.net", :in, :a, timeout: 5_000), do: [{198, 51, 100, 99}]
+
+    def lookup(~c"edge.example.net", :in, :aaaa, timeout: 5_000),
+      do: [{0x2001, 0xDB8, 0, 0, 0, 0, 0, 0x99}]
+
+    def lookup(_, _, _, timeout: 5_000), do: []
+  end
+
   setup do
+    previous_dns_config = Application.get_env(:elektrine, :dns, [])
+
+    Application.put_env(
+      :elektrine,
+      :dns,
+      Keyword.put(previous_dns_config, :alias_resolver, AliasResolverStub)
+    )
+
+    on_exit(fn ->
+      Application.put_env(:elektrine, :dns, previous_dns_config)
+    end)
+
     zone = %Zone{
       domain: "example.com",
       records: [
         %Record{name: "@", type: "A", content: "203.0.113.10", ttl: 300},
+        %Record{name: "root-alias.example.com", type: "A", content: "203.0.113.50", ttl: 300},
         %Record{name: "www", type: "A", content: "203.0.113.20", ttl: 300},
         %Record{name: "wild", type: "TXT", content: "hello", ttl: 300},
         %Record{name: "*", type: "A", content: "203.0.113.30", ttl: 300},
@@ -121,6 +143,65 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).rcode == 0
     assert response =~ "www"
     assert response =~ <<203, 0, 113, 20>>
+  end
+
+  test "flattens apex ALIAS records into A answers" do
+    zone = %Zone{
+      domain: "alias-a.example.com",
+      records: [
+        %Record{name: "@", type: "ALIAS", content: "edge.example.net", ttl: 180}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"alias-a.example.com", zone})
+
+    response = Query.answer(build_query("alias-a.example.com", 1))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert first_answer_name(response) == "alias-a.example.com"
+    assert response =~ <<198, 51, 100, 99>>
+  end
+
+  test "flattens apex ALIAS records into AAAA answers" do
+    zone = %Zone{
+      domain: "alias-aaaa.example.com",
+      records: [
+        %Record{name: "@", type: "ALIAS", content: "edge.example.net", ttl: 180}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"alias-aaaa.example.com", zone})
+
+    response = Query.answer(build_query("alias-aaaa.example.com", 28))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert first_answer_name(response) == "alias-aaaa.example.com"
+    assert response =~ <<0x20, 0x01, 0x0D, 0xB8>>
+  end
+
+  test "flattens local apex ALIAS targets without external lookup" do
+    zone = %Zone{
+      domain: "alias-local.example.com",
+      records: [
+        %Record{name: "@", type: "ALIAS", content: "edge.alias-local.example.com", ttl: 180},
+        %Record{
+          name: "edge.alias-local.example.com",
+          type: "A",
+          content: "203.0.113.50",
+          ttl: 300
+        }
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"alias-local.example.com", zone})
+
+    response = Query.answer(build_query("alias-local.example.com", 1))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<203, 0, 113, 50>>
   end
 
   test "returns nxdomain for unknown names" do
