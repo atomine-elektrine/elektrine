@@ -1,53 +1,12 @@
 defmodule ElektrineWeb.PageLive.Home do
   use ElektrineWeb, :live_view
 
-  import Ecto.Query
-
-  require Logger
-
   alias Elektrine.Platform.Modules
-  alias ElektrineWeb.Platform.Integrations
 
   on_mount({ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user})
 
   def mount(_params, _session, socket) do
-    cached_stats = load_platform_stats()
-
-    sys = %{
-      active_users: get_active_user_count()
-    }
-
-    {:ok,
-     assign(socket,
-       page_title: "Home",
-       stats: cached_stats.stats,
-       federation: cached_stats.federation,
-       sys: sys
-     ), layout: false}
-  end
-
-  @doc false
-  def load_platform_stats(cache_getter \\ &Elektrine.AppCache.get_platform_stats/1) do
-    case cache_getter.(fn ->
-           %{
-             stats: %{
-               users: Elektrine.Repo.aggregate(Elektrine.Accounts.User, :count, :id),
-               emails: Integrations.email_message_count(),
-               posts: get_post_count()
-             },
-             federation: %{
-               remote_actors: get_remote_actor_count(),
-               instances: get_instance_count()
-             }
-           }
-         end) do
-      {:ok, cached_stats} ->
-        cached_stats
-
-      {:error, reason} ->
-        Logger.warning("Home platform stats cache fetch failed: #{inspect(reason)}")
-        default_platform_stats()
-    end
+    {:ok, assign(socket, page_title: "Home"), layout: false}
   end
 
   def render(assigns) do
@@ -88,16 +47,12 @@ defmodule ElektrineWeb.PageLive.Home do
                       Software for sovereignty.
                     </h1>
                     <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
-                      Elektrine is a modular platform for people who want to run communications,
-                      identity, and infrastructure under their own control.
+                      Run your own platform instead of renting one. Elektrine brings
+                      communications, identity, and infrastructure together in a modular system
+                      you control.
                     </p>
                   </div>
                 </div>
-
-                <p class="max-w-2xl text-sm leading-6 text-base-content/58 sm:text-base">
-                  Self-hostable by default. Modular and composable by design. Built for people
-                  who want their services, identity, and infrastructure to remain theirs.
-                </p>
 
                 <div class="flex flex-wrap items-center gap-3">
                   <%= if @current_user do %>
@@ -208,29 +163,9 @@ defmodule ElektrineWeb.PageLive.Home do
             </section>
           </div>
         </main>
-
-        <footer class="pb-4">
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <%= for stat <- home_stats(@stats, @federation, @sys) do %>
-              <div class="rounded-lg border border-base-300 bg-base-200/70 px-4 py-3">
-                <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
-                <p class="mt-2 text-2xl font-semibold text-base-content">{stat.value}</p>
-              </div>
-            <% end %>
-          </div>
-        </footer>
       </div>
     </div>
     """
-  end
-
-  defp home_stats(stats, federation, sys) do
-    [
-      %{label: "Users", value: format_number(stats.users)},
-      %{label: "Emails", value: format_number(stats.emails)},
-      %{label: "Instances", value: format_number(federation.instances)},
-      %{label: "Connected", value: format_number(sys.active_users)}
-    ]
   end
 
   defp home_modules do
@@ -263,72 +198,4 @@ defmodule ElektrineWeb.PageLive.Home do
   defp github_releases_url, do: "https://github.com/atomine-elektrine/elektrine/releases"
 
   defp github_issues_url, do: "https://github.com/atomine-elektrine/elektrine/issues"
-
-  defp get_post_count do
-    Elektrine.Repo.one(
-      from(m in Elektrine.Messaging.Message,
-        join: c in Elektrine.Messaging.Conversation,
-        on: m.conversation_id == c.id,
-        where: c.type == "timeline",
-        select: count(m.id)
-      )
-    ) || 0
-  end
-
-  defp format_number(n) when is_integer(n) do
-    n
-    |> Integer.to_string()
-    |> String.graphemes()
-    |> Enum.reverse()
-    |> Enum.chunk_every(3)
-    |> Enum.join(",")
-    |> String.reverse()
-  end
-
-  defp format_number(n), do: to_string(n)
-
-  defp default_platform_stats do
-    %{
-      stats: %{
-        users: 0,
-        emails: 0,
-        posts: 0
-      },
-      federation: %{
-        remote_actors: 0,
-        instances: 0
-      }
-    }
-  end
-
-  defp get_active_user_count do
-    five_minutes_ago = DateTime.add(DateTime.utc_now(), -300, :second)
-
-    Elektrine.Repo.one(
-      from(u in Elektrine.Accounts.User,
-        where:
-          u.last_seen_at > ^five_minutes_ago or
-            u.last_imap_access > ^five_minutes_ago or
-            u.last_pop3_access > ^five_minutes_ago,
-        select: count(u.id)
-      )
-    ) || 0
-  end
-
-  defp get_remote_actor_count do
-    Elektrine.Repo.one(
-      from(a in Elektrine.ActivityPub.Actor,
-        where: a.actor_type == "Person",
-        select: count(a.id)
-      )
-    ) || 0
-  end
-
-  defp get_instance_count do
-    Elektrine.Repo.one(
-      from(a in Elektrine.ActivityPub.Actor,
-        select: count(a.domain, :distinct)
-      )
-    ) || 0
-  end
 end

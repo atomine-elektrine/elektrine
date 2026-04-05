@@ -1013,11 +1013,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp service_health(nil),
-    do: Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &blank_service_health/1)
+    do: Enum.map(["mail", "web", "turn", "bluesky"], &blank_service_health/1)
 
   defp service_health(%Zone{} = zone) do
     health = DNS.zone_service_health(zone)
-    Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &service_entry(health, &1))
+    Enum.map(["mail", "web", "turn", "bluesky"], &service_entry(health, &1))
   end
 
   defp save_record(zone, nil, params), do: DNS.create_record(zone, params)
