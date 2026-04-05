@@ -165,7 +165,7 @@ defmodule Elektrine.ActivityPub.LemmyCache do
     if stale_ids != [] do
       # Schedule one job that handles all stale posts
       %{activitypub_ids: stale_ids}
-      |> Elektrine.Workers.LemmyCacheWorker.new()
+      |> Elektrine.ActivityPub.LemmyCacheWorker.new()
       |> Elektrine.JobQueue.insert()
     else
       {:ok, :no_stale}

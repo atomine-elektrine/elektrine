@@ -16,7 +16,6 @@ defmodule Elektrine.Jobs.EmailRecategorizer do
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     run()
-    :ok
   end
 
   def run do
@@ -47,8 +46,8 @@ defmodule Elektrine.Jobs.EmailRecategorizer do
         Logger.info("EmailRecategorizer: Recategorized #{recategorized} messages")
       end
     end
-  rescue
-    e -> Logger.error("EmailRecategorizer error: #{inspect(e)}")
+
+    :ok
   end
 
   defp recategorize_message(message) do

@@ -102,7 +102,7 @@ defmodule Mix.Tasks.Email.InboundDlq do
   end
 
   defp enqueue_replay(payload, remote_ip) do
-    worker_module = Module.concat([ElektrineWeb, HarakaInboundWorker])
+    worker_module = Module.concat([ElektrineEmail, HarakaInboundWorker])
 
     if Code.ensure_loaded?(worker_module) and function_exported?(worker_module, :enqueue, 2) do
       worker_module.enqueue(payload, remote_ip: remote_ip)
@@ -117,7 +117,7 @@ defmodule Mix.Tasks.Email.InboundDlq do
 
       job =
         Oban.Job.new(args,
-          worker: "Elixir.ElektrineEmailWeb.HarakaInboundWorker",
+          worker: "Elixir.ElektrineEmail.HarakaInboundWorker",
           queue: "email_inbound",
           max_attempts: 10
         )

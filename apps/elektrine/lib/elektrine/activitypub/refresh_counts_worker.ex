@@ -555,28 +555,4 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         {:error, reason}
     end
   end
-
-  @doc """
-  Sets up periodic refresh jobs.
-  Call this from application startup or a scheduler.
-  """
-  def setup_periodic_jobs do
-    # Schedule jobs if not already running
-    jobs = [
-      # Refresh recent posts every hour
-      %{"type" => "refresh_recent"},
-      # Refresh popular posts every 4 hours
-      %{"type" => "refresh_popular"},
-      # Refresh interacted posts every 30 minutes
-      %{"type" => "refresh_interacted"}
-    ]
-
-    Enum.each(jobs, fn args ->
-      args
-      |> new(unique: [period: 1800, keys: [:type]])
-      |> Elektrine.JobQueue.insert()
-    end)
-
-    :ok
-  end
 end

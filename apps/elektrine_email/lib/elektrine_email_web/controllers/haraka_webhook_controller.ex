@@ -12,7 +12,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   alias Elektrine.Webhook.RateLimiter, as: WebhookRateLimiter
-  alias ElektrineEmailWeb.HarakaInboundWorker
+  alias ElektrineEmail.HarakaInboundWorker
 
   @hard_bounce_indicators [
     "user unknown",

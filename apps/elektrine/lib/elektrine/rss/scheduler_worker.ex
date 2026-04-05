@@ -9,15 +9,16 @@ defmodule Elektrine.RSS.SchedulerWorker do
 
   @impl Oban.Worker
   def perform(_job) do
-    # Get feeds that haven't been fetched recently
-    stale_feeds = RSS.list_stale_feeds(50)
+    jobs =
+      RSS.list_stale_feeds(50)
+      |> Enum.map(fn feed ->
+        %{feed_id: feed.id}
+        |> FetchFeedWorker.new()
+      end)
 
-    # Enqueue fetch jobs for each stale feed
-    Enum.each(stale_feeds, fn feed ->
-      %{feed_id: feed.id}
-      |> FetchFeedWorker.new()
-      |> Elektrine.JobQueue.insert()
-    end)
+    if jobs != [] do
+      _ = Elektrine.JobQueue.insert_all(jobs)
+    end
 
     :ok
   end

@@ -372,23 +372,21 @@ defmodule Elektrine.Developer do
   end
 
   defp enqueue_webhook_delivery(%Webhook{} = webhook, event, payload) do
-    with {:ok, delivery} <- create_webhook_delivery(webhook, event, payload) do
-      case %{delivery_id: delivery.id}
-           |> WebhookDeliveryWorker.new()
-           |> Elektrine.JobQueue.insert() do
-        {:ok, _job} ->
-          {:ok, :queued}
-
-        {:error, reason} ->
-          _ =
-            update_webhook_delivery_result(delivery, %{
-              status: "failed",
-              attempt_count: 0,
-              error: "Failed to enqueue delivery: #{inspect(reason)}"
-            })
-
-          {:error, {:enqueue_failed, reason}}
+    Repo.transaction(fn ->
+      with {:ok, delivery} <- create_webhook_delivery(webhook, event, payload),
+           {:ok, _job} <-
+             %{delivery_id: delivery.id}
+             |> WebhookDeliveryWorker.new()
+             |> Elektrine.JobQueue.insert() do
+        :queued
+      else
+        {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback({:error, changeset})
+        {:error, reason} -> Repo.rollback({:enqueue_failed, reason})
       end
+    end)
+    |> case do
+      {:ok, :queued} -> {:ok, :queued}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -662,6 +660,33 @@ defmodule Elektrine.Developer do
     %DataExport{}
     |> DataExport.changeset(attrs)
     |> Repo.insert()
+  end
+
+  @doc """
+  Creates a new export request and enqueues background processing atomically.
+  """
+  def create_export_and_enqueue(user_id, attrs) do
+    attrs = Map.put(attrs, :user_id, user_id)
+
+    Repo.transaction(fn ->
+      with {:ok, export} <-
+             %DataExport{}
+             |> DataExport.changeset(attrs)
+             |> Repo.insert(),
+           {:ok, _job} <-
+             %{export_id: export.id}
+             |> Elektrine.Developer.ExportWorker.new()
+             |> Elektrine.JobQueue.insert() do
+        export
+      else
+        {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback({:error, changeset})
+        {:error, reason} -> Repo.rollback({:error, reason})
+      end
+    end)
+    |> case do
+      {:ok, export} -> {:ok, export}
+      {:error, {:error, reason}} -> {:error, reason}
+    end
   end
 
   @doc """

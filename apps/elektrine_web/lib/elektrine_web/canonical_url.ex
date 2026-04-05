@@ -17,6 +17,28 @@ defmodule ElektrineWeb.CanonicalURL do
     base_url(scheme_override) <> path <> query
   end
 
+  def request_url(%Plug.Conn{} = conn, path \\ nil, query_string \\ nil, scheme_override \\ nil) do
+    scheme = scheme_override || to_string(conn.scheme || :https)
+    host = conn.host || "localhost"
+    port = normalize_request_port(conn.port, conn.scheme, scheme)
+    request_path = path || conn.request_path || "/"
+    query = if query_string in [nil, ""], do: "", else: "?" <> query_string
+
+    scheme <> "://" <> host <> port_suffix(port, scheme) <> request_path <> query
+  end
+
+  defp normalize_request_port(port, current_scheme, target_scheme)
+       when current_scheme in [:http, :https] do
+    case {current_scheme, target_scheme, port} do
+      {:http, "https", 80} -> nil
+      {:https, "http", 443} -> nil
+      _ -> normalize_port(port, target_scheme)
+    end
+  end
+
+  defp normalize_request_port(port, _current_scheme, target_scheme),
+    do: normalize_port(port, target_scheme)
+
   defp normalize_port(nil, _scheme), do: nil
   defp normalize_port(port, _scheme) when not is_integer(port), do: nil
   defp normalize_port(port, _scheme), do: port

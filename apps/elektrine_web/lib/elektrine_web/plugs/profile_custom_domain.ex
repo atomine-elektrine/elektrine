@@ -9,7 +9,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
 
-  alias Elektrine.{Domains, Profiles}
+  alias Elektrine.Profiles
   alias ElektrineWeb.Plugs.StaticSitePlug
 
   @bypass_prefixes [
@@ -84,7 +84,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
 
         _ ->
           conn
-          |> redirect(external: main_app_url(conn.request_path, conn.query_string))
+          |> send_resp(:not_found, "Not Found")
           |> halt()
       end
     end
@@ -95,11 +95,6 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   end
 
   defp bypass_path?(_), do: false
-
-  defp main_app_url(path, query_string) do
-    query = if query_string in [nil, ""], do: "", else: "?" <> query_string
-    "https://#{Domains.primary_profile_domain()}#{path}#{query}"
-  end
 
   defp custom_domain_root_url(domain, path, query_string) do
     query = if query_string in [nil, ""], do: "", else: "?" <> query_string

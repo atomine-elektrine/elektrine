@@ -78,6 +78,28 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert conn.resp_body =~ "https://#{custom_domain}"
     end
 
+    test "renders profiles on verified third-party custom root domains", %{conn: conn, user: user} do
+      unique = System.unique_integer([:positive])
+      custom_domain = "portfolio#{unique}.external.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-external-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/")
+
+      assert conn.status == 200
+      assert conn.resp_body =~ "Test User"
+      assert conn.resp_body =~ "https://#{custom_domain}"
+    end
+
     test "verified custom domains serve the static site when static mode is enabled", %{
       conn: conn,
       user: user,
@@ -135,6 +157,26 @@ defmodule ElektrineWeb.ProfileControllerTest do
 
       assert conn.status == 302
       assert get_resp_header(conn, "location") == ["https://#{custom_domain}/"]
+    end
+
+    test "returns 404 for non-root paths on verified custom domains", %{conn: conn, user: user} do
+      unique = System.unique_integer([:positive])
+      custom_domain = "locked#{unique}.external.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-locked-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/about")
+
+      assert conn.status == 404
     end
   end
 

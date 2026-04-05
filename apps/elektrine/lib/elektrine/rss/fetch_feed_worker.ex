@@ -18,7 +18,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
     case RSS.get_feed(feed_id) do
       nil ->
         Logger.warning("Feed not found: #{feed_id}")
-        :ok
+        {:discard, :feed_not_found}
 
       feed ->
         fetch_and_process(feed)
@@ -63,7 +63,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
                   last_fetched_at: DateTime.utc_now()
                 })
 
-                {:error, :unsafe_redirect_target}
+                {:discard, :unsafe_redirect_target}
             end
         end
 
@@ -73,8 +73,8 @@ defmodule Elektrine.RSS.FetchFeedWorker do
           last_fetched_at: DateTime.utc_now()
         })
 
-        if status in 400..499 do
-          :ok
+        if status in 400..499 and status != 429 do
+          {:discard, {:http_error, status}}
         else
           {:error, {:http_error, status}}
         end

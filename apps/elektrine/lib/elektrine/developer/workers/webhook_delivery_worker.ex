@@ -19,8 +19,7 @@ defmodule Elektrine.Developer.WebhookDeliveryWorker do
         :ok
 
       {:error, :not_found} ->
-        # Delivery row may have been deleted; treat as no-op.
-        :ok
+        {:discard, :not_found}
 
       {:error, {:unsafe_url, _reason}} ->
         {:discard, :unsafe_url}

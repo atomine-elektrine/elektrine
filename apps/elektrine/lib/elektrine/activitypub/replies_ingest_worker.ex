@@ -30,7 +30,7 @@ defmodule Elektrine.ActivityPub.RepliesIngestWorker do
       {:ok, _count} -> :ok
       {:error, :message_not_found} -> {:discard, :message_not_found}
       {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}
-      {:error, _reason} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 end

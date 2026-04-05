@@ -51,6 +51,6 @@ defmodule ElektrineWeb.Plugs.EnforceHTTPS do
   defp http_allowed_path?(_path), do: false
 
   defp https_destination(conn) do
-    CanonicalURL.url(conn.request_path, conn.query_string, "https")
+    CanonicalURL.request_url(conn, conn.request_path, conn.query_string, "https")
   end
 end

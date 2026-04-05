@@ -107,6 +107,20 @@ defmodule Elektrine.Security.URLValidator do
 
   def resolve_public_address(_), do: {:error, :invalid_url}
 
+  @doc "Resolves any host or URL to a pinned IP address without public-host checks."
+  def resolve_address(url_or_host) when is_binary(url_or_host) do
+    case URI.parse(url_or_host) do
+      %URI{host: host} when is_binary(host) and host != "" -> resolve_host(url_or_host, host)
+      _ -> resolve_host(url_or_host, url_or_host)
+    end
+  end
+
+  def resolve_address(%URI{host: host}) when is_binary(host) and host != "" do
+    resolve_host(host, host)
+  end
+
+  def resolve_address(_), do: {:error, :invalid_url}
+
   @doc """
   Checks if a host is a private/internal IP address.
   """
@@ -165,6 +179,16 @@ defmodule Elektrine.Security.URLValidator do
           {:error, reason} ->
             {:error, reason}
         end
+    end
+  end
+
+  defp resolve_host(_original_host, host) do
+    normalized_host = normalize_host(host)
+
+    case resolve_host_ips(normalized_host) do
+      {:ok, [ip | _]} -> {:ok, ip}
+      {:ok, []} -> {:error, :dns_resolution_failed}
+      {:error, reason} -> {:error, reason}
     end
   end
 

@@ -937,12 +937,8 @@ defmodule ElektrineWeb.UserSettingsLive do
     user = socket.assigns.current_user
     attrs = %{export_type: export_type, format: "json"}
 
-    case Developer.create_export(user.id, attrs) do
-      {:ok, export} ->
-        %{export_id: export.id}
-        |> Elektrine.Developer.ExportWorker.new()
-        |> Elektrine.JobQueue.insert()
-
+    case Developer.create_export_and_enqueue(user.id, attrs) do
+      {:ok, _export} ->
         {:noreply,
          socket
          |> assign_developer_state(user.id)
