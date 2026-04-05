@@ -251,8 +251,9 @@ defmodule ElektrineWeb.ProfileController do
   end
 
   defp render_custom_profile(conn, profile) do
-    # Check if profile is in static mode
-    if profile.profile_mode == "static" do
+    # Custom profile domains should always resolve to the user's profile page.
+    # Static-site mode remains available on built-in profile hosts/subdomains.
+    if profile.profile_mode == "static" and not is_binary(conn.assigns[:profile_custom_domain]) do
       render_static_site(conn, profile)
     else
       render_builder_profile(conn, profile)

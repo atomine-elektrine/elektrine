@@ -70,18 +70,18 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   end
 
   defp maybe_serve_custom_profile(conn, handle) do
-    case StaticSitePlug.call(conn, []) do
-      %{halted: true} = served_conn ->
-        served_conn
+    if conn.request_path == "/" do
+      %{conn | request_path: "/subdomain/#{handle}", path_info: ["subdomain", handle]}
+    else
+      case StaticSitePlug.call(conn, []) do
+        %{halted: true} = served_conn ->
+          served_conn
 
-      _ ->
-        if conn.request_path == "/" do
-          %{conn | request_path: "/subdomain/#{handle}", path_info: ["subdomain", handle]}
-        else
+        _ ->
           conn
           |> redirect(external: main_app_url(conn.request_path, conn.query_string))
           |> halt()
-        end
+      end
     end
   end
 

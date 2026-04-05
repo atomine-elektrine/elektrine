@@ -6,7 +6,7 @@ defmodule ElektrineWeb.ProfileControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.Profiles
+  alias Elektrine.{Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
 
@@ -76,6 +76,44 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert conn.status == 200
       assert conn.resp_body =~ "Test User"
       assert conn.resp_body =~ "https://#{custom_domain}"
+    end
+
+    test "verified custom domains ignore static-site mode and render the profile page", %{
+      conn: conn,
+      user: user,
+      profile: profile
+    } do
+      unique = System.unique_integer([:positive])
+      custom_domain = "static#{unique}.brand.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-static-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      {:ok, _} = StaticSites.enable_static_mode(user.id)
+
+      {:ok, _} =
+        StaticSites.upload_file(
+          user,
+          "index.html",
+          "<html><body>STATIC SITE</body></html>",
+          "text/html"
+        )
+
+      conn =
+        conn
+        |> Map.put(:host, custom_domain)
+        |> get("/")
+
+      assert conn.status == 200
+      assert conn.resp_body =~ "Test User"
+      refute conn.resp_body =~ "STATIC SITE"
+
+      assert Repo.reload!(profile).profile_mode == "static"
     end
 
     test "redirects custom-domain www aliases to the bare root domain", %{conn: conn, user: user} do
