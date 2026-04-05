@@ -36,7 +36,12 @@ function fallbackCopyToClipboard(text) {
 export function copyToClipboard(text, type = 'link') {
   const textToCopy = coerceClipboardText(text)
   const showSuccess = () => {
-    const message = type === 'message' ? 'Message copied to clipboard' : 'Link copied to clipboard'
+    const message =
+      type === 'message'
+        ? 'Message copied to clipboard'
+        : type === 'email'
+          ? 'Email address copied to clipboard'
+          : 'Link copied to clipboard'
     if (window.showNotification) {
       window.showNotification(message, 'info', 'Success!')
     }
@@ -54,20 +59,25 @@ export function copyToClipboard(text, type = 'link') {
     window.isSecureContext
 
   if (canUseClipboardApi) {
-    navigator.clipboard.writeText(textToCopy).then(showSuccess).catch(err => {
+    return navigator.clipboard.writeText(textToCopy).then(() => {
+      showSuccess()
+      return true
+    }).catch(err => {
       if (fallbackCopyToClipboard(textToCopy)) {
         showSuccess()
-        return
+        return true
       }
       showFailure(err)
+      return false
     })
-    return
   }
 
   if (fallbackCopyToClipboard(textToCopy)) {
     showSuccess()
+    return Promise.resolve(true)
   } else {
     showFailure(new Error('Clipboard API unavailable and fallback copy failed'))
+    return Promise.resolve(false)
   }
 }
 

@@ -934,15 +934,13 @@ defmodule Elektrine.Accounts.User do
 
   defp validate_bluesky_pds_url(changeset) do
     validate_change(changeset, :bluesky_pds_url, fn :bluesky_pds_url, value ->
-      cond do
-        configured_managed_bluesky_pds_url?(value) ->
-          []
-
-        true ->
-          case URLValidator.validate(value) do
-            :ok -> []
-            {:error, _reason} -> [bluesky_pds_url: "must be a public http or https URL"]
-          end
+      if configured_managed_bluesky_pds_url?(value) do
+        []
+      else
+        case URLValidator.validate(value) do
+          :ok -> []
+          {:error, _reason} -> [bluesky_pds_url: "must be a public http or https URL"]
+        end
       end
     end)
   end

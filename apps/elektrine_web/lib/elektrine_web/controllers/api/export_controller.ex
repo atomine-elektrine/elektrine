@@ -123,7 +123,8 @@ defmodule ElektrineWeb.API.ExportController do
   GET /api/export/:id/download
   Downloads the export file.
 
-  Requires both session authentication and the export download token.
+  Accepts either the authenticated browser session for the export owner
+  or the per-export download token.
   """
   def download(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]
@@ -133,15 +134,7 @@ defmodule ElektrineWeb.API.ExportController do
       is_nil(user) ->
         Response.error(conn, :unauthorized, "unauthorized", "Authentication required")
 
-      is_nil(download_token) || download_token == "" ->
-        Response.error(
-          conn,
-          :bad_request,
-          "missing_parameter",
-          "Missing required parameter: token"
-        )
-
-      true ->
+      is_binary(download_token) and download_token != "" ->
         case Developer.get_export_by_token(download_token) do
           nil ->
             Response.error(conn, :not_found, "not_found", "Export not found or invalid token")
@@ -152,6 +145,15 @@ defmodule ElektrineWeb.API.ExportController do
             else
               serve_export_file(conn, export)
             end
+        end
+
+      true ->
+        case Developer.get_export(user.id, id) do
+          nil ->
+            Response.error(conn, :not_found, "not_found", "Export not found")
+
+          export ->
+            serve_export_file(conn, export)
         end
     end
   end

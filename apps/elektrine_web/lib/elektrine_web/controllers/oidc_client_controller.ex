@@ -5,6 +5,13 @@ defmodule ElektrineWeb.OIDCClientController do
 
   @recommended_scopes ["openid", "profile", "email", "read"]
 
+  @scope_options [
+    %{value: "openid", description: "Required if the app needs an ID token for sign-in."},
+    %{value: "profile", description: "Lets the app read basic profile details."},
+    %{value: "email", description: "Lets the app read the account email address."},
+    %{value: "read", description: "Lets the app read account data without write access."}
+  ]
+
   def index(conn, _params) do
     render(conn, :index,
       apps: OAuth.get_user_apps(conn.assigns.current_user),
@@ -15,7 +22,7 @@ defmodule ElektrineWeb.OIDCClientController do
   def new(conn, _params) do
     render(conn, :new,
       changeset: OAuth.App.register_changeset(%OAuth.App{}, %{}),
-      recommended_scopes: @recommended_scopes,
+      scope_options: @scope_options,
       selected_scopes: @recommended_scopes,
       current_user: conn.assigns.current_user
     )
@@ -32,7 +39,7 @@ defmodule ElektrineWeb.OIDCClientController do
         render(conn, :edit,
           app: app,
           changeset: OAuth.App.changeset(app, %{}),
-          recommended_scopes: @recommended_scopes,
+          scope_options: @scope_options,
           selected_scopes: app.scopes,
           redirect_uri_text: Enum.join(OAuth.App.redirect_uri_list(app), "\n"),
           current_user: conn.assigns.current_user
@@ -58,7 +65,7 @@ defmodule ElektrineWeb.OIDCClientController do
       {:error, changeset} ->
         render(conn, :new,
           changeset: changeset,
-          recommended_scopes: @recommended_scopes,
+          scope_options: @scope_options,
           selected_scopes: scopes,
           current_user: conn.assigns.current_user
         )
@@ -101,7 +108,7 @@ defmodule ElektrineWeb.OIDCClientController do
         render(conn, :edit,
           app: app,
           changeset: changeset,
-          recommended_scopes: @recommended_scopes,
+          scope_options: @scope_options,
           selected_scopes: scopes,
           redirect_uri_text: app_params["redirect_uris"] || "",
           current_user: conn.assigns.current_user

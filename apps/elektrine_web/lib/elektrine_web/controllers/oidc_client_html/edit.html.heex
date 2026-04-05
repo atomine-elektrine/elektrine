@@ -50,49 +50,16 @@
         </div>
       </div>
 
-      <.simple_form
-        :let={f}
-        for={@changeset}
+      <.client_form
+        changeset={@changeset}
         action={~p"/account/developer/oidc/clients/#{@app.id}"}
         method="put"
-      >
-        <.input field={f[:client_name]} type="text" label="Client name" required />
-        <.input field={f[:website]} type="url" label="Website" />
-        <.input
-          field={f[:redirect_uris]}
-          type="textarea"
-          label="Redirect URIs"
-          value={@redirect_uri_text}
-          required
-        />
-        <div class="space-y-3">
-          <p class="text-sm font-semibold text-base-content">Scopes</p>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <label
-              :for={scope <- @recommended_scopes}
-              class="flex items-center gap-3 rounded-xl border border-base-300/60 bg-base-200/30 px-4 py-3"
-            >
-              <input
-                type="checkbox"
-                name="app[scopes][]"
-                value={scope}
-                checked={scope in @selected_scopes}
-                class="checkbox checkbox-sm"
-              /> <span class="text-sm">{scope}</span>
-            </label>
-          </div>
-        </div>
-
-        <:actions>
-          <div class="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
-            <.link href={~p"/account/developer/oidc/clients"} class="btn btn-ghost rounded-full">
-              Cancel
-            </.link>
-            <.button class="rounded-full">Save changes</.button>
-          </div>
-        </:actions>
-      </.simple_form>
+        cancel_path={~p"/account/developer/oidc/clients"}
+        redirect_uri_text={@redirect_uri_text}
+        selected_scopes={@selected_scopes}
+        scope_options={@scope_options}
+        submit_label="Save changes"
+      />
     </div>
   </div>
 </.account_page>

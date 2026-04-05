@@ -54,6 +54,10 @@ defmodule ElektrineWeb.UserSettingsLive do
     user = socket.assigns.current_user
     invite_code_policy = Accounts.self_service_invite_policy()
 
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
+    end
+
     avatar_limit =
       if user.is_admin do
         50 * 1024 * 1024
@@ -142,6 +146,10 @@ defmodule ElektrineWeb.UserSettingsLive do
   def handle_info({:load_tab_data, tab}, socket) do
     socket = load_tab_data(socket, tab)
     {:noreply, socket}
+  end
+
+  def handle_info({:export_updated, _status, _export_id}, socket) do
+    {:noreply, assign_pending_exports(socket, socket.assigns.current_user.id)}
   end
 
   def handle_info(_message, socket) do
@@ -239,9 +247,17 @@ defmodule ElektrineWeb.UserSettingsLive do
     socket
     |> assign(:api_tokens, api_tokens)
     |> assign(:webhooks, webhooks)
-    |> assign(:pending_exports, pending_exports)
+    |> assign_pending_exports(pending_exports)
     |> assign(:recent_webhook_deliveries, deliveries)
     |> assign(:webhook_deliveries_by_webhook, deliveries_by_webhook)
+  end
+
+  defp assign_pending_exports(socket, user_id) when is_integer(user_id) do
+    assign(socket, :pending_exports, Developer.get_pending_exports(user_id))
+  end
+
+  defp assign_pending_exports(socket, pending_exports) when is_list(pending_exports) do
+    assign(socket, :pending_exports, pending_exports)
   end
 
   @impl true
@@ -1441,8 +1457,17 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Token Modal -->
     <%= if @show_create_token_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box modal-surface max-w-md">
-          <h3 class="font-bold text-lg mb-4">{gettext("Create API Token")}</h3>
+        <div class="modal-box modal-surface relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <button
+            type="button"
+            phx-click="close_token_modal"
+            class="btn btn-ghost btn-sm btn-circle absolute right-4 top-4"
+            aria-label={gettext("close")}
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+
+          <h3 class="font-bold text-lg mb-4 pr-10">{gettext("Create API Token")}</h3>
 
           <%= if @new_token do %>
             <!-- Token Created Successfully -->
@@ -1616,8 +1641,17 @@ defmodule ElektrineWeb.UserSettingsLive do
     <!-- Create Webhook Modal -->
     <%= if @show_create_webhook_modal do %>
       <div class="modal modal-open">
-        <div class="modal-box modal-surface max-w-md">
-          <h3 class="font-bold text-lg mb-4">{gettext("Add Webhook")}</h3>
+        <div class="modal-box modal-surface relative w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
+          <button
+            type="button"
+            phx-click="close_webhook_modal"
+            class="btn btn-ghost btn-sm btn-circle absolute right-4 top-4"
+            aria-label={gettext("close")}
+          >
+            <.icon name="hero-x-mark" class="w-5 h-5" />
+          </button>
+
+          <h3 class="font-bold text-lg mb-4 pr-10">{gettext("Add Webhook")}</h3>
 
           <.form for={@webhook_form} phx-submit="create_webhook" class="space-y-4">
             <div class="form-control">

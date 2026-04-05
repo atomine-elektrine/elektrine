@@ -1534,9 +1534,10 @@ defmodule ElektrineWeb.Router do
     end
   end
 
-  # Data Export Download (separate scope - token-based auth, no session needed)
+  # Data export download for the logged-in browser UI.
+  # Requires the browser session plus the per-export download token.
   scope "/api", ElektrineWeb.API do
-    pipe_through(:api)
+    pipe_through(:browser_api)
 
     get("/export/:id/download", ExportController, :download)
   end
