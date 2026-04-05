@@ -906,6 +906,7 @@
                     class={[
                       "message-card relative p-3 sm:p-4 border rounded-lg transition-all duration-150 cursor-pointer",
                       get_message_classes(message, @current_tab),
+                      message.id in @selected_messages && "message-selected",
                       message.reply_later_at && overdue?(message.reply_later_at) &&
                         "border-l-4 border-l-error bg-error/5"
                     ]}

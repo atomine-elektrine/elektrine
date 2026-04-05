@@ -934,12 +934,46 @@ defmodule Elektrine.Accounts.User do
 
   defp validate_bluesky_pds_url(changeset) do
     validate_change(changeset, :bluesky_pds_url, fn :bluesky_pds_url, value ->
-      case URLValidator.validate(value) do
-        :ok -> []
-        {:error, _reason} -> [bluesky_pds_url: "must be a public http or https URL"]
+      cond do
+        configured_managed_bluesky_pds_url?(value) ->
+          []
+
+        true ->
+          case URLValidator.validate(value) do
+            :ok -> []
+            {:error, _reason} -> [bluesky_pds_url: "must be a public http or https URL"]
+          end
       end
     end)
   end
+
+  defp configured_managed_bluesky_pds_url?(value) when is_binary(value) do
+    configured =
+      Application.get_env(:elektrine, :bluesky, [])
+      |> Keyword.get(:managed_service_url)
+
+    normalize_bluesky_pds_url_value(value) == normalize_bluesky_pds_url_value(configured)
+  end
+
+  defp configured_managed_bluesky_pds_url?(_value), do: false
+
+  defp normalize_bluesky_pds_url_value(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" ->
+        nil
+
+      url ->
+        if String.starts_with?(url, ["http://", "https://"]), do: url, else: "https://" <> url
+    end
+    |> case do
+      nil -> nil
+      url -> String.trim_trailing(url, "/")
+    end
+  end
+
+  defp normalize_bluesky_pds_url_value(_value), do: nil
 
   defp normalize_optional_string(changeset, field) do
     case get_change(changeset, field) do

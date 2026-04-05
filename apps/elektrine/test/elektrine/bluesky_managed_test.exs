@@ -196,6 +196,48 @@ defmodule Elektrine.BlueskyManagedTest do
     assert Jason.decode!(create_account_request.body)["handle"] == custom_domain.domain
   end
 
+  test "enable_for_user persists a configured private managed service URL" do
+    Application.put_env(:elektrine, :bluesky,
+      enabled: true,
+      inbound_enabled: true,
+      managed_enabled: true,
+      managed_service_url: "http://bluesky_pds:3000",
+      managed_domain: "bsky.example.com",
+      managed_admin_password: "admin-password",
+      service_url: @service_url,
+      timeout_ms: 5_000,
+      http_client: MockHTTPClient
+    )
+
+    user = user_fixture()
+
+    MockHTTPClient.put_responses([
+      {:ok, %Finch.Response{status: 200, body: Jason.encode!(%{"code" => "invite-123"})}},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "did" => "did:plc:testdid",
+             "handle" => "#{user.username}.bsky.example.com"
+           })
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:testdid"})
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"name" => "elektrine", "password" => "app-password-1"})
+       }}
+    ])
+
+    assert {:ok, %{user: updated_user}} = Managed.enable_for_user(user, valid_user_password())
+    assert updated_user.bluesky_pds_url == "http://bluesky_pds:3000"
+  end
+
   test "returns invalid credentials for wrong password" do
     user = user_fixture()
 
