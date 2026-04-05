@@ -1,4 +1,4 @@
-defmodule ElektrineEmailWeb.HarakaInboundWorker do
+defmodule ElektrineEmail.HarakaInboundWorker do
   @moduledoc """
   Durable inbound Haraka processing worker.
 
@@ -33,26 +33,20 @@ defmodule ElektrineEmailWeb.HarakaInboundWorker do
   def enqueue(payload, opts \\ []) when is_map(payload) do
     idempotency_key = idempotency_key(payload)
 
-    case find_existing_job(idempotency_key) do
-      %Oban.Job{} = job ->
-        {:ok, job, :duplicate}
+    args = %{
+      "payload" => payload,
+      "received_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "remote_ip" => normalize_remote_ip(Keyword.get(opts, :remote_ip)),
+      "idempotency_key" => idempotency_key
+    }
 
-      nil ->
-        args = %{
-          "payload" => payload,
-          "received_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
-          "remote_ip" => normalize_remote_ip(Keyword.get(opts, :remote_ip)),
-          "idempotency_key" => idempotency_key
-        }
+    case args |> new() |> Elektrine.JobQueue.insert() do
+      {:ok, job} ->
+        outcome = if Map.get(job, :conflict?, false), do: :duplicate, else: :queued
+        {:ok, job, outcome}
 
-        case args |> new() |> Elektrine.JobQueue.insert() do
-          {:ok, job} ->
-            outcome = if Map.get(job, :conflict?, false), do: :duplicate, else: :queued
-            {:ok, job, outcome}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -160,33 +154,5 @@ defmodule ElektrineEmailWeb.HarakaInboundWorker do
       _ ->
         nil
     end
-  end
-
-  defp find_existing_job(idempotency_key) do
-    import Ecto.Query, only: [from: 2]
-
-    started_at = System.monotonic_time(:millisecond)
-
-    query =
-      from(j in Oban.Job,
-        where:
-          fragment("?->>'idempotency_key' = ?", j.args, ^idempotency_key) and
-            j.worker == ^to_string(__MODULE__) and
-            j.queue == "email_inbound" and
-            j.state in ["available", "scheduled", "executing", "retryable", "completed"],
-        order_by: [desc: j.id],
-        limit: 1
-      )
-
-    job = Elektrine.Repo.one(query)
-
-    Events.db_hot_path(
-      :haraka_inbound,
-      :find_existing_job,
-      System.monotonic_time(:millisecond) - started_at,
-      %{duplicate_found: not is_nil(job)}
-    )
-
-    job
   end
 end

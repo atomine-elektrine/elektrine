@@ -64,7 +64,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         job_age_seconds: job_age
       })
 
-      :ok
+      {:discard, :stale_job}
     else
       # Check if instance is blocked first
       if ActivityPub.instance_blocked?(domain) do
@@ -143,7 +143,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
             reason: reason
           })
 
-          :ok
+          {:discard, :blocked_instance}
         end
     end
   end
@@ -163,7 +163,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         job_age_seconds: job_age
       })
 
-      :ok
+      {:discard, :throttled}
     end
   end
 
@@ -189,7 +189,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         job_age_seconds: job_age
       })
 
-      :ok
+      {:discard, :backoff}
     end
   end
 
@@ -284,7 +284,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
         end
 
       _ ->
-        :ok
+        {:discard, :backoff}
     end
   end
 

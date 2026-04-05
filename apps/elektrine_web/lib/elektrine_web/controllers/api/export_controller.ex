@@ -55,13 +55,8 @@ defmodule ElektrineWeb.API.ExportController do
         filters: filters
       }
 
-      case Developer.create_export(user.id, attrs) do
+      case Developer.create_export_and_enqueue(user.id, attrs) do
         {:ok, export} ->
-          # Enqueue the export worker
-          %{export_id: export.id}
-          |> Elektrine.Developer.ExportWorker.new()
-          |> Elektrine.JobQueue.insert()
-
           Response.accepted(conn, %{
             message: "Export queued successfully",
             export: format_export(export)

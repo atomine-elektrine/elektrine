@@ -12,8 +12,16 @@ defmodule Elektrine.Messaging.FederationOutboxWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"outbox_event_id" => outbox_event_id}}) do
-    Federation.process_outbox_event(outbox_event_id)
-    :ok
+    case Federation.process_outbox_event(outbox_event_id) do
+      :delivered -> :ok
+      :pending_retry -> :ok
+      :already_delivered -> {:discard, :already_delivered}
+      :already_failed -> {:discard, :already_failed}
+      :not_due -> {:discard, :not_due}
+      :not_found -> {:discard, :not_found}
+      {:error, reason} -> {:error, reason}
+      other -> {:error, {:unexpected_result, other}}
+    end
   end
 
   @doc """

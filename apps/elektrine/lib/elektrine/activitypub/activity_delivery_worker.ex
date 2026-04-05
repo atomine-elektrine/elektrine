@@ -33,7 +33,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
           delivery_id: delivery_id
         })
 
-        :ok
+        {:discard, :missing_delivery}
 
       %{status: status} when status != "pending" ->
         Logger.debug(
@@ -45,7 +45,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
           status: status
         })
 
-        :ok
+        {:discard, :already_processed}
 
       delivery ->
         # Extract domain from inbox URL for throttling
@@ -83,8 +83,11 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
             )
 
             # Delivery retries are driven by next_retry_at + DeliveryRetryWorker.
-            # This job should complete after one attempt.
-            :ok
+            # Reflect terminal delivery failures without asking Oban to retry them.
+            case result do
+              {:ok, _} -> :ok
+              {:error, reason} -> {:discard, reason}
+            end
 
           {:error, :throttled} ->
             # Domain has too many concurrent deliveries, snooze and retry

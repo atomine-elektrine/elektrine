@@ -30,24 +30,34 @@ defmodule Elektrine.HTTP.SafeFetch do
   def request(_request, _finch_name, _opts), do: {:error, :invalid_request}
 
   defp resolve_request_address(%Request{host: host, scheme: :http}, opts) do
-    if Keyword.get(opts, :allow_localhost, false) and host in ["localhost", "127.0.0.1", "::1"] do
-      case host do
-        "localhost" ->
-          {:ok, {127, 0, 0, 1}}
+    cond do
+      Keyword.get(opts, :allow_private_network, false) ->
+        URLValidator.resolve_address(host)
 
-        _ ->
-          case :inet.parse_address(String.to_charlist(host)) do
-            {:ok, address} -> {:ok, address}
-            {:error, _} -> {:error, :unresolvable_host}
-          end
-      end
+      Keyword.get(opts, :allow_localhost, false) and host in ["localhost", "127.0.0.1", "::1"] ->
+        case host do
+          "localhost" ->
+            {:ok, {127, 0, 0, 1}}
+
+          _ ->
+            case :inet.parse_address(String.to_charlist(host)) do
+              {:ok, address} -> {:ok, address}
+              {:error, _} -> {:error, :unresolvable_host}
+            end
+        end
+
+      true ->
+        URLValidator.resolve_public_address(host)
+    end
+  end
+
+  defp resolve_request_address(%Request{host: host}, opts) do
+    if Keyword.get(opts, :allow_private_network, false) do
+      URLValidator.resolve_address(host)
     else
       URLValidator.resolve_public_address(host)
     end
   end
-
-  defp resolve_request_address(%Request{host: host}, _opts),
-    do: URLValidator.resolve_public_address(host)
 
   defp connect(request, address, opts) do
     Mint.HTTP.connect(

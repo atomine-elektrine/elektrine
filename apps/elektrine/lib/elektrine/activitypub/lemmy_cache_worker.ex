@@ -1,4 +1,4 @@
-defmodule Elektrine.Workers.LemmyCacheWorker do
+defmodule Elektrine.ActivityPub.LemmyCacheWorker do
   @moduledoc """
   Oban worker for refreshing Lemmy post counts cache in background.
   """
