@@ -452,6 +452,18 @@ export const MessageList = {
       })
     }
 
+    const performInitialBottomScroll = () => {
+      scrollToBottom('auto')
+
+      ;[50, 120, 250, 500].forEach(delay => {
+        setTimeout(() => scrollToBottom('auto'), delay)
+      })
+
+      setTimeout(() => {
+        this.initialScrollDone = true
+      }, 600)
+    }
+
     // Show/hide "jump to bottom" button when scrolled up
     const updateJumpButton = () => {
       const hasScrolledUp = !isNearBottom()
@@ -550,6 +562,12 @@ export const MessageList = {
 
     // Initial image listener setup
     addImageListeners()
+
+    // Scroll to the latest messages on initial load.
+    // Server-driven unread scrolling can still override this afterward.
+    if (this.currentConversationId) {
+      performInitialBottomScroll()
+    }
 
     // Add image listeners when new content is added
     const imageObserver = new MutationObserver(() => {
@@ -664,6 +682,7 @@ export const MessageList = {
 
       // The imageObserver will automatically catch new images in the new conversation
       // No need to manually call addImageListeners - MutationObserver handles it
+      performInitialBottomScroll()
     }
   },
 
