@@ -332,19 +332,18 @@
       phx-submit="search_timeline"
       class="relative"
     >
-      <.icon
-        name="hero-magnifying-glass"
-        class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-base-content/40"
-      />
-      <input
-        type="text"
-        placeholder={gettext("Search posts...")}
-        value={@search_query}
-        phx-debounce="300"
-        name="query"
-        class="input input-bordered w-full pl-10 pr-10 min-h-[2.75rem]"
-        aria-label={gettext("Search posts")}
-      />
+      <label class="input input-bordered w-full flex items-center gap-2 min-h-[2.75rem] pr-10">
+        <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+        <input
+          type="text"
+          placeholder={gettext("Search posts...")}
+          value={@search_query}
+          phx-debounce="300"
+          name="query"
+          class="grow bg-transparent"
+          aria-label={gettext("Search posts")}
+        />
+      </label>
       <%= if @search_query != "" do %>
         <button
           type="button"
@@ -399,19 +398,18 @@
             phx-submit="search_timeline"
             class="relative"
           >
-            <.icon
-              name="hero-magnifying-glass"
-              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40"
-            />
-            <input
-              type="text"
-              placeholder={gettext("Search posts...")}
-              value={@search_query}
-              phx-debounce="300"
-              name="query"
-              class="input input-bordered input-sm w-full pl-9 pr-8"
-              aria-label={gettext("Search posts")}
-            />
+            <label class="input input-bordered input-sm w-full flex items-center gap-2 pr-8">
+              <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+              <input
+                type="text"
+                placeholder={gettext("Search posts...")}
+                value={@search_query}
+                phx-debounce="300"
+                name="query"
+                class="grow bg-transparent"
+                aria-label={gettext("Search posts")}
+              />
+            </label>
             <%= if @search_query != "" do %>
               <button
                 type="button"

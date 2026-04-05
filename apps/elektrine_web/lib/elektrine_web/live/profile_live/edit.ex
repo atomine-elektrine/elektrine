@@ -88,7 +88,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      )
      |> allow_upload(:static_files,
        accept:
-         ~w(.html .htm .css .js .json .txt .png .jpg .jpeg .gif .webp .svg .ico .woff .woff2 .ttf .otf),
+         ~w(.zip .html .htm .css .js .json .txt .png .jpg .jpeg .gif .webp .svg .ico .woff .woff2 .ttf .otf),
        max_entries: 20,
        max_file_size: 50 * 1024 * 1024,
        auto_upload: true
@@ -1016,18 +1016,24 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   def handle_event("upload_static_files", _params, socket) do
     user = socket.assigns.user
 
-    uploaded_files =
+    upload_results =
       consume_uploaded_entries(socket, :static_files, fn %{path: path}, entry ->
-        # Read the file content
         case File.read(path) do
           {:ok, binary} ->
-            # Use the client filename as the path
-            file_path = entry.client_name
-            content_type = entry.client_type || MIME.from_path(file_path)
+            if String.ends_with?(String.downcase(entry.client_name || ""), ".zip") do
+              case StaticSites.upload_zip(user, binary) do
+                {:ok, count} -> {:ok, {:ok, count}}
+                {:error, reason} -> {:ok, {:error, reason}}
+                {:error, :partial_upload, errors} -> {:ok, {:error, {:partial_upload, errors}}}
+              end
+            else
+              file_path = entry.client_name
+              content_type = entry.client_type || MIME.from_path(file_path)
 
-            case StaticSites.upload_file(user, file_path, binary, content_type) do
-              {:ok, _file} -> {:ok, :success}
-              {:error, reason} -> {:ok, {:error, reason}}
+              case StaticSites.upload_file(user, file_path, binary, content_type) do
+                {:ok, _file} -> {:ok, {:ok, 1}}
+                {:error, reason} -> {:ok, {:error, reason}}
+              end
             end
 
           {:error, reason} ->
@@ -1035,8 +1041,13 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         end
       end)
 
-    success_count = Enum.count(uploaded_files, &(&1 == :success))
-    error_count = Enum.count(uploaded_files, &match?({:error, _}, &1))
+    success_count =
+      Enum.reduce(upload_results, 0, fn
+        {:ok, count}, acc when is_integer(count) -> acc + count
+        _, acc -> acc
+      end)
+
+    error_count = Enum.count(upload_results, &match?({:error, _}, &1))
 
     static_site_files = StaticSites.list_files(user.id)
     static_site_storage = StaticSites.total_storage_used(user.id)

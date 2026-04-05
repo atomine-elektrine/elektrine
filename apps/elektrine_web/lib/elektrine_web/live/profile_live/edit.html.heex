@@ -2793,7 +2793,10 @@
                     phx-change="validate_static_site_upload"
                     class="space-y-4"
                   >
-                    <label class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center transition-colors hover:border-primary/40 hover:bg-primary/5">
+                    <label
+                      phx-drop-target={@uploads.static_site.ref}
+                      class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    >
                       <.icon name="hero-cloud-arrow-up" class="h-12 w-12 text-base-content/35" />
                       <span class="mt-3 text-base font-medium">
                         Drop a ZIP here or choose a file
@@ -2892,25 +2895,20 @@
             </div>
           </div>
 
-          <details class="card panel-card group open:shadow-lg">
-            <summary class="cursor-pointer list-none p-4 sm:p-6">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h3 class="text-lg font-semibold">Site files</h3>
+          <div class="card panel-card">
+            <div class="p-4 sm:p-6 space-y-5">
+              <div>
+                <h3 class="text-lg font-semibold">Site files</h3>
 
-                  <p class="mt-1 text-sm text-base-content/65">
-                    Upload, edit, and delete the files published on your profile site.
-                  </p>
-                </div>
-                <span class="btn btn-ghost btn-sm pointer-events-none"> Expand </span>
+                <p class="mt-1 text-sm text-base-content/65">
+                  Upload, edit, and delete the files published on your profile site.
+                </p>
               </div>
-            </summary>
 
-            <div class="px-4 pb-4 sm:px-6 sm:pb-6 space-y-5">
               <div class="rounded-lg border border-base-content/10 bg-base-100/70 p-4 sm:p-5 space-y-4">
                 <div class="flex items-center gap-2 text-sm font-semibold">
                   <.icon name="hero-document-plus" class="h-5 w-5 text-primary" />
-                  Upload individual files
+                  Upload files or ZIP
                 </div>
 
                 <.form
@@ -2935,10 +2933,10 @@
                       name="hero-cloud-arrow-up"
                       class="mx-auto h-10 w-10 text-base-content/35"
                     />
-                    <p class="mt-3 font-medium">Drop files here or browse</p>
+                    <p class="mt-3 font-medium">Drop files or a ZIP here, or browse</p>
 
                     <p class="mt-1 text-sm text-base-content/60">
-                      HTML, CSS, JS, JSON, text, images, and common web fonts are supported.
+                      ZIP archives, HTML, CSS, JS, JSON, text, images, and common web fonts are supported.
                     </p>
 
                     <.live_file_input
@@ -3110,7 +3108,7 @@
                 <% end %>
               </div>
             </div>
-          </details>
+          </div>
         </div>
       <% end %>
     </div>

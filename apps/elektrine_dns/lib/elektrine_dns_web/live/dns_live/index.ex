@@ -641,31 +641,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                             </div>
                           <% end %>
 
-                          <%= if health.service == "vpn" do %>
-                            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                              <.input
-                                field={Map.fetch!(@service_forms, health.service)[:vpn_host]}
-                                label="VPN host"
-                                placeholder="vpn"
-                              />
-                              <.input
-                                field={Map.fetch!(@service_forms, health.service)[:vpn_target]}
-                                label="VPN target"
-                                placeholder={@active_zone.domain}
-                              />
-                              <.input
-                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_host]}
-                                label="VPN API host"
-                                placeholder="wg"
-                              />
-                              <.input
-                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_target]}
-                                label="VPN API target"
-                                placeholder={@active_zone.domain}
-                              />
-                            </div>
-                          <% end %>
-
                           <%= if health.service == "bluesky" do %>
                             <div class="grid gap-4 md:grid-cols-2">
                               <.input
