@@ -4,7 +4,7 @@ defmodule Elektrine.DNS.ZoneCache do
   """
 
   use GenServer
-  import Ecto.Query, only: [preload: 2]
+  import Ecto.Query, only: [preload: 2, where: 3]
 
   require Logger
 
@@ -80,6 +80,7 @@ defmodule Elektrine.DNS.ZoneCache do
   defp load_zones(repo_opts) do
     {:ok,
      Zone
+     |> where([z], z.status == "verified")
      |> preload(:records)
      |> Repo.all(repo_opts)}
   rescue

@@ -33,6 +33,33 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert conn.status == 401
     end
 
+    test "accepts the API key from the token query parameter for Caddy ask URLs", %{
+      conn: conn,
+      api_key: api_key
+    } do
+      user = user_fixture(%{username: "caddyquerytoken"})
+      verified_domain = "caddyquerytoken.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: verified_domain,
+        verification_token: "verify-caddy-query-token",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(
+          :host,
+          Application.get_env(:elektrine, :primary_domain, "example.com") |> to_string()
+        )
+        |> get(allow_path(verified_domain) <> "&token=#{URI.encode_www_form(api_key)}")
+
+      assert conn.status == 200
+      assert response(conn, 200) == "allowed"
+    end
+
     test "allows verified custom profile domains", %{conn: conn, api_key: api_key} do
       user = user_fixture(%{username: "caddyverified"})
       verified_domain = "caddyverified.test"
