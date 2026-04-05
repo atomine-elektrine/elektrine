@@ -238,25 +238,29 @@ defmodule Elektrine.DNS.Query do
   end
 
   defp resolve_alias_target(target, qtype, owner_name, ttl) do
-    resolver = DNS.alias_resolver()
+    if DNS.public_hostname?(target) do
+      resolver = DNS.alias_resolver()
 
-    case resolver.lookup(String.to_charlist(target), :in, qtype, timeout: 5_000) do
-      values when is_list(values) ->
-        values
-        |> Enum.map(&normalize_lookup_value/1)
-        |> Enum.reject(&is_nil/1)
-        |> Enum.uniq()
-        |> Enum.map(fn content ->
-          %{
-            host: owner_name,
-            type: Atom.to_string(qtype) |> String.upcase(),
-            content: content,
-            ttl: ttl || 300
-          }
-        end)
+      case resolver.lookup(String.to_charlist(target), :in, qtype, timeout: 5_000) do
+        values when is_list(values) ->
+          values
+          |> Enum.map(&normalize_lookup_value/1)
+          |> Enum.reject(&is_nil/1)
+          |> Enum.uniq()
+          |> Enum.map(fn content ->
+            %{
+              host: owner_name,
+              type: Atom.to_string(qtype) |> String.upcase(),
+              content: content,
+              ttl: ttl || 300
+            }
+          end)
 
-      _ ->
-        []
+        _ ->
+          []
+      end
+    else
+      []
     end
   rescue
     _ -> []

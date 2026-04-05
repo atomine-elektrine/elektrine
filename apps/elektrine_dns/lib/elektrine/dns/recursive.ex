@@ -467,7 +467,7 @@ defmodule Elektrine.DNS.Recursive do
 
   defp forwarding_mode?, do: DNS.recursive_upstreams() != []
 
-  defp authorize_client(nil), do: :ok
+  defp authorize_client(nil), do: {:error, :missing_client_ip}
 
   defp authorize_client(client_ip) do
     allowed = parsed_allow_cidrs()

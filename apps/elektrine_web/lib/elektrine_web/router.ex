@@ -59,7 +59,10 @@ defmodule ElektrineWeb.Router do
   end
 
   pipeline :caddy_internal_api do
-    plug(ElektrineWeb.Plugs.InternalAPIAuth, env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"])
+    plug(ElektrineWeb.Plugs.InternalAPIAuth,
+      env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"],
+      param_names: ["token"]
+    )
   end
 
   # Browser-based JSON API pipeline

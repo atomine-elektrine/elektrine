@@ -75,6 +75,7 @@ defmodule Elektrine.DNS.Record do
     |> validate_number(:ttl, greater_than: 0, less_than_or_equal_to: 86_400)
     |> validate_cname_constraints()
     |> normalize_type_specific_content()
+    |> validate_alias_target()
     |> validate_type_specific_fields()
     |> foreign_key_constraint(:zone_id)
     |> unique_constraint(:managed_key, name: :dns_records_zone_managed_key_unique)
@@ -178,6 +179,20 @@ defmodule Elektrine.DNS.Record do
 
       {"ALIAS", name} when is_binary(name) and name != "@" ->
         add_error(changeset, :type, "can only be used at the zone apex")
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_alias_target(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {"ALIAS", content} when is_binary(content) ->
+        if Elektrine.DNS.public_hostname?(content) do
+          changeset
+        else
+          add_error(changeset, :content, "must point to a public DNS hostname")
+        end
 
       _ ->
         changeset

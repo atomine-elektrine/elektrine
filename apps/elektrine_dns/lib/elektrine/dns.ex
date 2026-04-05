@@ -63,7 +63,7 @@ defmodule Elektrine.DNS do
 
   def create_zone(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
     %Zone{}
-    |> Zone.changeset(Map.put(attrs, "user_id", user_id))
+    |> Zone.changeset(create_zone_attrs(attrs, user_id))
     |> Repo.insert()
     |> case do
       {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
@@ -93,7 +93,7 @@ defmodule Elektrine.DNS do
 
   def update_zone(%Zone{} = zone, attrs) when is_map(attrs) do
     zone
-    |> Zone.changeset(attrs)
+    |> Zone.changeset(public_zone_attrs(attrs))
     |> Repo.update()
     |> case do
       {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
@@ -122,7 +122,7 @@ defmodule Elektrine.DNS do
     zone_domain = zone_domain(record.zone_id)
 
     record
-    |> Record.changeset(normalize_record_attrs(attrs, zone_domain))
+    |> Record.changeset(normalize_record_attrs(public_record_attrs(attrs), zone_domain))
     |> Repo.update()
     |> refresh_authority_cache_after_write()
   end
@@ -422,6 +422,21 @@ defmodule Elektrine.DNS do
     ])
   end
 
+  def public_hostname?(hostname) when is_binary(hostname) do
+    normalized =
+      hostname
+      |> String.trim()
+      |> String.trim_trailing(".")
+      |> String.downcase()
+
+    normalized != "" and
+      not String.contains?(normalized, ["/", "@", " "]) and
+      not ip_literal?(normalized) and
+      not restricted_hostname?(normalized)
+  end
+
+  def public_hostname?(_), do: false
+
   def udp_port do
     Application.get_env(:elektrine, :dns, [])
     |> Keyword.get(:udp_port, 5300)
@@ -461,21 +476,49 @@ defmodule Elektrine.DNS do
   defp nil_or_blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp nil_or_blank?(_), do: false
 
+  defp restricted_hostname?(hostname) do
+    hostname in ["localhost", "invalid", "local", "localdomain"] or
+      String.ends_with?(hostname, ".localhost") or
+      String.ends_with?(hostname, ".local") or
+      String.ends_with?(hostname, ".internal") or
+      String.ends_with?(hostname, ".home.arpa") or
+      String.ends_with?(hostname, ".localdomain") or
+      String.ends_with?(hostname, ".test") or
+      String.ends_with?(hostname, ".invalid") or
+      String.ends_with?(hostname, ".example") or
+      String.ends_with?(hostname, ".example.com") or
+      String.ends_with?(hostname, ".example.net") or
+      String.ends_with?(hostname, ".example.org") or
+      String.ends_with?(hostname, ".in-addr.arpa") or
+      String.ends_with?(hostname, ".ip6.arpa")
+  end
+
+  defp ip_literal?(value) do
+    case :inet.parse_address(String.to_charlist(value)) do
+      {:ok, _ip} -> true
+      {:error, _reason} -> false
+    end
+  end
+
   defp verify_nameservers(%Zone{domain: domain}) do
-    expected = nameservers() |> Enum.map(&String.downcase/1) |> Enum.sort()
+    if public_hostname?(domain) do
+      expected = nameservers() |> Enum.map(&String.downcase/1) |> Enum.sort()
 
-    resolved =
-      domain
-      |> String.to_charlist()
-      |> dns_resolver().lookup(:in, :ns, timeout: 5_000)
-      |> Enum.map(&to_string/1)
-      |> Enum.map(&String.trim_trailing(&1, "."))
-      |> Enum.map(&String.downcase/1)
-      |> Enum.sort()
+      resolved =
+        domain
+        |> String.to_charlist()
+        |> dns_resolver().lookup(:in, :ns, timeout: 5_000)
+        |> Enum.map(&to_string/1)
+        |> Enum.map(&String.trim_trailing(&1, "."))
+        |> Enum.map(&String.downcase/1)
+        |> Enum.sort()
 
-    if expected == resolved,
-      do: :ok,
-      else: {:error, delegation_mismatch_message(expected, resolved)}
+      if expected == resolved,
+        do: :ok,
+        else: {:error, delegation_mismatch_message(expected, resolved)}
+    else
+      {:error, "Zone verification only supports public DNS domains"}
+    end
   rescue
     error -> {:error, "NS lookup failed for #{domain}: #{inspect(error)}"}
   end
@@ -550,6 +593,30 @@ defmodule Elektrine.DNS do
       nil -> :ok
       _pid -> ZoneCache.refresh(caller: self())
     end
+  end
+
+  defp create_zone_attrs(attrs, user_id) do
+    attrs
+    |> public_zone_attrs()
+    |> Map.put("user_id", user_id)
+  end
+
+  defp public_zone_attrs(attrs) do
+    Map.take(attrs, [
+      "domain",
+      "kind",
+      "default_ttl",
+      "soa_mname",
+      "soa_rname",
+      "soa_refresh",
+      "soa_retry",
+      "soa_expire",
+      "soa_minimum"
+    ])
+  end
+
+  defp public_record_attrs(attrs) do
+    Map.drop(attrs, ["zone_id", :zone_id])
   end
 
   defp normalize_record_attrs(attrs, nil), do: attrs

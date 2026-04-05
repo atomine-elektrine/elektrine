@@ -11,6 +11,7 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   def init(opts) do
     opts
     |> Keyword.put_new(:env_names, ["PHOENIX_API_KEY"])
+    |> Keyword.put_new(:param_names, [])
   end
 
   def call(conn, opts) do
@@ -34,8 +35,19 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
     end
   end
 
-  defp provided_key(conn, _opts) do
-    List.first(get_req_header(conn, "x-api-key")) || authorization_key(conn)
+  defp provided_key(conn, opts) do
+    List.first(get_req_header(conn, "x-api-key")) ||
+      authorization_key(conn) ||
+      param_key(conn, opts)
+  end
+
+  defp param_key(conn, opts) do
+    Enum.find_value(Keyword.get(opts, :param_names, []), fn name ->
+      case conn.params[name] do
+        value when is_binary(value) and value != "" -> value
+        _ -> nil
+      end
+    end)
   end
 
   defp authorization_key(conn) do

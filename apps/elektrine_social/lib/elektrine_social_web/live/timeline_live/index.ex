@@ -474,7 +474,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     parent = self()
     user_id = user && user.id
 
-    if Mix.env() == :test do
+    if test_env?() do
       hydrated_state = build_timeline_hydrated_state(posts, user_id)
       send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
     else
@@ -485,6 +485,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     end
 
     assign(socket, :timeline_hydration_ref, hydration_ref)
+  end
+
+  defp test_env? do
+    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :test
   end
 
   defp build_timeline_hydrated_state(posts, user_id) do
