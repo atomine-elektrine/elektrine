@@ -709,6 +709,7 @@ defmodule Elektrine.Developer do
 
     case result do
       {:ok, completed_export} = ok ->
+        broadcast_export_update(completed_export, :completed)
         maybe_emit_export_completed_webhook(completed_export)
         ok
 
@@ -721,9 +722,19 @@ defmodule Elektrine.Developer do
   Marks an export as failed.
   """
   def fail_export(%DataExport{} = export, error) do
-    export
-    |> DataExport.fail_changeset(error)
-    |> Repo.update()
+    result =
+      export
+      |> DataExport.fail_changeset(error)
+      |> Repo.update()
+
+    case result do
+      {:ok, failed_export} = ok ->
+        broadcast_export_update(failed_export, :failed)
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -783,6 +794,14 @@ defmodule Elektrine.Developer do
     |> order_by([e], desc: e.inserted_at)
     |> limit(5)
     |> Repo.all()
+  end
+
+  defp broadcast_export_update(%DataExport{} = export, status) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "user:#{export.user_id}",
+      {:export_updated, status, export.id}
+    )
   end
 
   defp maybe_emit_export_completed_webhook(%DataExport{} = export) do

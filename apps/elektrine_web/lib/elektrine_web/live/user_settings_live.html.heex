@@ -2294,9 +2294,7 @@
                               </span>
                             <% "completed" -> %>
                               <a
-                                href={
-                                  ~p"/api/export/#{export.id}/download?token=#{export.download_token}"
-                                }
+                                href={~p"/api/export/#{export.id}/download"}
                                 class="btn btn-success btn-xs"
                               >
                                 <.icon name="hero-arrow-down-tray" class="w-3 h-3" /> {gettext(

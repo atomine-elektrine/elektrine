@@ -1,3 +1,5 @@
+import { copyToClipboard } from './utils/clipboard'
+
 // Form helper functions for various UI interactions
 export function initFormHelpers() {
   const submitForm = (form) => {
@@ -17,8 +19,9 @@ export function initFormHelpers() {
     if (copyBtn) {
       e.preventDefault();
       const text = copyBtn.dataset.copyToClipboard;
-      navigator.clipboard.writeText(text).then(() => {
-        // Optional: Show feedback
+      copyToClipboard(text).then((copied) => {
+        if (!copied) return;
+
         const originalText = copyBtn.textContent;
         copyBtn.textContent = 'Copied!';
         setTimeout(() => {

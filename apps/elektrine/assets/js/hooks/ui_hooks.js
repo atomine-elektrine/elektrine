@@ -1,3 +1,6 @@
+import { copyToClipboard } from '../utils/clipboard'
+import { FlashMessageManager } from '../flash_message_manager'
+
 // General UI-related LiveView hooks
 /**
  * UI Hooks
@@ -16,7 +19,9 @@ export const CopyEmail = {
       const email = this.el.dataset.email
 
       if (email) {
-        navigator.clipboard.writeText(email).then(() => {
+        copyToClipboard(email, 'email').then(copied => {
+          if (!copied) return
+
           // Show success by changing icon temporarily
           const icon = this.el.querySelector('span')
           if (icon) {
@@ -27,16 +32,8 @@ export const CopyEmail = {
               icon.className = originalClass
             }, 2000)
           }
-
-          // Show notification if available
-          if (window.showNotification) {
-            window.showNotification('Email address copied', 'info', 'Copied!')
-          }
         }).catch(err => {
           console.error('Copy failed:', err)
-          if (window.showNotification) {
-            window.showNotification('Failed to copy', 'error', 'Error')
-          }
         })
       }
     })
@@ -90,7 +87,38 @@ export const FlashAutoDismiss = {
   }
 }
 
-import { FlashMessageManager } from '../flash_message_manager'
+function resolveCopyText(el) {
+  if (el.dataset.content) {
+    return el.dataset.content
+  }
+
+  if (el.dataset.copyTarget) {
+    const target = document.getElementById(el.dataset.copyTarget)
+    if (target) {
+      if ('value' in target && typeof target.value === 'string') {
+        return target.value
+      }
+
+      return target.textContent
+    }
+  }
+
+  const emailElement = document.getElementById('email-address')
+  if (emailElement) {
+    return emailElement.textContent
+  }
+
+  return ''
+}
+
+function showTemporaryCopySuccess(el) {
+  const originalHTML = el.innerHTML
+  el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>'
+
+  setTimeout(() => {
+    el.innerHTML = originalHTML
+  }, 2000)
+}
 
 export const FlashMessage = {
   mounted() {
@@ -160,30 +188,13 @@ export const CopyToClipboard = {
     this.el.addEventListener("click", e => {
       e.preventDefault()
       e.stopPropagation()
-      
-      // Get content from data-content attribute, or fall back to legacy email-address element
-      let textToCopy = this.el.dataset.content
-      if (!textToCopy) {
-        const emailElement = document.getElementById('email-address')
-        if (emailElement) {
-          textToCopy = emailElement.textContent
-        }
-      }
-      
-      if (textToCopy) {
-        navigator.clipboard.writeText(textToCopy).then(() => {
-          // Show success feedback (change icon temporarily)
-          const originalHTML = this.el.innerHTML
-          this.el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>'
 
-          // Restore original icon after a delay
-          setTimeout(() => {
-            this.el.innerHTML = originalHTML
-          }, 2000)
-          
-          // Show notification if available
-          if (window.showNotification) {
-            window.showNotification('Copied to clipboard', 'info', 'Copied!')
+      const textToCopy = resolveCopyText(this.el)
+
+      if (textToCopy) {
+        copyToClipboard(textToCopy).then(copied => {
+          if (copied) {
+            showTemporaryCopySuccess(this.el)
           }
         }).catch(err => {
           console.error('Copy failed:', err)
@@ -553,18 +564,12 @@ export const CopyButton = {
     
     // Listen for the copy_to_clipboard event from LiveView
     this.handleEvent("copy_to_clipboard", ({ text }) => {
-      navigator.clipboard.writeText(text).then(() => {
-        this.showSuccess()
+      copyToClipboard(text).then(copied => {
+        if (copied) {
+          this.showSuccess()
+        }
       }).catch(err => {
         console.error('Copy failed:', err)
-        // Try fallback
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-        this.showSuccess()
       })
     })
   },

@@ -16,40 +16,14 @@
         </p>
       </div>
 
-      <.simple_form :let={f} for={@changeset} action={~p"/account/developer/oidc/clients"}>
-        <.input field={f[:client_name]} type="text" label="Client name" required />
-        <.input field={f[:website]} type="url" label="Website" />
-        <.input field={f[:redirect_uris]} type="textarea" label="Redirect URIs" required />
-        <div class="space-y-3">
-          <p class="text-sm font-semibold text-base-content">Scopes</p>
-
-          <div class="grid gap-3 sm:grid-cols-2">
-            <label
-              :for={scope <- @recommended_scopes}
-              class="flex items-center gap-3 rounded-xl border border-base-300/60 bg-base-200/30 px-4 py-3"
-            >
-              <input
-                type="checkbox"
-                name="app[scopes][]"
-                value={scope}
-                checked={scope in @selected_scopes}
-                class="checkbox checkbox-sm"
-              /> <span class="text-sm">{scope}</span>
-            </label>
-          </div>
-
-          <p class="text-xs text-base-content/60">Include `openid` if you want an `id_token`.</p>
-        </div>
-
-        <:actions>
-          <div class="flex w-full flex-col gap-3 sm:flex-row sm:justify-end">
-            <.link href={~p"/account/developer/oidc/clients"} class="btn btn-ghost rounded-full">
-              Cancel
-            </.link>
-            <.button class="rounded-full">Create client</.button>
-          </div>
-        </:actions>
-      </.simple_form>
+      <.client_form
+        changeset={@changeset}
+        action={~p"/account/developer/oidc/clients"}
+        cancel_path={~p"/account/developer/oidc/clients"}
+        selected_scopes={@selected_scopes}
+        scope_options={@scope_options}
+        submit_label="Create client"
+      />
     </div>
   </div>
 </.account_page>
