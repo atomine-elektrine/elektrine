@@ -1209,6 +1209,8 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp expected_record_to_attrs(%Zone{} = zone, expected_record) do
+    priority = Map.get(expected_record, :priority)
+
     attrs = %{
       "name" => expected_record_name(zone, expected_record.host),
       "type" => normalize_expected_type(expected_record.type),
@@ -1216,7 +1218,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       "ttl" => zone.default_ttl
     }
 
-    case expected_record.priority do
+    case priority do
       nil -> attrs
       priority -> Map.put(attrs, "priority", priority)
     end
@@ -1255,8 +1257,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
          %Record{type: "MX", content: content, priority: priority},
          expected_record
        ) do
+    expected_priority = Map.get(expected_record, :priority)
+
     normalize_dns_name(content) == normalize_dns_name(expected_record.value) and
-      (is_nil(expected_record.priority) or priority == expected_record.priority)
+      (is_nil(expected_priority) or priority == expected_priority)
   end
 
   defp record_value_matches?(%Record{type: type, content: content}, expected_record)
@@ -1286,11 +1290,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp linked_domain_check_detail(expected_record) do
     base = "#{expected_record.type} #{expected_record.host} -> #{expected_record.value}"
+    priority = Map.get(expected_record, :priority)
 
-    if is_nil(expected_record.priority) do
+    if is_nil(priority) do
       base
     else
-      base <> " (priority #{expected_record.priority})"
+      base <> " (priority #{priority})"
     end
   end
 
