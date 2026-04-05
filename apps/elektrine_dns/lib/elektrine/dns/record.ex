@@ -6,7 +6,7 @@ defmodule Elektrine.DNS.Record do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @types ~w(A AAAA CNAME TXT MX NS SRV CAA DNSKEY DS TLSA)
+  @types ~w(A AAAA ALIAS CNAME TXT MX NS SRV CAA DNSKEY DS TLSA)
 
   schema "dns_records" do
     field :name, :string
@@ -105,6 +105,9 @@ defmodule Elektrine.DNS.Record do
 
   defp normalize_type_specific_content(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {"ALIAS", content} when is_binary(content) ->
+        put_change(changeset, :content, normalize_hostname(content))
+
       {type, content} when type in ["DS", "TLSA"] and is_binary(content) ->
         normalized = content |> String.replace(~r/\s+/, "") |> String.upcase()
         put_change(changeset, :content, normalized)
@@ -170,9 +173,22 @@ defmodule Elektrine.DNS.Record do
 
   defp validate_cname_constraints(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :name)} do
-      {"CNAME", "@"} -> add_error(changeset, :type, "cannot be used at the zone apex")
-      _ -> changeset
+      {"CNAME", "@"} ->
+        add_error(changeset, :type, "cannot be used at the zone apex")
+
+      {"ALIAS", name} when is_binary(name) and name != "@" ->
+        add_error(changeset, :type, "can only be used at the zone apex")
+
+      _ ->
+        changeset
     end
+  end
+
+  defp normalize_hostname(hostname) do
+    hostname
+    |> String.trim()
+    |> String.trim_trailing(".")
+    |> String.downcase()
   end
 
   defp validate_dnskey_content(changeset) do

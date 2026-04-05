@@ -166,13 +166,7 @@ defmodule Elektrine.DNS.Query do
     if qtype == :soa and fqdn == normalize_name(zone.domain) do
       [Elektrine.DNS.Zone.soa_record(zone)]
     else
-      exact_records =
-        zone_records(zone)
-        |> Enum.filter(fn record ->
-          record_name(zone, record) == fqdn and
-            (qtype == :any or normalize_type(record.type) == qtype)
-        end)
-        |> Enum.map(&with_record_host(zone, &1))
+      exact_records = exact_records_for_query(zone, fqdn, qtype)
 
       if exact_records != [] do
         exact_records
@@ -192,6 +186,92 @@ defmodule Elektrine.DNS.Query do
       end
     end
   end
+
+  defp exact_records_for_query(zone, fqdn, qtype) do
+    zone_records(zone)
+    |> Enum.filter(fn record ->
+      record_name(zone, record) == fqdn and
+        (qtype == :any or normalize_type(record.type) == qtype)
+    end)
+    |> Enum.reject(&(normalize_type(&1.type) == :alias))
+    |> Enum.map(&with_record_host(zone, &1))
+    |> case do
+      [] -> alias_records_for_query(zone, fqdn, qtype)
+      records -> records
+    end
+  end
+
+  defp alias_records_for_query(zone, fqdn, qtype) when qtype in [:a, :aaaa] do
+    zone_records(zone)
+    |> Enum.filter(fn record ->
+      record_name(zone, record) == fqdn and normalize_type(record.type) == :alias
+    end)
+    |> Enum.flat_map(&flatten_alias_record(zone, fqdn, qtype, &1))
+  end
+
+  defp alias_records_for_query(_zone, _fqdn, _qtype), do: []
+
+  defp flatten_alias_record(zone, fqdn, qtype, record) do
+    target = normalize_name(record.content)
+
+    cond do
+      target in ["", fqdn] ->
+        []
+
+      true ->
+        local_alias_records(zone, target, qtype, record.ttl)
+        |> case do
+          [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
+          records -> records
+        end
+    end
+  end
+
+  defp local_alias_records(zone, target, qtype, ttl) do
+    zone_records(zone)
+    |> Enum.filter(fn record ->
+      record_name(zone, record) == target and normalize_type(record.type) == qtype
+    end)
+    |> Enum.map(fn record ->
+      with_record_host(zone, record)
+      |> Map.put(:host, target)
+      |> Map.put(:ttl, ttl || record.ttl || 300)
+    end)
+  end
+
+  defp resolve_alias_target(target, qtype, owner_name, ttl) do
+    resolver = DNS.alias_resolver()
+
+    case resolver.lookup(String.to_charlist(target), :in, qtype, timeout: 5_000) do
+      values when is_list(values) ->
+        values
+        |> Enum.map(&normalize_lookup_value/1)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+        |> Enum.map(fn content ->
+          %{
+            host: owner_name,
+            type: Atom.to_string(qtype) |> String.upcase(),
+            content: content,
+            ttl: ttl || 300
+          }
+        end)
+
+      _ ->
+        []
+    end
+  rescue
+    _ -> []
+  end
+
+  defp normalize_lookup_value({a, b, c, d}), do: :inet.ntoa({a, b, c, d}) |> to_string()
+
+  defp normalize_lookup_value(tuple) when is_tuple(tuple) and tuple_size(tuple) == 8,
+    do: :inet.ntoa(tuple) |> to_string()
+
+  defp normalize_lookup_value(value) when is_binary(value), do: value
+  defp normalize_lookup_value(value) when is_list(value), do: to_string(value)
+  defp normalize_lookup_value(_value), do: nil
 
   defp cname_records_for_name(zone, fqdn) do
     zone_records(zone)

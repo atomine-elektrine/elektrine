@@ -221,11 +221,10 @@ defmodule Elektrine.Profiles.CustomDomains do
   defp routing_dns_records_for_custom_domain(domain) do
     [
       %{
-        type: "ALIAS/CNAME",
+        type: "ALIAS",
         host: domain,
         value: Elektrine.Domains.profile_custom_domain_routing_target(),
-        label:
-          "Stable routing target for the root domain. Use your DNS provider's apex alias/flattening option or edge proxy.",
+        label: "Stable routing target for the root domain using apex alias flattening.",
         priority: nil
       }
     ] ++

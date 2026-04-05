@@ -59,6 +59,37 @@ defmodule Elektrine.DNSContextTest do
     assert "cannot be used at the zone apex" in errors_on(changeset).type
   end
 
+  test "accepts apex alias records and normalizes the target hostname" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => zone.domain,
+               "type" => "ALIAS",
+               "ttl" => 300,
+               "content" => "Edge.Elektrine.com."
+             })
+
+    assert record.name == "@"
+    assert record.content == "edge.elektrine.com"
+  end
+
+  test "rejects non-apex alias records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "ALIAS",
+               "ttl" => 300,
+               "content" => "edge.elektrine.com"
+             })
+
+    assert "can only be used at the zone apex" in errors_on(changeset).type
+  end
+
   defp unique_domain do
     "dnsctx#{System.unique_integer([:positive])}.example.com"
   end
