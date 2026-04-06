@@ -1088,6 +1088,10 @@ defmodule ElektrineWeb.UserSettingsLive do
     "Managed Bluesky domain is not configured"
   end
 
+  defp bluesky_managed_error_message(:invalid_managed_domain) do
+    "Managed Bluesky domain is invalid"
+  end
+
   defp bluesky_managed_error_message(:missing_managed_admin_password) do
     "Managed Bluesky admin password is not configured"
   end
@@ -1110,6 +1114,10 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   defp bluesky_managed_error_message(:missing_handle) do
     "Managed Bluesky did not return an account handle"
+  end
+
+  defp bluesky_managed_error_message(:invalid_handle) do
+    "Managed Bluesky handle is invalid"
   end
 
   defp bluesky_managed_error_message(:missing_access_jwt) do

@@ -816,90 +816,11 @@
                                   </div>
                                 <% post.post_type == "link" && post.primary_url -> %>
                                   <!-- Link Post with Rich Preview -->
-                                  <%= if match?(%Elektrine.Social.LinkPreview{}, post.link_preview) && post.link_preview.status == "success" do %>
-                                    <% youtube_id = extract_youtube_id(post.link_preview.url) %>
-                                    <%= if youtube_id do %>
-                                      <!-- YouTube Embed -->
-                                      <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
-                                        <div class="aspect-video bg-base-200">
-                                          <iframe
-                                            src={"https://www.youtube.com/embed/#{youtube_id}"}
-                                            title={post.link_preview.title || "YouTube video"}
-                                            frameborder="0"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowfullscreen
-                                            class="w-full h-full"
-                                          >
-                                          </iframe>
-                                        </div>
-                                        <%= if post.link_preview.title do %>
-                                          <div class="p-3 border-t border-base-200">
-                                            <h4 class="font-medium text-sm">
-                                              {post.link_preview.title}
-                                            </h4>
-                                          </div>
-                                        <% end %>
-                                      </div>
-                                    <% else %>
-                                      <!-- Regular Link Preview -->
-                                      <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
-                                        <%= if post.link_preview.image_url do %>
-                                          <div class="aspect-video bg-base-200">
-                                            <img
-                                              src={ensure_https(post.link_preview.image_url)}
-                                              alt={post.link_preview.title || ""}
-                                              class="w-full h-full object-cover"
-                                            />
-                                          </div>
-                                        <% end %>
-                                        <div class="p-3">
-                                          <%= if post.link_preview.title do %>
-                                            <h4 class="font-medium text-sm">
-                                              {post.link_preview.title}
-                                            </h4>
-                                          <% end %>
-                                          <%= if post.link_preview.description do %>
-                                            <p class="text-xs opacity-70 mt-1 line-clamp-2">
-                                              {post.link_preview.description}
-                                            </p>
-                                          <% end %>
-                                          <a
-                                            href={post.link_preview.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="text-xs text-primary hover:underline mt-2 inline-block"
-                                            phx-click="stop_propagation"
-                                          >
-                                            Visit link →
-                                          </a>
-                                        </div>
-                                      </div>
-                                    <% end %>
-                                  <% else %>
-                                    <!-- Fallback: Simple link display -->
-                                    <div class="block border border-base-300 rounded-lg overflow-hidden my-3">
-                                      <div class="bg-base-200/50 p-4 flex items-center gap-3">
-                                        <.icon
-                                          name="hero-arrow-top-right-on-square"
-                                          class="w-5 h-5 flex-shrink-0"
-                                        />
-                                        <div class="flex-1 min-w-0">
-                                          <div class="font-medium text-sm truncate">
-                                            {URI.parse(post.primary_url).host}
-                                          </div>
-                                          <a
-                                            href={post.primary_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="text-xs opacity-70 truncate hover:text-primary"
-                                            phx-click="stop_propagation"
-                                          >
-                                            {post.primary_url}
-                                          </a>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  <% end %>
+                                  <.rich_link_preview
+                                    url={post.primary_url}
+                                    preview={post.link_preview}
+                                    wrapper_class="my-3"
+                                  />
                                   <%= if plain_text_preview(post.content, 200) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                     <div class="break-words text-sm sm:text-base post-content mt-2 line-clamp-3 overflow-hidden">
                                       {raw(
@@ -1408,29 +1329,11 @@
                             <!-- Different rendering based on post type -->
                             <%= cond do %>
                               <% post.post_type == "link" && post.primary_url -> %>
-                                <!-- Link Post: Show as large clickable preview -->
-                                <a
-                                  href={post.primary_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="block border border-base-300 rounded-lg overflow-hidden hover:border-error transition-colors my-3"
-                                  phx-click="stop_propagation"
-                                >
-                                  <div class="bg-base-200/50 p-4 flex items-center gap-3">
-                                    <.icon
-                                      name="hero-arrow-top-right-on-square"
-                                      class="w-5 h-5 flex-shrink-0"
-                                    />
-                                    <div class="flex-1 min-w-0">
-                                      <div class="font-medium text-sm truncate">
-                                        {URI.parse(post.primary_url).host}
-                                      </div>
-                                      <div class="text-xs opacity-70 truncate">
-                                        {post.primary_url}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </a>
+                                <.rich_link_preview
+                                  url={post.primary_url}
+                                  preview={post.link_preview}
+                                  wrapper_class="my-3"
+                                />
                                 <%= if plain_text_preview(post.content, 300) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                   <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
                                     {raw(
@@ -1505,61 +1408,11 @@
                           <% end %>
                           
 <!-- YouTube Embed or Link Preview -->
-                          <%= if match?(%Elektrine.Social.LinkPreview{}, post.link_preview) && post.link_preview.status == "success" do %>
-                            <% youtube_id = extract_youtube_id(post.link_preview.url) %>
-                            <%= if youtube_id do %>
-                              <!-- YouTube Embed -->
-                              <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
-                                <div class="aspect-video bg-base-200">
-                                  <iframe
-                                    src={"https://www.youtube.com/embed/#{youtube_id}"}
-                                    title={post.link_preview.title || "YouTube video"}
-                                    frameborder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    allowfullscreen
-                                    class="w-full h-full"
-                                  >
-                                  </iframe>
-                                </div>
-                                <%= if post.link_preview.title do %>
-                                  <div class="p-3 border-t border-base-200">
-                                    <h4 class="font-medium text-sm">{post.link_preview.title}</h4>
-                                  </div>
-                                <% end %>
-                              </div>
-                            <% else %>
-                              <!-- Regular Link Preview -->
-                              <div class="mt-3 border border-base-200 rounded-lg overflow-hidden">
-                                <a
-                                  href={post.link_preview.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  class="block"
-                                >
-                                  <%= if post.link_preview.image_url do %>
-                                    <div class="aspect-video bg-base-200">
-                                      <img
-                                        src={ensure_https(post.link_preview.image_url)}
-                                        alt={post.link_preview.title || ""}
-                                        class="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                  <% end %>
-                                  <div class="p-3">
-                                    <%= if post.link_preview.title do %>
-                                      <h4 class="font-medium text-sm">
-                                        {post.link_preview.title}
-                                      </h4>
-                                    <% end %>
-                                    <%= if post.link_preview.description do %>
-                                      <p class="text-xs opacity-70 mt-1">
-                                        {post.link_preview.description}
-                                      </p>
-                                    <% end %>
-                                  </div>
-                                </a>
-                              </div>
-                            <% end %>
+                          <%= if post.post_type != "link" and match?(%Elektrine.Social.LinkPreview{}, post.link_preview) && post.link_preview.status == "success" do %>
+                            <.rich_link_preview
+                              url={post.link_preview.url}
+                              preview={post.link_preview}
+                            />
                           <% end %>
                           
 <!-- Hashtags -->

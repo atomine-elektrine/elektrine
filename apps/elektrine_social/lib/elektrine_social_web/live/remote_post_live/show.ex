@@ -130,25 +130,20 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           true -> reply_fallback.acct_label
         end
 
-      # Keep visual distinction by surface: threaded trees for communities,
-      # conversational rails for timeline-style threads.
-      indent_class =
-        if @is_lemmy_post do
-          case min(depth, 4) do
-            0 -> ""
-            1 -> "border-l-2 border-secondary/55 pl-3 ml-2"
-            2 -> "border-l-2 border-info/55 pl-3 ml-4"
-            3 -> "border-l-2 border-warning/55 pl-3 ml-6"
-            _ -> "border-l-2 border-success/50 pl-3 ml-8"
-          end
-        else
-          case min(depth, 2) do
-            0 -> ""
-            1 -> "border-l-2 border-secondary/50 pl-3 ml-2"
-            _ -> "border-l-2 border-info/45 pl-3 ml-2"
-          end
-        end %>
-      <div id={SurfaceHelpers.reply_dom_id(reply)} class={indent_class}>
+      tree_depth = min(depth, 4) %>
+      <div
+        id={SurfaceHelpers.reply_dom_id(reply)}
+        class={[
+          "timeline-thread-tree-node",
+          if(!@is_lemmy_post && depth == 0, do: "timeline-thread-reply-row"),
+          if(depth > 0, do: "timeline-thread-tree-node--nested")
+        ]}
+        style={if depth > 0, do: "--thread-depth: #{tree_depth};", else: nil}
+      >
+        <%= if !@is_lemmy_post && depth == 0 do %>
+          <span class="timeline-thread-reply-node" aria-hidden="true"></span>
+          <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
+        <% end %>
         <%= if @is_lemmy_post do %>
           <!-- Lemmy-style comment (Reddit-style with vote column) -->
           <div class="flex gap-2 mb-2">
@@ -375,7 +370,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           </div>
         <% else %>
           <!-- Timeline-style comment (traditional social media with hearts) -->
-          <div class="bg-base-200/50 rounded-lg p-3 mb-2">
+          <div class="timeline-thread-tree-card rounded-xl p-3 mb-2">
             <!-- Comment Header -->
             <div class="flex items-center gap-2 mb-2">
               <%= if is_local_reply && local_user do %>
@@ -875,9 +870,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   attr :user_saves, :map, default: %{}
   attr :post_reactions, :map, default: %{}
   attr :current_user, :map, default: nil
+  attr :replies_loaded, :boolean, default: false
 
   def standard_timeline_detail_post(assigns) do
-    message = detail_message_with_reply_count(assigns.message, assigns.replies)
+    message =
+      detail_message_with_reply_count(assigns.message, assigns.replies, assigns.replies_loaded)
+
     interaction_state = detail_message_interaction(assigns.post_interactions, message)
 
     assigns =
@@ -949,18 +947,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   attr :reply_content, :string, default: ""
   attr :reply_content_domain, :any, default: nil
   attr :replying_to_comment_id, :any, default: nil
+  attr :show_recent_replies_preview, :boolean, default: true
 
   def standard_timeline_detail_reply_box(assigns) do
     ~H"""
     <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
       <div class="card panel-card rounded-lg p-4 mb-6">
         <div class="space-y-3">
-          <%= if length(@quick_reply_recent_replies) > 0 do %>
-            <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+          <%= if @show_recent_replies_preview && length(@quick_reply_recent_replies) > 0 do %>
+            <div class="timeline-thread-preview-list space-y-2">
               <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
               <%= for reply <- @quick_reply_recent_replies do %>
                 <% author_preview = quick_reply_author_preview(reply) %>
-                <div class="text-sm">
+                <div class="timeline-thread-preview-item text-sm">
                   <div class="flex items-center gap-2 mb-1 min-w-0">
                     <%= if author_preview.profile_path do %>
                       <.link
@@ -1060,8 +1059,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp loaded_assoc?(nil), do: false
   defp loaded_assoc?(_), do: true
 
-  defp detail_message_with_reply_count(message, replies) when is_map(message) do
-    %{message | reply_count: max(length(replies), message.reply_count || 0)}
+  defp detail_message_with_reply_count(message, replies, replies_loaded) when is_map(message) do
+    resolved_count = length(replies)
+
+    reply_count =
+      if replies_loaded && !Map.get(message, :federated, false) do
+        resolved_count
+      else
+        max(resolved_count, message.reply_count || 0)
+      end
+
+    %{message | reply_count: reply_count}
   end
 
   defp detail_message_interaction(post_interactions, message) do
@@ -3061,6 +3069,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_info({:replies_loaded, replies, post_id}, socket) do
     # Merge local replies with remote replies
     merged_replies = SurfaceHelpers.merge_local_replies(replies, post_id)
+
+    merged_replies =
+      if merged_replies == [] and socket.assigns.replies != [] do
+        socket.assigns.replies
+      else
+        merged_replies
+      end
 
     # Build threaded replies structure and cache actor lookups by URI.
     {threaded_replies, thread_reply_actors} =

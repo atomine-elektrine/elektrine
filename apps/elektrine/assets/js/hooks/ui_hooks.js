@@ -618,19 +618,27 @@ export const TimelineReply = {
   mounted() {
     this.replyFocusPending = false
     this.queuedAnchor = null
+    this.pendingInteractionAnchor = null
+    this.pendingInteractionScrollY = null
     this.prePatchAnchor = null
     this.prePatchScrollY = null
-    this.prePatchHadFeedSkeleton = this.feedSkeletonVisible()
     this.prePatchShouldPreserve = false
 
-    this.handleQueuedClick = (event) => {
+    this.handleFeedClick = (event) => {
       const queuedBtn = event.target.closest('[data-load-queued-posts]')
-      if (!queuedBtn) return
+      if (queuedBtn) {
+        this.queuedAnchor = this.findVisiblePostAnchor()
+        return
+      }
 
-      this.queuedAnchor = this.findVisiblePostAnchor()
+      const interactiveTarget = event.target.closest('[phx-click]')
+      if (!this.shouldTrackFeedInteraction(interactiveTarget)) return
+
+      this.pendingInteractionAnchor = this.findVisiblePostAnchor()
+      this.pendingInteractionScrollY = window.scrollY
     }
 
-    this.el.addEventListener('click', this.handleQueuedClick)
+    this.el.addEventListener('click', this.handleFeedClick)
 
     // Focus and gently scroll active reply form into view without jumping around.
     this.handleEvent("focus_reply_form", ({ textarea_id, container_id }) => {
@@ -662,12 +670,14 @@ export const TimelineReply = {
   },
 
   beforeUpdate() {
-    this.prePatchHadFeedSkeleton = this.feedSkeletonVisible()
     this.prePatchShouldPreserve = this.shouldPreserveFeedPatch()
 
     if (this.prePatchShouldPreserve) {
-      this.prePatchAnchor = this.findVisiblePostAnchor()
-      this.prePatchScrollY = window.scrollY
+      this.prePatchAnchor = this.pendingInteractionAnchor || this.findVisiblePostAnchor()
+      this.prePatchScrollY =
+        typeof this.pendingInteractionScrollY === 'number'
+          ? this.pendingInteractionScrollY
+          : window.scrollY
     } else {
       this.prePatchAnchor = null
       this.prePatchScrollY = null
@@ -675,15 +685,14 @@ export const TimelineReply = {
   },
 
   updated() {
-    const hasFeedSkeleton = this.feedSkeletonVisible()
-
     if (this.queuedAnchor) {
       this.restoreAnchorPosition(this.queuedAnchor, null)
 
       this.queuedAnchor = null
+      this.pendingInteractionAnchor = null
+      this.pendingInteractionScrollY = null
       this.prePatchAnchor = null
       this.prePatchScrollY = null
-      this.prePatchHadFeedSkeleton = hasFeedSkeleton
       this.prePatchShouldPreserve = false
       this.replyFocusPending = false
       return
@@ -691,16 +700,12 @@ export const TimelineReply = {
 
     if (this.prePatchShouldPreserve) {
       this.restoreAnchorPosition(this.prePatchAnchor, this.prePatchScrollY)
-    } else if (
-      this.prePatchHadFeedSkeleton !== hasFeedSkeleton &&
-      typeof this.prePatchScrollY === 'number'
-    ) {
-      window.scrollTo({ top: this.prePatchScrollY, behavior: 'auto' })
     }
 
+    this.pendingInteractionAnchor = null
+    this.pendingInteractionScrollY = null
     this.prePatchAnchor = null
     this.prePatchScrollY = null
-    this.prePatchHadFeedSkeleton = hasFeedSkeleton
     this.prePatchShouldPreserve = false
     this.replyFocusPending = false
   },
@@ -752,11 +757,26 @@ export const TimelineReply = {
   shouldPreserveFeedPatch() {
     if (this.timelineLoadMoreActive()) return false
 
-    return this.feedSkeletonVisible() || this.el.querySelector('[data-post-id]') !== null
+    if (this.pendingInteractionScrollY == null || this.pendingInteractionScrollY < 200) return false
+
+    return this.pendingInteractionAnchor !== null
   },
 
-  feedSkeletonVisible() {
-    return this.el.querySelector('[data-feed-loading-skeleton], [data-timeline-loading-skeleton]') !== null
+  shouldTrackFeedInteraction(target) {
+    if (!target || !target.closest('[data-post-id]')) return false
+
+    return [
+      'like_post',
+      'unlike_post',
+      'boost_post',
+      'unboost_post',
+      'save_post',
+      'unsave_post',
+      'react_to_post',
+      'vote',
+      'vote_post',
+      'vote_comment'
+    ].includes(target.getAttribute('phx-click'))
   },
 
   timelineLoadMoreActive() {
@@ -765,7 +785,7 @@ export const TimelineReply = {
   },
 
   destroyed() {
-    this.el.removeEventListener('click', this.handleQueuedClick)
+    this.el.removeEventListener('click', this.handleFeedClick)
   }
 }
 

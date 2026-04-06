@@ -361,7 +361,7 @@
   <div class="flex flex-col sm:flex-row gap-4 lg:gap-6">
     <!-- Left Sidebar - Post composer and search (Hidden on mobile) -->
     <div class="hidden sm:block w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
-      <div id="timeline-left-sidebar" class="card panel-card">
+      <div id="timeline-left-sidebar" class="card panel-card rounded-lg">
         <div class="card-body p-4 space-y-4">
           <%= if @current_user do %>
             <div class="flex gap-2">
@@ -1262,12 +1262,12 @@
     <!-- Right Sidebar - Suggestions (Hidden on mobile and for unauthenticated users) -->
     <%= if @current_user do %>
       <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
-        <div id="timeline-right-sidebar" class="space-y-4">
+        <div id="timeline-right-sidebar" class="space-y-6">
           <!-- Follow Remote User/Community Section -->
           <.fediverse_follow loading={@remote_user_loading} preview={@remote_user_preview} />
-          <div class="card panel-card">
-            <div class="card-body p-4">
-              <h3 class="font-semibold mb-4">Suggested Follows</h3>
+          <div class="card panel-card rounded-lg">
+            <div class="card-body p-4 space-y-4">
+              <h3 class="font-semibold">Suggested Follows</h3>
 
               <div
                 class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
@@ -1292,7 +1292,7 @@
                           user_statuses={@user_statuses}
                         />
                       </.link>
-                      <div class="flex-1 min-w-0">
+                      <div class="flex-1 min-w-0 space-y-1">
                         <.link
                           href={~p"/#{suggestion.handle || suggestion.username}"}
                           class="font-medium text-sm hover:underline block truncate"
@@ -1303,7 +1303,7 @@
                           @{suggestion.handle || suggestion.username}
                         </p>
 
-                        <p class="text-xs text-error mt-1">{suggestion.reason}</p>
+                        <p class="text-xs text-error">{suggestion.reason}</p>
                       </div>
 
                       <ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button

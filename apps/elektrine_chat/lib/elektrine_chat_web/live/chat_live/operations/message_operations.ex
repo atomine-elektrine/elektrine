@@ -30,7 +30,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageOperations do
         Enum.reverse(data.messages)
 
       message_data = data
-      new_messages = older_messages ++ socket.assigns.messages
+      new_messages = Helpers.dedupe_messages(older_messages ++ socket.assigns.messages)
       new_message_ids = Enum.map(older_messages, & &1.id)
 
       new_read_status =
@@ -75,7 +75,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageOperations do
         Enum.reverse(data.messages)
 
       message_data = data
-      new_messages = socket.assigns.messages ++ newer_messages
+      new_messages = Helpers.dedupe_messages(socket.assigns.messages ++ newer_messages)
       new_message_ids = Enum.map(newer_messages, & &1.id)
 
       new_read_status =
@@ -288,11 +288,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageOperations do
                       end
 
                     updated_messages =
-                      if Enum.any?(socket.assigns.messages, &(&1.id == message.id)) do
-                        socket.assigns.messages
-                      else
-                        socket.assigns.messages ++ [message]
-                      end
+                      Helpers.dedupe_messages(socket.assigns.messages ++ [message])
 
                     updated_read_status =
                       Map.put(socket.assigns.message.read_status || %{}, message.id, [])

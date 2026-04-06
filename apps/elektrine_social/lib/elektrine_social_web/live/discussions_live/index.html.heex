@@ -126,7 +126,7 @@
 
   <div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
     <div class="hidden sm:block w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
-      <div class="card panel-card">
+      <div class="card panel-card rounded-lg">
         <div class="card-body p-4 space-y-4">
           <%= if @current_user do %>
             <button
@@ -1054,12 +1054,12 @@
     
 <!-- Right Sidebar - Cross-Context Integration & Suggestions (Hidden on mobile) -->
     <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
-      <div class="space-y-3">
+      <div class="space-y-6">
         <!-- Quick Post Creator or Login Prompt -->
         <%= if @current_user do %>
-          <div class="card panel-card">
-            <div class="card-body p-3.5">
-              <h3 class="mb-2 text-sm font-semibold">Quick Post</h3>
+          <div class="card panel-card rounded-lg">
+            <div class="card-body p-4 space-y-4">
+              <h3 class="text-sm font-semibold">Quick Post</h3>
 
               <%= if @show_quick_post do %>
                 <.form for={%{}} phx-submit="create_quick_discussion" class="space-y-2.5">
@@ -1160,9 +1160,9 @@
           />
         <% else %>
           <!-- Login prompt for Quick Discussion -->
-          <div class="card panel-card">
-            <div class="card-body p-3.5">
-              <h3 class="mb-2 text-sm font-semibold">Join the Community</h3>
+          <div class="card panel-card rounded-lg">
+            <div class="card-body p-4 space-y-4">
+              <h3 class="text-sm font-semibold">Join the Community</h3>
               <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" />
                 {gettext("Sign In")}

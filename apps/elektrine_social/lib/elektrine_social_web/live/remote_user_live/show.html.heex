@@ -561,7 +561,10 @@
                   post_reaction_surface(post["id"], @local_posts, @post_reactions) %>
                 <article class={[
                   "card panel-card rounded-lg overflow-hidden",
-                  if(is_reply_outbox, do: "border-l-4 border-l-secondary/50", else: "")
+                  if(is_reply_outbox,
+                    do: "timeline-thread-tree-node timeline-thread-tree-node--nested",
+                    else: ""
+                  )
                 ]}>
                   <div
                     class="flex cursor-pointer"

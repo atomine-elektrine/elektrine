@@ -14,10 +14,11 @@ defmodule Elektrine.Components.User.Avatar do
     ~H"""
     <div
       class={[
-        "bg-gradient-to-br from-primary to-accent text-primary-content rounded-full flex items-center justify-center flex-shrink-0",
+        "text-primary-content rounded-full flex items-center justify-center flex-shrink-0",
         placeholder_size_classes(@size),
         @class
       ]}
+      style={avatar_placeholder_style()}
       {@rest}
     >
       <.icon name={@icon} class={placeholder_icon_size(@size)} />
@@ -55,10 +56,11 @@ defmodule Elektrine.Components.User.Avatar do
       <% else %>
         <div
           class={[
-            "bg-gradient-to-br from-primary to-accent text-primary-content rounded-full relative",
+            "text-primary-content rounded-full relative",
             avatar_size_classes(@size),
             @class
           ]}
+          style={avatar_placeholder_style()}
           {@rest}
         >
           <div class="absolute inset-0 flex items-center justify-center">
@@ -128,10 +130,11 @@ defmodule Elektrine.Components.User.Avatar do
             <% else %>
               <div
                 class={[
-                  "bg-gradient-to-br from-primary to-accent text-primary-content rounded-full relative",
+                  "text-primary-content rounded-full relative",
                   avatar_size_classes(@size),
                   @class
                 ]}
+                style={avatar_placeholder_style()}
                 {@rest}
               >
                 <div class="absolute inset-0 flex items-center justify-center">
@@ -158,10 +161,11 @@ defmodule Elektrine.Components.User.Avatar do
       <% @conversation.type == "group" -> %>
         <div
           class={[
-            "bg-gradient-to-br from-primary to-accent text-primary-content rounded-full relative",
+            "text-primary-content rounded-full relative",
             avatar_size_classes(@size),
             @class
           ]}
+          style={avatar_placeholder_style()}
           {@rest}
         >
           <div class="absolute inset-0 flex items-center justify-center">
@@ -184,10 +188,11 @@ defmodule Elektrine.Components.User.Avatar do
       <% true -> %>
         <div
           class={[
-            "bg-gradient-to-br from-primary to-accent text-primary-content rounded-full relative",
+            "text-primary-content rounded-full relative",
             avatar_size_classes(@size),
             @class
           ]}
+          style={avatar_placeholder_style()}
           {@rest}
         >
           <div class="absolute inset-0 flex items-center justify-center">
@@ -246,6 +251,10 @@ defmodule Elektrine.Components.User.Avatar do
   defp hero_icon_size("2xl"), do: "w-10 h-10"
   defp hero_icon_size("responsive"), do: "w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6"
   defp hero_icon_size(_), do: "w-5 h-5"
+
+  defp avatar_placeholder_style do
+    "background: linear-gradient(135deg, var(--theme-avatar-accent-light-color), var(--theme-avatar-accent-color));"
+  end
 
   defp get_user_status(assigns) do
     user_id = to_string(Map.get(assigns.user, :id))

@@ -8,6 +8,8 @@ defmodule Elektrine.Bluesky.Managed do
   alias Elektrine.Profiles
   alias Elektrine.Repo
   @default_timeout_ms 12_000
+  @domain_regex ~r/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
+  @handle_regex ~r/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/
   @doc "Provisions Bluesky for a local user on a managed PDS.\n"
   def enable_for_user(%User{} = user, current_password) when is_binary(current_password) do
     with :ok <- ensure_managed_enabled(),
@@ -127,12 +129,17 @@ defmodule Elektrine.Bluesky.Managed do
   defp managed_domain do
     case Keyword.get(bluesky_config(), :managed_domain) do
       value when is_binary(value) ->
-        domain = String.trim(value)
+        domain = value |> String.trim() |> String.downcase()
 
-        if domain == "" do
-          {:error, :missing_managed_domain}
-        else
-          {:ok, domain}
+        cond do
+          domain == "" ->
+            {:error, :missing_managed_domain}
+
+          domain =~ @domain_regex ->
+            {:ok, domain}
+
+          true ->
+            {:error, :invalid_managed_domain}
         end
 
       _ ->
@@ -195,21 +202,26 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp create_account(service_url, invite_code, user, password, handle_domain) do
     url = service_url <> "/xrpc/com.atproto.server.createAccount"
-    handle = preferred_managed_handle(user, handle_domain)
     email = user.recovery_email || default_pds_email(user)
 
-    payload = %{
-      "email" => email,
-      "handle" => handle,
-      "password" => password,
-      "inviteCode" => invite_code
-    }
-
-    with {:ok, response} <- request_json(:post, url, payload, []),
+    with {:ok, handle} <- preferred_managed_handle(user, handle_domain),
+         {:ok, response} <-
+           request_json(
+             :post,
+             url,
+             %{
+               "email" => email,
+               "handle" => handle,
+               "password" => password,
+               "inviteCode" => invite_code
+             },
+             []
+           ),
          :ok <- require_success_status(response.status, :create_account_failed),
          {:ok, body} <- decode_json_body(response.body),
          {:ok, _did} <- map_fetch_string(body, "did", :missing_did),
-         {:ok, _handle} <- map_fetch_string(body, "handle", :missing_handle) do
+         {:ok, returned_handle} <- map_fetch_string(body, "handle", :missing_handle),
+         {:ok, _normalized_handle} <- validate_managed_handle(returned_handle) do
       {:ok, body}
     end
   end
@@ -335,7 +347,11 @@ defmodule Elektrine.Bluesky.Managed do
 
   defp reconnect_identifier(%User{} = user, handle_domain) do
     candidate =
-      [user.bluesky_did, user.bluesky_identifier, preferred_managed_handle(user, handle_domain)]
+      [
+        user.bluesky_did,
+        user.bluesky_identifier,
+        preferred_managed_handle_value(user, handle_domain)
+      ]
       |> Enum.find_value(&Elektrine.Strings.present/1)
 
     case candidate do
@@ -345,7 +361,7 @@ defmodule Elektrine.Bluesky.Managed do
   end
 
   defp fallback_handle("did:" <> _did, username, handle_domain) do
-    preferred_managed_handle(%User{username: username}, handle_domain)
+    preferred_managed_handle_value(%User{username: username}, handle_domain)
   end
 
   defp fallback_handle(handle, _username, _handle_domain) do
@@ -355,14 +371,39 @@ defmodule Elektrine.Bluesky.Managed do
   defp preferred_managed_handle(%User{id: user_id, username: username}, handle_domain)
        when is_integer(user_id) and is_binary(username) do
     case Profiles.preferred_verified_domain_for_user(user_id) do
-      %{domain: domain} when is_binary(domain) and domain != "" -> domain
-      _ -> "#{username}.#{handle_domain}"
+      %{domain: domain} when is_binary(domain) and domain != "" -> validate_managed_handle(domain)
+      _ -> validate_managed_handle("#{String.downcase(username)}.#{handle_domain}")
     end
   end
 
   defp preferred_managed_handle(%User{username: username}, handle_domain)
        when is_binary(username) do
-    "#{username}.#{handle_domain}"
+    validate_managed_handle("#{String.downcase(username)}.#{handle_domain}")
+  end
+
+  defp preferred_managed_handle(_user, _handle_domain) do
+    {:error, :invalid_handle}
+  end
+
+  defp preferred_managed_handle_value(user, handle_domain) do
+    case preferred_managed_handle(user, handle_domain) do
+      {:ok, handle} -> handle
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp validate_managed_handle(handle) when is_binary(handle) do
+    normalized = handle |> String.trim() |> String.downcase()
+
+    if normalized != "" and normalized =~ @handle_regex do
+      {:ok, normalized}
+    else
+      {:error, :invalid_handle}
+    end
+  end
+
+  defp validate_managed_handle(_handle) do
+    {:error, :invalid_handle}
   end
 
   defp create_reconnect_session(service_url, identifier, %User{} = user, current_password) do

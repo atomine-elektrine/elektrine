@@ -259,6 +259,27 @@ defmodule Elektrine.BlueskyManagedTest do
     assert MockHTTPClient.requests() == []
   end
 
+  test "rejects an invalid managed domain before creating an account" do
+    Application.put_env(:elektrine, :bluesky,
+      enabled: true,
+      inbound_enabled: true,
+      managed_enabled: true,
+      managed_service_url: @service_url,
+      managed_domain: "Managed Bluesky",
+      managed_admin_password: "admin-password",
+      service_url: @service_url,
+      timeout_ms: 5_000,
+      http_client: MockHTTPClient
+    )
+
+    user = user_fixture()
+
+    assert {:error, :invalid_managed_domain} =
+             Managed.enable_for_user(user, valid_user_password())
+
+    assert MockHTTPClient.requests() == []
+  end
+
   test "reconnect_for_user refreshes app password for an existing managed account" do
     user = user_fixture()
 

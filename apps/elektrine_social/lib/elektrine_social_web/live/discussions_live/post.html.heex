@@ -343,20 +343,11 @@
                 <%= cond do %>
                   <% @post.post_type == "link" && @post.primary_url -> %>
                     <!-- Link Post -->
-                    <a
-                      href={@post.primary_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="btn btn-ghost btn-lg w-full justify-start gap-3 mb-4"
-                    >
-                      <.icon name="hero-arrow-top-right-on-square" class="w-6 h-6" />
-                      <div class="flex-1 text-left min-w-0">
-                        <div class="font-medium truncate">
-                          {URI.parse(@post.primary_url).host}
-                        </div>
-                        <div class="text-xs opacity-70 truncate">{@post.primary_url}</div>
-                      </div>
-                    </a>
+                    <.rich_link_preview
+                      url={@post.primary_url}
+                      preview={@post.link_preview}
+                      wrapper_class="mb-4"
+                    />
                     <%= if @post.content && String.trim(@post.content) != @post.primary_url do %>
                       <div class="text-base leading-relaxed break-words">
                         {raw(format_post_content(@post.content))}
@@ -443,62 +434,12 @@
               <% end %>
               
 <!-- YouTube Embed or Link Preview -->
-              <%= if match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
-                <% youtube_id = extract_youtube_id(@post.link_preview.url) %>
-                <%= if youtube_id do %>
-                  <!-- YouTube Embed -->
-                  <div class="mt-4 border border-base-200 rounded-lg overflow-hidden">
-                    <div class="aspect-video bg-base-200">
-                      <iframe
-                        src={"https://www.youtube.com/embed/#{youtube_id}"}
-                        title={@post.link_preview.title || "YouTube video"}
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowfullscreen
-                        class="w-full h-full"
-                      >
-                      </iframe>
-                    </div>
-                    <div class="p-4 border-t border-base-200">
-                      <%= if @post.link_preview.title do %>
-                        <h4 class="font-medium">{@post.link_preview.title}</h4>
-                      <% end %>
-                      <%= if @post.link_preview.description do %>
-                        <p class="text-sm opacity-70 mt-1 line-clamp-2">
-                          {@post.link_preview.description}
-                        </p>
-                      <% end %>
-                    </div>
-                  </div>
-                <% else %>
-                  <!-- Regular Link Preview -->
-                  <div class="mt-4 border border-base-200 rounded-lg overflow-hidden">
-                    <a
-                      href={@post.link_preview.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="block"
-                    >
-                      <%= if @post.link_preview.image_url do %>
-                        <div class="aspect-video bg-base-200">
-                          <img
-                            src={@post.link_preview.image_url}
-                            alt={@post.link_preview.title || ""}
-                            class="w-full h-full object-cover"
-                          />
-                        </div>
-                      <% end %>
-                      <div class="p-4">
-                        <%= if @post.link_preview.title do %>
-                          <h4 class="font-medium">{@post.link_preview.title}</h4>
-                        <% end %>
-                        <%= if @post.link_preview.description do %>
-                          <p class="text-sm opacity-70 mt-1">{@post.link_preview.description}</p>
-                        <% end %>
-                      </div>
-                    </a>
-                  </div>
-                <% end %>
+              <%= if @post.post_type != "link" and match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
+                <.rich_link_preview
+                  url={@post.link_preview.url}
+                  preview={@post.link_preview}
+                  wrapper_class="mt-4"
+                />
               <% end %>
               
 <!-- Post Actions -->

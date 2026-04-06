@@ -31,6 +31,15 @@ defmodule ElektrineChatWeb.ChatLive.Operations.Helpers do
   def format_reactions(_), do: []
 
   @doc """
+  Removes duplicate messages while preserving the first occurrence order.
+  """
+  def dedupe_messages(messages) when is_list(messages) do
+    Enum.uniq_by(messages, & &1.id)
+  end
+
+  def dedupe_messages(_), do: []
+
+  @doc """
   Check if a specific user reacted to a message with a specific emoji.
   """
   def user_reacted?(%Ecto.Association.NotLoaded{}, _emoji, _user_id), do: false

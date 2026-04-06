@@ -18,7 +18,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
 
   @impl true
   def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
+    defaults = %{
+      first_recent_post_id: nil,
+      recently_loaded_count: 0,
+      user_downvotes: %{},
+      remote_follow_overrides: %{},
+      lemmy_counts: %{},
+      post_interactions: %{},
+      post_replies: %{},
+      reply_to_post: nil,
+      reply_to_post_recent_replies: [],
+      reply_content: "",
+      reply_to_reply_id: nil,
+      loading_remote_replies: MapSet.new(),
+      source: "timeline"
+    }
+
+    {:ok, socket |> assign(defaults) |> assign(assigns)}
   end
 
   @impl true
@@ -59,7 +75,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           show_thread_context={false}
           show_ancestor_actions={true}
           on_image_click="open_image_modal"
-          source="timeline"
+          source={@source}
         />
       <% else %>
         <.timeline_post
@@ -85,7 +101,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           show_thread_context={false}
           show_ancestor_actions={true}
           on_image_click="open_image_modal"
-          source="timeline"
+          source={@source}
         />
 
         <%= if @current_user && @reply_to_post && @reply_to_post.id == @post.id &&
@@ -116,7 +132,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
 
                 <%= if length(@reply_to_post_recent_replies) > 0 &&
                       Map.get(@post_replies, @post.id, []) == [] do %>
-                  <div class="mb-3 border-l-2 border-info/60 pl-3 space-y-2">
+                  <div class="timeline-thread-preview-list mb-3 space-y-2">
                     <div class="text-xs font-semibold opacity-60 mb-2">Recent Replies:</div>
                     <%= for reply <- @reply_to_post_recent_replies do %>
                       <% has_sender = Map.get(reply, :sender) != nil
@@ -138,7 +154,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                         else
                           reply_preview
                         end %>
-                      <div class="text-sm">
+                      <div class="timeline-thread-preview-item text-sm">
                         <div class="flex items-center gap-2 mb-1">
                           <%= if has_sender do %>
                             <.username_with_effects
@@ -211,6 +227,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
         <% replies = Map.get(@post_replies, @post.id, []) %>
         <%= if length(replies) > 0 do %>
           <div class="timeline-thread-replies mt-3 space-y-3">
+            <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
             <%= for reply <- replies do %>
               <% normalized = ElektrineSocialWeb.Components.Social.ReplyItem.normalize_reply(reply)
 
@@ -220,6 +237,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                   Map.get(reply, :ap_id) ||
                   normalized.ap_id %>
               <div class="timeline-thread-reply-row">
+                <span class="timeline-thread-reply-node" aria-hidden="true"></span>
+                <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
                 <.reply_item
                   reply={reply}
                   post={@post}

@@ -233,19 +233,19 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   defp maybe_track_site_visit(conn, _profile_user_id, _content_type, _request_path), do: conn
 
   defp ensure_profile_site_visitor_id(conn) do
-    if Map.has_key?(conn.private, :plug_session_fetch) do
-      conn = fetch_session(conn)
+    case conn.private[:plug_session_fetch] do
+      :done ->
+        case get_session(conn, :profile_site_visitor_id) do
+          visitor_id when is_binary(visitor_id) and visitor_id != "" ->
+            {conn, visitor_id}
 
-      case get_session(conn, :profile_site_visitor_id) do
-        visitor_id when is_binary(visitor_id) and visitor_id != "" ->
-          {conn, visitor_id}
+          _ ->
+            visitor_id = Ecto.UUID.generate()
+            {put_session(conn, :profile_site_visitor_id, visitor_id), visitor_id}
+        end
 
-        _ ->
-          visitor_id = Ecto.UUID.generate()
-          {put_session(conn, :profile_site_visitor_id, visitor_id), visitor_id}
-      end
-    else
-      {conn, Ecto.UUID.generate()}
+      _ ->
+        {conn, Ecto.UUID.generate()}
     end
   end
 

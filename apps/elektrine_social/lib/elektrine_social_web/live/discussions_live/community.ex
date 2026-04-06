@@ -29,6 +29,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
   import ElektrineSocialWeb.Components.Platform.ENav
   import ElektrineSocialWeb.Components.Social.EmbeddedPost
   import ElektrineSocialWeb.Components.Social.PostActions
+  import ElektrineWeb.Components.Social.YoutubePreview, only: [rich_link_preview: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineSocialWeb.Components.Social.Poll
 
@@ -328,6 +329,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
   def handle_info({:message_link_preview_updated, message}, socket) do
     # Update the discussion post when its link preview is ready
     if message.conversation_id == socket.assigns.community.id do
+      message_id = message.id
+
       # Ensure hashtags are loaded (defensive programming for race conditions)
       message =
         if Ecto.assoc_loaded?(message.hashtags) do
@@ -347,7 +350,26 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
           end
         end)
 
-      {:noreply, assign(socket, :discussion_posts, updated_posts)}
+      updated_pinned_posts =
+        Enum.map(socket.assigns.pinned_posts, fn post ->
+          if post.id == message.id do
+            %{post | link_preview: message.link_preview}
+          else
+            post
+          end
+        end)
+
+      updated_modal_post =
+        case socket.assigns[:modal_post] do
+          %{id: ^message_id} = post -> %{post | link_preview: message.link_preview}
+          post -> post
+        end
+
+      {:noreply,
+       socket
+       |> assign(:discussion_posts, updated_posts)
+       |> assign(:pinned_posts, updated_pinned_posts)
+       |> assign(:modal_post, updated_modal_post)}
     else
       {:noreply, socket}
     end

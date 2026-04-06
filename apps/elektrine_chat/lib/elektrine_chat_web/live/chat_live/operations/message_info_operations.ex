@@ -370,7 +370,10 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageInfoOperations do
           end
         end)
 
-      {:noreply, Phoenix.Component.assign(socket, :messages, messages)}
+      {:noreply,
+       socket
+       |> Phoenix.Component.assign(:messages, messages)
+       |> update_conversation_latest_preview(updated_message)}
     else
       {:noreply, socket}
     end
@@ -386,4 +389,43 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageInfoOperations do
   end
 
   defp selected_conversation_matches?(_socket, _conversation_id), do: false
+
+  defp update_conversation_latest_preview(socket, updated_message) do
+    conversation_state = socket.assigns.conversation
+
+    updated_list =
+      Enum.map(
+        conversation_state.list,
+        &maybe_update_conversation_preview_message(&1, updated_message)
+      )
+
+    updated_filtered =
+      Enum.map(
+        conversation_state.filtered,
+        &maybe_update_conversation_preview_message(&1, updated_message)
+      )
+
+    Phoenix.Component.assign(socket, :conversation, %{
+      conversation_state
+      | list: updated_list,
+        filtered: updated_filtered
+    })
+  end
+
+  defp maybe_update_conversation_preview_message(conversation, updated_message) do
+    if conversation.id == updated_message.conversation_id do
+      case conversation.messages do
+        [%{id: message_id} = latest_message | rest] when message_id == updated_message.id ->
+          %{
+            conversation
+            | messages: [%{latest_message | link_preview: updated_message.link_preview} | rest]
+          }
+
+        _ ->
+          conversation
+      end
+    else
+      conversation
+    end
+  end
 end

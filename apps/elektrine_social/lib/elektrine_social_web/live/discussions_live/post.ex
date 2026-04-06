@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
   import ElektrineWeb.Live.NotificationHelpers
   import ElektrineSocialWeb.Components.Platform.ENav
   import ElektrineSocialWeb.Components.Social.EmbeddedPost
+  import ElektrineWeb.Components.Social.YoutubePreview, only: [rich_link_preview: 1]
   import ElektrineWeb.HtmlHelpers
 
   alias Elektrine.{Messaging, Social}

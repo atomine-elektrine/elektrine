@@ -10,6 +10,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
+  alias Elektrine.Social
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
@@ -58,6 +59,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:pending_follows, %{})
        |> assign(:remote_follow_overrides, %{})
        |> assign(:post_reactions, %{})
+       |> assign(:post_replies, %{})
        |> assign(:filter, @default_filter)
        |> assign(:attention_filter, @default_attention_filter)
        |> assign(:online_users, [])
@@ -84,7 +86,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:modal_post, nil)
        |> assign(:show_quote_modal, false)
        |> assign(:quote_target_post, nil)
-       |> assign(:quote_content, "")}
+       |> assign(:quote_content, "")
+       |> assign(:loading_remote_replies, MapSet.new())}
     else
       {:ok,
        socket
@@ -145,6 +148,38 @@ defmodule ElektrineWeb.OverviewLive.Index do
          send(self(), {:load_more_feed, next_limit})
          updated_socket
        end)}
+    end
+  end
+
+  def handle_event("load_remote_replies", %{"post_id" => post_id}, socket) do
+    case parse_positive_int(post_id) do
+      {:ok, post_id} ->
+        loading_set = socket.assigns.loading_remote_replies
+
+        if MapSet.member?(loading_set, post_id) do
+          {:noreply, socket}
+        else
+          user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
+
+          replies =
+            if user_id do
+              Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
+              |> Map.get(post_id, [])
+            else
+              Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
+              |> Map.get(post_id, [])
+            end
+
+          {:noreply,
+           socket
+           |> assign(:loading_remote_replies, MapSet.put(loading_set, post_id))
+           |> assign(:post_replies, Map.put(socket.assigns.post_replies, post_id, replies))
+           |> assign(:loading_remote_replies, MapSet.delete(loading_set, post_id))
+           |> sync_overview_posts_stream()}
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid post id")}
     end
   end
 
@@ -2822,7 +2857,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
           is_nil(m.deleted_at),
       order_by: [desc: m.inserted_at],
       limit: @overview_feed_limit,
-      preload: [sender: [:profile], conversation: [], link_preview: [], hashtags: []]
+      preload: [
+        sender: [:profile],
+        conversation: [],
+        link_preview: [],
+        hashtags: [],
+        remote_actor: [],
+        reply_to: [sender: [:profile], remote_actor: []]
+      ]
     )
     |> Elektrine.Repo.all()
   end
