@@ -41,6 +41,7 @@ services:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
       PHX_HOST: ${PHX_HOST:-localhost}
       PHX_SERVER: "true"
+      PORT: ${PORT:-8080}
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault}
     ports:

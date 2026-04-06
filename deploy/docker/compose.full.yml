@@ -42,6 +42,7 @@ services:
       POOL_SIZE: ${APP_POOL_SIZE:-10}
       PHX_HOST: ${PHX_HOST:-example.com}
       PHX_SERVER: "true"
+      PORT: ${PORT:-8080}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
