@@ -3,7 +3,11 @@ defmodule ElektrineWeb.Components.Social.FollowButton do
   Compatibility wrapper for the social app follow button component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.FollowButton"
+
   def local_follow_button(assigns) do
-    ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button(assigns)
+    OptionalModule.call(:social, @component_module, :local_follow_button, [assigns], "")
   end
 end

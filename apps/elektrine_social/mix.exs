@@ -36,29 +36,7 @@ defmodule ElektrineSocial.MixProject do
     end
   end
 
-  defp no_warn_undefined do
-    [
-      ElektrineWeb,
-      ElektrineWeb.Endpoint,
-      ElektrineWeb.Gettext,
-      ElektrineWeb.Layouts,
-      ElektrineWeb.Router,
-      ElektrineWeb.API.Response,
-      ElektrineWeb.ClientIP,
-      ElektrineWeb.Components.Platform.ZNav,
-      ElektrineWeb.Components.Social.ReplyItem,
-      ElektrineWeb.CoreComponents,
-      ElektrineWeb.FallbackController,
-      ElektrineWeb.HtmlHelpers,
-      ElektrineWeb.Live.AnnouncementCache,
-      ElektrineWeb.Live.Helpers.PostStateHelpers,
-      ElektrineWeb.Live.Hooks.PresenceEvents,
-      ElektrineWeb.Live.NotificationHelpers,
-      ElektrineWeb.Live.PostInteractions,
-      Elektrine.Email.Mailbox,
-      Elektrine.Email.MailboxAdapter
-    ]
-  end
+  defp no_warn_undefined, do: []
 
   defp deps do
     [

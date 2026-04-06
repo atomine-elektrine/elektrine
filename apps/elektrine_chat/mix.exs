@@ -37,13 +37,7 @@ defmodule ElektrineChat.MixProject do
     end
   end
 
-  defp no_warn_undefined do
-    [
-      ElektrineSocialWeb.Components.UI.ImageModal,
-      ElektrineSocialWeb.Components.Social.ContentJourney,
-      ElektrineSocialWeb.Components.Social.EmbeddedPost
-    ]
-  end
+  defp no_warn_undefined, do: []
 
   defp deps do
     [

@@ -3,7 +3,11 @@ defmodule ElektrineWeb.Components.Social.RSSItem do
   Compatibility wrapper for the social app RSS item component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.RSSItem"
+
   def rss_item(assigns) do
-    ElektrineSocialWeb.Components.Social.RSSItem.rss_item(assigns)
+    OptionalModule.call(:social, @component_module, :rss_item, [assigns], "")
   end
 end

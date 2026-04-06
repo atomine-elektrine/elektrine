@@ -36,11 +36,7 @@ defmodule ElektrineEmail.MixProject do
     end
   end
 
-  defp no_warn_undefined do
-    [
-      ElektrineWeb.Endpoint
-    ]
-  end
+  defp no_warn_undefined, do: []
 
   defp deps do
     [

@@ -3,15 +3,19 @@ defmodule ElektrineWeb.Components.Social.RemotePostShared do
   Compatibility wrapper for the social app remote post shared rendering primitives.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.RemotePostShared"
+
   def quote_preview(assigns) do
-    ElektrineSocialWeb.Components.Social.RemotePostShared.quote_preview(assigns)
+    OptionalModule.call(:social, @component_module, :quote_preview, [assigns], "")
   end
 
   def media_gallery(assigns) do
-    ElektrineSocialWeb.Components.Social.RemotePostShared.media_gallery(assigns)
+    OptionalModule.call(:social, @component_module, :media_gallery, [assigns], "")
   end
 
   def inline_reply_form(assigns) do
-    ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form(assigns)
+    OptionalModule.call(:social, @component_module, :inline_reply_form, [assigns], "")
   end
 end

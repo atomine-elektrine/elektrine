@@ -3,7 +3,11 @@ defmodule ElektrineWeb.Components.Social.PollDisplay do
   Compatibility wrapper for the social app poll display component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.PollDisplay"
+
   def poll_card(assigns) do
-    ElektrineSocialWeb.Components.Social.PollDisplay.poll_card(assigns)
+    OptionalModule.call(:social, @component_module, :poll_card, [assigns], "")
   end
 end

@@ -5,13 +5,23 @@ defmodule ElektrineWeb.Components.Social.TimelineStreamPost do
 
   use Phoenix.LiveComponent
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.TimelineStreamPost"
+
   @impl true
   def update(assigns, socket) do
-    ElektrineSocialWeb.Components.Social.TimelineStreamPost.update(assigns, socket)
+    OptionalModule.call(
+      :social,
+      @component_module,
+      :update,
+      [assigns, socket],
+      {:ok, assign(socket, assigns)}
+    )
   end
 
   @impl true
   def render(assigns) do
-    ElektrineSocialWeb.Components.Social.TimelineStreamPost.render(assigns)
+    OptionalModule.call(:social, @component_module, :render, [assigns], ~H"")
   end
 end

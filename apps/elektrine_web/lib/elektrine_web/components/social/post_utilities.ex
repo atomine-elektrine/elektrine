@@ -3,88 +3,138 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   Compatibility wrapper for the social app post utility helpers.
   """
 
-  def video_url?(url), do: ElektrineSocialWeb.Components.Social.PostUtilities.video_url?(url)
+  alias ElektrineWeb.HtmlHelpers
+  alias ElektrineWeb.OptionalModule
 
-  def audio_url?(url), do: ElektrineSocialWeb.Components.Social.PostUtilities.audio_url?(url)
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.PostUtilities"
+
+  def video_url?(url),
+    do: OptionalModule.call(:social, @component_module, :video_url?, [url], false)
+
+  def audio_url?(url),
+    do: OptionalModule.call(:social, @component_module, :audio_url?, [url], false)
 
   def filter_image_urls(urls),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.filter_image_urls(urls)
+    do: OptionalModule.call(:social, @component_module, :filter_image_urls, [urls], [])
 
   def extract_community_name(uri),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.extract_community_name(uri)
+    do: OptionalModule.call(:social, @component_module, :extract_community_name, [uri], "")
 
   def extract_community_name_simple(uri),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.extract_community_name_simple(uri)
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :extract_community_name_simple,
+        [uri],
+        "Community"
+      )
 
   def detect_external_link(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.detect_external_link(post)
+    do: OptionalModule.call(:social, @component_module, :detect_external_link, [post], nil)
 
   def extract_url_from_content(content),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.extract_url_from_content(content)
+    do: OptionalModule.call(:social, @component_module, :extract_url_from_content, [content], nil)
 
   def render_content_preview(content),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.render_content_preview(content)
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :render_content_preview,
+        [content],
+        HtmlHelpers.plain_text_preview(content, 200)
+      )
 
   def render_content_preview(content, instance_domain),
     do:
-      ElektrineSocialWeb.Components.Social.PostUtilities.render_content_preview(
-        content,
-        instance_domain
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :render_content_preview,
+        [content, instance_domain],
+        HtmlHelpers.plain_text_preview(content, 200)
       )
 
   def plain_text_content(content),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_content(content)
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :plain_text_content,
+        [content],
+        HtmlHelpers.plain_text_content(content)
+      )
 
   def plain_text_preview(content),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_preview(content)
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :plain_text_preview,
+        [content],
+        HtmlHelpers.plain_text_preview(content)
+      )
 
   def plain_text_preview(content, max_length),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_preview(content, max_length)
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :plain_text_preview,
+        [content, max_length],
+        HtmlHelpers.plain_text_preview(content, max_length)
+      )
 
   def get_instance_domain(item),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_instance_domain(item)
+    do: OptionalModule.call(:social, @component_module, :get_instance_domain, [item], nil)
 
   def format_reactions(reactions, current_user_id),
     do:
-      ElektrineSocialWeb.Components.Social.PostUtilities.format_reactions(
-        reactions,
-        current_user_id
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :format_reactions,
+        [reactions, current_user_id],
+        []
       )
 
   def get_reply_author(reply),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_reply_author(reply)
+    do: OptionalModule.call(:social, @component_module, :get_reply_author, [reply], nil)
 
   def get_reply_avatar_url(reply),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_reply_avatar_url(reply)
+    do: OptionalModule.call(:social, @component_module, :get_reply_avatar_url, [reply], nil)
 
   def get_reply_content(reply),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_reply_content(reply)
+    do: OptionalModule.call(:social, @component_module, :get_reply_content, [reply], nil)
 
   def get_reply_score(reply),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_reply_score(reply)
+    do: OptionalModule.call(:social, @component_module, :get_reply_score, [reply], 0)
 
   def community_actor_uri(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.community_actor_uri(post)
+    do: OptionalModule.call(:social, @component_module, :community_actor_uri, [post], nil)
 
   def has_community_uri?(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.has_community_uri?(post)
+    do: OptionalModule.call(:social, @component_module, :has_community_uri?, [post], false)
 
   def community_post?(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.community_post?(post)
+    do: OptionalModule.call(:social, @component_module, :community_post?, [post], false)
 
-  def reply?(post), do: ElektrineSocialWeb.Components.Social.PostUtilities.reply?(post)
+  def reply?(post), do: OptionalModule.call(:social, @component_module, :reply?, [post], false)
 
   def gallery_post?(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.gallery_post?(post)
+    do: OptionalModule.call(:social, @component_module, :gallery_post?, [post], false)
 
   def get_post_click_event(post),
-    do: ElektrineSocialWeb.Components.Social.PostUtilities.get_post_click_event(post)
+    do: OptionalModule.call(:social, @component_module, :get_post_click_event, [post], nil)
 
   def get_display_counts(post, lemmy_counts, post_replies),
     do:
-      ElektrineSocialWeb.Components.Social.PostUtilities.get_display_counts(
-        post,
-        lemmy_counts,
-        post_replies
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :get_display_counts,
+        [post, lemmy_counts, post_replies],
+        %{}
       )
 end
