@@ -63,6 +63,10 @@ defmodule ElektrineChatWeb.ChatLive.Operations.EmojiGifOperations do
      |> assign(:show_gif_picker, false)}
   end
 
+  def handle_event("emoji_search", %{"value" => query}, socket) do
+    {:noreply, assign(socket, :search, %{socket.assigns.search | emoji_query: query})}
+  end
+
   def handle_event("emoji_search", %{"emoji_query" => query}, socket) do
     {:noreply, assign(socket, :search, %{socket.assigns.search | emoji_query: query})}
   end

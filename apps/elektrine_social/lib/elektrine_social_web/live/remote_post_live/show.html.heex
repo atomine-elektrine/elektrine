@@ -543,18 +543,20 @@
           }>
             <!-- Main Content -->
             <div class={if @is_community_post, do: "flex-1 min-w-0", else: ""}>
-              <.ancestor_context_stack
-                in_reply_to={@in_reply_to}
-                reply_parent={@reply_parent}
-                reply_parent_actor={@reply_parent_actor}
-                reply_ancestors={@reply_ancestors}
-                post_interactions={@post_interactions}
-                user_saves={@user_saves}
-                post_reactions={@post_reactions}
-                current_user={@current_user}
-                replying_to_comment_id={@replying_to_comment_id}
-                comment_reply_content={@comment_reply_content}
-              />
+              <%= unless use_standard_timeline_detail?(@local_message, @is_community_post) do %>
+                <.ancestor_context_stack
+                  in_reply_to={@in_reply_to}
+                  reply_parent={@reply_parent}
+                  reply_parent_actor={@reply_parent_actor}
+                  reply_ancestors={@reply_ancestors}
+                  post_interactions={@post_interactions}
+                  user_saves={@user_saves}
+                  post_reactions={@post_reactions}
+                  current_user={@current_user}
+                  replying_to_comment_id={@replying_to_comment_id}
+                  comment_reply_content={@comment_reply_content}
+                />
+              <% end %>
               
 <!-- Main Post Card -->
               <%= if use_standard_timeline_detail?(@local_message, @is_community_post) do %>

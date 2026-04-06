@@ -518,8 +518,10 @@
                                     </div>
 
                                     <div class="flex-1 min-w-0">
+                                      <div class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 mb-1">
+                                        In reply to
+                                      </div>
                                       <div class="text-xs opacity-70 mb-2">
-                                        Replying to
                                         <%= if Ecto.assoc_loaded?(reply.sender) && reply.sender do %>
                                           <span class="font-medium text-error">
                                             @{reply.sender.username}

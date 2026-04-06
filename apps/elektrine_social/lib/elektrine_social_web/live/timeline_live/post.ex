@@ -307,14 +307,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
               <.user_avatar user={@current_user} size="sm" />
             </div>
             <div class="flex-1 min-w-0">
+              <div class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 mb-1">
+                In reply to
+              </div>
               <div class="text-sm opacity-70 mb-3">
                 <%= if @reply.sender do %>
-                  Replying to
                   <span class="font-medium text-error">
                     <.username_with_effects user={@reply.sender} show_at={true} verified_size="xs" />
                   </span>
                 <% else %>
-                  Replying to
                   <span class="font-medium text-error">
                     @{@reply.remote_actor.username}@{@reply.remote_actor.domain}
                   </span>
