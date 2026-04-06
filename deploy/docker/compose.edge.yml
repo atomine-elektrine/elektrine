@@ -14,6 +14,7 @@ services:
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
+      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-${PHOENIX_API_KEY:-}}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
