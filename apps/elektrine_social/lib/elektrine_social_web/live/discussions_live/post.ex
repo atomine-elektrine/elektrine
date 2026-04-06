@@ -833,8 +833,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
               <div class="w-6 h-6">
                 #{render_user_avatar(Map.get(assigns, :current_user))}
               </div>
-              <div class="text-sm opacity-70">
-                Replying to <span class="font-medium">@#{escaped_username}</span>
+              <div>
+                <div class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 mb-1">
+                  In reply to
+                </div>
+                <div class="text-sm opacity-70"><span class="font-medium">@#{escaped_username}</span></div>
               </div>
             </div>
 

@@ -145,9 +145,9 @@
 .timeline-thread-shell { padding: 0.25rem 0;
 } .timeline-thread-shell__rail { background: color-mix(in oklab, oklch(var(--bc) / 0.16) 70%, transparent);
 } .timeline-thread-current-card { box-shadow: 0 10px 28px oklch(var(--bc) / 0.06);
-} .timeline-thread-context-card { border-color: color-mix(in oklab, oklch(var(--bc) / 0.1) 65%, transparent);
-} .timeline-thread-context-line { opacity: 0.45;
-} .timeline-thread-context-dot { box-shadow: 0 0 0 4px oklch(var(--b1));
+} .timeline-thread-context-card { border-color: color-mix(in oklab, oklch(var(--bc) / 0.1) 65%, transparent); background: color-mix(in oklab, oklch(var(--b2) / 0.55) 78%, transparent);
+} .timeline-thread-context-line { opacity: 0.4; background: oklch(var(--bc) / 0.12);
+} .timeline-thread-context-dot { box-shadow: none; background: oklch(var(--bc) / 0.22);
 } .timeline-inline-reply-target { position: relative;
 } .timeline-inline-reply-target__card { display: block;
 } .timeline-thread-replies { position: relative; margin-left: 0.75rem; padding-left: 2.25rem;

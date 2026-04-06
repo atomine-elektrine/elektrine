@@ -7,6 +7,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   alias Elektrine.{Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
+  alias ElektrineWeb.Plugs.{ProfileCustomDomain, RuntimeSession}
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -122,6 +123,32 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
         conn
         |> Map.put(:host, custom_domain)
         |> get("/")
+
+      assert conn.status == 200
+      assert conn.resp_body == html_content
+    end
+
+    test "serves custom-domain static sites before the session is fetched", %{
+      user: user,
+      html_content: html_content
+    } do
+      unique = System.unique_integer([:positive])
+      custom_domain = "runtime#{unique}.brand.test"
+
+      Repo.insert!(%CustomDomain{
+        domain: custom_domain,
+        verification_token: "verify-#{unique}",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Map.put(:host, custom_domain)
+        |> Map.put(:secret_key_base, String.duplicate("a", 64))
+        |> RuntimeSession.call([])
+        |> ProfileCustomDomain.call([])
 
       assert conn.status == 200
       assert conn.resp_body == html_content

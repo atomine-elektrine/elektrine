@@ -49,35 +49,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   def thread_reply_reaction_surface(_, _),
     do: %{target_id: nil, value_name: "post_id", reactions: []}
 
-  def ancestor_thread_colors(index) when is_integer(index) do
-    case rem(index, 5) do
-      0 -> %{rail: "bg-info/65", dot: "bg-info", border: "border-info/70"}
-      1 -> %{rail: "bg-secondary/65", dot: "bg-secondary", border: "border-secondary/70"}
-      2 -> %{rail: "bg-warning/70", dot: "bg-warning", border: "border-warning/70"}
-      3 -> %{rail: "bg-success/65", dot: "bg-success", border: "border-success/70"}
-      _ -> %{rail: "bg-error/65", dot: "bg-error", border: "border-error/70"}
-    end
-  end
-
-  def ancestor_role_label(index, total) when is_integer(index) and is_integer(total) do
-    cond do
-      total <= 1 -> "Replying to"
-      index == total - 1 -> "Replying to"
-      true -> "Earlier context"
-    end
-  end
-
-  def ancestor_role_label(_, _), do: "Earlier context"
-
-  def ancestor_role_badge_class("Earlier context"),
-    do: "badge-info border-info/50 bg-info/10 text-info-content"
-
-  def ancestor_role_badge_class("Replying to"),
-    do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
-
-  def ancestor_role_badge_class(_),
-    do: "badge-ghost border-base-300/70 bg-base-200/70 text-base-content/80"
-
   def extract_username_from_uri(uri) when is_binary(uri) do
     cond do
       String.contains?(uri, "/u/") ->

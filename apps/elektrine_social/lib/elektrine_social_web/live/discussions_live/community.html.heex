@@ -1639,15 +1639,19 @@
                               <div class="w-6 h-6 flex-shrink-0">
                                 <.user_avatar user={@current_user} size="xs" />
                               </div>
-                              <div class="text-sm opacity-70">
-                                Replying to
-                                <span class="font-medium">
-                                  <.username_with_effects
-                                    user={@reply_to_post.sender}
-                                    show_at={true}
-                                    verified_size="xs"
-                                  />
-                                </span>
+                              <div>
+                                <div class="text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45 mb-1">
+                                  In reply to
+                                </div>
+                                <div class="text-sm opacity-70">
+                                  <span class="font-medium">
+                                    <.username_with_effects
+                                      user={@reply_to_post.sender}
+                                      show_at={true}
+                                      verified_size="xs"
+                                    />
+                                  </span>
+                                </div>
                               </div>
                             </div>
 

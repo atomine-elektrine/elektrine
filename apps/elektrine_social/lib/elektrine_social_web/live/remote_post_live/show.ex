@@ -632,12 +632,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       ancestor_count = length(ancestors_for_render) %>
       <%= if ancestors_for_render != [] do %>
         <section class="mb-4 space-y-2" aria-label="Conversation context">
-          <div class="flex items-center gap-2 text-[11px] text-base-content/70">
-            <span class="inline-flex items-center gap-1 rounded-full border border-base-300 bg-base-200/70 px-2 py-0.5 font-semibold uppercase tracking-wide text-base-content/80">
-              <.icon name="hero-bars-3-bottom-left" class="h-3 w-3" /> Conversation context
-            </span>
-            <span>
-              {ancestor_count} earlier {if ancestor_count == 1, do: "post", else: "posts"} shown
+          <div class="pl-6 pr-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+            <span>In reply to</span>
+            <span class="opacity-60 normal-case tracking-normal">
+              {ancestor_count} earlier {if ancestor_count == 1, do: "post", else: "posts"}
             </span>
           </div>
 
@@ -685,28 +683,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 else: false
 
             local_parent_id = SurfaceHelpers.ancestor_local_message_id(parent_post)
-            has_external_link = http_url?(parent_ref)
-            role_label = SurfaceHelpers.ancestor_role_label(idx, ancestor_count)
-            color = SurfaceHelpers.ancestor_thread_colors(idx) %>
-            <div class="flex items-stretch gap-3">
-              <div class="relative flex w-4 flex-shrink-0 justify-center">
+            has_external_link = http_url?(parent_ref) %>
+            <div class="timeline-thread-context-row relative pl-6">
+              <div class="relative flex w-4 flex-shrink-0 justify-center absolute left-0 top-0 bottom-0">
                 <%= if idx < ancestor_count - 1 do %>
-                  <div class={[
-                    "absolute left-1/2 top-5 bottom-0 w-0.5 -translate-x-1/2 rounded-full",
-                    color.rail
-                  ]}>
+                  <div class="timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full">
                   </div>
                 <% end %>
-                <div class={[
-                  "mt-2 h-2.5 w-2.5 rounded-full ring-2 ring-base-100",
-                  color.dot
-                ]}>
+                <div class="timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full border border-base-200/60">
                 </div>
               </div>
-              <article class={[
-                "flex-1 rounded-lg border border-base-300 border-l-4 bg-base-200/50 p-3",
-                color.border
-              ]}>
+              <article class="timeline-thread-context-card rounded-xl border shadow-sm overflow-hidden p-3">
                 <div class="flex items-start gap-2 min-w-0">
                   <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
                     <img
@@ -721,20 +708,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   <% end %>
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 text-xs min-w-0">
-                      <span class={[
-                        "badge badge-xs flex-shrink-0",
-                        SurfaceHelpers.ancestor_role_badge_class(role_label)
-                      ]}>
-                        {role_label}
-                      </span>
-                      <span class="opacity-70">Replying to</span>
                       <span class="font-medium truncate">{parent_author}</span>
+                      <%= if parent_domain do %>
+                        <span class="truncate text-base-content/55">on {parent_domain}</span>
+                      <% end %>
                       <%= if is_integer(local_parent_id) do %>
                         <.link
                           navigate={"/remote/post/#{local_parent_id}"}
                           class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                         >
-                          Open <.icon name="hero-arrow-right" class="w-3 h-3" />
+                          Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
                         </.link>
                       <% else %>
                         <%= if has_external_link do %>
@@ -742,7 +725,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                             navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
                             class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                           >
-                            Open <.icon name="hero-arrow-right" class="w-3 h-3" />
+                            Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
                           </.link>
                         <% end %>
                       <% end %>
@@ -765,7 +748,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       navigate={"/remote/post/#{local_parent_id}"}
                       class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                     >
-                      Open previous post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                      Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
                     </.link>
                     <%= if has_external_link do %>
                       <a
@@ -784,7 +767,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
                       class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
-                      View previous post <.icon name="hero-arrow-right" class="w-3 h-3" />
+                      Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
                     </.link>
                   <% else %>
                     <div class="mt-2 text-xs opacity-60 break-all">

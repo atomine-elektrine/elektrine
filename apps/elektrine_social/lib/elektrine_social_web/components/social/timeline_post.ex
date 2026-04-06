@@ -214,7 +214,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <!-- Boosted By Indicator -->
             <.boost_indicator post={@post} />
 
-            <.inline_reply_target target={@direct_reply_target} />
+            <.inline_reply_target
+              :if={@is_reply && !@has_thread_context}
+              target={@direct_reply_target}
+            />
             
     <!-- Post Header -->
             <.post_header
@@ -663,14 +666,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <div class="pl-6 pr-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
           <span>In reply to</span>
           <span class="opacity-60 normal-case tracking-normal">
-            {@ancestor_count} earlier {if @ancestor_count == 1, do: "post", else: "posts"} shown
+            {@ancestor_count} earlier {if @ancestor_count == 1, do: "post", else: "posts"}
           </span>
         </div>
 
         <%= for {ancestor, idx} <- Enum.with_index(@reply_ancestors) do %>
-          <% colors = ancestor_thread_colors(idx)
-          is_clickable = ancestor_clickable?(ancestor)
-          role_label = ancestor_position_label(idx, @ancestor_count)
+          <% is_clickable = ancestor_clickable?(ancestor)
           subtitle = ancestor_author_subtitle(ancestor)
           local_id = ancestor.local_id
 
@@ -688,17 +689,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
           <div class="timeline-thread-context-row relative pl-6">
             <%= if idx < @ancestor_count - 1 do %>
-              <div class={"timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full #{colors.line}"}>
+              <div class="timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full">
               </div>
             <% end %>
 
-            <span class={"timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full ring-2 ring-base-100 #{colors.dot}"}>
+            <span class="timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full border border-base-200/60">
             </span>
 
-            <div class={[
-              "timeline-thread-context-card rounded-lg border shadow-sm overflow-hidden",
-              colors.card
-            ]}>
+            <div class="timeline-thread-context-card rounded-xl border shadow-sm overflow-hidden">
               <%= if is_clickable do %>
                 <div
                   role="button"
@@ -709,7 +707,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 >
                   <.ancestor_card_header
                     ancestor={ancestor}
-                    role_label={role_label}
                     subtitle={subtitle}
                     clickable={true}
                   />
@@ -719,7 +716,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 <div class="p-3">
                   <.ancestor_card_header
                     ancestor={ancestor}
-                    role_label={role_label}
                     subtitle={subtitle}
                     clickable={false}
                   />
@@ -789,7 +785,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   attr :ancestor, :map, required: true
-  attr :role_label, :string, required: true
   attr :subtitle, :string, default: nil
   attr :clickable, :boolean, default: false
 
@@ -799,9 +794,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <.ancestor_avatar ancestor={@ancestor} />
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2 text-xs min-w-0">
-          <span class={["badge badge-xs flex-shrink-0", ancestor_role_badge_class(@role_label)]}>
-            {@role_label}
-          </span>
           <span class={[
             "font-medium truncate",
             ancestor_author_class(@ancestor.author_info.type)
@@ -810,7 +802,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           </span>
           <%= if @clickable do %>
             <span class="ml-auto inline-flex items-center gap-1 text-[10px] opacity-65 flex-shrink-0">
-              Open <.icon name="hero-arrow-right" class="h-3 w-3" />
+              Open parent <.icon name="hero-arrow-right" class="h-3 w-3" />
             </span>
           <% end %>
         </div>
@@ -837,7 +829,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       </div>
     <% else %>
       <div class="mt-1 rounded-lg bg-base-100/50 px-2 py-1.5 text-xs opacity-60">
-        Open previous post
+        Previous post
       </div>
     <% end %>
     """
@@ -852,7 +844,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       subtitle = ancestor_author_subtitle(@target) %>
       <div class="timeline-inline-reply-target mb-3">
         <div class="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45">
-          Replying to
+          In reply to
         </div>
 
         <%= if clickable do %>
@@ -891,7 +883,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <span class="truncate text-xs text-base-content/55">{@subtitle}</span>
           <% end %>
           <%= if ancestor_clickable?(@target) do %>
-            <span class="ml-auto flex-shrink-0 text-xs text-base-content/45">Open</span>
+            <span class="ml-auto flex-shrink-0 text-xs text-base-content/45">Open parent</span>
           <% end %>
         </div>
 
@@ -911,16 +903,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     </div>
     """
   end
-
-  defp ancestor_position_label(index, total) when is_integer(index) and is_integer(total) do
-    cond do
-      total <= 1 -> "Replying to"
-      index == total - 1 -> "Replying to"
-      true -> "Earlier context"
-    end
-  end
-
-  defp ancestor_position_label(_, _), do: "Earlier context"
 
   defp ancestor_author_subtitle(ancestor) when is_map(ancestor) do
     cond do
@@ -1517,67 +1499,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp ancestor_author_class(:local), do: "text-error"
   defp ancestor_author_class(:external), do: "text-secondary"
   defp ancestor_author_class(_), do: ""
-
-  defp ancestor_role_badge_class("Earlier context"),
-    do: "badge-info border-info/50 bg-info/10 text-info-content"
-
-  defp ancestor_role_badge_class("Replying to"),
-    do: "badge-secondary border-secondary/50 bg-secondary/10 text-secondary-content"
-
-  defp ancestor_role_badge_class(_),
-    do: "badge-ghost border-base-300/70 bg-base-100/70"
-
-  defp ancestor_thread_colors(index) when is_integer(index) do
-    case rem(index, 5) do
-      0 ->
-        %{
-          card:
-            "border-error/35 border-l-4 border-l-error/75 bg-gradient-to-r from-error/10 via-error/5 to-transparent hover:from-error/20 transition-colors",
-          dot: "bg-error/80",
-          line: "bg-error/35"
-        }
-
-      1 ->
-        %{
-          card:
-            "border-secondary/35 border-l-4 border-l-secondary/75 bg-gradient-to-r from-secondary/10 via-secondary/5 to-transparent hover:from-secondary/20 transition-colors",
-          dot: "bg-secondary/80",
-          line: "bg-secondary/35"
-        }
-
-      2 ->
-        %{
-          card:
-            "border-info/35 border-l-4 border-l-info/75 bg-gradient-to-r from-info/10 via-info/5 to-transparent hover:from-info/20 transition-colors",
-          dot: "bg-info/80",
-          line: "bg-info/35"
-        }
-
-      3 ->
-        %{
-          card:
-            "border-warning/35 border-l-4 border-l-warning/75 bg-gradient-to-r from-warning/10 via-warning/5 to-transparent hover:from-warning/20 transition-colors",
-          dot: "bg-warning/80",
-          line: "bg-warning/35"
-        }
-
-      _ ->
-        %{
-          card:
-            "border-success/35 border-l-4 border-l-success/75 bg-gradient-to-r from-success/10 via-success/5 to-transparent hover:from-success/20 transition-colors",
-          dot: "bg-success/80",
-          line: "bg-success/35"
-        }
-    end
-  end
-
-  defp ancestor_thread_colors(_),
-    do: %{
-      card:
-        "border-base-300 border-l-4 border-l-base-400 bg-gradient-to-r from-base-200/60 to-transparent",
-      dot: "bg-base-400",
-      line: "bg-base-300"
-    }
 
   defp ancestor_seen_key(message, _ref) when is_map(message) do
     cond do
