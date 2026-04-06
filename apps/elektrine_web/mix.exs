@@ -60,6 +60,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineChatWeb.API.MessageController,
       ElektrineChatWeb.API.ServerController,
       ElektrineSocialWeb.API.SocialController,
+      Elektrine.Social,
       ElektrineVPNWeb.API.VPNController,
       ElektrineEmailWeb.AttachmentController,
       ElektrineChatWeb.ChatLive.Index,
