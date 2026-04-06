@@ -51,6 +51,33 @@
    PROFILE THEME UTILITIES
    -------------------------------------------------------------------------- */
 
+.profile-theme-scope[data-profile-custom="true"] {
+  --color-primary: var(--profile-accent);
+  --color-primary-content: var(--profile-button-text);
+  --color-base-100: var(--profile-bg);
+  --color-base-200: color-mix(in srgb, var(--profile-bg) 78%, var(--profile-text) 22%);
+  --color-base-300: color-mix(in srgb, var(--profile-bg) 62%, var(--profile-text) 38%);
+  --color-base-content: var(--profile-text);
+  --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 88%, var(--profile-accent) 12%);
+  --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 88%, var(--profile-accent) 12%);
+  --surface-panel-border: color-mix(in srgb, var(--color-base-300) 72%, var(--profile-accent) 28%);
+  --surface-panel-shadow: 0 18px 40px -34px rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--profile-accent) 10%, transparent);
+  --theme-btn-ghost-text: color-mix(in srgb, var(--profile-text) 86%, var(--profile-accent) 14%);
+  --theme-btn-ghost-bg: color-mix(in srgb, var(--color-base-200) 84%, var(--profile-accent) 16%);
+  --theme-btn-outline-border: color-mix(in srgb, var(--color-base-300) 76%, var(--profile-accent) 24%);
+  --theme-btn-outline-bg: color-mix(in srgb, var(--color-base-200) 86%, var(--color-base-100) 14%);
+  --theme-btn-outline-border-hover: color-mix(in srgb, var(--color-base-300) 60%, var(--profile-accent) 40%);
+  --theme-btn-outline-bg-hover: color-mix(in srgb, var(--color-base-200) 74%, var(--profile-accent) 26%);
+  --theme-link-color: var(--profile-accent);
+  --theme-link-color-hover: color-mix(in srgb, var(--profile-accent) 82%, var(--profile-text) 18%);
+  --theme-input-border: color-mix(in srgb, var(--color-base-300) 68%, var(--profile-text) 32%);
+  --theme-input-highlight: color-mix(in srgb, var(--profile-accent) 28%, transparent);
+  --theme-input-highlight-strong: color-mix(in srgb, var(--profile-accent) 42%, transparent);
+  --theme-input-highlight-shadow: color-mix(in srgb, var(--profile-accent) 12%, transparent);
+  --theme-table-row-hover: color-mix(in srgb, var(--color-base-200) 82%, var(--profile-accent) 18%);
+}
+
 .profile-overlay-surface {
   background-color: color-mix(in srgb, var(--profile-bg, var(--color-base-100)) 30%, transparent);
 }

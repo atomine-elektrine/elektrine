@@ -77,8 +77,8 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
   defp render_with_card(assigns) do
     ~H"""
     <div class="card panel-card rounded-lg">
-      <div class="card-body p-4">
-        <div class="flex items-center gap-2 mb-3">
+      <div class="card-body p-4 space-y-4">
+        <div class="flex items-center gap-2">
           <.icon name="hero-globe-americas" class="w-4 h-4 text-primary" />
           <h3 class="font-semibold text-sm">{@title}</h3>
         </div>
@@ -90,8 +90,8 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
 
   defp render_content(assigns) do
     ~H"""
-    <div>
-      <div class="flex items-center gap-2 mb-3">
+    <div class="space-y-4">
+      <div class="flex items-center gap-2">
         <.icon name="hero-globe-americas" class="w-4 h-4 text-primary" />
         <h3 class="font-semibold text-sm">{@title}</h3>
       </div>
@@ -106,7 +106,7 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     assigns = assign(assigns, :input_id, input_id)
 
     ~H"""
-    <form phx-submit={@on_submit} phx-change={@on_preview} class="space-y-2">
+    <form phx-submit={@on_submit} phx-change={@on_preview} class="space-y-3">
       <input
         type="text"
         id={@input_id}
@@ -144,11 +144,11 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     </form>
 
     <%= if @show_help do %>
-      <p class="text-[10px] opacity-60 mt-2">
-        <strong>Communities:</strong> !community@lemmy.ml<br />
-        <strong>Users:</strong> user@mastodon.social<br />
-        <span class="opacity-50">Lemmy, Kbin, Mastodon, Pixelfed, Pleroma</span>
-      </p>
+      <div class="space-y-1 text-[10px] opacity-60">
+        <p><strong>Communities:</strong> !community@lemmy.ml</p>
+        <p><strong>Users:</strong> user@mastodon.social</p>
+        <p class="opacity-50">Lemmy, Kbin, Mastodon, Pixelfed, Pleroma</p>
+      </div>
     <% end %>
     """
   end

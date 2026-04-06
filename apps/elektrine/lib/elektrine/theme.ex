@@ -55,77 +55,77 @@ defmodule Elektrine.Theme do
       css_var: "--theme-override-color-primary",
       label: "Primary",
       description: "Main brand color for buttons, focus states, and accents",
-      default: "#8a7cc2"
+      default: "#129fb8"
     },
     %{
       key: "color_secondary",
       css_var: "--theme-override-color-secondary",
       label: "Secondary",
       description: "Secondary accent used in gradients and supporting actions",
-      default: "#c7796b"
+      default: "#2c5ce0"
     },
     %{
       key: "color_accent",
       css_var: "--theme-override-color-accent",
       label: "Accent",
       description: "Extra accent color for highlights and decorative UI",
-      default: "#b67ad6"
+      default: "#3d8fd8"
     },
     %{
       key: "color_base_100",
       css_var: "--theme-override-color-base-100",
       label: "Base 100",
       description: "Main page background",
-      default: "#101419"
+      default: "#050b16"
     },
     %{
       key: "color_base_200",
       css_var: "--theme-override-color-base-200",
       label: "Base 200",
       description: "Panel and card background",
-      default: "#151b22"
+      default: "#081320"
     },
     %{
       key: "color_base_300",
       css_var: "--theme-override-color-base-300",
       label: "Base 300",
       description: "Borders and elevated surfaces",
-      default: "#202833"
+      default: "#10243b"
     },
     %{
       key: "color_base_content",
       css_var: "--theme-override-color-base-content",
       label: "Text",
       description: "Primary text and foreground color",
-      default: "#e4e7eb"
+      default: "#e6f7ff"
     },
     %{
       key: "color_info",
       css_var: "--theme-override-color-info",
       label: "Info",
       description: "Informational badges and alerts",
-      default: "#7c6cff"
+      default: "#3298e2"
     },
     %{
       key: "color_success",
       css_var: "--theme-override-color-success",
       label: "Success",
       description: "Success states and confirmation UI",
-      default: "#3ad27a"
+      default: "#177b68"
     },
     %{
       key: "color_warning",
       css_var: "--theme-override-color-warning",
       label: "Warning",
       description: "Warnings and caution states",
-      default: "#f59e0b"
+      default: "#8a652c"
     },
     %{
       key: "color_error",
       css_var: "--theme-override-color-error",
       label: "Error",
       description: "Errors and destructive actions",
-      default: "#dc2626"
+      default: "#a94464"
     }
   ]
 
@@ -213,6 +213,7 @@ defmodule Elektrine.Theme do
         _ -> acc
       end
     end)
+    |> Kernel.++(derived_content_css_vars(overrides))
     |> Enum.reverse()
     |> Enum.join("; ")
   end
@@ -347,6 +348,14 @@ defmodule Elektrine.Theme do
 
   def inline_vars(_), do: ""
 
+  def action_text_color(hex) do
+    contrast_text(hex,
+      threshold: 0.72,
+      light: @light_text_color,
+      dark: "#101317"
+    )
+  end
+
   defp normalize_overrides(overrides) do
     Enum.reduce_while(overrides, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
       key = to_string(key)
@@ -371,6 +380,27 @@ defmodule Elektrine.Theme do
   defp normalize_value(value) when is_binary(value), do: String.trim(value)
   defp normalize_value(value) when is_atom(value), do: value |> Atom.to_string() |> String.trim()
   defp normalize_value(_), do: nil
+
+  defp derived_content_css_vars(overrides) do
+    [
+      {"color_primary", "--color-primary-content"},
+      {"color_secondary", "--color-secondary-content"},
+      {"color_accent", "--color-accent-content"},
+      {"color_info", "--color-info-content"},
+      {"color_success", "--color-success-content"},
+      {"color_warning", "--color-warning-content"},
+      {"color_error", "--color-error-content"}
+    ]
+    |> Enum.reduce([], fn {override_key, css_var}, acc ->
+      case Map.get(overrides, override_key) do
+        value when is_binary(value) and value != "" ->
+          ["#{css_var}: #{action_text_color(value)}" | acc]
+
+        _ ->
+          acc
+      end
+    end)
+  end
 
   defp configured_default_overrides do
     :elektrine

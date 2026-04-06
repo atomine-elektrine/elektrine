@@ -32,4 +32,19 @@ defmodule ElektrineChatWeb.ChatLive.Operations.HelpersTest do
       assert Enum.map(scoped, & &1.id) == [1, 2, 5]
     end
   end
+
+  describe "dedupe_messages/1" do
+    test "keeps the first occurrence of each message id" do
+      messages = [
+        %{id: 1, content: "first"},
+        %{id: 2, content: "second"},
+        %{id: 1, content: "duplicate"}
+      ]
+
+      assert Helpers.dedupe_messages(messages) == [
+               %{id: 1, content: "first"},
+               %{id: 2, content: "second"}
+             ]
+    end
+  end
 end

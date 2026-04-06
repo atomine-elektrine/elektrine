@@ -10,6 +10,7 @@ defmodule Elektrine.Messaging.ChatMessages do
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
   alias Elektrine.Repo
+  alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
 
   alias Elektrine.Messaging.{
     ChatMessage,
@@ -121,7 +122,7 @@ defmodule Elektrine.Messaging.ChatMessages do
         on: h.chat_message_id == m.id and h.user_id == ^user_id,
         where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
         limit: ^limit,
-        preload: [:sender, reply_to: [:sender], reactions: [:user, :remote_actor]]
+        preload: [:sender, :link_preview, reply_to: [:sender], reactions: [:user, :remote_actor]]
       )
 
     query =
@@ -223,7 +224,12 @@ defmodule Elektrine.Messaging.ChatMessages do
   """
   def get_message(id) do
     Repo.get(ChatMessage, id)
-    |> Repo.preload([:sender, reply_to: [:sender], reactions: [:user, :remote_actor]])
+    |> Repo.preload([
+      :sender,
+      :link_preview,
+      reply_to: [:sender],
+      reactions: [:user, :remote_actor]
+    ])
     |> hydrate_remote_sender()
   end
 
@@ -918,10 +924,17 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp handle_message_created({:ok, message}, conversation_id) do
     # Preload associations
     message =
-      Repo.preload(message, [:sender, reply_to: [:sender], reactions: [:user, :remote_actor]])
+      Repo.preload(message, [
+        :sender,
+        :link_preview,
+        reply_to: [:sender],
+        reactions: [:user, :remote_actor]
+      ])
 
     # Decrypt for API response and broadcasting
     decrypted = message |> ChatMessage.decrypt_content() |> hydrate_remote_sender()
+
+    Elektrine.Async.run(fn -> extract_and_attach_link_preview(message) end)
 
     # Update conversation's last_message_at
     from(c in Conversation, where: c.id == ^conversation_id)
@@ -949,7 +962,12 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp handle_message_updated({:ok, message}) do
     message =
-      Repo.preload(message, [:sender, reply_to: [:sender], reactions: [:user, :remote_actor]])
+      Repo.preload(message, [
+        :sender,
+        :link_preview,
+        reply_to: [:sender],
+        reactions: [:user, :remote_actor]
+      ])
 
     decrypted = message |> ChatMessage.decrypt_content() |> hydrate_remote_sender()
 
@@ -984,6 +1002,86 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp broadcast_message_deleted(conversation_id, message_id) do
     topic = PubSubTopics.conversation(conversation_id)
     Phoenix.PubSub.broadcast(Elektrine.PubSub, topic, {:chat_message_deleted, message_id})
+  end
+
+  defp extract_and_attach_link_preview(message) do
+    decrypted = ChatMessage.decrypt_content(message)
+    urls = LinkPreviewFetcher.extract_urls(decrypted.content)
+
+    case urls do
+      [url | _] ->
+        _ = FetchLinkPreviewWorker.enqueue(url)
+
+        preview =
+          Repo.get_by(LinkPreview, url: url)
+
+        if preview do
+          updated_message = attach_link_preview(message, preview)
+
+          case preview.status do
+            "success" ->
+              broadcast_preview_update(updated_message, preview)
+
+            "pending" ->
+              Elektrine.Async.start(fn ->
+                poll_and_broadcast_preview(updated_message, preview.id, 15)
+              end)
+
+            _ ->
+              :ok
+          end
+        else
+          :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp poll_and_broadcast_preview(_message, _preview_id, 0), do: :ok
+
+  defp poll_and_broadcast_preview(message, preview_id, attempts_left) do
+    :timer.sleep(1000)
+
+    case Repo.get(LinkPreview, preview_id) do
+      %{status: "success"} = preview ->
+        broadcast_preview_update(message, preview)
+
+        :ok
+
+      %{status: "pending"} ->
+        poll_and_broadcast_preview(message, preview_id, attempts_left - 1)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp attach_link_preview(message, preview) do
+    if message.link_preview_id == preview.id do
+      %{message | link_preview: preview}
+    else
+      {:ok, updated_message} =
+        message
+        |> ChatMessage.changeset(%{link_preview_id: preview.id})
+        |> Repo.update()
+
+      %{updated_message | link_preview: preview}
+    end
+  end
+
+  defp broadcast_preview_update(message, preview) do
+    updated_message =
+      %{message | link_preview: preview}
+      |> Repo.preload([:sender, :reply_to, :reactions], force: true)
+      |> hydrate_remote_sender()
+
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      PubSubTopics.conversation(message.conversation_id),
+      {:message_link_preview_updated, updated_message}
+    )
   end
 
   defp broadcast_reaction_added(message_id, reaction) do

@@ -565,7 +565,7 @@
               
 <!-- Recent Replies Preview -->
               <%= if length(@replies) > 0 do %>
-                <div class="mb-4 border-l-2 border-cyan-500/60 pl-4 space-y-3">
+                <div class="timeline-thread-preview-list mb-4 space-y-3">
                   <div class="text-xs font-semibold opacity-60 mb-2">Recent Replies:</div>
                   <%= for reply <- Enum.take(@replies, 3) do %>
                     <% has_sender = Map.get(reply, :sender) != nil
@@ -589,7 +589,7 @@
                       else
                         reply_preview
                       end %>
-                    <div class="text-sm">
+                    <div class="timeline-thread-preview-item text-sm">
                       <div class="flex items-center gap-2 mb-1">
                         <%= if has_sender do %>
                           <.username_with_effects

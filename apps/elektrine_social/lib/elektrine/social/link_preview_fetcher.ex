@@ -3,6 +3,7 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
   alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
+  alias Elektrine.Social.OEmbed
 
   @max_preview_bytes 1_000_000
   @doc "Extracts URLs from text content.\n"
@@ -101,28 +102,55 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
   end
 
   defp fetch_url_metadata_internal(url) do
-    request = Finch.build(:get, url)
-
-    case SafeFetch.request(request, Elektrine.Finch,
-           receive_timeout: 5000,
-           pool_timeout: 5000,
-           max_body_bytes: @max_preview_bytes
-         ) do
-      {:ok, %Finch.Response{status: 200, body: body}} ->
-        metadata = parse_html_metadata(body, url)
+    case fetch_oembed_metadata(url) do
+      {:ok, metadata} ->
         {:ok, metadata}
 
-      {:ok, %Finch.Response{status: status}} ->
-        {:error, "HTTP #{status}"}
+      :error ->
+        request = Finch.build(:get, url)
 
-      {:error, :too_large} ->
-        {:error, "response_too_large"}
+        case SafeFetch.request(request, Elektrine.Finch,
+               receive_timeout: 5000,
+               pool_timeout: 5000,
+               max_body_bytes: @max_preview_bytes
+             ) do
+          {:ok, %Finch.Response{status: 200, body: body}} ->
+            metadata = parse_html_metadata(body, url)
+            {:ok, metadata}
 
-      {:error, reason} ->
-        {:error, reason}
+          {:ok, %Finch.Response{status: status}} ->
+            {:error, "HTTP #{status}"}
+
+          {:error, :too_large} ->
+            {:error, "response_too_large"}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   rescue
     e -> {:error, Exception.message(e)}
+  end
+
+  defp fetch_oembed_metadata(url) do
+    if OEmbed.known_provider?(url) do
+      case OEmbed.fetch(url) do
+        {:ok, oembed} ->
+          {:ok,
+           %{
+             "title" => clean_text(oembed.title),
+             "description" => clean_text(oembed.author_name),
+             "image" => clean_url(oembed.thumbnail_url, url),
+             "site_name" => clean_text(oembed.provider_name),
+             "favicon" => clean_url(nil, url)
+           }}
+
+        {:error, _reason} ->
+          :error
+      end
+    else
+      :error
+    end
   end
 
   defp validate_url_for_ssrf(url) do

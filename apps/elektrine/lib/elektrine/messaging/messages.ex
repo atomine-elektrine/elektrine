@@ -87,7 +87,7 @@ defmodule Elektrine.Messaging.Messages do
                 case result do
                   {:ok, message} ->
                     # Side-effect (link previews): skip in tests to avoid sandbox/network noise.
-                    Elektrine.Async.start(fn -> extract_and_attach_link_preview(message) end)
+                    Elektrine.Async.run(fn -> extract_and_attach_link_preview(message) end)
 
                     # Update reply count if this is a reply
                     if reply_to_id do
@@ -1334,36 +1334,35 @@ defmodule Elektrine.Messaging.Messages do
   end
 
   defp extract_and_attach_link_preview(message) do
-    # Decrypt message to extract URLs from content
     decrypted = Message.decrypt_content(message)
-    urls = LinkPreviewFetcher.extract_urls(decrypted.content)
 
-    # Get the first URL (like Telegram, we'll preview the first link)
+    urls =
+      [message.primary_url, decrypted.content]
+      |> Enum.filter(&is_binary/1)
+      |> Enum.flat_map(&LinkPreviewFetcher.extract_urls/1)
+      |> Enum.uniq()
+
     case urls do
       [url | _] ->
-        # Queue link preview via Oban worker for reliability
-        result = FetchLinkPreviewWorker.enqueue(url, message.id)
+        _ = FetchLinkPreviewWorker.enqueue(url, message.id)
 
-        # Extract preview from result (if already exists)
-        preview =
-          case result do
-            {:ok, {:exists, p}} -> p
-            _ -> nil
-          end
+        preview = Repo.get_by(LinkPreview, url: url)
 
         if preview do
-          # Update the message with the link preview ID
-          {:ok, updated_message} =
-            message
-            |> Message.changeset(%{link_preview_id: preview.id})
-            |> Repo.update()
+          updated_message = attach_link_preview(message, preview)
 
-          # Poll and broadcast when preview is ready
-          # Worker handles the fetch and broadcasts via PubSub when ready
-          # Background polling: skip in tests.
-          Elektrine.Async.start(fn ->
-            poll_and_broadcast_preview(updated_message, preview.id, 15)
-          end)
+          case preview.status do
+            "success" ->
+              broadcast_preview_update(updated_message, preview)
+
+            "pending" ->
+              Elektrine.Async.start(fn ->
+                poll_and_broadcast_preview(updated_message, preview.id, 15)
+              end)
+
+            _ ->
+              :ok
+          end
 
           :ok
         else
@@ -1378,32 +1377,45 @@ defmodule Elektrine.Messaging.Messages do
   defp poll_and_broadcast_preview(_message, _preview_id, 0), do: :ok
 
   defp poll_and_broadcast_preview(message, preview_id, attempts_left) do
-    # Wait 1 second
     :timer.sleep(1000)
 
     case Repo.get(LinkPreview, preview_id) do
       %{status: "success"} = preview ->
-        # Preview is ready, broadcast the update
-        updated_message =
-          %{message | link_preview: preview}
-          |> Repo.preload([:sender, :reply_to, :reactions, :hashtags], force: true)
-
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "conversation:#{message.conversation_id}",
-          {:message_link_preview_updated, updated_message}
-        )
+        broadcast_preview_update(message, preview)
 
         :ok
 
       %{status: "pending"} ->
-        # Still pending, try again
         poll_and_broadcast_preview(message, preview_id, attempts_left - 1)
 
       _ ->
-        # Failed or not found
         :ok
     end
+  end
+
+  defp attach_link_preview(message, preview) do
+    if message.link_preview_id == preview.id do
+      %{message | link_preview: preview}
+    else
+      {:ok, updated_message} =
+        message
+        |> Message.changeset(%{link_preview_id: preview.id})
+        |> Repo.update()
+
+      %{updated_message | link_preview: preview}
+    end
+  end
+
+  defp broadcast_preview_update(message, preview) do
+    updated_message =
+      %{message | link_preview: preview}
+      |> Repo.preload([:sender, :reply_to, :reactions, :hashtags], force: true)
+
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "conversation:#{message.conversation_id}",
+      {:message_link_preview_updated, updated_message}
+    )
   end
 
   # Notifies conversation members about a new message

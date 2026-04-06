@@ -94,6 +94,35 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
     end
   end
 
+  describe "link previews" do
+    test "attaches pending link previews to chat messages" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+
+      preview =
+        %Elektrine.Social.LinkPreview{}
+        |> Elektrine.Social.LinkPreview.changeset(%{
+          url: "https://www.youtube.com/watch?v=_XHp4QZVmoc",
+          status: "pending"
+        })
+        |> Repo.insert!()
+
+      {:ok, message} =
+        Messaging.create_chat_text_message(
+          conversation.id,
+          alice.id,
+          preview.url
+        )
+
+      message = ChatMessages.get_message(message.id)
+
+      assert message.link_preview_id == preview.id
+      assert message.link_preview.id == preview.id
+    end
+  end
+
   describe "mirrored channel writes" do
     test "allows local durable writes in mirrored channels" do
       user = AccountsFixtures.user_fixture()

@@ -35,6 +35,9 @@ defmodule Elektrine.Messaging.ChatMessage do
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
 
+    belongs_to :link_preview,
+               {"link_previews", Elektrine.Messaging.OptionalSocialSchemas.LinkPreview}
+
     has_many :replies, __MODULE__, foreign_key: :reply_to_id
     has_many :reactions, Elektrine.Messaging.ChatMessageReaction, foreign_key: :chat_message_id
 
@@ -57,6 +60,7 @@ defmodule Elektrine.Messaging.ChatMessage do
       :origin_domain,
       :is_federated_mirror,
       :reply_to_id,
+      :link_preview_id,
       :edited_at,
       :deleted_at,
       :audio_duration,

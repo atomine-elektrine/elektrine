@@ -509,7 +509,7 @@ defmodule ElektrineWeb.Layouts do
       String.starts_with?(path, "/sysadmin") -> "red"
       String.starts_with?(path, "/settings") -> "cyan"
       String.starts_with?(path, "/account") -> "cyan"
-      true -> "purple"
+      true -> "cyan"
     end
   end
 

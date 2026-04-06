@@ -102,6 +102,61 @@
             </.link>
           <% end %>
         </div>
+
+        <div class="border-t border-base-300 pt-4">
+          <div class="mb-3 flex items-center gap-2">
+            <.icon name="hero-chart-bar" class="w-4 h-4 opacity-70" />
+            <h3 class="text-sm font-semibold">Your Activity</h3>
+          </div>
+
+          <%= if @loading_stats do %>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7 animate-pulse">
+              <%= for _i <- 1..7 do %>
+                <div class="rounded-lg border border-base-300 p-3">
+                  <div class="h-3 w-16 rounded bg-base-300"></div>
+                  <div class="mt-2 h-6 w-10 rounded bg-base-300"></div>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Posts</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.total_posts}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Timeline</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.timeline_posts}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Gallery</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.gallery_posts}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Discuss</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.discussion_posts}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Likes</p>
+                <p class="mt-1 text-xl font-semibold text-error">{@personal_stats.total_likes}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Followers</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.followers}</p>
+              </div>
+
+              <div class="rounded-lg border border-base-300 p-3">
+                <p class="text-xs uppercase tracking-wide opacity-60">Following</p>
+                <p class="mt-1 text-xl font-semibold">{@personal_stats.following}</p>
+              </div>
+            </div>
+          <% end %>
+        </div>
       </div>
     </div>
 
@@ -145,7 +200,6 @@
             <div
               data-role="attention-queue-list"
               class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-              style="scrollbar-gutter: stable"
             >
               <div class="space-y-2 animate-pulse">
                 <%= for _i <- 1..4 do %>
@@ -159,7 +213,6 @@
             <div
               data-role="attention-queue-list"
               class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-              style="scrollbar-gutter: stable"
             >
               <%= if Enum.empty?(attention_items) do %>
                 <div class="rounded-lg border border-dashed border-base-300 p-4 text-sm opacity-70">
@@ -250,7 +303,6 @@
               <div
                 data-role="recent-activity-list"
                 class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-                style="scrollbar-gutter: stable"
               >
                 <%= if Enum.empty?(@dashboard.recent_activity) do %>
                   <div class="rounded-lg border border-dashed border-base-300 p-4 text-sm opacity-70">
@@ -396,7 +448,7 @@
             <%= for post <- visible_posts do %>
               <div id={"overview-post-#{post.id}"} class="overview-post-entry">
                 <.live_component
-                  module={ElektrineWeb.Components.Social.OverviewStreamPost}
+                  module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
                   id={"overview-stream-post-#{post.id}"}
                   post={post}
                   current_user={@current_user}
@@ -409,7 +461,17 @@
                   pending_follows={@pending_follows}
                   remote_follow_overrides={@remote_follow_overrides}
                   user_statuses={@user_statuses}
+                  user_downvotes={%{}}
+                  lemmy_counts={%{}}
+                  post_interactions={%{}}
                   post_reactions={@post_reactions}
+                  post_replies={@post_replies}
+                  reply_to_post={nil}
+                  reply_to_post_recent_replies={[]}
+                  reply_content=""
+                  reply_to_reply_id={nil}
+                  loading_remote_replies={@loading_remote_replies}
+                  source="timeline"
                 />
               </div>
             <% end %>
@@ -523,114 +585,6 @@
         </div>
       </div>
     <% end %>
-    <!-- Right Sidebar - Stats -->
-    <div class="hidden lg:block w-72 xl:w-80 flex-shrink-0">
-      <!-- Personal Stats -->
-      <div class="card panel-card mb-4">
-        <div class="card-body p-4">
-          <h3 class="font-semibold mb-3 flex items-center gap-2">
-            <.icon name="hero-chart-bar" class="w-5 h-5" /> Your Activity
-          </h3>
-
-          <%= if @loading_stats do %>
-            <!-- Loading skeleton for stats -->
-            <div class="space-y-3 animate-pulse">
-              <div class="flex items-center justify-between">
-                <div class="h-4 bg-base-300 rounded w-24"></div>
-
-                <div class="h-6 bg-base-300 rounded w-8"></div>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2 text-center">
-                <%= for _i <- 1..3 do %>
-                  <div>
-                    <div class="w-4 h-4 bg-base-300 rounded mx-auto mb-1"></div>
-
-                    <div class="h-4 bg-base-300 rounded w-6 mx-auto mb-1"></div>
-
-                    <div class="h-3 bg-base-300 rounded w-12 mx-auto"></div>
-                  </div>
-                <% end %>
-              </div>
-
-              <div class="flex items-center justify-between pt-2 border-t border-base-300">
-                <div class="h-4 bg-base-300 rounded w-20"></div>
-
-                <div class="h-6 bg-base-300 rounded w-8"></div>
-              </div>
-
-              <div class="flex items-center justify-between">
-                <div class="h-4 bg-base-300 rounded w-16"></div>
-
-                <div class="h-4 bg-base-300 rounded w-6"></div>
-              </div>
-
-              <div class="flex items-center justify-between">
-                <div class="h-4 bg-base-300 rounded w-16"></div>
-
-                <div class="h-4 bg-base-300 rounded w-6"></div>
-              </div>
-            </div>
-          <% else %>
-            <div class="space-y-3">
-              <div class="flex items-center justify-between">
-                <span class="text-sm opacity-70 flex items-center gap-1">
-                  <.icon name="hero-document-text" class="w-4 h-4" /> Total Posts
-                </span>
-                <span class="font-bold text-lg">{@personal_stats.total_posts}</span>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2 text-center text-xs">
-                <div>
-                  <.icon name="hero-rectangle-stack" class="w-4 h-4 mx-auto mb-1 opacity-60" />
-                  <div class="font-semibold">{@personal_stats.timeline_posts}</div>
-
-                  <div class="opacity-60">Timeline</div>
-                </div>
-
-                <div>
-                  <.icon name="hero-photo" class="w-4 h-4 mx-auto mb-1 opacity-60" />
-                  <div class="font-semibold">{@personal_stats.gallery_posts}</div>
-
-                  <div class="opacity-60">Gallery</div>
-                </div>
-
-                <div>
-                  <.icon
-                    name="hero-chat-bubble-bottom-center-text"
-                    class="w-4 h-4 mx-auto mb-1 opacity-60"
-                  />
-                  <div class="font-semibold">{@personal_stats.discussion_posts}</div>
-
-                  <div class="opacity-60">Discuss</div>
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between pt-2 border-t border-base-300">
-                <span class="text-sm opacity-70 flex items-center gap-1">
-                  <.icon name="hero-heart" class="w-4 h-4" /> Total Likes
-                </span>
-                <span class="font-bold text-lg text-error">{@personal_stats.total_likes}</span>
-              </div>
-
-              <div class="flex items-center justify-between">
-                <span class="text-sm opacity-70 flex items-center gap-1">
-                  <.icon name="hero-users" class="w-4 h-4" /> Followers
-                </span>
-                <span class="font-semibold">{@personal_stats.followers}</span>
-              </div>
-
-              <div class="flex items-center justify-between">
-                <span class="text-sm opacity-70 flex items-center gap-1">
-                  <.icon name="hero-user-plus" class="w-4 h-4" /> Following
-                </span>
-                <span class="font-semibold">{@personal_stats.following}</span>
-              </div>
-            </div>
-          <% end %>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 <!-- Image Modal -->

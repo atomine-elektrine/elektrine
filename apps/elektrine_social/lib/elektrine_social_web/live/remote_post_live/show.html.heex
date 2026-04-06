@@ -159,6 +159,7 @@
               <.standard_timeline_detail_post
                 message={@local_message}
                 replies={@replies}
+                replies_loaded={@replies_loaded}
                 post_interactions={@post_interactions}
                 user_saves={@user_saves}
                 post_reactions={@post_reactions}
@@ -400,11 +401,11 @@
               <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
                 <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
                   <%= if length(@quick_reply_recent_replies) > 0 do %>
-                    <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+                    <div class="timeline-thread-preview-list space-y-2">
                       <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                       <%= for reply <- @quick_reply_recent_replies do %>
                         <% author_preview = quick_reply_author_preview(reply) %>
-                        <div class="text-sm">
+                        <div class="timeline-thread-preview-item text-sm">
                           <div class="flex items-center gap-2 mb-1 min-w-0">
                             <%= if author_preview.profile_path do %>
                               <.link
@@ -499,6 +500,7 @@
               show_reply_form={@show_reply_form}
               current_user={@current_user}
               quick_reply_recent_replies={@quick_reply_recent_replies}
+              show_recent_replies_preview={Enum.empty?(@threaded_replies)}
               reply_content={@reply_content}
               reply_content_domain={nil}
               replying_to_comment_id={@replying_to_comment_id}
@@ -522,7 +524,12 @@
                   />
                 </button>
               </h3>
-              <div class="space-y-2">
+              <div class={
+                if @is_community_post, do: "space-y-2", else: "timeline-thread-replies space-y-2"
+              }>
+                <%= unless @is_community_post do %>
+                  <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
+                <% end %>
                 {render_threaded_comments(assigns, @threaded_replies)}
               </div>
             </div>
@@ -1180,11 +1187,11 @@
                       <%= if @show_reply_form && is_nil(@replying_to_comment_id) do %>
                         <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
                           <%= if length(@quick_reply_recent_replies) > 0 do %>
-                            <div class="border-l-2 border-cyan-500/60 pl-3 space-y-2">
+                            <div class="timeline-thread-preview-list space-y-2">
                               <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                               <%= for reply <- @quick_reply_recent_replies do %>
                                 <% author_preview = quick_reply_author_preview(reply) %>
-                                <div class="text-sm">
+                                <div class="timeline-thread-preview-item text-sm">
                                   <div class="flex items-center gap-2 mb-1 min-w-0">
                                     <%= if author_preview.profile_path do %>
                                       <.link
@@ -1408,7 +1415,14 @@
                       </.link>
                     </div>
                   <% end %>
-                  <div class="space-y-2">
+                  <div class={
+                    if @is_community_post,
+                      do: "space-y-2",
+                      else: "timeline-thread-replies space-y-2"
+                  }>
+                    <%= unless @is_community_post do %>
+                      <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
+                    <% end %>
                     {render_threaded_comments(assigns, @threaded_replies)}
                   </div>
                 </div>

@@ -184,7 +184,7 @@ defmodule Elektrine.Messaging.Conversations do
       where: m.conversation_id == ^conversation_id and is_nil(m.deleted_at) and is_nil(h.id),
       order_by: [desc: m.inserted_at],
       limit: 50,
-      preload: [:sender, reply_to: [:sender], reactions: [:user, :remote_actor]]
+      preload: [:sender, :link_preview, reply_to: [:sender], reactions: [:user, :remote_actor]]
     )
     |> Repo.all()
     |> ChatMessage.decrypt_messages()

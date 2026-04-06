@@ -19,6 +19,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   use Phoenix.Component
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
+  import ElektrineWeb.Components.Social.YoutubePreview, only: [youtube_preview: 1]
   import ElektrineWeb.HtmlHelpers
   import ElektrineSocialWeb.Components.Social.PostActions
   import ElektrineSocialWeb.Components.Social.EmbeddedPost, only: [embedded_post: 1]
@@ -163,35 +164,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     ~H"""
     <div
       id={"#{@id_prefix}-entry-#{@post.id}"}
-      class={[
-        "space-y-2",
-        if(@has_thread_context, do: "timeline-thread-shell relative")
-      ]}
+      class="space-y-2"
     >
-      <%= if @has_thread_context do %>
-        <span class="timeline-thread-shell__rail pointer-events-none absolute left-4 top-10 bottom-6 w-px rounded-full">
-        </span>
-      <% end %>
-
-      <.reply_ancestor_stack
-        reply_ancestors={@reply_ancestors}
-        source={@source}
-        current_user={@current_user}
-        user_likes={@user_likes}
-        user_boosts={@user_boosts}
-        user_saves={@user_saves}
-        post_interactions={@post_interactions}
-        post_reactions_map={@post_reactions_map}
-        show_ancestor_actions={@show_ancestor_actions}
-      />
-
       <div class="relative">
         <div
           id={"#{@id_prefix}-card-#{@post.id}"}
           class={[
             "card panel-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 transition-shadow",
-            if(@has_thread_context,
-              do: "ml-6 timeline-thread-current-card border border-base-300/85"
+            if(@has_thread_context, do: "timeline-thread-current-card border border-base-300/85"),
+            if(@is_reply && !@has_thread_context,
+              do: "timeline-thread-current-card border border-base-300/85"
             ),
             if(@is_reply,
               do:
@@ -214,10 +196,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <!-- Boosted By Indicator -->
             <.boost_indicator post={@post} />
 
-            <.inline_reply_target
-              :if={@is_reply && !@has_thread_context}
-              target={@direct_reply_target}
-            />
+            <.inline_reply_target :if={@is_reply} target={@direct_reply_target} />
             
     <!-- Post Header -->
             <.post_header
@@ -644,122 +623,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   # Reply ancestor stack component - renders root -> parent context cards with thread rails.
-  attr :reply_ancestors, :list, default: []
-  attr :source, :string, default: "timeline"
-  attr :current_user, :map, default: nil
-  attr :user_likes, :map, default: %{}
-  attr :user_boosts, :map, default: %{}
-  attr :user_saves, :map, default: %{}
-  attr :post_interactions, :map, default: %{}
-  attr :post_reactions_map, :map, default: %{}
-  attr :show_ancestor_actions, :boolean, default: false
-
-  defp reply_ancestor_stack(assigns) do
-    assigns =
-      assigns
-      |> assign(:ancestor_count, length(assigns.reply_ancestors))
-      |> assign(:thread_node_count, length(assigns.reply_ancestors) + 1)
-
-    ~H"""
-    <%= if @ancestor_count > 0 do %>
-      <div class="timeline-thread-context mb-2 space-y-2">
-        <div class="pl-6 pr-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
-          <span>In reply to</span>
-          <span class="opacity-60 normal-case tracking-normal">
-            {@ancestor_count} earlier {if @ancestor_count == 1, do: "post", else: "posts"}
-          </span>
-        </div>
-
-        <%= for {ancestor, idx} <- Enum.with_index(@reply_ancestors) do %>
-          <% is_clickable = ancestor_clickable?(ancestor)
-          subtitle = ancestor_author_subtitle(ancestor)
-          local_id = ancestor.local_id
-
-          show_actions =
-            @show_ancestor_actions &&
-              ancestor_actions_enabled_for_source?(@source) &&
-              is_integer(local_id)
-
-          interaction_state =
-            if(show_actions, do: ancestor_interaction_state(ancestor, @post_interactions), else: %{})
-
-          like_count = if(show_actions, do: ancestor_like_count(ancestor, interaction_state), else: 0)
-          boost_count = if(show_actions, do: ancestor_boost_count(ancestor), else: 0)
-          reply_count = if(show_actions, do: ancestor_reply_count(ancestor), else: 0) %>
-
-          <div class="timeline-thread-context-row relative pl-6">
-            <%= if idx < @ancestor_count - 1 do %>
-              <div class="timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full">
-              </div>
-            <% end %>
-
-            <span class="timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full border border-base-200/60">
-            </span>
-
-            <div class="timeline-thread-context-card rounded-xl border shadow-sm overflow-hidden">
-              <%= if is_clickable do %>
-                <div
-                  role="button"
-                  tabindex="0"
-                  class="thread-context-card w-full text-left p-3 hover:bg-base-100/45 transition-colors"
-                  onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.click(); }"
-                  {ancestor_click_attrs(ancestor)}
-                >
-                  <.ancestor_card_header
-                    ancestor={ancestor}
-                    subtitle={subtitle}
-                    clickable={true}
-                  />
-                  <.ancestor_card_preview ancestor={ancestor} />
-                </div>
-              <% else %>
-                <div class="p-3">
-                  <.ancestor_card_header
-                    ancestor={ancestor}
-                    subtitle={subtitle}
-                    clickable={false}
-                  />
-                  <.ancestor_card_preview ancestor={ancestor} />
-                </div>
-              <% end %>
-
-              <%= if show_actions do %>
-                <div
-                  class="mx-2 mb-2 rounded-lg border border-base-300/50 bg-base-100/50 px-1.5 py-1.5 flex flex-wrap items-center gap-2"
-                  phx-click="stop_propagation"
-                >
-                  <.post_actions
-                    post_id={local_id}
-                    value_name="message_id"
-                    comment_value_name="id"
-                    on_comment="navigate_to_post"
-                    current_user={@current_user}
-                    is_liked={Map.get(@user_likes, local_id, false)}
-                    is_boosted={Map.get(@user_boosts, local_id, false)}
-                    is_saved={Map.get(@user_saves, local_id, false)}
-                    like_count={like_count}
-                    boost_count={boost_count}
-                    comment_count={reply_count}
-                    show_quote={false}
-                    size={:xs}
-                  />
-
-                  <.post_reactions
-                    post_id={local_id}
-                    reactions={ancestor_reactions(local_id, @post_reactions_map)}
-                    current_user={@current_user}
-                    size={:xs}
-                  />
-                </div>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    <% end %>
-    """
-  end
-
   attr :ancestor, :map, required: true
 
   defp ancestor_avatar(assigns) do
@@ -780,57 +643,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <.icon name="hero-user" class="w-3.5 h-3.5 opacity-60" />
         </div>
       <% end %>
-    <% end %>
-    """
-  end
-
-  attr :ancestor, :map, required: true
-  attr :subtitle, :string, default: nil
-  attr :clickable, :boolean, default: false
-
-  defp ancestor_card_header(assigns) do
-    ~H"""
-    <div class="flex items-start gap-2 min-w-0">
-      <.ancestor_avatar ancestor={@ancestor} />
-      <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2 text-xs min-w-0">
-          <span class={[
-            "font-medium truncate",
-            ancestor_author_class(@ancestor.author_info.type)
-          ]}>
-            {@ancestor.author_info.name}
-          </span>
-          <%= if @clickable do %>
-            <span class="ml-auto inline-flex items-center gap-1 text-[10px] opacity-65 flex-shrink-0">
-              Open parent <.icon name="hero-arrow-right" class="h-3 w-3" />
-            </span>
-          <% end %>
-        </div>
-        <%= if @subtitle do %>
-          <div class="text-[11px] opacity-60 truncate mt-0.5">{@subtitle}</div>
-        <% end %>
-      </div>
-    </div>
-    """
-  end
-
-  attr :ancestor, :map, required: true
-
-  defp ancestor_card_preview(assigns) do
-    ~H"""
-    <%= if @ancestor.preview_content do %>
-      <div class="mt-1 rounded-lg bg-base-100/70 px-2 py-1.5 text-sm break-words line-clamp-4">
-        {raw(
-          PostUtilities.render_content_preview(
-            @ancestor.preview_content,
-            @ancestor.instance_domain
-          )
-        )}
-      </div>
-    <% else %>
-      <div class="mt-1 rounded-lg bg-base-100/50 px-2 py-1.5 text-xs opacity-60">
-        Previous post
-      </div>
     <% end %>
     """
   end
@@ -1327,48 +1139,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp ancestor_instance_domain(_, _), do: nil
-
-  defp ancestor_interaction_state(ancestor, post_interactions) when is_map(ancestor) do
-    interaction_keys = Map.get(ancestor, :interaction_keys, [])
-
-    Enum.find_value(interaction_keys, %{}, fn key ->
-      Map.get(post_interactions || %{}, key)
-    end) || %{}
-  end
-
-  defp ancestor_interaction_state(_, _), do: %{}
-
-  defp ancestor_like_count(ancestor, interaction_state)
-       when is_map(ancestor) and is_map(interaction_state) do
-    base = Map.get(ancestor, :like_count, 0) || 0
-    delta = Map.get(interaction_state, :like_delta, 0) || 0
-    max(0, base + delta)
-  end
-
-  defp ancestor_like_count(_, _), do: 0
-
-  defp ancestor_boost_count(ancestor) when is_map(ancestor),
-    do: max(0, Map.get(ancestor, :boost_count, 0) || 0)
-
-  defp ancestor_boost_count(_), do: 0
-
-  defp ancestor_reply_count(ancestor) when is_map(ancestor),
-    do: max(0, Map.get(ancestor, :reply_count, 0) || 0)
-
-  defp ancestor_reply_count(_), do: 0
-
-  defp ancestor_actions_enabled_for_source?(source)
-       when source in ["timeline", "overview", "hashtag", "remote_profile"],
-       do: false
-
-  defp ancestor_actions_enabled_for_source?(_), do: true
-
-  defp ancestor_reactions(local_id, post_reactions_map)
-       when is_integer(local_id) and is_map(post_reactions_map) do
-    reactions_for_keys(post_reactions_map, [Integer.to_string(local_id), local_id])
-  end
-
-  defp ancestor_reactions(_, _), do: []
 
   defp reply_reaction_surface(reply, post_reactions_map) when is_map(post_reactions_map) do
     case reply_reaction_target(reply) do
@@ -1933,17 +1703,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <%= if @youtube_url do %>
-      <div class="mt-3 aspect-video w-full" phx-click="stop_propagation">
-        <iframe
-          src={@youtube_url}
-          width="100%"
-          height="100%"
-          frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen
-          class="rounded-lg"
-        >
-        </iframe>
+      <div phx-click="stop_propagation">
+        <.youtube_preview url={@youtube_url} wrapper_class="mt-3 rounded-lg overflow-hidden" />
       </div>
     <% end %>
     """

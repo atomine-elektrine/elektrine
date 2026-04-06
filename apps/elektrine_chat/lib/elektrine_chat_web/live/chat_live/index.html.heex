@@ -1163,6 +1163,15 @@
                     <% end %>
                   <% end %>
                   
+<!-- YouTube Embed -->
+                  <% youtube_url = Message.extract_youtube_embed_url(message.content) %>
+                  <%= if youtube_url do %>
+                    <.youtube_preview
+                      url={youtube_url}
+                      wrapper_class="mt-2 rounded-lg overflow-hidden"
+                    />
+                  <% end %>
+                  
 <!-- Link Preview (only for timeline posts with link previews) -->
                   <% link_preview = Map.get(message, :link_preview) %>
                   <%= if social_link_preview_success?(link_preview) do %>

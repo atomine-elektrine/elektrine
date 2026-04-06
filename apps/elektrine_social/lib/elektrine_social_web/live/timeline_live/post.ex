@@ -24,32 +24,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   attr :time_format, :string, default: "12"
 
   def render_reply(assigns) do
-    # Different colors for each depth level
-    border_color =
-      case rem(assigns.depth, 5) do
-        0 -> "border-purple-500/60"
-        1 -> "border-cyan-500/60"
-        2 -> "border-orange-500/60"
-        3 -> "border-pink-500/60"
-        4 -> "border-green-500/60"
-        _ -> "border-purple-500/60"
-      end
-
-    indent_class =
-      if assigns.depth > 0 do
-        "ml-#{min(assigns.depth * 4, 12)} border-l-2 #{border_color} pl-4"
-      else
-        ""
-      end
-
     assigns =
       assigns
       |> assign(:max_depth, 5)
-      |> assign(:indent_class, indent_class)
+      |> assign(:tree_depth, min(assigns.depth, 4))
 
     ~H"""
-    <div class={@indent_class}>
-      <div class="card bg-base-50 border border-base-200 shadow-sm" id={"reply-#{@reply.id}"}>
+    <div
+      class={[
+        "timeline-thread-tree-node",
+        if(@depth > 0, do: "timeline-thread-tree-node--nested")
+      ]}
+      style={if @depth > 0, do: "--thread-depth: #{@tree_depth};", else: nil}
+    >
+      <div class="timeline-thread-tree-card card rounded-xl" id={"reply-#{@reply.id}"}>
         <div class="card-body p-4">
           <div class="flex items-start gap-3">
             <%= if @reply.sender do %>

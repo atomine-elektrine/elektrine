@@ -13,6 +13,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
   alias Elektrine.Uploads
   import Elektrine.Components.User.Avatar
   import Elektrine.Components.User.UsernameEffects
+  import ElektrineWeb.Components.Social.YoutubePreview, only: [youtube_preview: 1]
   import ElektrineChatWeb.Components.Social.ContentJourney
   import ElektrineChatWeb.Components.Chat.Call
   import ElektrineChatWeb.Components.Platform.ENav
@@ -635,7 +636,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
       user_id = socket.assigns.current_user.id
 
       data = Messaging.get_conversation_messages(conversation_id, user_id, limit: 50)
-      messages = Enum.reverse(data.messages)
+      messages = data.messages |> Enum.reverse() |> Helpers.dedupe_messages()
 
       first_unread_message_id =
         Helpers.find_first_unread_message(messages, conversation_id, user_id)
@@ -1140,7 +1141,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
       else
         # Decrypt the new message before adding it
         decrypted_message = Elektrine.Messaging.Message.decrypt_content(message)
-        messages = socket.assigns.messages ++ [decrypted_message]
+        messages = Helpers.dedupe_messages(socket.assigns.messages ++ [decrypted_message])
 
         # Update read status for the new message
         current_read_status = socket.assigns.message.read_status || %{}
@@ -1230,7 +1231,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
         {:noreply, socket}
       else
         # ChatMessage is already decrypted from the broadcast
-        messages = socket.assigns.messages ++ [message]
+        messages = Helpers.dedupe_messages(socket.assigns.messages ++ [message])
 
         # Update read status for the new message
         current_read_status = socket.assigns.message.read_status || %{}
@@ -3308,6 +3309,12 @@ defmodule ElektrineChatWeb.ChatLive.Index do
   end
 
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
+
+  defp social_link_preview?(%{
+         __struct__: :"Elixir.Elektrine.Messaging.OptionalSocialSchemas.LinkPreview"
+       }),
+       do: true
+
   defp social_link_preview?(_), do: false
 
   defp extract_email_address(email_string) when is_binary(email_string) do

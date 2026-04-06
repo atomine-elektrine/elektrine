@@ -96,6 +96,7 @@
     </style>
     <div
       id="profile-container"
+      data-profile-custom={if is_default_profile, do: "false", else: "true"}
       data-profile-static={if @profile_static, do: "true", else: "false"}
       data-profile-handle={@user.handle || @user.username}
       data-profile-user-id={@user.id}
@@ -118,7 +119,7 @@
           do: @profile.typewriter_speed || "normal",
           else: nil
       }
-      class="min-h-screen flex items-start justify-center p-0 sm:px-4 relative overflow-hidden"
+      class="profile-theme-scope min-h-screen flex items-start justify-center p-0 sm:px-4 relative overflow-hidden"
       style={
         background_style =
           cond do
@@ -1246,7 +1247,7 @@
 <!-- Current Activity -->
                     <%= if @discord_data.activities != [] do %>
                       <%= for activity <- Enum.take(@discord_data.activities, 1) do %>
-                        <p class="text-secondary text-xs mt-1">
+                        <p class="text-xs mt-1 text-[var(--profile-accent)] opacity-85">
                           <%= case activity.type do %>
                             <% 0 -> %>
                               Playing {activity.name}
@@ -1265,7 +1266,7 @@
                     
 <!-- Spotify -->
                     <%= if @discord_data.spotify do %>
-                      <div class="flex items-center justify-center mt-2 text-xs text-success">
+                      <div class="flex items-center justify-center mt-2 text-xs text-[var(--profile-accent)] opacity-85">
                         <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
                         <span class="truncate max-w-48">
                           {@discord_data.spotify.song} - {@discord_data.spotify.artist}
@@ -1448,7 +1449,7 @@
                                 <% end %>
                                 <%= if widget_discord_data.activities != [] do %>
                                   <%= for activity <- Enum.take(widget_discord_data.activities, 1) do %>
-                                    <p class="text-secondary text-xs mt-1">
+                                    <p class="text-xs mt-1 text-[var(--profile-accent)] opacity-85">
                                       <%= case activity.type do %>
                                         <% 0 -> %>
                                           Playing {activity.name}
@@ -1465,7 +1466,7 @@
                                   <% end %>
                                 <% end %>
                                 <%= if widget_discord_data.spotify do %>
-                                  <div class="flex items-center mt-2 text-xs text-success">
+                                  <div class="flex items-center mt-2 text-xs text-[var(--profile-accent)] opacity-85">
                                     <.brand_icon name="spotify" class="w-3 h-3 mr-1" />
                                     <span class="truncate">
                                       {widget_discord_data.spotify.song} - {widget_discord_data.spotify.artist}
