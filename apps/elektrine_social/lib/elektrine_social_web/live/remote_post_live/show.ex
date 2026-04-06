@@ -387,7 +387,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       class="w-8 h-8 rounded-full"
                     />
                   <% else %>
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                    <div
+                      class="w-8 h-8 rounded-full text-primary-content flex items-center justify-center"
+                      style="background: linear-gradient(135deg, var(--theme-avatar-accent-light-color), var(--theme-avatar-accent-color));"
+                    >
                       <.icon name="hero-user" class="w-4 h-4" />
                     </div>
                   <% end %>
@@ -443,7 +446,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   <%= if reply_profile_path do %>
                     <.link
                       navigate={reply_profile_path}
-                      class="text-sm font-medium hover:text-purple-600 transition-colors"
+                      class="text-sm font-medium hover:text-primary transition-colors"
                     >
                       <%= if reply_actor do %>
                         {raw(
@@ -2948,6 +2951,23 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     replies_object = cached_replies_object(msg, replies_count)
     comments_object = cached_comments_object(msg, replies_count)
 
+    local_replies =
+      if is_binary(post_id), do: SurfaceHelpers.merge_local_replies([], post_id), else: []
+
+    {threaded_replies, thread_reply_actors} =
+      build_threaded_replies_with_actor_cache(local_replies, post_id, socket.assigns.comment_sort)
+
+    reply_interactions =
+      if socket.assigns[:current_user] && local_replies != [] do
+        load_post_interactions(local_replies, socket.assigns.current_user.id)
+      else
+        %{}
+      end
+
+    post_reactions =
+      socket.assigns.post_reactions
+      |> SurfaceHelpers.merge_reply_reactions(local_replies)
+
     is_community_post = PostUtilities.community_post?(msg)
 
     # Build a post object from the cached message for reply fetching.
@@ -2967,6 +2987,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     {:noreply,
      socket
+     |> assign(:replies, local_replies)
+     |> assign(
+       :quick_reply_recent_replies,
+       SurfaceHelpers.recent_replies_for_preview(local_replies, post_id)
+     )
+     |> assign(:threaded_replies, threaded_replies)
+     |> assign(:thread_reply_actors, thread_reply_actors)
+     |> assign(
+       :post_interactions,
+       Map.merge(socket.assigns.post_interactions, reply_interactions)
+     )
+     |> assign(:post_reactions, post_reactions)
+     |> assign(:replies_loaded, local_replies != [])
      |> assign(:replies_loading, is_binary(post_id))
      |> assign(:is_community_post, socket.assigns.is_community_post || is_community_post)}
   end

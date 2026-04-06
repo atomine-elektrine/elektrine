@@ -56,7 +56,7 @@ defmodule Elektrine.Components.Loaders.Skeleton do
   """
   def reply_skeleton(assigns) do
     ~H"""
-    <div class="pl-4 border-l-2 border-purple-500/60">
+    <div class="pl-4 border-l-2 border-base-300/80">
       <div class="bg-base-50 rounded-lg p-3">
         <div class="flex items-center gap-2 mb-2">
           <div class="skeleton w-8 h-8 rounded-full"></div>

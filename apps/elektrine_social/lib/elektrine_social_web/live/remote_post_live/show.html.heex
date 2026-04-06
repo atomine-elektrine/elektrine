@@ -179,7 +179,10 @@
                         class="w-12 h-12 rounded-full object-cover"
                       />
                     <% else %>
-                      <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                      <div
+                        class="w-12 h-12 rounded-full text-primary-content flex items-center justify-center"
+                        style="background: linear-gradient(135deg, var(--theme-avatar-accent-light-color), var(--theme-avatar-accent-color));"
+                      >
                         <.icon name="hero-user" class="w-6 h-6" />
                       </div>
                     <% end %>
@@ -193,7 +196,10 @@
                         class="w-12 h-12 rounded-full object-cover"
                       />
                     <% else %>
-                      <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center">
+                      <div
+                        class="w-12 h-12 rounded-full text-primary-content flex items-center justify-center"
+                        style="background: linear-gradient(135deg, var(--theme-avatar-accent-light-color), var(--theme-avatar-accent-color));"
+                      >
                         <.icon name="hero-user" class="w-6 h-6" />
                       </div>
                     <% end %>
@@ -670,7 +676,7 @@
                             />
                           <% else %>
                             <div class={[
-                              "rounded-full bg-gradient-to-br from-purple-600 to-pink-600 text-white flex items-center justify-center",
+                              "rounded-full text-primary-content flex items-center justify-center",
                               if(@is_community_post,
                                 do: "w-8 h-8 sm:w-10 sm:h-10",
                                 else: "w-12 h-12"
@@ -927,7 +933,7 @@
                                       href={url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      class="text-sm text-purple-600 hover:underline flex items-center gap-1"
+                                      class="text-sm text-primary hover:underline flex items-center gap-1"
                                     >
                                       <.icon name="hero-paper-clip" class="w-3 h-3" />
                                       {attachment["name"] || "Attachment"}
@@ -1031,7 +1037,7 @@
                             href={instance_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-purple-600 hover:underline flex items-center gap-1"
+                            class="text-primary hover:underline flex items-center gap-1"
                           >
                             View on {@remote_actor.domain}
                             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
@@ -1042,7 +1048,7 @@
                             href={submitted_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            class="text-purple-600 hover:underline flex items-center gap-1"
+                            class="text-primary hover:underline flex items-center gap-1"
                           >
                             Open submitted link
                             <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
