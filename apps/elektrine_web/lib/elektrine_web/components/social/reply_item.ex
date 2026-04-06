@@ -3,11 +3,15 @@ defmodule ElektrineWeb.Components.Social.ReplyItem do
   Compatibility wrapper for the social app reply item component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.ReplyItem"
+
   def reply_item(assigns) do
-    ElektrineSocialWeb.Components.Social.ReplyItem.reply_item(assigns)
+    OptionalModule.call(:social, @component_module, :reply_item, [assigns], "")
   end
 
   def normalize_reply(reply) do
-    ElektrineSocialWeb.Components.Social.ReplyItem.normalize_reply(reply)
+    OptionalModule.call(:social, @component_module, :normalize_reply, [reply], reply)
   end
 end

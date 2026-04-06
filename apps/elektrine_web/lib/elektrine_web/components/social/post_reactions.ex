@@ -3,7 +3,11 @@ defmodule ElektrineWeb.Components.Social.PostReactions do
   Compatibility wrapper for the social app post reactions component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.PostReactions"
+
   def post_reactions(assigns) do
-    ElektrineSocialWeb.Components.Social.PostReactions.post_reactions(assigns)
+    OptionalModule.call(:social, @component_module, :post_reactions, [assigns], "")
   end
 end

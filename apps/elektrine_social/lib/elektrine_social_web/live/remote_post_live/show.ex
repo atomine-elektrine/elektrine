@@ -627,7 +627,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       ancestor_count = length(ancestors_for_render) %>
       <%= if ancestors_for_render != [] do %>
         <section class="mb-4 space-y-2" aria-label="Conversation context">
-          <div class="pl-6 pr-2 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+          <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
             <span>In reply to</span>
             <span class="opacity-60 normal-case tracking-normal">
               {ancestor_count} earlier {if ancestor_count == 1, do: "post", else: "posts"}
@@ -679,16 +679,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
             local_parent_id = SurfaceHelpers.ancestor_local_message_id(parent_post)
             has_external_link = http_url?(parent_ref) %>
-            <div class="timeline-thread-context-row relative pl-6">
-              <div class="relative flex w-4 flex-shrink-0 justify-center absolute left-0 top-0 bottom-0">
-                <%= if idx < ancestor_count - 1 do %>
-                  <div class="timeline-thread-context-line absolute left-[10px] top-6 bottom-[-0.5rem] w-0.5 rounded-full">
-                  </div>
-                <% end %>
-                <div class="timeline-thread-context-dot absolute left-[6px] top-4 h-2.5 w-2.5 rounded-full border border-base-200/60">
-                </div>
-              </div>
-              <article class="timeline-thread-context-card rounded-xl border shadow-sm overflow-hidden p-3">
+            <div class="rounded-2xl border border-base-300/80 bg-base-200/45 px-3 py-2.5 transition-colors hover:bg-base-200/65">
+              <article>
                 <div class="flex items-start gap-2 min-w-0">
                   <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
                     <img

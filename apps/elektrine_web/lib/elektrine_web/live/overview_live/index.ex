@@ -10,7 +10,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
-  alias Elektrine.Social
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
@@ -163,10 +162,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
           replies =
             if user_id do
-              Social.get_direct_replies_for_posts([post_id], user_id: user_id, limit_per_post: 20)
+              Integrations.social_direct_replies_for_posts(
+                [post_id],
+                user_id: user_id,
+                limit_per_post: 20
+              )
               |> Map.get(post_id, [])
             else
-              Social.get_direct_replies_for_posts([post_id], limit_per_post: 20)
+              Integrations.social_direct_replies_for_posts([post_id], limit_per_post: 20)
               |> Map.get(post_id, [])
             end
 

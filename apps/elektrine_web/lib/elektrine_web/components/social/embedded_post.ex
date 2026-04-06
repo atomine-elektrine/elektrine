@@ -3,7 +3,11 @@ defmodule ElektrineWeb.Components.Social.EmbeddedPost do
   Compatibility wrapper for the social app embedded post component.
   """
 
+  alias ElektrineWeb.OptionalModule
+
+  @component_module :"Elixir.ElektrineSocialWeb.Components.Social.EmbeddedPost"
+
   def embedded_post(assigns) do
-    ElektrineSocialWeb.Components.Social.EmbeddedPost.embedded_post(assigns)
+    OptionalModule.call(:social, @component_module, :embedded_post, [assigns], "")
   end
 end

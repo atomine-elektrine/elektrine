@@ -435,6 +435,10 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:social, @social_recommendations_module, :get_for_you_feed, [user_id, opts], [])
   end
 
+  def social_direct_replies_for_posts(post_ids, opts \\ []) do
+    call_optional(:social, @social_module, :get_direct_replies_for_posts, [post_ids, opts], %{})
+  end
+
   def overview_record_view_with_dwell(user_id, post_id, attrs) do
     call_optional(
       :social,
