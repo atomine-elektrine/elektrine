@@ -1300,9 +1300,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       is_binary(post_object["audience"]) ->
         post_object["audience"]
 
+      is_map(post_object["audience"]) && is_binary(post_object["audience"]["id"]) ->
+        post_object["audience"]["id"]
+
       # Some platforms put community in 'to' array (check for Group/community URI pattern)
       is_list(post_object["to"]) ->
         Enum.find(post_object["to"], fn uri ->
+          is_binary(uri) && (String.contains?(uri, "/c/") || String.contains?(uri, "/m/"))
+        end)
+
+      is_list(post_object["cc"]) ->
+        Enum.find(post_object["cc"], fn uri ->
           is_binary(uri) && (String.contains?(uri, "/c/") || String.contains?(uri, "/m/"))
         end)
 
@@ -1323,6 +1331,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     post_url = submitted_link || msg.activitypub_url || msg.activitypub_id
     metadata = msg.media_metadata || %{}
     in_reply_to = message_in_reply_to(msg)
+    community_uri = community_uri_from_local_message(msg)
 
     attachments =
       if msg.media_urls && msg.media_urls != [] do
@@ -1344,6 +1353,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
       "attributedTo" => msg.remote_actor && msg.remote_actor.uri,
       "inReplyTo" => in_reply_to,
+      "audience" => community_uri,
+      "to" => build_cached_post_audience(community_uri),
       "inReplyToAuthor" => metadata["inReplyToAuthor"],
       "inReplyToContent" => metadata["inReplyToContent"],
       "inReplyToTitle" => metadata["inReplyToTitle"],
@@ -1356,6 +1367,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "_local_message" => msg
     }
     |> Map.merge(poll_fields)
+  end
+
+  defp build_cached_post_audience(nil), do: nil
+
+  defp build_cached_post_audience(community_uri) when is_binary(community_uri) do
+    [community_uri, "https://www.w3.org/ns/activitystreams#Public"]
   end
 
   defp message_submitted_link(msg) do
@@ -2950,6 +2967,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     replies_count = cached_reply_count(msg)
     replies_object = cached_replies_object(msg, replies_count)
     comments_object = cached_comments_object(msg, replies_count)
+    community_uri = community_uri_from_local_message(msg)
 
     local_replies =
       if is_binary(post_id), do: SurfaceHelpers.merge_local_replies([], post_id), else: []
@@ -2976,6 +2994,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "id" => post_id,
       "url" => post_url,
       "type" => if(is_community_post, do: "Page", else: "Note"),
+      "audience" => community_uri,
+      "to" => build_cached_post_audience(community_uri),
       "repliesCount" => replies_count,
       "replies" => replies_object,
       "comments" => comments_object
@@ -3065,19 +3085,59 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   def handle_info({:load_replies, post_object}, socket) do
     # Capture the LiveView PID before starting the task
     liveview_pid = self()
+    post_id = post_object["id"]
+
+    cached_replies =
+      if is_binary(post_id), do: SurfaceHelpers.merge_local_replies([], post_id), else: []
+
+    {threaded_replies, thread_reply_actors} =
+      build_threaded_replies_with_actor_cache(
+        cached_replies,
+        post_id,
+        socket.assigns.comment_sort
+      )
+
+    post_interactions =
+      if socket.assigns[:current_user] && cached_replies != [] do
+        load_post_interactions(cached_replies, socket.assigns.current_user.id)
+      else
+        %{}
+      end
+
+    post_reactions =
+      socket.assigns.post_reactions
+      |> SurfaceHelpers.merge_reply_reactions(cached_replies)
 
     # Set loading state
-    socket = assign(socket, :replies_loading, true)
+    socket =
+      socket
+      |> assign(:replies, cached_replies)
+      |> assign(
+        :quick_reply_recent_replies,
+        SurfaceHelpers.recent_replies_for_preview(cached_replies, post_id)
+      )
+      |> assign(:threaded_replies, threaded_replies)
+      |> assign(:thread_reply_actors, thread_reply_actors)
+      |> assign(
+        :post_interactions,
+        Map.merge(socket.assigns.post_interactions, post_interactions)
+      )
+      |> assign(:post_reactions, post_reactions)
+      |> assign(:replies_loaded, cached_replies != [])
+      |> assign(:replies_loading, true)
 
     # Fetch replies in background
     Task.start(fn ->
-      case ActivityPub.fetch_remote_post_replies(post_object, limit: 50) do
-        {:ok, replies} ->
-          send(liveview_pid, {:replies_loaded, replies, post_object["id"]})
+      fetch_task =
+        Task.async(fn -> ActivityPub.fetch_remote_post_replies(post_object, limit: 50) end)
 
-        {:error, _} ->
-          send(liveview_pid, {:replies_loaded, [], post_object["id"]})
-      end
+      result =
+        case Task.yield(fetch_task, 15_000) || Task.shutdown(fetch_task) do
+          {:ok, {:ok, replies}} when is_list(replies) -> replies
+          _ -> []
+        end
+
+      send(liveview_pid, {:replies_loaded, result, post_id})
     end)
 
     # Proactively fetch and store replies from the collection (Akkoma-style)

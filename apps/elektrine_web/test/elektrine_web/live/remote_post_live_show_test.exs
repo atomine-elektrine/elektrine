@@ -248,6 +248,48 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert updated_socket.assigns.comment_reply_content == ""
   end
 
+  test "cached community posts keep community audience when loading replies" do
+    msg = %{
+      activitypub_id: "https://slrpnk.net/post/36219249",
+      activitypub_url: "https://slrpnk.net/post/36219249",
+      reply_count: 2,
+      media_metadata: %{"community_actor_uri" => "https://lemmy.ml/c/asklemmy"},
+      media_urls: [],
+      remote_actor: nil,
+      title: "Ask Lemmy",
+      content: "",
+      inserted_at: ~N[2026-04-06 09:48:25],
+      primary_url: nil,
+      link_preview: nil,
+      reply_to_id: nil,
+      conversation: nil,
+      post_type: nil
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{},
+        post_reactions: %{},
+        is_community_post: false
+      }
+    }
+
+    assert {:noreply, _updated_socket} = Show.handle_info({:load_replies_for_cached, msg}, socket)
+
+    assert_received {:load_replies, post_object}
+    assert post_object["id"] == "https://slrpnk.net/post/36219249"
+    assert post_object["type"] == "Page"
+    assert post_object["audience"] == "https://lemmy.ml/c/asklemmy"
+
+    assert post_object["to"] == [
+             "https://lemmy.ml/c/asklemmy",
+             "https://www.w3.org/ns/activitystreams#Public"
+           ]
+  end
+
   test "uses mastodon account fallback for avatar and profile link when actor cache misses" do
     comments = [
       %{

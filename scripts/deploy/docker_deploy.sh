@@ -248,6 +248,20 @@ populate_wildcard_cert_defaults
 
 INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
 
+if [[ " $RENDER_PROFILES " == *" caddy "* ]]; then
+  if [[ -z "${CADDY_EDGE_API_KEY:-}" && -n "${PHOENIX_API_KEY:-}" ]]; then
+    CADDY_EDGE_API_KEY="$PHOENIX_API_KEY"
+    export CADDY_EDGE_API_KEY
+    echo "Info: CADDY_EDGE_API_KEY not set; defaulting it from PHOENIX_API_KEY for Caddy internal TLS auth." >&2
+  fi
+
+  if [[ -z "${CADDY_EDGE_API_KEY:-}" ]]; then
+    echo "Error: Caddy profile requires CADDY_EDGE_API_KEY or PHOENIX_API_KEY for internal TLS auth." >&2
+    echo "Hint: set CADDY_EDGE_API_KEY explicitly, or reuse PHOENIX_API_KEY." >&2
+    exit 1
+  fi
+fi
+
 COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR" --env-file "$ENV_FILE")
 
 if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then

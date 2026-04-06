@@ -1511,9 +1511,9 @@ defmodule Elektrine.ActivityPub do
 
           other ->
             cond do
-              # Lemmy-style posts may expose empty AP collections but still have API comments.
-              (expected_replies > 0 and post_object["type"] == "Page") &&
-                  lemmy_post_url?(post_url) ->
+              # Lemmy-style posts may expose empty AP collections without totalItems.
+              # Fall back to the instance comments API for any community Page URL.
+              post_object["type"] == "Page" && lemmy_post_url?(post_url) ->
                 fetch_lemmy_comments(post_url, limit)
 
               # ActivityPub collection returned empty but we expect replies - try Mastodon API
