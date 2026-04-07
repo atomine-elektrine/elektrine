@@ -98,7 +98,7 @@ defmodule ElektrineWeb.Router do
   pipeline :api_vault_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -172,12 +172,13 @@ defmodule ElektrineWeb.Router do
   pipeline :api_pat_vault_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
       scopes: ["read:vault", "write:vault"],
-      any: true
+      any: true,
+      allow_api_token: true
     )
   end
 
   pipeline :api_pat_vault_write_scope do
-    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"])
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"], allow_api_token: true)
   end
 
   pipeline :api_pat_export_scope do

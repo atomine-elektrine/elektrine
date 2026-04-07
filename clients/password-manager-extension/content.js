@@ -137,7 +137,7 @@
         .vault-popover,
         .vault-banner {
           font-family: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          color: #e5e7eb;
+          color: #e6edf5;
         }
 
         .vault-button {
@@ -147,10 +147,10 @@
           align-items: center;
           gap: 6px;
           padding: 8px 12px;
-          border: 1px solid rgba(168, 85, 247, 0.42);
+          border: 1px solid rgba(148, 163, 184, 0.22);
           border-radius: 14px;
-          background: rgba(168, 85, 247, 0.16);
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+          background: rgba(18, 24, 33, 0.94);
+          box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
           cursor: pointer;
           font-size: 12px;
           font-weight: 700;
@@ -164,8 +164,8 @@
 
         .vault-button:hover {
           transform: translateY(-1px);
-          border-color: rgba(168, 85, 247, 0.6);
-          background: rgba(168, 85, 247, 0.24);
+          border-color: rgba(139, 124, 255, 0.32);
+          background: rgba(25, 33, 45, 0.98);
         }
 
         .vault-popover {
@@ -174,15 +174,15 @@
           display: none;
           width: 320px;
           overflow: hidden;
-          border: 1px solid rgba(229, 231, 235, 0.1);
-          border-radius: 20px;
-          background: rgba(10, 10, 10, 0.96);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+          border: 1px solid rgba(148, 163, 184, 0.18);
+          border-radius: 18px;
+          background: rgba(18, 24, 33, 0.98);
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
         }
 
         .vault-popover header {
           padding: 14px 16px 10px;
-          border-bottom: 1px solid rgba(229, 231, 235, 0.08);
+          border-bottom: 1px solid rgba(148, 163, 184, 0.14);
         }
 
         .vault-title {
@@ -194,7 +194,7 @@
 
         .vault-subtitle {
           margin: 4px 0 0;
-          color: rgba(229, 231, 235, 0.62);
+          color: rgba(230, 237, 245, 0.62);
           font-size: 12px;
         }
 
@@ -217,7 +217,7 @@
         }
 
         .vault-item:hover {
-          background: rgba(255, 255, 255, 0.04);
+          background: rgba(255, 255, 255, 0.03);
           transform: translateY(-1px);
         }
 
@@ -229,7 +229,7 @@
 
         .vault-item-meta {
           margin: 4px 0 0;
-          color: rgba(229, 231, 235, 0.58);
+          color: rgba(230, 237, 245, 0.58);
           font-size: 12px;
         }
 
@@ -250,17 +250,17 @@
         .vault-action,
         .vault-banner button.primary {
           padding: 8px 12px;
-          background: rgba(168, 85, 247, 0.16);
-          color: rgba(250, 245, 255, 0.98);
-          border-color: rgba(168, 85, 247, 0.38);
+          background: rgba(139, 124, 255, 0.16);
+          color: #e6edf5;
+          border-color: rgba(139, 124, 255, 0.26);
         }
 
         .vault-link,
         .vault-banner button.secondary {
           padding: 8px 12px;
-          background: rgba(148, 163, 184, 0.12);
-          color: rgba(229, 231, 235, 0.92);
-          border-color: rgba(148, 163, 184, 0.2);
+          background: rgba(148, 163, 184, 0.08);
+          color: rgba(230, 237, 245, 0.92);
+          border-color: rgba(148, 163, 184, 0.18);
         }
 
         .vault-action:hover,
@@ -271,14 +271,14 @@
 
         .vault-action:hover,
         .vault-banner button.primary:hover {
-          border-color: rgba(168, 85, 247, 0.56);
-          background: rgba(168, 85, 247, 0.24);
+          border-color: rgba(139, 124, 255, 0.38);
+          background: rgba(139, 124, 255, 0.22);
         }
 
         .vault-state p,
         .vault-empty p {
           margin: 0 0 10px;
-          color: rgba(229, 231, 235, 0.68);
+          color: rgba(230, 237, 245, 0.68);
           font-size: 12px;
           line-height: 1.5;
         }
@@ -298,10 +298,10 @@
           display: none;
           width: min(360px, calc(100vw - 32px));
           padding: 14px;
-          border: 1px solid rgba(229, 231, 235, 0.1);
+          border: 1px solid rgba(148, 163, 184, 0.16);
           border-radius: 18px;
-          background: rgba(10, 10, 10, 0.96);
-          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+          background: rgba(18, 24, 33, 0.98);
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
         }
 
         .vault-banner h3 {
@@ -312,7 +312,7 @@
 
         .vault-banner p {
           margin: 0 0 12px;
-          color: rgba(229, 231, 235, 0.68);
+          color: rgba(230, 237, 245, 0.68);
           font-size: 12px;
           line-height: 1.5;
         }
@@ -320,7 +320,7 @@
         .vault-banner label {
           display: block;
           margin-bottom: 4px;
-          color: rgba(229, 231, 235, 0.84);
+          color: rgba(230, 237, 245, 0.84);
           font-size: 11px;
           font-weight: 700;
           text-transform: uppercase;
@@ -331,22 +331,22 @@
           width: 100%;
           margin-bottom: 10px;
           padding: 9px 11px;
-          border: 1px solid rgba(229, 231, 235, 0.14);
+          border: 1px solid rgba(148, 163, 184, 0.24);
           border-radius: 14px;
-          background: linear-gradient(180deg, rgba(10, 10, 10, 0.9), rgba(23, 23, 23, 0.78));
+          background: rgba(26, 34, 48, 0.96);
           font: inherit;
-          color: #e5e7eb;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          color: #e6edf5;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .vault-banner input:focus {
-          outline: 2px solid rgba(168, 85, 247, 0.45);
-          border-color: rgba(168, 85, 247, 0.56);
+          outline: 2px solid rgba(139, 124, 255, 0.32);
+          border-color: rgba(139, 124, 255, 0.44);
         }
 
         .vault-banner-status {
           margin-bottom: 10px;
-          color: #e9d5ff;
+          color: #b7adff;
           font-size: 12px;
           font-weight: 700;
         }

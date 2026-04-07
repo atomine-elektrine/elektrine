@@ -1,5 +1,29 @@
+function isLoopbackHostname(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+}
+
+function hasProtocol(value) {
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(value)
+}
+
+function coerceLocalDevelopmentUrl(value) {
+  if (hasProtocol(value)) {
+    return value
+  }
+
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(value)) {
+    return `http://${value}`
+  }
+
+  if (/^\[::1\](:\d+)?(\/.*)?$/i.test(value)) {
+    return `http://${value}`
+  }
+
+  return value
+}
+
 export function normalizeServerUrl(value) {
-  const trimmed = (value || "").trim()
+  const trimmed = coerceLocalDevelopmentUrl((value || "").trim())
 
   if (!trimmed) {
     throw new Error("Server URL is required.")
@@ -10,11 +34,13 @@ export function normalizeServerUrl(value) {
   try {
     url = new URL(trimmed)
   } catch (_error) {
-    throw new Error("Enter a valid server URL, including https://.")
+    throw new Error("Enter a valid server URL, including https:// or http://localhost.")
   }
 
-  if (url.protocol !== "https:") {
-    throw new Error("Server URL must start with https://.")
+  const isLocalDevelopmentServer = url.protocol === "http:" && isLoopbackHostname(url.hostname)
+
+  if (url.protocol !== "https:" && !isLocalDevelopmentServer) {
+    throw new Error("Server URL must start with https://, or use http:// for localhost testing.")
   }
 
   url.pathname = url.pathname.replace(/\/+$/, "")

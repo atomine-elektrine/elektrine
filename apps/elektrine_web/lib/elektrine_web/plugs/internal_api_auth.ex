@@ -43,12 +43,43 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
 
   defp param_key(conn, opts) do
     Enum.find_value(Keyword.get(opts, :param_names, []), fn name ->
-      case conn.params[name] do
-        value when is_binary(value) and value != "" -> value
-        _ -> nil
+      raw_query_param(conn.query_string, name) ||
+        case conn.params[name] do
+          value when is_binary(value) and value != "" -> value
+          _ -> nil
+        end
+    end)
+  end
+
+  # Query params decode "+" as space, which breaks base64-style shared secrets
+  # used by Caddy ask URLs. Prefer the raw query string so literal plus signs
+  # survive intact, then fall back to Plug's decoded params for normal cases.
+  defp raw_query_param(query_string, name)
+
+  defp raw_query_param(query_string, name)
+       when is_binary(query_string) and query_string != "" and is_binary(name) do
+    query_string
+    |> String.split("&", trim: true)
+    |> Enum.find_value(fn pair ->
+      case String.split(pair, "=", parts: 2) do
+        [^name, value] ->
+          value
+          |> URI.decode()
+          |> case do
+            "" -> nil
+            decoded -> decoded
+          end
+
+        [^name] ->
+          nil
+
+        _ ->
+          nil
       end
     end)
   end
+
+  defp raw_query_param(_, _), do: nil
 
   defp authorization_key(conn) do
     case List.first(get_req_header(conn, "authorization")) do
