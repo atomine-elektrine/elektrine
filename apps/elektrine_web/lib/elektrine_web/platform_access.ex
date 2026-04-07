@@ -5,113 +5,17 @@ defmodule ElektrineWeb.PlatformAccess do
 
   alias Elektrine.Platform.Modules
 
-  @path_prefixes [
-    {:vault, ["/account/password-manager", "/api/ext/v1/password-manager"]},
-    {:dns, ["/dns", "/api/dns", "/pripyat/dns"]},
-    {:email,
-     [
-       "/email",
-       "/emails",
-       "/aliases",
-       "/mailbox",
-       "/jmap",
-       "/calendar",
-       "/.well-known/jmap",
-       "/.well-known/mta-sts.txt",
-       "/.well-known/autoconfig",
-       "/autoconfig",
-       "/unsubscribe",
-       "/api/emails",
-       "/api/aliases",
-       "/api/mailbox",
-       "/api/haraka",
-       "/api/ext/v1/email",
-       "/pripyat/mailboxes",
-       "/pripyat/custom-domains",
-       "/pripyat/aliases",
-       "/pripyat/forwarded-messages",
-       "/pripyat/messages",
-       "/pripyat/unsubscribe-stats"
-     ]},
-    {:vpn, ["/vpn", "/api/vpn", "/pripyat/vpn"]},
-    {:chat,
-     [
-       "/chat",
-       "/friends",
-       "/_arblarg",
-       "/api/private-attachments",
-       "/api/servers",
-       "/api/conversations",
-       "/api/messages",
-       "/api/ext/v1/chat",
-       "/pripyat/arblarg/messages"
-     ]},
-    {:social,
-     [
-       "/authorize_interaction",
-       "/activitypub",
-       "/communities",
-       "/discussions",
-       "/timeline",
-       "/hashtag",
-       "/gallery",
-       "/lists",
-       "/remote",
-       "/users/",
-       "/c/",
-       "/relay",
-       "/inbox",
-       "/tags",
-       "/media_proxy",
-       "/api/social",
-       "/api/v1",
-       "/api/v2",
-       "/api/ext/v1/social",
-       "/pripyat/communities"
-     ]}
+  @optional_route_modules [
+    {:email, ElektrineWeb.Routes.Email},
+    {:chat, ElektrineWeb.Routes.Chat},
+    {:social, ElektrineWeb.Routes.Social},
+    {:vault, ElektrineWeb.Routes.Vault},
+    {:vpn, ElektrineWeb.Routes.VPN},
+    {:dns, ElektrineWeb.Routes.DNS}
   ]
 
-  @view_modules %{
-    email: [
-      ElektrineEmailWeb.EmailLive.Compose,
-      ElektrineEmailWeb.EmailLive.Index,
-      ElektrineEmailWeb.EmailLive.Raw,
-      ElektrineEmailWeb.EmailLive.Search,
-      ElektrineEmailWeb.EmailLive.Settings,
-      ElektrineEmailWeb.EmailLive.Show
-    ],
-    vpn: [
-      ElektrineVPNWeb.PageLive.VPNPolicy,
-      ElektrineVPNWeb.VPNLive.Index
-    ],
-    chat: [
-      ElektrineChatWeb.ChatLive.Index,
-      ElektrineWeb.FriendsLive
-    ],
-    social: [
-      ElektrineSocialWeb.DiscussionsLive.Community,
-      ElektrineSocialWeb.DiscussionsLive.Index,
-      ElektrineSocialWeb.DiscussionsLive.Post,
-      ElektrineSocialWeb.DiscussionsLive.Settings,
-      ElektrineSocialWeb.GalleryLive.Index,
-      ElektrineSocialWeb.HashtagLive.Show,
-      ElektrineSocialWeb.ListLive.Index,
-      ElektrineSocialWeb.ListLive.Show,
-      ElektrineSocialWeb.RemotePostLive.Show,
-      ElektrineSocialWeb.RemoteUserLive.Show,
-      ElektrineSocialWeb.TimelineLive.Index,
-      ElektrineSocialWeb.TimelineLive.Post
-    ],
-    vault: [
-      ElektrinePasswordManagerWeb.VaultLive
-    ],
-    dns: [
-      ElektrineDNSWeb.DNSLive.Index
-    ]
-  }
-
   def required_module_for_path(path) when is_binary(path) do
-    Enum.find_value(@path_prefixes, fn {module, prefixes} ->
+    Enum.find_value(path_prefixes(), fn {module, prefixes} ->
       if Enum.any?(prefixes, &path_matches?(path, &1)), do: module
     end)
   end
@@ -126,7 +30,7 @@ defmodule ElektrineWeb.PlatformAccess do
   end
 
   def required_module_for_view(view) do
-    Enum.find_value(@view_modules, fn {module, views} ->
+    Enum.find_value(view_modules(), fn {module, views} ->
       if view in views, do: module
     end)
   end
@@ -149,5 +53,23 @@ defmodule ElektrineWeb.PlatformAccess do
       true ->
         String.starts_with?(path, prefix <> "/")
     end
+  end
+
+  defp path_prefixes do
+    optional_route_metadata(:path_prefixes)
+  end
+
+  defp view_modules do
+    Map.new(optional_route_metadata(:view_modules))
+  end
+
+  defp optional_route_metadata(function) do
+    Enum.flat_map(@optional_route_modules, fn {module_id, route_module} ->
+      if Code.ensure_loaded?(route_module) and function_exported?(route_module, function, 0) do
+        [{module_id, apply(route_module, function, [])}]
+      else
+        []
+      end
+    end)
   end
 end
