@@ -13,6 +13,25 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias ElektrineSocialWeb.Components.Social.PostUtilities
+
+  @remote_replies_timeout_ms 12_000
+  @remote_replies_guard_timeout_ms 15_000
+
+  @public_audience_uris MapSet.new([
+                          "Public",
+                          "as:Public",
+                          "https://www.w3.org/ns/activitystreams#Public"
+                        ])
+  @user_actor_path_markers [
+    "/users/",
+    "/user/",
+    "/u/",
+    "/@",
+    "/profile/",
+    "/profiles/",
+    "/accounts/"
+  ]
+  @community_path_markers ["/c/", "/m/", "/community/", "/communities/", "/groups/", "/g/"]
   alias ElektrineSocialWeb.RemotePostLive.{Interactions, SurfaceHelpers, Threading}
   alias ElektrineWeb.Live.PostInteractions
 
@@ -145,10 +164,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         <%= if depth == 0 do %>
           <span class="timeline-thread-reply-node" aria-hidden="true"></span>
           <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
-        <% end %>
-        <%= if depth > 0 do %>
-          <span class="timeline-thread-tree-guide" aria-hidden="true"></span>
-          <span class="timeline-thread-tree-elbow" aria-hidden="true"></span>
         <% end %>
         <%= if @is_lemmy_post do %>
           <!-- Lemmy-style comment (Reddit-style with vote column) -->
@@ -1322,10 +1337,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       normalized == "https://www.w3.org/ns/activitystreams#Public" ->
         false
 
+      MapSet.member?(@public_audience_uris, normalized) ->
+        false
+
+      collection_uri?(normalized) ->
+        false
+
       String.contains?(normalized, ["/c/", "/m/", "/groups/", "/communities/", "/g/"]) ->
         true
 
       String.contains?(normalized, ["/users/", "/user/", "/u/", "/@"]) ->
+        false
+
+      not community_path_uri?(normalized) ->
         false
 
       true ->
@@ -1334,6 +1358,47 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp community_like_actor_uri?(_), do: false
+
+  defp collection_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        normalized = path |> String.downcase() |> String.trim_trailing("/")
+        String.ends_with?(normalized, "/followers") || String.ends_with?(normalized, "/following")
+
+      _ ->
+        false
+    end
+  end
+
+  defp collection_uri?(_), do: false
+
+  defp community_path_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        path_downcased = String.downcase(path)
+
+        Enum.any?(@community_path_markers, &String.contains?(path_downcased, &1)) &&
+          !user_actor_uri?(uri)
+
+      _ ->
+        false
+    end
+  end
+
+  defp community_path_uri?(_), do: false
+
+  defp user_actor_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        downcased_path = String.downcase(path)
+        Enum.any?(@user_actor_path_markers, &String.contains?(downcased_path, &1))
+
+      _ ->
+        false
+    end
+  end
+
+  defp user_actor_uri?(_), do: false
 
   # Build an ActivityPub-like post object from a local message
   defp build_post_object_from_message(msg) do
@@ -3148,14 +3213,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     # Fetch replies in background
     Task.start(fn ->
-      result = fetch_remote_replies_with_timeout(post_object, 15_000)
+      result = fetch_remote_replies_with_timeout(post_object, @remote_replies_timeout_ms)
 
       send(liveview_pid, {:replies_loaded, result, post_id})
     end)
 
     # Failsafe so the UI cannot remain in a permanent loading state if a background
     # reply fetch never reports back for any reason.
-    Process.send_after(self(), {:reply_fetch_timeout_guard, post_id}, 20_000)
+    Process.send_after(
+      self(),
+      {:reply_fetch_timeout_guard, post_id},
+      @remote_replies_guard_timeout_ms
+    )
 
     # Proactively fetch and store replies from the collection (Akkoma-style)
     # This runs in parallel with the above fetch and stores replies locally

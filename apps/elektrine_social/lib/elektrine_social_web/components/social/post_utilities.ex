@@ -23,6 +23,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
     "/profiles/",
     "/accounts/"
   ]
+  @community_path_markers ["/c/", "/m/", "/community/", "/communities/", "/groups/", "/g/"]
 
   @doc """
   Checks if the given URL is a video file based on extension.
@@ -527,7 +528,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       MapSet.member?(@public_audience_uris, normalized) ->
         nil
 
+      collection_uri?(normalized) ->
+        nil
+
       user_actor_uri?(normalized) ->
+        nil
+
+      not community_path_uri?(normalized) ->
         nil
 
       true ->
@@ -536,6 +543,33 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   defp normalize_community_uri(_), do: nil
+
+  defp collection_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        normalized = path |> String.downcase() |> String.trim_trailing("/")
+        String.ends_with?(normalized, "/followers") || String.ends_with?(normalized, "/following")
+
+      _ ->
+        false
+    end
+  end
+
+  defp collection_uri?(_), do: false
+
+  defp community_path_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: path} when is_binary(path) ->
+        path_downcased = String.downcase(path)
+
+        Enum.any?(@community_path_markers, &String.contains?(path_downcased, &1))
+
+      _ ->
+        false
+    end
+  end
+
+  defp community_path_uri?(_), do: false
 
   defp user_actor_uri?(uri) when is_binary(uri) do
     case URI.parse(uri) do
