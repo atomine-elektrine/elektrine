@@ -13,7 +13,7 @@
               <% end %>
             </div>
             <p class="mt-1 text-sm opacity-70">
-              {@notification_stats.total_groups} groups in queue, {@notification_stats.waiting_groups} waiting, {@unseen_count} unseen.
+              {@notification_stats.total_groups} groups in queue, {@notification_stats.waiting_groups} waiting.
             </p>
           </div>
 
@@ -47,14 +47,10 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Unread</p>
             <p class="mt-1 text-xl font-semibold">{@unread_count}</p>
-          </div>
-          <div class="rounded-lg border border-base-300 p-3">
-            <p class="text-xs uppercase tracking-wide opacity-60">Unseen</p>
-            <p class="mt-1 text-xl font-semibold">{@unseen_count}</p>
           </div>
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Waiting Groups</p>
@@ -79,7 +75,7 @@
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <%= for filter <- [:all, :unread, :unseen] do %>
+            <%= for filter <- [:all, :unread] do %>
               <button
                 phx-click="set_filter"
                 phx-value-type={state_filter_param(filter)}
@@ -140,12 +136,8 @@
               <%= cond do %>
                 <% @filter == :unread and @source_filter == "all" -> %>
                   No unread notifications.
-                <% @filter == :unseen and @source_filter == "all" -> %>
-                  No unseen notifications.
                 <% @filter == :unread -> %>
                   No unread {String.downcase(notification_source_label(@source_filter))} notifications.
-                <% @filter == :unseen -> %>
-                  No unseen {String.downcase(notification_source_label(@source_filter))} notifications.
                 <% @source_filter != "all" -> %>
                   No {String.downcase(notification_source_label(@source_filter))} notifications match this view.
                 <% true -> %>

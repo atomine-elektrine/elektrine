@@ -530,12 +530,8 @@
                   />
                 </button>
               </h3>
-              <div class={
-                if @is_community_post, do: "space-y-2", else: "timeline-thread-replies space-y-2"
-              }>
-                <%= unless @is_community_post do %>
-                  <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
-                <% end %>
+              <div class="timeline-thread-replies space-y-2">
+                <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
                 {render_threaded_comments(assigns, @threaded_replies)}
               </div>
             </div>
@@ -1421,14 +1417,8 @@
                       </.link>
                     </div>
                   <% end %>
-                  <div class={
-                    if @is_community_post,
-                      do: "space-y-2",
-                      else: "timeline-thread-replies space-y-2"
-                  }>
-                    <%= unless @is_community_post do %>
-                      <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
-                    <% end %>
+                  <div class="timeline-thread-replies space-y-2">
+                    <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
                     {render_threaded_comments(assigns, @threaded_replies)}
                   </div>
                 </div>
@@ -1569,24 +1559,39 @@
                     </div>
                   </div>
                 <% else %>
-                  <div class="card panel-card rounded-lg p-4">
-                    <div class="space-y-4">
-                      <div class="skeleton h-5 w-32"></div>
-                      <div class="flex items-center gap-3">
-                        <div class="skeleton w-12 h-12 rounded-lg"></div>
-                        <div class="flex-1 space-y-2">
-                          <div class="skeleton h-4 w-2/3"></div>
-                          <div class="skeleton h-3 w-3/4"></div>
+                  <%= if @community_lookup_complete do %>
+                    <div class="card panel-card rounded-lg p-4">
+                      <div class="space-y-3 text-sm text-base-content/70">
+                        <div class="flex items-center gap-2 font-medium text-base-content">
+                          <.icon name="hero-user-group" class="w-5 h-5 text-secondary" />
+                          Community Info Unavailable
                         </div>
+                        <p>
+                          This post looks like a community thread, but its community actor could not be
+                          resolved from the remote post data.
+                        </p>
                       </div>
-                      <div class="skeleton h-14 w-full"></div>
-                      <div class="grid grid-cols-2 gap-3">
-                        <div class="skeleton h-12 w-full"></div>
-                        <div class="skeleton h-12 w-full"></div>
-                      </div>
-                      <div class="skeleton h-9 w-full"></div>
                     </div>
-                  </div>
+                  <% else %>
+                    <div class="card panel-card rounded-lg p-4">
+                      <div class="space-y-4">
+                        <div class="skeleton h-5 w-32"></div>
+                        <div class="flex items-center gap-3">
+                          <div class="skeleton w-12 h-12 rounded-lg"></div>
+                          <div class="flex-1 space-y-2">
+                            <div class="skeleton h-4 w-2/3"></div>
+                            <div class="skeleton h-3 w-3/4"></div>
+                          </div>
+                        </div>
+                        <div class="skeleton h-14 w-full"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                          <div class="skeleton h-12 w-full"></div>
+                          <div class="skeleton h-12 w-full"></div>
+                        </div>
+                        <div class="skeleton h-9 w-full"></div>
+                      </div>
+                    </div>
+                  <% end %>
                 <% end %>
               </div>
             <% end %>
