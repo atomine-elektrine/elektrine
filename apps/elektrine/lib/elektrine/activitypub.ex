@@ -1484,6 +1484,7 @@ defmodule Elektrine.ActivityPub do
   def fetch_remote_post_replies(post_object, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
     post_url = post_object["url"] || post_object["id"]
+    lemmy_post? = post_object["type"] == "Page" && lemmy_post_url?(post_url)
 
     # Prefer standard replies collection, but accept comments collections used by
     # some platforms.
@@ -1503,6 +1504,20 @@ defmodule Elektrine.ActivityPub do
     post_id = post_object["id"] || post_url
 
     cond do
+      # Lemmy community posts are more reliably served by the instance API than the
+      # AP replies collection, which is often empty or requires extra indirection.
+      lemmy_post? ->
+        case fetch_lemmy_comments(post_url, limit) do
+          {:ok, replies} when replies != [] ->
+            {:ok, replies}
+
+          _ when replies_url != nil ->
+            fetch_replies_from_collection(replies_url, limit)
+
+          other ->
+            other
+        end
+
       # Standard ActivityPub replies collection
       replies_url != nil ->
         case fetch_replies_from_collection(replies_url, limit) do
@@ -1513,7 +1528,7 @@ defmodule Elektrine.ActivityPub do
             cond do
               # Lemmy-style posts may expose empty AP collections without totalItems.
               # Fall back to the instance comments API for any community Page URL.
-              post_object["type"] == "Page" && lemmy_post_url?(post_url) ->
+              lemmy_post? ->
                 fetch_lemmy_comments(post_url, limit)
 
               # ActivityPub collection returned empty but we expect replies - try Mastodon API
@@ -1526,7 +1541,7 @@ defmodule Elektrine.ActivityPub do
         end
 
       # Page type post - try instance-specific API
-      post_object["type"] == "Page" && lemmy_post_url?(post_url) ->
+      lemmy_post? ->
         fetch_lemmy_comments(post_url, limit)
 
       # Has replies count but no replies field - try Mastodon API first, then Pleroma
@@ -1659,9 +1674,11 @@ defmodule Elektrine.ActivityPub do
   defp resolve_lemmy_post_reference_via_api(post_url) do
     case URI.parse(post_url) do
       %URI{host: domain} when is_binary(domain) ->
-        resolve_url = "https://#{domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
+        resolve_url = "https://#{domain}/api/v4/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-        case safe_get(resolve_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
+        case safe_get_lemmy_api(resolve_url, [{"Accept", "application/json"}],
+               receive_timeout: 10_000
+             ) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"post" => %{"post" => %{"id" => post_id}}}} when is_integer(post_id) ->
@@ -1697,9 +1714,9 @@ defmodule Elektrine.ActivityPub do
             %URI{host: community_domain} when is_binary(community_domain) ->
               # Resolve the post on the community's home instance
               resolve_url =
-                "https://#{community_domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
+                "https://#{community_domain}/api/v4/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-              case safe_get(resolve_url, [{"Accept", "application/json"}],
+              case safe_get_lemmy_api(resolve_url, [{"Accept", "application/json"}],
                      receive_timeout: 10_000
                    ) do
                 {:ok, %Finch.Response{status: 200, body: body}} ->
@@ -1735,9 +1752,9 @@ defmodule Elektrine.ActivityPub do
 
   # Fetch comments from a specific instance
   defp fetch_lemmy_comments_from_instance(domain, post_id, post_url, limit) do
-    api_url = "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&limit=#{limit}&sort=Top"
+    api_url = "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{limit}&sort=Top"
 
-    case safe_get(api_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
+    case safe_get_lemmy_api(api_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"comments" => comments}} when is_list(comments) ->
@@ -2127,4 +2144,29 @@ defmodule Elektrine.ActivityPub do
     request = Finch.build(:get, url, headers)
     SafeFetch.request(request, Elektrine.Finch, opts)
   end
+
+  defp safe_get_lemmy_api(url, headers, opts) do
+    case safe_get(url, headers, opts) do
+      {:ok, %Finch.Response{status: 404}} ->
+        url
+        |> fallback_lemmy_api_url()
+        |> case do
+          nil -> {:ok, %Finch.Response{status: 404, headers: [], body: ""}}
+          fallback_url -> safe_get(fallback_url, headers, opts)
+        end
+
+      other ->
+        other
+    end
+  end
+
+  defp fallback_lemmy_api_url(url) when is_binary(url) do
+    if String.contains?(url, "/api/v4/") do
+      String.replace(url, "/api/v4/", "/api/v3/", global: false)
+    else
+      nil
+    end
+  end
+
+  defp fallback_lemmy_api_url(_), do: nil
 end

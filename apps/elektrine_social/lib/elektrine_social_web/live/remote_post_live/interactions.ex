@@ -76,7 +76,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                     %{
                       liked: true,
                       boosted: Map.get(current_state, :boosted, false),
-                      like_delta: Map.get(current_state, :like_delta, 0) + 1,
+                      like_delta: 0,
                       boost_delta: Map.get(current_state, :boost_delta, 0)
                     }
                   end
@@ -168,7 +168,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                     %{
                       liked: false,
                       boosted: Map.get(current_state, :boosted, false),
-                      like_delta: Map.get(current_state, :like_delta, 0) - 1,
+                      like_delta: 0,
                       boost_delta: Map.get(current_state, :boost_delta, 0)
                     }
                   end

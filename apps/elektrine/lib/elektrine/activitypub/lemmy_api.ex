@@ -12,10 +12,10 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_post_counts(post_url) when is_binary(post_url) do
     case resolve_post_reference(post_url) do
       {:ok, domain, post_id} ->
-        api_url = "https://#{domain}/api/v3/post?id=#{post_id}"
+        api_url = "https://#{domain}/api/v4/post?id=#{post_id}"
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
+        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 5_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"post_view" => %{"counts" => counts}}} ->
@@ -52,10 +52,10 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   """
   def fetch_community_counts(domain, community_name)
       when is_binary(domain) and is_binary(community_name) do
-    api_url = "https://#{domain}/api/v3/community?name=#{URI.encode_www_form(community_name)}"
+    api_url = "https://#{domain}/api/v4/community?name=#{URI.encode_www_form(community_name)}"
     headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-    case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
+    case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 5_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"community_view" => %{"counts" => counts}}} ->
@@ -120,10 +120,10 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_comment_counts(post_url) when is_binary(post_url) do
     case resolve_post_reference(post_url) do
       {:ok, domain, post_id} ->
-        api_url = "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&limit=100"
+        api_url = "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=100"
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case safe_request(:get, api_url, headers, nil, receive_timeout: 10_000) do
+        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"comments" => comments}} ->
@@ -173,11 +173,11 @@ defmodule Elektrine.ActivityPub.LemmyApi do
       {:ok, domain, post_id} ->
         # Sort by Top to get highest scored comments, only get top-level (parent_id not set)
         api_url =
-          "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&sort=Top&limit=#{limit}&max_depth=1"
+          "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&sort=Top&limit=#{limit}&max_depth=1"
 
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case safe_request(:get, api_url, headers, nil, receive_timeout: 5_000) do
+        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 5_000) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"comments" => comments}} ->
@@ -321,9 +321,9 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   defp resolve_post_reference_via_api(post_url) do
     case URI.parse(post_url) do
       %URI{host: domain} when is_binary(domain) ->
-        resolve_url = "https://#{domain}/api/v3/resolve_object?q=#{URI.encode_www_form(post_url)}"
+        resolve_url = "https://#{domain}/api/v4/resolve_object?q=#{URI.encode_www_form(post_url)}"
 
-        case safe_request(:get, resolve_url, [{"Accept", "application/json"}], nil,
+        case safe_request_lemmy_api(:get, resolve_url, [{"Accept", "application/json"}], nil,
                receive_timeout: 10_000
              ) do
           {:ok, %Finch.Response{status: 200, body: body}} ->
@@ -362,4 +362,29 @@ defmodule Elektrine.ActivityPub.LemmyApi do
     request = Finch.build(method, url, headers, body || "")
     SafeFetch.request(request, Elektrine.Finch, opts)
   end
+
+  defp safe_request_lemmy_api(method, url, headers, body, opts) do
+    case safe_request(method, url, headers, body, opts) do
+      {:ok, %Finch.Response{status: 404}} ->
+        url
+        |> fallback_lemmy_api_url()
+        |> case do
+          nil -> {:ok, %Finch.Response{status: 404, headers: [], body: ""}}
+          fallback_url -> safe_request(method, fallback_url, headers, body, opts)
+        end
+
+      other ->
+        other
+    end
+  end
+
+  defp fallback_lemmy_api_url(url) when is_binary(url) do
+    if String.contains?(url, "/api/v4/") do
+      String.replace(url, "/api/v4/", "/api/v3/", global: false)
+    else
+      nil
+    end
+  end
+
+  defp fallback_lemmy_api_url(_), do: nil
 end

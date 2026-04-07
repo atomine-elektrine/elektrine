@@ -71,7 +71,7 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       actor_uri = "https://startrek.website/u/TribblesBestFriend"
 
       resolve_url =
-        "https://startrek.website/api/v3/resolve_object?q=https%3A%2F%2Fstartrek.website%2Fu%2FTribblesBestFriend"
+        "https://startrek.website/api/v4/resolve_object?q=https%3A%2F%2Fstartrek.website%2Fu%2FTribblesBestFriend"
 
       request_fun = fn
         ^actor_uri, _headers, _opts ->

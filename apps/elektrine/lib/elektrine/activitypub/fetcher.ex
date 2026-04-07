@@ -281,11 +281,11 @@ defmodule Elektrine.ActivityPub.Fetcher do
     case URI.parse(uri) do
       %URI{scheme: scheme, host: host, path: "/u/" <> _rest}
       when scheme in ["http", "https"] and is_binary(host) ->
-        {:ok, "#{scheme}://#{host}/api/v3/resolve_object?q=#{URI.encode_www_form(uri)}", :person}
+        {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :person}
 
       %URI{scheme: scheme, host: host, path: "/c/" <> _rest}
       when scheme in ["http", "https"] and is_binary(host) ->
-        {:ok, "#{scheme}://#{host}/api/v3/resolve_object?q=#{URI.encode_www_form(uri)}", :group}
+        {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :group}
 
       _ ->
         {:error, :unsupported_actor_path}
@@ -300,7 +300,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
       {"user-agent", "Elektrine/1.0"}
     ]
 
-    case request_with_backoff(resolve_url, headers, request_opts(opts)) do
+    case request_lemmy_resolve_with_fallback(resolve_url, headers, request_opts(opts)) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         Jason.decode(body)
 
@@ -308,6 +308,31 @@ defmodule Elektrine.ActivityPub.Fetcher do
         {:error, :resolve_failed}
     end
   end
+
+  defp request_lemmy_resolve_with_fallback(resolve_url, headers, opts) do
+    case request_with_backoff(resolve_url, headers, opts) do
+      {:ok, %Finch.Response{status: 404}} ->
+        resolve_url
+        |> fallback_lemmy_api_url()
+        |> case do
+          nil -> {:ok, %Finch.Response{status: 404, headers: [], body: ""}}
+          fallback_url -> request_with_backoff(fallback_url, headers, opts)
+        end
+
+      other ->
+        other
+    end
+  end
+
+  defp fallback_lemmy_api_url(url) when is_binary(url) do
+    if String.contains?(url, "/api/v4/") do
+      String.replace(url, "/api/v4/", "/api/v3/", global: false)
+    else
+      nil
+    end
+  end
+
+  defp fallback_lemmy_api_url(_), do: nil
 
   defp normalize_lemmy_resolved_actor(
          %{"person" => %{"person" => person}},

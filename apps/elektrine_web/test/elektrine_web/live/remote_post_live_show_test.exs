@@ -290,6 +290,29 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
            ]
   end
 
+  test "cached Mastodon posts do not get inferred as community posts from followers collections" do
+    post_object = %{
+      "id" => "https://mastodon.social/users/alice/statuses/123",
+      "url" => "https://mastodon.social/@alice/123",
+      "cc" => ["https://mastodon.social/users/alice/followers"]
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        is_community_post: false,
+        local_message: nil,
+        page_title: "Post by @alice@mastodon.social",
+        remote_actor: nil
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:cached_post_object_loaded, post_object}, socket)
+
+    refute updated_socket.assigns.is_community_post
+  end
+
   test "uses mastodon account fallback for avatar and profile link when actor cache misses" do
     comments = [
       %{

@@ -19,4 +19,20 @@ defmodule Elektrine.ActivityPub.FetchRemotePostRepliesTest do
     assert tuple_size(result) == 2
     assert elem(result, 0) in [:ok, :error]
   end
+
+  test "does not raise for Lemmy-style posts when replies collection is unreachable" do
+    post_object = %{
+      "id" => "http://127.0.0.1:1/post/1",
+      "url" => "http://127.0.0.1:1/post/1",
+      "type" => "Page",
+      "replies" => "http://127.0.0.1:1/replies",
+      "repliesCount" => 3
+    }
+
+    result = ActivityPub.fetch_remote_post_replies(post_object, limit: 1)
+
+    assert is_tuple(result)
+    assert tuple_size(result) == 2
+    assert elem(result, 0) in [:ok, :error]
+  end
 end
