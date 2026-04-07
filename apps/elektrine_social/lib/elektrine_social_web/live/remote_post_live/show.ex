@@ -137,12 +137,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         id={SurfaceHelpers.reply_dom_id(reply)}
         class={[
           "timeline-thread-tree-node",
-          if(!@is_lemmy_post && depth == 0, do: "timeline-thread-reply-row"),
+          if(depth == 0, do: "timeline-thread-reply-row"),
           if(depth > 0, do: "timeline-thread-tree-node--nested")
         ]}
         style={if depth > 0, do: "--thread-depth: #{tree_depth};", else: nil}
       >
-        <%= if !@is_lemmy_post && depth == 0 do %>
+        <%= if depth == 0 do %>
           <span class="timeline-thread-reply-node" aria-hidden="true"></span>
           <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
         <% end %>
@@ -1124,6 +1124,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:remote_actor, nil)
       |> assign(:community_actor, nil)
       |> assign(:community_stats, %{members: 0, posts: 0})
+      |> assign(:community_lookup_complete, false)
       |> assign(:is_following_community, false)
       |> assign(:is_pending_community, false)
       |> assign(:replies, [])
@@ -1297,33 +1298,52 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   # Find community URI from post object - check multiple possible fields
   # Different platforms use different fields for the community
   defp find_community_uri(post_object) do
+    [
+      post_object["audience"],
+      post_object["to"],
+      post_object["cc"],
+      post_object["context"]
+    ]
+    |> Enum.flat_map(&community_uri_candidates/1)
+    |> Enum.find(&community_like_actor_uri?/1)
+  end
+
+  defp community_uri_candidates(nil), do: []
+  defp community_uri_candidates(value) when is_binary(value), do: [String.trim(value)]
+
+  defp community_uri_candidates(%{"id" => value}), do: community_uri_candidates(value)
+  defp community_uri_candidates(%{"url" => value}), do: community_uri_candidates(value)
+  defp community_uri_candidates(%{id: value}), do: community_uri_candidates(value)
+  defp community_uri_candidates(%{url: value}), do: community_uri_candidates(value)
+
+  defp community_uri_candidates(values) when is_list(values) do
+    Enum.flat_map(values, &community_uri_candidates/1)
+  end
+
+  defp community_uri_candidates(_), do: []
+
+  defp community_like_actor_uri?(uri) when is_binary(uri) do
+    normalized = String.trim(uri)
+
     cond do
-      # Standard Lemmy field
-      is_binary(post_object["audience"]) ->
-        post_object["audience"]
+      normalized == "" ->
+        false
 
-      is_map(post_object["audience"]) && is_binary(post_object["audience"]["id"]) ->
-        post_object["audience"]["id"]
+      normalized == "https://www.w3.org/ns/activitystreams#Public" ->
+        false
 
-      # Some platforms put community in 'to' array (check for Group/community URI pattern)
-      is_list(post_object["to"]) ->
-        Enum.find(post_object["to"], fn uri ->
-          is_binary(uri) && (String.contains?(uri, "/c/") || String.contains?(uri, "/m/"))
-        end)
+      String.contains?(normalized, ["/c/", "/m/", "/groups/", "/communities/", "/g/"]) ->
+        true
 
-      is_list(post_object["cc"]) ->
-        Enum.find(post_object["cc"], fn uri ->
-          is_binary(uri) && (String.contains?(uri, "/c/") || String.contains?(uri, "/m/"))
-        end)
-
-      # Check context field (some platforms use this)
-      is_binary(post_object["context"]) && String.contains?(post_object["context"], "/c/") ->
-        post_object["context"]
+      String.contains?(normalized, ["/users/", "/user/", "/u/", "/@"]) ->
+        false
 
       true ->
-        nil
+        true
     end
   end
+
+  defp community_like_actor_uri?(_), do: false
 
   # Build an ActivityPub-like post object from a local message
   defp build_post_object_from_message(msg) do
@@ -2757,6 +2777,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:remote_actor, remote_actor)
           |> assign(:community_actor, community_actor)
           |> assign(:community_stats, initial_community_stats(community_actor))
+          |> assign(:community_lookup_complete, true)
           |> assign(:is_community_post, is_community_post)
           |> assign(:is_following_community, is_following_community)
           |> assign(:is_pending_community, is_pending_community)
@@ -2856,6 +2877,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             end
           end
       end
+
+      send(liveview_pid, :community_lookup_complete)
     end)
 
     {:noreply, socket}
@@ -2929,9 +2952,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      socket
      |> assign(:community_actor, community_actor)
      |> assign(:community_stats, initial_community_stats(community_actor))
+     |> assign(:community_lookup_complete, true)
      |> assign(:is_community_post, true)
      |> assign(:is_following_community, is_following_community)
      |> assign(:is_pending_community, is_pending_community)}
+  end
+
+  def handle_info(:community_lookup_complete, socket) do
+    {:noreply, assign(socket, :community_lookup_complete, true)}
   end
 
   def handle_info(:load_community_stats, socket) do

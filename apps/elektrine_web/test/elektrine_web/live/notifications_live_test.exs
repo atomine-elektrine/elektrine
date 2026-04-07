@@ -106,6 +106,21 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     assert_patch(view, ~p"/notifications?filter=unread&source=system")
   end
 
+  test "legacy unseen filter param falls back to all", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    notification_fixture(viewer, %{title: "System notice", body: "Queue body"})
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?filter=unseen")
+
+    assert html =~ "Queue Focus"
+    assert html =~ "All / All"
+    refute html =~ ">Unseen<"
+  end
+
   test "mark_visible_as_read clears unread items from the filtered queue", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 

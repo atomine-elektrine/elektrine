@@ -4,7 +4,7 @@ defmodule ElektrineWeb.NotificationsLive do
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.Avatar
 
-  @state_filters %{"all" => :all, "unread" => :unread, "unseen" => :unseen}
+  @state_filters %{"all" => :all, "unread" => :unread}
   @source_filters ~w(all chat email requests social system)
 
   @impl true
@@ -37,7 +37,6 @@ defmodule ElektrineWeb.NotificationsLive do
      |> assign(:filtered_notifications, [])
      |> assign(:expanded_groups, MapSet.new())
      |> assign(:unread_count, cached_unread)
-     |> assign(:unseen_count, 0)
      |> assign(:filter, :all)
      |> assign(:source_filter, "all")
      |> assign(:notification_stats, default_notification_stats())
@@ -186,16 +185,13 @@ defmodule ElektrineWeb.NotificationsLive do
       end)
 
     unread_task = Task.async(fn -> Notifications.get_unread_count(user.id) end)
-    unseen_task = Task.async(fn -> Notifications.get_unseen_count(user.id) end)
-
     grouped_notifications = Task.await(notifications_task)
     unread_count = Task.await(unread_task)
-    unseen_count = Task.await(unseen_task)
 
     {:noreply,
      socket
      |> assign(:loading_notifications, false)
-     |> assign_notification_data(grouped_notifications, unread_count, unseen_count)}
+     |> assign_notification_data(grouped_notifications, unread_count)}
   end
 
   @impl true
@@ -235,12 +231,10 @@ defmodule ElektrineWeb.NotificationsLive do
       Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
 
     unread_count = Notifications.get_unread_count(user_id)
-    unseen_count = Notifications.get_unseen_count(user_id)
-
-    assign_notification_data(socket, grouped_notifications, unread_count, unseen_count)
+    assign_notification_data(socket, grouped_notifications, unread_count)
   end
 
-  defp assign_notification_data(socket, grouped_notifications, unread_count, unseen_count) do
+  defp assign_notification_data(socket, grouped_notifications, unread_count) do
     enriched_groups = Enum.map(grouped_notifications, &decorate_group/1)
 
     socket
@@ -250,10 +244,9 @@ defmodule ElektrineWeb.NotificationsLive do
       filter_groups(enriched_groups, socket.assigns.source_filter)
     )
     |> assign(:unread_count, unread_count)
-    |> assign(:unseen_count, unseen_count)
     |> assign(
       :notification_stats,
-      build_notification_stats(enriched_groups, unread_count, unseen_count)
+      build_notification_stats(enriched_groups, unread_count)
     )
   end
 
@@ -280,7 +273,7 @@ defmodule ElektrineWeb.NotificationsLive do
   defp filter_groups(groups, source_filter),
     do: Enum.filter(groups, &(&1.source == source_filter))
 
-  defp build_notification_stats(groups, unread_count, unseen_count) do
+  defp build_notification_stats(groups, unread_count) do
     source_counts =
       Enum.reduce(@source_filters, %{}, fn source, acc ->
         Map.put(acc, source, 0)
@@ -294,7 +287,6 @@ defmodule ElektrineWeb.NotificationsLive do
     %{
       total_groups: length(groups),
       unread: unread_count,
-      unseen: unseen_count,
       waiting_groups: Enum.count(groups, &(&1.unread_count > 0)),
       source_counts: Map.put(source_counts, "all", length(groups))
     }
@@ -304,7 +296,6 @@ defmodule ElektrineWeb.NotificationsLive do
     %{
       total_groups: 0,
       unread: 0,
-      unseen: 0,
       waiting_groups: 0,
       source_counts:
         Enum.reduce(@source_filters, %{}, fn source, acc ->
@@ -457,11 +448,8 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp notification_state_label(:all), do: "All"
   defp notification_state_label(:unread), do: "Unread"
-  defp notification_state_label(:unseen), do: "Unseen"
-
   defp notification_state_count(:all, stats), do: stats.total_groups
   defp notification_state_count(:unread, stats), do: stats.waiting_groups
-  defp notification_state_count(:unseen, stats), do: stats.unseen
 
   defp state_filter_button_class(current_filter, filter) do
     [
