@@ -79,21 +79,22 @@ async function handleSignIn() {
   const password = refs.accountPassword.value
 
   try {
-    normalizeServerUrl(serverUrl)
+    const normalizedServerUrl = normalizeServerUrl(serverUrl)
 
     if (!username || !password) {
       throw new Error("Username and password are required.")
     }
 
     setBusy(refs.signInButton, true)
-    const result = await loginWithAccount(serverUrl, username, password)
+    const result = await loginWithAccount(normalizedServerUrl, username, password)
 
     state.settings = {
-      serverUrl,
+      serverUrl: normalizedServerUrl,
       apiToken: result.token
     }
 
     await saveSettings(state.settings)
+    refs.serverUrl.value = normalizedServerUrl
 
     refs.accountPassword.value = ""
     renderConnectionState()
@@ -109,7 +110,7 @@ async function handleTest() {
   const serverUrl = currentServerUrl()
 
   try {
-    normalizeServerUrl(serverUrl)
+    const normalizedServerUrl = normalizeServerUrl(serverUrl)
 
     if (!hasStoredSession()) {
       throw new Error("Sign in with your account first.")
@@ -117,13 +118,14 @@ async function handleTest() {
 
     setBusy(refs.testButton, true)
     const settings = {
-      serverUrl,
+      serverUrl: normalizedServerUrl,
       apiToken: state.settings.apiToken
     }
     const data = await listEntries(settings)
 
     state.settings = settings
     await saveSettings(state.settings)
+    refs.serverUrl.value = normalizedServerUrl
     renderConnectionState()
 
     const configured = data.vault_configured ? "configured" : "not configured yet"
@@ -139,6 +141,7 @@ async function handleSignOut() {
   const serverUrl = currentServerUrl()
 
   try {
+    const normalizedServerUrl = serverUrl ? normalizeServerUrl(serverUrl) : state.settings.serverUrl
     setBusy(refs.signOutButton, true)
     if (state.settings.apiToken) {
       await logoutWithAccount(state.settings)
@@ -146,11 +149,12 @@ async function handleSignOut() {
     await runtimeMessage({ type: MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE })
 
     state.settings = {
-      serverUrl,
+      serverUrl: normalizedServerUrl,
       apiToken: ""
     }
 
     await saveSettings(state.settings)
+    refs.serverUrl.value = normalizedServerUrl
     refs.accountPassword.value = ""
     renderConnectionState()
     setStatus("Signed out successfully.", "success")

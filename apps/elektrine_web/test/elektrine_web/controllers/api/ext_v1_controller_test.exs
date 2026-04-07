@@ -438,7 +438,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert data["vault_verifier"]["kdf"] == "PBKDF2-SHA256"
     end
 
-    test "password manager endpoints reject standard account auth tokens", %{conn: conn} do
+    test "password manager endpoints accept standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
@@ -447,11 +447,12 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
         |> put_req_header("authorization", "Bearer #{token}")
         |> get("/api/ext/v1/password-manager/entries")
 
-      assert %{"error" => error} = json_response(conn, 401)
-      assert error["code"] == "invalid_token_format"
+      assert %{"data" => data} = json_response(conn, 200)
+      assert data["vault_configured"] == false
+      assert data["entries"] == []
     end
 
-    test "password manager write endpoints reject standard account auth tokens", %{conn: conn} do
+    test "password manager write endpoints accept standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
@@ -462,8 +463,9 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
           "vault" => %{"encrypted_verifier" => valid_client_payload()}
         })
 
-      assert %{"error" => error} = json_response(conn, 401)
-      assert error["code"] == "invalid_token_format"
+      assert %{"data" => data} = json_response(conn, 201)
+      assert data["message"] == "Vault configured"
+      assert data["vault_configured"] == true
     end
 
     test "password manager delete vault endpoint removes verifier and entries", %{conn: conn} do

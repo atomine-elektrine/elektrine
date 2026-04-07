@@ -25,7 +25,12 @@
         <div class="options-grid">
           <div class="field">
             <label for="serverUrl">Server URL</label>
-            <input id="serverUrl" type="url" placeholder="https://your-elektrine.example" required />
+            <input
+              id="serverUrl"
+              type="url"
+              placeholder="https://your-elektrine.example or http://localhost:4000"
+              required
+            />
           </div>
         </div>
       </section>
@@ -64,6 +69,7 @@
           <li>Account sign-in keeps this browser connected to your Elektrine account.</li>
           <li>The vault passphrase is stored only for the current browser session.</li>
           <li>Signing out disconnects this browser from your account.</li>
+          <li>Local testing accepts `http://localhost`, `http://127.0.0.1`, and `http://[::1]`.</li>
         </ul>
       </section>
     </main>

@@ -60,6 +60,42 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert response(conn, 200) == "allowed"
     end
 
+    test "accepts query tokens containing plus signs", %{conn: conn} do
+      previous_api_key = System.get_env("CADDY_EDGE_API_KEY")
+      api_key = "/VbQ0L7nEvvhZv3ZoPlY2E+i5XpNkI0mLOzQadl1zFA="
+      user = user_fixture(%{username: "caddyqueryplus"})
+      verified_domain = "caddyqueryplus.test"
+
+      System.put_env("CADDY_EDGE_API_KEY", api_key)
+
+      on_exit(fn ->
+        if is_nil(previous_api_key) do
+          System.delete_env("CADDY_EDGE_API_KEY")
+        else
+          System.put_env("CADDY_EDGE_API_KEY", previous_api_key)
+        end
+      end)
+
+      Repo.insert!(%CustomDomain{
+        domain: verified_domain,
+        verification_token: "verify-caddy-query-plus",
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        user_id: user.id
+      })
+
+      conn =
+        conn
+        |> Map.put(
+          :host,
+          Application.get_env(:elektrine, :primary_domain, "example.com") |> to_string()
+        )
+        |> get(allow_path(verified_domain) <> "&token=#{api_key}")
+
+      assert conn.status == 200
+      assert response(conn, 200) == "allowed"
+    end
+
     test "allows verified custom profile domains", %{conn: conn, api_key: api_key} do
       user = user_fixture(%{username: "caddyverified"})
       verified_domain = "caddyverified.test"
