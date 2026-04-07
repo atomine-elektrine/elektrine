@@ -297,21 +297,19 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   @impl true
-  def handle_event("save", %{"action" => "reset_theme_defaults", "user" => user_params}, socket) do
-    reset_params =
-      user_params
-      |> normalize_user_settings_params(socket.assigns.selected_tab)
-      |> Map.put("theme_overrides", %{})
+  def handle_event("save", %{"action" => "reset_theme_defaults", "user" => _user_params}, socket) do
+    case Accounts.update_user(socket.assigns.user, %{"theme_overrides" => %{}}) do
+      {:ok, updated_user} ->
+        {:noreply,
+         socket
+         |> assign(:current_user, updated_user)
+         |> assign(:user, updated_user)
+         |> assign(:changeset, Accounts.change_user(updated_user))
+         |> notify_info("Theme reset to defaults")}
 
-    changeset =
-      socket.assigns.user
-      |> Accounts.change_user(reset_params)
-      |> Map.put(:action, :validate)
-
-    {:noreply,
-     socket
-     |> assign(:changeset, changeset)
-     |> notify_info("Theme reset to defaults. Save changes to apply.")}
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :changeset, Map.put(changeset, :action, :validate))}
+    end
   end
 
   @impl true

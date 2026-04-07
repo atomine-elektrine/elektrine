@@ -65,6 +65,19 @@ defmodule Elektrine.DomainsTest do
     assert Domains.default_profile_url_for_handle("alice") == "https://alice.selfhost.test"
   end
 
+  test "does not treat supported email domains as built-in profile domains by default" do
+    Application.put_env(:elektrine, :email,
+      domain: "elektrine.com",
+      supported_domains: ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+    )
+
+    Application.delete_env(:elektrine, :profile_base_domains)
+
+    assert Domains.configured_profile_base_domains() == ["elektrine.com"]
+    assert Domains.default_profile_url_for_handle("alice") == "https://alice.elektrine.com"
+    assert Domains.profile_urls_for_handle("alice") == ["https://alice.elektrine.com"]
+  end
+
   test "canonicalizes profile URLs to the primary configured profile domain on built-in hosts" do
     Application.put_env(:elektrine, :email, domain: "selfhost.test")
     Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])

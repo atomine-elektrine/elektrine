@@ -12,6 +12,7 @@ defmodule Elektrine.DNS.Zone do
     field :kind, :string, default: "native"
     field :serial, :integer, default: 1
     field :default_ttl, :integer, default: 300
+    field :force_https, :boolean, default: false
     field :soa_mname, :string
     field :soa_rname, :string
     field :soa_refresh, :integer, default: 3600
@@ -38,6 +39,7 @@ defmodule Elektrine.DNS.Zone do
       :kind,
       :serial,
       :default_ttl,
+      :force_https,
       :soa_mname,
       :soa_rname,
       :soa_refresh,
@@ -52,6 +54,7 @@ defmodule Elektrine.DNS.Zone do
     ])
     |> update_change(:domain, &normalize_domain/1)
     |> validate_required([:domain, :status, :kind, :default_ttl, :user_id])
+    |> validate_inclusion(:force_https, [true, false])
     |> validate_number(:default_ttl, greater_than: 0, less_than_or_equal_to: 86_400)
     |> validate_number(:soa_refresh, greater_than: 0)
     |> validate_number(:soa_retry, greater_than: 0)

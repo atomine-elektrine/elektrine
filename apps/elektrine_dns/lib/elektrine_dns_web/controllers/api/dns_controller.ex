@@ -281,6 +281,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
       kind: zone.kind,
       serial: zone.serial,
       default_ttl: zone.default_ttl,
+      force_https: zone.force_https,
       verified_at: zone.verified_at,
       last_checked_at: Map.get(zone, :last_checked_at),
       last_published_at: zone.last_published_at,

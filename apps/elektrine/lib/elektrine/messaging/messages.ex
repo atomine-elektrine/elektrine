@@ -1730,17 +1730,31 @@ defmodule Elektrine.Messaging.Messages do
     |> Enum.uniq()
   end
 
+  defp activitypub_ref_lookup_values(refs) when is_list(refs) do
+    refs
+    |> Enum.filter(&is_binary/1)
+    |> Enum.flat_map(&activitypub_ref_variants/1)
+    |> Enum.uniq()
+  end
+
   @doc """
   Gets local replies to messages with the given ActivityPub IDs.
   Returns local messages (where sender_id is not nil) that reply to messages
   with matching activitypub_ids.
   """
   def get_local_replies_to_activitypub_ids(activitypub_ids) when is_list(activitypub_ids) do
-    # First get the local message IDs for these ActivityPub IDs
+    lookup_values = activitypub_ref_lookup_values(activitypub_ids)
+
+    # Resolve parents across ids and urls so reply threads still load when the
+    # detail view was opened through a different AP reference for the same post.
     parent_messages =
       from(m in Message,
-        where: m.activitypub_id in ^activitypub_ids,
-        select: %{id: m.id, activitypub_id: m.activitypub_id}
+        where:
+          m.activitypub_id in ^lookup_values or
+            m.activitypub_id_canonical in ^lookup_values or
+            m.activitypub_url in ^lookup_values or
+            m.activitypub_url_canonical in ^lookup_values,
+        select: %{id: m.id, activitypub_id: coalesce(m.activitypub_id, m.activitypub_url)}
       )
       |> Repo.all()
 
@@ -1769,18 +1783,19 @@ defmodule Elektrine.Messaging.Messages do
   for thread reconstruction in ActivityPub-like views.
   """
   def get_cached_replies_to_activitypub_ids(activitypub_ids) when is_list(activitypub_ids) do
-    sanitized_ids =
-      activitypub_ids
-      |> Enum.filter(&is_binary/1)
-      |> Enum.uniq()
+    sanitized_ids = activitypub_ref_lookup_values(activitypub_ids)
 
     if Enum.empty?(sanitized_ids) do
       []
     else
       parent_messages =
         from(m in Message,
-          where: m.activitypub_id in ^sanitized_ids,
-          select: %{id: m.id, activitypub_id: m.activitypub_id}
+          where:
+            m.activitypub_id in ^sanitized_ids or
+              m.activitypub_id_canonical in ^sanitized_ids or
+              m.activitypub_url in ^sanitized_ids or
+              m.activitypub_url_canonical in ^sanitized_ids,
+          select: %{id: m.id, activitypub_id: coalesce(m.activitypub_id, m.activitypub_url)}
         )
         |> Repo.all()
 

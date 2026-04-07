@@ -112,6 +112,20 @@ defmodule Elektrine.VPNTest do
   end
 
   describe "ensure_self_host_server/1" do
+    test "returns existing managed self-host server when env keys are absent" do
+      {:ok, original} =
+        VPN.ensure_self_host_server(%{
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.60",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key-existing"
+        })
+
+      assert VPN.self_host_server?(original)
+
+      assert {:ok, existing} = VPN.ensure_self_host_server(%{})
+      assert existing.id == original.id
+      assert existing.public_ip == "203.0.113.60"
+    end
+
     test "creates a managed self-hosted server from env" do
       {:ok, server} =
         VPN.ensure_self_host_server(%{
