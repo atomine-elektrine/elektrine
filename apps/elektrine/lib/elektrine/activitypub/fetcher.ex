@@ -94,14 +94,13 @@ defmodule Elektrine.ActivityPub.Fetcher do
       end
 
     case request_with_backoff(uri, headers, request_opts(opts)) do
-      {:ok, %Finch.Response{status: 200, body: body}} ->
+      {:ok, %Finch.Response{status: 200, body: body}} = response ->
         case Jason.decode(body) do
           {:ok, data} ->
             {:ok, data}
 
           {:error, reason} ->
-            Logger.error("Failed to decode JSON from #{uri}: #{inspect(reason)}")
-            {:error, :invalid_json}
+            maybe_recover_actor_from_html(uri, response, reason, opts)
         end
 
       {:ok, %Finch.Response{status: status}}
@@ -231,6 +230,166 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp request_opts(opts) do
     [recv_timeout: 5_000, timeout: 5_000, max_body_bytes: @max_activitypub_body_bytes]
     |> Keyword.merge(Keyword.take(opts, [:request_fun]))
+  end
+
+  defp maybe_recover_actor_from_html(
+         uri,
+         {:ok, %Finch.Response{body: body, headers: response_headers}},
+         reason,
+         opts
+       ) do
+    case lemmy_actor_fallback(uri, body, response_headers, opts) do
+      {:ok, actor_data} ->
+        Logger.info("Recovered actor document via Lemmy fallback for #{uri}")
+        {:ok, actor_data}
+
+      _ ->
+        Logger.error("Failed to decode JSON from #{uri}: #{inspect(reason)}")
+        {:error, :invalid_json}
+    end
+  end
+
+  defp lemmy_actor_fallback(uri, body, response_headers, opts) do
+    if html_response?(body, response_headers) do
+      with {:ok, resolve_url, type} <- lemmy_resolve_url(uri),
+           {:ok, resolved_body} <- fetch_lemmy_resolved_object(resolve_url, opts),
+           {:ok, actor_data} <- normalize_lemmy_resolved_actor(resolved_body, uri, type) do
+        {:ok, actor_data}
+      else
+        _ -> {:error, :no_actor_fallback}
+      end
+    else
+      {:error, :no_actor_fallback}
+    end
+  end
+
+  defp html_response?(body, response_headers)
+       when is_binary(body) and is_list(response_headers) do
+    content_type =
+      response_headers
+      |> Enum.find_value(fn {key, value} ->
+        if String.downcase(key) == "content-type", do: String.downcase(value), else: nil
+      end)
+
+    is_binary(content_type) && String.contains?(content_type, "text/html") &&
+      String.contains?(String.downcase(body), "<!doctype html")
+  end
+
+  defp html_response?(_, _), do: false
+
+  defp lemmy_resolve_url(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{scheme: scheme, host: host, path: "/u/" <> _rest}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        {:ok, "#{scheme}://#{host}/api/v3/resolve_object?q=#{URI.encode_www_form(uri)}", :person}
+
+      %URI{scheme: scheme, host: host, path: "/c/" <> _rest}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        {:ok, "#{scheme}://#{host}/api/v3/resolve_object?q=#{URI.encode_www_form(uri)}", :group}
+
+      _ ->
+        {:error, :unsupported_actor_path}
+    end
+  end
+
+  defp lemmy_resolve_url(_), do: {:error, :unsupported_actor_path}
+
+  defp fetch_lemmy_resolved_object(resolve_url, opts) do
+    headers = [
+      {"accept", "application/json"},
+      {"user-agent", "Elektrine/1.0"}
+    ]
+
+    case request_with_backoff(resolve_url, headers, request_opts(opts)) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        Jason.decode(body)
+
+      _ ->
+        {:error, :resolve_failed}
+    end
+  end
+
+  defp normalize_lemmy_resolved_actor(
+         %{"person" => %{"person" => person}},
+         requested_uri,
+         :person
+       )
+       when is_map(person) do
+    actor_id = person["actor_id"] || requested_uri
+
+    {:ok,
+     %{
+       "id" => actor_id,
+       "type" => "Person",
+       "preferredUsername" => person["name"],
+       "name" => person["display_name"],
+       "summary" => person["bio"],
+       "icon" => normalize_lemmy_image(person["avatar"]),
+       "image" => normalize_lemmy_image(person["banner"]),
+       "inbox" => actor_id <> "/inbox",
+       "outbox" => actor_id <> "/outbox",
+       "followers" => actor_id <> "/followers",
+       "following" => actor_id <> "/following",
+       "published" => person["published"],
+       "publicKey" => %{
+         "id" => actor_id <> "#main-key",
+         "owner" => actor_id,
+         "publicKeyPem" => unavailable_public_key_pem()
+       },
+       "endpoints" => %{"sharedInbox" => shared_inbox_for_actor(actor_id)}
+     }}
+  end
+
+  defp normalize_lemmy_resolved_actor(
+         %{"community" => %{"community" => community}},
+         requested_uri,
+         :group
+       )
+       when is_map(community) do
+    actor_id = community["actor_id"] || requested_uri
+
+    {:ok,
+     %{
+       "id" => actor_id,
+       "type" => "Group",
+       "preferredUsername" => community["name"],
+       "name" => community["title"] || community["name"],
+       "summary" => community["description"],
+       "icon" => normalize_lemmy_image(community["icon"]),
+       "image" => normalize_lemmy_image(community["banner"]),
+       "inbox" => actor_id <> "/inbox",
+       "outbox" => actor_id <> "/outbox",
+       "followers" => actor_id <> "/followers",
+       "published" => community["published"],
+       "updated" => community["updated"],
+       "publicKey" => %{
+         "id" => actor_id <> "#main-key",
+         "owner" => actor_id,
+         "publicKeyPem" => unavailable_public_key_pem()
+       },
+       "endpoints" => %{"sharedInbox" => shared_inbox_for_actor(actor_id)}
+     }}
+  end
+
+  defp normalize_lemmy_resolved_actor(_, _, _), do: {:error, :invalid_resolved_actor}
+
+  defp normalize_lemmy_image(url) when is_binary(url), do: %{"type" => "Image", "url" => url}
+  defp normalize_lemmy_image(_), do: nil
+
+  defp shared_inbox_for_actor(actor_id) when is_binary(actor_id) do
+    case URI.parse(actor_id) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        "#{scheme}://#{host}/inbox"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp shared_inbox_for_actor(_), do: nil
+
+  defp unavailable_public_key_pem do
+    "-----BEGIN PUBLIC KEY-----\nUNAVAILABLE\n-----END PUBLIC KEY-----"
   end
 
   defp validate_fetch_url(uri, kind, opts) when is_binary(uri) do

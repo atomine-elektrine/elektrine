@@ -146,6 +146,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           <span class="timeline-thread-reply-node" aria-hidden="true"></span>
           <span class="timeline-thread-reply-elbow" aria-hidden="true"></span>
         <% end %>
+        <%= if depth > 0 do %>
+          <span class="timeline-thread-tree-guide" aria-hidden="true"></span>
+          <span class="timeline-thread-tree-elbow" aria-hidden="true"></span>
+        <% end %>
         <%= if @is_lemmy_post do %>
           <!-- Lemmy-style comment (Reddit-style with vote column) -->
           <div class="flex gap-2 mb-2">
@@ -1223,31 +1227,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if is_local_post do
         send(self(), {:load_local_post, String.to_integer(decoded_post_id)})
       else
-        # For cached content, check if it's a community post that needs community loaded
         cached_msg = socket.assigns[:local_message]
 
         if cached_msg do
-          # Check if it's a community/Lemmy-like post that needs community loaded
-          # Patterns: /post/ (Lemmy), /c/.../p/ (PieFed), or any post with Page type
-          # Always try to load community for federated posts - it will be nil if none exists
-          cached_community_uri = community_uri_from_local_message(cached_msg)
-
-          if PostUtilities.community_post?(cached_msg) || is_binary(cached_community_uri) do
-            send(self(), {:load_community_for_cached, decoded_post_id, cached_community_uri})
-          end
-
-          # Load main post interactions immediately for cached posts
+          # Keep cached content visible immediately, but always run the full remote post
+          # loader on connect so community data, counts, and replies share one code path.
           send(self(), {:load_main_post_interactions, cached_msg})
-
-          # Load replies and counts for cached posts
-          send(self(), {:load_replies_for_cached, cached_msg})
-          send(self(), {:load_platform_counts, decoded_post_id})
           send(self(), {:load_reactions, decoded_post_id})
           send(self(), {:load_reply_parent, socket.assigns.post})
-        else
-          # No cached content - do full remote fetch
-          send(self(), {:load_remote_post, decoded_post_id})
         end
+
+        send(self(), {:load_remote_post, decoded_post_id})
       end
     end
 
@@ -3163,6 +3153,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       send(liveview_pid, {:replies_loaded, result, post_id})
     end)
 
+    # Failsafe so the UI cannot remain in a permanent loading state if a background
+    # reply fetch never reports back for any reason.
+    Process.send_after(self(), {:reply_fetch_timeout_guard, post_id}, 20_000)
+
     # Proactively fetch and store replies from the collection (Akkoma-style)
     # This runs in parallel with the above fetch and stores replies locally
     if post_object["replies"] do
@@ -3234,6 +3228,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:replies_loaded, true)
      |> assign(:post_interactions, post_interactions)
      |> assign(:post_reactions, post_reactions)}
+  end
+
+  def handle_info({:reply_fetch_timeout_guard, post_id}, socket) do
+    current_post_id = get_in(socket.assigns, [:post, "id"])
+
+    if socket.assigns.replies_loading && current_post_id == post_id do
+      {:noreply,
+       socket
+       |> assign(:replies_loading, false)
+       |> assign(:replies_loaded, true)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:load_platform_counts, post_id}, socket) do

@@ -69,7 +69,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       # Fonts: allow self and data URIs
       "font-src 'self' data:",
       # Connect: allow self and the explicit third-party endpoints used by the app
-      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloud.umami.is",
+      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloud.umami.is https://api-gateway.umami.dev",
       # Media: allow self and HTTPS (for video backgrounds from R2/S3)
       "media-src 'self' https: blob:",
       # Frames: allow Cloudflare Turnstile and any HTTPS embeds (for emails/chat/profiles)

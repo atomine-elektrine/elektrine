@@ -66,5 +66,43 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert {:error, :unsafe_actor_document} =
                ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
     end
+
+    test "recovers Lemmy actors when the actor URL returns HTML" do
+      actor_uri = "https://startrek.website/u/TribblesBestFriend"
+
+      resolve_url =
+        "https://startrek.website/api/v3/resolve_object?q=https%3A%2F%2Fstartrek.website%2Fu%2FTribblesBestFriend"
+
+      request_fun = fn
+        ^actor_uri, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "text/html; charset=utf-8"}],
+             body: "<!DOCTYPE html><html><body>profile page</body></html>"
+           }}
+
+        ^resolve_url, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             body:
+               Jason.encode!(%{
+                 "person" => %{
+                   "person" => %{
+                     "name" => "TribblesBestFriend",
+                     "actor_id" => actor_uri,
+                     "published" => "2025-01-30T02:18:24.601576Z"
+                   }
+                 }
+               })
+           }}
+      end
+
+      assert {:ok, actor} = ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
+      assert actor.uri == actor_uri
+      assert actor.username == "TribblesBestFriend"
+      assert actor.inbox_url == "https://startrek.website/u/TribblesBestFriend/inbox"
+    end
   end
 end
