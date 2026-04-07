@@ -82,7 +82,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   def handle_event("zone_update", %{"zone" => params}, socket) do
     case socket.assigns.active_zone do
       %Zone{} = zone ->
-        case DNS.update_zone(zone, params) do
+        case DNS.update_zone(zone, normalize_zone_params(params)) do
           {:ok, zone} ->
             {:noreply,
              socket
@@ -443,6 +443,29 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   <%= if @active_zone.last_error do %>
                     <div class="alert alert-warning mt-5 text-sm">{@active_zone.last_error}</div>
                   <% end %>
+
+                  <.simple_form
+                    for={@zone_settings_form}
+                    bare={true}
+                    phx-submit="zone_update"
+                    class="mt-6"
+                  >
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <.input
+                        field={@zone_settings_form[:default_ttl]}
+                        type="number"
+                        label="Default TTL"
+                      />
+                      <.input
+                        field={@zone_settings_form[:force_https]}
+                        type="checkbox"
+                        label="Force HTTPS"
+                      />
+                    </div>
+                    <:actions>
+                      <.button>Save zone settings</.button>
+                    </:actions>
+                  </.simple_form>
                 </div>
               </div>
             </div>
@@ -939,7 +962,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp zone_settings_form(nil), do: nil
 
   defp zone_settings_form(%Zone{} = zone),
-    do: to_form(DNS.change_zone(zone), as: :zone)
+    do: to_form(DNS.change_zone(zone, %{"force_https" => zone.force_https}), as: :zone)
 
   defp service_forms(nil) do
     %{
@@ -1480,4 +1503,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     |> Map.merge(health.settings || %{})
     |> to_form(as: :service_config)
   end
+
+  defp normalize_zone_params(params) when is_map(params) do
+    Map.put(params, "force_https", Map.get(params, "force_https") in [true, "true", "on", "1"])
+  end
+
+  defp normalize_zone_params(params), do: params
 end

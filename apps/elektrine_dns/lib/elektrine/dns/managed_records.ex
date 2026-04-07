@@ -408,10 +408,20 @@ defmodule Elektrine.DNS.ManagedRecords do
 
   defp normalize_settings(nil), do: %{}
 
-  defp normalize_settings(settings) when is_map(settings),
-    do: Map.new(settings, fn {k, v} -> {to_string(k), v} end)
+  defp normalize_settings(settings) when is_map(settings) do
+    Map.new(settings, fn {k, v} -> {to_string(k), normalize_setting_value(v)} end)
+  end
 
   defp normalize_settings(_), do: %{}
+
+  defp normalize_setting_value(value) when value in ["true", "TRUE", "on", "ON", "yes", "YES"],
+    do: true
+
+  defp normalize_setting_value(value)
+       when value in ["false", "FALSE", "off", "OFF", "no", "NO"],
+       do: false
+
+  defp normalize_setting_value(value), do: value
 
   defp blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank?(nil), do: true

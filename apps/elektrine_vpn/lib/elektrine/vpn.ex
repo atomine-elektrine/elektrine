@@ -63,7 +63,7 @@ defmodule Elektrine.VPN do
   def ensure_self_host_server(env \\ System.get_env()) do
     case self_host_server_attrs(env) do
       nil ->
-        {:ok, nil}
+        {:ok, get_self_host_server()}
 
       attrs ->
         case get_self_host_server() || get_server_by_ip(attrs.public_ip) do

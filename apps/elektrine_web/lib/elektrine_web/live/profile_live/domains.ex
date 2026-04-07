@@ -15,16 +15,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
        :default_profile_url,
        Domains.default_profile_url_for_handle(user.handle || user.username)
      )
-     |> assign(:alternate_profile_urls, alternate_profile_urls(user))
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))}
-  end
-
-  defp alternate_profile_urls(user) do
-    handle = user.handle || user.username
-    default_url = Domains.default_profile_url_for_handle(handle)
-
-    Domains.profile_urls_for_handle(handle)
-    |> Enum.reject(&(&1 == default_url))
   end
 
   @impl true
@@ -140,19 +131,6 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                 {@default_profile_url}
               </div>
             </div>
-
-            <%= if @alternate_profile_urls != [] do %>
-              <div class="rounded-2xl border border-base-content/10 bg-base-100/60 px-4 py-3 space-y-2">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                  Other Built-in URLs
-                </div>
-                <div class="space-y-1.5 font-mono text-sm text-base-content/75">
-                  <%= for url <- @alternate_profile_urls do %>
-                    <div class="break-all">{url}</div>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
           </div>
         </div>
 

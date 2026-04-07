@@ -9,7 +9,9 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
 
+  alias Elektrine.DNS
   alias Elektrine.Profiles
+  alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Plugs.StaticSitePlug
 
   @bypass_prefixes [
@@ -35,32 +37,39 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
 
     case Profiles.get_verified_custom_domain_for_host(host) do
       %{domain: domain} = custom_domain ->
-        if String.downcase(host) == "www." <> domain do
-          conn
-          |> redirect(
-            external: custom_domain_root_url(domain, conn.request_path, conn.query_string)
-          )
-          |> halt()
-        else
-          handle = custom_domain_handle(custom_domain)
-
-          conn =
+        cond do
+          force_https_redirect?(conn, domain) ->
             conn
-            |> assign(:profile_custom_domain, domain)
-            |> assign(:subdomain_handle, handle)
+            |> redirect(external: https_url(host, conn.request_path, conn.query_string))
+            |> halt()
 
-          cond do
-            bypass_path?(conn.request_path) ->
+          String.downcase(host) == "www." <> domain ->
+            conn
+            |> redirect(
+              external: custom_domain_root_url(domain, conn.request_path, conn.query_string)
+            )
+            |> halt()
+
+          true ->
+            handle = custom_domain_handle(custom_domain)
+
+            conn =
               conn
+              |> assign(:profile_custom_domain, domain)
+              |> assign(:subdomain_handle, handle)
 
-            conn.request_path == "/#{handle}" ->
-              conn
-              |> redirect(to: "/")
-              |> halt()
+            cond do
+              bypass_path?(conn.request_path) ->
+                conn
 
-            true ->
-              maybe_serve_custom_profile(conn, handle)
-          end
+              conn.request_path == "/#{handle}" ->
+                conn
+                |> redirect(to: "/")
+                |> halt()
+
+              true ->
+                maybe_serve_custom_profile(conn, handle)
+            end
         end
 
       _ ->
@@ -99,6 +108,19 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
   defp custom_domain_root_url(domain, path, query_string) do
     query = if query_string in [nil, ""], do: "", else: "?" <> query_string
     "https://#{domain}#{path}#{query}"
+  end
+
+  defp https_url(host, path, query_string) do
+    query = if query_string in [nil, ""], do: "", else: "?" <> query_string
+    "https://#{host}#{path}#{query}"
+  end
+
+  defp force_https_redirect?(conn, domain) do
+    insecure_request?(conn) and DNS.web_force_https_for_host(domain)
+  end
+
+  defp insecure_request?(conn) do
+    conn.scheme != :https and not ClientIP.forwarded_as_https?(conn)
   end
 
   defp custom_domain_handle(%{user: %{handle: handle}}) when is_binary(handle) and handle != "",

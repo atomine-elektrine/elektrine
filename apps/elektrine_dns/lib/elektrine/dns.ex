@@ -59,6 +59,18 @@ defmodule Elektrine.DNS do
 
   def get_zone_by_domain(_), do: nil
 
+  def web_force_https_for_host(host) when is_binary(host) do
+    host
+    |> normalize_zone_host()
+    |> get_zone_by_domain()
+    |> case do
+      %Zone{force_https: force_https} -> force_https == true
+      _ -> false
+    end
+  end
+
+  def web_force_https_for_host(_), do: false
+
   def create_zone(%User{id: user_id}, attrs), do: create_zone(user_id, attrs)
 
   def create_zone(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
@@ -179,6 +191,18 @@ defmodule Elektrine.DNS do
   end
 
   def zone_service_health(%Zone{} = zone), do: ManagedRecords.service_health(zone)
+
+  defp normalize_zone_host(host) do
+    host
+    |> String.trim()
+    |> String.downcase()
+    |> String.split(":", parts: 2)
+    |> List.first()
+    |> then(fn
+      "www." <> domain -> domain
+      domain -> domain
+    end)
+  end
 
   def default_ttl do
     Application.get_env(:elektrine, :dns, [])
@@ -606,6 +630,7 @@ defmodule Elektrine.DNS do
       "domain",
       "kind",
       "default_ttl",
+      "force_https",
       "soa_mname",
       "soa_rname",
       "soa_refresh",

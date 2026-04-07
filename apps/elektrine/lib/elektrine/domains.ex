@@ -55,7 +55,7 @@ defmodule Elektrine.Domains do
   Configured base domains that can host profile subdomains.
   """
   def configured_profile_base_domains do
-    Application.get_env(:elektrine, :profile_base_domains, supported_email_domains())
+    Application.get_env(:elektrine, :profile_base_domains, [primary_email_domain()])
     |> normalize_domains()
     |> ensure_primary_domain()
   end

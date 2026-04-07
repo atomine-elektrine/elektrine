@@ -1,15 +1,15 @@
 /* ========================================================================== BASE - Reset, Fonts, Theme Variables ========================================================================== */ /* Dark mode only */
 :root { color-scheme: dark;
 } html { color-scheme: dark; overflow-x: hidden;
-} body { color: var(--color-base-content, #e6f7ff); background-color: var(--color-base-100, #050b16);
+} body { color: var(--color-base-content, #e5e2e1); background-color: var(--color-base-100, #121214);
 } /* Selection highlight */
-::selection { background: var(--theme-selection-bg, rgba(18, 159, 184, 0.24)); color: var(--theme-text-inverse, #ffffff);
+::selection { background: var(--theme-selection-bg, rgba(95, 135, 184, 0.28)); color: var(--theme-text-inverse, #ffffff);
 } /* Custom scrollbar */
-* { scrollbar-width: auto; scrollbar-color: var(--theme-scrollbar-thumb, rgba(18, 159, 184, 0.28)) transparent;
+* { scrollbar-width: auto; scrollbar-color: var(--theme-scrollbar-thumb, rgba(95, 135, 184, 0.28)) transparent;
 } ::-webkit-scrollbar { width: 10px; height: 10px;
 } ::-webkit-scrollbar-track { background: transparent;
-} ::-webkit-scrollbar-thumb { background-color: var(--theme-scrollbar-thumb, rgba(18, 159, 184, 0.28)); border-radius: 999px;
-} ::-webkit-scrollbar-thumb:hover { background-color: var(--theme-scrollbar-thumb-hover, rgba(18, 159, 184, 0.42));
+} ::-webkit-scrollbar-thumb { background-color: var(--theme-scrollbar-thumb, rgba(95, 135, 184, 0.28)); border-radius: 999px;
+} ::-webkit-scrollbar-thumb:hover { background-color: var(--theme-scrollbar-thumb-hover, rgba(95, 135, 184, 0.42));
 } /* Clickable elements cursor */
 [phx-click],
 [phx-submit],
@@ -33,17 +33,17 @@ a[href],
 :root[data-theme="dark"],
 [data-theme="dark"],
 [data-theme=dark] { --color-primary: oklch(63% 0.11 296) !important; --color-primary-content: #ffffff !important; --color-secondary: oklch(60% 0.14 22) !important; --color-secondary-content: #ffffff !important; --color-accent: oklch(66% 0.10 314) !important; --color-accent-content: #ffffff !important; --color-neutral: #171c22 !important; --color-neutral-content: #e4e7eb !important; --color-base-100: #101419 !important; --color-base-200: #151b22 !important; --color-base-300: #202833 !important; --color-base-content: #e4e7eb !important; --color-info: oklch(61% 0.12 275) !important; --color-info-content: #ffffff !important; --color-success: oklch(65% 0.20 145) !important; --color-success-content: #000000 !important; --color-warning: oklch(68% 0.22 35) !important; --color-warning-content: #000000 !important; --color-error: oklch(58% 0.26 20) !important; --color-error-content: #ffffff !important; --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%); --surface-panel-bg: oklch(var(--b2)); --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 90%, #1d2630 10%); --surface-panel-border: color-mix(in srgb, var(--color-base-300) 88%, #8ea4bf 12%); --surface-panel-blur: 0px; --surface-panel-shadow: 0 18px 40px -34px rgba(6, 12, 24, 0.48); --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%); --surface-floating-bg: oklch(var(--b3)); --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 78%, #202c38 22%); --surface-floating-border: color-mix(in srgb, var(--color-base-300) 86%, #92abc9 14%); --surface-floating-blur: 0px; --surface-floating-shadow: 0 22px 46px -30px rgba(6, 12, 24, 0.5); --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%); --surface-modal-bg: oklch(var(--b3)); --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 72%, #24303d 28%); --surface-modal-border: color-mix(in srgb, var(--color-base-300) 84%, #9ab0ca 16%); --surface-modal-blur: 0px; --surface-modal-shadow: 0 26px 60px -32px rgba(6, 12, 24, 0.58);
-} /* ========================================================================== GRID BACKGROUNDS ========================================================================== */ :root { --grid-color: rgba(69, 142, 196, 0.032); --grid-x-color: rgba(69, 142, 196, 0.016); --grid-glow-color: rgba(84, 180, 225, 0.065); --grid-glow-x-color: rgba(84, 180, 225, 0.03);
+} /* ========================================================================== GRID BACKGROUNDS ========================================================================== */ :root { --grid-color: rgba(118, 122, 130, 0.024); --grid-x-color: rgba(118, 122, 130, 0.012); --grid-glow-color: rgba(95, 135, 184, 0.05); --grid-glow-x-color: rgba(95, 135, 184, 0.024);
 } /* Grid glow overlay - cursor-focused grid highlight */
 #cursor-glow-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; contain: strict; background-size: 40px 40px; background-image: linear-gradient(var(--grid-glow-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-glow-color) 1px, transparent 1px), linear-gradient( 45deg, transparent calc(50% - 0.6px), var(--grid-glow-x-color) 50%, transparent calc(50% + 0.6px) ), linear-gradient( -45deg, transparent calc(50% - 0.6px), var(--grid-glow-x-color) 50%, transparent calc(50% + 0.6px) ); opacity: calc(var(--cursor-opacity, 0) * 0.78); filter: saturate(1.08) brightness(1.12); transition: opacity 140ms ease-out; will-change: opacity, mask-image, -webkit-mask-image; mask-image: radial-gradient( var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px), rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0.56) 36%, rgba(0, 0, 0, 0.30) 62%, transparent 84% ); -webkit-mask-image: radial-gradient( var(--cursor-radius, 300px) circle at var(--cursor-x, -1000px) var(--cursor-y, -1000px), rgba(0, 0, 0, 0.76) 0%, rgba(0, 0, 0, 0.56) 36%, rgba(0, 0, 0, 0.30) 62%, transparent 84% );
 } body.bg-base-100 { background-color: var(--color-base-100); background-size: 40px 40px; /* Prevent grid line drift/aliasing after deep scroll offsets. */ background-attachment: fixed; background-position: 0 0; background-image: linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px), linear-gradient( 45deg, transparent calc(50% - 0.6px), var(--grid-x-color) 50%, transparent calc(50% + 0.6px) ), linear-gradient( -45deg, transparent calc(50% - 0.6px), var(--grid-x-color) 50%, transparent calc(50% + 0.6px) );
 } @supports (color: oklch(0 0 0)) { body.bg-base-100 { background-color: oklch(var(--b1)); }
 } /* Grid color variants */
-body[data-grid="purple"], body.grid-purple { --grid-color: rgba(138, 124, 194, 0.032); --grid-x-color: rgba(138, 124, 194, 0.016); --grid-glow-color: rgba(138, 124, 194, 0.07); --grid-glow-x-color: rgba(138, 124, 194, 0.035);
-} body[data-grid="cyan"], body.grid-cyan { --grid-color: rgba(6, 182, 212, 0.035); --grid-x-color: rgba(6, 182, 212, 0.018); --grid-glow-color: rgba(6, 182, 212, 0.08); --grid-glow-x-color: rgba(6, 182, 212, 0.04);
-} body[data-grid="red"], body.grid-red { --grid-color: rgba(239, 68, 68, 0.035); --grid-x-color: rgba(239, 68, 68, 0.018); --grid-glow-color: rgba(239, 68, 68, 0.08); --grid-glow-x-color: rgba(239, 68, 68, 0.04);
-} body[data-grid="green"], body.grid-green { --grid-color: rgba(34, 197, 94, 0.035); --grid-x-color: rgba(34, 197, 94, 0.018); --grid-glow-color: rgba(34, 197, 94, 0.08); --grid-glow-x-color: rgba(34, 197, 94, 0.04);
-} body[data-grid="orange"], body.grid-orange { --grid-color: rgba(249, 115, 22, 0.035); --grid-x-color: rgba(249, 115, 22, 0.018); --grid-glow-color: rgba(249, 115, 22, 0.08); --grid-glow-x-color: rgba(249, 115, 22, 0.04);
+body[data-grid="purple"], body.grid-purple { --grid-color: rgba(120, 120, 124, 0.026); --grid-x-color: rgba(120, 120, 124, 0.013); --grid-glow-color: rgba(120, 120, 124, 0.04); --grid-glow-x-color: rgba(120, 120, 124, 0.02);
+} body[data-grid="cyan"], body.grid-cyan { --grid-color: rgba(118, 120, 124, 0.026); --grid-x-color: rgba(118, 120, 124, 0.013); --grid-glow-color: rgba(118, 120, 124, 0.04); --grid-glow-x-color: rgba(118, 120, 124, 0.02);
+} body[data-grid="red"], body.grid-red { --grid-color: rgba(124, 118, 120, 0.026); --grid-x-color: rgba(124, 118, 120, 0.013); --grid-glow-color: rgba(124, 118, 120, 0.04); --grid-glow-x-color: rgba(124, 118, 120, 0.02);
+} body[data-grid="green"], body.grid-green { --grid-color: rgba(118, 122, 119, 0.026); --grid-x-color: rgba(118, 122, 119, 0.013); --grid-glow-color: rgba(118, 122, 119, 0.04); --grid-glow-x-color: rgba(118, 122, 119, 0.02);
+} body[data-grid="orange"], body.grid-orange { --grid-color: rgba(124, 120, 116, 0.026); --grid-x-color: rgba(124, 120, 116, 0.013); --grid-glow-color: rgba(124, 120, 116, 0.04); --grid-glow-x-color: rgba(124, 120, 116, 0.02);
 } .admin-layout { color-scheme: dark;
 } .admin-navbar { z-index: 400 !important; isolation: isolate; overflow: visible !important;
 } .admin-layout > main { position: relative; z-index: 0;
@@ -58,8 +58,8 @@ body[data-grid="purple"], body.grid-purple { --grid-color: rgba(138, 124, 194, 0
 .admin-page > section.card.panel-card { margin-top: 0 !important; margin-bottom: 0 !important;
 } .admin-layout .dropdown-content,
 .admin-layout .menu.dropdown-content { z-index: 450 !important;
-} body[data-grid="blue"], body.grid-blue { --grid-color: rgba(59, 130, 246, 0.035); --grid-x-color: rgba(59, 130, 246, 0.018); --grid-glow-color: rgba(59, 130, 246, 0.08); --grid-glow-x-color: rgba(59, 130, 246, 0.04);
-} body[data-grid="pink"], body.grid-pink { --grid-color: rgba(236, 72, 153, 0.035); --grid-x-color: rgba(236, 72, 153, 0.018); --grid-glow-color: rgba(236, 72, 153, 0.08); --grid-glow-x-color: rgba(236, 72, 153, 0.04);
+} body[data-grid="blue"], body.grid-blue { --grid-color: rgba(118, 121, 126, 0.026); --grid-x-color: rgba(118, 121, 126, 0.013); --grid-glow-color: rgba(118, 121, 126, 0.04); --grid-glow-x-color: rgba(118, 121, 126, 0.02);
+} body[data-grid="pink"], body.grid-pink { --grid-color: rgba(124, 118, 122, 0.026); --grid-x-color: rgba(124, 118, 122, 0.013); --grid-glow-color: rgba(124, 118, 122, 0.04); --grid-glow-x-color: rgba(124, 118, 122, 0.02);
 } .bg-grid { background-size: 40px 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='none' stroke='rgba(148,163,184,0.08)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='40' y2='40' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='0' y2='40' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3C/svg%3E");
 } .network-grid { background-size: 50px 50px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50'%3E%3Crect width='50' height='50' fill='none' stroke='rgba(148,163,184,0.05)' stroke-width='1'/%3E%3Cline x1='0' y1='0' x2='50' y2='50' stroke='rgba(148,163,184,0.03)' stroke-width='1'/%3E%3Cline x1='50' y1='0' x2='0' y2='50' stroke='rgba(148,163,184,0.03)' stroke-width='1'/%3E%3C/svg%3E");
 } /* ========================================================================== BLINKENLIGHTS - Retro mainframe-style blinking lights grid ========================================================================== */ /* Hide regular grid when blinkenlights are active */
@@ -187,56 +187,44 @@ html[data-theme="dark"],
 :root[data-theme="dark"],
 [data-theme="dark"],
 [data-theme=dark] {
-  --color-primary: var(--theme-override-color-primary, #129fb8) !important;
-  --color-secondary: var(--theme-override-color-secondary, #2c5ce0) !important;
-  --color-accent: var(--theme-override-color-accent, #3d8fd8) !important;
-  --color-base-100: var(--theme-override-color-base-100, #050b16) !important;
-  --color-base-200: var(--theme-override-color-base-200, #081320) !important;
-  --color-base-300: var(--theme-override-color-base-300, #10243b) !important;
-  --color-base-content: var(--theme-override-color-base-content, #e6f7ff) !important;
-  --color-info: var(--theme-override-color-info, #3298e2) !important;
-  --color-success: var(--theme-override-color-success, #177b68) !important;
-  --color-warning: var(--theme-override-color-warning, #8a652c) !important;
-  --color-error: var(--theme-override-color-error, #a94464) !important;
+  --color-primary: var(--theme-override-color-primary) !important;
+  --color-secondary: var(--theme-override-color-secondary) !important;
+  --color-accent: var(--theme-override-color-accent) !important;
+  --color-base-100: var(--theme-override-color-base-100) !important;
+  --color-base-200: var(--theme-override-color-base-200) !important;
+  --color-base-300: var(--theme-override-color-base-300) !important;
+  --color-base-content: var(--theme-override-color-base-content) !important;
+  --color-info: var(--theme-override-color-info) !important;
+  --color-success: var(--theme-override-color-success) !important;
+  --color-warning: var(--theme-override-color-warning) !important;
+  --color-error: var(--theme-override-color-error) !important;
 
-  --theme-override-color-primary: #129fb8;
-  --theme-override-color-secondary: #2c5ce0;
-  --theme-override-color-accent: #3d8fd8;
-  --theme-override-color-base-100: #050b16;
-  --theme-override-color-base-200: #081320;
-  --theme-override-color-base-300: #10243b;
-  --theme-override-color-base-content: #e6f7ff;
-  --theme-override-color-info: #3298e2;
-  --theme-override-color-success: #177b68;
-  --theme-override-color-warning: #8a652c;
-  --theme-override-color-error: #a94464;
-
-  --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 82%, #10324e 18%);
-  --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 82%, #10324e 18%);
+  --surface-panel-bg-fallback: color-mix(in srgb, var(--color-base-200) 92%, #222228 8%);
+  --surface-panel-bg-no-blur: color-mix(in srgb, var(--color-base-200) 92%, #222228 8%);
   --surface-panel-border: color-mix(in srgb, var(--color-base-300) 72%, var(--color-primary) 28%);
   --surface-panel-shadow: 0 24px 54px -36px rgba(2, 12, 30, 0.88), 0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
-  --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 76%, #143a5c 24%);
-  --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 76%, #143a5c 24%);
+  --surface-floating-bg-fallback: color-mix(in srgb, var(--color-base-200) 88%, #25252c 12%);
+  --surface-floating-bg-no-blur: color-mix(in srgb, var(--color-base-200) 88%, #25252c 12%);
   --surface-floating-border: color-mix(in srgb, var(--color-base-300) 66%, var(--color-info) 34%);
   --surface-floating-shadow: 0 26px 58px -34px rgba(2, 12, 30, 0.92), 0 0 0 1px color-mix(in srgb, var(--color-info) 10%, transparent);
-  --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 72%, #19456a 28%);
-  --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 72%, #19456a 28%);
+  --surface-modal-bg-fallback: color-mix(in srgb, var(--color-base-200) 84%, #2a2a31 16%);
+  --surface-modal-bg-no-blur: color-mix(in srgb, var(--color-base-200) 84%, #2a2a31 16%);
   --surface-modal-border: color-mix(in srgb, var(--color-base-300) 62%, var(--color-primary) 38%);
   --surface-modal-shadow: 0 32px 72px -34px rgba(1, 9, 26, 0.96), 0 0 0 1px color-mix(in srgb, var(--color-primary) 12%, transparent);
-  --theme-navbar-bg: color-mix(in srgb, var(--color-base-100) 74%, #0d2b45 26%);
+  --theme-navbar-bg: color-mix(in srgb, var(--color-base-100) 86%, #212126 14%);
   --theme-navbar-border: color-mix(in srgb, var(--color-base-300) 68%, var(--color-primary) 32%);
   --theme-navbar-shadow: 0 18px 42px -28px rgba(2, 12, 30, 0.84);
   --theme-modal-backdrop: color-mix(in srgb, #020611 72%, transparent);
-  --theme-btn-neutral-bg: color-mix(in srgb, var(--color-base-300) 84%, #0c2136 16%);
+  --theme-btn-neutral-bg: color-mix(in srgb, var(--color-base-300) 92%, #232329 8%);
   --theme-btn-neutral-border: color-mix(in srgb, var(--color-base-300) 68%, var(--color-primary) 32%);
-  --theme-btn-neutral-bg-hover: color-mix(in srgb, var(--color-base-300) 72%, #12314d 28%);
+  --theme-btn-neutral-bg-hover: color-mix(in srgb, var(--color-base-300) 84%, #2a2a31 16%);
   --theme-btn-neutral-border-hover: color-mix(in srgb, var(--color-base-300) 56%, var(--color-primary) 44%);
   --theme-input-border: color-mix(in srgb, var(--color-base-300) 60%, var(--color-info) 40%);
   --theme-input-highlight: color-mix(in srgb, var(--color-primary) 34%, transparent);
   --theme-input-highlight-strong: color-mix(in srgb, var(--color-primary) 52%, transparent);
   --theme-input-highlight-shadow: color-mix(in srgb, var(--color-primary) 18%, transparent);
-  --theme-table-row-hover: color-mix(in srgb, var(--color-base-200) 76%, #10314d 24%);
-  --theme-link-color: color-mix(in srgb, var(--color-primary) 80%, #d9fbff 20%);
+  --theme-table-row-hover: color-mix(in srgb, var(--color-base-200) 88%, #26262d 12%);
+  --theme-link-color: color-mix(in srgb, var(--color-primary) 88%, #f1f5f9 12%);
   --theme-link-color-hover: color-mix(in srgb, var(--color-primary) 92%, #ffffff 8%);
   --color-primary-content: #ffffff !important;
   --color-secondary-content: #ffffff !important;
@@ -249,35 +237,35 @@ html[data-theme="dark"],
 
 body[data-grid="purple"],
 body.grid-purple {
-  --grid-color: rgba(12, 184, 194, 0.032);
-  --grid-x-color: rgba(12, 184, 194, 0.016);
-  --grid-glow-color: rgba(12, 184, 194, 0.07);
-  --grid-glow-x-color: rgba(12, 184, 194, 0.035);
+  --grid-color: rgba(121, 124, 131, 0.026);
+  --grid-x-color: rgba(121, 124, 131, 0.013);
+  --grid-glow-color: rgba(95, 135, 184, 0.05);
+  --grid-glow-x-color: rgba(95, 135, 184, 0.024);
 }
 
 .tilt-3d:hover {
-  filter: brightness(1.5) drop-shadow(0 0 20px rgba(16, 202, 212, 0.42))
-    drop-shadow(0 0 40px rgba(16, 202, 212, 0.24)) drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
+  filter: brightness(1.5) drop-shadow(0 0 20px rgba(95, 135, 184, 0.3))
+    drop-shadow(0 0 40px rgba(201, 133, 63, 0.16)) drop-shadow(0 25px 25px rgba(0, 0, 0, 0.3));
 }
 
 .hover-glow {
-  filter: drop-shadow(0 0 18px rgba(16, 202, 212, 0.2))
+  filter: drop-shadow(0 0 18px rgba(95, 135, 184, 0.13))
     drop-shadow(0 12px 18px rgba(0, 0, 0, 0.18));
 }
 
 .hover-glow:hover {
-  filter: brightness(1.35) drop-shadow(0 0 20px rgba(16, 202, 212, 0.38))
-    drop-shadow(0 0 36px rgba(16, 202, 212, 0.18)) drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
+  filter: brightness(1.35) drop-shadow(0 0 20px rgba(95, 135, 184, 0.24))
+    drop-shadow(0 0 36px rgba(201, 133, 63, 0.12)) drop-shadow(0 14px 20px rgba(0, 0, 0, 0.2));
 }
 
 .footer-wordmark-glow {
-  filter: drop-shadow(0 0 14px rgba(16, 202, 212, 0.14))
+  filter: drop-shadow(0 0 14px rgba(95, 135, 184, 0.11))
     drop-shadow(0 4px 14px rgba(0, 0, 0, 0.2));
 }
 
 @media (max-width: 639px) {
   .footer-wordmark-glow {
-    filter: drop-shadow(0 0 16px rgba(16, 202, 212, 0.18))
+    filter: drop-shadow(0 0 16px rgba(95, 135, 184, 0.12))
       drop-shadow(0 3px 10px rgba(0, 0, 0, 0.28));
   }
 }
