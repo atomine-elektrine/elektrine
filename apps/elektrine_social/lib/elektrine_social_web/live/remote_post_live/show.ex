@@ -1,6 +1,8 @@
 defmodule ElektrineSocialWeb.RemotePostLive.Show do
   use ElektrineSocialWeb, :live_view
 
+  require Logger
+
   alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
@@ -3128,14 +3130,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     # Fetch replies in background
     Task.start(fn ->
-      fetch_task =
-        Task.async(fn -> ActivityPub.fetch_remote_post_replies(post_object, limit: 50) end)
-
-      result =
-        case Task.yield(fetch_task, 15_000) || Task.shutdown(fetch_task) do
-          {:ok, {:ok, replies}} when is_list(replies) -> replies
-          _ -> []
-        end
+      result = fetch_remote_replies_with_timeout(post_object, 15_000)
 
       send(liveview_pid, {:replies_loaded, result, post_id})
     end)
@@ -3428,6 +3423,66 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   # Catch-all for other unhandled messages (e.g., :new_email from global PubSub)
   def handle_info(_msg, socket) do
     {:noreply, socket}
+  end
+
+  defp fetch_remote_replies_with_timeout(post_object, timeout_ms) do
+    parent = self()
+    message_ref = make_ref()
+    post_ref = post_object["id"] || post_object["url"]
+
+    {pid, monitor_ref} =
+      spawn_monitor(fn ->
+        result =
+          try do
+            ActivityPub.fetch_remote_post_replies(post_object, limit: 50)
+          rescue
+            error ->
+              Logger.warning(
+                "Remote reply fetch crashed for #{inspect(post_ref)}: #{Exception.message(error)}"
+              )
+
+              {:error, :fetch_crashed}
+          catch
+            kind, reason ->
+              Logger.warning(
+                "Remote reply fetch exited for #{inspect(post_ref)}: #{kind} #{inspect(reason)}"
+              )
+
+              {:error, :fetch_crashed}
+          end
+
+        send(parent, {:remote_replies_fetch_finished, message_ref, result})
+      end)
+
+    receive do
+      {:remote_replies_fetch_finished, ^message_ref, {:ok, replies}} when is_list(replies) ->
+        flush_remote_replies_fetch_down(monitor_ref, pid)
+        replies
+
+      {:remote_replies_fetch_finished, ^message_ref, _result} ->
+        flush_remote_replies_fetch_down(monitor_ref, pid)
+        []
+
+      {:DOWN, ^monitor_ref, :process, ^pid, reason} ->
+        Logger.warning(
+          "Remote reply fetch terminated before completion for #{inspect(post_ref)}: #{inspect(reason)}"
+        )
+
+        []
+    after
+      timeout_ms ->
+        Process.exit(pid, :kill)
+        flush_remote_replies_fetch_down(monitor_ref, pid)
+        []
+    end
+  end
+
+  defp flush_remote_replies_fetch_down(ref, pid) do
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    after
+      0 -> :ok
+    end
   end
 
   defp cached_reply_count(msg) do

@@ -38,4 +38,22 @@ defmodule ElektrineWeb.Plugs.RequirePlatformModuleTest do
 
     assert response(conn, 404)
   end
+
+  test "returns 404 for disabled feature routes registered by optional route modules", %{
+    conn: conn
+  } do
+    Application.put_env(:elektrine, :platform_modules, enabled: [:chat])
+
+    conn = get(conn, "/api/ext/v1/dns/zones")
+
+    assert response(conn, 404)
+  end
+
+  test "keeps enabled feature routes from optional route modules routable", %{conn: conn} do
+    Application.put_env(:elektrine, :platform_modules, enabled: [:vpn])
+
+    conn = get(conn, ~p"/vpn/policy")
+
+    assert html_response(conn, 200)
+  end
 end

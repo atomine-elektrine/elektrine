@@ -3,7 +3,7 @@ defmodule Elektrine.Application do
 
   use Application
 
-  alias Elektrine.Platform.Modules
+  alias Elektrine.Platform.ModuleProviders
 
   @impl true
   def start(_type, _args) do
@@ -12,7 +12,6 @@ defmodule Elektrine.Application do
     children =
       core_children() ++
         jobs_children() ++
-        vpn_children() ++
         web_children() ++
         mail_children()
 
@@ -57,16 +56,7 @@ defmodule Elektrine.Application do
       Elektrine.Search.RateLimiter,
       Elektrine.HTTP.Backoff,
       Elektrine.MailAuth.RateLimiter
-    ]
-    |> maybe_add_email_core_children()
-  end
-
-  defp maybe_add_email_core_children(children) do
-    if Modules.compiled?(:email) do
-      children ++ [Elektrine.Email.Cache, Elektrine.Email.RateLimiter]
-    else
-      children
-    end
+    ] ++ ModuleProviders.core_children()
   end
 
   defp jobs_children do
@@ -94,19 +84,15 @@ defmodule Elektrine.Application do
         Elektrine.DAV.RateLimiter,
         Elektrine.SecurityAlerts.Cache,
         ElektrineWeb.Presence
-      ] ++ social_web_children() ++ [ElektrineWeb.Endpoint]
+      ] ++ ModuleProviders.web_children() ++ [ElektrineWeb.Endpoint]
     else
       []
     end
   end
 
   defp mail_children do
-    if component_enabled?(:mail) and Modules.compiled?(:email) and Modules.enabled?(:email) do
-      [
-        Elektrine.POP3.Supervisor,
-        Elektrine.IMAP.Supervisor,
-        Elektrine.SMTP.Supervisor
-      ]
+    if component_enabled?(:mail) do
+      ModuleProviders.mail_children()
     else
       []
     end
@@ -131,44 +117,5 @@ defmodule Elektrine.Application do
       queues: [],
       stage_interval: :infinity
     )
-  end
-
-  defp social_web_children do
-    if Modules.compiled?(:social) and Modules.enabled?(:social) do
-      [
-        Elektrine.Timeline.RateLimiter,
-        Elektrine.ActivityPub.InboxRateLimiter,
-        Elektrine.ActivityPub.DomainThrottler,
-        Elektrine.ActivityPub.InboxQueue,
-        Elektrine.ActivityPub.Nodeinfo
-      ]
-    else
-      []
-    end
-  end
-
-  defp vpn_children do
-    if Modules.compiled?(:vpn) and Modules.enabled?(:vpn) do
-      base_children = [
-        Elektrine.VPN.PeerCache,
-        Elektrine.VPN.HealthMonitor,
-        Elektrine.VPN.StatsAggregator
-      ]
-
-      if self_host_vpn_node?() do
-        base_children ++ [Elektrine.VPN.SelfHostedServer, Elektrine.VPN.SelfHostedReconciler]
-      else
-        base_children
-      end
-    else
-      []
-    end
-  end
-
-  defp self_host_vpn_node? do
-    case System.get_env("VPN_SELFHOST_NODE") do
-      value when value in ["1", "true", "TRUE", "yes", "YES", "on", "ON"] -> true
-      _ -> false
-    end
   end
 end

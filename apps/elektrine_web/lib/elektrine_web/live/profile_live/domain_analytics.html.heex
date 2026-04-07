@@ -1,6 +1,6 @@
 <.account_page
   title="Domain Analytics"
-  subtitle="Traffic to your built-in profile host and connected domains, including static sites."
+  subtitle="Traffic and DNS query activity for your built-in profile host and connected domains."
   nav_tab="profile-domains"
   current_user={@current_user}
 >
@@ -29,7 +29,13 @@
             <div class="space-y-2">
               <%= for domain <- @domain_breakdown do %>
                 <.link
-                  navigate={~p"/account/profile/domains/analytics?host=#{domain.host}"}
+                  navigate={
+                    if domain.dns_zone_id do
+                      ~p"/account/profile/domains/analytics?zone_id=#{domain.dns_zone_id}"
+                    else
+                      ~p"/account/profile/domains/analytics?host=#{domain.host}"
+                    end
+                  }
                   class={[
                     "block rounded-xl border px-3 py-3 transition-colors",
                     if(@active_host == domain.host,
@@ -41,12 +47,21 @@
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <div class="truncate font-medium">{domain.host}</div>
-                      <div class="mt-1 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
-                        {case domain.kind do
-                          :built_in -> "Built-in"
-                          :custom -> "Custom domain"
-                          _ -> "Tracked host"
-                        end}
+                      <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+                        <span>
+                          {case domain.kind do
+                            :built_in -> "Built-in"
+                            :custom -> "Custom domain"
+                            :dns_only -> "DNS zone"
+                            _ -> "Tracked host"
+                          end}
+                        </span>
+                        <span
+                          :if={domain.dns_zone_status}
+                          class="badge badge-outline badge-xs normal-case"
+                        >
+                          DNS {domain.dns_zone_status}
+                        </span>
                       </div>
                     </div>
                     <span class="badge badge-outline">{domain.views}</span>
@@ -88,6 +103,168 @@
               <div class="text-sm text-base-content/65">This Week</div>
               <div class="text-3xl font-bold">{@stats.views_this_week}</div>
             </div>
+          </div>
+        </div>
+
+        <div class="card panel-card">
+          <div class="card-body p-6 space-y-5">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="card-title text-lg">DNS Queries</h2>
+                <p class="mt-1 text-sm text-base-content/60">
+                  Authoritative query volume for the managed DNS zone on this domain.
+                </p>
+              </div>
+
+              <.link
+                :if={@active_domain && @active_domain.dns_zone_id}
+                navigate={~p"/dns"}
+                class="btn btn-sm btn-outline"
+              >
+                Manage DNS
+              </.link>
+            </div>
+
+            <%= if @active_domain && @active_domain.dns_zone_id do %>
+              <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="card bg-base-200/60">
+                  <div class="card-body p-4">
+                    <div class="text-sm text-base-content/65">Total Queries</div>
+                    <div class="text-3xl font-bold">{@dns_stats.total_queries}</div>
+                  </div>
+                </div>
+                <div class="card bg-base-200/60">
+                  <div class="card-body p-4">
+                    <div class="text-sm text-base-content/65">Queries Today</div>
+                    <div class="text-3xl font-bold">{@dns_stats.queries_today}</div>
+                  </div>
+                </div>
+                <div class="card bg-base-200/60">
+                  <div class="card-body p-4">
+                    <div class="text-sm text-base-content/65">This Week</div>
+                    <div class="text-3xl font-bold">{@dns_stats.queries_this_week}</div>
+                  </div>
+                </div>
+                <div class="card bg-base-200/60">
+                  <div class="card-body p-4">
+                    <div class="text-sm text-base-content/65">NXDOMAIN</div>
+                    <div class="text-3xl font-bold">{@dns_stats.nxdomain_queries}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                <div class="card bg-base-200/40">
+                  <div class="card-body p-6">
+                    <h3 class="card-title text-base">Daily Queries</h3>
+
+                    <%= if @dns_display_days == [] do %>
+                      <div class="py-8 text-center text-sm text-base-content/55">
+                        No DNS query data yet.
+                      </div>
+                    <% else %>
+                      <div
+                        class="mt-4 space-y-2 max-h-96 overflow-y-auto"
+                        style="scrollbar-gutter: stable"
+                      >
+                        <%= for day <- @dns_display_days do %>
+                          <div class="flex items-center gap-3">
+                            <span class="w-24 shrink-0 text-sm text-base-content/65">
+                              {Calendar.strftime(day.date, "%b %d")}
+                            </span>
+                            <% width =
+                              if @max_dns_daily_queries > 0,
+                                do: day.count / @max_dns_daily_queries * 100,
+                                else: 0 %>
+                            <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-300/70">
+                              <div
+                                class="h-full rounded-full bg-secondary"
+                                style={"width: #{width}%"}
+                              >
+                              </div>
+                              <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                                {day.count}
+                              </span>
+                            </div>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="space-y-6">
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Query Types</h3>
+
+                      <%= if @dns_query_types == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No query type data yet.
+                        </div>
+                      <% else %>
+                        <div class="mt-4 space-y-3">
+                          <%= for item <- @dns_query_types do %>
+                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                              <span class="font-medium">{item.qtype}</span>
+                              <span class="badge badge-outline">{item.count}</span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Response Codes</h3>
+
+                      <%= if @dns_rcode_breakdown == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No response data yet.
+                        </div>
+                      <% else %>
+                        <div class="mt-4 space-y-3">
+                          <%= for item <- @dns_rcode_breakdown do %>
+                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                              <span class="font-medium">{item.rcode}</span>
+                              <span class="badge badge-outline">{item.count}</span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card bg-base-200/40">
+                <div class="card-body p-6">
+                  <h3 class="card-title text-base">Top Queried Names</h3>
+
+                  <%= if @dns_top_names == [] do %>
+                    <div class="py-8 text-center text-sm text-base-content/55">
+                      No name-level query data yet.
+                    </div>
+                  <% else %>
+                    <div class="mt-4 space-y-3">
+                      <%= for item <- @dns_top_names do %>
+                        <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
+                          <div class="min-w-0">
+                            <p class="truncate font-medium">{item.qname}</p>
+                          </div>
+                          <span class="badge badge-secondary">{item.count}</span>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% else %>
+              <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
+                No managed DNS zone is connected to this host yet.
+              </div>
+            <% end %>
           </div>
         </div>
 

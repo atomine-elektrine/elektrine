@@ -415,7 +415,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
                     <div class="flex flex-wrap gap-2">
                       <.link
-                        navigate={~p"/dns/analytics?zone_id=#{@active_zone.id}"}
+                        navigate={~p"/account/profile/domains/analytics?zone_id=#{@active_zone.id}"}
                         class="btn btn-sm btn-outline"
                       >
                         <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
