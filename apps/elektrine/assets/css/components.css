@@ -153,10 +153,10 @@
 } .timeline-thread-reply-elbow { display: block; pointer-events: none; position: absolute; left: -1.42rem; top: 1.35rem; width: 1.05rem; height: 2px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 58%, transparent); z-index: 2;
 } .timeline-thread-reply-card { position: relative; z-index: 1; border: 1px solid oklch(var(--bc) / 0.08); box-shadow: 0 6px 16px oklch(var(--bc) / 0.04);
 } .timeline-thread-inline-form { margin-left: 0.875rem;
-} .timeline-thread-tree-node { position: relative;
-} .timeline-thread-tree-node--nested { margin-left: calc(var(--thread-depth, 1) * 1rem); padding-left: 1.75rem;
-} .timeline-thread-tree-node--nested::before { content: ""; position: absolute; left: 0.75rem; top: -0.2rem; bottom: -0.2rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, oklch(var(--bc) / 0.14), oklch(var(--bc) / 0.08));
-} .timeline-thread-tree-node--nested::after { content: ""; position: absolute; left: 0.75rem; top: 1.35rem; width: 0.95rem; height: 2px; border-radius: 9999px; background: oklch(var(--bc) / 0.12);
+} .timeline-thread-tree-node { position: relative; overflow: visible;
+} .timeline-thread-tree-node--nested { margin-left: 1rem; padding-left: 1.75rem; overflow: visible; z-index: 1;
+} .timeline-thread-tree-guide { display: block; position: absolute; left: 0.75rem; top: -0.35rem; bottom: -0.35rem; width: 3px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 72%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-base-100) 55%, transparent); pointer-events: none; z-index: 1;
+} .timeline-thread-tree-elbow { display: block; position: absolute; left: 0.75rem; top: 1.35rem; width: 1.05rem; height: 3px; border-radius: 9999px; background: color-mix(in srgb, var(--color-primary) 72%, transparent); pointer-events: none; z-index: 1;
 } .timeline-thread-tree-card { border: 1px solid oklch(var(--bc) / 0.08); background: color-mix(in oklab, oklch(var(--b2) / 0.38) 80%, transparent); box-shadow: 0 6px 16px oklch(var(--bc) / 0.04);
 } .timeline-thread-preview-list { position: relative; margin-top: 0.5rem; padding-left: 1.75rem;
 } .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.75rem; top: 0.3rem; bottom: 0.25rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, oklch(var(--bc) / 0.14), oklch(var(--bc) / 0.08));
