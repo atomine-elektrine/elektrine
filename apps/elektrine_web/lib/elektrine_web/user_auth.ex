@@ -364,7 +364,7 @@ defmodule ElektrineWeb.UserAuth do
         |> ensure_flash_fetched()
         |> put_flash(:error, "You must log in to access this page.")
         |> maybe_store_return_to()
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
         |> halt()
     end
   end

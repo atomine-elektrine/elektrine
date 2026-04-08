@@ -27,7 +27,9 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ComposeOperations do
                 {:noreply,
                  socket
                  |> put_flash(:info, "Message archived")
-                 |> push_patch(to: ~p"/email?tab=#{socket.assigns.active_tab}")}
+                 |> push_patch(
+                   to: Elektrine.Paths.email_index_path(tab: socket.assigns.active_tab)
+                 )}
 
               {:error, _reason} ->
                 {:noreply, put_flash(socket, :error, "Failed to archive message")}
@@ -58,7 +60,9 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ComposeOperations do
                 {:noreply,
                  socket
                  |> put_flash(:info, "Message marked as spam")
-                 |> push_patch(to: ~p"/email?tab=#{socket.assigns.active_tab}")}
+                 |> push_patch(
+                   to: Elektrine.Paths.email_index_path(tab: socket.assigns.active_tab)
+                 )}
 
               {:error, _reason} ->
                 {:noreply, put_flash(socket, :error, "Failed to mark message as spam")}
@@ -79,18 +83,18 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ComposeOperations do
   end
 
   def handle_event("navigate_to_compose", _params, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/email/compose")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.email_compose_path())}
   end
 
   def handle_event("open_compose", %{"mode" => mode, "message_id" => message_id}, socket) do
-    url = ~p"/email/compose?mode=#{mode}&message_id=#{message_id}"
+    url = Elektrine.Paths.email_compose_path(mode: mode, message_id: message_id)
     {:noreply, push_navigate(socket, to: url)}
   end
 
   # Handle when no message is selected (keyboard shortcuts)
   def handle_event("open_compose", %{"mode" => _mode}, socket) do
     # If no message_id is provided, just open compose normally
-    {:noreply, push_navigate(socket, to: ~p"/email/compose")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.email_compose_path())}
   end
 
   # Handle tag input events from compose page (in case of navigation timing issues)

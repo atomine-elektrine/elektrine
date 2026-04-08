@@ -49,6 +49,7 @@ defmodule Elektrine.Application do
       {DynamicSupervisor,
        strategy: :one_for_one, name: Elektrine.Messaging.FederationSessionSupervisor},
       Elektrine.AppCache,
+      Elektrine.Accounts.Tracking,
       Elektrine.Encryption.KeyCache,
       Elektrine.Messaging.RateLimiter,
       Elektrine.Auth.RateLimiter,

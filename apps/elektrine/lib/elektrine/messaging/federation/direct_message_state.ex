@@ -466,7 +466,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
         type: "new_message",
         title: title,
         body: remote_dm_message_preview(message),
-        url: "/chat/#{conversation.hash || conversation.id}#message-#{message.id}",
+        url: Elektrine.Paths.chat_message_path(conversation.hash || conversation.id, message.id),
         source_type: "message",
         source_id: message.id,
         priority: "normal",

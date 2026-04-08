@@ -74,7 +74,7 @@ defmodule ElektrineWeb.PageLive.Home do
                     <.link href={~p"/register"} class="btn btn-primary btn-lg">
                       {gettext("Sign up")}
                     </.link>
-                    <.link href={~p"/login"} class="btn btn-ghost btn-lg">
+                    <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-lg">
                       {gettext("Sign in")}
                     </.link>
                   <% end %>

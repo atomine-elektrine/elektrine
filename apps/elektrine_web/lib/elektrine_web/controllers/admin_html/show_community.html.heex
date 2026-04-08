@@ -290,7 +290,7 @@
                 </div>
 
                 <.link
-                  href={~p"/discussions/#{@community.name}/post/#{post.id}"}
+                  href={Elektrine.Paths.discussion_post_path(@community.name, post.id)}
                   class="btn btn-ghost btn-xs flex-shrink-0"
                   target="_blank"
                 >

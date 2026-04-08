@@ -165,7 +165,7 @@
 
               <%= if platform_module_enabled?(:social) do %>
                 <li>
-                  <.link navigate={~p"/timeline"} class="gap-3">
+                  <.link navigate={Elektrine.Paths.timeline_path()} class="gap-3">
                     <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> Social
                   </.link>
                 </li>

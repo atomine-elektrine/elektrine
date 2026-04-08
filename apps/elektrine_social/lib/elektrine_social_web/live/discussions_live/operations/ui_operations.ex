@@ -112,7 +112,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
 
         case message.conversation.type do
           "timeline" ->
-            {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message.id}")}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
 
           "community" ->
             # Use friendly URL with slug
@@ -125,7 +125,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
             # For chat/DM, go to chat
             {:noreply,
              push_navigate(socket,
-               to: ~p"/chat/#{message.conversation.hash || message.conversation.id}"
+               to: Elektrine.Paths.chat_path(message.conversation)
              )}
         end
     end

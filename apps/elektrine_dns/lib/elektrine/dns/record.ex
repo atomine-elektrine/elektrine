@@ -78,6 +78,7 @@ defmodule Elektrine.DNS.Record do
     |> validate_alias_target()
     |> validate_type_specific_fields()
     |> foreign_key_constraint(:zone_id)
+    |> unique_constraint(:name, name: :dns_records_identity_unique)
     |> unique_constraint(:managed_key, name: :dns_records_zone_managed_key_unique)
   end
 

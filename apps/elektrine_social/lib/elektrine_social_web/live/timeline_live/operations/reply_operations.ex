@@ -234,7 +234,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
 
         case message.conversation.type do
           "timeline" ->
-            {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message.id}")}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message.id))}
 
           "community" ->
             {:noreply,
@@ -243,10 +243,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
              )}
 
           _ ->
-            {:noreply,
-             push_navigate(socket,
-               to: ~p"/chat/#{message.conversation.hash || message.conversation.id}"
-             )}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(message.conversation))}
         end
     end
   end

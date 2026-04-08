@@ -16,7 +16,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
   alias Elektrine.Messaging, as: Messaging
 
   def handle_event("select_conversation", %{"id" => conversation_id}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/chat/#{conversation_id}")}
+    {:noreply, push_patch(socket, to: Elektrine.Paths.chat_path(conversation_id))}
   end
 
   def handle_event("search_conversations", %{"value" => query}, socket) do
@@ -71,7 +71,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
   end
 
   def handle_event("clear_selection", _params, socket) do
-    {:noreply, push_patch(socket, to: ~p"/chat")}
+    {:noreply, push_patch(socket, to: Elektrine.Paths.chat_root_path())}
   end
 
   def handle_event("pin_conversation", %{"conversation_id" => conversation_id}, socket) do
@@ -237,7 +237,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
       {:ok, _} ->
         {:noreply,
          socket
-         |> push_patch(to: ~p"/chat")
+         |> push_patch(to: Elektrine.Paths.chat_root_path())
          |> notify_info("Chat deleted")}
 
       {:error, _} ->
@@ -267,7 +267,10 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
 
   def handle_event("share_conversation", _params, socket) do
     conversation = socket.assigns.conversation.selected
-    share_url = "#{ElektrineWeb.Endpoint.url()}/chat/join/#{conversation.hash || conversation.id}"
+
+    share_url =
+      ElektrineWeb.Endpoint.url() <>
+        Elektrine.Paths.chat_join_path(conversation.hash || conversation.id)
 
     {:noreply,
      push_event(socket, "copy_to_clipboard", %{text: share_url, type: "chat invite link"})}
@@ -287,7 +290,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
       {:ok, _} ->
         {:noreply,
          socket
-         |> push_patch(to: ~p"/chat")
+         |> push_patch(to: Elektrine.Paths.chat_root_path())
          |> notify_info("Left chat")}
 
       {:error, :owner_must_transfer} ->

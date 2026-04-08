@@ -286,7 +286,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
   end
 
   def handle_event("view_all", _params, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/notifications")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.notifications_path())}
   end
 
   @impl true

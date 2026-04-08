@@ -17,7 +17,10 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
       case list do
         nil ->
-          {:ok, socket |> put_flash(:error, "List not found") |> push_navigate(to: ~p"/lists")}
+          {:ok,
+           socket
+           |> put_flash(:error, "List not found")
+           |> push_navigate(to: Elektrine.Paths.lists_path())}
 
         list ->
           is_owner = list.user_id == user.id
@@ -50,7 +53,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
            |> assign(:reply_content, "")}
       end
     else
-      {:ok, push_navigate(socket, to: ~p"/login")}
+      {:ok, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -532,7 +535,7 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
   end
 
   def handle_event("open_external_link", %{"url" => url}, socket) do

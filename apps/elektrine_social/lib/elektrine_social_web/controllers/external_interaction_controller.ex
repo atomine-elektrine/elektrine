@@ -1,7 +1,7 @@
 defmodule ElektrineSocialWeb.ExternalInteractionController do
   use ElektrineSocialWeb, :controller
 
-  alias Elektrine.ActorPaths
+  alias Elektrine.Paths
 
   @community_prefixes ["c", "m"]
   @user_prefixes ["u", "users"]
@@ -96,8 +96,8 @@ defmodule ElektrineSocialWeb.ExternalInteractionController do
   end
 
   defp remote_profile_path(handle) do
-    ActorPaths.profile_path(handle) || "/remote/#{URI.encode_www_form(handle)}"
+    Paths.profile_path(handle) || "/remote/#{URI.encode_www_form(handle)}"
   end
 
-  defp remote_post_path(uri), do: "/remote/post/#{URI.encode_www_form(uri)}"
+  defp remote_post_path(uri), do: Paths.post_path(uri)
 end

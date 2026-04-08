@@ -276,8 +276,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
            target_user_id
          ) do
       {:ok, dm_conversation} ->
-        {:noreply,
-         socket |> push_navigate(to: ~p"/chat/#{dm_conversation.hash || dm_conversation.id}")}
+        {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
 
       {:error, :rate_limited} ->
         {:noreply,

@@ -45,7 +45,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
         {:ok,
          socket
          |> put_flash(:error, "You must log in to access this page.")
-         |> redirect(to: ~p"/login")}
+         |> redirect(to: Elektrine.Paths.login_path())}
 
       user ->
         mount_authenticated(user, session, socket)

@@ -87,44 +87,44 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
 
     case context.return_to do
       "sent" ->
-        ~p"/email?tab=sent"
+        Elektrine.Paths.email_index_path(tab: "sent")
 
       "drafts" ->
-        ~p"/email?tab=drafts"
+        Elektrine.Paths.email_index_path(tab: "drafts")
 
       "spam" ->
-        ~p"/email?tab=spam"
+        Elektrine.Paths.email_index_path(tab: "spam")
 
       "trash" ->
-        ~p"/email?tab=trash"
+        Elektrine.Paths.email_index_path(tab: "trash")
 
       "archive" ->
-        ~p"/email?tab=archive"
+        Elektrine.Paths.email_index_path(tab: "archive")
 
       "contacts" ->
-        ~p"/email?tab=contacts"
+        Elektrine.Paths.email_index_path(tab: "contacts")
 
       "calendar" ->
-        ~p"/calendar"
+        Elektrine.Paths.calendar_path()
 
       "folder" when is_binary(context.return_folder_id) ->
-        ~p"/email?tab=folder&folder_id=#{context.return_folder_id}"
+        Elektrine.Paths.email_index_path(tab: "folder", folder_id: context.return_folder_id)
 
       "search" when is_binary(context.return_query) ->
-        ~p"/email?tab=search&q=#{context.return_query}"
+        Elektrine.Paths.email_index_path(tab: "search", q: context.return_query)
 
       "search" ->
-        ~p"/email?tab=search"
+        Elektrine.Paths.email_index_path(tab: "search")
 
       "inbox" when context.return_filter not in [nil, "", "inbox"] ->
-        ~p"/email?tab=inbox&filter=#{context.return_filter}"
+        Elektrine.Paths.email_index_path(tab: "inbox", filter: context.return_filter)
 
       filter
       when filter in ["digest", "ledger", "stack", "boomerang", "aliases", "unread", "read"] ->
-        ~p"/email?tab=inbox&filter=#{filter}"
+        Elektrine.Paths.email_index_path(tab: "inbox", filter: filter)
 
       _ ->
-        ~p"/email?tab=inbox"
+        Elektrine.Paths.email_index_path(tab: "inbox")
     end
   end
 
@@ -573,7 +573,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               <div class="overflow-x-auto pb-1">
                 <div class="flex min-w-max items-center gap-2">
                   <a
-                    href={~p"/email?tab=inbox"}
+                    href={Elektrine.Paths.email_index_path(tab: "inbox")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -591,7 +591,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     <% end %>
                   </a>
                   <a
-                    href={~p"/email?tab=sent"}
+                    href={Elektrine.Paths.email_index_path(tab: "sent")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -606,7 +606,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Sent")}
                   </a>
                   <a
-                    href={~p"/email?tab=drafts"}
+                    href={Elektrine.Paths.email_index_path(tab: "drafts")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -621,7 +621,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Drafts")}
                   </a>
                   <a
-                    href={~p"/email?tab=search"}
+                    href={Elektrine.Paths.email_index_path(tab: "search")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -636,7 +636,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Search")}
                   </a>
                   <a
-                    href={~p"/email?tab=archive"}
+                    href={Elektrine.Paths.email_index_path(tab: "archive")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -651,7 +651,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Archive")}
                   </a>
                   <a
-                    href={~p"/email?tab=spam"}
+                    href={Elektrine.Paths.email_index_path(tab: "spam")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -666,7 +666,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Spam")}
                   </a>
                   <a
-                    href={~p"/email?tab=trash"}
+                    href={Elektrine.Paths.email_index_path(tab: "trash")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -681,7 +681,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Trash")}
                   </a>
                   <a
-                    href={~p"/email?tab=contacts"}
+                    href={Elektrine.Paths.email_index_path(tab: "contacts")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -696,7 +696,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                     {gettext("Contacts")}
                   </a>
                   <a
-                    href={~p"/email?tab=calendar"}
+                    href={Elektrine.Paths.email_index_path(tab: "calendar")}
                     data-phx-link="patch"
                     data-phx-link-state="push"
                     class={[
@@ -736,7 +736,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                       <%= for folder <- @custom_folders do %>
                         <% is_active = @current_page == "folder" && @current_folder_id == folder.id %>
                         <a
-                          href={~p"/email?tab=folder&folder_id=#{folder.id}"}
+                          href={Elektrine.Paths.email_index_path(tab: "folder", folder_id: folder.id)}
                           data-phx-link="patch"
                           data-phx-link-state="push"
                           class={[
@@ -876,7 +876,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
             <ul class="menu menu-lg rounded-box w-full">
               <li>
                 <a
-                  href={~p"/email?tab=inbox"}
+                  href={Elektrine.Paths.email_index_path(tab: "inbox")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -896,7 +896,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=sent"}
+                  href={Elektrine.Paths.email_index_path(tab: "sent")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -911,7 +911,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=drafts"}
+                  href={Elektrine.Paths.email_index_path(tab: "drafts")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -926,7 +926,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=search"}
+                  href={Elektrine.Paths.email_index_path(tab: "search")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -941,7 +941,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=spam"}
+                  href={Elektrine.Paths.email_index_path(tab: "spam")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -956,7 +956,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=trash"}
+                  href={Elektrine.Paths.email_index_path(tab: "trash")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -971,7 +971,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=archive"}
+                  href={Elektrine.Paths.email_index_path(tab: "archive")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -987,7 +987,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
 
               <li>
                 <a
-                  href={~p"/email?tab=contacts"}
+                  href={Elektrine.Paths.email_index_path(tab: "contacts")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -1002,7 +1002,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
               </li>
               <li>
                 <a
-                  href={~p"/email?tab=calendar"}
+                  href={Elektrine.Paths.email_index_path(tab: "calendar")}
                   data-phx-link="patch"
                   data-phx-link-state="push"
                   class={
@@ -1039,7 +1039,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
                   <% is_active = @current_page == "folder" && @current_folder_id == folder.id %>
                   <li>
                     <a
-                      href={~p"/email?tab=folder&folder_id=#{folder.id}"}
+                      href={Elektrine.Paths.email_index_path(tab: "folder", folder_id: folder.id)}
                       data-phx-link="patch"
                       data-phx-link-state="push"
                       class={

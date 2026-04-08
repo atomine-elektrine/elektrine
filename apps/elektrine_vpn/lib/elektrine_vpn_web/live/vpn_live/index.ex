@@ -37,7 +37,7 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
       {:ok,
        socket
        |> put_flash(:error, "You must be logged in to access VPN")
-       |> redirect(to: ~p"/login")}
+       |> redirect(to: Elektrine.Paths.login_path())}
     end
   end
 

@@ -392,7 +392,7 @@ defmodule ElektrineWeb.AuthLive.Register do
         <div class="divider mt-6">{gettext("OR")}</div>
 
         <div class="text-center">
-          <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
             {gettext("Already have an account? Log in")}
           </.link>
         </div>

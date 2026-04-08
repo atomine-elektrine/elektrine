@@ -31,7 +31,7 @@ defmodule ElektrineSocialWeb.ListLive.Index do
        |> assign(:new_list_visibility, "private")
        |> refresh_list_data()}
     else
-      {:ok, push_navigate(socket, to: ~p"/login")}
+      {:ok, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 

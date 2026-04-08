@@ -4,7 +4,7 @@
   
 <!-- Back Button -->
   <div class="social-page-toolbar">
-    <.link href={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
+    <.link href={Elektrine.Paths.timeline_path()} class="btn btn-ghost btn-sm gap-2">
       <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
     </.link>
   </div>
@@ -44,7 +44,10 @@
     <!-- Left Sidebar (Hidden on mobile) -->
     <div class="hidden">
       <div class="p-4">
-        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start mb-6">
+        <.link
+          href={Elektrine.Paths.timeline_path()}
+          class="btn btn-ghost btn-sm w-full justify-start mb-6"
+        >
           <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
         </.link>
 
@@ -238,7 +241,7 @@
 <!-- Replying To (if this is a reply) -->
             <%= if @post.reply_to_id && @post.reply_to do %>
               <.link
-                href={~p"/timeline/post/#{@post.reply_to_id}"}
+                href={Elektrine.Paths.post_path(@post.reply_to_id)}
                 class="block mb-4 rounded-xl border border-base-300/80 bg-base-200/45 px-4 py-3 hover:bg-base-200/65 transition-colors cursor-pointer"
               >
                 <div class="mb-1 text-[11px] font-medium uppercase tracking-[0.18em] text-base-content/45">
@@ -512,7 +515,10 @@
               <% end %>
 
               <%= if !@current_user do %>
-                <.link href={~p"/login"} class="btn btn-secondary btn-sm ml-auto">
+                <.link
+                  href={Elektrine.Paths.login_path()}
+                  class="btn btn-secondary btn-sm ml-auto"
+                >
                   Sign in to interact
                 </.link>
               <% end %>
@@ -696,7 +702,7 @@
                 <.icon name="hero-chat-bubble-left" class="w-4 h-4 mr-1" /> Reply
               </button>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-secondary btn-sm mt-4">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm mt-4">
                 Sign in to Reply
               </.link>
             <% end %>
@@ -725,7 +731,10 @@
 
         <h3 class="font-semibold mb-3">Related</h3>
         <div class="space-y-2">
-          <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start">
+          <.link
+            href={Elektrine.Paths.timeline_path()}
+            class="btn btn-ghost btn-sm w-full justify-start"
+          >
             <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
           </.link>
           <%= if @post.sender do %>
@@ -738,7 +747,7 @@
           <% end %>
         </div>
       <% else %>
-        <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full mb-4">
+        <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm w-full mb-4">
           <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In to Interact
         </.link>
       <% end %>

@@ -22,7 +22,7 @@ defmodule ElektrineWeb.AuthLive.Login do
         <.simple_form
           :let={f}
           for={%{}}
-          action={~p"/login"}
+          action={Elektrine.Paths.login_path()}
           as={:user}
           method="post"
           bare={true}

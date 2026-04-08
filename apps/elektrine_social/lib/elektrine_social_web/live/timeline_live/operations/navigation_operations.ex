@@ -6,6 +6,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   import Phoenix.LiveView
 
+  alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
 
   use Phoenix.VerifiedRoutes,
@@ -27,13 +28,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
           reply_thread_path
 
         post && post.federated && is_binary(post.activitypub_id) && post.activitypub_id != "" ->
-          "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+          Paths.post_path(post)
 
         post && post.federated ->
-          "/remote/post/#{id}"
+          Paths.post_path(id)
 
         true ->
-          ~p"/timeline/post/#{id}"
+          Paths.post_path(id)
       end
 
     {:noreply, push_navigate(socket, to: path)}
@@ -53,9 +54,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
     path =
       if post && post.federated && post.activitypub_id do
-        "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+        Paths.post_path(post)
       else
-        ~p"/timeline/post/#{id}"
+        Paths.post_path(id)
       end
 
     {:noreply, push_navigate(socket, to: path)}
@@ -63,7 +64,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   # Navigate to an embedded post by ID.
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{id}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(id))}
   end
 
   # Navigate to an embedded post by URL.
@@ -74,13 +75,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   # Navigate to remote post view by ActivityPub ID (passed as url).
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    encoded = URI.encode_www_form(activitypub_id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{encoded}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(activitypub_id))}
   end
 
   # Navigate to remote post view by post_id.
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{post_id}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -128,14 +128,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   defp reply_thread_path(nil, _id), do: nil
 
   defp reply_thread_path(post, id) do
-    anchor = reply_anchor_fragment(id)
-
     cond do
       parent_id = local_reply_parent_id(post) ->
-        "/remote/post/#{parent_id}#{anchor}"
+        Paths.anchored_post_path(parent_id, id)
 
       in_reply_to = metadata_in_reply_to(post) ->
-        "/remote/post/#{URI.encode_www_form(in_reply_to)}#{anchor}"
+        Paths.anchored_post_path(in_reply_to, id)
 
       true ->
         nil
@@ -184,16 +182,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   end
 
   defp normalize_in_reply_to_ref(_), do: nil
-
-  defp reply_anchor_fragment(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {value, ""} -> "#message-#{value}"
-      _ -> ""
-    end
-  end
-
-  defp reply_anchor_fragment(id) when is_integer(id), do: "#message-#{id}"
-  defp reply_anchor_fragment(_), do: ""
 
   defp fetch_post_for_navigation(id) do
     with {post_id, ""} <- Integer.parse(to_string(id)),

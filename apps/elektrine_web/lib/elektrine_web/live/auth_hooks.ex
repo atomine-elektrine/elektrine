@@ -128,7 +128,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
         socket =
           socket
           |> notify_error("You must log in to access this live page.")
-          |> redirect(to: ~p"/login")
+          |> redirect(to: Elektrine.Paths.login_path())
 
         {:halt, socket}
     end
@@ -144,7 +144,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
       socket =
         socket
         |> notify_error("You must log in to access this page.")
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
 
       {:halt, socket}
     else
@@ -214,7 +214,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
         socket =
           socket
           |> notify_error("You must log in to access this page.")
-          |> redirect(to: ~p"/login")
+          |> redirect(to: Elektrine.Paths.login_path())
 
         {:halt, socket}
 

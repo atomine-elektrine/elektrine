@@ -55,7 +55,10 @@
               </.link>
             <% else %>
               <div class="space-y-2">
-                <.link href={profile_url(@base_url, ~p"/login")} class="btn btn-secondary w-full">
+                <.link
+                  href={profile_url(@base_url, Elektrine.Paths.login_path())}
+                  class="btn btn-secondary w-full"
+                >
                   <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5 mr-2" /> Sign In
                 </.link>
                 <.link href={profile_url(@base_url, ~p"/")} class="btn btn-ghost w-full">
@@ -287,7 +290,7 @@
                       </div>
                       <%= for post <- @pinned_posts do %>
                         <.link
-                          href={profile_url(@base_url, ~p"/timeline/post/#{post.id}")}
+                          href={profile_url(@base_url, Elektrine.Paths.post_path(post.id))}
                           class="block group"
                         >
                           <div class="p-3 rounded-lg bg-base-200/70 border border-base-300/60 hover:bg-base-300/60 transition-all">
@@ -363,8 +366,11 @@
                         post_link =
                           if is_boost,
                             do:
-                              profile_url(@base_url, ~p"/timeline/post/#{post.shared_message_id}"),
-                            else: profile_url(@base_url, ~p"/timeline/post/#{post.id}") %>
+                              profile_url(
+                                @base_url,
+                                Elektrine.Paths.post_path(post.shared_message_id)
+                              ),
+                            else: profile_url(@base_url, Elektrine.Paths.post_path(post.id)) %>
                         <.link href={post_link} class="block group">
                           <div class="p-3 rounded-lg bg-base-200/70 border border-base-300/60 hover:bg-base-300/60 transition-all">
                             <!-- Boost indicator -->
@@ -1604,7 +1610,7 @@
                   </div>
                   <%= for post <- @pinned_posts do %>
                     <.link
-                      href={profile_url(@base_url, ~p"/timeline/post/#{post.id}")}
+                      href={profile_url(@base_url, Elektrine.Paths.post_path(post.id))}
                       class="block"
                     >
                       <div class="p-3 rounded-lg bg-base-200/70 border border-base-300/60 hover:bg-base-300/60 transition-all">
@@ -1654,8 +1660,12 @@
 
                   post_link =
                     if is_boost,
-                      do: profile_url(@base_url, ~p"/timeline/post/#{post.shared_message_id}"),
-                      else: profile_url(@base_url, ~p"/timeline/post/#{post.id}") %>
+                      do:
+                        profile_url(
+                          @base_url,
+                          Elektrine.Paths.post_path(post.shared_message_id)
+                        ),
+                      else: profile_url(@base_url, Elektrine.Paths.post_path(post.id)) %>
                   <.link href={post_link} class="block">
                     <div class="p-3 rounded-lg bg-base-200/70 border border-base-300/60 hover:bg-base-300/60 transition-all">
                       <%= if is_boost do %>

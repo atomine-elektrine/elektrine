@@ -1,117 +1,51 @@
 defmodule Elektrine.ActorPaths do
   @moduledoc false
 
-  alias Elektrine.{Accounts, Domains}
-
-  def profile_path(handle) when is_binary(handle) do
-    case parse_handle(handle) do
-      {:ok, username, domain} -> profile_path(username, domain)
-      :error -> nil
-    end
-  end
-
-  def profile_path(%{username: username, domain: domain} = actor)
-      when is_binary(username) and is_binary(domain) do
-    profile_path(prefixed_username(actor), domain)
-  end
-
-  def profile_path(username, domain) when is_binary(username) and is_binary(domain) do
-    local_profile_path(username, domain) || remote_profile_path(username, domain)
-  end
-
-  def profile_path(_, _), do: nil
-
-  def local_profile_path(handle) when is_binary(handle) do
-    case parse_handle(handle) do
-      {:ok, username, domain} -> local_profile_path(username, domain)
-      :error -> nil
-    end
-  end
-
-  def local_profile_path(%{username: username, domain: domain} = actor)
-      when is_binary(username) and is_binary(domain) do
-    local_profile_path(prefixed_username(actor), domain)
-  end
-
-  def local_profile_path(username, domain) when is_binary(username) and is_binary(domain) do
-    clean_username = normalize_username(username)
-    clean_domain = normalize_domain(domain)
-
-    cond do
-      clean_username == "" or clean_domain == "" ->
-        nil
-
-      not Domains.local_profile_domain?(clean_domain) ->
-        nil
-
-      String.starts_with?(clean_username, "!") ->
-        community_name = String.trim_leading(clean_username, "!")
-        "/communities/#{URI.encode_www_form(community_name)}"
-
-      true ->
-        local_user_profile_path(clean_username)
-    end
-  end
-
-  def local_profile_path(_, _), do: nil
-
-  def remote_profile_path(username, domain) when is_binary(username) and is_binary(domain) do
-    clean_username = normalize_username(username)
-    clean_domain = normalize_domain(domain)
-
-    if clean_username == "" or clean_domain == "" do
-      nil
-    else
-      "/remote/#{clean_username}@#{clean_domain}"
-    end
-  end
-
-  def remote_profile_path(_, _), do: nil
-
-  defp local_user_profile_path(username) do
-    case Accounts.get_user_by_username_or_handle(username) do
-      %{handle: handle} when is_binary(handle) and handle != "" ->
-        "/#{URI.encode_www_form(handle)}"
-
-      %{username: canonical_username}
-      when is_binary(canonical_username) and canonical_username != "" ->
-        "/#{URI.encode_www_form(canonical_username)}"
-
-      _ ->
-        "/#{URI.encode_www_form(username)}"
-    end
-  end
-
-  defp parse_handle(handle) do
-    cleaned =
-      handle
-      |> String.trim()
-      |> String.trim_leading("@")
-
-    case String.split(cleaned, "@", parts: 2) do
-      [username, domain] when username != "" and domain != "" ->
-        {:ok, normalize_username(username), normalize_domain(domain)}
-
-      _ ->
-        :error
-    end
-  end
-
-  defp prefixed_username(%{actor_type: "Group", username: username}) when is_binary(username) do
-    if String.starts_with?(username, "!"), do: username, else: "!" <> username
-  end
-
-  defp prefixed_username(%{username: username}), do: username
-
-  defp normalize_username(username) do
-    username
-    |> String.trim()
-    |> String.trim_leading("@")
-  end
-
-  defp normalize_domain(domain) do
-    domain
-    |> String.trim()
-    |> String.downcase()
-  end
+  defdelegate post_path(ref), to: Elektrine.Paths
+  defdelegate remote_post_path(ref), to: Elektrine.Paths
+  defdelegate local_post_path(ref), to: Elektrine.Paths
+  defdelegate post_anchor(message_id), to: Elektrine.Paths
+  defdelegate anchored_post_path(post_ref, anchor_message_id), to: Elektrine.Paths
+  defdelegate chat_path(ref), to: Elektrine.Paths
+  defdelegate chat_message_path(conversation_ref, message_id), to: Elektrine.Paths
+  defdelegate chat_root_message_path(message_id), to: Elektrine.Paths
+  defdelegate discussion_path(community_name), to: Elektrine.Paths
+  defdelegate discussion_post_path(community_name, post_id), to: Elektrine.Paths
+  defdelegate discussion_post_path(community_name, post_id, title), to: Elektrine.Paths
+  defdelegate discussion_message_path(community_name, post_id, message_id), to: Elektrine.Paths
+  defdelegate email_view_path(ref), to: Elektrine.Paths
+  defdelegate notifications_path(), to: Elektrine.Paths
+  defdelegate overview_path(), to: Elektrine.Paths
+  defdelegate search_path(), to: Elektrine.Paths
+  defdelegate login_path(), to: Elektrine.Paths
+  defdelegate register_path(), to: Elektrine.Paths
+  defdelegate timeline_path(), to: Elektrine.Paths
+  defdelegate timeline_path(params), to: Elektrine.Paths
+  defdelegate chat_root_path(), to: Elektrine.Paths
+  defdelegate chat_root_path(params), to: Elektrine.Paths
+  defdelegate chat_join_path(ref), to: Elektrine.Paths
+  defdelegate email_index_path(), to: Elektrine.Paths
+  defdelegate email_index_path(params), to: Elektrine.Paths
+  defdelegate email_compose_path(params), to: Elektrine.Paths
+  defdelegate email_settings_path(), to: Elektrine.Paths
+  defdelegate friends_path(), to: Elektrine.Paths
+  defdelegate friends_path(params), to: Elektrine.Paths
+  defdelegate lists_path(), to: Elektrine.Paths
+  defdelegate lists_path(fragment), to: Elektrine.Paths
+  defdelegate calendar_path(), to: Elektrine.Paths
+  defdelegate calendar_path(params), to: Elektrine.Paths
+  defdelegate discussions_path(), to: Elektrine.Paths
+  defdelegate vpn_path(), to: Elektrine.Paths
+  defdelegate vpn_policy_path(), to: Elektrine.Paths
+  defdelegate hashtag_path(hashtag), to: Elektrine.Paths
+  defdelegate community_path(name), to: Elektrine.Paths
+  defdelegate admin_path(), to: Elektrine.Paths
+  defdelegate admin_path(section), to: Elektrine.Paths
+  defdelegate admin_user_edit_path(user_id), to: Elektrine.Paths
+  defdelegate admin_chat_message_path(message_id), to: Elektrine.Paths
+  defdelegate profile_path(handle), to: Elektrine.Paths
+  defdelegate profile_path(username, domain), to: Elektrine.Paths
+  defdelegate local_profile_path(handle), to: Elektrine.Paths
+  defdelegate local_profile_path(username, domain), to: Elektrine.Paths
+  defdelegate remote_profile_path(username, domain), to: Elektrine.Paths
 end

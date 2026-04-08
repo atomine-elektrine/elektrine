@@ -137,7 +137,7 @@
               {gettext("New Community")}
             </button>
           <% else %>
-            <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
+            <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm w-full">
               <.icon name="hero-user" class="w-4 h-4 mr-2" /> Sign in to Create
             </.link>
           <% end %>
@@ -344,7 +344,10 @@
                                           Join
                                         </button>
                                       <% true -> %>
-                                        <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+                                        <.link
+                                          href={Elektrine.Paths.login_path()}
+                                          class="btn btn-ghost btn-sm"
+                                        >
                                           Sign in
                                         </.link>
                                     <% end %>
@@ -434,7 +437,10 @@
                                           </span>
                                         </button>
                                       <% true -> %>
-                                        <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+                                        <.link
+                                          href={Elektrine.Paths.login_path()}
+                                          class="btn btn-ghost btn-sm"
+                                        >
                                           Sign in
                                         </.link>
                                     <% end %>
@@ -633,7 +639,10 @@
                           <p class="text-sm text-base-content/60 mt-2">
                             You can still browse discovery and trending discussions below.
                           </p>
-                          <.link href={~p"/login"} class="btn btn-secondary mt-4">
+                          <.link
+                            href={Elektrine.Paths.login_path()}
+                            class="btn btn-secondary mt-4"
+                          >
                             Sign In
                           </.link>
                         </div>
@@ -696,7 +705,10 @@
                                       Join
                                     </button>
                                   <% else %>
-                                    <.link href={~p"/login"} class="btn btn-ghost btn-xs">
+                                    <.link
+                                      href={Elektrine.Paths.login_path()}
+                                      class="btn btn-ghost btn-xs"
+                                    >
                                       Sign in
                                     </.link>
                                   <% end %>
@@ -785,7 +797,10 @@
                                       </span>
                                     </button>
                                   <% else %>
-                                    <.link href={~p"/login"} class="btn btn-ghost btn-sm">
+                                    <.link
+                                      href={Elektrine.Paths.login_path()}
+                                      class="btn btn-ghost btn-sm"
+                                    >
                                       Sign in
                                     </.link>
                                   <% end %>
@@ -934,7 +949,9 @@
                       <p class="text-sm text-base-content/60 mt-2">
                         The feed view is for communities you follow, so it starts working once you sign in.
                       </p>
-                      <.link href={~p"/login"} class="btn btn-secondary mt-4">Sign In</.link>
+                      <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-4">
+                        Sign In
+                      </.link>
                     </div>
                   <% end %>
                 </div>
@@ -1042,7 +1059,9 @@
                       <p class="text-sm text-base-content/60 mt-2">
                         Your post history is private to your account.
                       </p>
-                      <.link href={~p"/login"} class="btn btn-secondary mt-4">Sign In</.link>
+                      <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-4">
+                        Sign In
+                      </.link>
                     </div>
                   <% end %>
                 </div>
@@ -1163,7 +1182,7 @@
           <div class="card panel-card rounded-lg">
             <div class="card-body p-4 space-y-4">
               <h3 class="text-sm font-semibold">Join the Community</h3>
-              <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm w-full">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" />
                 {gettext("Sign In")}
               </.link>

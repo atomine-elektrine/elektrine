@@ -91,7 +91,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       {:ok,
        socket
        |> put_flash(:error, "Please sign in to view your personalized overview")
-       |> push_navigate(to: ~p"/login")}
+       |> push_navigate(to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -520,18 +520,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
         cond do
           post && post.federated && post.activitypub_id ->
-            {:noreply,
-             push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(post.activitypub_id)}")}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post))}
 
           post_type == "post" ->
-            {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
 
           post_type == "gallery" ->
             path =
               if post && post.activitypub_id do
-                "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+                Elektrine.Paths.post_path(post)
               else
-                ~p"/remote/post/#{post_id}"
+                Elektrine.Paths.post_path(post_id)
               end
 
             {:noreply, push_navigate(socket, to: path)}
@@ -552,7 +551,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
             end
 
           true ->
-            {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
+            {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
         end
 
       :error ->
@@ -566,30 +565,36 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   def handle_event("navigate_to_gallery_post", %{"id" => _id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
   end
 
   def handle_event("navigate_to_gallery_post", %{"id" => id}, socket) do
     case parse_positive_int(id) do
-      {:ok, post_id} -> {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
-      :error -> {:noreply, socket}
+      {:ok, post_id} ->
+        {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
+
+      :error ->
+        {:noreply, socket}
     end
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => _id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{encode_remote_post_ref(url)}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
     case parse_positive_int(id) do
-      {:ok, post_id} -> {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
-      :error -> {:noreply, socket}
+      {:ok, post_id} ->
+        {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
+
+      :error ->
+        {:noreply, socket}
     end
   end
 
@@ -599,10 +604,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
         post = Enum.find(socket.assigns.all_posts, &(&1.id == message_id))
 
         if post && post.federated && post.activitypub_id do
-          {:noreply,
-           push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(post.activitypub_id)}")}
+          {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post))}
         else
-          {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message_id}")}
+          {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message_id))}
         end
 
       :error ->
@@ -708,13 +712,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
             case post.post_type do
               "gallery" ->
                 if post.activitypub_id do
-                  "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+                  Elektrine.Paths.post_path(post)
                 else
-                  ~p"/remote/post/#{message_id}"
+                  Elektrine.Paths.post_path(message_id)
                 end
 
               _ ->
-                ~p"/timeline/post/#{message_id}"
+                Elektrine.Paths.post_path(message_id)
             end
 
           {:noreply, push_navigate(socket, to: path)}
@@ -740,13 +744,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
               "gallery" ->
                 if post.activitypub_id do
-                  "/remote/post/#{URI.encode_www_form(post.activitypub_id)}"
+                  Elektrine.Paths.post_path(post)
                 else
-                  "/remote/post/#{message_id}"
+                  Elektrine.Paths.post_path(message_id)
                 end
 
               _ ->
-                "/timeline/post/#{message_id}"
+                Elektrine.Paths.post_path(message_id)
             end
 
           url = ElektrineWeb.Endpoint.url() <> path
@@ -798,7 +802,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   def handle_event("navigate_to_embedded_post", %{"message_id" => message_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message_id}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message_id))}
   end
 
   def handle_event("open_external_link", %{"url" => url}, socket) do
@@ -1306,7 +1310,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "compose_email",
           label: "Compose Email",
           detail: "Start a new message",
-          href: ~p"/email/compose?return_to=overview",
+          href: Elektrine.Paths.email_compose_path(return_to: "overview"),
           icon: "hero-pencil-square",
           tone: "primary"
         }
@@ -1316,7 +1320,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "new_message",
           label: "New Message",
           detail: "Start a direct message",
-          href: ~p"/chat?#{[composer: "message"]}",
+          href: Elektrine.Paths.chat_root_path(composer: "message"),
           icon: "hero-chat-bubble-left-right",
           tone: "neutral"
         }
@@ -1326,7 +1330,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "new_post",
           label: "New Post",
           detail: "Share an update",
-          href: ~p"/timeline?#{[composer: "post"]}",
+          href: Elektrine.Paths.timeline_path(composer: "post"),
           icon: "hero-rectangle-stack",
           tone: "neutral"
         }
@@ -1336,7 +1340,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "new_task",
           label: "New Task",
           detail: "Capture work on the calendar",
-          href: ~p"/calendar?#{[composer: "task"]}",
+          href: Elektrine.Paths.calendar_path(composer: "task"),
           icon: "hero-check-circle",
           tone: "neutral"
         }
@@ -1346,7 +1350,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "new_list",
           label: "New List",
           detail: "Save a smaller group",
-          href: "/lists#create-list-panel",
+          href: Elektrine.Paths.lists_path("create-list-panel"),
           icon: "hero-queue-list",
           tone: "neutral"
         }
@@ -1355,7 +1359,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
         id: "search",
         label: "Global Search",
         detail: "Jump across the workspace",
-        href: ~p"/search",
+        href: Elektrine.Paths.search_path(),
         icon: "hero-magnifying-glass",
         tone: "neutral"
       }
@@ -1454,7 +1458,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "review_inbox",
           title: "Review unread inbox",
           detail: "#{inbox_unread_count} message(s) waiting",
-          href: ~p"/email?tab=inbox&filter=unread",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
           icon: "hero-envelope",
           priority: "high"
         }
@@ -1464,7 +1468,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "reply_later",
           title: "Handle boomerang reminders",
           detail: "#{reply_later_count} follow-up reminder(s)",
-          href: ~p"/email?tab=inbox&filter=boomerang",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang"),
           icon: "hero-arrow-uturn-left",
           priority: "medium"
         }
@@ -1474,7 +1478,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "friend_requests",
           title: "Respond to friend requests",
           detail: "#{pending_friend_requests_count} pending request(s)",
-          href: ~p"/friends?tab=requests",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
           icon: "hero-user-plus",
           priority: "medium"
         }
@@ -1484,7 +1488,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "follow_requests",
           title: "Review fediverse follows",
           detail: "#{pending_follow_requests_count} remote request(s)",
-          href: ~p"/friends?tab=requests",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
           icon: "hero-globe-americas",
           priority: "high"
         }
@@ -1494,7 +1498,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "chat_unread",
           title: "Catch up on chat",
           detail: "#{chat_unread_count} unread chat message(s)",
-          href: ~p"/chat",
+          href: Elektrine.Paths.chat_root_path(),
           icon: "hero-chat-bubble-left-right",
           priority: "medium"
         }
@@ -1504,7 +1508,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "vpn_setup",
           title: "Create your first VPN config",
           detail: "Protect your traffic before browsing",
-          href: ~p"/vpn",
+          href: Elektrine.Paths.vpn_path(),
           icon: "hero-shield-check",
           priority: "low"
         }
@@ -1525,7 +1529,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "fediverse_follow_requests",
           title: "Pending fediverse follow approvals",
           detail: "#{pending_follow_requests_count} request(s) are waiting",
-          href: ~p"/friends?tab=requests",
+          href: Elektrine.Paths.friends_path(tab: "requests"),
           icon: "hero-globe-americas",
           level: "high"
         }
@@ -1535,7 +1539,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "notification_backlog",
           title: "Notification backlog building up",
           detail: "#{notifications_unread_count} unread notifications",
-          href: ~p"/notifications",
+          href: Elektrine.Paths.notifications_path(),
           icon: "hero-bell-alert",
           level: "medium"
         }
@@ -1545,7 +1549,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "inbox_backlog",
           title: "Inbox backlog is growing",
           detail: "#{inbox_unread_count} unread inbox messages",
-          href: ~p"/email?tab=inbox&filter=unread",
+          href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
           icon: "hero-envelope",
           level: "medium"
         }
@@ -1555,7 +1559,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           id: "chat_backlog",
           title: "Chat backlog is growing",
           detail: "#{chat_unread_count} unread chat messages",
-          href: ~p"/chat",
+          href: Elektrine.Paths.chat_root_path(),
           icon: "hero-chat-bubble-left-right",
           level: "low"
         }
@@ -1594,14 +1598,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: "requests",
             title: "Respond to friend requests",
             detail: "#{pending_friend_requests_count} request(s) waiting",
-            href: ~p"/friends?tab=requests",
+            href: Elektrine.Paths.friends_path(tab: "requests"),
             icon: "hero-user-plus",
             priority: "high",
             state: "pending",
             at: nil,
             actions: [
-              attention_action("Open", ~p"/friends?tab=requests"),
-              attention_action("Follow", ~p"/friends?tab=requests")
+              attention_action("Open", Elektrine.Paths.friends_path(tab: "requests")),
+              attention_action("Follow", Elektrine.Paths.friends_path(tab: "requests"))
             ]
           }
         end,
@@ -1611,14 +1615,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: "requests",
             title: "Review fediverse follow approvals",
             detail: "#{pending_follow_requests_count} approval(s) waiting",
-            href: ~p"/friends?tab=requests",
+            href: Elektrine.Paths.friends_path(tab: "requests"),
             icon: "hero-globe-americas",
             priority: "high",
             state: "approval",
             at: nil,
             actions: [
-              attention_action("Open", ~p"/friends?tab=requests"),
-              attention_action("Follow", ~p"/friends?tab=requests")
+              attention_action("Open", Elektrine.Paths.friends_path(tab: "requests")),
+              attention_action("Follow", Elektrine.Paths.friends_path(tab: "requests"))
             ]
           }
         end
@@ -1632,14 +1636,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: "email",
             title: "More unread email waiting",
             detail: "#{remaining_unread_count} more unread message(s)",
-            href: ~p"/email?tab=inbox&filter=unread",
+            href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread"),
             icon: "hero-envelope",
             priority: "high",
             state: "backlog",
             at: nil,
             actions: [
-              attention_action("Open", ~p"/email?tab=inbox&filter=unread"),
-              attention_action("Move", ~p"/email?tab=inbox")
+              attention_action(
+                "Open",
+                Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")
+              ),
+              attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox"))
             ]
           }
         end,
@@ -1649,14 +1656,20 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: "email",
             title: "Handle reply-later reminders",
             detail: "#{reply_later_count} reminder(s) due",
-            href: ~p"/email?tab=inbox&filter=boomerang",
+            href: Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang"),
             icon: "hero-arrow-uturn-left",
             priority: "medium",
             state: "remind",
             at: nil,
             actions: [
-              attention_action("Open", ~p"/email?tab=inbox&filter=boomerang"),
-              attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+              attention_action(
+                "Open",
+                Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
+              ),
+              attention_action(
+                "Remind",
+                Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
+              )
             ]
           }
         end,
@@ -1666,12 +1679,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
             source: "chat",
             title: "Catch up on chat",
             detail: "#{chat_unread_count} unread message(s)",
-            href: ~p"/chat",
+            href: Elektrine.Paths.chat_root_path(),
             icon: "hero-chat-bubble-left-right",
             priority: "medium",
             state: "unread",
             at: nil,
-            actions: [attention_action("Open", ~p"/chat")]
+            actions: [attention_action("Open", Elektrine.Paths.chat_root_path())]
           }
         end,
         if remaining_notification_count > 0 do
@@ -1681,12 +1694,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
             title: "More notifications are stacked up",
             detail:
               "#{remaining_notification_count} unread notification(s) behind the latest items",
-            href: ~p"/notifications",
+            href: Elektrine.Paths.notifications_path(),
             icon: "hero-bell-alert",
             priority: "medium",
             state: "backlog",
             at: nil,
-            actions: [attention_action("Open", ~p"/notifications")]
+            actions: [attention_action("Open", Elektrine.Paths.notifications_path())]
           }
         end
       ]
@@ -1705,7 +1718,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp build_unread_email_attention_item(message) do
-    href = ~p"/email/view/#{message.hash || message.id}"
+    href = Elektrine.Paths.email_view_path(message)
 
     %{
       id: "attention-email-#{message.id}",
@@ -1719,8 +1732,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
       at: message.inserted_at,
       actions: [
         attention_action("Open", href),
-        attention_action("Move", ~p"/email?tab=inbox"),
-        attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+        attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox")),
+        attention_action(
+          "Remind",
+          Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
+        )
       ]
     }
   end
@@ -1746,8 +1762,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp attention_actions_for_source("email", href) do
     [
       attention_action("Open", href),
-      attention_action("Move", ~p"/email?tab=inbox"),
-      attention_action("Remind", ~p"/email?tab=inbox&filter=boomerang")
+      attention_action("Move", Elektrine.Paths.email_index_path(tab: "inbox")),
+      attention_action(
+        "Remind",
+        Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")
+      )
     ]
   end
 
@@ -1758,8 +1777,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp attention_actions_for_source("social", href) do
     [
       attention_action("Open", href),
-      attention_action("Save", ~p"/timeline?filter=saved&view=all"),
-      attention_action("Share", ~p"/timeline?#{[composer: "post"]}")
+      attention_action("Save", Elektrine.Paths.timeline_path(filter: "saved", view: "all")),
+      attention_action("Share", Elektrine.Paths.timeline_path(composer: "post"))
     ]
   end
 
@@ -1859,7 +1878,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           app: "Email",
           title: inbox_subject(message),
           detail: "From #{inbox_sender(message.from)}",
-          href: ~p"/email/view/#{message.hash || message.id}",
+          href: Elektrine.Paths.email_view_path(message),
           icon: "hero-envelope",
           at: message.inserted_at
         }
@@ -1874,7 +1893,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           app: "Chat",
           title: conversation_label(conversation),
           detail: String.capitalize(conversation.type || "conversation"),
-          href: ~p"/chat/#{conversation.hash || conversation.id}",
+          href: Elektrine.Paths.chat_path(conversation),
           icon: "hero-chat-bubble-left-right",
           at: conversation.last_message_at || conversation.updated_at || conversation.inserted_at
         }
@@ -1889,7 +1908,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           app: "Social",
           title: social_post_title(post),
           detail: "Timeline update",
-          href: ~p"/timeline/post/#{post.id}",
+          href: Elektrine.Paths.post_path(post.id),
           icon: "hero-rectangle-stack",
           at: post.inserted_at
         }
@@ -1922,7 +1941,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
               app: "VPN",
               title: "VPN profile ready",
               detail: trim_or(config.vpn_server && config.vpn_server.name, "WireGuard config"),
-              href: ~p"/vpn",
+              href: Elektrine.Paths.vpn_path(),
               icon: "hero-shield-check",
               at: config.updated_at || config.inserted_at
             }
@@ -2036,12 +2055,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
     if String.starts_with?(path, "/") do
       path
     else
-      ~p"/notifications"
+      Elektrine.Paths.notifications_path()
     end
   end
 
   defp normalize_internal_path(_) do
-    ~p"/notifications"
+    Elektrine.Paths.notifications_path()
   end
 
   defp sort_datetime(%DateTime{} = datetime) do
@@ -2150,23 +2169,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp parse_positive_int(_) do
     :error
-  end
-
-  defp encode_remote_post_ref(ref) when is_binary(ref) do
-    normalized_ref =
-      ref
-      |> String.trim()
-      |> decode_remote_post_ref()
-
-    URI.encode_www_form(normalized_ref)
-  end
-
-  defp encode_remote_post_ref(ref), do: URI.encode_www_form(to_string(ref))
-
-  defp decode_remote_post_ref(ref) when is_binary(ref) do
-    URI.decode_www_form(ref)
-  rescue
-    ArgumentError -> ref
   end
 
   defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0 do

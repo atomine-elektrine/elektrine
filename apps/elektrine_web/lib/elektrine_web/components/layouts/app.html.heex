@@ -54,7 +54,7 @@
             </li>
           <% else %>
             <li>
-              <.link href={~p"/login"} class="rounded-lg">
+              <.link href={Elektrine.Paths.login_path()} class="rounded-lg">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-5 h-5" /> {gettext("Sign in")}
               </.link>
             </li>
@@ -342,7 +342,7 @@
 
             <li>
               <.link
-                navigate={~p"/notifications"}
+                navigate={Elektrine.Paths.notifications_path()}
                 class="gap-3 hover:bg-warning/20 hover:text-warning hover:border-l-4 hover:border-warning transition-all duration-200 rounded-md px-3 py-2"
               >
                 <.icon
@@ -364,7 +364,7 @@
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
-                  navigate={~p"/timeline?#{[filter: "saved", view: "all"]}"}
+                  navigate={Elektrine.Paths.timeline_path(filter: "saved", view: "all")}
                   class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-bookmark" class="w-4 h-4" /> {gettext("Saved Posts")}
@@ -375,7 +375,7 @@
             <%= if platform_module_enabled?(:chat) do %>
               <li>
                 <.link
-                  navigate={~p"/friends"}
+                  navigate={Elektrine.Paths.friends_path()}
                   class="gap-3 hover:bg-success/20 hover:text-success hover:border-l-4 hover:border-success transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-user-group" class="w-4 h-4" /> {gettext("Friends")}
@@ -386,7 +386,7 @@
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
-                  navigate={~p"/lists"}
+                  navigate={Elektrine.Paths.lists_path()}
                   class="gap-3 hover:bg-info/20 hover:text-info hover:border-l-4 hover:border-info transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-queue-list" class="w-4 h-4" /> {gettext("Lists")}
@@ -410,7 +410,7 @@
             <%= if platform_module_enabled?(:email) do %>
               <li>
                 <.link
-                  navigate={~p"/email"}
+                  navigate={Elektrine.Paths.email_index_path()}
                   class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-inbox" class="w-4 h-4" /> {gettext("Email")}
@@ -421,7 +421,7 @@
             <%= if platform_module_enabled?(:social) do %>
               <li>
                 <.link
-                  navigate={~p"/timeline"}
+                  navigate={Elektrine.Paths.timeline_path()}
                   class="gap-3 hover:bg-secondary/20 hover:text-secondary hover:border-l-4 hover:border-secondary transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-rectangle-stack" class="w-4 h-4" /> {gettext("Timeline")}
@@ -432,7 +432,7 @@
             <%= if platform_module_enabled?(:vpn) do %>
               <li>
                 <.link
-                  navigate={~p"/vpn"}
+                  navigate={Elektrine.Paths.vpn_path()}
                   class="gap-3 hover:bg-primary/20 hover:text-primary hover:border-l-4 hover:border-primary transition-all duration-200 rounded-md px-3 py-2"
                 >
                   <.icon name="hero-shield-check" class="w-4 h-4" /> {gettext("VPN")}
@@ -515,7 +515,9 @@
           </ul>
         </div>
       <% else %>
-        <a href={~p"/login"} class="btn btn-ghost rounded-full flex-shrink-0">Log in</a>
+        <a href={Elektrine.Paths.login_path()} class="btn btn-ghost rounded-full flex-shrink-0">
+          Log in
+        </a>
         <a href={~p"/register"} class="btn btn-primary rounded-full flex-shrink-0">Register</a>
       <% end %>
     </div>
@@ -609,7 +611,10 @@
           </li>
 
           <li>
-            <.link href={~p"/vpn/policy"} class="link link-hover opacity-70 hover:opacity-100">
+            <.link
+              href={Elektrine.Paths.vpn_policy_path()}
+              class="link link-hover opacity-70 hover:opacity-100"
+            >
               VPN Policy
             </.link>
           </li>

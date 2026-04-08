@@ -2,6 +2,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   use ElektrineSocialWeb, :live_view
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
+  alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias ElektrineSocialWeb.Components.Social.PostUtilities
@@ -108,11 +109,10 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
         cond do
           post && post.federated && post.activitypub_id ->
-            {:noreply,
-             push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(post.activitypub_id)}")}
+            {:noreply, push_navigate(socket, to: Paths.post_path(post))}
 
           post ->
-            {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message_id}")}
+            {:noreply, push_navigate(socket, to: Paths.post_path(message_id))}
 
           true ->
             {:noreply, socket}
@@ -396,15 +396,15 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
   end
 
   def handle_event("navigate_to_gallery_post", %{"id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{post_id}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/remote/post/#{post_id}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
   end
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do
@@ -558,7 +558,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("copy_post_link", %{"message_id" => post_id}, socket) do
-    link = ElektrineWeb.Endpoint.url() <> "/timeline/post/#{post_id}"
+    link = ElektrineWeb.Endpoint.url() <> Paths.post_path(post_id)
 
     {:noreply,
      socket |> push_event("copy_to_clipboard", %{text: link}) |> put_flash(:info, "Link copied!")}

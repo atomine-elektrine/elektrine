@@ -1188,8 +1188,7 @@ defmodule Elektrine.Messaging.Messages do
   Generates a friendly URL path for a discussion post.
   """
   def discussion_post_path(community_name, post_id, title) do
-    slug = Elektrine.Utils.Slug.discussion_url_slug(post_id, title)
-    "/discussions/#{community_name}/p/#{slug}"
+    Elektrine.Paths.discussion_post_path(community_name, post_id, title)
   end
 
   @doc """
@@ -1453,7 +1452,7 @@ defmodule Elektrine.Messaging.Messages do
           title: "New reply from @#{sender.handle || sender.username}",
           body:
             "@#{sender.handle || sender.username} replied to your message: #{String.slice(content, 0, 50)}#{if String.length(content) > 50, do: "...", else: ""}",
-          url: "/chat/#{conversation_id}#message-#{message_id}",
+          url: Elektrine.Paths.chat_message_path(conversation_id, message_id),
           source_type: "message",
           source_id: message_id,
           priority: "normal"
@@ -1516,7 +1515,7 @@ defmodule Elektrine.Messaging.Messages do
             type: "new_message",
             title: title,
             body: message_text,
-            url: "/chat/#{conversation_id}#message-#{message_id}",
+            url: Elektrine.Paths.chat_message_path(conversation_id, message_id),
             source_type: "message",
             source_id: message_id,
             priority: if(conversation.type == "dm", do: "normal", else: "low")

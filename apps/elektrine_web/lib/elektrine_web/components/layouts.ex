@@ -282,7 +282,7 @@ defmodule ElektrineWeb.Layouts do
         id: "post",
         label: "Post",
         detail: "Share to timeline",
-        href: ~p"/timeline?#{[composer: "post"]}",
+        href: Elektrine.Paths.timeline_path(composer: "post"),
         platform_module: :social,
         icon: "hero-rectangle-stack"
       },
@@ -290,7 +290,7 @@ defmodule ElektrineWeb.Layouts do
         id: "message",
         label: "Message",
         detail: "Start a direct message",
-        href: ~p"/chat?#{[composer: "message"]}",
+        href: Elektrine.Paths.chat_root_path(composer: "message"),
         platform_module: :chat,
         icon: "hero-chat-bubble-left-right"
       },
@@ -298,7 +298,7 @@ defmodule ElektrineWeb.Layouts do
         id: "email",
         label: "Email",
         detail: "Compose a new email",
-        href: ~p"/email/compose",
+        href: Elektrine.Paths.email_compose_path(),
         platform_module: :email,
         icon: "hero-envelope"
       },
@@ -306,7 +306,7 @@ defmodule ElektrineWeb.Layouts do
         id: "task",
         label: "Task",
         detail: "Capture something to do",
-        href: ~p"/calendar?#{[composer: "task"]}",
+        href: Elektrine.Paths.calendar_path(composer: "task"),
         platform_module: :email,
         icon: "hero-check-circle"
       },
@@ -314,7 +314,7 @@ defmodule ElektrineWeb.Layouts do
         id: "event",
         label: "Event",
         detail: "Schedule calendar time",
-        href: ~p"/calendar?#{[composer: "event"]}",
+        href: Elektrine.Paths.calendar_path(composer: "event"),
         platform_module: :email,
         icon: "hero-calendar"
       },
@@ -322,7 +322,7 @@ defmodule ElektrineWeb.Layouts do
         id: "list",
         label: "List",
         detail: "Create a saved set of people",
-        href: "/lists#create-list-panel",
+        href: Elektrine.Paths.lists_path("create-list-panel"),
         platform_module: :social,
         icon: "hero-queue-list"
       },
@@ -330,7 +330,7 @@ defmodule ElektrineWeb.Layouts do
         id: "note",
         label: "Note",
         detail: "Keep a private note",
-        href: ~p"/timeline?#{[composer: "note"]}",
+        href: Elektrine.Paths.timeline_path(composer: "note"),
         platform_module: :social,
         icon: "hero-document-text"
       }

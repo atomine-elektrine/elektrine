@@ -168,7 +168,13 @@ defmodule Elektrine.Search do
           title:
             fragment("CASE WHEN ? IS NOT NULL THEN ? ELSE 'Chat Message' END", c.name, c.name),
           content: "Chat message",
-          url: fragment("CONCAT(?, ?)", "/chat/", c.hash),
+          url:
+            fragment(
+              "CONCAT(?, COALESCE(?, CAST(? AS text)))",
+              ^(Elektrine.Paths.chat_root_path() <> "/"),
+              c.hash,
+              c.id
+            ),
           updated_at: m.inserted_at,
           relevance: 0.9,
           sender_id: m.sender_id
@@ -225,7 +231,7 @@ defmodule Elektrine.Search do
               u.username
             ),
           content: "Timeline post",
-          url: fragment("CONCAT(?, ?)", "/timeline/post/", m.id),
+          url: fragment("CONCAT(?, ?)", "/post/", m.id),
           updated_at: m.inserted_at,
           relevance: 0.85,
           sender_id: m.sender_id
@@ -272,7 +278,14 @@ defmodule Elektrine.Search do
           type: "discussion",
           title: fragment("CASE WHEN ? IS NOT NULL THEN ? ELSE ? END", m.title, m.title, c.name),
           content: "Discussion post",
-          url: fragment("CONCAT('/discussions/', ?, '/post/', ?)", c.id, m.id),
+          url:
+            fragment(
+              "CONCAT(?, ?, ?, ?)",
+              ^(Elektrine.Paths.discussion_path("") <> "/"),
+              c.name,
+              "/post/",
+              m.id
+            ),
           updated_at: m.inserted_at,
           relevance: 0.8,
           sender_id: m.sender_id
@@ -300,7 +313,7 @@ defmodule Elektrine.Search do
         type: "community",
         title: c.name,
         content: c.description,
-        url: fragment("CONCAT(?, ?)", "/discussions/", c.name),
+        url: fragment("CONCAT(?, ?)", ^(Elektrine.Paths.discussion_path("") <> "/"), c.name),
         updated_at: c.updated_at,
         relevance: 0.8
       },
@@ -343,9 +356,9 @@ defmodule Elektrine.Search do
       # Construct URL with properly encoded activitypub_id
       url =
         if result.activitypub_id do
-          "/remote/post/#{URI.encode_www_form(result.activitypub_id)}"
+          Elektrine.Paths.post_path(result)
         else
-          "/timeline/post/#{result.id}"
+          Elektrine.Paths.post_path(result.id)
         end
 
       Map.put(result, :url, url)
@@ -380,7 +393,7 @@ defmodule Elektrine.Search do
               type: "email",
               title: m.subject,
               content: "Email message",
-              url: fragment("CONCAT(?, ?)", "/email/view/", m.id),
+              url: fragment("CONCAT(?, ?)", ^Elektrine.Paths.email_view_path(""), m.id),
               updated_at: m.inserted_at,
               relevance: 0.8,
               mailbox_id: m.mailbox_id
@@ -401,7 +414,7 @@ defmodule Elektrine.Search do
             type: "mailbox",
             title: mb.email,
             content: "Email mailbox",
-            url: "/email",
+            url: ^Elektrine.Paths.email_index_path(),
             updated_at: mb.inserted_at,
             relevance: 0.9
           },
@@ -456,7 +469,7 @@ defmodule Elektrine.Search do
           type: "file",
           title: title,
           content: "File in email from #{from}",
-          url: "/email/view/#{result.id}",
+          url: Elektrine.Paths.email_view_path(result.id),
           updated_at: result.updated_at,
           relevance: result.relevance
         }
@@ -678,7 +691,7 @@ defmodule Elektrine.Search do
         execution: :navigate,
         required_scopes: ["write:email"],
         content: "Start a new email message",
-        url: "/email/compose?return_to=search",
+        url: Elektrine.Paths.email_compose_path(return_to: "search"),
         updated_at: DateTime.utc_now(),
         relevance: 1.1,
         keywords: ["compose", "email", "send", "message"]
@@ -692,7 +705,7 @@ defmodule Elektrine.Search do
         execution: :navigate,
         required_scopes: ["read:chat"],
         content: "Jump into your conversations",
-        url: "/chat",
+        url: Elektrine.Paths.chat_root_path(),
         updated_at: DateTime.utc_now(),
         relevance: 1.08,
         keywords: ["chat", "dm", "message", "conversation"]
@@ -706,7 +719,7 @@ defmodule Elektrine.Search do
         execution: :navigate,
         required_scopes: ["read:account"],
         content: "Review unread alerts",
-        url: "/notifications",
+        url: Elektrine.Paths.notifications_path(),
         updated_at: DateTime.utc_now(),
         relevance: 1.06,
         keywords: ["alerts", "notifications", "activity"]
@@ -721,7 +734,7 @@ defmodule Elektrine.Search do
         operation: :mark_notifications_read,
         required_scopes: ["write:account"],
         content: "Mark all notifications as read",
-        url: "/notifications",
+        url: Elektrine.Paths.notifications_path(),
         updated_at: DateTime.utc_now(),
         relevance: 1.05,
         keywords: ["notification", "read", "clear", "inbox zero"]
@@ -735,7 +748,7 @@ defmodule Elektrine.Search do
         execution: :navigate,
         required_scopes: ["read:account"],
         content: "Manage your WireGuard profiles",
-        url: "/vpn",
+        url: Elektrine.Paths.vpn_path(),
         updated_at: DateTime.utc_now(),
         relevance: 1.04,
         keywords: ["vpn", "wireguard", "security", "network"]
@@ -880,7 +893,7 @@ defmodule Elektrine.Search do
         type: "settings",
         title: "Email Settings",
         content: "Configure signatures, aliases, and inbox behavior",
-        url: "/email/settings",
+        url: Elektrine.Paths.email_index_path() <> "/settings",
         updated_at: DateTime.utc_now(),
         relevance: 0.98,
         keywords: ["email", "signature", "alias", "filters"]

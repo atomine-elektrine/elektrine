@@ -573,7 +573,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                     "@#{socket.assigns.current_user.handle || socket.assigns.current_user.username} replied to your discussion post",
                   body: String.slice(content, 0, 100),
                   url:
-                    "/discussions/#{community.name}/post/#{parent_post.id}#reply-#{reply_message.id}",
+                    Elektrine.Paths.discussion_message_path(
+                      community.name,
+                      parent_post.id,
+                      reply_message.id
+                    ),
                   source_type: "message",
                   source_id: reply_message.id,
                   priority: "normal"
@@ -607,7 +611,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                         title: "@#{sender.handle || sender.username} mentioned you",
                         body: "You were mentioned in a discussion reply",
                         url:
-                          "/discussions/#{community.name}/post/#{parent_post.id}#reply-#{reply_message.id}",
+                          Elektrine.Paths.discussion_message_path(
+                            community.name,
+                            parent_post.id,
+                            reply_message.id
+                          ),
                         source_type: "message",
                         source_id: reply_message.id,
                         priority: "normal"
@@ -676,7 +684,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
           {:noreply,
            socket
            |> put_flash(:info, "Discussion shared to your timeline!")
-           |> push_navigate(to: ~p"/timeline")}
+           |> push_navigate(to: Elektrine.Paths.timeline_path())}
 
         {:error, :not_found} ->
           {:noreply, notify_error(socket, "Discussion not found")}
@@ -1080,7 +1088,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                 type: "mention",
                 title: "@#{sender.handle || sender.username} mentioned you",
                 body: "You were mentioned in a discussion post",
-                url: "/discussions/#{socket.assigns.community.name}/post/#{message.id}",
+                url:
+                  Elektrine.Paths.discussion_post_path(
+                    socket.assigns.community.name,
+                    message.id
+                  ),
                 source_type: "message",
                 source_id: message.id,
                 priority: "normal"

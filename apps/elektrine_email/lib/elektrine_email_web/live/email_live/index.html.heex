@@ -288,7 +288,7 @@
               <div class="top-[7rem] z-30 bg-base-300/60 -mx-6 px-6 py-3 border-b border-base-300 mb-4 rounded-lg">
                 <div class="flex flex-wrap gap-2">
                   <.link
-                    patch={~p"/email?tab=inbox&filter=inbox"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "inbox")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "inbox",
@@ -304,7 +304,7 @@
                     <% end %>
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=unread"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "unread",
@@ -317,7 +317,7 @@
                     {gettext("Unread")}
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=read"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "read")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "read",
@@ -330,7 +330,7 @@
                     {gettext("Read")}
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=digest"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "digest")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "digest",
@@ -346,7 +346,7 @@
                     <% end %>
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=ledger"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "ledger")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "ledger",
@@ -362,7 +362,7 @@
                     <% end %>
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=stack"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "stack")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "stack",
@@ -378,7 +378,7 @@
                     <% end %>
                   </.link>
                   <.link
-                    patch={~p"/email?tab=inbox&filter=boomerang"}
+                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")}
                     class={[
                       "btn btn-sm rounded-full whitespace-nowrap",
                       if(@current_filter == "boomerang",

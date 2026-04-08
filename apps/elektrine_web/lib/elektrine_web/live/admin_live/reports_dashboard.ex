@@ -1058,7 +1058,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
         {:ok, "/pripyat/arblarg/messages/#{id}/view"}
 
       Elektrine.Repo.get(Elektrine.Messaging.Message, id) ->
-        {:ok, "/timeline/post/#{id}"}
+        {:ok, Elektrine.Paths.post_path(id)}
 
       true ->
         :error

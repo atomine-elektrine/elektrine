@@ -483,7 +483,7 @@ defmodule Elektrine.Email.Messages do
                     type: "email_received",
                     title: "Email from #{from_email}",
                     body: subject,
-                    url: "/email/view/#{message.id}",
+                    url: Elektrine.Paths.email_view_path(message),
                     source_type: "email",
                     source_id: message.id,
                     priority: "normal"

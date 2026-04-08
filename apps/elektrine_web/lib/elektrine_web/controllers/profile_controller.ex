@@ -465,7 +465,7 @@ defmodule ElektrineWeb.ProfileController do
         {:error, "Authentication required"} ->
           conn
           |> put_session(:user_return_to, profile_return_path(conn, handle))
-          |> redirect(to: ~p"/login")
+          |> redirect(to: Elektrine.Paths.login_path())
 
         {:error, message} ->
           conn

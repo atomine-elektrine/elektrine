@@ -255,7 +255,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
       Process.sleep(10)
       {:noreply, updated_socket}
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -313,7 +313,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
           {:noreply, put_flash(socket, :error, "Failed to unfollow")}
       end
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -331,7 +331,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
        |> assign(:following_count, following_count)
        |> put_flash(:info, "Unfollowed user")}
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -359,7 +359,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
           {:noreply, put_flash(socket, :error, error_message)}
       end
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -448,7 +448,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
        |> assign(:report_modal_type, type)
        |> assign(:report_modal_id, String.to_integer(id))}
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 

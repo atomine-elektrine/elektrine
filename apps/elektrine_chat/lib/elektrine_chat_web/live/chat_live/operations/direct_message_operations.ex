@@ -24,7 +24,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.DirectMessageOperations do
         {:noreply,
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
-         |> push_patch(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+         |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :invalid_remote_handle} ->
         {:noreply, notify_error(socket, "Use handle format user@domain")}
@@ -52,7 +52,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.DirectMessageOperations do
         {:noreply,
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
-         |> push_patch(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+         |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to start chat")}

@@ -389,7 +389,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
         %{"activitypub_id" => activitypub_id} = _params,
         socket
       ) do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(activitypub_id)}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(activitypub_id))}
   end
 
   def handle_event("load-more", _params, socket) do

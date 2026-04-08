@@ -117,7 +117,12 @@ defmodule ElektrineWeb.NotificationsLive do
      push_patch(
        socket,
        to:
-         ~p"/notifications?#{[filter: state_filter_param(filter), source: socket.assigns.source_filter]}"
+         Elektrine.Paths.notifications_path() <>
+           "?" <>
+           URI.encode_query(
+             filter: state_filter_param(filter),
+             source: socket.assigns.source_filter
+           )
      )}
   end
 
@@ -128,7 +133,12 @@ defmodule ElektrineWeb.NotificationsLive do
      push_patch(
        socket,
        to:
-         ~p"/notifications?#{[filter: state_filter_param(socket.assigns.filter), source: source_filter]}"
+         Elektrine.Paths.notifications_path() <>
+           "?" <>
+           URI.encode_query(
+             filter: state_filter_param(socket.assigns.filter),
+             source: source_filter
+           )
      )}
   end
 
@@ -432,10 +442,13 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp find_group_by_key(groups, group_key), do: Enum.find(groups, &(&1.group_key == group_key))
 
-  defp default_source_path("chat"), do: ~p"/chat"
-  defp default_source_path("email"), do: ~p"/email?tab=inbox&filter=unread"
-  defp default_source_path("requests"), do: ~p"/friends?tab=requests"
-  defp default_source_path("social"), do: ~p"/timeline"
+  defp default_source_path("chat"), do: Elektrine.Paths.chat_root_path()
+
+  defp default_source_path("email"),
+    do: Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")
+
+  defp default_source_path("requests"), do: Elektrine.Paths.friends_path(tab: "requests")
+  defp default_source_path("social"), do: Elektrine.Paths.timeline_path()
   defp default_source_path(_source), do: ~p"/overview"
 
   defp notification_source_label("all"), do: "All"

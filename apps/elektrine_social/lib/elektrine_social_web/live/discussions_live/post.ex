@@ -119,10 +119,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                   # Build metadata for sharing
                   meta_description = build_post_description(post, community)
                   og_image = get_post_image(post)
-                  slug = Elektrine.Utils.Slug.discussion_url_slug(post_id, post.title)
 
                   current_url =
-                    "#{ElektrineWeb.Endpoint.url()}/discussions/#{community.name}/post/#{slug}"
+                    ElektrineWeb.Endpoint.url() <>
+                      Elektrine.Paths.discussion_post_path(
+                        community.name,
+                        post_id,
+                        post.title
+                      )
 
                   # Track view for recommendation algorithm
                   if user do
