@@ -9,7 +9,7 @@ defmodule ElektrineChatWeb.ChatLive.Components.ConversationList do
     <div class="flex-1 overflow-y-auto">
       <%= for conversation <- @conversations do %>
         <.link
-          patch={~p"/chat/#{conversation.id}"}
+          patch={Elektrine.Paths.chat_path(conversation.id)}
           class={[
             "flex items-center gap-3 p-4 hover:bg-base-300 cursor-pointer border-b border-base-300",
             @selected_conversation && @selected_conversation.id == conversation.id && "bg-primary/10"

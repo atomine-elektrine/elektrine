@@ -10,7 +10,7 @@
           </p>
         </div>
         <div class="flex gap-2">
-          <.link href={~p"/login"} class="btn btn-secondary btn-sm">
+          <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm">
             <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-1" /> Sign In
           </.link>
           <.link href={~p"/register"} class="btn btn-ghost btn-sm">
@@ -113,7 +113,7 @@
             <% end %>
           <% else %>
             <.link
-              href={~p"/login"}
+              href={Elektrine.Paths.login_path()}
               class="btn btn-secondary btn-xs sm:btn-sm flex-1 sm:flex-initial"
             >
               <.icon name="hero-lock-closed" class="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
@@ -1573,7 +1573,10 @@
                   <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Start a Thread
                 </button>
               <% else %>
-                <.link href={~p"/login"} class="btn btn-secondary btn-sm sm:btn-md">
+                <.link
+                  href={Elektrine.Paths.login_path()}
+                  class="btn btn-secondary btn-sm sm:btn-md"
+                >
                   Sign In to Post
                 </.link>
               <% end %>

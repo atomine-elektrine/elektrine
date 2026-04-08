@@ -198,7 +198,7 @@
             <div class="flex shrink-0 flex-wrap items-center gap-1.5 sm:flex-nowrap lg:justify-end lg:pl-4">
               <%= if @content_type == "timeline" do %>
                 <.link
-                  navigate={~p"/timeline/post/#{item.id}"}
+                  navigate={Elektrine.Paths.post_path(item.id)}
                   class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -211,7 +211,7 @@
 
               <%= if @content_type == "discussions" && conversation_name do %>
                 <.link
-                  navigate={~p"/discussions/#{conversation_name}/post/#{item.id}"}
+                  navigate={Elektrine.Paths.discussion_post_path(conversation_name, item.id)}
                   class="btn btn-xs sm:btn-sm btn-ghost gap-1.5 whitespace-nowrap"
                   target="_blank"
                   rel="noopener noreferrer"

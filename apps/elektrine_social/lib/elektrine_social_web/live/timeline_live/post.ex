@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   use Phoenix.Component
 
   alias Elektrine.Messaging.Messages, as: MessagingMessages
+  alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
 
@@ -37,7 +38,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
       ]}
       style={if @depth > 0, do: "--thread-depth: #{@tree_depth};", else: nil}
     >
-      <div class="timeline-thread-tree-card card rounded-xl" id={"reply-#{@reply.id}"}>
+      <div class="timeline-thread-tree-card card rounded-xl" id={"message-#{@reply.id}"}>
         <div class="card-body p-4">
           <div class="flex items-start gap-3">
             <%= if @reply.sender do %>
@@ -396,22 +397,22 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         cond do
           can_view ->
             # Keep timeline visibility checks, but render with the canonical post detail view.
-            {:ok, redirect(socket, to: ~p"/remote/post/#{post_id}")}
+            {:ok, redirect(socket, to: Elektrine.Paths.post_path(post_id))}
 
           user ->
             # User is authenticated but doesn't have access
             {:ok,
              socket
              |> put_flash(:error, "You don't have permission to view this post")
-             |> push_navigate(to: ~p"/timeline")}
+             |> push_navigate(to: Elektrine.Paths.timeline_path())}
 
           true ->
             # Redirect unauthenticated users to login for non-public posts
-            {:ok, push_navigate(socket, to: ~p"/login")}
+            {:ok, push_navigate(socket, to: Elektrine.Paths.login_path())}
         end
 
       {:error, :not_found} ->
-        {:ok, push_navigate(socket, to: ~p"/timeline")}
+        {:ok, push_navigate(socket, to: Elektrine.Paths.timeline_path())}
     end
   end
 
@@ -425,13 +426,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   end
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{id}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    encoded = URI.encode_www_form(activitypub_id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{encoded}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(activitypub_id))}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -449,13 +449,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
        |> assign(:show_reply_form, !socket.assigns.show_reply_form)
        |> assign(:reply_to_reply_id, nil)}
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
   def handle_event("copy_post_link", _params, socket) do
     # Generate the current post URL
-    post_url = "#{ElektrineWeb.Endpoint.url()}/timeline/post/#{socket.assigns.post.id}"
+    post_url = ElektrineWeb.Endpoint.url() <> Paths.post_path(socket.assigns.post.id)
 
     {:noreply,
      socket
@@ -507,7 +507,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                 title:
                   "@#{socket.assigns.current_user.handle || socket.assigns.current_user.username} commented on your post",
                 body: String.slice(content, 0, 100),
-                url: "/timeline/post/#{socket.assigns.post.id}#reply-#{reply_post.id}",
+                url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
                 source_type: "message",
                 source_id: reply_post.id,
                 priority: "normal"
@@ -540,7 +540,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                         type: "mention",
                         title: "@#{sender.handle || sender.username} mentioned you",
                         body: "You were mentioned in a comment",
-                        url: "/timeline/post/#{socket.assigns.post.id}#reply-#{reply_post.id}",
+                        url: Paths.anchored_post_path(socket.assigns.post.id, reply_post.id),
                         source_type: "message",
                         source_id: reply_post.id,
                         priority: "normal"
@@ -630,7 +630,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
           end
       end
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -679,7 +679,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         end
       end
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -712,7 +712,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
   def handle_event("copy_reply_link", %{"reply_id" => reply_id}, socket) do
     reply_url =
-      "#{ElektrineWeb.Endpoint.url()}/timeline/post/#{socket.assigns.post.id}#reply-#{reply_id}"
+      ElektrineWeb.Endpoint.url() <>
+        Paths.anchored_post_path(socket.assigns.post.id, reply_id)
 
     {:noreply,
      socket
@@ -834,7 +835,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         end
       end
     else
-      {:noreply, push_navigate(socket, to: ~p"/login")}
+      {:noreply, push_navigate(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -850,9 +851,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
            target_user_id
          ) do
       {:ok, dm_conversation} ->
-        {:noreply,
-         socket
-         |> push_navigate(to: ~p"/chat/#{dm_conversation.hash || dm_conversation.id}")}
+        {:noreply, socket |> push_navigate(to: Elektrine.Paths.chat_path(dm_conversation))}
 
       {:error, :rate_limited} ->
         {:noreply,

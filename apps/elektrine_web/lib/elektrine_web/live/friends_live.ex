@@ -75,7 +75,7 @@ defmodule ElektrineWeb.FriendsLive do
     {:noreply,
      socket
      |> assign(:search_query, "")
-     |> push_patch(to: ~p"/friends?tab=#{tab}")}
+     |> push_patch(to: Elektrine.Paths.friends_path(tab: tab))}
   end
 
   @impl true
@@ -315,7 +315,7 @@ defmodule ElektrineWeb.FriendsLive do
     # Create DM conversation (returns existing if already exists)
     case Elektrine.Messaging.create_dm_conversation(socket.assigns.current_user.id, user_id) do
       {:ok, conversation} ->
-        {:noreply, push_navigate(socket, to: ~p"/chat/#{conversation.hash}")}
+        {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :rate_limited} ->
         {:noreply,
@@ -338,7 +338,7 @@ defmodule ElektrineWeb.FriendsLive do
     # User will click call button from chat
     case Elektrine.Messaging.create_dm_conversation(socket.assigns.current_user.id, user_id) do
       {:ok, conversation} ->
-        {:noreply, push_navigate(socket, to: ~p"/chat/#{conversation.hash}")}
+        {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :rate_limited} ->
         {:noreply,
@@ -418,7 +418,9 @@ defmodule ElektrineWeb.FriendsLive do
       case Messaging.create_dm_conversation(socket.assigns.current_user.id, caller_id) do
         {:ok, conversation} ->
           {:noreply,
-           push_navigate(socket, to: ~p"/chat/#{conversation.hash}?incoming_call=#{call_id}")}
+           push_navigate(socket,
+             to: Elektrine.Paths.chat_path(conversation) <> "?incoming_call=#{call_id}"
+           )}
 
         {:error, _} ->
           {:noreply, notify_error(socket, "Failed to answer call")}

@@ -115,7 +115,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("email", "new", %{
         title: email_title(message),
         body: truncate_preview(message.subject),
-        url: "/email/view/#{message.hash || message.id}",
+        url: Elektrine.Paths.email_view_path(message),
         category: message.category,
         message_id: message.id
       })
@@ -147,7 +147,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("email", "updated", %{
         title: "Email updated",
         body: "Message ##{message.id} status changed",
-        url: "/email/view/#{message.hash || message.id}",
+        url: Elektrine.Paths.email_view_path(message),
         message_id: message.id,
         read: message.read,
         archived: message.archived,
@@ -185,7 +185,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("notification", "count_updated", %{
         title: "Notification count updated",
         body: "#{count} unread notification(s)",
-        url: "/notifications",
+        url: Elektrine.Paths.notifications_path(),
         count: count
       })
 
@@ -201,7 +201,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("notification", "all_read", %{
         title: "Notifications cleared",
         body: "All notifications marked as read",
-        url: "/notifications",
+        url: Elektrine.Paths.notifications_path(),
         count: 0
       })
 
@@ -219,7 +219,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("chat", "message_created", %{
         title: "New chat message",
         body: truncate_preview(formatted.content),
-        url: "/chat/#{formatted.conversation_id}",
+        url: Elektrine.Paths.chat_path(formatted.conversation_id),
         conversation_id: formatted.conversation_id,
         message_id: formatted.id
       })
@@ -237,7 +237,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("chat", "message_updated", %{
         title: "Chat message updated",
         body: truncate_preview(formatted.content),
-        url: "/chat/#{formatted.conversation_id}",
+        url: Elektrine.Paths.chat_path(formatted.conversation_id),
         conversation_id: formatted.conversation_id,
         message_id: formatted.id
       })
@@ -253,7 +253,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("chat", "message_deleted", %{
         title: "Chat message deleted",
         body: "Message ##{message_id} was removed",
-        url: "/chat",
+        url: Elektrine.Paths.chat_root_path(),
         message_id: message_id
       })
 
@@ -330,7 +330,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_created", %{
         title: "New post",
         body: truncate_preview(formatted.content),
-        url: "/timeline/post/#{formatted.id}",
+        url: Elektrine.Paths.post_path(formatted.id),
         post_id: formatted.id
       })
 
@@ -347,7 +347,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_updated", %{
         title: "Post updated",
         body: truncate_preview(formatted.content),
-        url: "/timeline/post/#{formatted.id}",
+        url: Elektrine.Paths.post_path(formatted.id),
         post_id: formatted.id
       })
 
@@ -362,7 +362,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_deleted", %{
         title: "Post deleted",
         body: "Post ##{post_id} was removed",
-        url: "/timeline",
+        url: Elektrine.Paths.timeline_path(),
         post_id: post_id
       })
 
@@ -380,7 +380,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_liked", %{
         title: "Post liked",
         body: "Post ##{post_id} now has #{count} like(s)",
-        url: "/timeline/post/#{post_id}",
+        url: Elektrine.Paths.post_path(post_id),
         post_id: post_id,
         like_count: count
       })
@@ -396,7 +396,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_unliked", %{
         title: "Post unliked",
         body: "Post ##{post_id} now has #{count} like(s)",
-        url: "/timeline/post/#{post_id}",
+        url: Elektrine.Paths.post_path(post_id),
         post_id: post_id,
         like_count: count
       })
@@ -414,7 +414,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "comment_created", %{
         title: "New comment",
         body: truncate_preview(formatted.content),
-        url: "/timeline/post/#{formatted.post_id}",
+        url: Elektrine.Paths.post_path(formatted.post_id),
         comment_id: formatted.id,
         post_id: formatted.post_id
       })
@@ -430,7 +430,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "comment_deleted", %{
         title: "Comment deleted",
         body: "Comment ##{comment_id} was removed",
-        url: "/timeline",
+        url: Elektrine.Paths.timeline_path(),
         comment_id: comment_id
       })
 
@@ -452,7 +452,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "post_reposted", %{
         title: "Post reposted",
         body: "Post ##{post_id} now has #{count} repost(s)",
-        url: "/timeline/post/#{post_id}",
+        url: Elektrine.Paths.post_path(post_id),
         post_id: post_id,
         repost_count: count
       })
@@ -500,7 +500,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "follower_removed", %{
         title: "Follower removed",
         body: "Follower ##{follower_id} is no longer following",
-        url: "/friends",
+        url: Elektrine.Paths.friends_path(),
         follower_id: follower_id
       })
 
@@ -522,7 +522,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "friend_request_received", %{
         title: "Friend request",
         body: "@#{request.requester.username} sent you a request",
-        url: "/friends?tab=requests",
+        url: Elektrine.Paths.friends_path(tab: "requests"),
         request_id: request.id
       })
 
@@ -537,7 +537,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("social", "friend_request_accepted", %{
         title: "Friend request accepted",
         body: "You are now connected",
-        url: "/friends",
+        url: Elektrine.Paths.friends_path(),
         request_id: request.id
       })
 
@@ -574,7 +574,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("vpn", "config_created", %{
         title: "VPN profile created",
         body: "#{formatted.server_name} - #{formatted.allocated_ip}",
-        url: "/vpn",
+        url: Elektrine.Paths.vpn_path(),
         config_id: formatted.id
       })
 
@@ -593,7 +593,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("vpn", "config_updated", %{
         title: "VPN profile updated",
         body: "#{formatted.server_name} - status #{formatted.status}",
-        url: "/vpn",
+        url: Elektrine.Paths.vpn_path(),
         config_id: formatted.id
       })
 
@@ -611,7 +611,7 @@ defmodule ElektrineWeb.MobileChannel do
       |> push_universal_event("vpn", "config_deleted", %{
         title: "VPN profile removed",
         body: "VPN config ##{config_id} was removed",
-        url: "/vpn",
+        url: Elektrine.Paths.vpn_path(),
         config_id: config_id
       })
 

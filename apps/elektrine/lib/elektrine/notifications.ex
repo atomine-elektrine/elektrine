@@ -567,7 +567,7 @@ defmodule Elektrine.Notifications do
         type: "new_message",
         title: "New message from @#{sender.handle || sender.username}",
         body: String.slice(message_preview, 0, 100),
-        url: "/chat/#{conversation_name}",
+        url: Elektrine.Paths.chat_path(conversation_name),
         icon: "hero-chat-bubble-left",
         user_id: recipient_id,
         actor_id: sender.id,
@@ -673,13 +673,21 @@ defmodule Elektrine.Notifications do
     })
   end
 
-  defp build_mention_url("message", message_id), do: "/chat#message-#{message_id}"
-  defp build_mention_url("post", post_id), do: "/timeline/post/#{post_id}"
-  defp build_mention_url("discussion", discussion_id), do: "/discussions/post/#{discussion_id}"
+  defp build_mention_url("message", message_id),
+    do: Elektrine.Paths.chat_root_message_path(message_id)
+
+  defp build_mention_url("post", post_id), do: Elektrine.Paths.post_path(post_id)
+
+  defp build_mention_url("discussion", discussion_id),
+    do: Elektrine.Paths.post_path(discussion_id)
+
   defp build_mention_url(_, _), do: "/"
 
-  defp build_content_url("post", post_id), do: "/timeline/post/#{post_id}"
-  defp build_content_url("discussion", discussion_id), do: "/discussions/post/#{discussion_id}"
+  defp build_content_url("post", post_id), do: Elektrine.Paths.post_path(post_id)
+
+  defp build_content_url("discussion", discussion_id),
+    do: Elektrine.Paths.post_path(discussion_id)
+
   defp build_content_url(_, _), do: "/"
 
   defp resolve_legacy_message_notification_urls(notifications) when is_list(notifications) do
@@ -727,7 +735,8 @@ defmodule Elektrine.Notifications do
          url: url
        })
        when is_integer(source_id) do
-    is_nil(url) or url == "" or String.starts_with?(url, "/timeline/post/")
+    is_nil(url) or url == "" or
+      String.starts_with?(url, ["/timeline/post/", "/remote/post/", "/post/", "#message-"])
   end
 
   defp legacy_message_notification_url?(_), do: false
@@ -773,7 +782,7 @@ defmodule Elektrine.Notifications do
        })
        when type in ["dm", "group", "channel"] do
     conversation_ref = conversation.hash || conversation.id
-    "/chat/#{conversation_ref}#message-#{id}"
+    Elektrine.Paths.chat_message_path(conversation_ref, id)
   end
 
   defp build_message_path(%Message{
@@ -781,20 +790,16 @@ defmodule Elektrine.Notifications do
          conversation: %{type: "community", name: name}
        })
        when is_binary(name) and name != "" do
-    "/discussions/#{name}/post/#{id}"
+    Elektrine.Paths.discussion_post_path(name, id)
   end
 
-  defp build_message_path(%Message{federated: true, activitypub_id: activitypub_id})
-       when is_binary(activitypub_id) and activitypub_id != "" do
-    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
-  end
-
-  defp build_message_path(%Message{id: id}), do: "/remote/post/#{id}"
+  defp build_message_path(%Message{} = message), do: Elektrine.Paths.post_path(message)
 
   defp threaded_message_anchor(%Message{conversation: %{type: "community"}}, %Message{id: id}),
-    do: "#reply-#{id}"
+    do: Elektrine.Paths.post_anchor(id)
 
-  defp threaded_message_anchor(_parent, %Message{id: id}), do: "#message-#{id}"
+  defp threaded_message_anchor(_parent, %Message{id: id}),
+    do: Elektrine.Paths.post_anchor(id)
 
   defp notification_preference_enabled?(subject, field) when is_atom(field) do
     Map.get(subject, field) != false

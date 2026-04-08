@@ -7,7 +7,7 @@ defmodule ElektrineWeb.FilesLive do
   def mount(_params, _session, socket) do
     case socket.assigns.current_user do
       nil ->
-        {:ok, redirect(socket, to: ~p"/login")}
+        {:ok, redirect(socket, to: Elektrine.Paths.login_path())}
 
       user ->
         {:ok,

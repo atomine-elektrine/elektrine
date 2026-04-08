@@ -391,7 +391,7 @@
                 data-conversation-id={conversation.id}
               >
                 <.link
-                  patch={~p"/chat/#{conversation.hash || conversation.id}"}
+                  patch={Elektrine.Paths.chat_path(conversation)}
                   class={[
                     "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
                     if(is_selected,

@@ -10,7 +10,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.NavigationOperations do
     router: ElektrineWeb.Router
 
   def handle_event("switch_tab", %{"tab" => tab} = params, socket) do
-    socket = push_patch(socket, to: ~p"/email?tab=#{tab}")
+    socket = push_patch(socket, to: Elektrine.Paths.email_index_path(tab: tab))
 
     # Scroll to top when switching tabs
     socket = push_event(socket, "scroll-to-top", %{})
@@ -32,9 +32,9 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.NavigationOperations do
 
     url =
       if current_tab == "inbox" && current_filter != "inbox" do
-        ~p"/email?tab=#{current_tab}&filter=#{current_filter}&page=#{page}"
+        Elektrine.Paths.email_index_path(tab: current_tab, filter: current_filter, page: page)
       else
-        ~p"/email?tab=#{current_tab}&page=#{page}"
+        Elektrine.Paths.email_index_path(tab: current_tab, page: page)
       end
 
     {:noreply, push_patch(socket, to: url)}

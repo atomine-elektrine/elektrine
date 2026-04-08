@@ -51,7 +51,7 @@ defmodule ElektrineWeb.UserSessionController do
 
   defp render_login(conn, _assigns \\ []) do
     # Redirect back to the LiveView login page instead of rendering the old template
-    redirect(conn, to: ~p"/login")
+    redirect(conn, to: Elektrine.Paths.login_path())
   end
 
   defp authenticate_and_handle_result(conn, username, password, user_params, ip_address) do

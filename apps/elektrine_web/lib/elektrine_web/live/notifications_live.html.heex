@@ -21,13 +21,19 @@
             <.link navigate={~p"/overview"} class="btn btn-ghost btn-sm">
               <.icon name="hero-squares-2x2" class="mr-2 h-4 w-4" /> Overview
             </.link>
-            <.link navigate={~p"/chat"} class="btn btn-ghost btn-sm">
+            <.link navigate={Elektrine.Paths.chat_root_path()} class="btn btn-ghost btn-sm">
               <.icon name="hero-chat-bubble-left-right" class="mr-2 h-4 w-4" /> Chat
             </.link>
-            <.link navigate={~p"/email?tab=inbox&filter=unread"} class="btn btn-ghost btn-sm">
+            <.link
+              navigate={Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")}
+              class="btn btn-ghost btn-sm"
+            >
               <.icon name="hero-envelope" class="mr-2 h-4 w-4" /> Email
             </.link>
-            <.link navigate={~p"/friends?tab=requests"} class="btn btn-ghost btn-sm">
+            <.link
+              navigate={Elektrine.Paths.friends_path(tab: "requests")}
+              class="btn btn-ghost btn-sm"
+            >
               <.icon name="hero-user-group" class="mr-2 h-4 w-4" /> Requests
             </.link>
             <%= if @unread_count > 0 do %>

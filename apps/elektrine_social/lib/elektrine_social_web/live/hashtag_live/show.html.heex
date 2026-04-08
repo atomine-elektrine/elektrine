@@ -36,7 +36,10 @@
     <!-- Left Sidebar (Hidden on mobile) -->
     <div class="hidden sm:flex w-32 md:w-48 lg:w-80 flex-shrink-0 card panel-card flex-col h-full">
       <div class="p-4">
-        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start mb-6">
+        <.link
+          href={Elektrine.Paths.timeline_path()}
+          class="btn btn-ghost btn-sm w-full justify-start mb-6"
+        >
           <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
         </.link>
         <h3 class="font-semibold mb-3">About This Hashtag</h3>
@@ -85,7 +88,7 @@
                 </p>
               </div>
 
-              <.link href={~p"/timeline"} class="btn btn-ghost">
+              <.link href={Elektrine.Paths.timeline_path()} class="btn btn-ghost">
                 <.icon name="hero-arrow-left" class="w-4 h-4 mr-2" /> Back to Timeline
               </.link>
             </div>
@@ -145,7 +148,7 @@
                 <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Post
               </button>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-secondary">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" />
                 Sign In to Post
               </.link>
@@ -233,7 +236,10 @@
       <h3 class="font-semibold mb-4">Related</h3>
 
       <div class="space-y-2">
-        <.link href={~p"/timeline"} class="btn btn-ghost btn-sm w-full justify-start">
+        <.link
+          href={Elektrine.Paths.timeline_path()}
+          class="btn btn-ghost btn-sm w-full justify-start"
+        >
           <.icon name="hero-rectangle-stack" class="w-4 h-4 mr-2" /> View Timeline
         </.link>
         <%= if @current_user do %>
@@ -244,7 +250,7 @@
             <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Create Post
           </button>
         <% else %>
-          <.link href={~p"/login"} class="btn btn-secondary btn-sm w-full">
+          <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm w-full">
             <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In to Post
           </.link>
         <% end %>

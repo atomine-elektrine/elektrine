@@ -4,8 +4,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias Elektrine.ActorPaths
   alias Elektrine.Messaging
+  alias Elektrine.Paths
   alias Elektrine.Repo
   alias Elektrine.Social
 
@@ -459,7 +459,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
 
   defp actor_profile_path(username, domain) do
     if Elektrine.Strings.present?(username) and Elektrine.Strings.present?(domain) do
-      ActorPaths.profile_path(username, domain)
+      Paths.profile_path(username, domain)
     else
       nil
     end

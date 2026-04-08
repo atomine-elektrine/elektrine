@@ -7,7 +7,7 @@
         <div class="text-center">
           <.icon name="hero-exclamation-triangle" class="w-16 h-16 mx-auto mb-4 text-error" />
           <p class="text-lg font-medium">{@error}</p>
-          <.link navigate={~p"/timeline"} class="btn btn-ghost btn-sm mt-4">
+          <.link navigate={Elektrine.Paths.timeline_path()} class="btn btn-ghost btn-sm mt-4">
             Back to Timeline
           </.link>
         </div>
@@ -42,7 +42,7 @@
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Communities
         </.link>
       <% else %>
-        <.link navigate={~p"/timeline"} class="btn btn-ghost btn-sm gap-2">
+        <.link navigate={Elektrine.Paths.timeline_path()} class="btn btn-ghost btn-sm gap-2">
           <.icon name="hero-arrow-left" class="w-4 h-4" /> Back to Timeline
         </.link>
       <% end %>

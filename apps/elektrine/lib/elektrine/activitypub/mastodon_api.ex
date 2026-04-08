@@ -158,10 +158,10 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   end
 
   @doc """
-  Detect if a URL is from a Mastodon-compatible instance.
-  This is a heuristic based on URL patterns.
+  Detect if a post can use the counts API in this module.
+  This includes Misskey note URLs because count lookup falls back to `/api/notes/show`.
   """
-  def mastodon_compatible?(post) do
+  def count_api_compatible?(post) do
     activitypub_id = get_activitypub_id(post)
 
     cond do
@@ -197,6 +197,44 @@ defmodule Elektrine.ActivityPub.MastodonApi do
         true
 
       # Generic: try if it has a recognizable domain
+      true ->
+        false
+    end
+  end
+
+  @doc """
+  Detect if a post can use Mastodon-compatible status endpoints like
+  `/api/v1/statuses/:id`, `/context`, `/favourited_by`, and `/reblogged_by`.
+  """
+  def mastodon_compatible?(post) do
+    activitypub_id = get_activitypub_id(post)
+
+    cond do
+      is_nil(activitypub_id) ->
+        false
+
+      String.contains?(activitypub_id, "/post/") ->
+        false
+
+      String.contains?(activitypub_id, "/comment/") ->
+        false
+
+      # Mastodon/Pleroma/Akkoma pattern: /users/{user}/statuses/{id}
+      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/\d+}) ->
+        true
+
+      # Pixelfed pattern: /p/{user}/{id}
+      String.match?(activitypub_id, ~r{/p/[^/]+/\d+$}) ->
+        true
+
+      # GoToSocial pattern: /users/{user}/statuses/{id}
+      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/[A-Z0-9]+$}i) ->
+        true
+
+      # Friendica pattern: /objects/{uuid}
+      String.match?(activitypub_id, ~r{/objects/[a-f0-9-]+$}i) ->
+        true
+
       true ->
         false
     end

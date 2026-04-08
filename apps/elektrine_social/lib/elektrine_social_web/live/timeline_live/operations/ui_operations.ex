@@ -80,7 +80,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.UIOperations do
         Map.put(params, "q", query)
       end
 
-    ~p"/timeline?#{params}"
+    Elektrine.Paths.timeline_path(Enum.into(params, []))
   end
 
   defp extract_search_query(%{"query" => query}) when is_binary(query), do: query

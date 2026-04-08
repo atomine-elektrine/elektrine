@@ -345,7 +345,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("view_post", %{"message_id" => message_id}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/timeline/post/#{message_id}")}
+    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(message_id))}
   end
 
   def handle_event("copy_post_link", %{"message_id" => message_id}, socket) do
@@ -1031,7 +1031,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           params
       end
 
-    ~p"/timeline?#{params}"
+    Elektrine.Paths.timeline_path(Enum.into(params, []))
   end
 
   defp pending_media_metadata(socket) do

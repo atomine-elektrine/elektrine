@@ -21,7 +21,7 @@ defmodule ElektrineWeb.OIDCController do
           nil ->
             conn
             |> put_session(:user_return_to, current_request_path(conn))
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
 
           user ->
             if trusted_app_for_user?(request.app, user) do
@@ -71,7 +71,7 @@ defmodule ElektrineWeb.OIDCController do
       %{current_user: nil} ->
         conn
         |> put_session(:user_return_to, current_request_path(conn))
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
 
       {:error, redirect_uri, error, state} when is_binary(redirect_uri) ->
         redirect(conn, external: redirect_error_uri(redirect_uri, error, state))

@@ -92,7 +92,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
           {:noreply,
            socket
            |> assign(:ui, Map.put(socket.assigns.ui, :show_group_modal, false))
-           |> push_patch(to: ~p"/chat/#{conversation.id}")
+           |> push_patch(to: Elektrine.Paths.chat_path(conversation))
            |> notify_info("Chat created!")}
 
         {:error, _} ->
@@ -130,10 +130,10 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
 
           case server_channel do
             nil ->
-              {:noreply, push_patch(base_socket, to: ~p"/chat")}
+              {:noreply, push_patch(base_socket, to: Elektrine.Paths.chat_root_path())}
 
             channel ->
-              {:noreply, push_patch(base_socket, to: ~p"/chat/#{channel.hash || channel.id}")}
+              {:noreply, push_patch(base_socket, to: Elektrine.Paths.chat_path(channel))}
           end
 
         {:error, %Ecto.Changeset{} = changeset} ->
@@ -172,7 +172,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
           {:noreply,
            socket
            |> assign(:ui, Map.put(socket.assigns.ui, :show_channel_modal, false))
-           |> push_patch(to: ~p"/chat/#{channel.hash || channel.id}")
+           |> push_patch(to: Elektrine.Paths.chat_path(channel))
            |> notify_info("Channel created!")}
 
         {:error, :unauthorized} ->
@@ -298,7 +298,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
   end
 
   def handle_event("join_conversation", %{"conversation_id" => conversation_id}, socket) do
-    {:noreply, push_patch(socket, to: ~p"/chat/join/#{conversation_id}")}
+    {:noreply, push_patch(socket, to: Elektrine.Paths.chat_join_path(conversation_id))}
   end
 
   def handle_event("join_group", %{"group_id" => group_id}, socket) do
@@ -311,7 +311,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
       {:ok, _} ->
         {:noreply,
          socket
-         |> push_patch(to: ~p"/chat/#{conversation_id}")
+         |> push_patch(to: Elektrine.Paths.chat_path(conversation_id))
          |> notify_info("Joined chat")}
 
       {:error, _} ->
@@ -332,7 +332,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
         {:noreply,
          socket
          |> apply_server_scope(parsed_server_id)
-         |> push_patch(to: ~p"/chat")}
+         |> push_patch(to: Elektrine.Paths.chat_root_path())}
 
       :error ->
         {:noreply, notify_error(socket, "Invalid server")}
@@ -349,10 +349,10 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
             {:noreply,
              socket
              |> assign(:conversation, %{socket.assigns.conversation | selected: nil})
-             |> push_patch(to: ~p"/chat")}
+             |> push_patch(to: Elektrine.Paths.chat_root_path())}
 
           conversation_identifier ->
-            {:noreply, push_patch(socket, to: ~p"/chat/#{conversation_identifier}")}
+            {:noreply, push_patch(socket, to: Elektrine.Paths.chat_path(conversation_identifier))}
         end
 
       :error ->
@@ -364,7 +364,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
     {:noreply,
      socket
      |> apply_server_scope(nil)
-     |> push_patch(to: ~p"/chat")}
+     |> push_patch(to: Elektrine.Paths.chat_root_path())}
   end
 
   def handle_event("join_server", %{"server_id" => server_id}, socket) do
@@ -406,7 +406,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
              |> apply_server_scope(server_id)
              |> assign(:ui, Map.put(socket.assigns.ui, :show_browse_modal, false))
              |> maybe_notify_info(success_message)
-             |> push_patch(to: ~p"/chat/#{server_channel.hash || server_channel.id}")}
+             |> push_patch(to: Elektrine.Paths.chat_path(server_channel))}
 
           success_message ->
             {:noreply,
@@ -415,7 +415,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
              |> assign(:ui, Map.put(socket.assigns.ui, :show_browse_modal, false))
              |> notify_info(success_message)
              |> notify_warning("Joined server, but it has no channels yet")
-             |> push_patch(to: ~p"/chat")}
+             |> push_patch(to: Elektrine.Paths.chat_root_path())}
 
           true ->
             {:noreply,
@@ -423,7 +423,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
              |> apply_server_scope(server_id)
              |> assign(:ui, Map.put(socket.assigns.ui, :show_browse_modal, false))
              |> notify_warning("This server has no channels yet")
-             |> push_patch(to: ~p"/chat")}
+             |> push_patch(to: Elektrine.Paths.chat_root_path())}
         end
 
       {:error, :not_found} ->

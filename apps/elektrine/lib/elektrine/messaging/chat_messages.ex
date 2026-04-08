@@ -1331,7 +1331,7 @@ defmodule Elektrine.Messaging.ChatMessages do
               title: "New reply from @#{sender.handle || sender.username}",
               body:
                 "@#{sender.handle || sender.username} replied to your message: #{String.slice(content, 0, 50)}#{if String.length(content) > 50, do: "...", else: ""}",
-              url: "/chat/#{conversation_id}#message-#{message_id}",
+              url: Elektrine.Paths.chat_message_path(conversation_id, message_id),
               source_type: "message",
               source_id: message_id,
               priority: "normal"
@@ -1389,7 +1389,7 @@ defmodule Elektrine.Messaging.ChatMessages do
                 type: "new_message",
                 title: title,
                 body: message_text,
-                url: "/chat/#{conversation_id}#message-#{message_id}",
+                url: Elektrine.Paths.chat_message_path(conversation_id, message_id),
                 source_type: "message",
                 source_id: message_id,
                 priority: if(conversation.type == "dm", do: "normal", else: "low")

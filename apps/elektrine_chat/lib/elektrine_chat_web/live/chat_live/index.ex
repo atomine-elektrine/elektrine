@@ -113,7 +113,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
           {:noreply,
            socket
            |> notify_info("Join request sent")
-           |> push_navigate(to: ~p"/chat")}
+           |> push_navigate(to: Elektrine.Paths.chat_root_path())}
 
         {:ok, _} ->
           # Successfully joined, trigger conversation refresh and redirect
@@ -121,32 +121,32 @@ defmodule ElektrineChatWeb.ChatLive.Index do
            socket
            |> maybe_schedule_conversation_refresh(100)
            |> notify_info("Successfully joined!")
-           |> push_navigate(to: ~p"/chat/#{conversation_identifier}")}
+           |> push_navigate(to: Elektrine.Paths.chat_path(conversation_identifier))}
 
         {:error, :already_member} ->
           # Already a member, just go to the conversation using the original identifier
           {:noreply,
            socket
-           |> push_navigate(to: ~p"/chat/#{conversation_identifier}")}
+           |> push_navigate(to: Elektrine.Paths.chat_path(conversation_identifier))}
 
         {:error, :not_public_channel} ->
           {:noreply,
            socket
            |> notify_error("This is a private group or channel - you need an invitation to join")
-           |> push_navigate(to: ~p"/chat")}
+           |> push_navigate(to: Elektrine.Paths.chat_root_path())}
 
         {:error, _} ->
           {:noreply,
            socket
            |> notify_error("Unable to join this conversation")
-           |> push_navigate(to: ~p"/chat")}
+           |> push_navigate(to: Elektrine.Paths.chat_root_path())}
       end
     else
       # Invalid conversation identifier
       {:noreply,
        socket
        |> notify_error("Invalid chat invite link")
-       |> push_navigate(to: ~p"/chat")}
+       |> push_navigate(to: Elektrine.Paths.chat_root_path())}
     end
   end
 
@@ -164,7 +164,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
               {:ok, conversation} ->
                 # If accessed by ID instead of hash, redirect to canonical hash URL.
                 if conversation_identifier != conversation.hash && conversation.hash do
-                  {:noreply, push_navigate(socket, to: ~p"/chat/#{conversation.hash}")}
+                  {:noreply, push_navigate(socket, to: Elektrine.Paths.chat_path(conversation))}
                 else
                   {:noreply, open_conversation(socket, conversation)}
                 end
@@ -173,14 +173,14 @@ defmodule ElektrineChatWeb.ChatLive.Index do
                 {:noreply,
                  socket
                  |> notify_error("Chat not found")
-                 |> push_navigate(to: ~p"/chat")}
+                 |> push_navigate(to: Elektrine.Paths.chat_root_path())}
             end
 
           _ ->
             {:noreply,
              socket
              |> notify_error("Invalid chat")
-             |> push_navigate(to: ~p"/chat")}
+             |> push_navigate(to: Elektrine.Paths.chat_root_path())}
         end
     end
   end
@@ -298,7 +298,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
          |> assign(:search, %{socket.assigns.search | query: "", results: []})
-         |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+         |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :invalid_remote_handle} ->
         {:noreply, notify_error(socket, "Use handle format user@domain")}
@@ -342,7 +342,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
          |> assign(:search, %{socket.assigns.search | query: "", results: []})
-         |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+         |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :rate_limited} ->
         {:noreply,
@@ -462,7 +462,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
                |> assign(:form, %{socket.assigns.form | selected_users: []})
                |> assign(:search, %{socket.assigns.search | query: "", results: []})
                |> notify_info("Group created successfully!")
-               |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+               |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
 
             {:ok, conversation, failed_count} ->
               {:noreply,
@@ -473,7 +473,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
                |> notify_warning(
                  "Group created but #{failed_count} user(s) could not be added due to their privacy settings"
                )
-               |> push_navigate(to: ~p"/chat/#{conversation.hash || conversation.id}")}
+               |> push_navigate(to: Elektrine.Paths.chat_path(conversation))}
 
             {:error, :group_limit_exceeded} ->
               {:noreply,
@@ -519,7 +519,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
            socket
            |> assign(:ui, Map.put(socket.assigns.ui, :show_channel_modal, false))
            |> notify_info("Channel created successfully!")
-           |> push_navigate(to: ~p"/chat/#{channel.hash || channel.id}")}
+           |> push_navigate(to: Elektrine.Paths.chat_path(channel))}
 
         {:error, :unauthorized} ->
           {:noreply,
@@ -948,7 +948,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
       {:noreply,
        socket
        |> notify_error("You have been removed from this conversation")
-       |> push_navigate(to: ~p"/chat")}
+       |> push_navigate(to: Elektrine.Paths.chat_root_path())}
     else
       # Refresh conversations list to remove the conversation they were kicked from
       all_conversations = Messaging.list_conversations(socket.assigns.current_user.id)
@@ -964,7 +964,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
       {:noreply,
        socket
        |> notify_info("This conversation has been disbanded")
-       |> push_navigate(to: ~p"/chat")}
+       |> push_navigate(to: Elektrine.Paths.chat_root_path())}
     else
       # Remove from conversations list
       conversations = Enum.reject(socket.assigns.conversation.list, &(&1.id == conversation_id))

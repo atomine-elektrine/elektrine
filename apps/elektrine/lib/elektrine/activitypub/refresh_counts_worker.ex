@@ -243,7 +243,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     {lemmy_posts, other_posts} = Enum.split_with(posts, &lemmy_url?(&1.activitypub_id))
 
     {mastodon_posts, activitypub_posts} =
-      Enum.split_with(other_posts, &MastodonApi.mastodon_compatible?/1)
+      Enum.split_with(other_posts, &MastodonApi.count_api_compatible?/1)
 
     # Batch fetch Lemmy posts (uses parallel requests internally)
     if lemmy_posts != [] do
@@ -434,8 +434,8 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
             fetch_counts_activitypub(ap_id)
         end
 
-      # Mastodon-compatible: use Mastodon API
-      MastodonApi.mastodon_compatible?(%{activitypub_id: ap_id}) ->
+      # Mastodon-compatible and Misskey note URLs: use instance-specific counts API
+      MastodonApi.count_api_compatible?(%{activitypub_id: ap_id}) ->
         case MastodonApi.fetch_status_counts(ap_id) do
           %{favourites_count: fav, reblogs_count: reb, replies_count: rep} ->
             {:ok, %{like_count: fav, reply_count: rep, share_count: reb}}

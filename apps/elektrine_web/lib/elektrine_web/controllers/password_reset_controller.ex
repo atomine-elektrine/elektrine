@@ -95,7 +95,7 @@ defmodule ElektrineWeb.PasswordResetController do
 
         conn
         |> put_flash(:info, "Password reset successfully. Please log in with your new password.")
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
 
       {:error, :invalid_token} ->
         Events.auth(:password_reset_confirm, :failure, %{reason: :invalid_token})
@@ -146,7 +146,7 @@ defmodule ElektrineWeb.PasswordResetController do
 
             conn
             |> put_flash(:info, reset_confirmation_message())
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
 
           {:ok, :emails_sent} ->
             # Successfully sent reset emails (possibly to multiple users)
@@ -154,21 +154,21 @@ defmodule ElektrineWeb.PasswordResetController do
 
             conn
             |> put_flash(:info, reset_confirmation_message())
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
 
           {:ok, _user} ->
             Events.auth(:password_reset_request, :accepted, %{reason: :single_user})
 
             conn
             |> put_flash(:info, reset_confirmation_message())
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
 
           {:error, :no_recovery_email} ->
             Events.auth(:password_reset_request, :accepted, %{reason: :no_recovery_email})
 
             conn
             |> put_flash(:info, reset_confirmation_message())
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
 
           {:error, %Ecto.Changeset{}} ->
             Events.auth(:password_reset_request, :failure, %{reason: :changeset_error})

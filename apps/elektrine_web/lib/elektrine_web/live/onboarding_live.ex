@@ -10,7 +10,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
     # Redirect if already completed onboarding
     if user.onboarding_completed do
-      {:ok, push_navigate(socket, to: ~p"/chat")}
+      {:ok, push_navigate(socket, to: Elektrine.Paths.chat_root_path())}
     else
       {:ok,
        socket
@@ -109,7 +109,7 @@ defmodule ElektrineWeb.OnboardingLive do
     {:noreply,
      socket
      |> put_flash(:info, "Setup complete!")
-     |> push_navigate(to: ~p"/chat")}
+     |> push_navigate(to: Elektrine.Paths.chat_root_path())}
   end
 
   @impl true
@@ -283,7 +283,10 @@ defmodule ElektrineWeb.OnboardingLive do
                           <p class="text-sm opacity-70 mb-3">
                             Send messages, create group chats, and stay connected with friends. Real-time communication for work and personal use.
                           </p>
-                          <.link navigate={~p"/chat"} class="btn btn-sm btn-primary">
+                          <.link
+                            navigate={Elektrine.Paths.chat_root_path()}
+                            class="btn btn-sm btn-primary"
+                          >
                             <.icon name="hero-arrow-right" class="w-4 h-4 mr-1" /> Go to Chat
                           </.link>
                         </div>
@@ -306,7 +309,10 @@ defmodule ElektrineWeb.OnboardingLive do
                               &("@" <> &1)
                             )}). Access via web, IMAP, POP3, or SMTP. Full email client with folders, search, and attachments.
                           </p>
-                          <.link navigate={~p"/email"} class="btn btn-sm btn-primary">
+                          <.link
+                            navigate={Elektrine.Paths.email_index_path()}
+                            class="btn btn-sm btn-primary"
+                          >
                             <.icon name="hero-arrow-right" class="w-4 h-4 mr-1" /> Go to Email
                           </.link>
                         </div>
@@ -344,7 +350,10 @@ defmodule ElektrineWeb.OnboardingLive do
                           <p class="text-sm opacity-70 mb-3">
                             Share quick updates, thoughts, and photos. Short and casual posts to keep your followers updated. Follow others and build your social network.
                           </p>
-                          <.link navigate={~p"/timeline"} class="btn btn-sm btn-primary">
+                          <.link
+                            navigate={Elektrine.Paths.timeline_path()}
+                            class="btn btn-sm btn-primary"
+                          >
                             <.icon name="hero-arrow-right" class="w-4 h-4 mr-1" /> View Timeline
                           </.link>
                         </div>
@@ -363,7 +372,7 @@ defmodule ElektrineWeb.OnboardingLive do
                           <p class="text-sm opacity-70 mb-3">
                             Secure your internet connection with WireGuard VPN. Create configs for any device and protect your privacy. Trust Level based access to premium servers.
                           </p>
-                          <.link navigate={~p"/vpn"} class="btn btn-sm btn-primary">
+                          <.link navigate={Elektrine.Paths.vpn_path()} class="btn btn-sm btn-primary">
                             <.icon name="hero-arrow-right" class="w-4 h-4 mr-1" /> Set Up VPN
                           </.link>
                         </div>
@@ -383,7 +392,7 @@ defmodule ElektrineWeb.OnboardingLive do
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                   <.link
-                    navigate={~p"/chat"}
+                    navigate={Elektrine.Paths.chat_root_path()}
                     class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
@@ -408,7 +417,7 @@ defmodule ElektrineWeb.OnboardingLive do
                   </.link>
 
                   <.link
-                    navigate={~p"/timeline"}
+                    navigate={Elektrine.Paths.timeline_path()}
                     class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
@@ -419,7 +428,7 @@ defmodule ElektrineWeb.OnboardingLive do
                   </.link>
 
                   <.link
-                    navigate={~p"/email"}
+                    navigate={Elektrine.Paths.email_index_path()}
                     class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">
@@ -430,7 +439,7 @@ defmodule ElektrineWeb.OnboardingLive do
                   </.link>
 
                   <.link
-                    navigate={~p"/vpn"}
+                    navigate={Elektrine.Paths.vpn_path()}
                     class="card panel-card border-2 border-base-300 hover:border-primary/40 hover:shadow-lg transition-all"
                   >
                     <div class="card-body p-6 text-center">

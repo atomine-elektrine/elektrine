@@ -4,7 +4,6 @@ defmodule Elektrine.Notifications.FederationNotifications do
   """
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActorPaths
   alias Elektrine.Notifications
 
   @doc """
@@ -62,7 +61,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         type: "like",
         title: "Like from the fediverse",
         body: "@#{actor.username}@#{actor.domain} liked your post",
-        url: "/timeline/post/#{message_id}",
+        url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
         priority: "low"
@@ -83,7 +82,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         type: "reaction",
         title: "Reaction from the fediverse",
         body: "@#{actor.username}@#{actor.domain} reacted #{emoji} to your post",
-        url: "/timeline/post/#{message_id}",
+        url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
         priority: "low"
@@ -104,7 +103,7 @@ defmodule Elektrine.Notifications.FederationNotifications do
         type: "boost",
         title: "Boost from the fediverse",
         body: "@#{actor.username}@#{actor.domain} boosted your post",
-        url: "/timeline/post/#{message_id}",
+        url: Elektrine.Paths.post_path(message_id),
         source_type: "message",
         source_id: message_id,
         priority: "normal"
@@ -163,6 +162,6 @@ defmodule Elektrine.Notifications.FederationNotifications do
   end
 
   defp remote_actor_profile_path(%ActivityPub.Actor{} = actor) do
-    ActorPaths.profile_path(actor) || "/remote/#{remote_actor_handle(actor)}"
+    Elektrine.Paths.profile_path(actor) || "/remote/#{remote_actor_handle(actor)}"
   end
 end

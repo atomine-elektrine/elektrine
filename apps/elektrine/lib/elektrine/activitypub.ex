@@ -1170,11 +1170,23 @@ defmodule Elektrine.ActivityPub do
   Gets or creates an instance record.
   """
   def get_or_create_instance(domain) do
-    case Repo.get_by(Instance, domain: domain) do
+    domain = normalize_instance_domain(domain)
+
+    case get_instance_by_domain(domain) do
       nil ->
         %Instance{}
         |> Instance.changeset(%{domain: domain})
         |> Repo.insert()
+        |> case do
+          {:ok, instance} ->
+            {:ok, instance}
+
+          {:error, _changeset} ->
+            case get_instance_by_domain(domain) do
+              %Instance{} = instance -> {:ok, instance}
+              nil -> {:error, :instance_insert_failed}
+            end
+        end
 
       instance ->
         {:ok, instance}
@@ -1185,11 +1197,31 @@ defmodule Elektrine.ActivityPub do
   Checks if an instance is blocked.
   """
   def instance_blocked?(domain) do
-    case Repo.get_by(Instance, domain: domain) do
+    case get_instance_by_domain(domain) do
       %Instance{blocked: true} -> true
       _ -> false
     end
   end
+
+  defp get_instance_by_domain(domain) when is_binary(domain) do
+    normalized = normalize_instance_domain(domain)
+
+    Instance
+    |> where([i], fragment("lower(?)", i.domain) == ^normalized)
+    |> order_by([i], asc: i.id)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp get_instance_by_domain(_), do: nil
+
+  defp normalize_instance_domain(domain) when is_binary(domain) do
+    domain
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_instance_domain(domain), do: domain
 
   @doc """
   Blocks an instance.
@@ -1531,8 +1563,10 @@ defmodule Elektrine.ActivityPub do
               lemmy_post? ->
                 fetch_lemmy_comments(post_url, limit)
 
-              # ActivityPub collection returned empty but we expect replies - try Mastodon API
-              expected_replies > 0 and is_binary(post_url) ->
+              # ActivityPub collection returned empty but we expect replies - try
+              # Mastodon-compatible context endpoints when the post URL supports them.
+              expected_replies > 0 and is_binary(post_url) and
+                  MastodonApi.mastodon_compatible?(%{activitypub_id: post_url}) ->
                 fetch_mastodon_context_replies(post_url, limit)
 
               true ->
@@ -1544,8 +1578,9 @@ defmodule Elektrine.ActivityPub do
       lemmy_post? ->
         fetch_lemmy_comments(post_url, limit)
 
-      # Has replies count but no replies field - try Mastodon API first, then Pleroma
-      has_replies_count && is_binary(post_url) ->
+      # Has replies count but no replies field - try Mastodon-compatible context APIs.
+      has_replies_count && is_binary(post_url) &&
+          MastodonApi.mastodon_compatible?(%{activitypub_id: post_url}) ->
         case fetch_mastodon_context_replies(post_url, limit) do
           {:ok, replies} when replies != [] -> {:ok, replies}
           _ -> fetch_pleroma_replies(post_id, limit)

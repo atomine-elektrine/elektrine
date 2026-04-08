@@ -250,10 +250,10 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
          conversation: %{type: "timeline"}
        })
        when not is_nil(reply_to_id),
-       do: "/timeline/post/#{reply_to_id}#message-#{message_id}"
+       do: Elektrine.Paths.anchored_post_path(reply_to_id, message_id)
 
   defp get_post_url(%{id: message_id, conversation: %{type: "timeline"}}),
-    do: "/timeline/post/#{message_id}"
+    do: Elektrine.Paths.post_path(message_id)
 
   defp get_post_url(%{
          id: message_id,
@@ -261,20 +261,20 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
          conversation: %{type: "community", name: name}
        })
        when not is_nil(reply_to_id),
-       do: "/discussions/#{name}/post/#{reply_to_id}#message-#{message_id}"
+       do: Elektrine.Paths.discussion_message_path(name, reply_to_id, message_id)
 
   defp get_post_url(%{id: message_id, conversation: %{type: "community", name: name}}),
-    do: "/discussions/#{name}/post/#{message_id}"
+    do: Elektrine.Paths.discussion_post_path(name, message_id)
 
   defp get_post_url(%{id: message_id, conversation: %{type: "chat", hash: hash}})
        when not is_nil(hash),
-       do: "/chat/#{hash}#message-#{message_id}"
+       do: Elektrine.Paths.chat_message_path(hash, message_id)
 
   defp get_post_url(%{id: message_id, conversation: %{type: "chat", id: conv_id}}),
-    do: "/chat/#{conv_id}#message-#{message_id}"
+    do: Elektrine.Paths.chat_message_path(conv_id, message_id)
 
   defp get_post_url(%{id: message_id}),
-    do: "/timeline/post/#{message_id}"
+    do: Elektrine.Paths.post_path(message_id)
 
   defp get_post_url(%Ecto.Association.NotLoaded{}),
     do: "#"

@@ -4,6 +4,8 @@ defmodule Elektrine.Accounts.Tracking do
   Handles tracking of user logins, last seen timestamps, and email protocol access (IMAP/POP3).
   """
 
+  use GenServer
+
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
   alias Elektrine.DB.WriteGuard
@@ -12,6 +14,16 @@ defmodule Elektrine.Accounts.Tracking do
   @last_seen_db_interval_seconds 5 * 60
   @last_seen_local_throttle_ms @last_seen_db_interval_seconds * 1000
   @last_seen_table :last_seen_update_throttle
+
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  end
+
+  @impl true
+  def init(_opts) do
+    ensure_last_seen_table()
+    {:ok, %{}}
+  end
 
   @doc """
   Update user login information (IP address, login time, login count).
@@ -139,13 +151,28 @@ defmodule Elektrine.Accounts.Tracking do
   defp allow_last_seen_update?(user_id, now_ms) when is_integer(user_id) do
     ensure_last_seen_table()
 
-    case :ets.lookup(@last_seen_table, user_id) do
-      [{^user_id, last_ms}] when now_ms - last_ms < @last_seen_local_throttle_ms ->
-        false
+    try do
+      case :ets.lookup(@last_seen_table, user_id) do
+        [{^user_id, last_ms}] when now_ms - last_ms < @last_seen_local_throttle_ms ->
+          false
 
-      _ ->
-        :ets.insert(@last_seen_table, {user_id, now_ms})
-        true
+        _ ->
+          :ets.insert(@last_seen_table, {user_id, now_ms})
+          true
+      end
+    rescue
+      ArgumentError ->
+        # If the supervised owner is still starting, recreate and retry once.
+        ensure_last_seen_table()
+
+        case :ets.lookup(@last_seen_table, user_id) do
+          [{^user_id, last_ms}] when now_ms - last_ms < @last_seen_local_throttle_ms ->
+            false
+
+          _ ->
+            :ets.insert(@last_seen_table, {user_id, now_ms})
+            true
+        end
     end
   end
 

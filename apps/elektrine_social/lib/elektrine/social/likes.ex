@@ -217,7 +217,7 @@ defmodule Elektrine.Social.Likes do
           actor_id: liker_id,
           type: "like",
           title: "@#{liker.handle || liker.username} liked your post",
-          url: "/timeline/post/#{message_id}",
+          url: Elektrine.Paths.post_path(message_id),
           source_type: "message",
           source_id: message_id,
           priority: "low"

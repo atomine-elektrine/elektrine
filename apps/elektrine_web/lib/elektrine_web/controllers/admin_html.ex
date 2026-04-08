@@ -149,7 +149,7 @@ defmodule ElektrineWeb.AdminHTML do
     params = if status != "all", do: params ++ ["status=#{status}"], else: params
     params = params ++ ["page=#{page}"]
 
-    "/pripyat/custom-domains?" <> Enum.join(params, "&")
+    Elektrine.Paths.admin_path() <> "/custom-domains?" <> Enum.join(params, "&")
   end
 
   def admin_nav_sections do
@@ -157,13 +157,13 @@ defmodule ElektrineWeb.AdminHTML do
       %{
         label: "Main",
         items: [
-          %{label: "Dashboard", path: "/pripyat", icon: "hero-squares-2x2"}
+          %{label: "Dashboard", path: Elektrine.Paths.admin_path(), icon: "hero-squares-2x2"}
         ]
       },
       %{
         label: "Users",
         items: [
-          %{label: "Users", path: "/pripyat/users", icon: "hero-users"},
+          %{label: "Users", path: Elektrine.Paths.admin_path(:users), icon: "hero-users"},
           %{
             label: "Multi-Accounts",
             path: "/pripyat/multi-accounts",
@@ -190,7 +190,12 @@ defmodule ElektrineWeb.AdminHTML do
       %{
         label: "Email",
         items: [
-          %{label: "VPN", path: "/pripyat/vpn", icon: "hero-shield-check", platform_module: :vpn},
+          %{
+            label: "VPN",
+            path: Elektrine.Paths.admin_path(:vpn),
+            icon: "hero-shield-check",
+            platform_module: :vpn
+          },
           %{
             label: "Mailboxes",
             path: "/pripyat/mailboxes",
@@ -223,7 +228,7 @@ defmodule ElektrineWeb.AdminHTML do
           },
           %{
             label: "Arblarg Messages",
-            path: "/pripyat/arblarg/messages",
+            path: Elektrine.Paths.admin_path(:chat_messages),
             icon: "hero-chat-bubble-left-right",
             platform_module: :chat
           }
@@ -234,18 +239,18 @@ defmodule ElektrineWeb.AdminHTML do
         items: [
           %{
             label: "Content Moderation",
-            path: "/pripyat/content-moderation",
+            path: Elektrine.Paths.admin_path(:content_moderation),
             icon: "hero-shield-exclamation"
           },
           %{
             label: "Communities",
-            path: "/pripyat/communities",
+            path: Elektrine.Paths.admin_path(:communities),
             icon: "hero-user-group",
             platform_module: :social
           },
           %{
             label: "Reports",
-            path: "/pripyat/reports",
+            path: Elektrine.Paths.admin_path(:reports),
             icon: "hero-flag",
             navigate: true
           },

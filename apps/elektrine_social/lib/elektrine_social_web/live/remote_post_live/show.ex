@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Friends
   alias Elektrine.Messaging
+  alias Elektrine.Paths
   alias Elektrine.Profiles
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
@@ -725,7 +726,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       <% end %>
                       <%= if is_integer(local_parent_id) do %>
                         <.link
-                          navigate={"/remote/post/#{local_parent_id}"}
+                          navigate={Paths.post_path(local_parent_id)}
                           class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                         >
                           Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
@@ -733,7 +734,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       <% else %>
                         <%= if has_external_link do %>
                           <.link
-                            navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
+                            navigate={Paths.post_path(parent_ref)}
                             class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
                           >
                             Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
@@ -756,7 +757,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <%= if is_integer(local_parent_id) do %>
                   <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
                     <.link
-                      navigate={"/remote/post/#{local_parent_id}"}
+                      navigate={Paths.post_path(local_parent_id)}
                       class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                     >
                       Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
@@ -775,7 +776,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <% else %>
                   <%= if has_external_link do %>
                     <.link
-                      navigate={"/remote/post/#{URI.encode_www_form(parent_ref)}"}
+                      navigate={Paths.post_path(parent_ref)}
                       class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                     >
                       Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
@@ -1058,7 +1059,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     <%= if !@current_user do %>
       <div class="card panel-card rounded-lg p-4 mb-6 text-center">
-        <.link navigate={~p"/login"} class="btn btn-secondary btn-sm">
+        <.link navigate={Paths.login_path()} class="btn btn-secondary btn-sm">
           Sign in to interact
         </.link>
       </div>
@@ -1114,10 +1115,44 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   @impl true
+  def mount(%{"url" => url}, _session, socket) when is_binary(url) do
+    mount_post_ref(url, socket)
+  end
+
   def mount(%{"post_id" => post_id}, _session, socket) do
     # post_id could be a URL-encoded ActivityPub ID or a numeric local ID
     decoded_post_id = URI.decode_www_form(post_id)
 
+    mount_post_ref(decoded_post_id, socket)
+  end
+
+  @impl true
+  def handle_params(%{"url" => url}, _uri, socket) do
+    current_path = Paths.post_path(url)
+    canonical_path = canonical_remote_post_path(url)
+
+    if is_binary(canonical_path) and canonical_path != current_path do
+      {:noreply, push_patch(socket, to: canonical_path, replace: true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_params(%{"post_id" => post_id}, uri, socket) do
+    decoded_post_id = URI.decode_www_form(post_id)
+    current_path = current_post_path_from_uri(uri)
+    canonical_path = canonical_remote_post_path(decoded_post_id)
+
+    if is_binary(canonical_path) and canonical_path != current_path do
+      {:noreply, push_patch(socket, to: canonical_path, replace: true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
+  defp mount_post_ref(decoded_post_id, socket) do
     # Check if this is a numeric local post ID
     is_local_post =
       case Integer.parse(decoded_post_id) do
@@ -1177,7 +1212,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:submitted_link_preview, nil)
       |> assign(
         :current_url,
-        ElektrineWeb.Endpoint.url() <> "/remote/post/" <> URI.encode_www_form(decoded_post_id)
+        ElektrineWeb.Endpoint.url() <> (canonical_remote_post_path(decoded_post_id) || "")
       )
 
     # For initial render (not connected), do a quick synchronous fetch for SEO/link previews
@@ -1258,6 +1293,27 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     {:ok, socket}
   end
+
+  defp canonical_remote_post_path(ref) when is_binary(ref) do
+    case Messaging.get_message_by_activitypub_ref(ref) do
+      %{id: id} when is_integer(id) -> Paths.post_path(id)
+      _ -> Paths.post_path(ref)
+    end
+  end
+
+  defp canonical_remote_post_path(ref), do: Paths.post_path(ref)
+
+  defp current_post_path_from_uri(uri) when is_binary(uri) do
+    parsed = URI.parse(uri)
+
+    case {parsed.path, parsed.query} do
+      {path, nil} when is_binary(path) -> path
+      {path, query} when is_binary(path) and is_binary(query) -> path <> "?" <> query
+      _ -> nil
+    end
+  end
+
+  defp current_post_path_from_uri(_), do: nil
 
   # Check if a URL looks like a community/Lemmy-like post
   # Patterns: /post/ (Lemmy), /c/.../p/ (PieFed), /m/.../p/ (Mbin)
@@ -1617,13 +1673,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp quote_message_path(%{activitypub_id: activitypub_id})
        when is_binary(activitypub_id) and activitypub_id != "" do
-    "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+    Paths.post_path(activitypub_id)
   end
 
-  defp quote_message_path(%{id: id}) when is_integer(id), do: "/remote/post/#{id}"
+  defp quote_message_path(%{id: id}) when is_integer(id), do: Paths.post_path(id)
 
   defp quote_message_path(%{id: id}) when is_binary(id) and id != "" do
-    "/remote/post/#{URI.encode_www_form(id)}"
+    Paths.post_path(id)
   end
 
   defp quote_message_path(_), do: nil
@@ -3328,8 +3384,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
          |> assign(:lemmy_comment_counts, lemmy_comment_counts)
          |> assign(:mastodon_counts, nil)}
 
-      # Mastodon-compatible posts
-      Elektrine.ActivityPub.MastodonApi.mastodon_compatible?(%{activitypub_id: post_id}) ->
+      # Mastodon-compatible posts and Misskey note URLs
+      Elektrine.ActivityPub.MastodonApi.count_api_compatible?(%{activitypub_id: post_id}) ->
         mastodon_counts = Elektrine.ActivityPub.MastodonApi.fetch_status_counts(post_id)
 
         # Update local message counts if they're higher
@@ -3713,7 +3769,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
@@ -3725,7 +3781,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         {:noreply, push_navigate(socket, to: trimmed_url)}
 
       %URI{scheme: scheme} when scheme in ["http", "https"] ->
-        {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(trimmed_url)}")}
+        {:noreply, push_navigate(socket, to: Paths.post_path(trimmed_url))}
 
       _ ->
         {:noreply, socket}
@@ -3738,32 +3794,32 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, message_id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(url)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(url))}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(navigate_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do

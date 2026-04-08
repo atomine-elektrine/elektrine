@@ -76,7 +76,9 @@ defmodule ElektrineWeb.AuthLive.PasswordResetEdit do
           <div class="divider mt-6">OR</div>
 
           <div class="text-center">
-            <.link href={~p"/login"} class="btn btn-ghost btn-sm">Back to Login</.link>
+            <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
+              Back to Login
+            </.link>
           </div>
         <% else %>
           <h1 class="text-center text-3xl font-bold mb-6">Invalid Link</h1>

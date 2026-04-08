@@ -72,7 +72,7 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
               Lost your authenticator device? You can use a backup code instead.
             </p>
 
-            <.link href={~p"/login"} class="link link-primary">
+            <.link href={Elektrine.Paths.login_path()} class="link link-primary">
               <.icon name="hero-arrow-left" class="w-4 h-4 inline" /> Back to login
             </.link>
           </div>

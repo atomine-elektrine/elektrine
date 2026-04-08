@@ -25,7 +25,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       {:ok,
        socket
        |> put_flash(:error, "You must be logged in to access email settings")
-       |> redirect(to: ~p"/login")}
+       |> redirect(to: Elektrine.Paths.login_path())}
     else
       mount_authenticated(user, session, socket)
     end

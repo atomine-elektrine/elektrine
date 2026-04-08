@@ -42,7 +42,7 @@ defmodule ElektrineWeb.TwoFactorController do
 
       conn
       |> put_flash(:error, "Two-factor authentication session expired. Please log in again.")
-      |> redirect(to: ~p"/login")
+      |> redirect(to: Elektrine.Paths.login_path())
     end
   end
 
@@ -163,7 +163,7 @@ defmodule ElektrineWeb.TwoFactorController do
 
       conn
       |> put_flash(:error, "Two-factor authentication session expired. Please log in again.")
-      |> redirect(to: ~p"/login")
+      |> redirect(to: Elektrine.Paths.login_path())
     end
   end
 

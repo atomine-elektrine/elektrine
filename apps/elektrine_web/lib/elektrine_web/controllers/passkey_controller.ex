@@ -35,7 +35,7 @@ defmodule ElektrineWeb.PasskeyController do
           :error,
           "Too many authentication attempts. Please try again in #{format_retry_time(retry_after)}."
         )
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
     end
   end
 
@@ -44,7 +44,7 @@ defmodule ElektrineWeb.PasskeyController do
 
     conn
     |> put_flash(:error, "Invalid authentication request")
-    |> redirect(to: ~p"/login")
+    |> redirect(to: Elektrine.Paths.login_path())
   end
 
   defp process_authentication(conn, assertion_json, challenge_b64, ip_address) do
@@ -66,7 +66,7 @@ defmodule ElektrineWeb.PasskeyController do
 
                 conn
                 |> put_flash(:error, "Authentication session expired. Please try again.")
-                |> redirect(to: ~p"/login")
+                |> redirect(to: Elektrine.Paths.login_path())
             end
 
           :error ->
@@ -75,7 +75,7 @@ defmodule ElektrineWeb.PasskeyController do
 
             conn
             |> put_flash(:error, @auth_failed_message)
-            |> redirect(to: ~p"/login")
+            |> redirect(to: Elektrine.Paths.login_path())
         end
 
       {:error, _} ->
@@ -84,7 +84,7 @@ defmodule ElektrineWeb.PasskeyController do
 
         conn
         |> put_flash(:error, @auth_failed_message)
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
     end
   end
 
@@ -119,7 +119,7 @@ defmodule ElektrineWeb.PasskeyController do
           :error,
           "Security alert: This passkey may have been compromised. Please re-register your passkey."
         )
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
 
       {:error, reason} ->
         RateLimiter.record_failed_attempt(ip_address)
@@ -128,7 +128,7 @@ defmodule ElektrineWeb.PasskeyController do
 
         conn
         |> put_flash(:error, @auth_failed_message)
-        |> redirect(to: ~p"/login")
+        |> redirect(to: Elektrine.Paths.login_path())
     end
   end
 

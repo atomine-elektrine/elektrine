@@ -552,7 +552,7 @@ defmodule Elektrine.Social.Votes do
           actor_id: voter_id,
           type: "like",
           title: "@#{voter.handle || voter.username} upvoted your post",
-          url: "/timeline/post/#{message_id}",
+          url: Elektrine.Paths.post_path(message_id),
           source_type: "message",
           source_id: message_id,
           priority: "low"

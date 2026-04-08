@@ -95,7 +95,7 @@ defmodule ElektrineWeb.SubscribeLive do
     product = socket.assigns.product
 
     if user == nil do
-      {:noreply, redirect(socket, to: ~p"/login")}
+      {:noreply, redirect(socket, to: Elektrine.Paths.login_path())}
     else
       price_id =
         case plan do
@@ -152,7 +152,7 @@ defmodule ElektrineWeb.SubscribeLive do
            |> assign(:error, "Failed to open billing portal")}
       end
     else
-      {:noreply, redirect(socket, to: ~p"/login")}
+      {:noreply, redirect(socket, to: Elektrine.Paths.login_path())}
     end
   end
 
@@ -378,7 +378,7 @@ defmodule ElektrineWeb.SubscribeLive do
                 <button class="btn btn-disabled btn-block">Coming Soon</button>
               <% end %>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-primary btn-block">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-primary btn-block">
                 Log in to Purchase
               </.link>
             <% end %>
@@ -457,7 +457,7 @@ defmodule ElektrineWeb.SubscribeLive do
                 <button class="btn btn-disabled btn-block">Coming Soon</button>
               <% end %>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-secondary btn-block">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-block">
                 Log in to Subscribe
               </.link>
             <% end %>
@@ -509,7 +509,7 @@ defmodule ElektrineWeb.SubscribeLive do
                 <button class="btn btn-disabled btn-block">Coming Soon</button>
               <% end %>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-primary btn-block">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-primary btn-block">
                 Log in to Subscribe
               </.link>
             <% end %>

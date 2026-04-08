@@ -52,7 +52,7 @@ defmodule ElektrineWeb.RecoveryEmailLive.Error do
           <.link href={~p"/account?tab=security"} class="btn btn-primary w-full">
             Go to Account Settings
           </.link>
-          <.link href={~p"/login"} class="btn btn-ghost w-full">
+          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost w-full">
             Back to Login
           </.link>
         </div>

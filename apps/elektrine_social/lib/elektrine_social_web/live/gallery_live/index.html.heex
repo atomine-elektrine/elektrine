@@ -46,7 +46,7 @@
                 <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload
               </button>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-secondary btn-sm">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm">
                 <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In
               </.link>
             <% end %>
@@ -120,7 +120,7 @@
             <% else %>
               <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
                 <h3 class="font-medium">Sign in to track your gallery</h3>
-                <.link href={~p"/login"} class="btn btn-secondary btn-sm mt-4">
+                <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm mt-4">
                   Sign In
                 </.link>
               </div>
@@ -385,7 +385,7 @@
                 <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload Something
               </button>
             <% else %>
-              <.link href={~p"/login"} class="btn btn-secondary mt-5">
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-5">
                 Sign In
               </.link>
             <% end %>
