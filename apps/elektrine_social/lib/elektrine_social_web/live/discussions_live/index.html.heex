@@ -20,8 +20,6 @@
     |> Enum.take(6)
 
   discover_remote_communities = Enum.take(@filtered_discover_remote_communities || [], 6)
-  sidebar_federated_suggestions = Enum.take(@filtered_discover_remote_communities || [], 3)
-  followed_federated_count = length(@filtered_remote_communities || [])
 
   spotlight_communities = Enum.take(@filtered_popular_communities || [], 3)
   trending_threads = Enum.take(@filtered_discussions || [], 4)
@@ -42,10 +40,10 @@
   current_view_status =
     case @current_view do
       "communities" ->
-        "#{joined_count} joined · #{length(discover_cards)} local · #{length(discover_remote_communities)} federated"
+        "#{joined_count} joined · #{length(discover_cards) + length(discover_remote_communities)} to discover · #{length(active_thread_cards)} active threads"
 
       "feed" ->
-        "#{length(@filtered_community_posts || [])} posts · #{String.capitalize(@feed_sort || "new")} first"
+        "#{length(@filtered_community_posts || [])} posts · sort #{String.capitalize(@feed_sort || "new")}"
 
       _ ->
         "#{length(@my_community_posts || [])} posts from you"
@@ -186,76 +184,6 @@
               <% end %>
             </button>
           </div>
-
-          <%= if @current_view == "communities" && followed_federated_count == 0 do %>
-            <div class="border-t border-base-300 pt-4 space-y-3">
-              <div>
-                <h3 class="text-sm font-semibold">Suggested Federated Communities</h3>
-                <p class="mt-1 text-xs text-base-content/60 leading-5">
-                  Follow a few remote communities to populate your feed.
-                </p>
-              </div>
-
-              <%= if sidebar_federated_suggestions != [] do %>
-                <div class="space-y-2.5">
-                  <%= for actor <- sidebar_federated_suggestions do %>
-                    <div class="rounded-lg border border-base-300 bg-base-200/55 p-3">
-                      <div class="flex items-start gap-2.5">
-                        <%= if actor.avatar_url do %>
-                          <img
-                            src={actor.avatar_url}
-                            class="w-9 h-9 rounded-lg object-cover flex-shrink-0"
-                            alt={actor.username}
-                          />
-                        <% else %>
-                          <div class="w-9 h-9 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                            <.icon name="hero-globe-alt" class="w-4 h-4" />
-                          </div>
-                        <% end %>
-
-                        <div class="min-w-0 flex-1">
-                          <.link
-                            href={community_route(actor)}
-                            class="block text-sm font-medium truncate hover:text-secondary transition-colors"
-                          >
-                            {raw(community_display_name_markup(actor))}
-                          </.link>
-                          <p class="mt-0.5 text-[11px] text-base-content/50 break-all">
-                            {community_address(actor)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="mt-2 flex justify-end">
-                        <%= if @current_user do %>
-                          <button
-                            type="button"
-                            id={"sidebar-follow-community-#{actor.id}"}
-                            phx-click="follow_remote_group"
-                            phx-value-actor_id={actor.id}
-                            class="btn btn-secondary btn-xs transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                          >
-                            <span class="phx-click-loading:hidden">Follow</span>
-                            <span class="hidden items-center phx-click-loading:inline-flex">
-                              <.spinner size="sm" class="mr-1" /> Following...
-                            </span>
-                          </button>
-                        <% else %>
-                          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-xs">
-                            Sign in
-                          </.link>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
-              <% else %>
-                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-3 text-xs text-base-content/60 leading-5">
-                  No suggestions cached yet. Search for a full handle like `!community@server`.
-                </div>
-              <% end %>
-            </div>
-          <% end %>
         </div>
       </div>
     </div>
@@ -540,16 +468,14 @@
                   <% else %>
                     <section class="space-y-3">
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <h2 class="text-xl font-semibold">Your Communities</h2>
-                        </div>
+                        <h2 class="text-xl font-semibold">Joined</h2>
                         <%= if @current_user && length(@filtered_community_posts) > 0 do %>
                           <button
                             phx-click="set_view"
                             phx-value-view="feed"
                             class="btn btn-ghost btn-sm"
                           >
-                            View Feed
+                            Open Feed
                           </button>
                         <% end %>
                       </div>
@@ -699,7 +625,7 @@
                               You have not joined any communities yet
                             </h3>
                             <p class="text-sm text-base-content/60 mt-2 max-w-md mx-auto">
-                              Join a local community or follow a federated one below.
+                              Start with discovery below, or create a public room that gives the rest of the page something to orbit around.
                             </p>
                           </div>
                         <% end %>
@@ -724,9 +650,7 @@
                     </section>
 
                     <section class="space-y-3">
-                      <div>
-                        <h2 class="text-xl font-semibold">Discover Local Communities</h2>
-                      </div>
+                      <h2 class="text-xl font-semibold">Discover</h2>
 
                       <%= if discover_cards != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
@@ -801,9 +725,7 @@
                     </section>
 
                     <section class="space-y-3">
-                      <div>
-                        <h2 class="text-xl font-semibold">Federated Communities</h2>
-                      </div>
+                      <h2 class="text-xl font-semibold">Fediverse Communities</h2>
 
                       <%= if discover_remote_communities != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
@@ -889,15 +811,13 @@
                         </div>
                       <% else %>
                         <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-6 text-sm text-base-content/60">
-                          No federated communities are cached for this category yet.
+                          No fediverse communities are cached for this category yet.
                         </div>
                       <% end %>
                     </section>
 
                     <section class="space-y-3">
-                      <div>
-                        <h2 class="text-xl font-semibold">Active Conversations</h2>
-                      </div>
+                      <h2 class="text-xl font-semibold">Active Threads</h2>
 
                       <%= if active_thread_cards != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">

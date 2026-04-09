@@ -228,7 +228,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp request_opts(opts) do
-    [recv_timeout: 10_000, timeout: 10_000, max_body_bytes: @max_activitypub_body_bytes]
+    [recv_timeout: 5_000, timeout: 5_000, max_body_bytes: @max_activitypub_body_bytes]
     |> Keyword.merge(Keyword.take(opts, [:request_fun]))
   end
 
