@@ -100,7 +100,7 @@
               value={@search.conversation_query}
               phx-keyup="search_conversations"
               phx-debounce="300"
-              class="hidden sm:block w-full h-10 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
+              class="input hidden sm:block w-full h-10 text-sm"
               name="query"
             />
             <!-- Mobile Search Toggle -->
@@ -120,7 +120,7 @@
               value={@search.conversation_query}
               phx-keyup="search_conversations"
               phx-debounce="300"
-              class="w-full h-9 rounded-md border border-base-300 bg-base-100 px-3 text-sm text-base-content placeholder:text-base-content/60 focus:outline-none focus:ring-1 focus:ring-secondary"
+              class="input w-full h-9 text-sm"
               name="query"
             />
           </div>

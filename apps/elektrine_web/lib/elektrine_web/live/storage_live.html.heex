@@ -76,6 +76,13 @@
     </button>
     <button
       phx-click="change_tab"
+      phx-value-tab="files"
+      class={["tab", @active_tab == "files" && "tab-active"]}
+    >
+      Files
+    </button>
+    <button
+      phx-click="change_tab"
       phx-value-tab="profile"
       class={["tab", @active_tab == "profile" && "tab-active"]}
     >
@@ -229,6 +236,76 @@
                 </button>
               </div>
             <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <%= if @active_tab == "files" do %>
+    <div class="card panel-card">
+      <div class="card-body">
+        <div class="flex items-center justify-between mb-4 gap-3">
+          <h2 class="card-title">Files</h2>
+          <.link navigate={~p"/account/files"} class="btn btn-primary btn-sm">
+            <.icon name="hero-folder-open" class="w-4 h-4" /> Open Files
+          </.link>
+        </div>
+
+        <%= if Enum.empty?(@files) do %>
+          <p class="text-center text-base-content/60 py-8">No files uploaded</p>
+        <% else %>
+          <div class="space-y-2">
+            <%= for file <- @files do %>
+              <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg">
+                <div class="w-10 h-10 flex-shrink-0 bg-base-300 rounded flex items-center justify-center">
+                  <%= cond do %>
+                    <% String.starts_with?(file.content_type || "", "image/") -> %>
+                      <.icon name="hero-photo" class="w-5 h-5 text-success" />
+                    <% String.starts_with?(file.content_type || "", "video/") -> %>
+                      <.icon name="hero-film" class="w-5 h-5 text-warning" />
+                    <% String.starts_with?(file.content_type || "", "audio/") -> %>
+                      <.icon name="hero-speaker-wave" class="w-5 h-5 text-info" />
+                    <% true -> %>
+                      <.icon name="hero-document" class="w-5 h-5 text-base-content/60" />
+                  <% end %>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="font-medium truncate">
+                    {file.original_filename || Path.basename(file.path)}
+                  </p>
+                  <div class="flex items-center gap-2 text-xs text-base-content/60 flex-wrap">
+                    <span class="truncate max-w-[18rem]">{file.path}</span>
+                    <span>·</span>
+                    <span>{Storage.format_bytes(file.size)}</span>
+                    <span>·</span>
+                    <span class="truncate">
+                      {file.content_type || "application/octet-stream"}
+                    </span>
+                    <span>·</span>
+                    <span class="whitespace-nowrap">
+                      <.local_time
+                        datetime={file.updated_at}
+                        format="date"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </span>
+                  </div>
+                </div>
+                <button
+                  phx-click="delete_file"
+                  phx-value-file_id={file.id}
+                  class="btn btn-secondary btn-xs flex-shrink-0"
+                  data-confirm="Delete this file from your library?"
+                >
+                  <.icon name="hero-trash" class="w-3 h-3" />
+                </button>
+              </div>
+            <% end %>
+          </div>
+          <div class="mt-4 text-sm text-base-content/60">
+            Showing {length(@files)} most recent file{if length(@files) != 1, do: "s"}
           </div>
         <% end %>
       </div>
