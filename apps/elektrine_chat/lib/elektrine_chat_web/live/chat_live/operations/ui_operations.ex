@@ -65,13 +65,18 @@ defmodule ElektrineChatWeb.ChatLive.Operations.UIOperations do
   def handle_event("show_report_modal", %{"type" => type, "id" => id}, socket) do
     {:noreply,
      socket
-     |> assign(:ui, Map.put(socket.assigns.ui, :show_report_modal, true))
+     |> assign(:show_report_modal, true)
      |> assign(:report_type, type)
      |> assign(:report_id, String.to_integer(id))}
   end
 
   def handle_event("close_report_modal", _params, socket) do
-    {:noreply, assign(socket, :ui, Map.put(socket.assigns.ui, :show_report_modal, false))}
+    {:noreply,
+     socket
+     |> assign(:show_report_modal, false)
+     |> assign(:report_type, nil)
+     |> assign(:report_id, nil)
+     |> assign(:report_metadata, %{})}
   end
 
   # Image Modal Operations

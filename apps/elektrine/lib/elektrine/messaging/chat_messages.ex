@@ -13,11 +13,11 @@ defmodule Elektrine.Messaging.ChatMessages do
   alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
 
   alias Elektrine.Messaging.{
+    ChatConversation,
+    ChatConversationMember,
     ChatMessage,
     ChatMessageReaction,
     ChatUserHiddenMessage,
-    Conversation,
-    ConversationMember,
     Conversations,
     Federation,
     FederationReadCursor,
@@ -208,7 +208,7 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp get_conversation_member(conversation_id, user_id) when is_integer(user_id) do
-    from(cm in ConversationMember,
+    from(cm in ChatConversationMember,
       where:
         cm.conversation_id == ^conversation_id and
           cm.user_id == ^user_id and
@@ -484,7 +484,7 @@ defmodule Elektrine.Messaging.ChatMessages do
         Federation.publish_read_receipt(conversation_id, user_id, latest_read_message_id, now)
       end
 
-      from(cm in ConversationMember,
+      from(cm in ChatConversationMember,
         where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id
       )
       |> Repo.update_all(set: [last_read_at: now, last_read_message_id: nil])
@@ -519,8 +519,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   Gets unread counts for all of a user's conversations.
   """
   def get_all_unread_counts(user_id) do
-    from(cm in ConversationMember,
-      join: c in Conversation,
+    from(cm in ChatConversationMember,
+      join: c in ChatConversation,
       on: c.id == cm.conversation_id,
       join: m in ChatMessage,
       on: m.conversation_id == cm.conversation_id,
@@ -574,8 +574,10 @@ defmodule Elektrine.Messaging.ChatMessages do
         {:error, :unauthorized}
 
       _member ->
-        :ok = mark_messages_read(conversation_id, user_id, message_id)
-        {:ok, :updated}
+        case mark_messages_read(conversation_id, user_id, message_id) do
+          :ok -> {:ok, :updated}
+          {:error, _reason} = error -> error
+        end
     end
   end
 
@@ -632,7 +634,7 @@ defmodule Elektrine.Messaging.ChatMessages do
           Repo.insert_all(ChatUserHiddenMessage, hidden_records, on_conflict: :nothing)
         end
 
-        from(cm in ConversationMember,
+        from(cm in ChatConversationMember,
           where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id
         )
         |> Repo.update_all(set: [last_read_at: now, last_read_message_id: nil])
@@ -937,12 +939,12 @@ defmodule Elektrine.Messaging.ChatMessages do
     Elektrine.Async.run(fn -> extract_and_attach_link_preview(message) end)
 
     # Update conversation's last_message_at
-    from(c in Conversation, where: c.id == ^conversation_id)
+    from(c in ChatConversation, where: c.id == ^conversation_id)
     |> Repo.update_all(set: [last_message_at: message.inserted_at])
 
     # Invalidate chat cache for all conversation members
     member_ids =
-      from(cm in ConversationMember,
+      from(cm in ChatConversationMember,
         where: cm.conversation_id == ^conversation_id and is_nil(cm.left_at),
         select: cm.user_id
       )
@@ -1113,11 +1115,11 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp maybe_federate_message_created(conversation_id, message) do
-    case Repo.get(Conversation, conversation_id) do
-      %Conversation{type: "channel"} ->
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{type: "channel"} ->
         Federation.publish_message_created(message)
 
-      %Conversation{type: "dm"} = conversation when is_integer(message.sender_id) ->
+      %ChatConversation{type: "dm"} = conversation when is_integer(message.sender_id) ->
         case Conversations.remote_dm_handle(conversation) do
           handle when is_binary(handle) ->
             Federation.publish_dm_message_created(message, handle)
@@ -1132,8 +1134,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp maybe_federate_message_updated(message) do
-    case Repo.get(Conversation, message.conversation_id) do
-      %Conversation{type: "channel"} ->
+    case Repo.get(ChatConversation, message.conversation_id) do
+      %ChatConversation{type: "channel"} ->
         Federation.publish_message_updated(message)
 
       _ ->
@@ -1142,8 +1144,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp maybe_federate_message_deleted(message) do
-    case Repo.get(Conversation, message.conversation_id) do
-      %Conversation{type: "channel"} ->
+    case Repo.get(ChatConversation, message.conversation_id) do
+      %ChatConversation{type: "channel"} ->
         Federation.publish_message_deleted(message)
 
       _ ->
@@ -1154,8 +1156,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp maybe_federate_reaction_added(message_id, reaction) do
     case get_message(message_id) do
       %ChatMessage{} = message ->
-        case Repo.get(Conversation, message.conversation_id) do
-          %Conversation{type: "channel"} ->
+        case Repo.get(ChatConversation, message.conversation_id) do
+          %ChatConversation{type: "channel"} ->
             Federation.publish_reaction_added(message, reaction)
 
           _ ->
@@ -1170,8 +1172,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp maybe_federate_reaction_removed(message_id, user_id, emoji) do
     case get_message(message_id) do
       %ChatMessage{} = message ->
-        case Repo.get(Conversation, message.conversation_id) do
-          %Conversation{type: "channel"} ->
+        case Repo.get(ChatConversation, message.conversation_id) do
+          %ChatConversation{type: "channel"} ->
             Federation.publish_reaction_removed(message, user_id, emoji)
 
           _ ->
@@ -1250,8 +1252,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp read_only_mirror_message?(_message), do: false
 
   defp publishable_read_cursor_conversation?(conversation_id) when is_integer(conversation_id) do
-    case Repo.get(Conversation, conversation_id) do
-      %Conversation{type: "channel"} -> true
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{type: "channel"} -> true
       _ -> false
     end
   end
@@ -1260,8 +1262,8 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp read_only_mirror_conversation?(conversation_id) when is_integer(conversation_id) do
     match?(
-      %Conversation{type: "channel", is_federated_mirror: true},
-      Repo.get(Conversation, conversation_id)
+      %ChatConversation{type: "channel", is_federated_mirror: true},
+      Repo.get(ChatConversation, conversation_id)
     )
   end
 
@@ -1312,8 +1314,8 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp notify_chat_members(conversation_id, sender_id, content, message_id, reply_to_id) do
     sender = Accounts.get_user!(sender_id)
 
-    case Repo.get(Conversation, conversation_id) do
-      %Conversation{} = conversation ->
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{} = conversation ->
         original_sender_id =
           if reply_to_id do
             from(m in ChatMessage, where: m.id == ^reply_to_id, select: m.sender_id)
@@ -1340,7 +1342,7 @@ defmodule Elektrine.Messaging.ChatMessages do
         end
 
         members_with_preferences =
-          from(cm in ConversationMember,
+          from(cm in ChatConversationMember,
             join: u in Accounts.User,
             on: u.id == cm.user_id,
             where:

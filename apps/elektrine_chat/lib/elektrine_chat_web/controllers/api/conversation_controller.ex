@@ -17,7 +17,7 @@ defmodule ElektrineChatWeb.API.ConversationController do
     user = conn.assigns[:current_user]
     limit = parse_int(params["limit"], 50)
 
-    conversations = Messaging.list_conversations(user.id, limit: limit)
+    conversations = Messaging.list_chat_conversations(user.id, limit: limit)
 
     conn
     |> put_status(:ok)
@@ -116,7 +116,7 @@ defmodule ElektrineChatWeb.API.ConversationController do
 
     member_ids = params["member_ids"] || []
 
-    case Messaging.create_group_conversation(user.id, attrs, member_ids) do
+    case Messaging.create_chat_group_conversation(user.id, attrs, member_ids) do
       {:ok, conversation} ->
         conn
         |> put_status(:created)

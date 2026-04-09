@@ -7,7 +7,7 @@ defmodule Elektrine.Messaging.Federation.Peers do
   alias Elektrine.Messaging.Federation.{Contexts, Discovery, Runtime, State, Utils}
 
   alias Elektrine.Messaging.{
-    Conversation,
+    ChatConversation,
     Federation.PeerPolicies,
     FederationAccountPresenceState,
     FederationMembershipState,
@@ -193,7 +193,7 @@ defmodule Elektrine.Messaging.Federation.Peers do
         on: actor.id == state.remote_actor_id,
         join: membership in FederationMembershipState,
         on: membership.remote_actor_id == state.remote_actor_id and membership.state == "active",
-        join: conversation in Conversation,
+        join: conversation in ChatConversation,
         on:
           conversation.id == membership.conversation_id and conversation.server_id == ^server_id,
         join: follow in Follow,
@@ -281,7 +281,7 @@ defmodule Elektrine.Messaging.Federation.Peers do
 
   defp viewer_can_access_conversation?(conversation_id, user_id)
        when is_integer(conversation_id) and is_integer(user_id) do
-    from(conversation in Conversation,
+    from(conversation in ChatConversation,
       join: membership in assoc(conversation, :members),
       on: membership.user_id == ^user_id and is_nil(membership.left_at),
       where: conversation.id == ^conversation_id,

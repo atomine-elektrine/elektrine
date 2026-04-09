@@ -5,8 +5,8 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
   import Elektrine.Messaging.Federation.Utils
 
   alias Elektrine.Messaging.{
+    ChatConversation,
     ChatMessage,
-    Conversation,
     RoomACL,
     Server
   }
@@ -171,13 +171,13 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
       federated_source: channel_id
     }
 
-    case Repo.get_by(Conversation, type: "channel", federated_source: channel_id) do
+    case Repo.get_by(ChatConversation, type: "channel", federated_source: channel_id) do
       nil ->
-        %Conversation{} |> Conversation.channel_changeset(attrs) |> Repo.insert()
+        %ChatConversation{} |> ChatConversation.channel_changeset(attrs) |> Repo.insert()
 
-      %Conversation{} = channel ->
+      %ChatConversation{} = channel ->
         with :ok <- ensure_channel_origin_matches(channel, server.origin_domain) do
-          channel |> Conversation.changeset(attrs) |> Repo.update()
+          channel |> ChatConversation.changeset(attrs) |> Repo.update()
         end
     end
   end
@@ -496,13 +496,13 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
     if Map.has_key?(channel_payload, "name") do
       upsert_single_mirror_channel(server, channel_payload)
     else
-      case Repo.get_by(Conversation, type: "channel", federated_source: channel_id) do
-        %Conversation{server_id: server_id} = channel when server_id == server.id ->
+      case Repo.get_by(ChatConversation, type: "channel", federated_source: channel_id) do
+        %ChatConversation{server_id: server_id} = channel when server_id == server.id ->
           with :ok <- ensure_channel_origin_matches(channel, server.origin_domain) do
             {:ok, channel}
           end
 
-        %Conversation{} ->
+        %ChatConversation{} ->
           {:error, :federation_origin_conflict}
 
         nil ->
@@ -517,7 +517,7 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
   defp resolve_existing_channel_context(server_id, channel_id)
        when is_binary(channel_id) do
     case resolve_channel_by_federation_id(channel_id) do
-      %Conversation{server_id: conversation_server_id} = channel
+      %ChatConversation{server_id: conversation_server_id} = channel
       when is_integer(conversation_server_id) ->
         case Repo.get(Server, conversation_server_id) do
           %Server{} = server ->
@@ -541,15 +541,15 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
     do: {:error, :invalid_event_payload}
 
   defp resolve_channel_by_federation_id(channel_id) when is_binary(channel_id) do
-    case Repo.get_by(Conversation, type: "channel", federated_source: channel_id) do
-      %Conversation{} = channel ->
+    case Repo.get_by(ChatConversation, type: "channel", federated_source: channel_id) do
+      %ChatConversation{} = channel ->
         channel
 
       nil ->
         case local_resource_id(channel_id, "channels") do
           id when is_integer(id) ->
-            case Repo.get(Conversation, id) do
-              %Conversation{type: "channel"} = channel -> channel
+            case Repo.get(ChatConversation, id) do
+              %ChatConversation{type: "channel"} = channel -> channel
               _ -> nil
             end
 
@@ -568,7 +568,7 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
 
   defp server_matches_identifier?(_server, _identifier), do: false
 
-  defp channel_matches_identifier?(%Conversation{} = channel, identifier)
+  defp channel_matches_identifier?(%ChatConversation{} = channel, identifier)
        when is_binary(identifier) do
     normalize_identifier(channel.federated_source || channel_federation_id(channel.id)) ==
       normalize_identifier(identifier)
@@ -663,7 +663,7 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
 
   defp host_belongs_to_domain?(_host, _domain), do: false
 
-  defp ensure_channel_origin_matches(%Conversation{server_id: server_id}, remote_domain)
+  defp ensure_channel_origin_matches(%ChatConversation{server_id: server_id}, remote_domain)
        when is_integer(server_id) and is_binary(remote_domain) do
     case Repo.get(Server, server_id) do
       %Server{origin_domain: ^remote_domain} -> :ok

@@ -8,6 +8,8 @@ defmodule Elektrine.Messaging.RoomACL do
 
   alias Elektrine.Messaging.{
     ArblargSDK,
+    ChatConversation,
+    ChatConversationMember,
     Conversation,
     ConversationMember,
     FederationExtensionEvent,
@@ -74,22 +76,43 @@ defmodule Elektrine.Messaging.RoomACL do
 
   def authorize_local_user_action(conversation_id, user_id, action)
       when is_integer(conversation_id) and is_integer(user_id) and is_atom(action) do
-    with %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
-         %ConversationMember{role: base_role} <-
-           from(member in ConversationMember,
-             where:
-               member.conversation_id == ^conversation_id and member.user_id == ^user_id and
-                 is_nil(member.left_at),
-             limit: 1
-           )
-           |> Repo.one(),
-         actor_uri when is_binary(actor_uri) <- local_actor_uri(user_id),
-         true <- allowed?(conversation, base_role, actor_uri, action, %{}) do
-      :ok
-    else
-      nil -> {:error, :unauthorized}
-      false -> {:error, :unauthorized}
-      _ -> {:error, :unauthorized}
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{} = conversation ->
+        with %ChatConversationMember{role: base_role} <-
+               from(member in ChatConversationMember,
+                 where:
+                   member.conversation_id == ^conversation_id and member.user_id == ^user_id and
+                     is_nil(member.left_at),
+                 limit: 1
+               )
+               |> Repo.one(),
+             actor_uri when is_binary(actor_uri) <- local_actor_uri(user_id),
+             true <- allowed?(conversation, base_role, actor_uri, action, %{}) do
+          :ok
+        else
+          nil -> {:error, :unauthorized}
+          false -> {:error, :unauthorized}
+          _ -> {:error, :unauthorized}
+        end
+
+      nil ->
+        with %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
+             %ConversationMember{role: base_role} <-
+               from(member in ConversationMember,
+                 where:
+                   member.conversation_id == ^conversation_id and member.user_id == ^user_id and
+                     is_nil(member.left_at),
+                 limit: 1
+               )
+               |> Repo.one(),
+             actor_uri when is_binary(actor_uri) <- local_actor_uri(user_id),
+             true <- allowed?(conversation, base_role, actor_uri, action, %{}) do
+          :ok
+        else
+          nil -> {:error, :unauthorized}
+          false -> {:error, :unauthorized}
+          _ -> {:error, :unauthorized}
+        end
     end
   end
 
@@ -139,11 +162,54 @@ defmodule Elektrine.Messaging.RoomACL do
        when type != "channel" and action in [:participate, :write, :send_messages],
        do: true
 
+  defp allowed?(%ChatConversation{type: type}, _base_role, _actor_uri, action, _options)
+       when type != "channel" and action in [:participate, :write, :send_messages],
+       do: true
+
   defp allowed?(%Conversation{type: type}, _base_role, _actor_uri, _action, _options)
        when type != "channel",
        do: false
 
+  defp allowed?(%ChatConversation{type: type}, _base_role, _actor_uri, _action, _options)
+       when type != "channel",
+       do: false
+
   defp allowed?(%Conversation{id: conversation_id}, base_role, actor_uri, action, options)
+       when is_integer(conversation_id) and is_binary(actor_uri) and is_atom(action) and
+              is_map(options) do
+    permissions = effective_permissions(conversation_id, base_role, actor_uri)
+
+    case action do
+      :participate ->
+        true
+
+      action when action in [:write, :send_messages] ->
+        MapSet.member?(permissions, "send_messages")
+
+      :invite ->
+        MapSet.member?(permissions, "invite_members")
+
+      action when action in [:ban, :moderation_action] ->
+        MapSet.member?(permissions, "manage_moderation")
+
+      action when action in [:role_upsert, :role_assignment] ->
+        MapSet.member?(permissions, "manage_roles")
+
+      :permission_overwrite ->
+        MapSet.member?(permissions, "manage_permissions")
+
+      :thread_upsert ->
+        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+
+      :thread_archive ->
+        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+
+      _ ->
+        false
+    end
+  end
+
+  defp allowed?(%ChatConversation{id: conversation_id}, base_role, actor_uri, action, options)
        when is_integer(conversation_id) and is_binary(actor_uri) and is_atom(action) and
               is_map(options) do
     permissions = effective_permissions(conversation_id, base_role, actor_uri)

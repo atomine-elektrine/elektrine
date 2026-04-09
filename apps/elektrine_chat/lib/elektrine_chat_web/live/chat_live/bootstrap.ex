@@ -45,7 +45,8 @@ defmodule ElektrineChatWeb.ChatLive.Bootstrap do
     |> Phoenix.Component.assign(:uploaded_files, [])
     |> Phoenix.Component.assign(:can_send_messages, true)
     |> Phoenix.LiveView.allow_upload(:chat_attachments,
-      accept: ~w(.jpg .jpeg .png .gif .webp .heic .heif .avif .pdf .doc .docx .xls .xlsx .txt),
+      accept:
+        ~w(.jpg .jpeg .png .gif .webp .heic .heif .avif .pdf .doc .docx .xls .xlsx .txt .mp3 .wav .webm),
       max_entries: 5,
       max_file_size: chat_attachment_limit
     )

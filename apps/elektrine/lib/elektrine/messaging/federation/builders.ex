@@ -8,10 +8,10 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   alias Elektrine.Messaging.{
     ArblargSDK,
+    ChatConversation,
+    ChatConversationMember,
     ChatMessage,
     ChatMessageReaction,
-    Conversation,
-    ConversationMember,
     FederationCallSession,
     FederationOutboxEvent,
     Server,
@@ -90,7 +90,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
     conversation = message.conversation
 
     with {:ok, recipient} <- DirectMessageState.normalize_remote_dm_handle(remote_handle),
-         %Conversation{} <- conversation,
+         %ChatConversation{} <- conversation,
          true <- conversation.type == "dm",
          true <- is_integer(message.sender_id),
          %User{} = sender <- message.sender,
@@ -140,7 +140,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_dm_call_invite_event(session_id, context)
       when is_integer(session_id) and is_map(context) do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
-         %Conversation{} = conversation <- session.conversation,
+         %ChatConversation{} = conversation <- session.conversation,
          %User{} = local_user <- session.local_user do
       origin_domain = dm_event_origin_domain(session, local_user)
       stream_id = dm_stream_id(conversation.id, domain: origin_domain)
@@ -224,7 +224,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       when is_integer(session_id) and is_integer(actor_user_id) and is_binary(kind) and
              is_map(signal_payload) and is_map(context) do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
-         %Conversation{} = _conversation <- session.conversation,
+         %ChatConversation{} = _conversation <- session.conversation,
          %User{} = local_user <- session.local_user,
          true <- local_user.id == actor_user_id do
       origin_domain = dm_event_origin_domain(session, local_user)
@@ -400,7 +400,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_read_cursor_event(conversation_id, user_id, message_id, read_at, context)
       when is_integer(conversation_id) and is_integer(user_id) and is_integer(message_id) and
              is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     message = Repo.get(ChatMessage, message_id)
     user = Repo.get(User, user_id)
     server = if conversation, do: conversation.server, else: nil
@@ -442,7 +442,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_membership_upsert_event(conversation_id, user_id, state, role, context)
       when is_integer(conversation_id) and is_integer(user_id) and is_binary(state) and
              is_binary(role) and is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     user = Repo.get(User, user_id)
     server = if conversation, do: conversation.server, else: nil
 
@@ -494,7 +494,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       when is_integer(conversation_id) and is_integer(target_user_id) and
              is_integer(actor_user_id) and is_binary(state) and is_binary(role) and
              is_map(metadata) and is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     target_user = Repo.get(User, target_user_id)
     actor_user = Repo.get(User, actor_user_id)
     server = if conversation, do: conversation.server, else: nil
@@ -537,7 +537,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       when is_integer(conversation_id) and is_map(target_payload) and
              is_integer(actor_user_id) and is_binary(state) and is_binary(role) and
              is_map(metadata) and is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     actor_user = Repo.get(User, actor_user_id)
     server = if conversation, do: conversation.server, else: nil
 
@@ -596,7 +596,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
       when is_integer(conversation_id) and is_integer(target_user_id) and
              is_integer(actor_user_id) and is_binary(state) and is_map(metadata) and
              is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     target_user = Repo.get(User, target_user_id)
     actor_user = Repo.get(User, actor_user_id)
     server = if conversation, do: conversation.server, else: nil
@@ -650,7 +650,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_typing_ephemeral_item(conversation_id, user_id, mode, context)
       when mode in [:start, :stop] and is_integer(conversation_id) and is_integer(user_id) and
              is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     user = Repo.get(User, user_id)
     server = if conversation, do: conversation.server, else: nil
 
@@ -714,7 +714,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_room_presence_ephemeral_item(conversation_id, user_id, status, activities, context)
       when is_integer(conversation_id) and is_integer(user_id) and is_binary(status) and
              is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     user = Repo.get(User, user_id)
     server = if conversation, do: conversation.server, else: nil
 
@@ -748,7 +748,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
   def build_extension_event(conversation_id, actor_user_id, event_type, payload, context)
       when is_integer(conversation_id) and is_integer(actor_user_id) and is_binary(event_type) and
              is_map(payload) and is_map(context) do
-    conversation = Repo.get(Conversation, conversation_id) |> Repo.preload(:server)
+    conversation = Repo.get(ChatConversation, conversation_id) |> Repo.preload(:server)
     actor_user = Repo.get(User, actor_user_id)
     server = if conversation, do: conversation.server, else: nil
     canonical_event_type = ArblargSDK.canonical_event_type(event_type)
@@ -852,20 +852,20 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   defp read_cursor_sequence_for_message(_stream_id, _message), do: nil
 
-  defp outbound_channel_stream_id(%Conversation{} = conversation) do
+  defp outbound_channel_stream_id(%ChatConversation{} = conversation) do
     "channel:" <> (conversation.federated_source || channel_federation_id(conversation.id))
   end
 
   defp outbound_channel_stream_id(conversation_id) when is_integer(conversation_id) do
-    case Repo.get(Conversation, conversation_id) do
-      %Conversation{} = conversation -> outbound_channel_stream_id(conversation)
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{} = conversation -> outbound_channel_stream_id(conversation)
       _ -> channel_stream_id(conversation_id)
     end
   end
 
   defp outbound_channel_stream_id(_conversation), do: nil
 
-  defp target_domains_for_conversation(%Conversation{} = conversation, context)
+  defp target_domains_for_conversation(%ChatConversation{} = conversation, context)
        when is_map(context) do
     Visibility.target_domains_for_room(conversation)
   end
@@ -876,7 +876,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
        when is_integer(session_id) and is_binary(event_type) and is_map(extra_fields) and
               is_map(context) do
     with %FederationCallSession{} = session <- VoiceCalls.get_session(session_id),
-         %Conversation{} = conversation <- session.conversation,
+         %ChatConversation{} = conversation <- session.conversation,
          %User{} = local_user <- session.local_user do
       origin_domain = dm_event_origin_domain(session, local_user)
       stream_id = dm_stream_id(conversation.id, domain: origin_domain)
@@ -967,18 +967,26 @@ defmodule Elektrine.Messaging.Federation.Builders do
 
   defp normalize_remote_actor_payload(_actor, _remote_handle), do: %{}
 
-  defp target_domains_for_invite_target(%Conversation{} = conversation, target_payload, context)
+  defp target_domains_for_invite_target(
+         %ChatConversation{} = conversation,
+         target_payload,
+         context
+       )
        when is_map(target_payload) and is_map(context) do
     Visibility.target_domains_for_invite(conversation, target_payload)
   end
 
-  defp target_domains_for_invite_target(%Conversation{} = conversation, _target_payload, context),
-    do: target_domains_for_conversation(conversation, context)
+  defp target_domains_for_invite_target(
+         %ChatConversation{} = conversation,
+         _target_payload,
+         context
+       ),
+       do: target_domains_for_conversation(conversation, context)
 
   defp active_membership_joined_at(conversation_id, user_id)
        when is_integer(conversation_id) and is_integer(user_id) do
     active_joined_at =
-      from(cm in ConversationMember,
+      from(cm in ChatConversationMember,
         where:
           cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at),
         limit: 1,
@@ -991,7 +999,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
         joined_at
 
       _ ->
-        from(cm in ConversationMember,
+        from(cm in ChatConversationMember,
           where: cm.conversation_id == ^conversation_id and cm.user_id == ^user_id,
           limit: 1,
           select: cm.joined_at

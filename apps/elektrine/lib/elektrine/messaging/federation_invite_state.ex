@@ -18,7 +18,7 @@ defmodule Elektrine.Messaging.FederationInviteState do
     field :updated_at_remote, :utc_datetime
     field :metadata, :map, default: %{}
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
 
     timestamps(type: :utc_datetime)
   end

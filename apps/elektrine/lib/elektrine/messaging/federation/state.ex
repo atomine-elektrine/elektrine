@@ -8,8 +8,8 @@ defmodule Elektrine.Messaging.Federation.State do
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor
 
   alias Elektrine.Messaging.{
+    ChatConversation,
     ChatMessage,
-    Conversation,
     FederationAccountPresenceState,
     FederationExtensionEvent,
     FederationInviteState,
@@ -168,7 +168,7 @@ defmodule Elektrine.Messaging.Federation.State do
       do: {:error, :invalid_event_payload}
 
   def upsert_extension_system_message(
-        %Conversation{} = mirror_channel,
+        %ChatConversation{} = mirror_channel,
         event_type,
         event_key,
         content,
@@ -199,7 +199,7 @@ defmodule Elektrine.Messaging.Federation.State do
       nil ->
         case %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert() do
           {:ok, message} ->
-            from(c in Conversation, where: c.id == ^mirror_channel.id)
+            from(c in ChatConversation, where: c.id == ^mirror_channel.id)
             |> Repo.update_all(set: [last_message_at: message.inserted_at])
 
             call(context, :maybe_broadcast_mirror_message_created, [message])
@@ -217,7 +217,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
         case existing |> ChatMessage.changeset(update_attrs) |> Repo.update() do
           {:ok, message} ->
-            from(c in Conversation, where: c.id == ^mirror_channel.id)
+            from(c in ChatConversation, where: c.id == ^mirror_channel.id)
             |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
 
             call(context, :maybe_broadcast_mirror_message_updated, [message])
@@ -465,7 +465,7 @@ defmodule Elektrine.Messaging.Federation.State do
       when is_integer(conversation_id) and is_integer(target_user_id) and
              is_integer(actor_user_id) and is_binary(state) and is_binary(role) and
              is_map(metadata) and is_map(context) do
-    with %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
+    with %ChatConversation{} = conversation <- Repo.get(ChatConversation, conversation_id),
          %User{} = target_user <- Repo.get(User, target_user_id),
          %User{} = actor_user <- Repo.get(User, actor_user_id),
          {:ok, _invite_state} <-
@@ -511,7 +511,7 @@ defmodule Elektrine.Messaging.Federation.State do
         canonical_event_type
       )
 
-    with %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
+    with %ChatConversation{} = conversation <- Repo.get(ChatConversation, conversation_id),
          event_key when is_binary(event_key) <-
            local_extension_event_key(normalized_event_type, payload, conversation),
          occurred_at <- local_extension_occurred_at(normalized_event_type, payload),
@@ -570,7 +570,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   def server_ids_for_remote_actor(remote_actor_id) when is_integer(remote_actor_id) do
     from(state in FederationMembershipState,
-      join: conversation in Conversation,
+      join: conversation in ChatConversation,
       on: conversation.id == state.conversation_id,
       where: state.remote_actor_id == ^remote_actor_id and state.state == "active",
       where: not is_nil(conversation.server_id),
@@ -582,7 +582,7 @@ defmodule Elektrine.Messaging.Federation.State do
 
   def server_ids_for_remote_actor(_remote_actor_id), do: []
 
-  defp local_extension_event_key("role.upsert", payload, %Conversation{} = conversation) do
+  defp local_extension_event_key("role.upsert", payload, %ChatConversation{} = conversation) do
     case get_in(payload, ["role", "id"]) do
       role_id when is_binary(role_id) -> "role:#{role_id}:channel:#{conversation.id}"
       _ -> nil
@@ -592,7 +592,7 @@ defmodule Elektrine.Messaging.Federation.State do
   defp local_extension_event_key(
          "role.assignment.upsert",
          payload,
-         %Conversation{} = conversation
+         %ChatConversation{} = conversation
        ) do
     with role_id when is_binary(role_id) <- get_in(payload, ["assignment", "role_id"]),
          target_type when is_binary(target_type) <-
@@ -607,7 +607,7 @@ defmodule Elektrine.Messaging.Federation.State do
   defp local_extension_event_key(
          "permission.overwrite.upsert",
          payload,
-         %Conversation{} = conversation
+         %ChatConversation{} = conversation
        ) do
     case get_in(payload, ["overwrite", "id"]) do
       overwrite_id when is_binary(overwrite_id) ->
@@ -618,14 +618,14 @@ defmodule Elektrine.Messaging.Federation.State do
     end
   end
 
-  defp local_extension_event_key("thread.upsert", payload, %Conversation{} = conversation) do
+  defp local_extension_event_key("thread.upsert", payload, %ChatConversation{} = conversation) do
     case get_in(payload, ["thread", "id"]) do
       thread_id when is_binary(thread_id) -> "thread:#{thread_id}:channel:#{conversation.id}"
       _ -> nil
     end
   end
 
-  defp local_extension_event_key("thread.archive", payload, %Conversation{} = conversation) do
+  defp local_extension_event_key("thread.archive", payload, %ChatConversation{} = conversation) do
     case payload["thread_id"] do
       thread_id when is_binary(thread_id) -> "thread:#{thread_id}:channel:#{conversation.id}"
       _ -> nil
@@ -635,7 +635,7 @@ defmodule Elektrine.Messaging.Federation.State do
   defp local_extension_event_key(
          "moderation.action.recorded",
          payload,
-         %Conversation{} = conversation
+         %ChatConversation{} = conversation
        ) do
     case get_in(payload, ["action", "id"]) do
       action_id when is_binary(action_id) -> "moderation:#{action_id}:channel:#{conversation.id}"

@@ -17,7 +17,7 @@ defmodule Elektrine.Messaging.Server do
 
     belongs_to :creator, Elektrine.Accounts.User
     has_many :members, Elektrine.Messaging.ServerMember, foreign_key: :server_id
-    has_many :channels, Elektrine.Messaging.Conversation, foreign_key: :server_id
+    has_many :channels, Elektrine.Messaging.ChatConversation, foreign_key: :server_id
 
     timestamps()
   end

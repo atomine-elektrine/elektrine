@@ -8,7 +8,7 @@ defmodule Elektrine.Messaging.FederationReadCursor do
     field :read_at, :utc_datetime
     field :read_through_sequence, :integer
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :chat_message, Elektrine.Messaging.ChatMessage
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
 

@@ -49,7 +49,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
           Messaging.list_public_servers(socket.assigns.current_user.id, query: query, limit: 10)
 
         public_conversations =
-          Messaging.search_public_conversations(query, socket.assigns.current_user.id)
+          Messaging.search_public_chat_conversations(query, socket.assigns.current_user.id)
 
         groups = Enum.filter(public_conversations, &(&1.type == "group"))
         {users, servers, groups}

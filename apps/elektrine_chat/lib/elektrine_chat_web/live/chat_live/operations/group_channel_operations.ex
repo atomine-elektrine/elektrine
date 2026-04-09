@@ -83,7 +83,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
     if not Elektrine.Strings.present?(name) || Enum.empty?(selected_users) do
       {:noreply, notify_error(socket, "Please enter a name and select at least one user")}
     else
-      case Messaging.create_group_conversation(
+      case Messaging.create_chat_group_conversation(
              socket.assigns.current_user.id,
              %{name: name},
              selected_users
@@ -228,7 +228,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.GroupChannelOperations do
 
   def handle_event("show_browse_modal", _params, socket) do
     public_servers = Messaging.list_public_servers(socket.assigns.current_user.id)
-    public_groups = Messaging.list_public_groups()
+    public_groups = Messaging.list_chat_public_groups()
 
     updated_ui =
       socket.assigns.ui

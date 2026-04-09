@@ -9,8 +9,8 @@ defmodule Elektrine.Messaging.Servers do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
-    Conversation,
-    Conversations,
+    ChatConversation,
+    ChatConversations,
     Federation,
     Server,
     ServerMember
@@ -80,7 +80,7 @@ defmodule Elektrine.Messaging.Servers do
   """
   def get_server(server_id, user_id) do
     channel_query =
-      from(c in Conversation,
+      from(c in ChatConversation,
         where: c.type == "channel",
         order_by: [asc: c.channel_position, asc: c.inserted_at]
       )
@@ -225,8 +225,8 @@ defmodule Elektrine.Messaging.Servers do
       |> Map.put_new(:channel_position, next_position)
 
     with {:ok, channel} <-
-           %Conversation{}
-           |> Conversation.channel_changeset(channel_attrs)
+           %ChatConversation{}
+           |> ChatConversation.channel_changeset(channel_attrs)
            |> Repo.insert(),
          :ok <- add_all_server_members_to_channel(server_id, channel.id) do
       {:ok, channel}
@@ -234,7 +234,7 @@ defmodule Elektrine.Messaging.Servers do
   end
 
   defp next_channel_position(server_id) do
-    from(c in Conversation,
+    from(c in ChatConversation,
       where: c.server_id == ^server_id and c.type == "channel",
       select: max(c.channel_position)
     )
@@ -254,7 +254,7 @@ defmodule Elektrine.Messaging.Servers do
       |> Repo.all()
 
     Enum.reduce_while(user_ids, :ok, fn user_id, :ok ->
-      case Conversations.add_member_to_conversation(channel_id, user_id, "member") do
+      case ChatConversations.add_member_to_conversation(channel_id, user_id, "member") do
         {:ok, _member} -> {:cont, :ok}
         {:error, :banned} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
@@ -264,14 +264,14 @@ defmodule Elektrine.Messaging.Servers do
 
   defp add_user_to_all_server_channels(server_id, user_id) do
     channel_ids =
-      from(c in Conversation,
+      from(c in ChatConversation,
         where: c.server_id == ^server_id and c.type == "channel",
         select: c.id
       )
       |> Repo.all()
 
     Enum.reduce_while(channel_ids, :ok, fn channel_id, :ok ->
-      case Conversations.add_member_to_conversation(channel_id, user_id, "member") do
+      case ChatConversations.add_member_to_conversation(channel_id, user_id, "member") do
         {:ok, _member} -> {:cont, :ok}
         {:error, :banned} -> {:cont, :ok}
         {:error, reason} -> {:halt, {:error, reason}}
@@ -581,7 +581,7 @@ defmodule Elektrine.Messaging.Servers do
   defp maybe_hydrate_mirror_server(_server), do: :ok
 
   defp server_has_channels?(server_id) do
-    from(c in Conversation,
+    from(c in ChatConversation,
       where: c.server_id == ^server_id and c.type == "channel",
       select: c.id,
       limit: 1

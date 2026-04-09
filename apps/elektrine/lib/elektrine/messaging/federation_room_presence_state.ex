@@ -12,7 +12,7 @@ defmodule Elektrine.Messaging.FederationRoomPresenceState do
     field :updated_at_remote, :utc_datetime
     field :expires_at_remote, :utc_datetime
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
 
     timestamps(type: :utc_datetime)

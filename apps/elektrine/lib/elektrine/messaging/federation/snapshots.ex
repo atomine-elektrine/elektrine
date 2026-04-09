@@ -14,11 +14,11 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
   alias Elektrine.Messaging.ArblargSDK
 
   alias Elektrine.Messaging.{
+    ChatConversation,
+    ChatConversationMember,
     ChatMessage,
     ChatMessageReaction,
     CommunityBan,
-    Conversation,
-    ConversationMember,
     FederationExtensionEvent,
     FederationInviteState,
     FederationMembershipState,
@@ -46,7 +46,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
       channels =
         case peer do
           nil ->
-            from(c in Conversation,
+            from(c in ChatConversation,
               where:
                 c.server_id == ^server.id and c.type == "channel" and
                   c.is_federated_mirror != true,
@@ -392,7 +392,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
       |> Repo.all()
       |> Enum.take(remaining_governance_slots)
       |> Enum.reduce([], fn invite, acc ->
-        with %Conversation{} = indexed_channel <- Map.get(channel_index, invite.conversation_id),
+        with %ChatConversation{} = indexed_channel <-
+               Map.get(channel_index, invite.conversation_id),
              actor when is_map(actor) <- invite.actor_payload,
              target when is_map(target) <- invite.target_payload do
           payload = %{
@@ -436,7 +437,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   defp local_membership_payloads(%Server{} = server, channel_index, context)
        when is_map(channel_index) and is_map(context) do
-    from(member in ConversationMember,
+    from(member in ChatConversationMember,
       where: member.conversation_id in ^Map.keys(channel_index),
       preload: [:user, :conversation],
       order_by: [asc: member.conversation_id, asc: member.user_id]
@@ -444,8 +445,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn member, acc ->
       with %User{} = user <- member.user,
-           %Conversation{} = conversation <- member.conversation,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, conversation.id) do
+           %ChatConversation{} = conversation <- member.conversation,
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
           "membership" => %{
@@ -478,7 +479,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn state, acc ->
       with %Elektrine.ActivityPub.Actor{} = actor <- state.remote_actor,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, state.conversation_id) do
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, state.conversation_id) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
           "membership" => %{
@@ -510,8 +511,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn ban, acc ->
       with %User{} = target_user <- ban.user,
-           %Conversation{} = conversation <- ban.conversation,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
+           %ChatConversation{} = conversation <- ban.conversation,
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
            %{} = actor_payload <- ban_actor_payload(ban, context) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
@@ -559,7 +560,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
       metadata = state.metadata || %{}
 
       with %ActivityPubActor{} = target_actor <- state.remote_actor,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, state.conversation_id),
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, state.conversation_id),
            %{} = actor_payload <- metadata["actor"] do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
@@ -596,8 +597,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.take(call(context, :snapshot_message_limit, []))
     |> Enum.reduce([], fn message, acc ->
-      with %Conversation{} = conversation <- message.conversation,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, conversation.id) do
+      with %ChatConversation{} = conversation <- message.conversation,
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
           "message_id" => message.federated_source || message_federation_id(message.id),
@@ -637,8 +638,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn reaction, acc ->
       with %ChatMessage{} = message <- reaction.chat_message,
-           %Conversation{} = conversation <- message.conversation,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
+           %ChatConversation{} = conversation <- message.conversation,
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
            %User{} = user <- reaction.user do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
@@ -672,8 +673,8 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn reaction, acc ->
       with %ChatMessage{} = message <- reaction.chat_message,
-           %Conversation{} = conversation <- message.conversation,
-           %Conversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
+           %ChatConversation{} = conversation <- message.conversation,
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
            %ActivityPubActor{} = actor <- reaction.remote_actor do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),
@@ -705,7 +706,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
 
   defp local_read_cursor_payloads(%Server{} = server, channel_index, context)
        when is_map(channel_index) and is_map(context) do
-    from(member in ConversationMember,
+    from(member in ChatConversationMember,
       where:
         member.conversation_id in ^Map.keys(channel_index) and is_nil(member.left_at) and
           not is_nil(member.last_read_at),
@@ -717,7 +718,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     |> Repo.all()
     |> Enum.reduce([], fn member, acc ->
       with %User{} = user <- member.user,
-           %Conversation{} = channel <- Map.get(channel_index, member.conversation_id),
+           %ChatConversation{} = channel <- Map.get(channel_index, member.conversation_id),
            %ChatMessage{} = message <- last_read_chat_message(channel.id, member.last_read_at) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, channel]),
@@ -745,7 +746,7 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
     )
     |> Repo.all()
     |> Enum.reduce([], fn cursor, acc ->
-      with %Conversation{} = channel <- Map.get(channel_index, cursor.conversation_id),
+      with %ChatConversation{} = channel <- Map.get(channel_index, cursor.conversation_id),
            %ChatMessage{} = message <- cursor.chat_message,
            %ActivityPubActor{} = actor <- cursor.remote_actor do
         payload =

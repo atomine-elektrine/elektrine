@@ -81,9 +81,47 @@ const liveSocket = new LiveSocket("/live", Socket, {
 // Progress Bar Configuration
 // ============================================================================
 
-topbar.config({ barColors: { 0: "#8a7cc2" }, shadowColor: "rgba(138, 124, 194, .28)" })
+function currentThemePrimary() {
+  const primary = getComputedStyle(document.documentElement)
+    .getPropertyValue("--color-primary")
+    .trim()
 
-window.addEventListener("phx:page-loading-start", () => topbar.show(300))
+  return primary || "#8a7cc2"
+}
+
+function currentThemePrimaryShadow() {
+  const primary = currentThemePrimary()
+
+  if (primary.startsWith("#")) {
+    let hex = primary.slice(1)
+
+    if (hex.length === 3) {
+      hex = hex.split("").map((char) => char + char).join("")
+    }
+
+    if (hex.length === 6) {
+      const red = parseInt(hex.slice(0, 2), 16)
+      const green = parseInt(hex.slice(2, 4), 16)
+      const blue = parseInt(hex.slice(4, 6), 16)
+
+      return `rgba(${red}, ${green}, ${blue}, 0.28)`
+    }
+  }
+
+  return primary
+}
+
+function syncTopbarTheme() {
+  topbar.config({
+    barColors: { 0: currentThemePrimary() },
+    shadowColor: currentThemePrimaryShadow()
+  })
+}
+
+window.addEventListener("phx:page-loading-start", () => {
+  syncTopbarTheme()
+  topbar.show(300)
+})
 window.addEventListener("phx:page-loading-stop", () => {
   topbar.hide()
   checkBlinkenlights()

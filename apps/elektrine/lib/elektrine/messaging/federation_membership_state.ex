@@ -14,7 +14,7 @@ defmodule Elektrine.Messaging.FederationMembershipState do
     field :updated_at_remote, :utc_datetime
     field :metadata, :map, default: %{}
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
 
     timestamps(type: :utc_datetime)

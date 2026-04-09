@@ -6,7 +6,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
-  alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation, ConversationMember}
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, ChatMessage, ChatMessages}
   alias Elektrine.Notifications
   alias Elektrine.Profiles
   alias Elektrine.Repo
@@ -14,8 +14,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
   @remote_dm_source_prefix "arblarg:dm:"
 
   def resolve_outbound_dm_handle(%ChatMessage{} = message, nil) do
-    case Repo.get(Conversation, message.conversation_id) do
-      %Conversation{} = conversation ->
+    case Repo.get(ChatConversation, message.conversation_id) do
+      %ChatConversation{} = conversation ->
         case remote_dm_handle_from_source(conversation.federated_source) do
           handle when is_binary(handle) -> {:ok, handle}
           _ -> {:error, :invalid_remote_handle}
@@ -92,8 +92,8 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     remote_sources = remote_dm_source_candidates(remote_sender)
 
     existing_remote_dm =
-      from(c in Conversation,
-        join: cm in ConversationMember,
+      from(c in ChatConversation,
+        join: cm in ChatConversationMember,
         on: c.id == cm.conversation_id,
         where:
           c.type == "dm" and c.federated_source in ^remote_sources and
@@ -102,14 +102,14 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
       )
 
     case Repo.one(existing_remote_dm) do
-      %Conversation{} = conversation ->
+      %ChatConversation{} = conversation ->
         maybe_upgrade_remote_dm_source(conversation, remote_source)
 
       nil ->
         case Repo.transaction(fn ->
                {:ok, conversation} =
-                 %Conversation{}
-                 |> Conversation.dm_changeset(%{
+                 %ChatConversation{}
+                 |> ChatConversation.dm_changeset(%{
                    creator_id: local_user.id,
                    name: "@" <> remote_sender.handle,
                    avatar_url: remote_sender.avatar_url,
@@ -118,10 +118,14 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
                  |> Repo.insert()
 
                {:ok, _member} =
-                 ConversationMember.add_member_changeset(conversation.id, local_user.id, "member")
+                 ChatConversationMember.add_member_changeset(
+                   conversation.id,
+                   local_user.id,
+                   "member"
+                 )
                  |> Repo.insert()
 
-               from(c in Conversation, where: c.id == ^conversation.id)
+               from(c in ChatConversation, where: c.id == ^conversation.id)
                |> Repo.update_all(set: [member_count: 1])
 
                conversation
@@ -145,7 +149,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     do: {:error, :invalid_event_payload}
 
   def upsert_remote_dm_message(
-        %Conversation{} = conversation,
+        %ChatConversation{} = conversation,
         message_payload,
         remote_domain,
         remote_sender,
@@ -196,7 +200,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
             with {:ok, inserted_message} <-
                    %ChatMessage{} |> ChatMessage.changeset(attrs) |> Repo.insert() do
-              from(c in Conversation, where: c.id == ^conversation.id)
+              from(c in ChatConversation, where: c.id == ^conversation.id)
               |> Repo.update_all(set: [last_message_at: inserted_message.inserted_at])
 
               {:ok, inserted_message}
@@ -224,7 +228,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
       do: :ok
 
   def maybe_broadcast_remote_dm_message_created(
-        %Conversation{} = conversation,
+        %ChatConversation{} = conversation,
         %ChatMessage{} = message,
         %User{} = local_user,
         remote_sender,
@@ -429,10 +433,10 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     end
   end
 
-  defp maybe_upgrade_remote_dm_source(%Conversation{} = conversation, remote_source) do
+  defp maybe_upgrade_remote_dm_source(%ChatConversation{} = conversation, remote_source) do
     if is_binary(remote_source) and conversation.federated_source != remote_source do
       case conversation
-           |> Conversation.changeset(%{federated_source: remote_source})
+           |> ChatConversation.changeset(%{federated_source: remote_source})
            |> Repo.update() do
         {:ok, updated_conversation} -> {:ok, updated_conversation}
         {:error, _reason} -> {:ok, conversation}
@@ -452,7 +456,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
 
   defp maybe_notify_remote_dm_recipient(
          %User{} = local_user,
-         %Conversation{} = conversation,
+         %ChatConversation{} = conversation,
          %ChatMessage{} = message,
          remote_sender
        )
