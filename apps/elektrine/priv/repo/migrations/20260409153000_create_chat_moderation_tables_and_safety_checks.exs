@@ -57,6 +57,13 @@ defmodule Elektrine.Repo.Migrations.CreateChatModerationTablesAndSafetyChecks do
     """)
 
     execute("""
+    DELETE FROM user_timeouts ut
+    USING conversations c
+    WHERE c.id = ut.conversation_id
+      AND c.type IN ('dm', 'group', 'channel')
+    """)
+
+    execute("""
     INSERT INTO chat_moderation_actions (
       action_type,
       reason,
@@ -81,6 +88,13 @@ defmodule Elektrine.Repo.Migrations.CreateChatModerationTablesAndSafetyChecks do
     FROM moderation_actions ma
     INNER JOIN conversations c ON c.id = ma.conversation_id
     WHERE c.type IN ('dm', 'group', 'channel')
+    """)
+
+    execute("""
+    DELETE FROM moderation_actions ma
+    USING conversations c
+    WHERE c.id = ma.conversation_id
+      AND c.type IN ('dm', 'group', 'channel')
     """)
 
     execute("""
