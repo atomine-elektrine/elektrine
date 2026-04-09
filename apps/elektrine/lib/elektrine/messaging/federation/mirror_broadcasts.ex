@@ -4,10 +4,10 @@ defmodule Elektrine.Messaging.Federation.MirrorBroadcasts do
   import Ecto.Query, warn: false
 
   alias Elektrine.Messaging.{
+    ChatConversation,
     ChatMessage,
     ChatMessageReaction,
     ChatMessages,
-    Conversation,
     Server
   }
 
@@ -161,8 +161,8 @@ defmodule Elektrine.Messaging.Federation.MirrorBroadcasts do
 
   def publish_latest_message_event(conversation_id, context)
       when is_integer(conversation_id) and is_map(context) do
-    case Repo.get(Conversation, conversation_id) do
-      %Conversation{type: "channel", server_id: server_id} when not is_nil(server_id) ->
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{type: "channel", server_id: server_id} when not is_nil(server_id) ->
         case Repo.get(Server, server_id) do
           %Server{is_federated_mirror: false} ->
             from(m in ChatMessage,

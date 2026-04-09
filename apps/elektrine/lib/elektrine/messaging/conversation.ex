@@ -3,6 +3,8 @@ defmodule Elektrine.Messaging.Conversation do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Messaging.ChatConversation
+
   schema "conversations" do
     field :name, :string
     field :description, :string
@@ -217,6 +219,13 @@ defmodule Elektrine.Messaging.Conversation do
     name || "Unnamed Conversation"
   end
 
+  def display_name(%ChatConversation{} = conversation, current_user_id) do
+    conversation
+    |> Map.from_struct()
+    |> Map.put(:__struct__, __MODULE__)
+    |> display_name(current_user_id)
+  end
+
   @doc """
   Returns the avatar URL for the conversation from a user's perspective.
   """
@@ -237,6 +246,13 @@ defmodule Elektrine.Messaging.Conversation do
 
   def avatar_url(%__MODULE__{avatar_url: avatar_url}, _current_user_id) do
     avatar_url
+  end
+
+  def avatar_url(%ChatConversation{} = conversation, current_user_id) do
+    conversation
+    |> Map.from_struct()
+    |> Map.put(:__struct__, __MODULE__)
+    |> avatar_url(current_user_id)
   end
 
   # Security validation functions

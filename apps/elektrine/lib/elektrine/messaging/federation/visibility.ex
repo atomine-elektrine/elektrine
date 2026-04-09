@@ -4,7 +4,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
   import Ecto.Query, warn: false
 
   alias Elektrine.Messaging.{
-    Conversation,
+    ChatConversation,
     FederationInviteState,
     FederationMembershipState,
     Server
@@ -32,7 +32,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
   ]
 
   def public_bootstrap_channels(%Server{} = server) do
-    from(c in Conversation,
+    from(c in ChatConversation,
       where:
         c.server_id == ^server.id and c.type == "channel" and c.is_federated_mirror != true and
           c.is_public == true,
@@ -47,7 +47,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
     peer_domain = normalize_peer_domain(peer_or_domain)
 
     channels =
-      from(c in Conversation,
+      from(c in ChatConversation,
         where:
           c.server_id == ^server.id and c.type == "channel" and c.is_federated_mirror != true,
         order_by: [asc: c.channel_position, asc: c.inserted_at]
@@ -71,7 +71,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
 
   def visible_channels_for_peer(_server, _peer_or_domain), do: []
 
-  def target_domains_for_room(%Conversation{} = conversation) do
+  def target_domains_for_room(%ChatConversation{} = conversation) do
     conversation = maybe_preload_server(conversation)
 
     case conversation.server do
@@ -93,7 +93,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
 
   def target_domains_for_room(_conversation), do: []
 
-  def target_domains_for_invite(%Conversation{} = conversation, target_payload) do
+  def target_domains_for_invite(%ChatConversation{} = conversation, target_payload) do
     (target_domains_for_room(conversation) ++ List.wrap(target_actor_domain(target_payload)))
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
@@ -123,12 +123,12 @@ defmodule Elektrine.Messaging.Federation.Visibility do
              "typing.stop"
            ] ->
         case conversation_for_event_payload(payload) do
-          %Conversation{} = conversation -> target_domains_for_room(conversation)
+          %ChatConversation{} = conversation -> target_domains_for_room(conversation)
           _ -> nil
         end
 
       "invite.upsert" ->
-        with %Conversation{} = conversation <- conversation_for_event_payload(payload),
+        with %ChatConversation{} = conversation <- conversation_for_event_payload(payload),
              %{} = invite_payload <- payload["invite"] do
           target_domains_for_invite(conversation, invite_payload["target"])
         else
@@ -136,7 +136,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
         end
 
       "ban.upsert" ->
-        with %Conversation{} = conversation <- conversation_for_event_payload(payload),
+        with %ChatConversation{} = conversation <- conversation_for_event_payload(payload),
              %{} = ban_payload <- payload["ban"] do
           target_domains_for_invite(conversation, ban_payload["target"])
         else
@@ -174,16 +174,19 @@ defmodule Elektrine.Messaging.Federation.Visibility do
   def conversation_for_event_payload(_payload), do: nil
 
   def conversation_for_channel_id(channel_id) when is_binary(channel_id) do
-    case Repo.get_by(Conversation, type: "channel", federated_source: channel_id) do
-      %Conversation{} = conversation ->
+    case Repo.get_by(ChatConversation, type: "channel", federated_source: channel_id) do
+      %ChatConversation{} = conversation ->
         maybe_preload_server(conversation)
 
       nil ->
         case local_channel_id_from_federation_id(channel_id) do
           conversation_id when is_integer(conversation_id) ->
-            case Repo.get(Conversation, conversation_id) do
-              %Conversation{type: "channel"} = conversation -> maybe_preload_server(conversation)
-              _ -> nil
+            case Repo.get(ChatConversation, conversation_id) do
+              %ChatConversation{type: "channel"} = conversation ->
+                maybe_preload_server(conversation)
+
+              _ ->
+                nil
             end
 
           _ ->
@@ -194,7 +197,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
 
   def conversation_for_channel_id(_channel_id), do: nil
 
-  def public_channel?(%Server{} = server, %Conversation{} = channel) do
+  def public_channel?(%Server{} = server, %ChatConversation{} = channel) do
     server.is_public == true and channel.is_public == true
   end
 
@@ -225,7 +228,7 @@ defmodule Elektrine.Messaging.Federation.Visibility do
   defp replay_room_visible?(stream_id, peer_domain)
        when is_binary(stream_id) and is_binary(peer_domain) do
     with "channel:" <> channel_id <- stream_id,
-         %Conversation{} = conversation <- conversation_for_channel_id(channel_id),
+         %ChatConversation{} = conversation <- conversation_for_channel_id(channel_id),
          %Server{} = server <- conversation.server do
       public_channel?(server, conversation) or
         conversation.id in snapshot_visible_channel_ids([conversation.id], peer_domain)
@@ -349,9 +352,9 @@ defmodule Elektrine.Messaging.Federation.Visibility do
 
   defp local_channel_id_from_federation_id(_channel_id), do: nil
 
-  defp maybe_preload_server(%Conversation{server: %Server{}} = conversation), do: conversation
+  defp maybe_preload_server(%ChatConversation{server: %Server{}} = conversation), do: conversation
 
-  defp maybe_preload_server(%Conversation{} = conversation),
+  defp maybe_preload_server(%ChatConversation{} = conversation),
     do: Repo.preload(conversation, :server)
 
   defp maybe_preload_server(conversation), do: conversation

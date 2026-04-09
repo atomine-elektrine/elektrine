@@ -6,7 +6,7 @@ defmodule Elektrine.Calls.Call do
   schema "calls" do
     belongs_to :caller, Elektrine.Accounts.User, foreign_key: :caller_id
     belongs_to :callee, Elektrine.Accounts.User, foreign_key: :callee_id
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
 
     # "audio" or "video"
     field :call_type, :string

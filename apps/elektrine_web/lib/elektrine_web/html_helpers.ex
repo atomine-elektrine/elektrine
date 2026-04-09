@@ -2,6 +2,9 @@ defmodule ElektrineWeb.HtmlHelpers do
   @moduledoc ~s|Centralized HTML helper functions for safe content rendering.\n\nCRITICAL: Always escape user input BEFORE processing to prevent XSS attacks.\nNever use raw() without first escaping user content.\n"""  @doc ~s"""Safely converts user content to HTML with clickable links and hashtags.\n\nSECURITY: This function ALWAYS escapes user input first to prevent XSS,\nthen processes URLs and hashtags on the already-escaped content.\n\n## Examples\n\n    iex> make_content_safe_with_links(\"<script>alert('XSS')</script>\")\n    \"&lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;\"\n\n    iex> make_content_safe_with_links(\"Check out https://example.com\")\n    \"Check out <a href=\"https://example.com\" ...>https://example.com</a>\"\n|
   alias Elektrine.Paths
 
+  @mention_link_classes
+  "text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200"
+
   def make_content_safe_with_links(nil) do
     ""
   end
@@ -51,7 +54,9 @@ defmodule ElektrineWeb.HtmlHelpers do
         String.match?(token, ~r/^@\w+@[\w.-]+/) ->
           case Regex.run(~r/^@(\w+)@([\w.-]+)/, token) do
             [match, username, domain] ->
-              ~s(<a href="https://#{domain}/@#{username}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline font-semibold">#{match}</a>)
+              href = Paths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
+
+              ~s(<a href="#{href}" class="#{@mention_link_classes}">#{match}</a>)
 
             _ ->
               token
@@ -74,7 +79,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         String.match?(token, ~r/^@\w+$/) ->
           username = String.slice(token, 1..-1//1)
 
-          ~s(<a href="/#{String.downcase(username)}" class="text-primary hover:underline font-semibold">@#{username}</a>)
+          ~s(<a href="/#{String.downcase(username)}" class="#{@mention_link_classes}">@#{username}</a>)
 
         true ->
           token
@@ -206,7 +211,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         if Regex.match?(~r/@#{username}@[\w.-]+/, escaped_html) do
           match
         else
-          ~s(<a href="/#{String.downcase(username)}" class="text-primary hover:underline font-semibold">#{match}</a>)
+          ~s(<a href="/#{String.downcase(username)}" class="#{@mention_link_classes}">#{match}</a>)
         end
       end
     )
@@ -777,7 +782,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         local_path =
           Paths.profile_path(clean_username, domain) || "/remote/#{clean_username}@#{domain}"
 
-        ~s(<a href="#{local_path}" class="text-primary hover:text-accent hover:underline font-medium" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
+        ~s(<a href="#{local_path}" class="#{@mention_link_classes}" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
       end
     )
   end
@@ -795,7 +800,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           fn _full, prefix, username, domain ->
             href = Paths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
 
-            "#{prefix}<a href=\"#{href}\" class=\"text-primary hover:text-accent hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
+            "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
           end
         )
         |> maybe_linkify_short_mentions(instance_domain)
@@ -814,7 +819,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           Paths.profile_path(username, instance_domain) ||
             "/remote/#{username}@#{instance_domain}"
 
-        "#{prefix}<a href=\"#{href}\" class=\"text-primary hover:text-accent hover:underline font-medium\" phx-click=\"stop_propagation\">@#{username}</a>"
+        "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}</a>"
       end
     )
   end

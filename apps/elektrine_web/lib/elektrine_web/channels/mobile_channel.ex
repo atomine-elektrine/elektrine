@@ -29,7 +29,7 @@ defmodule ElektrineWeb.MobileChannel do
     end
 
     # Subscribe to all user's conversations for chat updates
-    conversations = Messaging.list_conversations(user_id)
+    conversations = Messaging.list_chat_conversations(user_id)
 
     for conv <- conversations do
       PubSubTopics.subscribe(PubSubTopics.conversation(conv.id))

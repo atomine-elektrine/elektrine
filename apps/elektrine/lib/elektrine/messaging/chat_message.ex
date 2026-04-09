@@ -31,7 +31,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     field :audio_duration, :integer
     field :audio_mime_type, :string
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
 

@@ -1379,7 +1379,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       end
 
     chat_unread_count = Messaging.get_unread_count(user.id)
-    recent_conversations = Messaging.list_conversations(user.id, limit: 3)
+    recent_conversations = Messaging.list_chat_conversations(user.id, limit: 3)
     notifications_unread_count = Notifications.get_unread_count(user.id)
     recent_notifications = Notifications.list_notifications(user.id, filter: :unread, limit: 8)
     pending_friend_requests = Friends.list_pending_requests(user.id)

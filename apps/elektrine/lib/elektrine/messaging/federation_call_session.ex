@@ -20,7 +20,7 @@ defmodule Elektrine.Messaging.FederationCallSession do
     field :started_at_remote, :utc_datetime
     field :ended_at_remote, :utc_datetime
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :local_user, Elektrine.Accounts.User
 
     timestamps(type: :utc_datetime)

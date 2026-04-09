@@ -8,9 +8,10 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   alias Elektrine.ActivityPub
 
   alias Elektrine.Messaging.{
+    ChatConversation,
+    ChatConversationMember,
+    ChatConversations,
     CommunityBan,
-    Conversation,
-    ConversationMember,
     Federation,
     FederationMembershipState,
     Server,
@@ -656,7 +657,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
 
   defp apply_mirrored_membership_projection(
          %Server{} = server,
-         %Conversation{} = channel,
+         %ChatConversation{} = channel,
          remote_actor_id,
          remote_domain,
          role,
@@ -698,7 +699,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   end
 
   defp apply_participant_membership_projection(
-         %Conversation{} = channel,
+         %ChatConversation{} = channel,
          remote_actor_id,
          remote_domain,
          role,
@@ -745,7 +746,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   end
 
   defp apply_authoritative_membership_projection(
-         %Conversation{} = channel,
+         %ChatConversation{} = channel,
          remote_actor_id,
          role,
          state,
@@ -828,7 +829,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   end
 
   defp handle_remote_join_request(
-         %Conversation{} = channel,
+         %ChatConversation{} = channel,
          remote_actor_id,
          actor_payload,
          role,
@@ -866,10 +867,15 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     end
   end
 
-  defp apply_local_invite_state(%Conversation{} = mirror_channel, local_user, role, "accepted") do
+  defp apply_local_invite_state(
+         %ChatConversation{} = mirror_channel,
+         local_user,
+         role,
+         "accepted"
+       ) do
     ensure_local_mirror_server_membership(mirror_channel, local_user.id)
 
-    case Elektrine.Messaging.Conversations.add_member_to_conversation_without_federation(
+    case ChatConversations.add_member_to_conversation_without_federation(
            mirror_channel.id,
            local_user.id,
            role
@@ -888,7 +894,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     do: {:error, :invalid_event_payload}
 
   defp apply_local_ban_state(
-         %Conversation{} = mirror_channel,
+         %ChatConversation{} = mirror_channel,
          local_user,
          "active",
          ban_payload,
@@ -902,7 +908,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   end
 
   defp apply_local_ban_state(
-         %Conversation{} = mirror_channel,
+         %ChatConversation{} = mirror_channel,
          local_user,
          "lifted",
          ban_payload,
@@ -914,17 +920,17 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   defp apply_local_ban_state(_mirror_channel, _local_user, _state, _ban_payload, _remote_domain),
     do: {:error, :invalid_event_payload}
 
-  defp remove_local_banned_member(%Conversation{} = mirror_channel, local_user) do
-    from(cm in ConversationMember,
+  defp remove_local_banned_member(%ChatConversation{} = mirror_channel, local_user) do
+    from(cm in ChatConversationMember,
       where:
         cm.conversation_id == ^mirror_channel.id and cm.user_id == ^local_user.id and
           is_nil(cm.left_at)
     )
     |> Repo.one()
     |> case do
-      %ConversationMember{} = member ->
+      %ChatConversationMember{} = member ->
         member
-        |> ConversationMember.remove_member_changeset()
+        |> ChatConversationMember.remove_member_changeset()
         |> Repo.update()
         |> case do
           {:ok, _updated} ->
@@ -943,7 +949,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
   defp remove_local_banned_member(_mirror_channel, _local_user), do: :ok
 
   defp upsert_local_ban_projection(
-         %Conversation{} = mirror_channel,
+         %ChatConversation{} = mirror_channel,
          %User{} = local_user,
          ban_payload,
          remote_domain
@@ -989,7 +995,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     do: {:error, :invalid_event_payload}
 
   defp delete_local_ban_projection(
-         %Conversation{} = mirror_channel,
+         %ChatConversation{} = mirror_channel,
          %User{} = local_user,
          ban_payload,
          remote_domain
@@ -1021,13 +1027,13 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
 
   defp refresh_local_member_count(conversation_id) when is_integer(conversation_id) do
     count =
-      from(cm in ConversationMember,
+      from(cm in ChatConversationMember,
         where: cm.conversation_id == ^conversation_id and is_nil(cm.left_at),
         select: count()
       )
       |> Repo.one()
 
-    from(c in Conversation, where: c.id == ^conversation_id)
+    from(c in ChatConversation, where: c.id == ^conversation_id)
     |> Repo.update_all(set: [member_count: count])
 
     :ok
@@ -1062,7 +1068,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     call(context, :maybe_broadcast_membership_state, [conversation_id, membership_state])
   end
 
-  defp ensure_local_mirror_server_membership(%Conversation{server_id: server_id}, user_id)
+  defp ensure_local_mirror_server_membership(%ChatConversation{server_id: server_id}, user_id)
        when is_integer(server_id) and is_integer(user_id) do
     case Repo.get_by(ServerMember, server_id: server_id, user_id: user_id) do
       nil ->
@@ -1136,7 +1142,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
 
   defp resolve_local_user_from_actor_payload(_actor_payload), do: nil
 
-  defp publish_join_decision(%Conversation{} = channel, target_payload, state, role, metadata)
+  defp publish_join_decision(%ChatConversation{} = channel, target_payload, state, role, metadata)
        when state in ["pending", "accepted", "declined", "revoked"] do
     case governance_actor_user_id(channel) do
       actor_user_id when is_integer(actor_user_id) ->
@@ -1156,7 +1162,7 @@ defmodule Elektrine.Messaging.Federation.MirrorEvents do
     end
   end
 
-  defp governance_actor_user_id(%Conversation{creator_id: creator_id})
+  defp governance_actor_user_id(%ChatConversation{creator_id: creator_id})
        when is_integer(creator_id),
        do: creator_id
 

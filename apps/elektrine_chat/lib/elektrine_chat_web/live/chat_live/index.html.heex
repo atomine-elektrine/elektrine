@@ -1592,7 +1592,11 @@
                       <%= if String.starts_with?(entry.client_type, "image/") do %>
                         <.icon name="hero-photo" class="w-6 h-6" />
                       <% else %>
-                        <.icon name="hero-document" class="w-6 h-6" />
+                        <%= if String.starts_with?(entry.client_type, "audio/") do %>
+                          <.icon name="hero-microphone" class="w-6 h-6" />
+                        <% else %>
+                          <.icon name="hero-document" class="w-6 h-6" />
+                        <% end %>
                       <% end %>
                     </div>
                     <div class="flex-1 min-w-0">
@@ -1667,12 +1671,12 @@
                       <.icon name="hero-gif" class="w-5 h-5" />
                     </button>
                     
-<!-- Voice Message Button - Hidden on mobile -->
+<!-- Voice Message Button -->
                     <button
                       type="button"
                       id="voice-recorder-btn"
                       phx-hook="VoiceRecorder"
-                      class="btn btn-ghost btn-circle p-0 min-h-0 h-10 w-10 flex-shrink-0 hidden sm:flex items-center justify-center text-base-content/80 hover:bg-base-300"
+                      class="btn btn-ghost btn-circle p-0 min-h-0 h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 flex items-center justify-center text-base-content/80 hover:bg-base-300"
                       title="Voice Message"
                     >
                       <.icon name="hero-microphone" class="w-5 h-5" />

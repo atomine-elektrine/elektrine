@@ -609,7 +609,7 @@ defmodule ElektrineChatWeb.ChatLive.Operations.Helpers do
   Get user's communities for discussion creation.
   """
   def get_user_communities(user_id) do
-    Messaging.list_conversations(user_id)
+    Messaging.list_chat_conversations(user_id)
     |> Enum.filter(&(&1.type == "community"))
   end
 

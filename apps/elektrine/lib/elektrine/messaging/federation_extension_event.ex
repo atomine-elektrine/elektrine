@@ -12,7 +12,7 @@ defmodule Elektrine.Messaging.FederationExtensionEvent do
     field :occurred_at, :utc_datetime
 
     belongs_to :server, Elektrine.Messaging.Server
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Messaging.ChatConversation
 
     timestamps(type: :utc_datetime)
   end

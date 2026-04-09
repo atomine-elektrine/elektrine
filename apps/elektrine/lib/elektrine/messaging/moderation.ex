@@ -7,6 +7,9 @@ defmodule Elektrine.Messaging.Moderation do
   alias Elektrine.Repo
 
   alias Elektrine.Messaging.{
+    ChatConversation,
+    ChatModerationAction,
+    ChatUserTimeout,
     CommunityBan,
     CommunityFlair,
     ConversationMember,
@@ -58,6 +61,51 @@ defmodule Elektrine.Messaging.Moderation do
     end
   end
 
+  def timeout_chat_user(conversation_id, user_id, created_by_id, duration_seconds, reason \\ nil)
+      when is_integer(conversation_id) and is_integer(user_id) and is_integer(created_by_id) and
+             is_integer(duration_seconds) do
+    timeout_until = DateTime.utc_now() |> DateTime.add(duration_seconds, :second)
+
+    from(t in ChatUserTimeout,
+      where: t.user_id == ^user_id and t.conversation_id == ^conversation_id
+    )
+    |> Repo.delete_all()
+
+    attrs = %{
+      user_id: user_id,
+      conversation_id: conversation_id,
+      timeout_until: timeout_until,
+      reason: reason,
+      created_by_id: created_by_id
+    }
+
+    case %ChatUserTimeout{} |> ChatUserTimeout.changeset(attrs) |> Repo.insert() do
+      {:ok, timeout} ->
+        %ChatModerationAction{}
+        |> ChatModerationAction.changeset(%{
+          action_type: "timeout",
+          target_user_id: user_id,
+          moderator_id: created_by_id,
+          conversation_id: conversation_id,
+          reason: reason,
+          duration: duration_seconds,
+          details: %{}
+        })
+        |> Repo.insert()
+
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "conversation:#{conversation_id}",
+          {:timeout_added, timeout}
+        )
+
+        {:ok, timeout}
+
+      error ->
+        error
+    end
+  end
+
   @doc """
   Checks if a user is currently timed out in a conversation or globally.
   """
@@ -89,31 +137,54 @@ defmodule Elektrine.Messaging.Moderation do
     if Enum.empty?(user_ids) do
       %{}
     else
-      now = DateTime.utc_now()
+      if Repo.get(ChatConversation, conversation_id) do
+        timed_out_user_ids =
+          from(t in ChatUserTimeout,
+            where:
+              t.user_id in ^user_ids and
+                t.timeout_until > ^DateTime.utc_now() and
+                t.conversation_id == ^conversation_id,
+            select: t.user_id
+          )
+          |> Repo.all()
+          |> MapSet.new()
 
-      # Get all active timeouts for these users (conversation-specific or global)
-      timed_out_user_ids =
-        from(t in UserTimeout,
-          where:
-            t.user_id in ^user_ids and
-              t.timeout_until > ^now and
-              (t.conversation_id == ^conversation_id or is_nil(t.conversation_id)),
-          select: t.user_id
-        )
-        |> Repo.all()
-        |> MapSet.new()
-
-      # Build result map for all requested users
-      user_ids
-      |> Enum.map(fn user_id -> {user_id, MapSet.member?(timed_out_user_ids, user_id)} end)
-      |> Map.new()
+        user_ids
+        |> Enum.map(fn user_id -> {user_id, MapSet.member?(timed_out_user_ids, user_id)} end)
+        |> Map.new()
+      else
+        do_users_timed_out(user_ids, conversation_id)
+      end
     end
+  end
+
+  defp do_users_timed_out(user_ids, conversation_id) do
+    now = DateTime.utc_now()
+
+    timed_out_user_ids =
+      from(t in UserTimeout,
+        where:
+          t.user_id in ^user_ids and
+            t.timeout_until > ^now and
+            (t.conversation_id == ^conversation_id or is_nil(t.conversation_id)),
+        select: t.user_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    user_ids
+    |> Enum.map(fn user_id -> {user_id, MapSet.member?(timed_out_user_ids, user_id)} end)
+    |> Map.new()
   end
 
   @doc """
   Removes timeout for a user.
   """
   def remove_timeout(user_id, conversation_id \\ nil) do
+    do_remove_timeout(user_id, conversation_id)
+  end
+
+  defp do_remove_timeout(user_id, conversation_id) do
     query =
       from t in UserTimeout,
         where: t.user_id == ^user_id
@@ -133,6 +204,26 @@ defmodule Elektrine.Messaging.Moderation do
     # Broadcast removal if timeout existed
     if timeout do
       broadcast_timeout_event(:timeout_removed, timeout)
+    end
+
+    result
+  end
+
+  def remove_chat_timeout(conversation_id, user_id)
+      when is_integer(conversation_id) and is_integer(user_id) do
+    query =
+      from t in ChatUserTimeout,
+        where: t.user_id == ^user_id and t.conversation_id == ^conversation_id
+
+    timeout = Repo.one(query)
+    result = Repo.delete_all(query)
+
+    if timeout do
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        "conversation:#{conversation_id}",
+        {:timeout_removed, user_id}
+      )
     end
 
     result

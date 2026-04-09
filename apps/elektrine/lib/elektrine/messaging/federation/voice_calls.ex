@@ -6,7 +6,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Calls
-  alias Elektrine.Messaging.{Conversation, ConversationMember, FederationCallSession}
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, FederationCallSession}
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.DirectMessageState
   alias Elektrine.Messaging.Federation.Utils
@@ -20,7 +20,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   def start_outbound_session(local_user_id, conversation_id, call_type)
       when is_integer(local_user_id) and is_integer(conversation_id) and is_binary(call_type) do
     with true <- call_type in @valid_call_types or {:error, :invalid_call_type},
-         %Conversation{} = conversation <- Repo.get(Conversation, conversation_id),
+         %ChatConversation{} = conversation <- Repo.get(ChatConversation, conversation_id),
          true <- conversation.type == "dm" or {:error, :unsupported_conversation_type},
          remote_handle when is_binary(remote_handle) <-
            DirectMessageState.remote_dm_handle_from_source(conversation.federated_source),
@@ -168,7 +168,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
     metadata = Map.get(call_payload, "metadata") || %{}
 
     with %User{} = local_user <- local_user,
-         %Conversation{} = conversation <- conversation,
+         %ChatConversation{} = conversation <- conversation,
          true <- is_binary(federated_call_id),
          true <- call_type in @valid_call_types do
       existing_session =
@@ -237,7 +237,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
       )
       when is_map(remote_sender) and is_map(call_payload) and is_binary(remote_domain) do
     with %User{} = local_user <- local_user,
-         %Conversation{} = conversation <- conversation,
+         %ChatConversation{} = conversation <- conversation,
          call_id when is_binary(call_id) <- normalize_optional_string(call_payload["id"]),
          call_type when call_type in @valid_call_types <-
            normalize_optional_string(call_payload["call_type"]) do
@@ -532,7 +532,7 @@ defmodule Elektrine.Messaging.Federation.VoiceCalls do
   defp actor_to_ui_user(_actor), do: %{username: "remote", display_name: "remote"}
 
   defp dm_membership_active?(conversation_id, user_id) do
-    from(cm in ConversationMember,
+    from(cm in ChatConversationMember,
       where:
         cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at),
       select: count(cm.id)

@@ -14,7 +14,14 @@ defmodule Elektrine.Messaging do
   alias Elektrine.Repo
 
   # Delegate to sub-contexts
-  alias Elektrine.Messaging.{ChatMessage, ChatMessages, Conversation, Message}
+  alias Elektrine.Messaging.{
+    ChatConversation,
+    ChatConversations,
+    ChatMessage,
+    ChatMessages,
+    Message
+  }
+
   alias Elektrine.Messaging.Conversations
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Messages
@@ -29,26 +36,38 @@ defmodule Elektrine.Messaging do
   """
   defdelegate list_conversations(user_id, opts \\ []), to: Conversations
 
+  defdelegate list_chat_conversations(user_id, opts \\ []),
+    to: ChatConversations,
+    as: :list_conversations
+
   @doc """
   Gets a single conversation with members and recent messages.
   """
-  defdelegate get_conversation!(id, user_id), to: Conversations
+  def get_conversation!(id, user_id) do
+    if chat_conversation_type?(id) do
+      ChatConversations.get_conversation!(id, user_id)
+    else
+      Conversations.get_conversation!(id, user_id)
+    end
+  end
+
+  defdelegate get_chat_conversation!(id, user_id), to: ChatConversations, as: :get_conversation!
 
   @doc """
   Gets a conversation for chat display without preloading messages.
   Lightweight version optimized for chat view where messages are loaded separately.
   """
-  defdelegate get_conversation_for_chat!(id, user_id), to: Conversations
+  defdelegate get_conversation_for_chat!(id, user_id), to: ChatConversations
 
   @doc """
   Gets a conversation by its hash.
   """
-  defdelegate get_conversation_by_hash(hash), to: Conversations
+  defdelegate get_conversation_by_hash(hash), to: ChatConversations
 
   @doc """
   Gets a conversation for chat display by hash, ensuring user membership.
   """
-  defdelegate get_conversation_for_chat_by_hash!(hash, user_id), to: Conversations
+  defdelegate get_conversation_for_chat_by_hash!(hash, user_id), to: ChatConversations
 
   @doc """
   Gets a conversation by its name (for communities).
@@ -63,28 +82,28 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a direct message conversation between two users.
   """
-  defdelegate create_dm_conversation(user1_id, user2_id), to: Conversations
+  defdelegate create_dm_conversation(user1_id, user2_id), to: ChatConversations
 
   @doc """
   Creates or gets a direct message conversation with a remote `user@domain` handle.
   """
   defdelegate create_remote_dm_conversation(local_user_id, remote_handle, attrs \\ %{}),
-    to: Conversations
+    to: ChatConversations
 
   @doc """
   Returns true when a conversation is a federated remote DM.
   """
-  defdelegate remote_dm_conversation?(conversation), to: Conversations
+  defdelegate remote_dm_conversation?(conversation), to: ChatConversations
 
   @doc """
   Returns normalized remote DM handle for a federated DM conversation.
   """
-  defdelegate remote_dm_handle(conversation), to: Conversations
+  defdelegate remote_dm_handle(conversation), to: ChatConversations
 
   @doc """
   Checks if user can create more conversations of the given type.
   """
-  defdelegate check_creation_limit(user_id, type), to: Conversations
+  defdelegate check_creation_limit(user_id, type), to: ChatConversations
 
   @doc """
   Creates a group conversation.
@@ -92,95 +111,200 @@ defmodule Elektrine.Messaging do
   defdelegate create_group_conversation(creator_id, attrs, member_ids \\ []), to: Conversations
 
   @doc """
+  Creates a chat group conversation.
+  """
+  defdelegate create_chat_group_conversation(creator_id, attrs, member_ids \\ []),
+    to: ChatConversations,
+    as: :create_group_conversation
+
+  @doc """
   Creates a channel.
   """
-  defdelegate create_channel(creator_id, attrs), to: Conversations
+  defdelegate create_channel(creator_id, attrs), to: ChatConversations
 
   @doc """
   Updates a conversation (name, description, etc.).
   """
-  defdelegate update_conversation(conversation, attrs), to: Conversations
+  def update_conversation(%ChatConversation{} = conversation, attrs),
+    do: ChatConversations.update_conversation(conversation, attrs)
+
+  def update_conversation(conversation, attrs),
+    do: Conversations.update_conversation(conversation, attrs)
 
   @doc """
   Deletes a conversation (admin/creator only).
   """
-  defdelegate delete_conversation(conversation_id), to: Conversations
+  def delete_conversation(conversation_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.delete_conversation(conversation_id)
+    else
+      Conversations.delete_conversation(conversation_id)
+    end
+  end
 
   @doc """
   Lists public channels.
   """
-  defdelegate list_public_channels(opts \\ []), to: Conversations
+  defdelegate list_public_channels(opts \\ []), to: ChatConversations
 
   @doc """
   Lists public groups.
   """
   defdelegate list_public_groups(opts \\ []), to: Conversations
+  defdelegate list_chat_public_groups(opts \\ []), to: ChatConversations, as: :list_public_groups
 
   @doc """
   Searches for public groups and channels that the user can join.
   """
   defdelegate search_public_conversations(query, current_user_id, limit \\ 10), to: Conversations
 
+  defdelegate search_public_chat_conversations(query, current_user_id, limit \\ 10),
+    to: ChatConversations,
+    as: :search_public_conversations
+
   @doc """
   Adds a member to a conversation.
   """
-  defdelegate add_member_to_conversation(
-                conversation_id,
-                user_id,
-                role \\ "member",
-                added_by_user_id \\ nil
-              ),
-              to: Conversations
+  def add_member_to_conversation(
+        conversation_id,
+        user_id,
+        role \\ "member",
+        added_by_user_id \\ nil
+      ) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.add_member_to_conversation(
+        conversation_id,
+        user_id,
+        role,
+        added_by_user_id
+      )
+    else
+      Conversations.add_member_to_conversation(conversation_id, user_id, role, added_by_user_id)
+    end
+  end
 
   @doc """
   Removes a member from a conversation.
   """
-  defdelegate remove_member_from_conversation(conversation_id, user_id), to: Conversations
+  def remove_member_from_conversation(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.remove_member_from_conversation(conversation_id, user_id)
+    else
+      Conversations.remove_member_from_conversation(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Gets a conversation member record.
   """
-  defdelegate get_conversation_member(conversation_id, user_id), to: Conversations
+  def get_conversation_member(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.get_conversation_member(conversation_id, user_id)
+    else
+      Conversations.get_conversation_member(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Gets all members of a conversation.
   """
-  defdelegate get_conversation_members(conversation_id), to: Conversations
+  def get_conversation_members(conversation_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.get_conversation_members(conversation_id)
+    else
+      Conversations.get_conversation_members(conversation_id)
+    end
+  end
 
   @doc """
   Lists pending remote join requests for a locally authoritative channel.
   """
-  defdelegate list_pending_remote_join_requests(conversation_id), to: Conversations
+  def list_pending_remote_join_requests(conversation_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.list_pending_remote_join_requests(conversation_id)
+    else
+      Conversations.list_pending_remote_join_requests(conversation_id)
+    end
+  end
 
   @doc """
   Approves a pending remote join request.
   """
-  defdelegate approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
-    to: Conversations
+  def approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.approve_remote_join_request(
+        conversation_id,
+        remote_actor_id,
+        reviewer_user_id
+      )
+    else
+      Conversations.approve_remote_join_request(
+        conversation_id,
+        remote_actor_id,
+        reviewer_user_id
+      )
+    end
+  end
 
   @doc """
   Declines a pending remote join request.
   """
-  defdelegate decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
-    to: Conversations
+  def decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.decline_remote_join_request(
+        conversation_id,
+        remote_actor_id,
+        reviewer_user_id
+      )
+    else
+      Conversations.decline_remote_join_request(
+        conversation_id,
+        remote_actor_id,
+        reviewer_user_id
+      )
+    end
+  end
 
   @doc """
   Promotes a member to admin role.
   """
-  defdelegate promote_to_admin(conversation_id, user_id, promoter_id), to: Conversations
+  def promote_to_admin(conversation_id, user_id, promoter_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.promote_to_admin(conversation_id, user_id, promoter_id)
+    else
+      Conversations.promote_to_admin(conversation_id, user_id, promoter_id)
+    end
+  end
 
   @doc """
   Demotes an admin to regular member.
   """
-  defdelegate demote_from_admin(conversation_id, user_id, demoter_id), to: Conversations
+  def demote_from_admin(conversation_id, user_id, demoter_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.demote_from_admin(conversation_id, user_id, demoter_id)
+    else
+      Conversations.demote_from_admin(conversation_id, user_id, demoter_id)
+    end
+  end
 
   @doc """
   Updates a member's role in a conversation.
   """
-  defdelegate update_member_role(conversation_id, user_id, new_role), to: Conversations
+  def update_member_role(conversation_id, user_id, new_role) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.update_member_role(conversation_id, user_id, new_role)
+    else
+      Conversations.update_member_role(conversation_id, user_id, new_role)
+    end
+  end
 
-  defdelegate update_member_role(conversation_id, user_id, new_role, actor_user_id),
-    to: Conversations
+  def update_member_role(conversation_id, user_id, new_role, actor_user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.update_member_role(conversation_id, user_id, new_role, actor_user_id)
+    else
+      Conversations.update_member_role(conversation_id, user_id, new_role, actor_user_id)
+    end
+  end
 
   @doc """
   Promotes a user to moderator.
@@ -195,27 +319,51 @@ defmodule Elektrine.Messaging do
   @doc """
   Joins a public conversation (channel or group).
   """
-  defdelegate join_conversation(conversation_id, user_id), to: Conversations
+  def join_conversation(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.join_conversation(conversation_id, user_id)
+    else
+      Conversations.join_conversation(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Joins a public channel.
   """
-  defdelegate join_channel(channel_id, user_id), to: Conversations
+  defdelegate join_channel(channel_id, user_id), to: ChatConversations
 
   @doc """
   Pins a conversation for a user.
   """
-  defdelegate pin_conversation(conversation_id, user_id), to: Conversations
+  def pin_conversation(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.pin_conversation(conversation_id, user_id)
+    else
+      Conversations.pin_conversation(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Unpins a conversation for a user.
   """
-  defdelegate unpin_conversation(conversation_id, user_id), to: Conversations
+  def unpin_conversation(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.unpin_conversation(conversation_id, user_id)
+    else
+      Conversations.unpin_conversation(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Allows a user to leave a conversation.
   """
-  defdelegate leave_conversation(conversation_id, user_id), to: Conversations
+  def leave_conversation(conversation_id, user_id) do
+    if chat_conversation_type?(conversation_id) do
+      ChatConversations.leave_conversation(conversation_id, user_id)
+    else
+      Conversations.leave_conversation(conversation_id, user_id)
+    end
+  end
 
   @doc """
   Checks if a user is the owner of a community.
@@ -235,7 +383,7 @@ defmodule Elektrine.Messaging do
   @doc """
   Checks if a user has any chat conversations (for loading skeleton optimization).
   """
-  defdelegate user_has_conversations?(user_id), to: Conversations
+  defdelegate user_has_conversations?(user_id), to: ChatConversations
 
   ## Servers - Delegate to Servers context
 
@@ -753,7 +901,23 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a timeout for a user in a specific conversation or globally.
   """
-  defdelegate timeout_user(user_id, created_by_id, duration_seconds, opts \\ []), to: Moderation
+  def timeout_user(conversation_id, user_id, created_by_id, duration_seconds)
+      when is_integer(conversation_id) and is_integer(user_id) and is_integer(created_by_id) and
+             is_integer(duration_seconds) do
+    if chat_conversation_type?(conversation_id) do
+      Moderation.timeout_chat_user(conversation_id, user_id, created_by_id, duration_seconds)
+    else
+      Moderation.timeout_user(user_id, created_by_id, duration_seconds,
+        conversation_id: conversation_id
+      )
+    end
+  end
+
+  def timeout_user(user_id, created_by_id, duration_seconds, opts)
+      when is_integer(user_id) and is_integer(created_by_id) and is_integer(duration_seconds) and
+             is_list(opts) do
+    Moderation.timeout_user(user_id, created_by_id, duration_seconds, opts)
+  end
 
   @doc """
   Checks if a user is currently timed out in a conversation or globally.
@@ -763,7 +927,19 @@ defmodule Elektrine.Messaging do
   @doc """
   Removes timeout for a user.
   """
-  defdelegate remove_timeout(user_id, conversation_id \\ nil), to: Moderation
+  def remove_timeout(user_id, conversation_id \\ nil)
+
+  def remove_timeout(conversation_id, user_id)
+      when is_integer(conversation_id) and is_integer(user_id) do
+    if chat_conversation_type?(conversation_id) do
+      Moderation.remove_chat_timeout(conversation_id, user_id)
+    else
+      Moderation.remove_timeout(conversation_id, user_id)
+    end
+  end
+
+  def remove_timeout(user_id, conversation_id),
+    do: Moderation.remove_timeout(user_id, conversation_id)
 
   @doc """
   Gets active timeouts for a user.
@@ -889,7 +1065,7 @@ defmodule Elektrine.Messaging do
   defp chat_conversation_type?(_), do: false
 
   defp conversation_type(conversation_id) do
-    from(c in Conversation,
+    from(c in ChatConversation,
       where: c.id == ^conversation_id,
       select: c.type
     )
@@ -899,7 +1075,7 @@ defmodule Elektrine.Messaging do
   defp conversation_type_map(conversation_ids) when is_list(conversation_ids) do
     conversation_ids = Enum.uniq(conversation_ids)
 
-    from(c in Conversation,
+    from(c in ChatConversation,
       where: c.id in ^conversation_ids,
       select: {c.id, c.type}
     )

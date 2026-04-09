@@ -212,7 +212,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
     user = socket.assigns.current_user
 
     # Get all conversations but filter out Timeline and Community channels from chat view
-    all_conversations = Messaging.list_conversations(user.id)
+    all_conversations = Messaging.list_chat_conversations(user.id)
 
     conversations_filtered =
       Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
@@ -396,7 +396,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
   def handle_info({:show_browse_modal}, socket) do
     public_servers = Messaging.list_public_servers(socket.assigns.current_user.id)
-    public_groups = Messaging.list_public_groups()
+    public_groups = Messaging.list_chat_public_groups()
 
     updated_ui =
       socket.assigns.ui
@@ -445,7 +445,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
       case consume_entity_image_upload(socket, :group_avatar_upload) do
         {:ok, avatar_url} ->
-          case Messaging.create_group_conversation(
+          case Messaging.create_chat_group_conversation(
                  socket.assigns.current_user.id,
                  %{
                    name: String.trim(name),
@@ -951,7 +951,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
        |> push_navigate(to: Elektrine.Paths.chat_root_path())}
     else
       # Refresh conversations list to remove the conversation they were kicked from
-      all_conversations = Messaging.list_conversations(socket.assigns.current_user.id)
+      all_conversations = Messaging.list_chat_conversations(socket.assigns.current_user.id)
       conversations = Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
       {:noreply, assign(socket, :conversations, conversations)}
     end
@@ -984,7 +984,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
   def handle_info(:refresh_conversations, socket) do
     # Refresh conversation list after a small delay for database consistency
-    all_conversations = Messaging.list_conversations(socket.assigns.current_user.id)
+    all_conversations = Messaging.list_chat_conversations(socket.assigns.current_user.id)
     # Filter out Timeline and Community channels from chat view
     conversations_filtered =
       Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
@@ -2741,7 +2741,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
   defp get_cached_conversations(user_id) do
     case Elektrine.AppCache.get_conversations(user_id, fn ->
-           all_conversations = Messaging.list_conversations(user_id)
+           all_conversations = Messaging.list_chat_conversations(user_id)
            Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
          end) do
       {:ok, conversations} ->
@@ -2752,7 +2752,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
           "failed to fetch cached conversations for user #{user_id}: #{inspect(reason)}"
         )
 
-        all_conversations = Messaging.list_conversations(user_id)
+        all_conversations = Messaging.list_chat_conversations(user_id)
         Enum.reject(all_conversations, &(&1.type in ["timeline", "community"]))
     end
   end
