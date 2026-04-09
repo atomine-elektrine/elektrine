@@ -53,7 +53,7 @@ defmodule Elektrine.Repo.Migrations.CreateChatModerationTablesAndSafetyChecks do
     FROM user_timeouts ut
     INNER JOIN conversations c ON c.id = ut.conversation_id
     WHERE c.type IN ('dm', 'group', 'channel')
-    ON CONFLICT ON CONSTRAINT chat_user_timeouts_user_conversation_unique DO NOTHING
+    ON CONFLICT (user_id, conversation_id) DO NOTHING
     """)
 
     execute("""
