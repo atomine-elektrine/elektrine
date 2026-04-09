@@ -96,8 +96,8 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         end)
       end)
 
-    # Use yield_many with 3s timeout - accept whatever completes in time
-    results = Task.yield_many(tasks, timeout: 3_000)
+    # Use a slightly longer timeout for busy Lemmy instances.
+    results = Task.yield_many(tasks, timeout: 6_000)
 
     # Shutdown any tasks that didn't complete
     Enum.each(results, fn {task, result} ->
@@ -237,7 +237,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         end)
       end)
 
-    results = Task.yield_many(tasks, timeout: 3_000)
+    results = Task.yield_many(tasks, timeout: 6_000)
 
     Enum.each(results, fn {task, result} ->
       if result == nil, do: Task.shutdown(task, :brutal_kill)
