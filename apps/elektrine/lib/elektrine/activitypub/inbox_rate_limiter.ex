@@ -9,10 +9,9 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
 
   # Default limits can be overridden at runtime via:
   # config :elektrine, Elektrine.ActivityPub.InboxRateLimiter, ...
-  # Federation bursts are normal for relays, busy instances, and backfills.
-  @default_max_per_minute 120
-  @default_max_per_domain_per_minute 300
-  @default_max_global_per_second 30
+  @default_max_per_minute 20
+  @default_max_per_domain_per_minute 40
+  @default_max_global_per_second 8
   # Cleanup interval
   @cleanup_interval 60_000
 

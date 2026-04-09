@@ -14,7 +14,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers}
   alias Elektrine.Messaging
 
-  @max_replies 100
+  @max_replies 50
   @max_depth 3
 
   @doc """
