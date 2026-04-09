@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.StorageLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Accounts.Storage
+  alias Elektrine.Files
   alias ElektrineWeb.Platform.Integrations
   require Logger
 
@@ -24,6 +25,7 @@ defmodule ElektrineWeb.StorageLive do
      |> assign(:email_available, Integrations.email_available?())
      |> assign(:email_attachments, [])
      |> assign(:chat_attachments, [])
+     |> assign(:files, [])
      |> assign(:profile_images, [])
      |> assign(:static_site_files, [])}
   end
@@ -47,6 +49,9 @@ defmodule ElektrineWeb.StorageLive do
 
         "chat" ->
           assign(socket, :chat_attachments, get_chat_attachments(socket.assigns.current_user.id))
+
+        "files" ->
+          assign(socket, :files, get_files(socket.assigns.current_user.id))
 
         "profile" ->
           assign(socket, :profile_images, get_profile_images(socket.assigns.current_user.id))
@@ -157,6 +162,30 @@ defmodule ElektrineWeb.StorageLive do
       end
     else
       {:noreply, put_flash(socket, :error, "Unauthorized or message not found")}
+    end
+  end
+
+  @impl true
+  def handle_event("delete_file", %{"file_id" => file_id}, socket) do
+    user_id = socket.assigns.current_user.id
+
+    with {parsed_id, ""} <- Integer.parse(file_id),
+         :ok <- Files.delete_file(user_id, parsed_id) do
+      storage_info = Storage.get_storage_info(user_id)
+      breakdown = get_storage_breakdown(user_id)
+
+      {:noreply,
+       socket
+       |> assign(:storage_info, storage_info)
+       |> assign(:breakdown, breakdown)
+       |> assign(:files, get_files(user_id))
+       |> put_flash(:info, "File deleted successfully")}
+    else
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "File not found")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Failed to delete file")}
     end
   end
 
@@ -388,6 +417,12 @@ defmodule ElektrineWeb.StorageLive do
       end
 
     images
+  end
+
+  defp get_files(user_id) do
+    Files.list_files(user_id)
+    |> Enum.sort_by(&{DateTime.to_unix(&1.updated_at, :second), &1.path}, :desc)
+    |> Enum.take(100)
   end
 
   defp get_static_site_files(user_id) do
