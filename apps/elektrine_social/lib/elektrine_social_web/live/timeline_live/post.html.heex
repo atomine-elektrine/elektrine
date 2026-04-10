@@ -449,7 +449,7 @@
             
 <!-- Link Preview -->
             <%= if match?(%Elektrine.Social.LinkPreview{}, @post.link_preview) && @post.link_preview.status == "success" do %>
-              <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+              <div class="my-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
                 <a
                   href={@post.link_preview.url}
                   target="_blank"

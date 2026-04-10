@@ -1059,6 +1059,9 @@ if Mix.env() == :dev do
       _ -> Elektrine.Domains.primary_email_domain()
     end
 
+  local_mail_domain_valid? = String.contains?(local_mail_domain, ".")
+  seed_contact_domain = if local_mail_domain_valid?, do: local_mail_domain, else: "example.com"
+
   ensure_seed_password = fn user, username ->
     case Accounts.admin_reset_password(user, %{password: test_password}) do
       {:ok, updated_user} ->
@@ -1620,7 +1623,11 @@ if Mix.env() == :dev do
         },
         links: [
           %{title: "Status Page", url: "https://example.com/testuser", platform: "website"},
-          %{title: "Inbox Alias", url: "mailto:testuser@#{local_mail_domain}", platform: "email"}
+          %{
+            title: "Inbox Alias",
+            url: "mailto:testuser@#{seed_contact_domain}",
+            platform: "email"
+          }
         ]
       }
     ] ++
@@ -1883,8 +1890,8 @@ if Mix.env() == :dev do
       dtend: hours_from_now.(19),
       timezone: "America/Detroit",
       attendees: [
-        %{"email" => "orbitdev@#{local_mail_domain}", "name" => "Orbit Dev"},
-        %{"email" => "opsnova@#{local_mail_domain}", "name" => "Ops Nova"}
+        %{"email" => "orbitdev@#{seed_contact_domain}", "name" => "Orbit Dev"},
+        %{"email" => "opsnova@#{seed_contact_domain}", "name" => "Ops Nova"}
       ],
       categories: ["launch", "review"]
     })
@@ -1898,7 +1905,7 @@ if Mix.env() == :dev do
       dtend: DateTime.add(days_from_now.(2), 3_600, :second),
       timezone: "America/Detroit",
       attendees: [
-        %{"email" => "pixelvera@#{local_mail_domain}", "name" => "Pixel Vera"}
+        %{"email" => "pixelvera@#{seed_contact_domain}", "name" => "Pixel Vera"}
       ],
       categories: ["design", "mobile"]
     })
@@ -1975,7 +1982,7 @@ if Mix.env() == :dev do
       user_id: test_user.id,
       group_id: friends_group.id,
       name: "Orbit Dev",
-      email: "orbitdev@#{local_mail_domain}",
+      email: "orbitdev@#{seed_contact_domain}",
       organization: "Elektrine",
       favorite: true
     })
@@ -2065,12 +2072,14 @@ if Mix.env() == :dev do
     })
 
   _seed_alias =
-    ensure_alias.("testbriefs@#{local_mail_domain}", %{
-      username: "testbriefs",
-      domain: local_mail_domain,
-      user_id: test_user.id,
-      description: "Seed alias for testing alternate mailbox routes"
-    })
+    if local_mail_domain_valid? do
+      ensure_alias.("testbriefs@#{local_mail_domain}", %{
+        username: "testbriefs",
+        domain: local_mail_domain,
+        user_id: test_user.id,
+        description: "Seed alias for testing alternate mailbox routes"
+      })
+    end
 
   contract_review_message =
     Repo.get_by(
@@ -2129,14 +2138,14 @@ if Mix.env() == :dev do
     [
       %{
         title: "Linear",
-        login_username: "testuser@#{local_mail_domain}",
+        login_username: "testuser@#{seed_contact_domain}",
         website: "https://linear.app",
         encrypted_password: seed_encrypted_payload.("linear-password-seed"),
         encrypted_notes: seed_encrypted_payload.("Workspace owner: Orbit Dev")
       },
       %{
         title: "Docker",
-        login_username: "deployments@#{local_mail_domain}",
+        login_username: "deployments@#{seed_contact_domain}",
         website: "https://docker.com",
         encrypted_password: seed_encrypted_payload.("docker-password-seed"),
         encrypted_notes:

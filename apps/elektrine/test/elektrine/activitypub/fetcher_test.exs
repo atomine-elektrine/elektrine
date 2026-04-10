@@ -9,6 +9,66 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert {:error, :unsafe_url} =
                Fetcher.fetch_object("http://127.0.0.1/notes/1", skip_cache: true)
     end
+
+    test "recovers Lemmy posts when the post URL returns HTML" do
+      post_uri = "https://startrek.website/post/37631588"
+
+      resolve_url =
+        "https://startrek.website/api/v4/resolve_object?q=https%3A%2F%2Fstartrek.website%2Fpost%2F37631588"
+
+      request_fun = fn
+        ^post_uri, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "text/html; charset=utf-8"}],
+             body: "<!DOCTYPE html><html><body>post page</body></html>"
+           }}
+
+        ^resolve_url, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             body:
+               Jason.encode!(%{
+                 "post" => %{
+                   "post" => %{
+                     "ap_id" => post_uri,
+                     "name" => "A Star Trek post",
+                     "body" => "Body content",
+                     "published" => "2026-01-30T02:18:24.601576Z",
+                     "url" => "https://example.com/star-trek-post"
+                   },
+                   "creator" => %{
+                     "actor_id" => "https://startrek.website/u/TribblesBestFriend",
+                     "name" => "TribblesBestFriend"
+                   },
+                   "community" => %{
+                     "actor_id" => "https://startrek.website/c/startrek"
+                   },
+                   "counts" => %{"comments" => 96, "score" => 12}
+                 }
+               })
+           }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(post_uri, skip_cache: true, request_fun: request_fun)
+
+      assert object["id"] == post_uri
+      assert object["type"] == "Page"
+      assert object["content"] == "Body content"
+      assert object["attributedTo"] == "https://startrek.website/u/TribblesBestFriend"
+      assert get_in(object, ["comments", "totalItems"]) == 96
+
+      assert object["attachment"] == [
+               %{
+                 "type" => "Link",
+                 "href" => "https://example.com/star-trek-post",
+                 "name" => "A Star Trek post"
+               }
+             ]
+    end
   end
 
   describe "webfinger_lookup/2" do

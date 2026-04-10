@@ -5,6 +5,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Emojis.CustomEmoji
+  alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
@@ -288,6 +289,58 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
              "https://lemmy.ml/c/asklemmy",
              "https://www.w3.org/ns/activitystreams#Public"
            ]
+  end
+
+  test "cached federated posts loaded by local id use cached remote replies flow" do
+    unique = System.unique_integer([:positive])
+    activitypub_id = "https://lemmy.world/post/#{unique}"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://lemmy.world/u/test#{unique}",
+        username: "test#{unique}",
+        domain: "lemmy.world",
+        inbox_url: "https://lemmy.world/u/test#{unique}/inbox",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "cached federated post",
+        title: "Remote Lemmy post",
+        visibility: "public",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 11,
+        media_metadata: %{"community_actor_uri" => "https://lemmy.ml/c/linux"}
+      })
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        comment_sort: "hot",
+        current_user: nil,
+        is_community_post: false,
+        post_interactions: %{},
+        post_reactions: %{},
+        trust_topic_tracked: false
+      }
+    }
+
+    message_id = message.id
+
+    assert {:noreply, updated_socket} = Show.handle_info({:load_local_post, message_id}, socket)
+
+    assert updated_socket.assigns.post["id"] == activitypub_id
+    assert updated_socket.assigns.remote_actor.id == remote_actor.id
+    assert updated_socket.assigns.replies_loading
+
+    assert_received {:load_replies_for_cached, %{id: ^message_id}}
+    assert_received {:load_platform_counts, ^activitypub_id}
   end
 
   test "cached Mastodon posts do not get inferred as community posts from followers collections" do

@@ -11,8 +11,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.Messaging.Message
   alias Elektrine.Social
   alias Elektrine.Utils.SafeConvert
@@ -307,25 +305,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
         socket
 
       true ->
-        parent = self()
-        activitypub_id = reply_to_post.activitypub_id
-
-        Task.start(fn ->
-          remote_replies = fetch_remote_replies_for_preview(activitypub_id)
-          send(parent, {:remote_replies_loaded, post_id, remote_replies})
-        end)
+        _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(reply_to_post.id)
+        send(self(), {:refresh_remote_replies, post_id, 1})
 
         assign(socket, :loading_remote_replies, MapSet.put(loading_set, post_id))
-    end
-  end
-
-  defp fetch_remote_replies_for_preview(activitypub_id) do
-    with {:ok, post_object} <- Fetcher.fetch_object(activitypub_id),
-         {:ok, replies} when is_list(replies) <-
-           ActivityPub.fetch_remote_post_replies(post_object, limit: 3) do
-      replies
-    else
-      _ -> []
     end
   end
 

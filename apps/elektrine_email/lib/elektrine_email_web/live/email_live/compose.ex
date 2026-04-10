@@ -939,6 +939,20 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   defp maybe_clear_tag_input(socket, _field, _input_value), do: socket
 
   @impl true
+  def handle_info({:user_updated, updated_user}, socket) do
+    if socket.assigns.current_user.id == updated_user.id do
+      refreshed_user = Elektrine.Accounts.get_user!(updated_user.id)
+      rate_limit_status = RateLimiter.get_rate_limit_status(updated_user.id)
+
+      {:noreply,
+       socket
+       |> assign(:current_user, refreshed_user)
+       |> assign(:rate_limit_status, rate_limit_status)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(
         {:storage_updated, %{storage_used_bytes: _used_bytes, user_id: user_id}},
         socket

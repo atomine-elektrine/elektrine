@@ -9,7 +9,9 @@ defmodule ElektrineWeb.Router do
   require ElektrineWeb.Routes.VPN
   import ElektrineWeb.UserAuth
 
-  @default_profile_host_scope "*.#{Application.compile_env(:elektrine, :primary_domain, "example.com")}"
+  # Keep the fallback static so PRIMARY_DOMAIN can be supplied at runtime
+  # without being treated as a compile-time application env key.
+  @default_profile_host_scope "*.example.com"
 
   pipeline :browser do
     plug(:accepts, ["html"])
@@ -1045,8 +1047,7 @@ defmodule ElektrineWeb.Router do
   # All pages in single live_session for seamless navigation
   scope "/",
         ElektrineWeb,
-        host:
-          Application.compile_env(:elektrine, :profile_host_scope, @default_profile_host_scope) do
+        host: Application.get_env(:elektrine, :profile_host_scope, @default_profile_host_scope) do
     pipe_through(:profile)
 
     get("/", ProfileController, :show)

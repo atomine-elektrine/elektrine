@@ -1,5 +1,38 @@
 import Config
 
+dev_port = String.to_integer(System.get_env("PORT") || "4000")
+dev_public_host = System.get_env("PHX_HOST") || System.get_env("PRIMARY_DOMAIN") || "localhost"
+
+dev_public_scheme =
+  if String.contains?(dev_public_host, ".") and
+       not String.starts_with?(dev_public_host, "localhost") do
+    "https"
+  else
+    "http"
+  end
+
+dev_check_origins = [
+  "http://localhost:#{dev_port}",
+  "http://127.0.0.1:#{dev_port}",
+  "http://z.local:#{dev_port}",
+  "http://*.z.local:#{dev_port}",
+  "http://elektrine.local:#{dev_port}"
+]
+
+dev_check_origins =
+  if dev_public_scheme == "https" do
+    dev_check_origins ++ ["https://#{dev_public_host}"]
+  else
+    dev_check_origins
+  end
+
+dev_public_url =
+  if dev_public_scheme == "https" do
+    [host: dev_public_host, scheme: dev_public_scheme]
+  else
+    [host: dev_public_host, port: dev_port, scheme: dev_public_scheme]
+  end
+
 # Set environment for profile access control
 config :elektrine, :environment, :dev
 
@@ -12,6 +45,13 @@ config :elektrine, :mail_client_settings,
   imap: [port: 2143, security: :plain],
   pop3: [port: 2110, security: :plain],
   smtp: [port: 2587, security: :plain]
+
+config :elektrine, :email,
+  domain: dev_public_host,
+  supported_domains: [dev_public_host]
+
+config :elektrine, :profile_base_domains, [dev_public_host]
+config :elektrine, :primary_domain, dev_public_host
 
 dev_db_username =
   System.get_env("DB_USER") ||
@@ -38,24 +78,19 @@ config :elektrine, Elektrine.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :elektrine, ElektrineWeb.Endpoint,
+  url: dev_public_url,
   # Bind to 0.0.0.0 to expose the server to the docker host machine.
   # This makes make the service accessible from any network interface.
   # Change to `ip: {127, 0, 0, 1}` to allow access only from the server machine.
   http: [
     ip: {0, 0, 0, 0},
-    port: 4000,
+    port: dev_port,
     http_1_options: [
       max_header_count: 50,
       max_header_length: 8_192
     ]
   ],
-  check_origin: [
-    "http://localhost:4000",
-    "http://127.0.0.1:4000",
-    "http://z.local:4000",
-    "http://*.z.local:4000",
-    "http://elektrine.local:4000"
-  ],
+  check_origin: dev_check_origins,
   code_reloader: true,
   debug_errors: true,
   # Generate random secret for dev to avoid hardcoded secrets in repo

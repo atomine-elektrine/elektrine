@@ -203,6 +203,12 @@ defmodule ElektrineWeb.Admin.UsersController do
           )
         end
 
+        Phoenix.PubSub.broadcast!(
+          Elektrine.PubSub,
+          "user:#{updated_user.id}",
+          {:user_updated, updated_user}
+        )
+
         conn
         |> put_flash(:info, "User updated successfully.")
         |> redirect(to: ~p"/pripyat/users")

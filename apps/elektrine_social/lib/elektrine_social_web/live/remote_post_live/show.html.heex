@@ -107,12 +107,13 @@
         <span>{@load_error}</span>
       </div>
     <% else %>
-      <%= if @is_local_post && @local_message do %>
+      <%= if @is_local_post && @local_message && !Map.get(@local_message, :federated, false) do %>
         <!-- Local Post Display -->
-        <% sender = @local_message.sender || %{}
+        <% header_actor =
+          Map.get(@local_message, :remote_actor) || Map.get(@local_message, :sender) || %{}
 
         sender_handle =
-          case Map.get(sender, :handle) do
+          case Map.get(header_actor, :handle) do
             handle when is_binary(handle) ->
               trimmed_handle = String.trim(handle)
               if trimmed_handle != "", do: trimmed_handle, else: nil
@@ -122,7 +123,7 @@
           end
 
         sender_username =
-          case Map.get(sender, :username) do
+          case Map.get(header_actor, :username) do
             username when is_binary(username) ->
               trimmed_username = String.trim(username)
               if trimmed_username != "", do: trimmed_username, else: nil
@@ -131,14 +132,34 @@
               nil
           end
 
-        sender_display_name_raw = Map.get(sender, :display_name)
+        sender_domain =
+          case Map.get(header_actor, :domain) do
+            domain when is_binary(domain) ->
+              trimmed_domain = String.trim(domain)
+              if trimmed_domain != "", do: trimmed_domain, else: nil
+
+            _ ->
+              nil
+          end
+
+        sender_display_name_raw = Map.get(header_actor, :display_name)
 
         sender_path =
-          if sender_username do
-            "/#{sender_handle || sender_username}"
-          else
-            nil
+          cond do
+            sender_username && sender_domain ->
+              "/remote/#{sender_username}@#{sender_domain}"
+
+            sender_username ->
+              "/#{sender_handle || sender_username}"
+
+            true ->
+              nil
           end
+
+        sender_acct =
+          if sender_username && sender_domain,
+            do: "@#{sender_username}@#{sender_domain}",
+            else: nil
 
         sender_display_name =
           cond do
@@ -152,7 +173,8 @@
               "Deleted user"
           end
 
-        sender_avatar = Map.get(sender, :avatar) %>
+        sender_avatar = Map.get(header_actor, :avatar)
+        sender_avatar_url = Map.get(header_actor, :avatar_url) %>
         <div class="social-page-rail">
           <%= if use_standard_timeline_detail?(@local_message, @is_community_post) do %>
             <div class="mb-6">
@@ -172,10 +194,10 @@
               <div class="flex items-center gap-3 mb-4">
                 <%= if sender_path do %>
                   <.link navigate={sender_path} class="flex-shrink-0 rounded-full">
-                    <%= if sender_avatar do %>
+                    <%= if sender_avatar || sender_avatar_url do %>
                       <img
-                        src={Elektrine.Uploads.avatar_url(sender_avatar)}
-                        alt={sender_username || sender_display_name}
+                        src={sender_avatar_url || Elektrine.Uploads.avatar_url(sender_avatar)}
+                        alt={sender_acct || sender_display_name}
                         class="w-12 h-12 rounded-full object-cover"
                       />
                     <% else %>
@@ -189,9 +211,9 @@
                   </.link>
                 <% else %>
                   <div class="flex-shrink-0 rounded-full">
-                    <%= if sender_avatar do %>
+                    <%= if sender_avatar || sender_avatar_url do %>
                       <img
-                        src={Elektrine.Uploads.avatar_url(sender_avatar)}
+                        src={sender_avatar_url || Elektrine.Uploads.avatar_url(sender_avatar)}
                         alt={sender_display_name}
                         class="w-12 h-12 rounded-full object-cover"
                       />
@@ -219,10 +241,14 @@
                     <% end %>
                   </div>
                   <div class="text-sm opacity-70">
-                    <%= if sender_username do %>
-                      @{sender_username}
+                    <%= if sender_acct do %>
+                      {sender_acct}
                     <% else %>
-                      @deleted
+                      <%= if sender_username do %>
+                        @{sender_username}
+                      <% else %>
+                        @deleted
+                      <% end %>
                     <% end %>
                   </div>
                 </div>
@@ -951,7 +977,7 @@
                           <% hide_preview_title =
                             preview_title_duplicates_post?(link_preview.title, @post["name"]) %>
                           <%= if youtube_id do %>
-                            <div class="mt-4 border border-base-200 rounded-lg overflow-hidden">
+                            <div class="my-4 border border-base-200 rounded-lg overflow-hidden">
                               <div class="aspect-video bg-base-200">
                                 <iframe
                                   src={"https://www.youtube.com/embed/#{youtube_id}"}
@@ -977,7 +1003,7 @@
                               </div>
                             </div>
                           <% else %>
-                            <div class="mt-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
+                            <div class="my-4 border border-base-200 rounded-lg overflow-hidden hover:border-base-300 transition-colors">
                               <a
                                 href={link_preview.url}
                                 target="_blank"

@@ -1,5 +1,6 @@
 const ADMIN_PREFIX = '/pripyat'
 const ADMIN_SECURITY_PREFIX = '/pripyat/security'
+const ADMIN_SECURITY_EXEMPT_PATHS = new Set(['/pripyat/stop-impersonation'])
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function bufferToBase64URL(buffer) {
@@ -50,7 +51,8 @@ function resolveFormMethod(form) {
 function isSensitiveAdminPath(path) {
   return Boolean(path) &&
     path.startsWith(ADMIN_PREFIX) &&
-    !path.startsWith(ADMIN_SECURITY_PREFIX)
+    !path.startsWith(ADMIN_SECURITY_PREFIX) &&
+    !ADMIN_SECURITY_EXEMPT_PATHS.has(path)
 }
 
 function shouldInterceptForm(form) {

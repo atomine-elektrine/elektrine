@@ -100,7 +100,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
             {:ok, data}
 
           {:error, reason} ->
-            maybe_recover_actor_from_html(uri, response, reason, opts)
+            maybe_recover_object_from_html(uri, response, reason, opts)
         end
 
       {:ok, %Finch.Response{status: status}}
@@ -232,16 +232,16 @@ defmodule Elektrine.ActivityPub.Fetcher do
     |> Keyword.merge(Keyword.take(opts, [:request_fun]))
   end
 
-  defp maybe_recover_actor_from_html(
+  defp maybe_recover_object_from_html(
          uri,
          {:ok, %Finch.Response{body: body, headers: response_headers}},
          reason,
          opts
        ) do
-    case lemmy_actor_fallback(uri, body, response_headers, opts) do
-      {:ok, actor_data} ->
-        Logger.info("Recovered actor document via Lemmy fallback for #{uri}")
-        {:ok, actor_data}
+    case lemmy_object_fallback(uri, body, response_headers, opts) do
+      {:ok, object_data, recovery_type} ->
+        Logger.info("Recovered #{recovery_type} document via Lemmy fallback for #{uri}")
+        {:ok, object_data}
 
       _ ->
         Logger.error("Failed to decode JSON from #{uri}: #{inspect(reason)}")
@@ -249,17 +249,20 @@ defmodule Elektrine.ActivityPub.Fetcher do
     end
   end
 
-  defp lemmy_actor_fallback(uri, body, response_headers, opts) do
+  defp maybe_recover_object_from_html(_uri, _response, _reason, _opts),
+    do: {:error, :invalid_json}
+
+  defp lemmy_object_fallback(uri, body, response_headers, opts) do
     if html_response?(body, response_headers) do
       with {:ok, resolve_url, type} <- lemmy_resolve_url(uri),
            {:ok, resolved_body} <- fetch_lemmy_resolved_object(resolve_url, opts),
-           {:ok, actor_data} <- normalize_lemmy_resolved_actor(resolved_body, uri, type) do
-        {:ok, actor_data}
+           {:ok, object_data} <- normalize_lemmy_resolved_object(resolved_body, uri, type) do
+        {:ok, object_data, type}
       else
-        _ -> {:error, :no_actor_fallback}
+        _ -> {:error, :no_object_fallback}
       end
     else
-      {:error, :no_actor_fallback}
+      {:error, :no_object_fallback}
     end
   end
 
@@ -286,6 +289,17 @@ defmodule Elektrine.ActivityPub.Fetcher do
       %URI{scheme: scheme, host: host, path: "/c/" <> _rest}
       when scheme in ["http", "https"] and is_binary(host) ->
         {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :group}
+
+      %URI{scheme: scheme, host: host, path: path}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        if Regex.match?(
+             ~r{^/(post/\d+|c/[^/]+/p/\d+|m/[^/]+/[pt]/\d+)(?:$|/)},
+             String.trim_leading(path, "/") |> then(&("/" <> &1))
+           ) do
+          {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :page}
+        else
+          {:error, :unsupported_actor_path}
+        end
 
       _ ->
         {:error, :unsupported_actor_path}
@@ -397,6 +411,72 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp normalize_lemmy_resolved_actor(_, _, _), do: {:error, :invalid_resolved_actor}
+
+  defp normalize_lemmy_resolved_object(resolved_body, requested_uri, :person) do
+    normalize_lemmy_resolved_actor(resolved_body, requested_uri, :person)
+  end
+
+  defp normalize_lemmy_resolved_object(resolved_body, requested_uri, :group) do
+    normalize_lemmy_resolved_actor(resolved_body, requested_uri, :group)
+  end
+
+  defp normalize_lemmy_resolved_object(%{"post" => post_view}, requested_uri, :page)
+       when is_map(post_view) do
+    post = post_view["post"] || %{}
+    creator = post_view["creator"] || %{}
+    community = post_view["community"] || %{}
+    counts = post_view["counts"] || %{}
+
+    object_id = post["ap_id"] || requested_uri
+    community_actor_id = community["actor_id"]
+    external_url = normalize_external_post_url(post["url"], object_id)
+    comment_count = counts["comments"] || 0
+
+    {:ok,
+     %{
+       "id" => object_id,
+       "type" => "Page",
+       "url" => external_url || object_id,
+       "name" => post["name"],
+       "content" => post["body"],
+       "published" => post["published"],
+       "updated" => post["updated"],
+       "attributedTo" => creator["actor_id"],
+       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+       "cc" => Enum.reject([community_actor_id], &is_nil/1),
+       "sensitive" => post["nsfw"] || false,
+       "comments" => %{"type" => "Collection", "totalItems" => comment_count},
+       "replies" => %{"type" => "Collection", "totalItems" => comment_count},
+       "attachment" => normalize_lemmy_post_attachment(external_url, post["name"]),
+       "_lemmy" => %{
+         "community_actor_id" => community_actor_id,
+         "creator_name" => creator["name"],
+         "creator_avatar" => creator["avatar"],
+         "score" => counts["score"] || 0,
+         "upvotes" => counts["upvotes"] || 0,
+         "downvotes" => counts["downvotes"] || 0
+       }
+     }}
+  end
+
+  defp normalize_lemmy_resolved_object(_, _, _), do: {:error, :invalid_resolved_object}
+
+  defp normalize_external_post_url(url, object_id) when is_binary(url) and url != object_id,
+    do: url
+
+  defp normalize_external_post_url(_, _), do: nil
+
+  defp normalize_lemmy_post_attachment(url, name) when is_binary(url) do
+    [
+      %{
+        "type" => "Link",
+        "href" => url,
+        "name" => name || url
+      }
+    ]
+  end
+
+  defp normalize_lemmy_post_attachment(_, _), do: []
 
   defp normalize_lemmy_image(url) when is_binary(url), do: %{"type" => "Image", "url" => url}
   defp normalize_lemmy_image(_), do: nil
