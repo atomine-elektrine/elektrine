@@ -732,7 +732,7 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Get users that a user is following (includes both local and remote users).
-  Only returns accepted follows (pending == false).
+  Returns accepted follows, plus legacy remote follows to actors that auto-accept.
   """
   def get_following(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
@@ -754,14 +754,15 @@ defmodule Elektrine.Profiles do
       })
       |> Repo.all()
 
-    # Get remote users being followed - only accepted
+    # Treat legacy pending rows for auto-accepting remote actors as accepted.
     remote_following =
       Follow
-      |> where(
-        [f],
-        f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and f.pending == false
-      )
       |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+      |> where(
+        [f, a],
+        f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and
+          (f.pending == false or a.manually_approves_followers == false)
+      )
       |> select([f, a], %{
         type: "remote",
         user: nil,
@@ -789,12 +790,28 @@ defmodule Elektrine.Profiles do
 
   @doc """
   Get following count for a user (includes both local and remote).
-  Only counts accepted follows (pending == false).
+  Counts accepted follows, plus legacy remote follows to actors that auto-accept.
   """
   def get_following_count(user_id) do
-    Follow
-    |> where([f], f.follower_id == ^user_id and f.pending == false)
-    |> Repo.aggregate(:count, :id)
+    local_following_count =
+      Follow
+      |> where(
+        [f],
+        f.follower_id == ^user_id and not is_nil(f.followed_id) and f.pending == false
+      )
+      |> Repo.aggregate(:count, :id)
+
+    remote_following_count =
+      Follow
+      |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+      |> where(
+        [f, a],
+        f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and
+          (f.pending == false or a.manually_approves_followers == false)
+      )
+      |> Repo.aggregate(:count, :id)
+
+    local_following_count + remote_following_count
   end
 
   @doc """
@@ -1003,15 +1020,16 @@ defmodule Elektrine.Profiles do
   end
 
   @doc """
-  Checks if a LOCAL user is actively following a REMOTE actor (not pending).
-  Returns true only if the follow exists and is accepted (pending == false).
+  Checks if a LOCAL user is actively following a REMOTE actor.
+  Treats legacy pending rows for auto-accepting remote actors as accepted.
   """
   def following_remote_actor?(follower_id, remote_actor_id) do
     Follow
+    |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
     |> where(
-      [f],
+      [f, a],
       f.follower_id == ^follower_id and f.remote_actor_id == ^remote_actor_id and
-        is_nil(f.followed_id) and f.pending == false
+        is_nil(f.followed_id) and (f.pending == false or a.manually_approves_followers == false)
     )
     |> Repo.exists?()
   end
@@ -1027,17 +1045,19 @@ defmodule Elektrine.Profiles do
          {:ok, follower} <- Elektrine.ActivityPub.KeyManager.ensure_user_has_keys(follower),
          {:ok, remote_actor} <- get_remote_actor(remote_actor_id),
          {:ok, :not_following} <- check_not_already_following(follower_id, remote_actor_id) do
+      pending = remote_actor.manually_approves_followers == true
+
       # Build Follow activity
       follow_activity =
         Elektrine.ActivityPub.Builder.build_follow_activity(follower, remote_actor.uri)
 
-      # Create pending follow relationship first
+      # Public actors often never send an Accept, so only keep pending when approval is required.
       case %Follow{}
            |> Ecto.Changeset.change(%{
              follower_id: follower_id,
              remote_actor_id: remote_actor_id,
              activitypub_id: follow_activity["id"],
-             pending: true
+             pending: pending
            })
            |> Repo.insert() do
         {:ok, follow} ->
@@ -1304,20 +1324,24 @@ defmodule Elektrine.Profiles do
     else
       follows =
         Follow
+        |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
         |> where(
-          [f],
+          [f, _a],
           f.follower_id == ^follower_id and f.remote_actor_id in ^remote_actor_ids and
             is_nil(f.followed_id)
         )
-        |> select([f], {f.remote_actor_id, f.pending})
+        |> select([f, a], {f.remote_actor_id, f.pending, a.manually_approves_followers})
         |> Repo.all()
-        |> Map.new()
+        |> Map.new(fn {actor_id, pending, manually_approves_followers} ->
+          {actor_id, {pending, manually_approves_followers}}
+        end)
 
       Enum.map(remote_actor_ids, fn actor_id ->
         case Map.get(follows, actor_id) do
           nil -> {actor_id, :not_following}
-          false -> {actor_id, :following}
-          true -> {actor_id, :pending}
+          {false, _} -> {actor_id, :following}
+          {true, false} -> {actor_id, :following}
+          {true, true} -> {actor_id, :pending}
         end
       end)
     end

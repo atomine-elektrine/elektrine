@@ -13,6 +13,7 @@ defmodule Elektrine.ActivityPub do
     Activity,
     ActivityDeliveryWorker,
     Actor,
+    CollectionFetcher,
     Delivery,
     Fetcher,
     HTTPSignature,
@@ -1515,8 +1516,20 @@ defmodule Elektrine.ActivityPub do
   """
   def fetch_remote_post_replies(post_object, opts \\ []) do
     limit = Keyword.get(opts, :limit, 10)
-    post_url = post_object["url"] || post_object["id"]
-    lemmy_post? = post_object["type"] == "Page" && lemmy_post_url?(post_url)
+    post_id = post_object["id"]
+    post_url = post_object["url"] || post_id
+
+    # Link posts often use the external article URL as object.url. Keep using that for
+    # rendering, but use the ActivityPub/community post URL when deciding how to load
+    # comments so Lemmy-style replies aren't fetched from the submitted link target.
+    community_post_ref =
+      cond do
+        lemmy_post_url?(post_id) -> post_id
+        lemmy_post_url?(post_url) -> post_url
+        true -> post_id || post_url
+      end
+
+    lemmy_post? = post_object["type"] == "Page" && lemmy_post_url?(community_post_ref)
 
     # Prefer standard replies collection, but accept comments collections used by
     # some platforms.
@@ -1533,13 +1546,13 @@ defmodule Elektrine.ActivityPub do
       |> Enum.max(fn -> 0 end)
 
     has_replies_count = expected_replies > 0
-    post_id = post_object["id"] || post_url
+    post_id = post_id || post_url
 
     cond do
       # Lemmy community posts are more reliably served by the instance API than the
       # AP replies collection, which is often empty or requires extra indirection.
       lemmy_post? ->
-        case fetch_lemmy_comments(post_url, limit) do
+        case fetch_lemmy_comments(community_post_ref, limit) do
           {:ok, replies} when replies != [] ->
             {:ok, replies}
 
@@ -1561,7 +1574,7 @@ defmodule Elektrine.ActivityPub do
               # Lemmy-style posts may expose empty AP collections without totalItems.
               # Fall back to the instance comments API for any community Page URL.
               lemmy_post? ->
-                fetch_lemmy_comments(post_url, limit)
+                fetch_lemmy_comments(community_post_ref, limit)
 
               # ActivityPub collection returned empty but we expect replies - try
               # Mastodon-compatible context endpoints when the post URL supports them.
@@ -1576,7 +1589,7 @@ defmodule Elektrine.ActivityPub do
 
       # Page type post - try instance-specific API
       lemmy_post? ->
-        fetch_lemmy_comments(post_url, limit)
+        fetch_lemmy_comments(community_post_ref, limit)
 
       # Has replies count but no replies field - try Mastodon-compatible context APIs.
       has_replies_count && is_binary(post_url) &&
@@ -1649,12 +1662,157 @@ defmodule Elektrine.ActivityPub do
               "_mastodon_account" => status.account
             }
           end)
+          |> supplement_mastodon_thread_replies(post_url, limit)
 
         {:ok, replies}
 
       {:error, _} ->
         {:ok, []}
     end
+  end
+
+  defp supplement_mastodon_thread_replies(replies, _post_url, limit)
+       when not is_list(replies) or limit <= 0 do
+    Enum.take(List.wrap(replies), max(limit, 0))
+  end
+
+  defp supplement_mastodon_thread_replies(replies, post_url, limit) do
+    seen_ids =
+      replies
+      |> Enum.map(& &1["id"])
+      |> Enum.filter(&is_binary/1)
+      |> MapSet.new()
+
+    additional_replies =
+      [post_url | replies]
+      |> collect_supplemental_thread_replies(limit, seen_ids, [])
+
+    merge_unique_replies(replies, additional_replies, limit)
+  end
+
+  defp collect_supplemental_thread_replies([], _limit, _seen_ids, acc), do: Enum.reverse(acc)
+
+  defp collect_supplemental_thread_replies(_queue, limit, _seen_ids, acc)
+       when length(acc) >= limit do
+    acc |> Enum.reverse() |> Enum.take(limit)
+  end
+
+  defp collect_supplemental_thread_replies([seed | rest], limit, seen_ids, acc) do
+    remaining = max(limit - length(acc), 0)
+
+    case fetch_thread_seed_object(seed) do
+      %{"replies" => replies_collection} when not is_nil(replies_collection) ->
+        fetched_replies = fetch_supplemental_reply_page(replies_collection, remaining)
+
+        {fresh_replies, updated_seen_ids} =
+          Enum.reduce(fetched_replies, {[], seen_ids}, fn reply, {fresh, seen} ->
+            case reply["id"] do
+              id when is_binary(id) ->
+                if MapSet.member?(seen, id) do
+                  {fresh, seen}
+                else
+                  {[reply | fresh], MapSet.put(seen, id)}
+                end
+
+              _ ->
+                {[reply | fresh], seen}
+            end
+          end)
+
+        fresh_replies = Enum.reverse(fresh_replies)
+
+        next_queue =
+          rest ++
+            Enum.filter(fresh_replies, fn reply ->
+              reply_has_nested_replies?(reply)
+            end)
+
+        collect_supplemental_thread_replies(
+          next_queue,
+          limit,
+          updated_seen_ids,
+          fresh_replies ++ acc
+        )
+
+      %{} = object ->
+        next_queue = if(reply_has_nested_replies?(object), do: rest ++ [object], else: rest)
+        collect_supplemental_thread_replies(next_queue, limit, seen_ids, acc)
+
+      _ ->
+        collect_supplemental_thread_replies(rest, limit, seen_ids, acc)
+    end
+  end
+
+  defp fetch_thread_seed_object(%{} = object), do: normalize_thread_reply_object(object)
+
+  defp fetch_thread_seed_object(seed) when is_binary(seed) do
+    case Fetcher.fetch_object(seed) do
+      {:ok, object} -> normalize_thread_reply_object(object)
+      _ -> nil
+    end
+  end
+
+  defp fetch_thread_seed_object(_), do: nil
+
+  defp normalize_thread_reply_object(%{"type" => type} = object)
+       when type in ["Note", "Article", "Page", "Question"] do
+    object
+  end
+
+  defp normalize_thread_reply_object(%{"object" => %{} = object}) do
+    normalize_thread_reply_object(object)
+  end
+
+  defp normalize_thread_reply_object(_), do: nil
+
+  defp fetch_supplemental_reply_page(replies_collection, limit) when limit > 0 do
+    case CollectionFetcher.fetch_collection(replies_collection, max_items: limit) do
+      {:ok, items} -> normalize_thread_reply_items(items, limit)
+      {:partial, items} -> normalize_thread_reply_items(items, limit)
+      _ -> []
+    end
+  end
+
+  defp fetch_supplemental_reply_page(_, _), do: []
+
+  defp normalize_thread_reply_items(items, limit) do
+    items
+    |> Enum.map(&normalize_thread_reply_object/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.take(limit)
+  end
+
+  defp reply_has_nested_replies?(%{} = reply) do
+    replies = reply["replies"]
+
+    cond do
+      is_map(replies) -> true
+      is_binary(replies) -> true
+      true -> Elektrine.ActivityPub.Helpers.extract_interaction_count(reply, "replies") > 0
+    end
+  end
+
+  defp reply_has_nested_replies?(_), do: false
+
+  defp merge_unique_replies(primary, secondary, limit) do
+    {merged, _seen} =
+      Enum.reduce(primary ++ secondary, {[], MapSet.new()}, fn reply, {acc, seen} ->
+        case reply["id"] do
+          id when is_binary(id) ->
+            if MapSet.member?(seen, id) do
+              {acc, seen}
+            else
+              {[reply | acc], MapSet.put(seen, id)}
+            end
+
+          _ ->
+            {[reply | acc], seen}
+        end
+      end)
+
+    merged
+    |> Enum.reverse()
+    |> Enum.take(limit)
   end
 
   # Check if URL is a community-post format across Lemmy/PieFed/Mbin.
@@ -1787,47 +1945,81 @@ defmodule Elektrine.ActivityPub do
 
   # Fetch comments from a specific instance
   defp fetch_lemmy_comments_from_instance(domain, post_id, post_url, limit) do
-    api_url = "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{limit}&sort=Top"
+    page_size = limit |> max(1) |> min(100)
+
+    replies =
+      domain
+      |> fetch_lemmy_comment_pages(post_id, page_size, limit, 1, [])
+      |> Enum.map(fn comment_data ->
+        comment = comment_data["comment"] || %{}
+        creator = comment_data["creator"] || %{}
+        counts = comment_data["counts"] || %{}
+
+        %{
+          "id" => comment["ap_id"],
+          "type" => "Note",
+          "content" => comment["content"],
+          "attributedTo" => creator["actor_id"],
+          "published" => comment["published"],
+          "inReplyTo" => parse_lemmy_reply_path(comment["path"], post_url),
+          # Store extra Lemmy-specific data including counts
+          "_lemmy" => %{
+            "creator_name" => creator["name"],
+            "creator_avatar" => creator["avatar"],
+            "path" => comment["path"],
+            "score" => counts["score"] || 0,
+            "upvotes" => counts["upvotes"] || 0,
+            "downvotes" => counts["downvotes"] || 0,
+            "child_count" => counts["child_count"] || 0
+          }
+        }
+      end)
+
+    {:ok, replies}
+  end
+
+  defp fetch_lemmy_comment_pages(_domain, _post_id, _page_size, limit, _page, acc)
+       when length(acc) >= limit do
+    Enum.take(acc, limit)
+  end
+
+  defp fetch_lemmy_comment_pages(domain, post_id, page_size, limit, page, acc) do
+    api_url =
+      "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{page_size}&page=#{page}&sort=Top"
 
     case safe_get_lemmy_api(api_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
           {:ok, %{"comments" => comments}} when is_list(comments) ->
-            # Convert Lemmy comments to ActivityPub-like format
-            replies =
-              Enum.map(comments, fn comment_data ->
-                comment = comment_data["comment"]
-                creator = comment_data["creator"]
-                counts = comment_data["counts"] || %{}
+            updated_acc = acc ++ comments
 
-                %{
-                  "id" => comment["ap_id"],
-                  "type" => "Note",
-                  "content" => comment["content"],
-                  "attributedTo" => creator["actor_id"],
-                  "published" => comment["published"],
-                  "inReplyTo" => parse_lemmy_reply_path(comment["path"], post_url),
-                  # Store extra Lemmy-specific data including counts
-                  "_lemmy" => %{
-                    "creator_name" => creator["name"],
-                    "creator_avatar" => creator["avatar"],
-                    "path" => comment["path"],
-                    "score" => counts["score"] || 0,
-                    "upvotes" => counts["upvotes"] || 0,
-                    "downvotes" => counts["downvotes"] || 0,
-                    "child_count" => counts["child_count"] || 0
-                  }
-                }
-              end)
+            cond do
+              comments == [] ->
+                Enum.take(updated_acc, limit)
 
-            {:ok, replies}
+              length(updated_acc) >= limit ->
+                Enum.take(updated_acc, limit)
+
+              length(comments) < page_size ->
+                updated_acc
+
+              true ->
+                fetch_lemmy_comment_pages(
+                  domain,
+                  post_id,
+                  page_size,
+                  limit,
+                  page + 1,
+                  updated_acc
+                )
+            end
 
           _ ->
-            {:ok, []}
+            Enum.take(acc, limit)
         end
 
       _ ->
-        {:ok, []}
+        Enum.take(acc, limit)
     end
   end
 

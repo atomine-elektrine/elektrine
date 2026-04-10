@@ -36,7 +36,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   def fetch_and_store_replies(post_object, opts \\ []) do
     max_replies = Keyword.get(opts, :max_replies, @max_replies)
     parent_ap_id = post_object["id"]
-    replies_collection = post_object["replies"]
+    replies_collection = post_object["replies"] || post_object["comments"]
 
     # Get or create the parent message
     parent_message = Messaging.get_message_by_activitypub_id(parent_ap_id)
@@ -64,7 +64,13 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         if message.activitypub_id do
           case Fetcher.fetch_object(message.activitypub_id) do
             {:ok, post_object} ->
-              fetch_and_store_replies(post_object)
+              case fetch_and_store_replies(post_object) do
+                {:ok, 0} ->
+                  fetch_and_store_replies_via_fallback(post_object, message.id)
+
+                result ->
+                  result
+              end
 
             {:error, reason} ->
               {:error, reason}
@@ -107,6 +113,17 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
       {:error, reason} ->
         Logger.warning("Failed to fetch replies collection: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp fetch_and_store_replies_via_fallback(post_object, parent_message_id) do
+    case ActivityPub.fetch_remote_post_replies(post_object, limit: @max_replies) do
+      {:ok, replies} when is_list(replies) ->
+        stored_count = process_reply_items(replies, parent_message_id)
+        {:ok, stored_count}
+
+      {:error, reason} ->
         {:error, reason}
     end
   end
@@ -250,6 +267,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     cond do
       public_address in to -> "public"
       public_address in cc -> "unlisted"
+      (to == [] and cc == []) && is_binary(object["inReplyTo"]) -> "public"
       true -> "followers"
     end
   end

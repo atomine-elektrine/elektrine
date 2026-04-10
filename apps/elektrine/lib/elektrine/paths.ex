@@ -53,13 +53,29 @@ defmodule Elektrine.Paths do
     case Integer.parse(normalized_ref) do
       {id, ""} -> post_path(id)
       _ when normalized_ref == "" -> nil
-      _ -> "/post?url=#{URI.encode_www_form(normalized_ref)}"
+      _ -> remote_post_path(normalized_ref)
     end
   end
 
   def post_path(ref), do: post_path(to_string(ref))
 
-  def remote_post_path(ref), do: post_path(ref)
+  def remote_post_path(ref) when is_integer(ref), do: post_path(ref)
+
+  def remote_post_path(ref) when is_binary(ref) do
+    normalized_ref =
+      ref
+      |> String.trim()
+      |> decode_remote_post_ref()
+
+    case Integer.parse(normalized_ref) do
+      {id, ""} -> post_path(id)
+      _ when normalized_ref == "" -> nil
+      _ -> "/remote/post/#{URI.encode_www_form(normalized_ref)}"
+    end
+  end
+
+  def remote_post_path(ref), do: remote_post_path(to_string(ref))
+
   def local_post_path(ref), do: post_path(ref)
 
   def post_anchor(message_id) when is_integer(message_id), do: "#message-#{message_id}"

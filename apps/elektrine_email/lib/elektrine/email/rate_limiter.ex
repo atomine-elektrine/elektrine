@@ -5,19 +5,19 @@ defmodule Elektrine.Email.RateLimiter do
   ## Warmup Period (TL0 accounts)
 
   Day 1:
-  - 1 email per minute, 5 per hour, 1 per day, 3 recipients
+  - 1 email per minute, 5 per hour, 5 per day, 3 recipients
 
   Days 2-3:
-  - 2 emails per minute, 8 per hour, 1 per day, 5 recipients
+  - 2 emails per minute, 8 per hour, 5 per day, 5 recipients
 
   Days 4-7:
-  - 2 emails per minute, 15 per hour, 1 per day, 10 recipients
+  - 2 emails per minute, 15 per hour, 5 per day, 10 recipients
 
   Week 2 (days 8-14):
-  - 3 emails per minute, 25 per hour, 1 per day, 15 recipients
+  - 3 emails per minute, 25 per hour, 5 per day, 15 recipients
 
   Weeks 3-4 (days 15-30):
-  - 3 emails per minute, 35 per hour, 1 per day, 20 recipients
+  - 3 emails per minute, 35 per hour, 5 per day, 20 recipients
 
   ## Trust Level Tiers (override warmup)
 
@@ -50,11 +50,11 @@ defmodule Elektrine.Email.RateLimiter do
   # Tier definitions: {minute_limit, hour_limit, day_limit, recipient_limit}
   @tier_limits %{
     # Warmup tiers for TL0 accounts (very restrictive initially)
-    day_1: {1, 5, 1, 3},
-    days_2_3: {2, 8, 1, 5},
-    days_4_7: {2, 15, 1, 10},
-    week_2: {3, 25, 1, 15},
-    weeks_3_4: {3, 35, 1, 20},
+    day_1: {1, 5, 5, 3},
+    days_2_3: {2, 8, 5, 5},
+    days_4_7: {2, 15, 5, 10},
+    week_2: {3, 25, 5, 15},
+    weeks_3_4: {3, 35, 5, 20},
     # Trust level tiers (override warmup)
     tl1: {5, 50, 200, 50},
     tl2: {10, 100, 500, 100},

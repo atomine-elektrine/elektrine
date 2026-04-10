@@ -7,6 +7,7 @@ defmodule Elektrine.ProfilesTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
@@ -294,18 +295,72 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
-  defp remote_actor_fixture(label) do
+  describe "remote follow status" do
+    test "treats legacy pending follows to auto-accepting remote actors as following" do
+      user = AccountsFixtures.user_fixture()
+      auto_accepting_actor = remote_actor_fixture("public", %{manually_approves_followers: false})
+
+      approval_required_actor =
+        remote_actor_fixture("private", %{manually_approves_followers: true})
+
+      insert_local_to_remote_follow(user.id, auto_accepting_actor.id, true)
+      insert_local_to_remote_follow(user.id, approval_required_actor.id, true)
+
+      assert Profiles.following_remote_actor?(user.id, auto_accepting_actor.id)
+      refute Profiles.following_remote_actor?(user.id, approval_required_actor.id)
+
+      assert Profiles.remote_following_status_batch(user.id, [
+               auto_accepting_actor.id,
+               approval_required_actor.id
+             ]) == [
+               {auto_accepting_actor.id, :following},
+               {approval_required_actor.id, :pending}
+             ]
+
+      following = Profiles.get_following(user.id)
+
+      assert Enum.any?(
+               following,
+               &(&1.type == "remote" and &1.remote_actor.id == auto_accepting_actor.id)
+             )
+
+      refute Enum.any?(
+               following,
+               &(&1.type == "remote" and &1.remote_actor.id == approval_required_actor.id)
+             )
+
+      assert Profiles.get_following_count(user.id) == 1
+    end
+  end
+
+  defp remote_actor_fixture(label, overrides \\ %{}) do
     unique_id = System.unique_integer([:positive])
     username = "#{label}_#{unique_id}"
 
     %Actor{}
-    |> Actor.changeset(%{
-      uri: "https://remote.server/users/#{username}",
-      username: username,
-      domain: "remote.server",
-      inbox_url: "https://remote.server/users/#{username}/inbox",
-      public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
-      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    |> Actor.changeset(
+      Map.merge(
+        %{
+          uri: "https://remote.server/users/#{username}",
+          username: username,
+          domain: "remote.server",
+          inbox_url: "https://remote.server/users/#{username}/inbox",
+          public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
+          last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        },
+        overrides
+      )
+    )
+    |> Repo.insert!()
+  end
+
+  defp insert_local_to_remote_follow(follower_id, remote_actor_id, pending) do
+    %Follow{}
+    |> Follow.changeset(%{
+      follower_id: follower_id,
+      remote_actor_id: remote_actor_id,
+      pending: pending,
+      activitypub_id: "https://elektrine.example/activities/#{System.unique_integer([:positive])}"
     })
     |> Repo.insert!()
   end

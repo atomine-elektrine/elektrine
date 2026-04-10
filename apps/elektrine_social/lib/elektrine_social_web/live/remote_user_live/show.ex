@@ -19,6 +19,9 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   import Elektrine.Components.Loaders.Skeleton
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
 
+  @reply_preview_poll_interval_ms 1_500
+  @reply_preview_poll_max_attempts 8
+
   @impl true
   def mount(params, _session, socket) do
     case local_profile_redirect_path(params) do
@@ -497,8 +500,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       new_post_reactions = normalize_post_reaction_keys(get_post_reactions(stored_posts))
       post_reactions = Map.merge(socket.assigns.post_reactions || %{}, new_post_reactions)
 
-      # Load replies/comments for newly discovered outbox posts.
-      schedule_replies_fetch(unique_outbox_posts, self())
+      # Load replies/comments for newly discovered outbox posts from local storage first.
+      schedule_replies_fetch(stored_posts, self())
 
       {:noreply,
        socket
@@ -542,6 +545,28 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   def handle_info({:replies_loaded_for_posts, post_replies}, socket) do
     current_replies = socket.assigns.post_replies || %{}
     {:noreply, assign(socket, :post_replies, Map.merge(current_replies, post_replies))}
+  end
+
+  def handle_info({:refresh_post_replies, post_refs, attempt}, socket) do
+    post_replies = load_local_replies_for_post_refs(post_refs)
+
+    cond do
+      map_size(post_replies) > 0 ->
+        current_replies = socket.assigns.post_replies || %{}
+        {:noreply, assign(socket, :post_replies, Map.merge(current_replies, post_replies))}
+
+      attempt < @reply_preview_poll_max_attempts ->
+        Process.send_after(
+          self(),
+          {:refresh_post_replies, post_refs, attempt + 1},
+          @reply_preview_poll_interval_ms
+        )
+
+        {:noreply, socket}
+
+      true ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info({:post_counts_updated, %{message_id: message_id, counts: counts}}, socket) do
@@ -642,27 +667,26 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
     if candidates != [] do
       Task.start(fn ->
-        post_replies =
-          candidates
-          |> Task.async_stream(
-            &fetch_replies_for_post/1,
-            max_concurrency: 5,
-            timeout: 12_000,
-            on_timeout: :kill_task
-          )
-          |> Enum.reduce(%{}, fn
-            {:ok, {post_id, replies}}, acc
-            when is_binary(post_id) and is_list(replies) and replies != [] ->
-              Map.put(acc, post_id, replies)
-
-            _, acc ->
-              acc
-          end)
+        refs = reply_preview_refs(candidates)
+        post_replies = load_local_replies_for_post_refs(refs)
 
         if map_size(post_replies) > 0 do
           send(liveview_pid, {:replies_loaded_for_posts, post_replies})
         end
       end)
+
+      candidates
+      |> Enum.map(&message_id_for_reply_fetch/1)
+      |> Enum.filter(&is_integer/1)
+      |> Enum.each(fn message_id ->
+        _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
+      end)
+
+      refs = reply_preview_refs(candidates)
+
+      if refs != [] do
+        Process.send_after(self(), {:refresh_post_replies, refs, 1}, 0)
+      end
     end
   end
 
@@ -686,34 +710,113 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp reply_fetch_candidate?(_), do: false
 
-  defp fetch_replies_for_post(%{"id" => post_id} = post) do
-    case ActivityPub.fetch_remote_post_replies(post, limit: 20) do
-      {:ok, replies} -> {post_id, replies}
-      _ -> {post_id, []}
-    end
+  defp load_local_replies_for_post_refs(post_refs) when is_list(post_refs) do
+    post_refs
+    |> Enum.reduce(%{}, fn ref, acc ->
+      case fetch_replies_for_post(ref) do
+        {post_id, replies} when is_binary(post_id) and is_list(replies) and replies != [] ->
+          Map.put(acc, post_id, replies)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  defp load_local_replies_for_post_refs(_), do: %{}
+
+  defp fetch_replies_for_post(%{message_id: message_id, post_id: post_id})
+       when is_integer(message_id) and is_binary(post_id) do
+    replies =
+      Social.get_direct_replies_for_posts([message_id], limit_per_post: 20)
+      |> Map.get(message_id, [])
+      |> Enum.map(&local_reply_to_preview/1)
+
+    {post_id, replies}
   end
 
   defp fetch_replies_for_post(%{activitypub_id: post_id} = post) when is_binary(post_id) do
-    metadata = post.media_metadata || %{}
-    post_url = post.activitypub_url || post_id
-    is_community_post = community_post_url?(post_id) || community_post_url?(post_url)
+    case message_id_for_reply_fetch(post) do
+      message_id when is_integer(message_id) ->
+        fetch_replies_for_post(%{message_id: message_id, post_id: post_id})
 
-    post_object = %{
-      "id" => post_id,
-      "url" => post_url,
-      "type" => if(is_community_post, do: "Page", else: "Note"),
-      "replies" => metadata["replies"],
-      "comments" => metadata["comments"],
-      "repliesCount" => cached_reply_count(post)
-    }
+      _ ->
+        {post_id, []}
+    end
+  end
 
-    case ActivityPub.fetch_remote_post_replies(post_object, limit: 20) do
-      {:ok, replies} -> {post_id, replies}
+  defp fetch_replies_for_post(%{"id" => post_id}) when is_binary(post_id) do
+    case Elektrine.Messaging.get_message_by_activitypub_ref(post_id) do
+      %{id: message_id} -> fetch_replies_for_post(%{message_id: message_id, post_id: post_id})
       _ -> {post_id, []}
     end
   end
 
   defp fetch_replies_for_post(_), do: {nil, []}
+
+  defp reply_preview_refs(posts) when is_list(posts) do
+    posts
+    |> Enum.map(fn post ->
+      case post do
+        %{id: message_id, activitypub_id: post_id}
+        when is_integer(message_id) and is_binary(post_id) ->
+          %{message_id: message_id, post_id: post_id}
+
+        %{"id" => post_id} when is_binary(post_id) ->
+          case Elektrine.Messaging.get_message_by_activitypub_ref(post_id) do
+            %{id: message_id} -> %{message_id: message_id, post_id: post_id}
+            _ -> nil
+          end
+
+        _ ->
+          nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp reply_preview_refs(_), do: []
+
+  defp message_id_for_reply_fetch(%{id: id}) when is_integer(id), do: id
+
+  defp message_id_for_reply_fetch(%{"id" => post_id}) when is_binary(post_id) do
+    case Elektrine.Messaging.get_message_by_activitypub_ref(post_id) do
+      %{id: message_id} -> message_id
+      _ -> nil
+    end
+  end
+
+  defp message_id_for_reply_fetch(_), do: nil
+
+  defp local_reply_to_preview(reply) do
+    base_url = ElektrineWeb.Endpoint.url()
+
+    {actor_uri, local_user} =
+      cond do
+        reply.sender && Elektrine.Strings.present?(reply.sender.username) ->
+          {"#{base_url}/users/#{reply.sender.username}", reply.sender}
+
+        reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.uri) ->
+          {reply.remote_actor.uri, nil}
+
+        reply.remote_actor && Elektrine.Strings.present?(reply.remote_actor.domain) &&
+            Elektrine.Strings.present?(reply.remote_actor.username) ->
+          {"https://#{reply.remote_actor.domain}/users/#{reply.remote_actor.username}", nil}
+
+        true ->
+          {nil, nil}
+      end
+
+    %{
+      "id" => reply.activitypub_id || "#{base_url}/posts/#{reply.id}",
+      "type" => "Note",
+      "content" => reply.content,
+      "published" => NaiveDateTime.to_iso8601(reply.inserted_at) <> "Z",
+      "attributedTo" => actor_uri,
+      "_local_user" => local_user,
+      "_local_message_id" => reply.id
+    }
+  end
 
   defp has_collection_ref?(value) when is_binary(value), do: true
 
@@ -738,12 +841,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     ]
     |> Enum.max(fn -> 0 end)
   end
-
-  defp community_post_url?(url) when is_binary(url) do
-    LemmyApi.community_post_url?(url)
-  end
-
-  defp community_post_url?(_), do: false
 
   defp update_posts_with_api_counts(posts, lemmy_counts, mastodon_counts) do
     import Ecto.Query
@@ -1309,18 +1406,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       end
 
     if fetch_target && !already_has_replies? do
-      liveview_pid = self()
-
-      Task.start(fn ->
-        case fetch_replies_for_post(fetch_target) do
-          {fetched_post_id, replies}
-          when is_binary(fetched_post_id) and is_list(replies) and replies != [] ->
-            send(liveview_pid, {:replies_loaded_for_posts, %{fetched_post_id => replies}})
-
-          _ ->
-            :ok
-        end
-      end)
+      schedule_replies_fetch([fetch_target], self())
     end
 
     {:noreply,
