@@ -7,8 +7,8 @@ defmodule Elektrine.ProfilesTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Profiles.Follow
   alias Elektrine.Profiles
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
 
   describe "get_profile_by_handle/1" do

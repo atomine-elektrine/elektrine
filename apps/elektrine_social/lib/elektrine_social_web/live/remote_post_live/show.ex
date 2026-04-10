@@ -3241,19 +3241,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       expected_count =
         max(length(local_replies), cached_reply_count(socket.assigns.local_message))
 
-      cond do
-        local_replies != [] || attempt >= @cached_reply_poll_max_attempts || expected_count == 0 ->
-          send(self(), {:replies_loaded, [], post_id})
-          {:noreply, socket}
+      if local_replies != [] || attempt >= @cached_reply_poll_max_attempts || expected_count == 0 do
+        send(self(), {:replies_loaded, [], post_id})
+        {:noreply, socket}
+      else
+        Process.send_after(
+          self(),
+          {:refresh_cached_replies, message_id, post_id, attempt + 1},
+          @cached_reply_poll_interval_ms
+        )
 
-        true ->
-          Process.send_after(
-            self(),
-            {:refresh_cached_replies, message_id, post_id, attempt + 1},
-            @cached_reply_poll_interval_ms
-          )
-
-          {:noreply, socket}
+        {:noreply, socket}
       end
     else
       {:noreply, socket}
