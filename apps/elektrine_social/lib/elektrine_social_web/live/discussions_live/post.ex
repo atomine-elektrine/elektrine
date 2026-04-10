@@ -86,13 +86,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
           if has_access do
             # Get the main post
-            case get_post_with_replies(post_id, community_id) do
-              {:ok, post, replies} ->
+            case get_post(post_id, community_id) do
+              {:ok, post} ->
                 if connected?(socket) do
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{community_id}")
                   # Subscribe to message-specific updates for likes
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "message:#{post_id}")
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
+                  send(self(), {:load_replies, post_id, community_id})
                 end
 
                 # Get related posts
@@ -139,13 +140,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                   # Load reactions for the post
                   post_reactions = load_post_reactions(post.id)
 
-                  # Load user's votes for all posts and replies
+                  # Load the main post vote state immediately. Reply vote state is filled in once
+                  # the threaded reply tree loads.
                   user_votes =
                     if user do
-                      # Replies are threaded maps with :reply key containing the actual message
-                      reply_ids = collect_all_reply_ids(replies)
-                      all_message_ids = [post.id | reply_ids]
-                      Social.get_user_votes(user.id, all_message_ids)
+                      Social.get_user_votes(user.id, [post.id])
                     else
                       %{}
                     end
@@ -164,7 +163,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:current_url, current_url)
                    |> assign(:community, community)
                    |> assign(:post, post)
-                   |> assign(:replies, replies)
+                   |> assign(:replies, [])
                    |> assign(:related_posts, related_posts)
                    |> assign(:is_moderator, is_moderator)
                    |> assign(:reply_content, "")
@@ -191,6 +190,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:mod_status_target_user, nil)
                    |> assign(:user_mod_data, %{})
                    |> assign(:expanded_threads, MapSet.new())
+                   |> assign(:replies_loading, connected?(socket))
                    |> assign(:show_image_modal, false)
                    |> assign(:modal_image_url, nil)
                    |> assign(:modal_images, [])
@@ -251,8 +251,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
   def extract_youtube_id(_), do: nil
 
-  defp get_post_with_replies(post_id, community_id) do
-    get_post_with_replies_expanded(post_id, community_id, MapSet.new())
+  defp get_post(post_id, community_id) do
+    post =
+      from(m in Elektrine.Messaging.Message,
+        where: m.id == ^post_id and m.conversation_id == ^community_id,
+        preload: [
+          sender: [:profile],
+          link_preview: [],
+          flair: [],
+          shared_message: [sender: [:profile], conversation: []],
+          poll: [options: []]
+        ]
+      )
+      |> Elektrine.Repo.one()
+
+    case post do
+      nil -> {:error, :not_found}
+      post -> {:ok, Elektrine.Messaging.Message.decrypt_content(post)}
+    end
   end
 
   defp get_post_with_replies_expanded(post_id, community_id, expanded_threads) do
@@ -879,6 +895,29 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       #{children_html}
     </div>
     """
+  end
+
+  @impl true
+  def handle_info({:load_replies, post_id, community_id}, socket) do
+    case get_post_with_replies_expanded(post_id, community_id, socket.assigns.expanded_threads) do
+      {:ok, _post, replies} ->
+        user_votes =
+          if user = socket.assigns[:current_user] do
+            reply_ids = collect_all_reply_ids(replies)
+            Social.get_user_votes(user.id, [socket.assigns.post.id | reply_ids])
+          else
+            socket.assigns.user_votes
+          end
+
+        {:noreply,
+         socket
+         |> assign(:replies, replies)
+         |> assign(:user_votes, user_votes)
+         |> assign(:replies_loading, false)}
+
+      {:error, :not_found} ->
+        {:noreply, assign(socket, :replies_loading, false)}
+    end
   end
 
   @impl true

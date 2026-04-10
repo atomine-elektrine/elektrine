@@ -18,7 +18,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
                           [:activitypub, :max_collection_items],
                           100
                         )
-  @max_pages Application.compile_env(:elektrine, [:activitypub, :max_collection_pages], 5)
+  @max_pages Application.compile_env(:elektrine, [:activitypub, :max_collection_pages], 10)
 
   @type fetch_result :: {:ok, list(map())} | {:partial, list(map())} | {:error, any()}
 

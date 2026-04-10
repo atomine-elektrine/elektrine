@@ -3793,18 +3793,15 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, push_navigate(socket, to: navigate_post_path(socket, post_id))}
   end
 
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, push_navigate(socket, to: navigate_post_path(socket, id))}
   end
 
   def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, message_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, push_navigate(socket, to: navigate_post_path(socket, message_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
@@ -4415,6 +4412,36 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         to_string(decoded_value)
     end
   end
+
+  defp navigate_post_path(socket, value) do
+    decoded_value = decode_post_ref(value)
+
+    case parse_local_message_id(decoded_value) do
+      {:ok, id} ->
+        post =
+          case socket.assigns[:local_message] do
+            %Elektrine.Messaging.Message{id: ^id} = message ->
+              Elektrine.Repo.preload(message, [:conversation])
+
+            _ ->
+              fetch_post_for_navigation(id)
+          end
+
+        Paths.post_path(post || id)
+
+      :error ->
+        Paths.post_path(normalize_navigate_post_id(socket, decoded_value))
+    end
+  end
+
+  defp fetch_post_for_navigation(id) when is_integer(id) do
+    case Elektrine.Messaging.get_message(id) do
+      %Elektrine.Messaging.Message{} = post -> Elektrine.Repo.preload(post, [:conversation])
+      _ -> nil
+    end
+  end
+
+  defp fetch_post_for_navigation(_), do: nil
 
   defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
 

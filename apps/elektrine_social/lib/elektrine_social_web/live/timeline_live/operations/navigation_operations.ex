@@ -23,19 +23,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     reply_thread_path = reply_thread_path(post, id)
 
     path =
-      cond do
-        is_binary(reply_thread_path) ->
-          reply_thread_path
-
-        post && post.federated && is_binary(post.activitypub_id) && post.activitypub_id != "" ->
-          Paths.post_path(post)
-
-        post && post.federated ->
-          Paths.post_path(id)
-
-        true ->
-          Paths.post_path(id)
-      end
+      if is_binary(reply_thread_path), do: reply_thread_path, else: Paths.post_path(post || id)
 
     {:noreply, push_navigate(socket, to: path)}
   end
@@ -187,7 +175,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     with {post_id, ""} <- Integer.parse(to_string(id)),
          %Elektrine.Messaging.Message{} = post <-
            Elektrine.Repo.get(Elektrine.Messaging.Message, post_id) do
-      post
+      Elektrine.Repo.preload(post, [:conversation])
     else
       _ -> nil
     end
