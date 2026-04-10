@@ -363,9 +363,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
     user = socket.assigns[:current_user]
     post_id = String.to_integer(post_id)
 
-    # Get the timeline post with all replies
-    case get_timeline_post_with_replies(post_id, user && user.id) do
-      {:ok, post, _replies, _total_count} ->
+    case get_timeline_post(post_id) do
+      {:ok, post} ->
         # Check if post is approved (hide automoderated posts from non-owners)
         is_approved = post.approval_status in ["approved", nil]
         is_owner = user && user.id == post.sender_id
@@ -413,6 +412,27 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
       {:error, :not_found} ->
         {:ok, push_navigate(socket, to: Elektrine.Paths.timeline_path())}
+    end
+  end
+
+  defp get_timeline_post(post_id) do
+    import Ecto.Query
+
+    case from(m in Elektrine.Messaging.Message,
+           where:
+             m.id == ^post_id and
+               is_nil(m.deleted_at) and
+               (is_nil(m.post_type) or m.post_type in ["post", "gallery", "link", "poll"]),
+           select: %{
+             id: m.id,
+             sender_id: m.sender_id,
+             visibility: m.visibility,
+             approval_status: m.approval_status
+           }
+         )
+         |> Elektrine.Repo.one() do
+      nil -> {:error, :not_found}
+      post -> {:ok, post}
     end
   end
 

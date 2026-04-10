@@ -3,6 +3,38 @@ defmodule Elektrine.Paths do
 
   alias Elektrine.{Accounts, Domains}
 
+  def post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
+      when is_integer(id) and not is_nil(reply_to_id) do
+    anchored_post_path(reply_to_id, id)
+  end
+
+  def post_path(%{id: id, conversation: %{type: "timeline"}}) when is_integer(id),
+    do: post_path(id)
+
+  def post_path(%{
+        id: id,
+        reply_to_id: reply_to_id,
+        conversation: %{type: "community", name: name}
+      })
+      when is_integer(id) and is_binary(name) and not is_nil(reply_to_id) do
+    discussion_message_path(name, reply_to_id, id)
+  end
+
+  def post_path(%{id: id, title: title, conversation: %{type: "community", name: name}})
+      when is_integer(id) and is_binary(name) do
+    discussion_post_path(name, id, title)
+  end
+
+  def post_path(%{id: id, conversation: %{type: "chat", hash: hash}})
+      when is_integer(id) and is_binary(hash) and hash != "" do
+    chat_message_path(hash, id)
+  end
+
+  def post_path(%{id: id, conversation: %{type: "chat", id: conversation_id}})
+      when is_integer(id) and is_integer(conversation_id) do
+    chat_message_path(conversation_id, id)
+  end
+
   def post_path(%{id: id}) when is_integer(id), do: post_path(id)
 
   def post_path(%{id: id, activitypub_id: activitypub_id})
