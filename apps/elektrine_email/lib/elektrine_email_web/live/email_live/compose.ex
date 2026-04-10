@@ -794,14 +794,12 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
          |> push_navigate(to: return_url)}
 
       {:error, :rate_limit_exceeded} ->
-        daily_limit = Elektrine.Email.RateLimiter.daily_limit()
+        rate_limit_message = build_rate_limit_error_message(user.id)
 
         {:noreply,
          socket
          |> assign(:sending, false)
-         |> notify_error(
-           "You have reached your daily limit of #{daily_limit} emails. Please try again tomorrow."
-         )
+         |> notify_error(rate_limit_message)
          |> assign(:form, to_form(email_params))}
 
       {:error, :storage_limit_exceeded} ->
@@ -1561,6 +1559,30 @@ Subject: #{message.subject}#{attachment_info}
       {:error, :rate_limit_exceeded}
     else
       {:ok, attachment_count}
+    end
+  end
+
+  defp build_rate_limit_error_message(user_id) do
+    restriction = RateLimiter.get_restriction_status(user_id)
+
+    if restriction.restricted do
+      "Email sending is temporarily restricted due to repeated rate limit violations. Verify your recovery email or contact support to restore sending access."
+    else
+      status = RateLimiter.get_status(user_id)
+
+      cond do
+        status.attempts[60].remaining == 0 ->
+          "You have reached your per-minute limit of #{status.attempts[60].limit} emails. Please wait a minute and try again."
+
+        status.attempts[3600].remaining == 0 ->
+          "You have reached your hourly limit of #{status.attempts[3600].limit} emails. Please try again later."
+
+        status.attempts[86_400].remaining == 0 ->
+          "You have reached your daily limit of #{status.attempts[86_400].limit} emails. Please try again tomorrow."
+
+        true ->
+          "Email rate limit exceeded. Please try again later."
+      end
     end
   end
 
