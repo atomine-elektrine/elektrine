@@ -329,6 +329,18 @@ defmodule Elektrine.Accounts.TrustLevel do
 
       user_changeset = User.trust_level_changeset(user, user_changes)
 
+      user_changeset =
+        if new_level > old_level do
+          Ecto.Changeset.change(user_changeset, %{
+            email_sending_restricted: false,
+            email_rate_limit_violations: 0,
+            email_restriction_reason: nil,
+            email_restricted_at: nil
+          })
+        else
+          user_changeset
+        end
+
       log_changeset =
         TrustLevelLog.changeset(%TrustLevelLog{}, %{
           user_id: user.id,
