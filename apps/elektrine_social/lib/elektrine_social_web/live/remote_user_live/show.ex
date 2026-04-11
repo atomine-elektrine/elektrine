@@ -1403,8 +1403,10 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
           {:ok, _vote} ->
             poll = Repo.get!(Elektrine.Social.Poll, poll_id)
 
-            if message =
-                 poll.message_id |> Messaging.get_message() |> Repo.preload(poll: [options: []]) do
+            message =
+              poll.message_id |> Messaging.get_message() |> Repo.preload(poll: [options: []])
+
+            if message do
               if message.federated && message.post_type == "poll" && message.poll do
                 _ = Elektrine.ActivityPub.FetchRemotePollWorker.enqueue(message.id)
               end

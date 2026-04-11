@@ -11,28 +11,32 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   alias Elektrine.Repo
 
   def refresh_counts(actor_id) when is_integer(actor_id) do
-    with %Actor{} = actor <- Repo.get(Actor, actor_id) do
-      posts = local_posts_for_actor(actor)
-      lemmy_counts = LemmyApi.fetch_posts_counts(posts)
-      mastodon_counts = MastodonApi.fetch_statuses_counts(posts)
+    case Repo.get(Actor, actor_id) do
+      %Actor{} = actor ->
+        posts = local_posts_for_actor(actor)
+        lemmy_counts = LemmyApi.fetch_posts_counts(posts)
+        mastodon_counts = MastodonApi.fetch_statuses_counts(posts)
 
-      update_posts_with_api_counts(posts, lemmy_counts, mastodon_counts)
+        update_posts_with_api_counts(posts, lemmy_counts, mastodon_counts)
 
-      snapshot = %{lemmy_counts: lemmy_counts, mastodon_counts: mastodon_counts}
-      AppCache.put_remote_user_counts(actor_id, snapshot)
-      {:ok, snapshot}
-    else
-      _ -> {:error, :actor_not_found}
+        snapshot = %{lemmy_counts: lemmy_counts, mastodon_counts: mastodon_counts}
+        AppCache.put_remote_user_counts(actor_id, snapshot)
+        {:ok, snapshot}
+
+      _ ->
+        {:error, :actor_not_found}
     end
   end
 
   def refresh_community_stats(actor_id) when is_integer(actor_id) do
-    with %Actor{actor_type: "Group"} = actor <- Repo.get(Actor, actor_id) do
-      stats = fetch_group_stats(actor)
-      AppCache.put_remote_user_community_stats(actor_id, stats)
-      {:ok, stats}
-    else
-      _ -> {:error, :actor_not_found}
+    case Repo.get(Actor, actor_id) do
+      %Actor{actor_type: "Group"} = actor ->
+        stats = fetch_group_stats(actor)
+        AppCache.put_remote_user_community_stats(actor_id, stats)
+        {:ok, stats}
+
+      _ ->
+        {:error, :actor_not_found}
     end
   end
 

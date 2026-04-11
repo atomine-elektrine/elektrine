@@ -2488,12 +2488,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_display_name_markup(_), do: escape_markup("Community")
 
   defp community_creator_markup(%Messaging.Conversation{} = community) do
-    cond do
-      Ecto.assoc_loaded?(community.creator) && community.creator ->
-        escape_markup(community.creator.display_name || community.creator.username)
-
-      true ->
-        nil
+    if Ecto.assoc_loaded?(community.creator) && community.creator do
+      escape_markup(community.creator.display_name || community.creator.username)
+    else
+      nil
     end
   end
 
