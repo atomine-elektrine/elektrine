@@ -4990,12 +4990,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp maybe_adjust_reply_share_count(socket, message_id, delta) do
-    with {message_id_int, _} <- Integer.parse(to_string(message_id)) do
-      socket
-      |> update_reply_surface_message_count(message_id_int, "_local_share_count", delta)
-      |> maybe_adjust_top_level_local_message_share_count(message_id_int, delta)
-    else
-      _ -> socket
+    case Integer.parse(to_string(message_id)) do
+      {message_id_int, _} ->
+        socket
+        |> update_reply_surface_message_count(message_id_int, "_local_share_count", delta)
+        |> maybe_adjust_top_level_local_message_share_count(message_id_int, delta)
+
+      _ ->
+        socket
     end
   end
 
