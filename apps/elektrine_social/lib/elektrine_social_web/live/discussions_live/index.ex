@@ -10,7 +10,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   alias Elektrine.Social.Recommendations
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   import ElektrineSocialWeb.Components.Platform.ENav
-  import ElektrineSocialWeb.Components.Social.LemmyPost
+  import ElektrineSocialWeb.Components.Social.TimelinePost, only: [timeline_post: 1]
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
   @community_feed_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
@@ -434,23 +434,31 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       case Messaging.CommunitySearch.follow_remote_group(user_id, actor_id) do
         {:ok, remote_actor} ->
           communities = get_user_communities(user_id)
-          followed_remote_communities = get_followed_remote_communities(user_id)
 
           {:noreply,
            socket
            |> assign(:communities, communities)
-           |> assign(:followed_remote_communities, followed_remote_communities)
            |> assign(
              :filtered_communities,
              filter_communities_by_category(communities, socket.assigns.selected_category)
            )
-           |> assign(
-             :filtered_remote_communities,
-             followed_remote_communities
-           )
+           |> refresh_remote_community_assigns(user_id)
            |> notify_info(
              "Followed federated community !#{remote_actor.username}@#{remote_actor.domain}"
            )}
+
+        :ok ->
+          communities = get_user_communities(user_id)
+
+          {:noreply,
+           socket
+           |> assign(:communities, communities)
+           |> assign(
+             :filtered_communities,
+             filter_communities_by_category(communities, socket.assigns.selected_category)
+           )
+           |> refresh_remote_community_assigns(user_id)
+           |> notify_info("Followed federated community")}
 
         {:error, reason} ->
           {:noreply, notify_error(socket, "Failed to follow community: #{inspect(reason)}")}
@@ -509,11 +517,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
       case Profiles.unfollow_remote_actor(user_id, actor_id) do
         {:ok, _} ->
-          followed_remote_communities = get_followed_remote_communities(user_id)
-
           {:noreply,
            socket
-           |> assign(:followed_remote_communities, followed_remote_communities)
+           |> refresh_remote_community_assigns(user_id)
            |> notify_info("Unfollowed community")}
 
         {:error, _} ->
@@ -1529,6 +1535,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       order_by: [desc: f.inserted_at]
     )
     |> Repo.all()
+  end
+
+  defp refresh_remote_community_assigns(socket, user_id) do
+    followed_remote_communities = get_followed_remote_communities(user_id)
+    discover_remote_communities = get_discover_remote_communities(user_id, limit: 8)
+    selected_category = socket.assigns.selected_category
+
+    socket
+    |> assign(:followed_remote_communities, followed_remote_communities)
+    |> assign(:discover_remote_communities, discover_remote_communities)
+    |> assign(
+      :filtered_remote_communities,
+      filter_communities_by_category(followed_remote_communities, selected_category)
+    )
+    |> assign(
+      :filtered_discover_remote_communities,
+      filter_communities_by_category(discover_remote_communities, selected_category)
+    )
   end
 
   defp get_discover_remote_communities(user_id, opts) do

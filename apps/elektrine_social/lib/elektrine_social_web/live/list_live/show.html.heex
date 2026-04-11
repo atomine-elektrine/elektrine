@@ -267,7 +267,6 @@
                               <.link
                                 navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
                                 class="flex-shrink-0"
-                                phx-click="stop_propagation"
                               >
                                 <img
                                   src={ensure_https(booster["avatar_url"])}
@@ -280,7 +279,6 @@
                             <.link
                               navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
                               class="font-medium hover:underline text-success truncate min-w-0"
-                              phx-click="stop_propagation"
                             >
                               {raw(
                                 render_display_name_with_emojis(
@@ -329,7 +327,6 @@
                           <.link
                             navigate={"/remote/#{post.remote_actor.username}@#{post.remote_actor.domain}"}
                             class="w-10 h-10 block"
-                            phx-click="stop_propagation"
                           >
                             <%= if post.remote_actor.avatar_url do %>
                               <img
@@ -347,7 +344,6 @@
                             <.link
                               navigate={"/remote/#{post.remote_actor.username}@#{post.remote_actor.domain}"}
                               class="font-medium hover:underline block"
-                              phx-click="stop_propagation"
                             >
                               {raw(render_actor_display_name(post.remote_actor))}
                             </.link>
@@ -386,10 +382,7 @@
                         <div class="break-words">{raw(render_post_content(post))}</div>
                       </div>
                       <!-- Post Actions -->
-                      <div
-                        class="flex items-center gap-2 pt-2 border-t border-base-200"
-                        phx-click="stop_propagation"
-                      >
+                      <div class="flex items-center gap-2 pt-2 border-t border-base-200">
                         <.post_actions
                           post_id={post.id}
                           current_user={@current_user}

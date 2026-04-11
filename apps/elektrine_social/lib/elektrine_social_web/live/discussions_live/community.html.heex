@@ -715,7 +715,6 @@
                               <.link
                                 href={~p"/#{post.sender.handle || post.sender.username}"}
                                 class="w-6 h-6 sm:w-8 sm:h-8 block"
-                                phx-click="stop_propagation"
                               >
                                 <.user_avatar user={post.sender} size="xs" />
                               </.link>
@@ -723,7 +722,6 @@
                             <.link
                               href={~p"/#{post.sender.handle || post.sender.username}"}
                               class="font-medium hover:underline hover:text-error text-sm sm:text-base transition-colors"
-                              phx-click="stop_propagation"
                             >
                               <.username_with_effects
                                 user={post.sender}
@@ -818,7 +816,7 @@
                                           @current_user.id
                                         ),
                                       else: [] %>
-                                  <div phx-click="stop_propagation">
+                                  <div>
                                     <.poll_display
                                       poll={poll_results}
                                       current_user={@current_user}
@@ -1389,10 +1387,7 @@
                                 <% end %>
                               <% post.post_type == "poll" -> %>
                                 <!-- Poll Post: Show poll preview (click to see full) -->
-                                <div
-                                  class="text-sm opacity-70 flex items-center gap-2 my-2"
-                                  phx-click="stop_propagation"
-                                >
+                                <div class="text-sm opacity-70 flex items-center gap-2 my-2">
                                   <.icon name="hero-chart-bar" class="w-4 h-4" />
                                   <span>Click to vote in this poll</span>
                                 </div>
@@ -1495,10 +1490,7 @@
                         
 <!-- Reply Form -->
                         <%= if @current_user && @reply_to_post && @reply_to_post.id == post.id do %>
-                          <div
-                            class="mt-4 pt-4 border-t border-base-200"
-                            phx-click="stop_propagation"
-                          >
+                          <div class="mt-4 pt-4 border-t border-base-200">
                             <div class="flex items-start gap-3 mb-3">
                               <div class="w-6 h-6 flex-shrink-0">
                                 <.user_avatar user={@current_user} size="xs" />
@@ -1527,7 +1519,6 @@
                                 rows="3"
                                 value={@reply_content}
                                 phx-change="update_reply_content"
-                                phx-click="stop_propagation"
                                 required
                               ></textarea>
 

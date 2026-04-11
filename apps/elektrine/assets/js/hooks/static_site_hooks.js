@@ -7,14 +7,12 @@ export const DragDrop = {
 
     this.onDragEnter = (e) => {
       e.preventDefault()
-      e.stopPropagation()
       this.dragDepth += 1
       this.pushEvent("dragover", {})
     }
 
     this.onDragOver = (e) => {
       e.preventDefault()
-      e.stopPropagation()
 
       if (e.dataTransfer) {
         e.dataTransfer.dropEffect = "copy"
@@ -23,7 +21,6 @@ export const DragDrop = {
 
     this.onDragLeave = (e) => {
       e.preventDefault()
-      e.stopPropagation()
       this.dragDepth = Math.max(this.dragDepth - 1, 0)
 
       if (this.dragDepth === 0) {
@@ -33,7 +30,6 @@ export const DragDrop = {
 
     this.onDrop = (e) => {
       e.preventDefault()
-      e.stopPropagation()
       this.dragDepth = 0
       this.pushEvent("drop", {})
     }

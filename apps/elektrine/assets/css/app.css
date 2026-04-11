@@ -14,7 +14,10 @@
 
 /* Tailwind & DaisyUI */
 @import "tailwindcss";
-@plugin "daisyui";
+@plugin "daisyui" {
+  /* DaisyUI's radial-progress support emits an @property rule that Lightning CSS warns about. */
+  exclude: properties, radialprogress;
+}
 @config "../tailwind.config.mjs";
 
 /* App styles */

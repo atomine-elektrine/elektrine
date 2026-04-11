@@ -242,7 +242,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             />
             
     <!-- Emoji Reactions -->
-            <div class="mt-2 pt-2 border-t border-base-200" phx-click="stop_propagation">
+            <div class="mt-2 pt-2 border-t border-base-200">
               <.post_reactions
                 post_id={@post.id}
                 reactions={@reactions}
@@ -253,7 +253,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           </div>
 
           <%= if @current_user && @show_post_dropdown do %>
-            <div class="absolute right-4 top-4 z-[320]" phx-click="stop_propagation">
+            <div class="absolute right-4 top-4 z-[320]">
               <.post_dropdown
                 post={@post}
                 current_user={@current_user}
@@ -291,7 +291,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <.link
             navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
             class="flex-shrink-0"
-            phx-click="stop_propagation"
           >
             <%= if booster["avatar_url"] do %>
               <img
@@ -306,7 +305,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <.link
             navigate={"/remote/#{booster["username"]}@#{booster["domain"]}"}
             class="font-medium text-success truncate min-w-0"
-            phx-click="stop_propagation"
           >
             {raw(
               render_display_name_with_emojis(
@@ -384,7 +382,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <.link
         navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
         class="w-10 h-10 rounded-full block"
-        phx-click="stop_propagation"
       >
         <%= if @post.remote_actor.avatar_url do %>
           <img
@@ -403,7 +400,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <.link
             navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
             class="font-medium hover:text-primary transition-colors duration-200 truncate"
-            phx-click="stop_propagation"
           >
             {raw(
               render_display_name_with_emojis(
@@ -660,15 +656,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         </div>
 
         <%= if clickable do %>
-          <div
-            role="button"
-            tabindex="0"
+          <button
+            type="button"
             class="thread-context-card timeline-inline-reply-target__card w-full text-left"
-            onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.click(); }"
             {ancestor_click_attrs(@target)}
           >
             <.inline_reply_target_content target={@target} subtitle={subtitle} />
-          </div>
+          </button>
         <% else %>
           <div class="timeline-inline-reply-target__card">
             <.inline_reply_target_content target={@target} subtitle={subtitle} />
@@ -1501,7 +1495,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <% end %>
         <div
           id={"quoted-post-#{@post.id}-#{@post.quoted_message_id}"}
-          phx-click="stop_propagation"
           phx-hook="PostClick"
           data-click-event="navigate_to_embedded_post"
           data-url={quoted_post_url(@post.quoted_message)}
@@ -1604,10 +1597,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               >
                 <%= if @post.quoted_message.link_preview.image_url do %>
                   <img
+                    id={"timeline-quoted-preview-image-#{@post.id || :erlang.phash2(@post.quoted_message.link_preview.image_url)}"}
                     src={ensure_https(@post.quoted_message.link_preview.image_url)}
                     alt=""
                     class="w-12 h-12 rounded object-cover flex-shrink-0"
-                    onerror="this.style.display='none'"
+                    phx-hook="ImageFallback"
                   />
                 <% end %>
                 <div class="min-w-0 flex-1">
@@ -1632,7 +1626,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               {raw(render_post_content(@post))}
             </div>
           <% end %>
-          <div phx-click="stop_propagation">
+          <div>
             <.embedded_post
               message={@post}
               shared_message={@post.shared_message}
@@ -1646,7 +1640,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               if @current_user,
                 do: Integrations.social_user_poll_votes(@post.poll.id, @current_user.id),
                 else: [] %>
-            <div class="mt-3" phx-click="stop_propagation">
+            <div class="mt-3">
               <ElektrineSocialWeb.Components.Social.PollDisplay.poll_card
                 poll={@post.poll}
                 message={@post}
@@ -1672,7 +1666,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           target="_blank"
           rel="noopener noreferrer"
           class="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
-          phx-click="stop_propagation"
         >
           <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
           <%= if PostUtilities.reply?(@post) do %>
@@ -1723,7 +1716,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <%= if @youtube_url do %>
-      <div phx-click="stop_propagation">
+      <div>
         <.youtube_preview url={@youtube_url} wrapper_class="mt-3 rounded-lg overflow-hidden" />
       </div>
     <% end %>
@@ -1748,7 +1741,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <%= if @image_urls != [] do %>
-      <div class="mt-3 space-y-2" phx-click="stop_propagation">
+      <div class="mt-3 space-y-2">
         <%= for {image_url, idx} <- Enum.with_index(@image_urls) do %>
           <button
             type="button"
@@ -1762,11 +1755,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             style={@content_image_frame_style}
           >
             <img
+              id={"timeline-content-image-#{@post.id}-#{idx}-#{:erlang.phash2(image_url)}"}
               src={image_url}
               alt="Image preview"
               class="h-full w-full object-contain hover:opacity-90 transition-opacity cursor-pointer"
               loading="lazy"
-              onerror="this.closest('button').style.display='none'"
+              phx-hook="ImageFallback"
+              data-hide-target="closest"
+              data-hide-selector="button"
             />
           </button>
         <% end %>
@@ -1791,7 +1787,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <%= if @media_entries != [] do %>
-      <div class="mt-3 grid grid-cols-1 gap-2" phx-click="stop_propagation">
+      <div class="mt-3 grid grid-cols-1 gap-2">
         <%= for media_entry <- @media_entries do %>
           <%= cond do %>
             <% media_entry.is_video -> %>
@@ -1825,11 +1821,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 style={media_entry.frame_style}
               >
                 <img
+                  id={"timeline-media-image-#{@post.id}-#{media_entry.index}-#{:erlang.phash2(media_entry.full_url)}"}
                   src={media_entry.full_url}
                   alt={media_entry.alt_text}
                   class="h-full w-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
-                  onerror="this.closest('button').style.display='none'"
+                  phx-hook="ImageFallback"
+                  data-hide-target="closest"
+                  data-hide-selector="button"
                 />
               </button>
           <% end %>
@@ -1845,10 +1844,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp link_preview(assigns) do
     ~H"""
     <%= if link_preview_success?(@post.link_preview) do %>
-      <div
-        class="mt-3 border border-base-300 rounded-lg overflow-hidden hover:border-base-300 transition-colors max-w-full"
-        phx-click="stop_propagation"
-      >
+      <div class="mt-3 border border-base-300 rounded-lg overflow-hidden hover:border-base-300 transition-colors max-w-full">
         <a
           href={@post.link_preview.url}
           target="_blank"
@@ -1858,10 +1854,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <%= if @post.link_preview.image_url do %>
             <div class="aspect-video bg-base-50">
               <img
+                id={"timeline-link-preview-image-#{@post.id || :erlang.phash2(@post.link_preview.image_url)}"}
                 src={ensure_https(@post.link_preview.image_url)}
                 alt={@post.link_preview.title || ""}
                 class="w-full h-full object-cover"
-                onerror="this.parentElement.style.display='none'"
+                phx-hook="ImageFallback"
+                data-hide-target="parent"
               />
             </div>
           <% end %>
@@ -1869,10 +1867,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <div class="flex items-center gap-2 mb-2">
               <%= if @post.link_preview.favicon_url do %>
                 <img
+                  id={"timeline-link-preview-favicon-#{@post.id || :erlang.phash2(@post.link_preview.favicon_url)}"}
                   src={ensure_https(@post.link_preview.favicon_url)}
                   alt=""
                   class="w-4 h-4 flex-shrink-0"
-                  onerror="this.style.display='none'"
+                  phx-hook="ImageFallback"
                 />
               <% end %>
               <span class="text-xs text-base-content/60 truncate">
@@ -2050,10 +2049,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp post_footer(assigns) do
     ~H"""
-    <div
-      class="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-base-300"
-      phx-click="stop_propagation"
-    >
+    <div class="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-base-300">
       <div class="flex items-center gap-1 flex-shrink-0">
         <.post_actions
           post_id={@post.id}
@@ -2485,7 +2481,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   target="_blank"
                   rel="noopener noreferrer"
                   class="hover:underline flex items-center gap-1"
-                  phx-click="stop_propagation"
                 >
                   <.icon name="hero-link" class="w-3 h-3 flex-shrink-0" />
                   <span class="truncate">{URI.parse(@post.link_preview.url).host}</span>
@@ -2500,7 +2495,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <.link
                 navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
                 class="hover:underline"
-                phx-click="stop_propagation"
               >
                 @{@post.remote_actor.username}
               </.link>
@@ -2521,7 +2515,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 target="_blank"
                 rel="noopener noreferrer"
                 class="hover:text-primary ml-auto"
-                phx-click="stop_propagation"
               >
                 <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
               </a>
@@ -2530,7 +2523,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           
     <!-- Emoji Reactions -->
           <%= if @current_user || !Enum.empty?(@formatted_reactions) do %>
-            <div class="flex items-center gap-1 mt-2 flex-wrap" phx-click="stop_propagation">
+            <div class="flex items-center gap-1 mt-2 flex-wrap">
               <%= for {emoji, count, users, user_reacted} <- @formatted_reactions do %>
                 <% tooltip =
                   if length(users) > 10 do
@@ -2635,7 +2628,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     )}
                   </div>
                   <%= if reply_reaction.target_id do %>
-                    <div class="mt-1.5" phx-click="stop_propagation">
+                    <div class="mt-1.5">
                       <.post_reactions
                         post_id={reply_reaction.target_id}
                         value_name={reply_reaction.value_name}
@@ -2668,7 +2661,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 target="_blank"
                 rel="noopener noreferrer"
                 class="text-xs text-base-content/70 hover:text-primary inline-flex items-center gap-1"
-                phx-click="stop_propagation"
               >
                 <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
                 Open full conversation on origin

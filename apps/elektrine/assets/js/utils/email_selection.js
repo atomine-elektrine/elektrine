@@ -49,7 +49,6 @@ export function handleSelectionClick(e) {
   const messageCard = e.target.closest('.message-card[data-message-id]')
   if (messageCard && e.shiftKey) {
     e.preventDefault()
-    e.stopPropagation()
     const messageId = messageCard.getAttribute('data-message-id')
     const checkbox = document.getElementById(`message-checkbox-${messageId}`)
     if (checkbox) {

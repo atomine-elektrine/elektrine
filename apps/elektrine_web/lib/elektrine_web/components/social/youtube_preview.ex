@@ -99,10 +99,11 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
             <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
               <%= if @preview.favicon_url do %>
                 <img
+                  id={"youtube-preview-favicon-#{:erlang.phash2(@preview.favicon_url)}"}
                   src={ensure_https(@preview.favicon_url)}
                   alt=""
                   class="w-4 h-4"
-                  onerror="this.style.display='none'"
+                  phx-hook="ImageFallback"
                 />
               <% end %>
               <span class="truncate">{@host}</span>

@@ -77,7 +77,6 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
               <.link
                 navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                 class="w-10 h-10 rounded-full block"
-                phx-click="stop_propagation"
               >
                 <%= if @normalized.avatar_url do %>
                   <img
@@ -146,7 +145,6 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                   <.link
                     navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                     class="font-medium hover:text-primary transition-colors duration-200 truncate"
-                    phx-click="stop_propagation"
                   >
                     {raw(
                       render_display_name_with_emojis(

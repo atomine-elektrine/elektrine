@@ -1,18 +1,8 @@
+import { submitFormPreservingEvents } from './utils/form_submission'
 import { copyToClipboard } from './utils/clipboard'
 
 // Form helper functions for various UI interactions
 export function initFormHelpers() {
-  const submitForm = (form) => {
-    if (!form) return;
-
-    // requestSubmit preserves submit events so admin passkey re-sign interception still runs.
-    if (typeof form.requestSubmit === 'function') {
-      form.requestSubmit();
-    } else {
-      form.submit();
-    }
-  };
-
   // Handle copy to clipboard
   document.addEventListener('click', (e) => {
     const copyBtn = e.target.closest('[data-copy-to-clipboard]');
@@ -73,7 +63,7 @@ export function initFormHelpers() {
       // Submit the form
       const form = e.target.closest('form');
       if (form) {
-        submitForm(form);
+        submitFormPreservingEvents(form);
       }
     }
   });
@@ -83,7 +73,7 @@ export function initFormHelpers() {
     if (e.target.matches('select[data-submit-on-change]')) {
       const form = e.target.closest('form');
       if (form) {
-        submitForm(form);
+        submitFormPreservingEvents(form);
       }
     }
   });

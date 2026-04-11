@@ -3,6 +3,12 @@
 import { FlashMessageManager } from './flash_message_manager'
 import { spinnerSvg } from './utils/spinner'
 
+function appendHtml(parent, html) {
+  const template = document.createElement('template')
+  template.innerHTML = html.trim()
+  parent.appendChild(template.content)
+}
+
 /**
  * Show a toast notification with various options
  * @param {string} message - The notification message
@@ -77,8 +83,6 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}" />
        </svg>`
 
-  // Build action buttons HTML
-  let actionsHtml = ''
   const allActions = [...config.actions]
 
   // Add undo button if undoEvent is specified
@@ -91,44 +95,66 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
     })
   }
 
-  if (allActions.length > 0) {
-    actionsHtml = `
-      <div class="notification-actions flex gap-2 mt-2">
-        ${allActions.map((action, idx) => `
-          <button class="btn ${action.class || 'btn-ghost btn-xs'}" data-action-idx="${idx}">
-            ${action.label}
-          </button>
-        `).join('')}
-      </div>
-    `
-  }
-
-  // Progress bar HTML (if enabled)
-  const progressHtml = config.progress && config.duration > 0
-    ? `<div class="notification-progress absolute bottom-0 left-0 h-1 bg-current opacity-30" style="width: 100%; transition: width ${config.duration}ms linear;"></div>`
-    : ''
-
   // Create notification element matching the LiveView flash structure
   const notification = document.createElement('div')
   notification.className = `flash-message alert ${alertClass} shadow-xl rounded-lg relative transition-all duration-300 cursor-pointer overflow-hidden`
-  notification.innerHTML = `
-    <div class="flex items-center gap-3 w-full">
-      <div class="flex-shrink-0">
-        ${iconHtml}
-      </div>
-      <div class="flex-grow min-w-0">
-        ${defaultTitle ? `<h3 class="font-bold">${defaultTitle}</h3>` : ''}
-        <div class="text-sm">${message}</div>
-        ${actionsHtml}
-      </div>
-      <button class="btn btn-ghost btn-sm btn-circle notification-close-btn flex-shrink-0">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-    ${progressHtml}
-  `
+  const content = document.createElement('div')
+  content.className = 'flex items-center gap-3 w-full'
+
+  const iconWrapper = document.createElement('div')
+  iconWrapper.className = 'flex-shrink-0'
+  appendHtml(iconWrapper, iconHtml)
+
+  const body = document.createElement('div')
+  body.className = 'flex-grow min-w-0'
+
+  if (defaultTitle) {
+    const title = document.createElement('h3')
+    title.className = 'font-bold'
+    title.textContent = defaultTitle
+    body.appendChild(title)
+  }
+
+  const messageEl = document.createElement('div')
+  messageEl.className = 'text-sm'
+  messageEl.textContent = message
+  body.appendChild(messageEl)
+
+  if (allActions.length > 0) {
+    const actions = document.createElement('div')
+    actions.className = 'notification-actions flex gap-2 mt-2'
+
+    allActions.forEach((action, idx) => {
+      const button = document.createElement('button')
+      button.className = `btn ${action.class || 'btn-ghost btn-xs'}`
+      button.dataset.actionIdx = String(idx)
+      button.textContent = action.label
+      actions.appendChild(button)
+    })
+
+    body.appendChild(actions)
+  }
+
+  const closeBtn = document.createElement('button')
+  closeBtn.className = 'btn btn-ghost btn-sm btn-circle notification-close-btn flex-shrink-0'
+  appendHtml(closeBtn, `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  `)
+
+  content.appendChild(iconWrapper)
+  content.appendChild(body)
+  content.appendChild(closeBtn)
+  notification.appendChild(content)
+
+  if (config.progress && config.duration > 0) {
+    const progress = document.createElement('div')
+    progress.className = 'notification-progress absolute bottom-0 left-0 h-1 bg-current opacity-30'
+    progress.style.width = '100%'
+    progress.style.transition = `width ${config.duration}ms linear`
+    notification.appendChild(progress)
+  }
 
   // Initialize flash manager if not exists
   if (!window.flashManager) {
@@ -159,20 +185,15 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
   }
 
   // Add event listener to close button
-  const closeBtn = notification.querySelector('.notification-close-btn')
-  if (closeBtn) {
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      removeNotification()
-    })
-  }
+  closeBtn.addEventListener('click', () => {
+    removeNotification()
+  })
 
   // Add event listeners to action buttons
   if (allActions.length > 0) {
     const actionBtns = notification.querySelectorAll('[data-action-idx]')
     actionBtns.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation()
+      btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.actionIdx)
         const action = allActions[idx]
         if (action && action.event) {
@@ -454,14 +475,9 @@ export function showKeyboardShortcuts() {
 
   // Close modal when clicking outside the content area
   modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
+    if (!modalContent.contains(e.target)) {
       closeModal()
     }
-  })
-
-  // Prevent clicks inside modal content from closing it
-  modalContent.addEventListener('click', (e) => {
-    e.stopPropagation()
   })
 
   // Add event listener to close button

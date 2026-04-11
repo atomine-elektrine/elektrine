@@ -147,8 +147,7 @@ export const TagInput = {
       removeBtn.type = 'button';
       removeBtn.className = 'w-3 h-3 rounded-full hover:bg-red-500/30 hover:text-red-600 transition-all duration-150 flex items-center justify-center text-xs leading-none opacity-60 hover:opacity-100';
       removeBtn.innerHTML = '×';
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
+      removeBtn.addEventListener('click', () => {
         tags.splice(index, 1);
         this.renderTags(tags, container, tagInput, hiddenInput);
       });

@@ -146,14 +146,6 @@ export const FlashMessage = {
       this.clearFlash()
     }, 5000)
 
-    // Stop propagation on click to prevent double clearing
-    this.el.addEventListener('click', (e) => {
-      if (e.target.closest('button')) {
-        // Button click will handle clearing via phx-click
-        return
-      }
-      e.stopPropagation()
-    })
   },
 
   destroyed() {
@@ -187,7 +179,6 @@ export const CopyToClipboard = {
   mounted() {
     this.el.addEventListener("click", e => {
       e.preventDefault()
-      e.stopPropagation()
 
       const textToCopy = resolveCopyText(this.el)
 
@@ -1219,42 +1210,55 @@ export const ScrollToBottom = {
  * Hides the image and shows a fallback element when image fails to load
  *
  * Usage:
- *   <img src="..." phx-hook="ImageFallback" data-fallback-class="hidden" />
+ *   <img src="..." phx-hook="ImageFallback" />
+ *   <img src="..." phx-hook="ImageFallback" data-hide-target="parent" />
+ *   <img src="..." phx-hook="ImageFallback" data-hide-target="closest" data-hide-selector="button" />
  *   <div data-fallback-icon class="hidden">Fallback content</div>
  *
- * The hook will hide the img and show elements with [data-fallback-icon]
+ * The hook will hide the configured target and show the next sibling with [data-fallback-icon]
  */
 export const ImageFallback = {
   mounted() {
-    this.el.addEventListener('error', () => {
-      // Hide the image
-      this.el.style.display = 'none'
+    this.onError = () => {
+      const hideTarget = this.resolveHideTarget()
+      if (hideTarget) {
+        hideTarget.style.display = 'none'
+      }
 
-      // Show the next sibling with data-fallback-icon if present
       const fallback = this.el.nextElementSibling
       if (fallback && fallback.hasAttribute('data-fallback-icon')) {
         fallback.style.display = 'flex'
         fallback.classList.remove('hidden')
       }
-    })
+    }
+
+    this.el.addEventListener('error', this.onError)
 
     // Also handle case where image is already broken (cached error)
     if (this.el.complete && this.el.naturalHeight === 0) {
       this.el.dispatchEvent(new Event('error'))
     }
-  }
-}
+  },
 
-/**
- * StopPropagation - Prevents click events from bubbling up to parent elements.
- * Used for interactive elements (buttons) nested inside clickable containers (links).
- * Replaces inline onclick="event.stopPropagation()" handlers.
- */
-export const StopPropagation = {
-  mounted() {
-    this.el.addEventListener('click', (e) => {
-      e.stopPropagation()
-    })
+  destroyed() {
+    if (this.onError) {
+      this.el.removeEventListener('error', this.onError)
+    }
+  },
+
+  resolveHideTarget() {
+    const hideTarget = this.el.dataset.hideTarget || 'self'
+
+    if (hideTarget === 'parent') {
+      return this.el.parentElement
+    }
+
+    if (hideTarget === 'closest') {
+      const selector = this.el.dataset.hideSelector
+      return selector ? this.el.closest(selector) : this.el
+    }
+
+    return this.el
   }
 }
 

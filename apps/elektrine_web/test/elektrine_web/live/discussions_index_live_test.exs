@@ -5,6 +5,7 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.SocialFixtures
 
@@ -197,6 +198,76 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     assert html =~ "Search Results"
     assert html =~ matching_community.name
     assert html =~ matching_community.description
+  end
+
+  test "community action buttons are not nested inside links", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    owner = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+
+    {:ok, joined_community} =
+      Messaging.create_group_conversation(
+        owner.id,
+        %{
+          name: "JoinedMarkup#{unique}",
+          description: "Joined community description",
+          type: "community",
+          community_category: "programming",
+          is_public: true,
+          allow_public_posts: true,
+          discussion_style: "forum"
+        },
+        [user.id]
+      )
+
+    {:ok, search_community} =
+      Messaging.create_group_conversation(
+        owner.id,
+        %{
+          name: "SearchMarkup#{unique}",
+          description: "Searchable community description",
+          type: "community",
+          community_category: "general",
+          is_public: true,
+          allow_public_posts: true,
+          discussion_style: "forum"
+        },
+        []
+      )
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/groups/markup-#{unique}",
+        username: "markup#{unique}",
+        domain: "remote.example",
+        display_name: "Markup #{unique}",
+        inbox_url: "https://remote.example/inbox",
+        actor_type: "Group",
+        public_key: "test-public-key-#{unique}"
+      })
+      |> Repo.insert!()
+
+    %Follow{}
+    |> Follow.changeset(%{follower_id: user.id, remote_actor_id: remote_actor.id, pending: false})
+    |> Repo.insert!()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/communities")
+
+    _ = render_async(view)
+
+    refute has_element?(view, "a button")
+    refute has_element?(view, "a #joined-leave-community-#{joined_community.id}")
+    refute has_element?(view, "a #joined-unfollow-community-#{remote_actor.id}")
+
+    view
+    |> form("#community-search-form", query: search_community.name)
+    |> render_change()
+
+    refute has_element?(view, "a #search-join-community-#{search_community.id}")
   end
 
   test "composer param opens the community creation modal", %{conn: conn} do
