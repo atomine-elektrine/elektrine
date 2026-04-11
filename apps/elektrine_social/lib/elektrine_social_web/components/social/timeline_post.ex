@@ -1016,7 +1016,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       end
 
     author_info = ancestor_author_info(message, fallback_author, activitypub_ref)
-    preview_content = ancestor_preview_content(message, fallback_content)
+
+    preview_content =
+      ancestor_preview_content(message, fallback_content) ||
+        local_ancestor_preview_content(activitypub_ref)
+
     instance_domain = ancestor_instance_domain(message, activitypub_ref)
 
     local_sender =
@@ -1124,9 +1128,25 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp ancestor_preview_content(_, fallback_content)
        when is_binary(fallback_content),
-       do: Elektrine.Strings.present(fallback_content)
+       do:
+         if(Elektrine.Strings.present?(fallback_content),
+           do: fallback_content,
+           else: nil
+         )
 
   defp ancestor_preview_content(_, _), do: nil
+
+  defp local_ancestor_preview_content(activitypub_ref) when is_binary(activitypub_ref) do
+    case Messaging.get_message_by_activitypub_ref(activitypub_ref) do
+      %Message{} = message ->
+        ancestor_preview_content(message, nil)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp local_ancestor_preview_content(_), do: nil
 
   defp ancestor_instance_domain(message, _activitypub_ref) when is_map(message),
     do: PostUtilities.get_instance_domain(message)

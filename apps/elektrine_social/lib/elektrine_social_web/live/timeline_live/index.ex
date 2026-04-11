@@ -348,7 +348,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
      |> apply_timeline_filter()
      |> maybe_schedule_background_refresh(posts)
      |> maybe_schedule_reply_ingestion(posts)
-     |> maybe_queue_remote_data(posts)
      |> maybe_queue_reply_context_previews(posts)
      |> start_timeline_hydration(posts, filter, timeline_view, user)}
   end
@@ -365,16 +364,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:no_more_posts, false)
   end
 
-  defp maybe_queue_remote_data(socket, posts) do
-    posts_to_fetch = remote_posts_needing_fetch(posts, socket)
-
-    if timeline_remote_enrichment_enabled?() && connected?(socket) && posts_to_fetch != [] do
-      send(self(), {:load_remote_data, posts_to_fetch})
-    end
-
-    socket
-  end
-
   defp maybe_queue_reply_context_previews(socket, posts) do
     refs = ReplyContextPreviews.candidate_refs(posts)
 
@@ -383,35 +372,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     end
 
     socket
-  end
-
-  defp remote_posts_needing_fetch(posts, socket) when is_list(posts) do
-    lemmy_counts = socket.assigns[:lemmy_counts] || %{}
-    remote_post_data = socket.assigns[:remote_post_data] || %{}
-    post_replies = socket.assigns[:post_replies] || %{}
-
-    posts
-    |> Enum.filter(fn post ->
-      if post.federated && is_binary(post.activitypub_id) do
-        ap_id = post.activitypub_id
-        lemmy_post? = PostUtilities.community_post?(post)
-        has_top_replies? = Map.get(post_replies, post.id, []) != []
-        missing_lemmy_counts = lemmy_post? && !Map.has_key?(lemmy_counts, ap_id)
-        missing_remote_post_data = !lemmy_post? && !Map.has_key?(remote_post_data, ap_id)
-        missing_lemmy_top_comments = lemmy_post? && !has_top_replies?
-        missing_lemmy_counts || missing_remote_post_data || missing_lemmy_top_comments
-      else
-        false
-      end
-    end)
-  end
-
-  defp remote_posts_needing_fetch(_, _) do
-    []
-  end
-
-  defp timeline_remote_enrichment_enabled? do
-    Application.get_env(:elektrine, :timeline_remote_enrichment, false)
   end
 
   defp maybe_schedule_background_refresh(socket, posts) when is_list(posts) do
@@ -423,10 +383,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> Enum.take(20)
 
     if connected?(socket) && message_ids != [] do
-      Task.start(fn ->
-        Enum.each(message_ids, fn message_id ->
-          _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
-        end)
+      Enum.each(message_ids, fn message_id ->
+        _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
       end)
     end
 
@@ -449,10 +407,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         |> Enum.take(20)
 
       if message_ids != [] do
-        Task.start(fn ->
-          Enum.each(message_ids, fn message_id ->
-            _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
-          end)
+        Enum.each(message_ids, fn message_id ->
+          _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
         end)
       end
     end
@@ -478,10 +434,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       hydrated_state = build_timeline_hydrated_state(posts, user_id)
       send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
     else
-      Task.start(fn ->
-        hydrated_state = build_timeline_hydrated_state(posts, user_id)
-        send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
-      end)
+      hydrated_state = build_timeline_hydrated_state(posts, user_id)
+      send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
     end
 
     assign(socket, :timeline_hydration_ref, hydration_ref)
@@ -637,37 +591,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   @impl true
-  def handle_info({:load_remote_data, posts}, socket) do
-    posts_to_fetch =
-      if timeline_remote_enrichment_enabled?() do
-        remote_posts_needing_fetch(posts, socket)
-      else
-        []
-      end
-
-    if posts_to_fetch == [] do
-      {:noreply, socket}
-    else
-      request_ref = System.unique_integer([:positive, :monotonic])
-      parent = self()
-
-      Task.start(fn ->
-        lemmy_counts = Elektrine.ActivityPub.LemmyApi.fetch_posts_counts(posts_to_fetch)
-
-        lemmy_top_comments =
-          Elektrine.ActivityPub.LemmyApi.fetch_posts_top_comments(posts_to_fetch, 3)
-
-        remote_post_data = Elektrine.ActivityPub.Helpers.fetch_remote_post_data(posts_to_fetch)
-
-        send(
-          parent,
-          {:remote_data_loaded, request_ref, posts_to_fetch, lemmy_counts, remote_post_data,
-           lemmy_top_comments}
-        )
-      end)
-
-      {:noreply, assign(socket, :remote_data_request_ref, request_ref)}
-    end
+  def handle_info({:load_remote_data, _posts}, socket) do
+    # Timeline reads are intentionally local/feed-first. Remote hydration belongs on
+    # detail surfaces or background workers, not on the main feed render path.
+    {:noreply, socket}
   end
 
   @impl true
@@ -676,11 +603,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       {:noreply, socket}
     else
       parent = self()
-
-      Task.start(fn ->
-        previews = ReplyContextPreviews.fetch_local_previews(refs)
-        send(parent, {:reply_context_previews_loaded, previews})
-      end)
+      previews = ReplyContextPreviews.fetch_local_previews(refs)
+      send(parent, {:reply_context_previews_loaded, previews})
 
       {:noreply, socket}
     end
@@ -1403,14 +1327,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp preload_timeline_post_async(post, source) do
-    parent = self()
+    post_with_associations =
+      Elektrine.Repo.preload(post, MessagingMessages.timeline_post_preloads())
 
-    Task.start(fn ->
-      post_with_associations =
-        Elektrine.Repo.preload(post, MessagingMessages.timeline_post_preloads())
-
-      send(parent, {:new_post_preloaded, source, post_with_associations})
-    end)
+    send(self(), {:new_post_preloaded, source, post_with_associations})
   end
 
   defp error_to_string(:too_large) do

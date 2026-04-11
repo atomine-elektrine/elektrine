@@ -121,9 +121,7 @@ defmodule Elektrine.Profiles do
         )
 
         # Federate profile update to ActivityPub
-        Task.start(fn ->
-          Elektrine.ActivityPub.Outbox.federate_profile_update(updated_profile.user_id)
-        end)
+        Elektrine.ActivityPub.Outbox.federate_profile_update(updated_profile.user_id)
 
         result
 
@@ -1113,27 +1111,7 @@ defmodule Elektrine.Profiles do
            actor_type: "Group"
          } = remote_actor
        ) do
-    case Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
-      {:ok, mirror} ->
-        case Elektrine.Messaging.join_conversation(mirror.id, user_id) do
-          {:ok, _member} ->
-            :ok
-
-          {:error, :already_member} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning(
-              "Failed to auto-join mirror community #{mirror.id} for remote group #{remote_actor.uri}: #{inspect(reason)}"
-            )
-        end
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to create/get mirror community for remote group #{remote_actor.uri}: #{inspect(reason)}"
-        )
-    end
-
+    _ = {user_id, remote_actor}
     :ok
   end
 

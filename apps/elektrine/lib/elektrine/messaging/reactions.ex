@@ -13,8 +13,8 @@ defmodule Elektrine.Messaging.Reactions do
         {:ok, reaction} ->
           RateLimiter.record_reaction(user_id)
           broadcast_reaction_add(reaction)
-          Task.start(fn -> notify_post_owner_of_reaction(reaction) end)
-          Task.start(fn -> federate_emoji_reaction(reaction) end)
+          notify_post_owner_of_reaction(reaction)
+          federate_emoji_reaction(reaction)
           {:ok, reaction}
 
         {:error, %{errors: [emoji: {_, constraint: :unique, constraint_name: _}]}} ->
@@ -38,7 +38,7 @@ defmodule Elektrine.Messaging.Reactions do
         case Repo.delete(reaction) do
           {:ok, deleted_reaction} ->
             broadcast_reaction_remove(deleted_reaction)
-            Task.start(fn -> unfederate_emoji_reaction(deleted_reaction, user_id, emoji) end)
+            unfederate_emoji_reaction(deleted_reaction, user_id, emoji)
             {:ok, deleted_reaction}
 
           error ->

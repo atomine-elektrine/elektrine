@@ -43,153 +43,157 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
       from(c in Elektrine.Messaging.Conversation,
         where: c.name == ^community_name and c.type == "community",
         order_by: [asc: c.inserted_at],
-        limit: 1
+        limit: 1,
+        preload: [:remote_group_actor]
       )
       |> Elektrine.Repo.one()
 
-    if community do
-      community_id = community.id
+    case community do
+      %{is_federated_mirror: true, remote_group_actor: remote_actor}
+      when not is_nil(remote_actor) ->
+        {:ok,
+         push_navigate(socket, to: "/remote/!#{remote_actor.username}@#{remote_actor.domain}")}
 
-      # Check if current user is a member and their role (needed for initial UI state)
-      {is_member, is_moderator} =
-        if user do
-          member = Messaging.get_conversation_member(community_id, user.id)
-          is_member = !is_nil(member) && is_nil(member.left_at)
-          is_moderator = member && member.role in ["moderator", "admin", "owner"]
-          {is_member, is_moderator}
-        else
-          {false, false}
-        end
+      %{} = community ->
+        community_id = community.id
 
-      is_remote_following =
-        if user && community.is_federated_mirror && is_integer(community.remote_group_actor_id) do
-          Profiles.following_remote_actor?(user.id, community.remote_group_actor_id)
-        else
-          false
-        end
-
-      if community.is_public || is_member do
-        if connected?(socket) do
-          # Subscribe to community updates
-          Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{community_id}")
-          # Subscribe to discussion activity for live updates
-          Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussion:#{community_id}")
-          Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
-
-          # Trigger async data loading
-          send(self(), {:load_community_data, community_id, is_moderator})
-        end
-
-        community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
-
-        # Build meta tags for social sharing
-        meta_description = build_community_description(community)
-        og_image = get_community_image(community)
-        current_url = "#{ElektrineWeb.Endpoint.url()}/discussions/#{community.name}"
-
-        socket =
-          socket
-          |> assign(
-            :page_title,
-            "!#{community_slug}@#{Elektrine.ActivityPub.instance_domain()} - #{community.name}"
-          )
-          |> assign(:meta_description, meta_description)
-          |> assign(:og_image, og_image)
-          |> assign(:current_url, current_url)
-          |> assign(:community, community)
-          |> assign(:community_slug, community_slug)
-          |> assign(:discussion_posts, [])
-          |> assign(:members, [])
-          |> assign(:filtered_members, [])
-          |> assign(:member_search, "")
-          |> assign(:is_member, is_member)
-          |> assign(:is_remote_following, is_remote_following)
-          |> assign(:is_moderator, is_moderator)
-          |> assign(:flairs, [])
-          |> assign(:pinned_posts, [])
-          |> assign(:user_votes, %{})
-          |> assign(:selected_flair_id, nil)
-          # "posts", "members", or "flairs"
-          |> assign(:current_view, "posts")
-          |> assign(:sort_by, "hot")
-          |> assign(:posting_cadence, "No recent posts")
-          |> assign(:show_new_post, false)
-          # text, link, image, poll
-          |> assign(:post_type, "text")
-          |> assign(:new_post_title, "")
-          |> assign(:new_post_content, "")
-          # Track number of poll option inputs
-          |> assign(:poll_options, ["", ""])
-          |> assign(:link_url, nil)
-          |> assign(:link_title, nil)
-          |> assign(:show_flair_modal, false)
-          |> assign(:editing_flair, nil)
-          |> assign(:reply_to_post, nil)
-          |> assign(:reply_content, "")
-          |> assign(:show_report_modal, false)
-          |> assign(:report_type, nil)
-          |> assign(:report_id, nil)
-          |> assign(:report_metadata, %{})
-          |> assign(:user_follows, %{})
-          |> assign(:show_voters_modal, false)
-          |> assign(:voters_tab, "upvotes")
-          |> assign(:upvoters, [])
-          |> assign(:available_conversations, [])
-          |> assign(:downvoters, [])
-          |> assign(:is_owner, user && community.creator_id == user.id)
-          |> assign(:banned_users, [])
-          |> assign(:show_ban_modal, false)
-          |> assign(:ban_target_user, nil)
-          |> assign(:pending_posts, [])
-          |> assign(:show_warning_modal, false)
-          |> assign(:warning_target_user, nil)
-          |> assign(:warning_message_id, nil)
-          |> assign(:show_timeout_modal, false)
-          |> assign(:timeout_target_user, nil)
-          |> assign(:show_note_modal, false)
-          |> assign(:note_target_user, nil)
-          |> assign(:user_notes, %{})
-          |> assign(:mod_log, [])
-          |> assign(:auto_mod_rules, [])
-          |> assign(:show_rule_modal, false)
-          |> assign(:editing_rule, nil)
-          |> assign(:show_user_mod_status_modal, false)
-          |> assign(:mod_status_target_user, nil)
-          |> assign(:user_mod_data, %{})
-          |> assign(:show_image_upload_modal, false)
-          |> assign(:pending_media_urls, [])
-          |> assign(:pending_media_attachments, [])
-          |> assign(:pending_media_alt_texts, %{})
-          |> assign(:show_image_modal, false)
-          |> assign(:modal_image_url, nil)
-          |> assign(:modal_images, [])
-          |> assign(:modal_image_index, 0)
-          |> assign(:modal_post, nil)
-          |> assign(:loading_community, true)
-
-        # Allow image, video, and audio uploads for authenticated members
-        socket =
-          if user && is_member do
-            allow_upload(socket, :discussion_attachments,
-              accept: ~w(.jpg .jpeg .png .gif .webp .mp4 .webm .ogv .mov .mp3 .wav),
-              max_entries: 4,
-              # 50MB to accommodate video/audio files
-              max_file_size: 50_000_000
-            )
+        # Check if current user is a member and their role (needed for initial UI state)
+        {is_member, is_moderator} =
+          if user do
+            member = Messaging.get_conversation_member(community_id, user.id)
+            is_member = !is_nil(member) && is_nil(member.left_at)
+            is_moderator = member && member.role in ["moderator", "admin", "owner"]
+            {is_member, is_moderator}
           else
-            socket
+            {false, false}
           end
 
-        {:ok, socket}
-      else
+        is_remote_following =
+          if user && community.is_federated_mirror && is_integer(community.remote_group_actor_id) do
+            Profiles.following_remote_actor?(user.id, community.remote_group_actor_id)
+          else
+            false
+          end
+
+        if community.is_public || is_member do
+          if connected?(socket) do
+            # Subscribe to community updates
+            Phoenix.PubSub.subscribe(Elektrine.PubSub, "conversation:#{community_id}")
+            # Subscribe to discussion activity for live updates
+            Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussion:#{community_id}")
+            Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
+
+            # Trigger async data loading
+            send(self(), {:load_community_data, community_id, is_moderator})
+          end
+
+          community_slug = String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-")
+
+          # Build meta tags for social sharing
+          meta_description = build_community_description(community)
+          og_image = get_community_image(community)
+          current_url = "#{ElektrineWeb.Endpoint.url()}/discussions/#{community.name}"
+
+          socket =
+            socket
+            |> assign(
+              :page_title,
+              "!#{community_slug}@#{Elektrine.ActivityPub.instance_domain()} - #{community.name}"
+            )
+            |> assign(:meta_description, meta_description)
+            |> assign(:og_image, og_image)
+            |> assign(:current_url, current_url)
+            |> assign(:community, community)
+            |> assign(:community_slug, community_slug)
+            |> assign(:discussion_posts, [])
+            |> assign(:members, [])
+            |> assign(:filtered_members, [])
+            |> assign(:member_search, "")
+            |> assign(:is_member, is_member)
+            |> assign(:is_remote_following, is_remote_following)
+            |> assign(:is_moderator, is_moderator)
+            |> assign(:flairs, [])
+            |> assign(:pinned_posts, [])
+            |> assign(:user_votes, %{})
+            |> assign(:selected_flair_id, nil)
+            # "posts", "members", or "flairs"
+            |> assign(:current_view, "posts")
+            |> assign(:sort_by, "hot")
+            |> assign(:posting_cadence, "No recent posts")
+            |> assign(:show_new_post, false)
+            # text, link, image, poll
+            |> assign(:post_type, "text")
+            |> assign(:new_post_title, "")
+            |> assign(:new_post_content, "")
+            # Track number of poll option inputs
+            |> assign(:poll_options, ["", ""])
+            |> assign(:link_url, nil)
+            |> assign(:link_title, nil)
+            |> assign(:show_flair_modal, false)
+            |> assign(:editing_flair, nil)
+            |> assign(:reply_to_post, nil)
+            |> assign(:reply_content, "")
+            |> assign(:show_report_modal, false)
+            |> assign(:report_type, nil)
+            |> assign(:report_id, nil)
+            |> assign(:report_metadata, %{})
+            |> assign(:user_follows, %{})
+            |> assign(:show_voters_modal, false)
+            |> assign(:voters_tab, "upvotes")
+            |> assign(:upvoters, [])
+            |> assign(:available_conversations, [])
+            |> assign(:downvoters, [])
+            |> assign(:is_owner, user && community.creator_id == user.id)
+            |> assign(:banned_users, [])
+            |> assign(:show_ban_modal, false)
+            |> assign(:ban_target_user, nil)
+            |> assign(:pending_posts, [])
+            |> assign(:show_warning_modal, false)
+            |> assign(:warning_target_user, nil)
+            |> assign(:warning_message_id, nil)
+            |> assign(:show_timeout_modal, false)
+            |> assign(:timeout_target_user, nil)
+            |> assign(:show_note_modal, false)
+            |> assign(:note_target_user, nil)
+            |> assign(:user_notes, %{})
+            |> assign(:mod_log, [])
+            |> assign(:auto_mod_rules, [])
+            |> assign(:show_rule_modal, false)
+            |> assign(:editing_rule, nil)
+            |> assign(:show_user_mod_status_modal, false)
+            |> assign(:mod_status_target_user, nil)
+            |> assign(:user_mod_data, %{})
+            |> assign(:show_image_upload_modal, false)
+            |> assign(:pending_media_urls, [])
+            |> assign(:pending_media_attachments, [])
+            |> assign(:pending_media_alt_texts, %{})
+            |> assign(:show_image_modal, false)
+            |> assign(:modal_image_url, nil)
+            |> assign(:modal_images, [])
+            |> assign(:modal_image_index, 0)
+            |> assign(:modal_post, nil)
+            |> assign(:loading_community, true)
+
+          # Allow image, video, and audio uploads for authenticated members
+          socket =
+            if user && is_member do
+              allow_upload(socket, :discussion_attachments,
+                accept: ~w(.jpg .jpeg .png .gif .webp .mp4 .webm .ogv .mov .mp3 .wav),
+                max_entries: 4,
+                # 50MB to accommodate video/audio files
+                max_file_size: 50_000_000
+              )
+            else
+              socket
+            end
+
+          {:ok, socket}
+        end
+
+      nil ->
         {:ok,
          socket
-         |> put_flash(:error, "You don't have permission to view this community")
          |> push_navigate(to: ~p"/communities")}
-      end
-    else
-      # Invalid community identifier
-      {:ok, push_navigate(socket, to: ~p"/communities")}
     end
   end
 

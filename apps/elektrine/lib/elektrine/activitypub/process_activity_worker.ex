@@ -34,10 +34,10 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   # Jobs older than 10 minutes are stale and should be dropped
   @max_job_age_seconds 600
   # Keep throttling/backoff churn bounded so Oban doesn't become the bottleneck.
-  @max_throttle_snoozes 3
-  @throttle_snooze_seconds 30
-  @max_throttled_job_age_seconds 120
-  @max_backoff_job_age_seconds 120
+  @max_throttle_snoozes 24
+  @throttle_snooze_seconds 5
+  @max_throttled_job_age_seconds 1800
+  @max_backoff_job_age_seconds 1800
 
   @impl Oban.Worker
   def perform(%Oban.Job{
@@ -149,7 +149,8 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   end
 
   defp handle_throttled(activity, domain, attempt, job_age, started_at, activity_type) do
-    if attempt <= @max_throttle_snoozes and job_age <= @max_throttled_job_age_seconds do
+    if attempt <= max_throttle_snoozes(activity) and
+         job_age <= max_job_age_seconds(activity, :throttled) do
       Logger.debug("Throttled activity from #{domain}, snoozing for #{@throttle_snooze_seconds}s")
       emit_perform_telemetry(started_at, activity_type, domain, :throttled)
       {:snooze, @throttle_snooze_seconds}
@@ -168,7 +169,8 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   end
 
   defp handle_backoff(activity, domain, attempt, job_age, remaining_ms, started_at, activity_type) do
-    if attempt <= @max_throttle_snoozes and job_age <= @max_backoff_job_age_seconds do
+    if attempt <= max_throttle_snoozes(activity) and
+         job_age <= max_job_age_seconds(activity, :backoff) do
       snooze_seconds = max(@throttle_snooze_seconds, div(remaining_ms, 1000))
       Logger.info("Domain #{domain} in backoff, snoozing for #{snooze_seconds}s")
 
@@ -357,6 +359,20 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
   end
 
   defp announce_priority(_), do: 1
+
+  defp max_throttle_snoozes(activity) do
+    if low_priority_activity?(activity), do: 6, else: @max_throttle_snoozes
+  end
+
+  defp max_job_age_seconds(activity, :throttled) do
+    if low_priority_activity?(activity), do: 300, else: @max_throttled_job_age_seconds
+  end
+
+  defp max_job_age_seconds(activity, :backoff) do
+    if low_priority_activity?(activity), do: 300, else: @max_backoff_job_age_seconds
+  end
+
+  defp low_priority_activity?(activity), do: activity_priority(activity) >= 2
 
   defp emit_handler_telemetry(activity, actor_uri, outcome, started_at, metadata \\ %{}) do
     Events.federation(

@@ -429,7 +429,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         clean_params =
           if clean_params["url"] && !Elektrine.Strings.present?(clean_params["thumbnail_url"]) do
             # Fetch metadata in background and get image
-            Task.start(fn ->
+            Elektrine.Async.start(fn ->
               case fetch_link_thumbnail(clean_params["url"]) do
                 {:ok, thumbnail_url} ->
                   # Update the link after creation

@@ -432,19 +432,25 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       actor_id = String.to_integer(actor_id)
 
       case Messaging.CommunitySearch.follow_remote_group(user_id, actor_id) do
-        {:ok, mirror} ->
+        {:ok, remote_actor} ->
           communities = get_user_communities(user_id)
-          joined_community_ids = MapSet.put(socket.assigns.joined_community_ids, mirror.id)
+          followed_remote_communities = get_followed_remote_communities(user_id)
 
           {:noreply,
            socket
            |> assign(:communities, communities)
-           |> assign(:joined_community_ids, joined_community_ids)
+           |> assign(:followed_remote_communities, followed_remote_communities)
            |> assign(
              :filtered_communities,
              filter_communities_by_category(communities, socket.assigns.selected_category)
            )
-           |> notify_info("Followed federated community! Posts will appear here.")}
+           |> assign(
+             :filtered_remote_communities,
+             followed_remote_communities
+           )
+           |> notify_info(
+             "Followed federated community !#{remote_actor.username}@#{remote_actor.domain}"
+           )}
 
         {:error, reason} ->
           {:noreply, notify_error(socket, "Failed to follow community: #{inspect(reason)}")}
@@ -638,12 +644,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        Task.start(fn ->
-          case get_or_store_remote_post(activitypub_id) do
-            {:ok, message} -> Social.like_post(socket.assigns.current_user.id, message.id)
-            _ -> :ok
-          end
-        end)
+        case get_or_store_remote_post(activitypub_id) do
+          {:ok, message} -> Social.like_post(socket.assigns.current_user.id, message.id)
+          _ -> :ok
+        end
 
         {:noreply,
          updated_socket
@@ -680,12 +684,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        Task.start(fn ->
-          case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
-            nil -> :ok
-            message -> Social.unlike_post(socket.assigns.current_user.id, message.id)
-          end
-        end)
+        case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
+          nil -> :ok
+          message -> Social.unlike_post(socket.assigns.current_user.id, message.id)
+        end
 
         {:noreply,
          updated_socket
@@ -750,12 +752,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        Task.start(fn ->
-          case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
-            nil -> :ok
-            message -> Social.vote_on_message(socket.assigns.current_user.id, message.id, "down")
-          end
-        end)
+        case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
+          nil -> :ok
+          message -> Social.vote_on_message(socket.assigns.current_user.id, message.id, "down")
+        end
 
         {:noreply, updated_socket}
       else
@@ -789,16 +789,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         updated_socket = assign(socket, :post_interactions, post_interactions)
 
-        Task.start(fn ->
-          case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
-            nil ->
-              :ok
+        case Elektrine.Messaging.get_message_by_activitypub_id(activitypub_id) do
+          nil ->
+            :ok
 
-            message ->
-              Social.vote_on_message(socket.assigns.current_user.id, message.id, "up")
-              Social.unlike_post(socket.assigns.current_user.id, message.id)
-          end
-        end)
+          message ->
+            Social.vote_on_message(socket.assigns.current_user.id, message.id, "up")
+            Social.unlike_post(socket.assigns.current_user.id, message.id)
+        end
 
         {:noreply, updated_socket}
       else
@@ -931,14 +929,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
     if Elektrine.Strings.present?(remote_handle) do
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
-      lv_pid = self()
 
-      Task.start(fn ->
-        case parse_and_fetch_remote_user(remote_handle) do
-          {:ok, actor} -> send(lv_pid, {:remote_user_fetched, actor})
-          {:error, _reason} -> send(lv_pid, {:remote_user_fetch_failed, remote_handle})
-        end
-      end)
+      case parse_and_fetch_remote_user(remote_handle) do
+        {:ok, actor} -> send(self(), {:remote_user_fetched, actor})
+        {:error, _reason} -> send(self(), {:remote_user_fetch_failed, remote_handle})
+      end
 
       {:noreply, socket}
     else
@@ -1040,20 +1035,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
           |> Elektrine.Messaging.Message.changeset(update_attrs)
           |> Elektrine.Repo.update()
 
-        Task.start(fn ->
-          case Elektrine.Messaging.Conversations.get_conversation_basic(community_id) do
-            {:ok, community_conv} ->
-              if community_conv.is_public do
-                Elektrine.ActivityPub.Outbox.federate_community_post(
-                  updated_message,
-                  community_conv
-                )
-              end
+        case Elektrine.Messaging.Conversations.get_conversation_basic(community_id) do
+          {:ok, community_conv} ->
+            if community_conv.is_public do
+              Elektrine.ActivityPub.Outbox.federate_community_post(
+                updated_message,
+                community_conv
+              )
+            end
 
-            _ ->
-              :ok
-          end
-        end)
+          _ ->
+            :ok
+        end
 
         community = Enum.find(socket.assigns.communities, &(&1.id == community_id))
         community_name = community.name
@@ -1522,7 +1515,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp get_user_communities(user_id) do
-    Messaging.list_conversations(user_id) |> Enum.filter(&(&1.type == "community"))
+    Messaging.list_conversations(user_id)
+    |> Enum.filter(&(&1.type == "community"))
+    |> Enum.reject(&(&1.is_federated_mirror == true))
   end
 
   defp get_followed_remote_communities(user_id) do
@@ -1669,9 +1664,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp get_public_communities(limit \\ 10) do
     from(c in Messaging.Conversation,
-      where: c.type == "community" and c.is_public == true,
+      where:
+        c.type == "community" and c.is_public == true and
+          (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
       order_by: [
-        desc: fragment("CASE WHEN ? = false THEN 1 ELSE 0 END", c.is_federated_mirror),
         desc: c.member_count,
         desc: c.last_message_at
       ],
@@ -2417,18 +2413,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_route(%{name: name}) when is_binary(name), do: ~p"/communities/#{name}"
 
   defp community_address(%Messaging.Conversation{} = community) do
-    if community.is_federated_mirror &&
-         Ecto.assoc_loaded?(community.remote_group_actor) &&
-         community.remote_group_actor do
-      "!#{community.remote_group_actor.username}@#{community.remote_group_actor.domain}"
-    else
-      slug =
-        community.name
-        |> String.downcase()
-        |> String.replace(~r/[^a-z0-9]+/, "-")
+    slug =
+      community.name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
 
-      "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
-    end
+    "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
   end
 
   defp community_address(%Actor{} = actor), do: "!#{actor.username}@#{actor.domain}"
@@ -2475,13 +2465,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_activity_text(_), do: nil
 
   defp community_display_name_markup(%Messaging.Conversation{} = community) do
-    if community.is_federated_mirror &&
-         Ecto.assoc_loaded?(community.remote_group_actor) &&
-         community.remote_group_actor do
-      ElektrineWeb.HtmlHelpers.render_actor_display_name(community.remote_group_actor)
-    else
-      escape_markup(community.name)
-    end
+    escape_markup(community.name)
   end
 
   defp community_display_name_markup(%Actor{} = actor) do
@@ -2505,11 +2489,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp community_creator_markup(%Messaging.Conversation{} = community) do
     cond do
-      community.is_federated_mirror &&
-        Ecto.assoc_loaded?(community.remote_group_actor) &&
-          community.remote_group_actor ->
-        ElektrineWeb.HtmlHelpers.render_actor_display_name(community.remote_group_actor)
-
       Ecto.assoc_loaded?(community.creator) && community.creator ->
         escape_markup(community.creator.display_name || community.creator.username)
 

@@ -11,8 +11,14 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers}
+  alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
   alias Elektrine.Messaging
+
+  @public_audience_uris MapSet.new([
+                          "Public",
+                          "as:Public",
+                          "https://www.w3.org/ns/activitystreams#Public"
+                        ])
 
   @max_replies 100
   @max_depth 3
@@ -118,13 +124,47 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   defp fetch_and_store_replies_via_fallback(post_object, parent_message_id) do
-    case ActivityPub.fetch_remote_post_replies(post_object, limit: @max_replies) do
-      {:ok, replies} when is_list(replies) ->
-        stored_count = process_reply_items(replies, parent_message_id)
-        {:ok, stored_count}
+    post_ref = post_object["id"] || post_object["url"]
 
-      {:error, reason} ->
-        {:error, reason}
+    cond do
+      is_binary(post_ref) && LemmyApi.fetch_post_counts(post_ref) != nil ->
+        replies = LemmyApi.fetch_post_comments(post_ref, @max_replies)
+        {:ok, process_reply_items(replies, parent_message_id)}
+
+      is_binary(post_ref) && MastodonApi.mastodon_compatible?(%{activitypub_id: post_ref}) ->
+        case MastodonApi.fetch_status_context(post_ref) do
+          {:ok, descendants} when is_list(descendants) ->
+            replies =
+              Enum.map(descendants, fn status ->
+                %{
+                  "id" => status.uri || status.url || "#{post_ref}#status-#{status.id}",
+                  "url" => status.url || status.uri,
+                  "type" => "Note",
+                  "content" => status.content,
+                  "attributedTo" => status.account[:url] || status.account[:uri],
+                  "published" => status.created_at,
+                  "inReplyTo" => status.in_reply_to_uri,
+                  "likes" => %{"totalItems" => status.favourites_count || 0},
+                  "shares" => %{"totalItems" => status.reblogs_count || 0},
+                  "replies" => %{"totalItems" => status.replies_count || 0}
+                }
+              end)
+
+            {:ok, process_reply_items(replies, parent_message_id)}
+
+          _ ->
+            {:ok, 0}
+        end
+
+      true ->
+        case ActivityPub.fetch_remote_post_replies(post_object, limit: @max_replies) do
+          {:ok, replies} when is_list(replies) ->
+            stored_count = process_reply_items(replies, parent_message_id)
+            {:ok, stored_count}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -174,7 +214,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     else
       case ActivityPub.get_or_fetch_actor(actor_uri) do
         {:ok, remote_actor} ->
-          create_reply_message(object, remote_actor, parent_message_id)
+          resolved_parent_message_id = resolve_parent_message_id(object, parent_message_id)
+          create_reply_message(object, remote_actor, resolved_parent_message_id)
 
         {:error, reason} ->
           Logger.debug("Failed to fetch actor #{actor_uri}: #{inspect(reason)}")
@@ -247,6 +288,36 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     end
   end
 
+  defp resolve_parent_message_id(object, fallback_parent_message_id) when is_map(object) do
+    in_reply_to_ref = normalize_in_reply_to_ref(object["inReplyTo"])
+
+    cond do
+      !is_binary(in_reply_to_ref) or in_reply_to_ref == "" ->
+        fallback_parent_message_id
+
+      parent = Messaging.get_message_by_activitypub_ref(in_reply_to_ref) ->
+        parent.id
+
+      true ->
+        actor_uri = object["attributedTo"] || object["actor"]
+
+        case Helpers.get_or_store_remote_post(in_reply_to_ref, actor_uri) do
+          {:ok, parent} when is_map(parent) -> parent.id
+          _ -> fallback_parent_message_id
+        end
+    end
+  end
+
+  defp resolve_parent_message_id(_, fallback_parent_message_id), do: fallback_parent_message_id
+
+  defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{id: id}), do: normalize_in_reply_to_ref(id)
+  defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref(%{href: href}), do: normalize_in_reply_to_ref(href)
+  defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
+  defp normalize_in_reply_to_ref(value) when is_binary(value), do: String.trim(value)
+  defp normalize_in_reply_to_ref(_), do: nil
+
   # Helper functions (simplified versions from CreateHandler)
 
   defp strip_html(html) do
@@ -260,13 +331,12 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   defp determine_visibility(object) do
-    to = object["to"] || []
-    cc = object["cc"] || []
-    public_address = "https://www.w3.org/ns/activitystreams#Public"
+    to = List.wrap(object["to"])
+    cc = List.wrap(object["cc"])
 
     cond do
-      public_address in to -> "public"
-      public_address in cc -> "unlisted"
+      Enum.any?(to, &MapSet.member?(@public_audience_uris, &1)) -> "public"
+      Enum.any?(cc, &MapSet.member?(@public_audience_uris, &1)) -> "unlisted"
       (to == [] and cc == []) && is_binary(object["inReplyTo"]) -> "public"
       true -> "followers"
     end

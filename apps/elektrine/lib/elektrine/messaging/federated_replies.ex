@@ -34,10 +34,8 @@ defmodule Elektrine.Messaging.FederatedReplies do
            |> Repo.insert() do
         {:ok, reply} ->
           # Federate the reply to the remote author
-          Task.start(fn ->
-            reply_with_sender = Repo.preload(reply, :sender)
-            Elektrine.ActivityPub.Outbox.federate_post(reply_with_sender)
-          end)
+          reply_with_sender = Repo.preload(reply, :sender)
+          Elektrine.ActivityPub.Outbox.federate_post(reply_with_sender)
 
           {:ok, reply}
 

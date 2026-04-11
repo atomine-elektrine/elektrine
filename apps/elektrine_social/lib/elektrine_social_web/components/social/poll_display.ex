@@ -5,6 +5,9 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
+  alias Elektrine.Messaging
+  alias Elektrine.Repo
+  alias Elektrine.Social
   alias ElektrineWeb.Platform.Integrations
 
   # For local polls (Poll struct)
@@ -37,6 +40,8 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   # Render a local Poll struct
   defp render_local_poll(assigns) do
     is_open = Integrations.social_poll_open?(assigns.poll)
+    user_votes = effective_user_votes(assigns.poll, assigns.current_user, assigns.user_votes)
+    show_results = should_show_poll_results?(assigns.poll)
 
     # If we have fresh remote poll data, use it to override local vote counts
     # Build a map of option_text => remote_votes for merging
@@ -67,6 +72,8 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
     assigns =
       assigns
       |> assign(:is_open, is_open)
+      |> assign(:user_votes, user_votes)
+      |> assign(:show_results, show_results)
       |> assign(:remote_votes_map, remote_votes_map)
       |> assign(:total_votes, total_votes)
 
@@ -96,7 +103,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           vote_count = Map.get(@remote_votes_map, option.option_text, option.vote_count || 0)
 
           percentage =
-            if @total_votes > 0 do
+            if @show_results && @total_votes > 0 do
               Float.round(vote_count / @total_votes * 100, 1)
             else
               0
@@ -130,10 +137,12 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
                   <% end %>
                   <span class="font-medium">{option.option_text}</span>
                 </div>
-                <div class="flex items-center gap-2 text-sm">
-                  <span class="font-semibold">{percentage}%</span>
-                  <span class="opacity-60">({vote_count})</span>
-                </div>
+                <%= if @show_results do %>
+                  <div class="flex items-center gap-2 text-sm">
+                    <span class="font-semibold">{percentage}%</span>
+                    <span class="opacity-60">({vote_count})</span>
+                  </div>
+                <% end %>
               </div>
             </button>
           <% else %>
@@ -142,6 +151,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
               is_voted={is_voted}
               option_text={option.option_text}
               vote_count={vote_count}
+              show_results={@show_results}
             />
           <% end %>
         <% end %>
@@ -149,7 +159,13 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       
     <!-- Poll Stats -->
       <div class="mt-4 flex items-center justify-between text-xs opacity-70">
-        <span>{@total_votes} {if @total_votes == 1, do: "vote", else: "votes"}</span>
+        <span>
+          <%= if @show_results do %>
+            {@total_votes} {if @total_votes == 1, do: "vote", else: "votes"}
+          <% else %>
+            Results hidden until poll closes
+          <% end %>
+        </span>
         <span>
           <%= if @poll.closes_at do %>
             <%= if Integrations.social_poll_closed?(@poll) do %>
@@ -188,6 +204,21 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   # Render a remote ActivityPub poll (Question type)
   defp render_remote_poll(assigns) do
+    case cached_local_poll_state(assigns.post, assigns.current_user, assigns.user_votes) do
+      %{poll: poll, message: message, user_votes: user_votes} ->
+        render_local_poll(
+          assigns
+          |> assign(:poll, poll)
+          |> assign(:message, message)
+          |> assign(:user_votes, user_votes)
+        )
+
+      nil ->
+        render_raw_remote_poll(assigns)
+    end
+  end
+
+  defp render_raw_remote_poll(assigns) do
     options = assigns.post["oneOf"] || assigns.post["anyOf"] || []
     allow_multiple = !is_nil(assigns.post["anyOf"])
 
@@ -246,6 +277,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
             <button
               type="button"
               phx-click="vote_remote_poll"
+              phx-value-poll_id={@post["id"]}
               phx-value-option_name={option_text}
               phx-value-option_index={idx}
               class="relative overflow-hidden rounded-lg border transition-colors w-full text-left cursor-pointer hover:border-primary/50 border-base-300 bg-base-100"
@@ -314,6 +346,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   attr(:is_voted, :boolean, required: true)
   attr(:option_text, :string, required: true)
   attr(:vote_count, :integer, required: true)
+  attr(:show_results, :boolean, default: true)
 
   defp poll_option_display(assigns) do
     ~H"""
@@ -336,8 +369,10 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           <span class="font-medium">{@option_text}</span>
         </div>
         <div class="flex items-center gap-2 text-sm">
-          <span class="font-semibold">{@percentage}%</span>
-          <span class="opacity-60">({@vote_count})</span>
+          <%= if @show_results do %>
+            <span class="font-semibold">{@percentage}%</span>
+            <span class="opacity-60">({@vote_count})</span>
+          <% end %>
         </div>
       </div>
     </div>
@@ -398,4 +433,44 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   defp format_time_remaining(hours_left) when hours_left > 0, do: "Closes in #{hours_left} hours"
   defp format_time_remaining(_), do: "Closes soon"
+
+  defp effective_user_votes(_poll, _current_user, user_votes)
+       when is_list(user_votes) and user_votes != [],
+       do: user_votes
+
+  defp effective_user_votes(%{id: poll_id}, %{id: user_id}, _user_votes)
+       when is_integer(poll_id) and is_integer(user_id) do
+    Social.get_user_poll_votes(poll_id, user_id)
+  end
+
+  defp effective_user_votes(_, _, user_votes) when is_list(user_votes), do: user_votes
+  defp effective_user_votes(_, _, _), do: []
+
+  defp should_show_poll_results?(%{hide_totals: true} = poll),
+    do: Integrations.social_poll_closed?(poll)
+
+  defp should_show_poll_results?(_poll), do: true
+
+  defp cached_local_poll_state(%{"id" => activitypub_id}, current_user, user_votes)
+       when is_binary(activitypub_id) do
+    case Messaging.get_message_by_activitypub_ref(activitypub_id) do
+      nil ->
+        nil
+
+      message ->
+        message = Repo.preload(message, [:remote_actor, poll: [options: []]])
+
+        if message.post_type == "poll" && Ecto.assoc_loaded?(message.poll) && message.poll do
+          %{
+            poll: message.poll,
+            message: message,
+            user_votes: effective_user_votes(message.poll, current_user, user_votes)
+          }
+        else
+          nil
+        end
+    end
+  end
+
+  defp cached_local_poll_state(_, _, _), do: nil
 end

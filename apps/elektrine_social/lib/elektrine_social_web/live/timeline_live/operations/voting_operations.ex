@@ -76,25 +76,23 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
 
           case Social.like_post(user_id, message_id) do
             {:ok, _} ->
-              Task.start(fn ->
-                Elektrine.Accounts.TrustLevel.increment_stat(user_id, :likes_given)
-                post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
+              Elektrine.Accounts.TrustLevel.increment_stat(user_id, :likes_given)
+              post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
-                message =
-                  if post do
-                    post
-                  else
-                    socket.assigns.post_replies
-                    |> Map.values()
-                    |> List.flatten()
-                    |> Enum.find(&(&1.id == message_id))
-                  end
-
-                if message && !message.federated && message.sender_id &&
-                     message.sender_id != user_id do
-                  Elektrine.Accounts.TrustLevel.increment_stat(message.sender_id, :likes_received)
+              message =
+                if post do
+                  post
+                else
+                  socket.assigns.post_replies
+                  |> Map.values()
+                  |> List.flatten()
+                  |> Enum.find(&(&1.id == message_id))
                 end
-              end)
+
+              if message && !message.federated && message.sender_id &&
+                   message.sender_id != user_id do
+                Elektrine.Accounts.TrustLevel.increment_stat(message.sender_id, :likes_received)
+              end
 
               {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
 
@@ -166,10 +164,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
             |> update_post_interaction(message_id, :downvoted, false, 0)
             |> update_lemmy_score(message_id, 1)
 
-          Task.start(fn ->
-            Social.vote_on_message(socket.assigns.current_user.id, message_id, "up")
-            Social.unlike_post(socket.assigns.current_user.id, message_id)
-          end)
+          Social.vote_on_message(socket.assigns.current_user.id, message_id, "up")
+          Social.unlike_post(socket.assigns.current_user.id, message_id)
 
           {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
         else
@@ -212,9 +208,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
               updated_socket
             end
 
-          Task.start(fn ->
-            Social.vote_on_message(socket.assigns.current_user.id, message_id, "down")
-          end)
+          Social.vote_on_message(socket.assigns.current_user.id, message_id, "down")
 
           {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
         end
@@ -243,10 +237,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
           |> update_post_interaction(message_id, :downvoted, false, 0)
           |> update_lemmy_score(message_id, 1)
 
-        Task.start(fn ->
-          Social.vote_on_message(socket.assigns.current_user.id, message_id, "up")
-          Social.unlike_post(socket.assigns.current_user.id, message_id)
-        end)
+        Social.vote_on_message(socket.assigns.current_user.id, message_id, "up")
+        Social.unlike_post(socket.assigns.current_user.id, message_id)
 
         {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
       end
@@ -641,6 +633,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
 
         {:error, :invalid_option} ->
           {:noreply, put_flash(socket, :error, "Invalid poll option")}
+
+        {:error, :self_vote} ->
+          {:noreply, put_flash(socket, :error, "You cannot vote on your own poll")}
 
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "Failed to vote")}

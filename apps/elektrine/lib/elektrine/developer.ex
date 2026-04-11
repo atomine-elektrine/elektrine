@@ -596,7 +596,7 @@ defmodule Elektrine.Developer do
       _ = update_fun.()
       :ok
     else
-      Task.start(fn ->
+      Elektrine.Async.run(fn ->
         try do
           _ = update_fun.()
         rescue

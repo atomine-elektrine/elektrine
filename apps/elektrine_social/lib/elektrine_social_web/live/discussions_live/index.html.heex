@@ -428,18 +428,7 @@
                               </.link>
                             <% else %>
                               <% actor = result.remote_actor
-
-                              joined? =
-                                result.mirror_community &&
-                                  MapSet.member?(
-                                    @joined_community_ids,
-                                    result.mirror_community.id
-                                  )
-
-                              result_href =
-                                if joined? && result.mirror_community,
-                                  do: community_route(result.mirror_community),
-                                  else: community_route(actor) %>
+                              result_href = community_route(actor) %>
                               <.link
                                 href={result_href}
                                 class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors"
@@ -492,8 +481,6 @@
                                       <% end %>
                                     </div>
                                     <%= cond do %>
-                                      <% joined? -> %>
-                                        <span class="badge badge-info">Following</span>
                                       <% @current_user -> %>
                                         <button
                                           type="button"
@@ -808,48 +795,47 @@
                       <%= if discover_remote_communities != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
                           <%= for actor <- discover_remote_communities do %>
-                            <.link
-                              href={community_route(actor)}
-                              class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors"
-                            >
+                            <article class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors">
                               <div class="card-body p-4 gap-4">
-                                <div class="flex items-start gap-3">
-                                  <%= if actor.avatar_url do %>
-                                    <img
-                                      src={actor.avatar_url}
-                                      class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
-                                      alt={actor.username}
-                                    />
-                                  <% else %>
-                                    <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
-                                      <.icon name="hero-globe-alt" class="w-6 h-6" />
-                                    </div>
-                                  <% end %>
-                                  <div class="min-w-0 flex-1">
-                                    <div class="flex items-center gap-2 flex-wrap">
-                                      <h3 class="font-semibold truncate">
-                                        {raw(community_display_name_markup(actor))}
-                                      </h3>
-                                      <span class="badge badge-outline badge-sm">
-                                        {community_category_label(actor)}
-                                      </span>
-                                      <span class="badge badge-outline badge-sm">Remote</span>
-                                    </div>
-                                    <p class="text-xs text-base-content/50 mt-1">
-                                      {community_address(actor)}
-                                    </p>
-                                    <%= if actor.summary do %>
-                                      <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
-                                        {raw(
-                                          PostUtilities.render_content_preview(
-                                            actor.summary,
-                                            actor.domain
-                                          )
-                                        )}
-                                      </p>
+                                <.link href={community_route(actor)} class="block">
+                                  <div class="flex items-start gap-3">
+                                    <%= if actor.avatar_url do %>
+                                      <img
+                                        src={actor.avatar_url}
+                                        class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                                        alt={actor.username}
+                                      />
+                                    <% else %>
+                                      <div class="w-12 h-12 rounded-lg bg-info/10 text-info flex items-center justify-center flex-shrink-0">
+                                        <.icon name="hero-globe-alt" class="w-6 h-6" />
+                                      </div>
                                     <% end %>
+                                    <div class="min-w-0 flex-1">
+                                      <div class="flex items-center gap-2 flex-wrap">
+                                        <h3 class="font-semibold truncate">
+                                          {raw(community_display_name_markup(actor))}
+                                        </h3>
+                                        <span class="badge badge-outline badge-sm">
+                                          {community_category_label(actor)}
+                                        </span>
+                                        <span class="badge badge-outline badge-sm">Remote</span>
+                                      </div>
+                                      <p class="text-xs text-base-content/50 mt-1">
+                                        {community_address(actor)}
+                                      </p>
+                                      <%= if actor.summary do %>
+                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                          {raw(
+                                            PostUtilities.render_content_preview(
+                                              actor.summary,
+                                              actor.domain
+                                            )
+                                          )}
+                                        </p>
+                                      <% end %>
+                                    </div>
                                   </div>
-                                </div>
+                                </.link>
                                 <div class="flex items-center justify-between gap-3">
                                   <div class="flex flex-wrap gap-3 text-xs text-base-content/60">
                                     <span class="flex items-center gap-1">
@@ -884,7 +870,7 @@
                                   <% end %>
                                 </div>
                               </div>
-                            </.link>
+                            </article>
                           <% end %>
                         </div>
                       <% else %>

@@ -160,7 +160,7 @@ defmodule Elektrine.VPN do
           bytes_received
         )
 
-        Task.start(fn ->
+        Elektrine.Async.start(fn ->
           try do
             check_and_update_quota(
               user_config,

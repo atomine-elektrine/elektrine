@@ -538,6 +538,9 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
           {:error, :invalid_option} ->
             {:noreply, put_flash(socket, :error, "Invalid poll option")}
 
+          {:error, :self_vote} ->
+            {:noreply, put_flash(socket, :error, "You cannot vote on your own poll")}
+
           {:error, _} ->
             {:noreply, put_flash(socket, :error, "Failed to vote")}
         end

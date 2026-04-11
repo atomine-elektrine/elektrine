@@ -277,7 +277,6 @@
                     message={@local_message}
                     current_user={@current_user}
                     user_votes={[]}
-                    interactive={false}
                   />
                 </div>
               <% end %>
@@ -437,7 +436,18 @@
                       <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                       <%= for reply <- @quick_reply_recent_replies do %>
                         <% author_preview = quick_reply_author_preview(reply) %>
-                        <div class="timeline-thread-preview-item text-sm">
+                        <% reply_click = quick_reply_click_target(reply) %>
+                        <div
+                          class={[
+                            "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
+                            reply_click &&
+                              "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
+                          ]}
+                          style="background-color: oklch(var(--b1));"
+                          phx-click={reply_click && reply_click.event}
+                          phx-value-id={reply_click && reply_click.id}
+                          phx-value-post_id={reply_click && reply_click.post_id}
+                        >
                           <div class="flex items-center gap-2 mb-1 min-w-0">
                             <%= if author_preview.profile_path do %>
                               <.link
@@ -1222,7 +1232,18 @@
                               <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
                               <%= for reply <- @quick_reply_recent_replies do %>
                                 <% author_preview = quick_reply_author_preview(reply) %>
-                                <div class="timeline-thread-preview-item text-sm">
+                                <% reply_click = quick_reply_click_target(reply) %>
+                                <div
+                                  class={[
+                                    "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
+                                    reply_click &&
+                                      "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
+                                  ]}
+                                  style="background-color: oklch(var(--b1));"
+                                  phx-click={reply_click && reply_click.event}
+                                  phx-value-id={reply_click && reply_click.id}
+                                  phx-value-post_id={reply_click && reply_click.post_id}
+                                >
                                   <div class="flex items-center gap-2 mb-1 min-w-0">
                                     <%= if author_preview.profile_path do %>
                                       <.link
@@ -1366,7 +1387,7 @@
                           name={
                             if @replies_loading, do: "hero-arrow-path", else: "hero-arrow-path"
                           }
-                          class={["w-4 h-4", @replies_loading && "animate-spin"]}
+                          class="w-4 h-4 animate-spin"
                         />
                       </button>
                     </h2>

@@ -25,7 +25,8 @@ config :elektrine, :mail_client_settings,
   smtp: [port: 465, security: :ssl]
 
 # Oban background job processing
-# Worker counts optimized with Lemmy-style per-domain throttling
+# Queue concurrency defaults are overridden in runtime.exs based on POOL_SIZE.
+# These values act as the high-capacity baseline for larger worker pools.
 config :elektrine, Oban,
   repo: Elektrine.Repo,
   queues: [

@@ -63,10 +63,19 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       assigns
       |> assign(:normalized, normalized)
       |> assign(:container_class, container_class)
+      |> assign(:reply_click, reply_click_target(assigns.reply, normalized))
 
     ~H"""
     <%= if @normalized.has_author do %>
-      <div class={@container_class}>
+      <div
+        class={[
+          @container_class,
+          @reply_click && "cursor-pointer transition-colors hover:bg-base-200/70"
+        ]}
+        phx-click={@reply_click && @reply_click.event}
+        phx-value-id={@reply_click && @reply_click.id}
+        phx-value-post_id={@reply_click && @reply_click.post_id}
+      >
         <!-- Reply Header -->
         <div class="flex items-center gap-2 mb-2">
           <!-- Author Avatar -->
@@ -245,7 +254,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       |> assign(:reply_target_id, interaction_id || assigns.normalized.ap_id)
 
     ~H"""
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2" phx-click="stop_propagation">
       <%= if @interaction_id do %>
         <!-- Like Button -->
         <button
@@ -461,6 +470,24 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   end
 
   defp interactive_reply_id(_), do: nil
+
+  defp reply_click_target(reply, normalized) when is_map(reply) and is_map(normalized) do
+    case interactive_reply_id(reply) do
+      id when is_integer(id) ->
+        %{event: "navigate_to_post", id: id, post_id: nil}
+
+      _ ->
+        case normalized.ap_id do
+          ap_id when is_binary(ap_id) and ap_id != "" ->
+            %{event: "navigate_to_remote_post", id: nil, post_id: ap_id}
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  defp reply_click_target(_, _), do: nil
 
   defp render_reply_content_html(%{
          author_type: author_type,

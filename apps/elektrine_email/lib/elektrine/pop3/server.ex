@@ -960,7 +960,7 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp mark_message_as_deleted(message) do
-    Task.start(fn ->
+    Elektrine.Async.start(fn ->
       Email.delete_message(message.id)
     end)
   end

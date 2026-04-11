@@ -18,7 +18,7 @@ defmodule Elektrine.Search.Cached do
          end) do
       {:ok, results} ->
         # Update recent searches in background
-        Task.start(fn ->
+        Elektrine.Async.start(fn ->
           add_to_recent_searches(user_id, query)
         end)
 

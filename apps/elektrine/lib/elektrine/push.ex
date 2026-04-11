@@ -156,7 +156,7 @@ defmodule Elektrine.Push do
 
     # Send to each device asynchronously
     Enum.each(devices, fn device ->
-      Task.start(fn ->
+      Elektrine.Async.start(fn ->
         send_to_device(device, notification)
       end)
     end)

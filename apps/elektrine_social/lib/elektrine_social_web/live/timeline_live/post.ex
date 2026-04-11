@@ -83,7 +83,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2" phx-click="stop_propagation">
                   <%= if @current_user do %>
                     <button
                       phx-click="like_reply"
@@ -205,7 +205,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
                   </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2" phx-click="stop_propagation">
                   <%= if @current_user do %>
                     <button
                       phx-click="like_reply"

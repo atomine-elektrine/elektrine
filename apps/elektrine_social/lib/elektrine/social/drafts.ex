@@ -170,7 +170,7 @@ defmodule Elektrine.Social.Drafts do
               Social.broadcast_timeline_post(published_post)
 
               if published_post.visibility in ["public", "followers"] do
-                Task.start(fn ->
+                Elektrine.Async.start(fn ->
                   preloaded = Repo.preload(published_post, :sender)
                   Elektrine.ActivityPub.Outbox.federate_post(preloaded)
                 end)

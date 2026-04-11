@@ -5,7 +5,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
-  alias Elektrine.ActivityPub.LemmyApi
+  alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Paths
   alias Elektrine.{Repo, Social}
@@ -364,47 +364,18 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
       # PHASE 2: Kick off remote fetches in background (non-blocking)
       pid = self()
-      local_ap_ids = local_posts |> Enum.map(& &1.activitypub_id) |> MapSet.new()
 
       # Load replies/comments for posts we already have cached.
       schedule_replies_fetch(local_posts, pid)
 
-      # Fetch outbox in background
-      Task.start(fn ->
-        outbox_posts =
-          case ActivityPub.fetch_remote_user_timeline(remote_actor.id, limit: 20) do
-            {:ok, posts} -> posts
-            {:error, _} -> []
-          end
-
-        send(pid, {:outbox_loaded, outbox_posts, local_ap_ids, remote_actor})
-      end)
+      # Sync remote outbox via Oban and reload local posts after it runs.
+      _ = ElektrineSocial.RemoteUser.OutboxSyncWorker.enqueue(remote_actor.id, limit: 20)
+      Process.send_after(self(), :reload_remote_profile_posts, 1_500)
 
       # Fetch Lemmy counts in background
       if is_lemmy && local_posts != [] do
-        Task.start(fn ->
-          lemmy_counts =
-            local_posts
-            |> Enum.map(& &1.activitypub_id)
-            |> Enum.filter(& &1)
-            |> Task.async_stream(
-              fn ap_id ->
-                case Elektrine.ActivityPub.LemmyApi.fetch_post_counts(ap_id) do
-                  %{score: _} = counts -> {ap_id, counts}
-                  _ -> nil
-                end
-              end,
-              max_concurrency: 10,
-              timeout: 8_000,
-              on_timeout: :kill_task
-            )
-            |> Enum.reduce(%{}, fn
-              {:ok, {ap_id, counts}}, acc when not is_nil(counts) -> Map.put(acc, ap_id, counts)
-              _, acc -> acc
-            end)
-
-          send(pid, {:lemmy_counts_loaded, lemmy_counts})
-        end)
+        _ = ElektrineSocial.RemoteUser.MetricsWorker.enqueue(remote_actor.id, "counts")
+        Process.send_after(self(), :reload_remote_user_counts, 1_500)
       end
 
       {:noreply, socket}
@@ -414,12 +385,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   def handle_info(:load_community_stats, socket) do
     case socket.assigns.remote_actor do
       %{actor_type: "Group"} = remote_actor ->
-        pid = self()
-
-        Task.start(fn ->
-          stats = fetch_group_stats(remote_actor)
-          send(pid, {:community_stats_loaded, stats})
-        end)
+        _ = ElektrineSocial.RemoteUser.MetricsWorker.enqueue(remote_actor.id, "community_stats")
+        Process.send_after(self(), :reload_remote_user_community_stats, 1_500)
 
         {:noreply, socket}
 
@@ -439,104 +406,94 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     {:noreply, assign(socket, :community_stats, merged_stats)}
   end
 
-  def handle_info({:outbox_loaded, outbox_posts, local_ap_ids, remote_actor}, socket) do
-    # Filter to unique posts
-    unique_outbox_posts =
-      outbox_posts
-      |> Enum.reject(fn post -> MapSet.member?(local_ap_ids, post["id"]) end)
+  def handle_info(:refresh_remote_counts, socket) do
+    if socket.assigns.remote_actor && (socket.assigns.local_posts || []) != [] do
+      _ =
+        ElektrineSocial.RemoteUser.MetricsWorker.enqueue(socket.assigns.remote_actor.id, "counts")
 
-    if Enum.empty?(unique_outbox_posts) do
+      Process.send_after(self(), :reload_remote_user_counts, 1_500)
+      Process.send_after(self(), :refresh_remote_counts, 60_000)
       {:noreply, socket}
     else
-      # Store outbox posts locally
-      stored_posts = store_outbox_posts(unique_outbox_posts, remote_actor)
-
-      # Sync counts for all outbox posts (async, non-blocking)
-      Task.start(fn ->
-        Enum.each(outbox_posts, &Elektrine.Messaging.Messages.sync_remote_counts/1)
-      end)
-
-      # Proactively fetch and store replies for posts with reply collections (Akkoma-style)
-      Task.start(fn ->
-        outbox_posts
-        |> Enum.filter(fn post -> post["replies"] != nil end)
-        # Limit to avoid overwhelming
-        |> Enum.take(10)
-        |> Enum.each(fn post ->
-          Elektrine.ActivityPub.RepliesFetcher.fetch_and_store_replies(post, max_replies: 20)
-        end)
-      end)
-
-      # Merge with existing local posts
-      current_local_posts = socket.assigns.local_posts
-
-      all_local_posts =
-        (stored_posts ++ current_local_posts)
-        |> Enum.uniq_by(& &1.activitypub_id)
-
-      # Update interactions for new posts
-      new_interactions =
-        if socket.assigns[:current_user] && stored_posts != [] do
-          new_posts_for_interactions =
-            Enum.map(stored_posts, fn post ->
-              %{"id" => post.activitypub_id}
-            end)
-
-          load_post_interactions(new_posts_for_interactions, socket.assigns.current_user.id)
-        else
-          %{}
-        end
-
-      post_interactions = Map.merge(socket.assigns.post_interactions, new_interactions)
-
-      new_user_saves =
-        if socket.assigns[:current_user] && stored_posts != [] do
-          load_user_saves_for_posts(stored_posts, socket.assigns.current_user.id)
-        else
-          %{}
-        end
-
-      user_saves = Map.merge(socket.assigns.user_saves, new_user_saves)
-      new_post_reactions = normalize_post_reaction_keys(get_post_reactions(stored_posts))
-      post_reactions = Map.merge(socket.assigns.post_reactions || %{}, new_post_reactions)
-
-      # Load replies/comments for newly discovered outbox posts from local storage first.
-      schedule_replies_fetch(stored_posts, self())
-
-      {:noreply,
-       socket
-       |> assign(:local_posts, all_local_posts)
-       |> assign(:post_interactions, post_interactions)
-       |> assign(:user_saves, user_saves)
-       |> assign(:post_reactions, post_reactions)}
+      {:noreply, socket}
     end
   end
 
-  def handle_info({:lemmy_counts_loaded, lemmy_counts}, socket) do
-    # Schedule periodic refresh every 60 seconds
-    Process.send_after(self(), :refresh_remote_counts, 60_000)
-    {:noreply, assign(socket, :lemmy_counts, lemmy_counts)}
-  end
+  def handle_info(:reload_remote_user_counts, socket) do
+    remote_actor = socket.assigns.remote_actor
 
-  def handle_info(:refresh_remote_counts, socket) do
-    posts = socket.assigns.local_posts || []
-
-    if posts != [] do
-      # Fetch counts using appropriate API based on post type
-      lemmy_counts = Elektrine.ActivityPub.LemmyApi.fetch_posts_counts(posts)
-      mastodon_counts = Elektrine.ActivityPub.MastodonApi.fetch_statuses_counts(posts)
-
-      # Update local database with fresh counts (async)
-      Task.start(fn ->
-        update_posts_with_api_counts(posts, lemmy_counts, mastodon_counts)
-      end)
-
-      Process.send_after(self(), :refresh_remote_counts, 60_000)
+    if remote_actor do
+      cached = ElektrineSocial.RemoteUser.Metrics.cached_counts(remote_actor.id)
 
       {:noreply,
        socket
-       |> assign(:lemmy_counts, lemmy_counts)
-       |> assign(:mastodon_counts, mastodon_counts)}
+       |> assign(:lemmy_counts, cached.lemmy_counts || %{})
+       |> assign(:mastodon_counts, cached.mastodon_counts || %{})}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:reload_remote_user_community_stats, socket) do
+    remote_actor = socket.assigns.remote_actor
+
+    if remote_actor do
+      stats = ElektrineSocial.RemoteUser.Metrics.cached_community_stats(remote_actor.id)
+      send(self(), {:community_stats_loaded, stats})
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:reload_remote_profile_posts, socket) do
+    remote_actor = socket.assigns.remote_actor
+
+    if remote_actor do
+      local_posts = get_local_posts_from_remote_actor(remote_actor)
+
+      post_interactions =
+        if socket.assigns[:current_user] && local_posts != [] do
+          all_posts_for_interactions = Enum.map(local_posts, &%{"id" => &1.activitypub_id})
+          load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
+        else
+          socket.assigns.post_interactions
+        end
+
+      user_saves =
+        if socket.assigns[:current_user] && local_posts != [] do
+          load_user_saves_for_posts(local_posts, socket.assigns.current_user.id)
+        else
+          socket.assigns.user_saves
+        end
+
+      post_reactions = normalize_post_reaction_keys(get_post_reactions(local_posts))
+
+      schedule_replies_fetch(local_posts, self())
+
+      {:noreply,
+       socket
+       |> assign(:local_posts, local_posts)
+       |> assign(:post_interactions, post_interactions)
+       |> assign(:user_saves, user_saves)
+       |> assign(:post_reactions, post_reactions)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(:reload_local_posts_after_poll_refresh, socket) do
+    remote_actor = socket.assigns.remote_actor
+
+    if remote_actor do
+      local_posts = get_local_posts_from_remote_actor(remote_actor)
+      post_reactions = normalize_post_reaction_keys(get_post_reactions(local_posts))
+
+      {:noreply,
+       socket
+       |> assign(:local_posts, local_posts)
+       |> assign(:post_reactions, post_reactions)
+       |> assign(:poll_refresh_nonce, System.unique_integer([:positive, :monotonic]))}
     else
       {:noreply, socket}
     end
@@ -666,14 +623,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       |> Enum.take(10)
 
     if candidates != [] do
-      Task.start(fn ->
-        refs = reply_preview_refs(candidates)
-        post_replies = load_local_replies_for_post_refs(refs)
+      refs = reply_preview_refs(candidates)
+      post_replies = load_local_replies_for_post_refs(refs)
 
-        if map_size(post_replies) > 0 do
-          send(liveview_pid, {:replies_loaded_for_posts, post_replies})
-        end
-      end)
+      if map_size(post_replies) > 0 do
+        send(liveview_pid, {:replies_loaded_for_posts, post_replies})
+      end
 
       candidates
       |> Enum.map(&message_id_for_reply_fetch/1)
@@ -842,42 +797,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     |> Enum.max(fn -> 0 end)
   end
 
-  defp update_posts_with_api_counts(posts, lemmy_counts, mastodon_counts) do
-    import Ecto.Query
-
-    Enum.each(posts, fn post ->
-      ap_id = post.activitypub_id
-
-      updates =
-        cond do
-          # Lemmy counts
-          counts = Map.get(lemmy_counts, ap_id) ->
-            [
-              like_count: max(counts.score, post.like_count || 0),
-              reply_count: max(counts.comments, post.reply_count || 0)
-            ]
-
-          # Mastodon counts
-          counts = Map.get(mastodon_counts, ap_id) ->
-            [
-              like_count: max(counts.favourites_count, post.like_count || 0),
-              reply_count: max(counts.replies_count, post.reply_count || 0),
-              share_count: max(counts.reblogs_count, post.share_count || 0)
-            ]
-
-          true ->
-            []
-        end
-
-      if updates != [] do
-        Elektrine.Repo.update_all(
-          from(m in Elektrine.Messaging.Message, where: m.id == ^post.id),
-          set: updates ++ [updated_at: DateTime.utc_now() |> DateTime.truncate(:second)]
-        )
-      end
-    end)
-  end
-
   defp get_local_posts_from_remote_actor(remote_actor) do
     import Ecto.Query
     preloads = MessagingMessages.timeline_post_preloads()
@@ -935,207 +854,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     end
   end
 
-  defp store_outbox_posts(outbox_posts, remote_actor) do
-    alias Elektrine.Messaging
-
-    outbox_posts
-    |> Enum.map(fn post ->
-      case post["id"] do
-        activitypub_id when is_binary(activitypub_id) and activitypub_id != "" ->
-          case Messaging.get_message_by_activitypub_id(activitypub_id) do
-            nil ->
-              create_outbox_post(post, remote_actor)
-
-            existing ->
-              refresh_existing_outbox_post(existing, post, remote_actor)
-          end
-
-        _ ->
-          nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp create_outbox_post(post, remote_actor) do
-    alias Elektrine.Messaging
-
-    # Get or fetch the author actor
-    author_uri = post["attributedTo"] || remote_actor.uri
-
-    author_actor =
-      case ActivityPub.get_or_fetch_actor(author_uri) do
-        {:ok, actor} -> actor
-        _ -> nil
-      end
-
-    if author_actor do
-      title = normalize_remote_post_title(post)
-      content = post["content"] || title || ""
-
-      # Extract media
-      {media_urls, alt_texts} = extract_media_from_post(post)
-
-      # Extract like/reply/share counts from ActivityPub collections
-      like_count = extract_count_from_collection(post["likes"])
-
-      reply_count =
-        [
-          extract_count_from_collection(post["replies"]),
-          extract_count_from_collection(post["comments"]),
-          parse_non_negative_count(post["repliesCount"])
-        ]
-        |> Enum.max(fn -> 0 end)
-
-      share_count = extract_count_from_collection(post["shares"])
-
-      metadata = build_outbox_metadata(post, alt_texts, remote_actor)
-
-      # Parse the published date
-      inserted_at =
-        case post["published"] do
-          date when is_binary(date) ->
-            case DateTime.from_iso8601(date) do
-              {:ok, dt, _} -> DateTime.to_naive(dt)
-              _ -> NaiveDateTime.utc_now()
-            end
-
-          _ ->
-            NaiveDateTime.utc_now()
-        end
-
-      # Create the message
-      case Messaging.create_federated_message(%{
-             content: content,
-             title: title,
-             visibility: "public",
-             activitypub_id: post["id"],
-             activitypub_url: post["url"] || post["id"],
-             federated: true,
-             remote_actor_id: author_actor.id,
-             media_urls: media_urls,
-             media_metadata: metadata,
-             inserted_at: inserted_at,
-             like_count: like_count,
-             reply_count: reply_count,
-             share_count: share_count
-           }) do
-        {:ok, message} ->
-          # Spawn background task to fetch like/reply counts from collection URLs
-          spawn_count_fetcher(message.id, post)
-          # Preload associations for display
-          Repo.preload(message, MessagingMessages.timeline_post_preloads())
-
-        {:error, _} ->
-          nil
-      end
-    else
-      nil
-    end
-  end
-
-  defp refresh_existing_outbox_post(existing, post, remote_actor) do
-    title = normalize_remote_post_title(post)
-    content = post["content"] || title || ""
-    {media_urls, alt_texts} = extract_media_from_post(post)
-
-    metadata =
-      build_outbox_metadata(post, alt_texts, remote_actor, existing.media_metadata || %{})
-
-    like_count = extract_count_from_collection(post["likes"])
-
-    reply_count =
-      [
-        extract_count_from_collection(post["replies"]),
-        extract_count_from_collection(post["comments"]),
-        parse_non_negative_count(post["repliesCount"])
-      ]
-      |> Enum.max(fn -> 0 end)
-
-    share_count = extract_count_from_collection(post["shares"])
-
-    updates =
-      %{}
-      |> maybe_put_if_blank(:title, existing.title, title)
-      |> maybe_put_if_blank(:content, existing.content, content)
-      |> maybe_put_if_empty_list(:media_urls, existing.media_urls || [], media_urls)
-      |> maybe_put_if_blank(:activitypub_url, existing.activitypub_url, post["url"] || post["id"])
-      |> maybe_put_if_changed(:media_metadata, existing.media_metadata || %{}, metadata)
-      |> maybe_put_if_greater(:like_count, existing.like_count || 0, like_count)
-      |> maybe_put_if_greater(:reply_count, existing.reply_count || 0, reply_count)
-      |> maybe_put_if_greater(:share_count, existing.share_count || 0, share_count)
-
-    if map_size(updates) > 0 do
-      case existing
-           |> Elektrine.Messaging.Message.federated_changeset(updates)
-           |> Repo.update() do
-        {:ok, message} ->
-          Repo.preload(message, MessagingMessages.timeline_post_preloads())
-
-        {:error, _} ->
-          nil
-      end
-    else
-      nil
-    end
-  end
-
-  defp spawn_count_fetcher(message_id, post) do
-    Task.start(fn ->
-      # Fetch like count from collection URL if it's a URL string
-      like_count = fetch_collection_count(post["likes"])
-
-      reply_count =
-        [
-          fetch_collection_count(post["replies"]),
-          fetch_collection_count(post["comments"]),
-          parse_non_negative_count(post["repliesCount"])
-        ]
-        |> Enum.max(fn -> 0 end)
-
-      # Update the message with fetched counts if any are non-zero
-      if like_count > 0 || reply_count > 0 do
-        import Ecto.Query
-
-        from(m in Elektrine.Messaging.Message,
-          where: m.id == ^message_id,
-          update: [
-            set: [
-              like_count: fragment("GREATEST(like_count, ?)", ^like_count),
-              reply_count: fragment("GREATEST(reply_count, ?)", ^reply_count)
-            ]
-          ]
-        )
-        |> Repo.update_all([])
-      end
-    end)
-  end
-
-  defp fetch_collection_count(nil), do: 0
-
-  defp fetch_collection_count(url) when is_binary(url) do
-    case Elektrine.ActivityPub.CollectionFetcher.fetch_collection_count(url) do
-      {:ok, count} -> parse_non_negative_count(count)
-      _ -> 0
-    end
-  end
-
-  defp fetch_collection_count(collection) when is_map(collection) do
-    case Elektrine.ActivityPub.CollectionFetcher.fetch_collection_count(collection) do
-      {:ok, count} -> parse_non_negative_count(count)
-      _ -> 0
-    end
-  end
-
-  defp fetch_collection_count(_), do: 0
-
-  defp maybe_put_community_actor_uri(metadata, %{actor_type: "Group", uri: uri})
-       when is_map(metadata) and is_binary(uri) do
-    Map.put(metadata, "community_actor_uri", uri)
-  end
-
-  defp maybe_put_community_actor_uri(metadata, _remote_actor) when is_map(metadata), do: metadata
-
   defp normalize_remote_post_title(post) when is_map(post) do
     [post["name"], post["title"]]
     |> Enum.find_value(fn
@@ -1151,107 +869,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp normalize_remote_post_title(_), do: nil
-
-  defp build_outbox_metadata(post, alt_texts, remote_actor, base_metadata \\ %{})
-       when is_map(base_metadata) do
-    base_metadata
-    |> maybe_put_metadata_field("type", post["type"])
-    |> maybe_put_metadata_field("url", post["url"])
-    |> maybe_put_metadata_field("sensitive", post["sensitive"])
-    |> maybe_put_metadata_field("quoteUrl", post["quoteUrl"] || post["_misskey_quote"])
-    |> maybe_put_metadata_field("replies", post["replies"])
-    |> maybe_put_metadata_field("comments", post["comments"])
-    |> maybe_put_metadata_field("likes", post["likes"])
-    |> maybe_put_metadata_field("shares", post["shares"])
-    |> maybe_put_community_actor_uri(remote_actor)
-    |> Map.merge(alt_texts)
-  end
-
-  defp maybe_put_metadata_field(metadata, _key, nil), do: metadata
-
-  defp maybe_put_metadata_field(metadata, key, value) when is_binary(value) do
-    if Elektrine.Strings.present?(value) do
-      Map.put(metadata, key, value)
-    else
-      metadata
-    end
-  end
-
-  defp maybe_put_metadata_field(metadata, key, value), do: Map.put(metadata, key, value)
-
-  defp maybe_put_if_blank(updates, field, current, candidate) do
-    current_blank? =
-      case current do
-        value when is_binary(value) -> not Elektrine.Strings.present?(value)
-        _ -> true
-      end
-
-    candidate_present? =
-      case candidate do
-        value when is_binary(value) -> Elektrine.Strings.present?(value)
-        _ -> false
-      end
-
-    if current_blank? && candidate_present? do
-      Map.put(updates, field, candidate)
-    else
-      updates
-    end
-  end
-
-  defp maybe_put_if_empty_list(updates, _field, current, _candidate)
-       when is_list(current) and current != [] do
-    updates
-  end
-
-  defp maybe_put_if_empty_list(updates, field, _current, candidate)
-       when is_list(candidate) and candidate != [] do
-    Map.put(updates, field, candidate)
-  end
-
-  defp maybe_put_if_empty_list(updates, _field, _current, _candidate), do: updates
-
-  defp maybe_put_if_changed(updates, field, current, candidate) do
-    if candidate != current do
-      Map.put(updates, field, candidate)
-    else
-      updates
-    end
-  end
-
-  defp maybe_put_if_greater(updates, field, current, candidate)
-       when is_integer(candidate) and candidate > current do
-    Map.put(updates, field, candidate)
-  end
-
-  defp maybe_put_if_greater(updates, _field, _current, _candidate), do: updates
-
-  defp extract_media_from_post(post) do
-    attachments = post["attachment"] || post["image"] || []
-    attachments = if is_list(attachments), do: attachments, else: [attachments]
-
-    {urls, alt_texts} =
-      Enum.reduce(attachments, {[], %{}}, fn attachment, {urls_acc, alt_acc} ->
-        url =
-          cond do
-            is_binary(attachment) -> attachment
-            is_map(attachment) && is_binary(attachment["url"]) -> attachment["url"]
-            is_map(attachment) && is_map(attachment["url"]) -> attachment["url"]["href"]
-            true -> nil
-          end
-
-        alt = if is_map(attachment), do: attachment["name"] || attachment["summary"], else: nil
-
-        if url do
-          new_alts = if alt, do: Map.put(alt_acc, url, alt), else: alt_acc
-          {urls_acc ++ [url], new_alts}
-        else
-          {urls_acc, alt_acc}
-        end
-      end)
-
-    {urls, %{"alt_texts" => alt_texts}}
-  end
 
   defp extract_count_from_collection(nil), do: 0
 
@@ -1771,6 +1388,75 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event("quote_post", %{"id" => id}, socket) do
     handle_event("quote_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
+  def handle_event("vote_poll", params, socket) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+    else
+      poll_id = params["poll_id"] || params["poll-id"]
+      option_id = params["option_id"] || params["option-id"]
+
+      with {poll_id, _} <- Integer.parse(to_string(poll_id)),
+           {option_id, _} <- Integer.parse(to_string(option_id)) do
+        case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
+          {:ok, _vote} ->
+            poll = Repo.get!(Elektrine.Social.Poll, poll_id)
+
+            if message =
+                 poll.message_id |> Messaging.get_message() |> Repo.preload(poll: [options: []]) do
+              if message.federated && message.post_type == "poll" && message.poll do
+                _ = Elektrine.ActivityPub.FetchRemotePollWorker.enqueue(message.id)
+              end
+            end
+
+            Process.send_after(self(), :reload_local_posts_after_poll_refresh, 1_000)
+
+            {:noreply,
+             socket
+             |> assign(:poll_refresh_nonce, System.unique_integer([:positive, :monotonic]))
+             |> put_flash(:info, "Vote recorded")}
+
+          {:error, :poll_closed} ->
+            {:noreply, put_flash(socket, :error, "This poll has closed")}
+
+          {:error, :invalid_option} ->
+            {:noreply, put_flash(socket, :error, "Invalid poll option")}
+
+          {:error, :self_vote} ->
+            {:noreply, put_flash(socket, :error, "You cannot vote on your own poll")}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to vote")}
+        end
+      else
+        _ -> {:noreply, put_flash(socket, :error, "Invalid poll vote")}
+      end
+    end
+  end
+
+  def handle_event(
+        "vote_remote_poll",
+        %{"option_name" => option_name, "poll_id" => poll_id},
+        socket
+      ) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+    else
+      Elektrine.ActivityPub.Outbox.send_poll_vote(
+        socket.assigns.current_user,
+        poll_id,
+        option_name,
+        socket.assigns.remote_actor
+      )
+
+      Process.send_after(self(), :reload_local_posts_after_poll_refresh, 1_000)
+
+      {:noreply,
+       socket
+       |> assign(:poll_refresh_nonce, System.unique_integer([:positive, :monotonic]))
+       |> put_flash(:info, "Vote sent to #{socket.assigns.remote_actor.domain}")}
+    end
   end
 
   def handle_event("close_quote_modal", _params, socket) do
@@ -2365,32 +2051,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp initial_community_stats(_), do: %{members: 0, posts: 0}
-
-  defp fetch_group_stats(%{domain: domain, username: username, metadata: metadata}) do
-    metadata = metadata || %{}
-    metadata_stats = initial_community_stats(%{actor_type: "Group", metadata: metadata})
-
-    followers_collection_count = fetch_collection_count(metadata["followers"])
-    outbox_collection_count = fetch_collection_count(metadata["outbox"])
-    lemmy_stats = LemmyApi.fetch_community_counts(domain, username) || %{}
-
-    %{
-      members:
-        Enum.max([
-          metadata_stats.members || 0,
-          followers_collection_count,
-          lemmy_stats[:members] || 0
-        ]),
-      posts:
-        Enum.max([
-          metadata_stats.posts || 0,
-          outbox_collection_count,
-          lemmy_stats[:posts] || 0
-        ])
-    }
-  end
-
-  defp fetch_group_stats(_), do: %{members: 0, posts: 0}
 
   # Helper functions - delegating to shared APHelpers module
 

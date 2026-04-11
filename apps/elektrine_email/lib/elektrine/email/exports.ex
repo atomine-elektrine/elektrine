@@ -47,7 +47,7 @@ defmodule Elektrine.Email.Exports do
     case create_export(%{user_id: user_id, format: format, filters: filters}) do
       {:ok, export} ->
         # Start async processing
-        Task.start(fn -> process_export(export) end)
+        Elektrine.Async.start(fn -> process_export(export) end)
         {:ok, export}
 
       {:error, changeset} ->
