@@ -9,7 +9,7 @@
         </p>
 
         <div class="flex flex-col sm:flex-row gap-3">
-          <button type="button" class="btn btn-primary flex-1" onclick="window.location.reload()">
+          <button type="button" class="btn btn-primary flex-1" data-action="reload-page">
             Refresh
           </button>
           <.link href={~p"/register"} class="btn btn-ghost flex-1"> Back to Register </.link>
@@ -38,7 +38,7 @@
             <button
               type="button"
               class="btn btn-ghost flex-1"
-              onclick={"navigator.clipboard && navigator.clipboard.writeText('#{@invite_code.code}')"}
+              data-copy-to-clipboard={@invite_code.code}
             >
               Copy Code
             </button>

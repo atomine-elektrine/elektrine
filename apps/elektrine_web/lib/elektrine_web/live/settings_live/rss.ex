@@ -184,10 +184,11 @@ defmodule ElektrineWeb.SettingsLive.RSS do
                     <div class="flex-shrink-0">
                       <%= if subscription.feed && subscription.feed.favicon_url do %>
                         <img
+                          id={"rss-feed-favicon-#{subscription.id}"}
                           src={subscription.feed.favicon_url}
                           alt=""
                           class="w-8 h-8 rounded"
-                          onerror="this.style.display='none'"
+                          phx-hook="ImageFallback"
                         />
                       <% else %>
                         <div class="w-8 h-8 rounded bg-base-300 flex items-center justify-center">

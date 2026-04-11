@@ -422,11 +422,12 @@
                   <%= for image_url <- image_urls do %>
                     <a href={image_url} target="_blank" rel="noopener noreferrer" class="block">
                       <img
+                        id={"discussion-post-image-#{:erlang.phash2(image_url)}"}
                         src={image_url}
                         alt="Image preview"
                         class="max-w-full rounded-lg max-h-96 object-contain hover:opacity-90 transition-opacity cursor-pointer"
                         loading="lazy"
-                        onerror="this.style.display='none'"
+                        phx-hook="ImageFallback"
                       />
                     </a>
                   <% end %>

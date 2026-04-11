@@ -1,9 +1,6 @@
 // Markdown editor functionality for profile descriptions
 
 export function initMarkdownEditor() {
-  window.showMarkdownTab = showMarkdownTab;
-  window.updateMarkdownPreview = updateMarkdownPreview;
-
   // Set up tab click handlers
   document.addEventListener('click', (e) => {
     const tabButton = e.target.closest('[data-show-tab]');
@@ -11,6 +8,12 @@ export function initMarkdownEditor() {
       e.preventDefault();
       const tab = tabButton.getAttribute('data-show-tab');
       showMarkdownTab(tab);
+    }
+  });
+
+  document.addEventListener('input', (e) => {
+    if (e.target.matches('[data-markdown-preview-input]')) {
+      updateMarkdownPreview();
     }
   });
 }

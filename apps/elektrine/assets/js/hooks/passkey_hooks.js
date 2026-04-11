@@ -3,6 +3,8 @@
  * WebAuthn/Passkey integration for passwordless authentication.
  */
 
+import { submitFormPreservingEvents } from '../utils/form_submission'
+
 /**
  * Helper to convert ArrayBuffer to Base64URL string
  */
@@ -275,7 +277,7 @@ export const PasskeyAuth = {
     form.appendChild(challengeInput)
 
     document.body.appendChild(form)
-    form.submit()
+    submitFormPreservingEvents(form)
   },
 
   destroyed() {
@@ -414,7 +416,7 @@ export const PasskeyConditionalUI = {
     form.appendChild(challengeInput)
 
     document.body.appendChild(form)
-    form.submit()
+    submitFormPreservingEvents(form)
   },
 
   destroyed() {

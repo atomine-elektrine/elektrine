@@ -2,6 +2,21 @@ import { sanitizeMarkdownHref } from "./markdown_helpers";
 
 // Markdown toolbar module for email compose
 export function initMarkdownToolbar() {
+  const syncSplitPreview = (event) => {
+    const textarea = event.target.closest('#html-editor')
+    if (!textarea) return
+
+    const previewTab = document.querySelector('[data-editor-tab].tab-active')
+    if (!previewTab || previewTab.dataset.editorTab !== 'split') return
+
+    const previewContent = document.getElementById('preview-content')
+    if (previewContent) {
+      updatePreview(textarea.value, previewContent)
+    }
+  }
+
+  document.addEventListener('input', syncSplitPreview)
+
   // Handle tab switching
   document.addEventListener('click', (e) => {
     const tab = e.target.closest('[data-editor-tab]');
@@ -53,11 +68,6 @@ export function initMarkdownToolbar() {
         if (previewContent && textarea) {
           updatePreview(textarea.value, previewContent);
         }
-
-        // Auto-update preview on input in split mode
-        textarea.oninput = () => {
-          updatePreview(textarea.value, previewContent);
-        };
       }
     }
   });

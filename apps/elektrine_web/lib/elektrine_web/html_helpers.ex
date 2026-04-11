@@ -805,7 +805,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         local_path =
           Paths.profile_path(clean_username, domain) || "/remote/#{clean_username}@#{domain}"
 
-        ~s(<a href="#{local_path}" class="#{@mention_link_classes}" phx-click="stop_propagation">@#{clean_username}@#{domain}</a>)
+        ~s(<a href="#{local_path}" class="#{@mention_link_classes}">@#{clean_username}@#{domain}</a>)
       end
     )
   end

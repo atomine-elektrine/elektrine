@@ -123,7 +123,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp render_default(assigns) do
     ~H"""
-    <div class="flex items-center gap-1 post-actions-container" phx-click="stop_propagation">
+    <div class="flex items-center gap-1 post-actions-container">
       <%= if @show_like do %>
         <%= if @current_user do %>
           <button
@@ -264,7 +264,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp render_minimal(assigns) do
     ~H"""
-    <div class="flex items-center gap-4 text-sm" phx-click="stop_propagation">
+    <div class="flex items-center gap-4 text-sm">
       <%= if @show_like do %>
         <%= if @current_user do %>
           <button
@@ -539,7 +539,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
     ~H"""
     <div
       class="flex flex-col items-center gap-1 flex-shrink-0"
-      phx-click="stop_propagation"
       role="group"
       aria-label="Voting"
     >

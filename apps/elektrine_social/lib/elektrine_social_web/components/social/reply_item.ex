@@ -107,7 +107,6 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                 <.link
                   navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                   class="w-8 h-8 block"
-                  phx-click="stop_propagation"
                 >
                   <%= if @normalized.avatar_url do %>
                     <img
@@ -124,7 +123,6 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
               <.link
                 navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                 class="w-8 h-8 block"
-                phx-click="stop_propagation"
               >
                 <%= if @normalized.avatar_url do %>
                   <img
@@ -178,7 +176,6 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                   <.link
                     navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                     class="font-medium text-sm truncate block"
-                    phx-click="stop_propagation"
                   >
                     {raw(
                       render_display_name_with_emojis(
@@ -198,7 +195,6 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                 <.link
                   navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
                   class="font-medium text-sm truncate block"
-                  phx-click="stop_propagation"
                 >
                   {@normalized.display_name}
                 </.link>
@@ -254,7 +250,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       |> assign(:reply_target_id, interaction_id || assigns.normalized.ap_id)
 
     ~H"""
-    <div class="flex flex-wrap items-center gap-2" phx-click="stop_propagation">
+    <div class="flex flex-wrap items-center gap-2">
       <%= if @interaction_id do %>
         <!-- Like Button -->
         <button

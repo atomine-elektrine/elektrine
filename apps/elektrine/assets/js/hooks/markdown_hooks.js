@@ -399,7 +399,6 @@ export const ReplyMarkdownEditor = {
       if (!tab) return
 
       e.preventDefault()
-      e.stopPropagation()
       const mode = tab.dataset.replyEditorTab
 
       // Update tab active states
@@ -454,7 +453,6 @@ export const ReplyMarkdownEditor = {
       if (!button) return
 
       e.preventDefault()
-      e.stopPropagation()  // Prevent event from bubbling to prevent double-firing
 
       const format = button.dataset.markdownFormat
       const target = button.dataset.target

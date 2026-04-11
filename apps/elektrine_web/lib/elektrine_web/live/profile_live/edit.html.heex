@@ -76,7 +76,7 @@
                     rows="4"
                     placeholder="Tell people about yourself..."
                     maxlength="1000"
-                    oninput="updateMarkdownPreview()"
+                    data-markdown-preview-input
                   ><%= @profile && @profile.description || "" %></textarea>
                 </div>
 
@@ -2561,13 +2561,19 @@
                   <div class="relative p-4 bg-base-200/50 rounded-lg">
                     <p class="text-sm font-semibold mb-3">Current Favicon:</p>
 
-                    <div class="flex items-center gap-3">
+                    <div
+                      id="profile-favicon-preview"
+                      class="flex items-center gap-3"
+                      phx-hook="ImageFallback"
+                    >
                       <img
                         src={Elektrine.Uploads.favicon_url(@profile.favicon_url)}
                         alt="Favicon preview"
                         class="w-8 h-8"
-                        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-                      /> <span class="text-error text-sm hidden">Failed to load favicon</span>
+                      />
+                      <span data-fallback-icon class="text-error text-sm hidden">
+                        Failed to load favicon
+                      </span>
                       <span class="text-sm text-base-content/70 truncate">
                         {@profile.favicon_url}
                       </span>

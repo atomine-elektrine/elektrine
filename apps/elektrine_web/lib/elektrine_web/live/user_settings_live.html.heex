@@ -1940,13 +1940,16 @@
                     <div class="space-y-2">
                       <%= for subscription <- @rss_subscriptions do %>
                         <div class="flex items-center gap-3 p-3 bg-base-200/50 rounded-lg">
-                          <div class="flex-shrink-0">
+                          <div
+                            id={"rss-subscription-favicon-#{subscription.id}"}
+                            class="flex-shrink-0"
+                            phx-hook="ImageFallback"
+                          >
                             <%= if subscription.feed && subscription.feed.favicon_url do %>
                               <img
                                 src={subscription.feed.favicon_url}
                                 alt=""
                                 class="w-6 h-6 rounded"
-                                onerror="this.style.display='none'"
                               />
                             <% else %>
                               <div class="w-6 h-6 rounded bg-base-300 flex items-center justify-center">

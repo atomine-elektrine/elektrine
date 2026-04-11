@@ -95,7 +95,10 @@ const REMOTE_FOLLOW_BUTTON_VARIANTS = {
 export const PostClick = {
   mounted() {
     this.handleClick = (e) => {
-      if (e.target.closest('a, button, label, .dropdown, details')) return
+      if (e.target.closest('a, button, input, textarea, select, option, label, .dropdown, details')) return
+
+      const nestedPostClick = e.target.closest('[phx-hook="PostClick"]')
+      if (nestedPostClick && nestedPostClick !== this.el) return
 
       const closestPhxClick = e.target.closest('[phx-click]')
       if (closestPhxClick && closestPhxClick !== this.el) return
@@ -548,7 +551,6 @@ export const ImageModal = {
 
       this.lastScrollTime = now
       e.preventDefault()
-      e.stopPropagation()
 
       if (e.deltaY < 0) this.pushEvent('prev_image', {})
       else this.pushEvent('next_image', {})

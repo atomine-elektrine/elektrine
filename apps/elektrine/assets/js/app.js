@@ -22,13 +22,13 @@ import {
   initNavigationHandlers,
   initClipboardHandlers
 } from "./utils"
+import { submitFormPreservingEvents } from "./utils/form_submission"
 
 // Import UI modules
 import { initModalControls } from "./modal_controls"
 import { initMarkdownToolbar } from "./markdown_toolbar"
 import { initFormHelpers } from "./form_helpers"
 import { initEmailRaw } from "./email_raw"
-import { initTabSwitcher } from "./tab_switcher"
 import "./hashtag_links" // self-initializes
 import { initCursorGlow, destroyCursorGlow } from "./cursor_glow"
 import { initBlinkenlights, checkBlinkenlights } from "./blinkenlights"
@@ -492,8 +492,7 @@ function initSearchClearButtons() {
     const form = input.form || clearTrigger.closest('form')
 
     if (form && !form.hasAttribute('phx-change') && !input.hasAttribute('phx-change')) {
-      if (typeof form.requestSubmit === 'function') form.requestSubmit()
-      else form.submit()
+      submitFormPreservingEvents(form)
     }
 
     input.focus()
@@ -531,7 +530,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initMarkdownToolbar()
   initFormHelpers()
   initEmailRaw()
-  initTabSwitcher()
   initIpLookup()
   initProfileStatic()
   initAdminSecurity()

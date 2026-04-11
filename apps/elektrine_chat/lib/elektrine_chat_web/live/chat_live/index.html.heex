@@ -1151,11 +1151,12 @@
                             class="block"
                           >
                             <img
+                              id={"chat-message-image-#{:erlang.phash2(image_url)}"}
                               src={image_url}
                               alt="Image preview"
                               loading="eager"
                               class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
-                              onerror="this.style.display='none'"
+                              phx-hook="ImageFallback"
                             />
                           </a>
                         <% end %>
@@ -1205,10 +1206,11 @@
                         <div class="flex items-center gap-2 mt-2 text-xs opacity-50">
                           <%= if link_preview.favicon_url do %>
                             <img
+                              id={"chat-link-preview-favicon-#{:erlang.phash2(link_preview.favicon_url)}"}
                               src={ensure_https(link_preview.favicon_url)}
                               alt=""
                               class="w-4 h-4"
-                              onerror="this.style.display='none'"
+                              phx-hook="ImageFallback"
                             />
                           <% end %>
                           <span class="truncate">

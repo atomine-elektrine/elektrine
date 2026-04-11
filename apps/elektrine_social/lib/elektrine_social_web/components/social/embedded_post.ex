@@ -182,16 +182,17 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
               target="_blank"
               rel="noopener noreferrer"
               class="block"
-              phx-click="stop_propagation"
             >
               <%= if @shared_message.link_preview.image_url do %>
                 <div class="aspect-video bg-base-200 max-h-32">
                   <img
+                    id={"embedded-post-preview-image-#{@shared_message.id || :erlang.phash2(@shared_message.link_preview.image_url)}"}
                     src={ensure_https(@shared_message.link_preview.image_url)}
                     alt=""
                     class="w-full h-full object-cover"
                     loading="lazy"
-                    onerror="this.parentElement.style.display='none'"
+                    phx-hook="ImageFallback"
+                    data-hide-target="parent"
                   />
                 </div>
               <% end %>
@@ -199,10 +200,11 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
                 <div class="flex items-center gap-1 mb-1">
                   <%= if @shared_message.link_preview.favicon_url do %>
                     <img
+                      id={"embedded-post-preview-favicon-#{@shared_message.id || :erlang.phash2(@shared_message.link_preview.favicon_url)}"}
                       src={ensure_https(@shared_message.link_preview.favicon_url)}
                       alt=""
                       class="w-3 h-3 flex-shrink-0"
-                      onerror="this.style.display='none'"
+                      phx-hook="ImageFallback"
                     />
                   <% end %>
                   <span class="text-xs text-base-content/50 truncate">

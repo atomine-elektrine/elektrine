@@ -360,10 +360,7 @@
                             <%= if result.type == :local do %>
                               <% community = result.community
                               joined? = MapSet.member?(@joined_community_ids, community.id) %>
-                              <.link
-                                href={community_route(community)}
-                                class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors"
-                              >
+                              <article class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors">
                                 <div class="card-body p-4 gap-4">
                                   <div class="flex items-start gap-3">
                                     <div class="w-12 h-12 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-lg flex-shrink-0">
@@ -371,7 +368,12 @@
                                     </div>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-semibold truncate">{community.name}</h3>
+                                        <.link
+                                          href={community_route(community)}
+                                          class="font-semibold truncate hover:text-secondary transition-colors"
+                                        >
+                                          {community.name}
+                                        </.link>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(community)}
                                         </span>
@@ -381,13 +383,19 @@
                                             else: "Local"}
                                         </span>
                                       </div>
-                                      <p class="text-xs text-base-content/50 mt-1">
+                                      <.link
+                                        href={community_route(community)}
+                                        class="block text-xs text-base-content/50 mt-1 hover:text-secondary transition-colors"
+                                      >
                                         {community_address(community)}
-                                      </p>
+                                      </.link>
                                       <%= if result.description do %>
-                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                        <.link
+                                          href={community_route(community)}
+                                          class="block text-sm text-base-content/70 mt-2 line-clamp-2 hover:text-base-content/90 transition-colors"
+                                        >
                                           {result.description}
-                                        </p>
+                                        </.link>
                                       <% end %>
                                     </div>
                                   </div>
@@ -411,7 +419,6 @@
                                           phx-click="join_community"
                                           phx-value-community_id={community.id}
                                           class="btn btn-secondary btn-sm"
-                                          phx-hook="StopPropagation"
                                         >
                                           Join
                                         </button>
@@ -425,14 +432,11 @@
                                     <% end %>
                                   </div>
                                 </div>
-                              </.link>
+                              </article>
                             <% else %>
                               <% actor = result.remote_actor
                               result_href = community_route(actor) %>
-                              <.link
-                                href={result_href}
-                                class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors"
-                              >
+                              <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors">
                                 <div class="card-body p-4 gap-4">
                                   <div class="flex items-start gap-3">
                                     <%= if actor.avatar_url do %>
@@ -448,25 +452,34 @@
                                     <% end %>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-2 flex-wrap">
-                                        <h3 class="font-semibold truncate">
+                                        <.link
+                                          href={result_href}
+                                          class="font-semibold truncate hover:text-info transition-colors"
+                                        >
                                           {raw(
                                             ElektrineWeb.HtmlHelpers.render_actor_display_name(
                                               actor
                                             )
                                           )}
-                                        </h3>
+                                        </.link>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(actor)}
                                         </span>
                                         <span class="badge badge-outline badge-sm">Remote</span>
                                       </div>
-                                      <p class="text-xs text-base-content/50 mt-1">
+                                      <.link
+                                        href={result_href}
+                                        class="block text-xs text-base-content/50 mt-1 hover:text-info transition-colors"
+                                      >
                                         {community_address(actor)}
-                                      </p>
+                                      </.link>
                                       <%= if result.description do %>
-                                        <p class="text-sm text-base-content/70 mt-2 line-clamp-2">
+                                        <.link
+                                          href={result_href}
+                                          class="block text-sm text-base-content/70 mt-2 line-clamp-2 hover:text-base-content/90 transition-colors"
+                                        >
                                           {result.description}
-                                        </p>
+                                        </.link>
                                       <% end %>
                                     </div>
                                   </div>
@@ -488,7 +501,6 @@
                                           phx-click="follow_remote_group"
                                           phx-value-actor_id={actor.id}
                                           class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                                          phx-hook="StopPropagation"
                                         >
                                           <span class="phx-click-loading:hidden">Follow</span>
                                           <span class="hidden items-center phx-click-loading:inline-flex">
@@ -505,7 +517,7 @@
                                     <% end %>
                                   </div>
                                 </div>
-                              </.link>
+                              </article>
                             <% end %>
                           <% end %>
                         </div>
@@ -545,10 +557,7 @@
                         <%= if joined_count > 0 do %>
                           <div class="grid gap-3 xl:grid-cols-2">
                             <%= for community <- @filtered_communities do %>
-                              <.link
-                                href={community_route(community)}
-                                class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors group"
-                              >
+                              <article class="card border border-base-300 bg-base-200/70 hover:border-secondary/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
                                     <div class="w-10 h-10 rounded-lg bg-secondary/10 text-secondary flex items-center justify-center font-semibold text-base flex-shrink-0">
@@ -556,9 +565,12 @@
                                     </div>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-1.5 flex-wrap">
-                                        <h3 class="font-semibold truncate text-sm">
+                                        <.link
+                                          href={community_route(community)}
+                                          class="font-semibold truncate text-sm hover:text-secondary transition-colors"
+                                        >
                                           {community.name}
-                                        </h3>
+                                        </.link>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(community)}
                                         </span>
@@ -568,13 +580,19 @@
                                             else: "Local"}
                                         </span>
                                       </div>
-                                      <p class="text-[11px] text-base-content/50 mt-0.5">
+                                      <.link
+                                        href={community_route(community)}
+                                        class="block text-[11px] text-base-content/50 mt-0.5 hover:text-secondary transition-colors"
+                                      >
                                         {community_address(community)}
-                                      </p>
+                                      </.link>
                                       <%= if community.description do %>
-                                        <p class="text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5">
+                                        <.link
+                                          href={community_route(community)}
+                                          class="block text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5 hover:text-base-content/90 transition-colors"
+                                        >
                                           {community.description}
-                                        </p>
+                                        </.link>
                                       <% end %>
                                     </div>
                                   </div>
@@ -594,20 +612,16 @@
                                       phx-click="leave_community"
                                       phx-value-community_id={community.id}
                                       class="btn btn-ghost btn-xs"
-                                      phx-hook="StopPropagation"
                                     >
                                       Leave
                                     </button>
                                   </div>
                                 </div>
-                              </.link>
+                              </article>
                             <% end %>
 
                             <%= for community <- @filtered_remote_communities do %>
-                              <.link
-                                href={community_route(community)}
-                                class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors group"
-                              >
+                              <article class="card border border-base-300 bg-base-200/70 hover:border-info/40 transition-colors group">
                                 <div class="card-body p-3.5">
                                   <div class="flex items-start gap-2.5">
                                     <%= if community.avatar_url do %>
@@ -623,13 +637,16 @@
                                     <% end %>
                                     <div class="min-w-0 flex-1">
                                       <div class="flex items-center gap-1.5 flex-wrap">
-                                        <h3 class="font-semibold truncate text-sm">
+                                        <.link
+                                          href={community_route(community)}
+                                          class="font-semibold truncate text-sm hover:text-info transition-colors"
+                                        >
                                           {raw(
                                             ElektrineWeb.HtmlHelpers.render_actor_display_name(
                                               community
                                             )
                                           )}
-                                        </h3>
+                                        </.link>
                                         <span class="badge badge-outline badge-sm">
                                           {community_category_label(community)}
                                         </span>
@@ -637,18 +654,24 @@
                                           Federated
                                         </span>
                                       </div>
-                                      <p class="text-[11px] text-base-content/50 mt-0.5">
+                                      <.link
+                                        href={community_route(community)}
+                                        class="block text-[11px] text-base-content/50 mt-0.5 hover:text-info transition-colors"
+                                      >
                                         {community_address(community)}
-                                      </p>
+                                      </.link>
                                       <%= if community.summary do %>
-                                        <p class="text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5">
+                                        <.link
+                                          href={community_route(community)}
+                                          class="block text-xs text-base-content/70 mt-1.5 line-clamp-2 leading-5 hover:text-base-content/90 transition-colors"
+                                        >
                                           {raw(
                                             ElektrineSocialWeb.Components.Social.PostUtilities.render_content_preview(
                                               community.summary,
                                               community.domain
                                             )
                                           )}
-                                        </p>
+                                        </.link>
                                       <% end %>
                                     </div>
                                   </div>
@@ -665,7 +688,6 @@
                                       phx-click="unfollow_remote_community"
                                       phx-value-actor_id={community.id}
                                       class="btn btn-ghost btn-xs transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
-                                      phx-hook="StopPropagation"
                                     >
                                       <span class="phx-click-loading:hidden">Unfollow</span>
                                       <span class="hidden items-center phx-click-loading:inline-flex">
@@ -674,7 +696,7 @@
                                     </button>
                                   </div>
                                 </div>
-                              </.link>
+                              </article>
                             <% end %>
                           </div>
                         <% else %>
@@ -853,7 +875,6 @@
                                       phx-click="follow_remote_group"
                                       phx-value-actor_id={actor.id}
                                       class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                                      phx-hook="StopPropagation"
                                     >
                                       <span class="phx-click-loading:hidden">Follow</span>
                                       <span class="hidden items-center phx-click-loading:inline-flex">
@@ -981,13 +1002,16 @@
                   <%= if @current_user do %>
                     <%= if length(@filtered_community_posts) > 0 do %>
                       <%= for post <- @filtered_community_posts do %>
-                        <.lemmy_post
+                        <.timeline_post
                           post={post}
+                          layout={:lemmy}
                           current_user={@current_user}
                           timezone={@timezone}
+                          time_format={@time_format}
                           post_interactions={@post_interactions}
                           user_likes={%{}}
-                          lemmy_counts={Map.get(@lemmy_counts, post.activitypub_id)}
+                          lemmy_counts={@lemmy_counts}
+                          post_reactions_map={@post_reactions}
                           replies={Map.get(@post_replies, post.activitypub_id, [])}
                           reactions={Map.get(@post_reactions, post.id, [])}
                         />

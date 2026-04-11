@@ -438,22 +438,23 @@
                         <% author_preview = quick_reply_author_preview(reply) %>
                         <% reply_click = quick_reply_click_target(reply) %>
                         <div
+                          id={"remote-post-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
                           class={[
                             "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
                             reply_click &&
                               "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
                           ]}
                           style="background-color: oklch(var(--b1));"
-                          phx-click={reply_click && reply_click.event}
-                          phx-value-id={reply_click && reply_click.id}
-                          phx-value-post_id={reply_click && reply_click.post_id}
+                          phx-hook={reply_click && "PostClick"}
+                          data-click-event={reply_click && reply_click.event}
+                          data-id={reply_click && reply_click.id}
+                          data-post-id={reply_click && reply_click.post_id}
                         >
                           <div class="flex items-center gap-2 mb-1 min-w-0">
                             <%= if author_preview.profile_path do %>
                               <.link
                                 navigate={author_preview.profile_path}
                                 class="w-5 h-5 flex-shrink-0"
-                                phx-click="stop_propagation"
                               >
                                 <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
                                   <img
@@ -470,7 +471,6 @@
                               <.link
                                 navigate={author_preview.profile_path}
                                 class="font-medium truncate hover:underline"
-                                phx-click="stop_propagation"
                               >
                                 {author_preview.label}
                               </.link>
@@ -621,14 +621,31 @@
                     <!-- Voting Column (Reddit-style) - Only for community posts -->
                     <%= if @is_community_post do %>
                       <% lemmy = @lemmy_counts
+                      embedded_lemmy = @post["_lemmy"]
                       vote_state = Map.get(@post_interactions, @post["id"], %{})
                       user_vote = Map.get(vote_state, :vote, nil)
                       vote_delta = Map.get(vote_state, :vote_delta, 0)
 
                       base_score =
-                        if lemmy,
-                          do: lemmy.score,
-                          else: get_collection_total_items(@post["likes"]) || 0
+                        cond do
+                          is_map(lemmy) and is_integer(lemmy.score) ->
+                            lemmy.score
+
+                          is_map(embedded_lemmy) and is_integer(embedded_lemmy["score"]) ->
+                            embedded_lemmy["score"]
+
+                          is_integer(@post["like_count"]) ->
+                            @post["like_count"]
+
+                          @local_message && is_integer(@local_message.like_count) ->
+                            @local_message.like_count
+
+                          true ->
+                            max(
+                              get_collection_total_items(@post["likes"]),
+                              get_collection_total_items(@post["likesCount"])
+                            )
+                        end
 
                       score = base_score + vote_delta %>
                       <div class="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
@@ -1109,11 +1126,15 @@
 
                       # Use Lemmy API counts if available, then Mastodon API, then ActivityPub data
                       lemmy = @lemmy_counts
+                      embedded_lemmy = @post["_lemmy"]
 
                       like_count =
                         cond do
-                          lemmy ->
+                          is_map(lemmy) and is_integer(lemmy.score) ->
                             lemmy.score + like_delta
+
+                          is_map(embedded_lemmy) and is_integer(embedded_lemmy["score"]) ->
+                            embedded_lemmy["score"] + like_delta
 
                           # Fresh Mastodon API counts (most accurate)
                           is_map(mastodon_api) and is_integer(mastodon_api[:favourites_count]) ->
@@ -1121,6 +1142,9 @@
 
                           is_map(mastodon) and is_integer(mastodon["favourites_count"]) ->
                             mastodon["favourites_count"] + like_delta
+
+                          is_integer(@post["like_count"]) ->
+                            @post["like_count"] + like_delta
 
                           # Use local message count directly (no delta - it's already up to date from database)
                           @local_message ->
@@ -1159,8 +1183,14 @@
 
                       reply_count =
                         cond do
-                          lemmy ->
+                          is_map(lemmy) and is_integer(lemmy.comments) ->
                             lemmy.comments
+
+                          is_map(embedded_lemmy) and is_integer(embedded_lemmy["comments"]) ->
+                            embedded_lemmy["comments"]
+
+                          is_integer(@post["reply_count"]) ->
+                            @post["reply_count"]
 
                           # Fresh Mastodon API counts (most accurate)
                           is_map(mastodon_api) and is_integer(mastodon_api[:replies_count]) ->
@@ -1234,22 +1264,23 @@
                                 <% author_preview = quick_reply_author_preview(reply) %>
                                 <% reply_click = quick_reply_click_target(reply) %>
                                 <div
+                                  id={"remote-post-inline-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
                                   class={[
                                     "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
                                     reply_click &&
                                       "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
                                   ]}
                                   style="background-color: oklch(var(--b1));"
-                                  phx-click={reply_click && reply_click.event}
-                                  phx-value-id={reply_click && reply_click.id}
-                                  phx-value-post_id={reply_click && reply_click.post_id}
+                                  phx-hook={reply_click && "PostClick"}
+                                  data-click-event={reply_click && reply_click.event}
+                                  data-id={reply_click && reply_click.id}
+                                  data-post-id={reply_click && reply_click.post_id}
                                 >
                                   <div class="flex items-center gap-2 mb-1 min-w-0">
                                     <%= if author_preview.profile_path do %>
                                       <.link
                                         navigate={author_preview.profile_path}
                                         class="w-5 h-5 flex-shrink-0"
-                                        phx-click="stop_propagation"
                                       >
                                         <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
                                           <img
@@ -1266,7 +1297,6 @@
                                       <.link
                                         navigate={author_preview.profile_path}
                                         class="font-medium truncate hover:underline"
-                                        phx-click="stop_propagation"
                                       >
                                         {author_preview.label}
                                       </.link>
@@ -1670,6 +1700,15 @@ base_like_count =
   cond do
     is_map(@lemmy_counts) and not is_nil(Map.get(@lemmy_counts, :score)) ->
       Map.get(@lemmy_counts, :score)
+
+    is_map(@post) and is_map(@post["_lemmy"]) and not is_nil(@post["_lemmy"]["score"]) ->
+      @post["_lemmy"]["score"]
+
+    is_map(@post) and not is_nil(@post["like_count"]) ->
+      @post["like_count"]
+
+    is_map(@local_message) and not is_nil(@local_message.like_count) ->
+      @local_message.like_count
 
     is_map(@post) and is_map(@post["_mastodon"]) and
         not is_nil(@post["_mastodon"]["favourites_count"]) ->

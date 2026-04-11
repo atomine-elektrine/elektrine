@@ -1,4 +1,5 @@
 import { scryptAsync } from "@noble/hashes/scrypt"
+import { submitFormPreservingEvents } from "../utils/form_submission"
 
 const WRAP_ALGORITHM = "AES-GCM"
 const VERIFY_TEXT = "elektrine-private-mailbox-v1"
@@ -1192,11 +1193,7 @@ function bindPrivateMailboxPasswordForm(form) {
       cacheLoginPassword(newPassword)
 
       form.dataset.privateMailboxRewrapSubmitting = "true"
-      if (typeof form.requestSubmit === "function") {
-        form.requestSubmit()
-      } else {
-        form.submit()
-      }
+      submitFormPreservingEvents(form)
     } catch (_error) {
       notify(
         "Could not rewrap your private mailbox with the new password. Check your current password and try again."

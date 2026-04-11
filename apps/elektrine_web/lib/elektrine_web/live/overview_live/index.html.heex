@@ -515,10 +515,10 @@
     </div>
 
     <%= if @show_quote_modal && @quote_target_post do %>
-      <div class="modal modal-open p-4" phx-click="close_quote_modal">
+      <div class="modal modal-open p-4">
         <div
           class="modal-box max-w-xl w-full max-h-[90vh] overflow-y-auto"
-          phx-click="stop_propagation"
+          phx-click-away="close_quote_modal"
           phx-window-keydown="close_quote_modal"
           phx-key="Escape"
         >

@@ -52,7 +52,6 @@ import {
   DetailsPreserve,
   ScrollToTop,
   ScrollToBottom,
-  StopPropagation,
   Tilt3D,
   ImageFallback
 } from './ui_hooks'
@@ -176,7 +175,6 @@ export const Hooks = {
   DetailsPreserve,
   ScrollToTop,
   ScrollToBottom,
-  StopPropagation,
   Tilt3D,
   ImageFallback,
 

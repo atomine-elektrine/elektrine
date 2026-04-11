@@ -441,7 +441,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
       case APHelpers.get_or_store_remote_post(target_id) do
         {:ok, message} ->
           user_id = socket.assigns.current_user.id
-          current_state = Map.get(socket.assigns.post_interactions, target_id, @default_state)
+          interaction_key = PostInteractions.interaction_key(target_id, message)
+
+          current_state =
+            Map.get(socket.assigns.post_interactions, interaction_key, @default_state)
+
           current_vote = Map.get(current_state, :vote, nil)
           current_vote_delta = Map.get(current_state, :vote_delta, 0)
           new_vote = if current_vote == vote_type, do: nil, else: vote_type
@@ -460,7 +464,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
           case result do
             {:ok, _} ->
               post_interactions =
-                Map.put(socket.assigns.post_interactions, target_id, %{
+                Map.put(socket.assigns.post_interactions, interaction_key, %{
                   liked: Map.get(current_state, :liked, false),
                   boosted: Map.get(current_state, :boosted, false),
                   like_delta: Map.get(current_state, :like_delta, 0),

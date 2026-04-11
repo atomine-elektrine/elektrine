@@ -106,7 +106,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
               tabindex="0"
               class={@picker_btn_class}
               title="Add reaction"
-              onclick="event.stopPropagation(); this.focus();"
             >
               <.icon name="hero-face-smile" class={@picker_icon_class} />
             </button>
