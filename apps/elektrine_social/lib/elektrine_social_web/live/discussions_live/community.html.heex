@@ -469,7 +469,7 @@
                       <% end %>
                     </div>
                   <% end %>
-                  <%= if length(@poll_options) < 10 do %>
+                  <%= if length(@poll_options) < 4 do %>
                     <button
                       type="button"
                       phx-click="add_poll_option"
@@ -501,6 +501,17 @@
                       <input
                         type="checkbox"
                         name="poll_allow_multiple"
+                        class="checkbox checkbox-error checkbox-sm"
+                      />
+                    </label>
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label cursor-pointer gap-2">
+                      <span class="label-text">Hide totals until closed</span>
+                      <input
+                        type="checkbox"
+                        name="poll_hide_totals"
                         class="checkbox checkbox-error checkbox-sm"
                       />
                     </label>

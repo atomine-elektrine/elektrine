@@ -133,6 +133,64 @@ parse_bool_env = fn env_name, default ->
   end
 end
 
+# Keep Oban concurrency proportional to the DB pool available to the role
+# that actually executes jobs. Web-only nodes run enqueue-only Oban.
+oban_db_pool_size = parse_int_env.("POOL_SIZE", 10)
+
+oban_queue_override = fn env_name, default ->
+  parse_int_env.(env_name, default)
+end
+
+oban_queues =
+  cond do
+    oban_db_pool_size <= 5 ->
+      [
+        default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 1),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 4),
+        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 1),
+        email: oban_queue_override.("OBAN_QUEUE_EMAIL", 1),
+        email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 1),
+        rss: oban_queue_override.("OBAN_QUEUE_RSS", 1),
+        exports: oban_queue_override.("OBAN_QUEUE_EXPORTS", 1),
+        webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 1),
+        federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
+        federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 1),
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 1)
+      ]
+
+    oban_db_pool_size <= 10 ->
+      [
+        default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 2),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 6),
+        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 2),
+        email: oban_queue_override.("OBAN_QUEUE_EMAIL", 1),
+        email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 1),
+        rss: oban_queue_override.("OBAN_QUEUE_RSS", 1),
+        exports: oban_queue_override.("OBAN_QUEUE_EXPORTS", 1),
+        webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 1),
+        federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
+        federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 2)
+      ]
+
+    true ->
+      [
+        default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 3),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 8),
+        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 3),
+        email: oban_queue_override.("OBAN_QUEUE_EMAIL", 2),
+        email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 2),
+        rss: oban_queue_override.("OBAN_QUEUE_RSS", 2),
+        exports: oban_queue_override.("OBAN_QUEUE_EXPORTS", 2),
+        webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 2),
+        federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 2),
+        federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 4)
+      ]
+  end
+
+config :elektrine, Oban, queues: oban_queues
+
 parse_dns_endpoint = fn value ->
   trimmed = String.trim(value)
 

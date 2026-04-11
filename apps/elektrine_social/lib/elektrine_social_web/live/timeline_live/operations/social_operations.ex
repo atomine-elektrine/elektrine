@@ -81,14 +81,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
     if Elektrine.Strings.present?(remote_handle) do
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
-      lv_pid = self()
 
-      Task.start(fn ->
-        case parse_and_fetch_remote_user(remote_handle) do
-          {:ok, actor} -> send(lv_pid, {:remote_user_fetched, actor})
-          {:error, _reason} -> send(lv_pid, {:remote_user_fetch_failed, remote_handle})
-        end
-      end)
+      case parse_and_fetch_remote_user(remote_handle) do
+        {:ok, actor} -> send(self(), {:remote_user_fetched, actor})
+        {:error, _reason} -> send(self(), {:remote_user_fetch_failed, remote_handle})
+      end
 
       {:noreply, socket}
     else

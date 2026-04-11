@@ -38,6 +38,10 @@ defmodule Elektrine.ActivityPub.Handler do
     CreateHandler.handle(%{"object" => post_object}, actor_uri, nil)
   end
 
+  def refresh_remote_post(post_object, actor_uri) do
+    UpdateHandler.handle(%{"object" => post_object}, actor_uri, nil)
+  end
+
   @doc """
   Queues an activity for async processing.
 

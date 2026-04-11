@@ -75,6 +75,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
         {:error, :invalid_option} ->
           {:noreply, notify_error(socket, "Invalid poll option")}
 
+        {:error, :self_vote} ->
+          {:noreply, notify_error(socket, "You cannot vote on your own poll")}
+
         {:error, _} ->
           {:noreply, notify_error(socket, "Failed to vote")}
       end

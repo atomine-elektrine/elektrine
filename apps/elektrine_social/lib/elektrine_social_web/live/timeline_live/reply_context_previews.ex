@@ -1,7 +1,6 @@
 defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
   @moduledoc false
 
-  alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
 
@@ -19,21 +18,19 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
 
   def candidate_refs(_, _), do: []
 
-  def fetch_previews(refs, fetch_fun \\ &Fetcher.fetch_object/1)
-
-  def fetch_previews(refs, fetch_fun) when is_list(refs) do
+  def fetch_previews(refs) when is_list(refs) do
     Enum.reduce(refs, %{}, fn ref, acc ->
-      case preview_for_ref(ref, fetch_fun) do
+      case preview_for_ref(ref) do
         nil -> acc
         preview -> Map.put(acc, ref, preview)
       end
     end)
   end
 
-  def fetch_previews(_, _), do: %{}
+  def fetch_previews(_), do: %{}
 
   def fetch_local_previews(refs) when is_list(refs) do
-    fetch_previews(refs, fn _ref -> {:error, :remote_fetch_disabled} end)
+    fetch_previews(refs)
   end
 
   def fetch_local_previews(_), do: %{}
@@ -72,20 +69,17 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
 
   defp reply_preview_available?(_), do: false
 
-  defp preview_for_ref(ref, fetch_fun) when is_binary(ref) do
+  defp preview_for_ref(ref) when is_binary(ref) do
     case Messaging.get_message_by_activitypub_ref(ref) do
       %Message{} = message ->
         preview_from_message(message)
 
       _ ->
-        case fetch_fun.(ref) do
-          {:ok, object} when is_map(object) -> preview_from_object(object, ref)
-          _ -> nil
-        end
+        nil
     end
   end
 
-  defp preview_for_ref(_, _), do: nil
+  defp preview_for_ref(_), do: nil
 
   defp preview_from_message(%Message{} = message) do
     metadata = message.media_metadata || %{}
@@ -94,16 +88,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
       message.content || metadata["inReplyToContent"] || metadata["in_reply_to_content"],
       metadata["inReplyToAuthor"] || metadata["in_reply_to_author"]
     )
-  end
-
-  defp preview_from_object(object, ref) when is_map(object) do
-    author =
-      object["attributedTo"] ||
-        object["actor"] ||
-        object["attributed_to"] ||
-        extract_author_from_url(ref)
-
-    preview_map(object["content"], normalize_author(author))
   end
 
   defp preview_map(content, author) do

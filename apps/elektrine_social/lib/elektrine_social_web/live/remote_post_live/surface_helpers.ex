@@ -366,9 +366,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
         "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
         "inReplyTo" => Map.get(msg, :parent_activitypub_id),
         "likes" => %{"totalItems" => msg.like_count || 0},
+        "shares" => %{"totalItems" => msg.share_count || 0},
+        "replies" => %{"totalItems" => msg.reply_count || 0},
         "_local" => is_local_reply,
         "_local_user" => local_user,
-        "_local_message_id" => msg.id
+        "_local_message_id" => msg.id,
+        "_local_like_count" => msg.like_count || 0,
+        "_local_share_count" => msg.share_count || 0,
+        "_local_reply_count" => msg.reply_count || 0
       }
     end)
   end

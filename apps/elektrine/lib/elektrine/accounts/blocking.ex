@@ -92,7 +92,7 @@ defmodule Elektrine.Accounts.Blocking do
       case result do
         {:ok, block} ->
           # Federate Block activity
-          Task.start(fn ->
+          Elektrine.Async.start(fn ->
             user = Elektrine.Accounts.get_user!(user_id)
 
             block_activity =
@@ -132,7 +132,7 @@ defmodule Elektrine.Accounts.Blocking do
           case result do
             {:ok, _deleted_block} ->
               # Federate Undo Block activity
-              Task.start(fn ->
+              Elektrine.Async.start(fn ->
                 user = Elektrine.Accounts.get_user!(user_id)
 
                 # Build original Block activity

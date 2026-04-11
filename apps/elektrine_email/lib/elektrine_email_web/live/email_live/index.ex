@@ -252,7 +252,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
 
     # Calculate storage in background if needed
     if storage_info && storage_info.used_bytes == 0 do
-      Task.start(fn -> Elektrine.Accounts.Storage.update_user_storage(user.id) end)
+      Elektrine.Async.start(fn -> Elektrine.Accounts.Storage.update_user_storage(user.id) end)
     end
 
     Events.db_hot_path(

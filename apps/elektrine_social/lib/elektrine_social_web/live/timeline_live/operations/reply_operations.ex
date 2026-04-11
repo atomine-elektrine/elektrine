@@ -129,16 +129,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
             {:ok, _updated_reply} ->
               Social.increment_reply_count(parent_id)
 
-              Task.start(fn ->
-                Elektrine.Accounts.TrustLevel.increment_stat(user.id, :replies_created)
+              Elektrine.Accounts.TrustLevel.increment_stat(user.id, :replies_created)
 
-                if parent && !parent.federated && parent.sender_id && parent.sender_id != user.id do
-                  Elektrine.Accounts.TrustLevel.increment_stat(
-                    parent.sender_id,
-                    :replies_received
-                  )
-                end
-              end)
+              if parent && !parent.federated && parent.sender_id && parent.sender_id != user.id do
+                Elektrine.Accounts.TrustLevel.increment_stat(parent.sender_id, :replies_received)
+              end
 
               root_post_id = resolve_root_post_id(parent_id, socket)
 

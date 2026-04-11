@@ -9,6 +9,15 @@ const AUTO_AWAY_TIMEOUT = 5 * 60 * 1000;
 // Activity report throttle (only report activity every 30 seconds)
 const ACTIVITY_THROTTLE = 30 * 1000;
 
+function isHookConnected(hook) {
+  return Boolean(hook?.liveSocket?.isConnected?.() && hook?.el?.isConnected);
+}
+
+function safePushEvent(hook, event, payload) {
+  if (!isHookConnected(hook)) return Promise.resolve(null);
+  return Promise.resolve(hook.pushEvent(event, payload)).catch(() => null);
+}
+
 /**
  * ActivityTracker - Tracks user activity for auto-away detection
  * 
@@ -77,7 +86,7 @@ export const ActivityTracker = {
     // If user was auto-away, clear it
     if (this.isAway) {
       this.isAway = false;
-      this.pushEvent("user_activity", { clear_away: true });
+      void safePushEvent(this, "user_activity", { clear_away: true });
       this.lastActivityReport = now;
       return;
     }
@@ -85,7 +94,7 @@ export const ActivityTracker = {
     // Throttle activity reports to reduce server load
     if (now - this.lastActivityReport >= ACTIVITY_THROTTLE) {
       this.lastActivityReport = now;
-      this.pushEvent("user_activity", { timestamp: now });
+      void safePushEvent(this, "user_activity", { timestamp: now });
     }
   },
   
@@ -107,7 +116,7 @@ export const ActivityTracker = {
       // User has been inactive - notify server to set auto-away
       if (!this.isAway) {
         this.isAway = true;
-        this.pushEvent("auto_away_timeout", {});
+        void safePushEvent(this, "auto_away_timeout", {});
       }
     }, AUTO_AWAY_TIMEOUT);
   }
@@ -126,12 +135,12 @@ export const DeviceDetector = {
     const deviceInfo = this.detectDevice();
     
     // Report device info to server
-    this.pushEvent("device_detected", deviceInfo);
+    void safePushEvent(this, "device_detected", deviceInfo);
     
     // Listen for connection changes
     if (navigator.connection) {
       this.connectionHandler = () => {
-        this.pushEvent("connection_changed", {
+        void safePushEvent(this, "connection_changed", {
           type: navigator.connection.effectiveType,
           downlink: navigator.connection.downlink
         });

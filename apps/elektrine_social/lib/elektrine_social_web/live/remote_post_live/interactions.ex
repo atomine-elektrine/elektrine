@@ -222,6 +222,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
               updated_socket =
                 socket
                 |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                |> maybe_run_share_delta(opts, message_id, 1)
                 |> maybe_run_refresh(opts, fresh_message)
                 |> Phoenix.LiveView.put_flash(:info, "Post boosted to your timeline!")
 
@@ -317,6 +318,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
               updated_socket =
                 socket
                 |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                |> maybe_run_share_delta(opts, message_id, -1)
                 |> maybe_run_refresh(opts, fresh_message)
 
               {:noreply, updated_socket}

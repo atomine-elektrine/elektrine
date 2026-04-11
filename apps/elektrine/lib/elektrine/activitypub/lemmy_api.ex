@@ -221,6 +221,59 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_top_comments(_, _), do: []
 
   @doc """
+  Fetch all available comments for a Lemmy post with content and parent refs.
+  Returns a list of ActivityPub-like comment maps suitable for local storage.
+  """
+  def fetch_post_comments(post_url, limit \\ 100)
+
+  def fetch_post_comments(post_url, limit) when is_binary(post_url) do
+    case resolve_post_reference(post_url) do
+      {:ok, domain, post_id} ->
+        api_url =
+          "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{limit}&max_depth=10"
+
+        headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
+
+        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
+          {:ok, %Finch.Response{status: 200, body: body}} ->
+            case Jason.decode(body) do
+              {:ok, %{"comments" => comments}} when is_list(comments) ->
+                comment_id_to_ap =
+                  comments
+                  |> Enum.reduce(%{}, fn comment_view, acc ->
+                    comment = comment_view["comment"] || %{}
+
+                    case {comment["id"], comment["ap_id"]} do
+                      {id, ap_id} when is_integer(id) and is_binary(ap_id) ->
+                        Map.put(acc, Integer.to_string(id), ap_id)
+
+                      {id, ap_id} when is_binary(id) and is_binary(ap_id) ->
+                        Map.put(acc, id, ap_id)
+
+                      _ ->
+                        acc
+                    end
+                  end)
+
+                Enum.map(comments, &lemmy_comment_to_ap(&1, comment_id_to_ap, post_url))
+                |> Enum.reject(&is_nil/1)
+
+              _ ->
+                []
+            end
+
+          _ ->
+            []
+        end
+
+      :error ->
+        []
+    end
+  end
+
+  def fetch_post_comments(_, _), do: []
+
+  @doc """
   Fetch top comments for multiple Lemmy posts in parallel.
   Returns a map of activitypub_id => [comments]
   """
@@ -252,6 +305,54 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   end
 
   defp extract_domain(url), do: Elektrine.TextHelpers.extract_domain_from_url(url)
+
+  defp lemmy_comment_to_ap(comment_view, comment_id_to_ap, post_url) when is_map(comment_view) do
+    comment = comment_view["comment"] || %{}
+    creator = comment_view["creator"] || %{}
+    counts = comment_view["counts"] || %{}
+
+    ap_id = comment["ap_id"]
+    actor_id = creator["actor_id"]
+
+    if is_binary(ap_id) && is_binary(actor_id) do
+      %{
+        "id" => ap_id,
+        "type" => "Note",
+        "content" => comment["content"] || "",
+        "published" => comment["published"],
+        "attributedTo" => actor_id,
+        "inReplyTo" => parse_lemmy_parent_ref(comment, comment_id_to_ap, post_url),
+        "likes" => %{"totalItems" => counts["score"] || 0},
+        "replies" => %{"totalItems" => counts["child_count"] || 0},
+        "shares" => %{"totalItems" => 0},
+        "sensitive" => false
+      }
+    end
+  end
+
+  defp lemmy_comment_to_ap(_, _, _), do: nil
+
+  defp parse_lemmy_parent_ref(comment, comment_id_to_ap, post_url) when is_map(comment) do
+    path = comment["path"]
+
+    case path do
+      value when is_binary(value) ->
+        segments = String.split(value, ".")
+
+        case Enum.reverse(segments) do
+          [_self, parent_id | _] when is_binary(parent_id) and parent_id != "" ->
+            Map.get(comment_id_to_ap, parent_id, post_url)
+
+          _ ->
+            post_url
+        end
+
+      _ ->
+        post_url
+    end
+  end
+
+  defp parse_lemmy_parent_ref(_, _, post_url), do: post_url
 
   # Check if a post is from a Lemmy-compatible community platform.
   defp lemmy_post?(post) do

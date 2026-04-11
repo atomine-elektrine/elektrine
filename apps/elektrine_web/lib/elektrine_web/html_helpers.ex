@@ -576,6 +576,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> render_markdown_images()
     |> strip_mastodon_link_spans()
     |> rewrite_hashtag_links_to_local()
+    |> linkify_plain_text_hashtags()
     |> rewrite_mention_links_to_local(instance_domain)
     |> linkify_plain_text_urls()
     |> add_link_styles()
@@ -770,6 +771,29 @@ defmodule ElektrineWeb.HtmlHelpers do
   def rewrite_hashtag_links_to_local(content) do
     content
   end
+
+  defp linkify_plain_text_hashtags(html) when is_binary(html) do
+    html
+    |> String.split(~r/(<a\s[^>]*>.*?<\/a>|<img\s[^>]*\/?>|<[^>]+>)/s, include_captures: true)
+    |> Enum.map(fn segment ->
+      if String.starts_with?(segment, "<") do
+        segment
+      else
+        Regex.replace(
+          ~r/(^|[^\w\/])#([\p{L}\p{N}_][\p{L}\p{N}_-]*)/u,
+          segment,
+          fn _full, prefix, hashtag ->
+            href = "/hashtag/#{String.downcase(hashtag)}"
+
+            "#{prefix}<a href=\"#{href}\" class=\"text-primary hover:underline font-medium\">##{hashtag}</a>"
+          end
+        )
+      end
+    end)
+    |> Enum.map_join("", & &1)
+  end
+
+  defp linkify_plain_text_hashtags(content), do: content
 
   defp rewrite_mention_hrefs(html) do
     Regex.replace(

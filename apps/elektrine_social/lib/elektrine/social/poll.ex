@@ -9,11 +9,13 @@ defmodule Elektrine.Social.Poll do
     field(:question, :string)
     field(:closes_at, :utc_datetime)
     field(:allow_multiple, :boolean, default: false)
+    field(:hide_totals, :boolean, default: false)
     field(:total_votes, :integer, default: 0)
     # Unique voters count (for polls where users can vote on multiple options)
     field(:voters_count, :integer, default: 0)
     # Track voter actor URIs for federated polls (like Akkoma's "voters" array)
     field(:voter_uris, {:array, :string}, default: [])
+    field(:last_fetched_at, :utc_datetime)
 
     belongs_to(:message, Elektrine.Messaging.Message)
     has_many(:options, Elektrine.Social.PollOption, foreign_key: :poll_id)
@@ -30,9 +32,11 @@ defmodule Elektrine.Social.Poll do
       :question,
       :closes_at,
       :allow_multiple,
+      :hide_totals,
       :total_votes,
       :voters_count,
-      :voter_uris
+      :voter_uris,
+      :last_fetched_at
     ])
     |> validate_required([:message_id, :question])
     |> validate_length(:question, min: 3, max: 300)
@@ -93,4 +97,18 @@ defmodule Elektrine.Social.Poll do
   Checks if the poll has closed.
   """
   def closed?(poll), do: !open?(poll)
+
+  def possibly_stale?(%{last_fetched_at: last_fetched_at, closes_at: closes_at}) do
+    expires_after_last_fetch? =
+      is_nil(closes_at) || is_nil(last_fetched_at) ||
+        DateTime.compare(last_fetched_at, closes_at) == :lt
+
+    stale_fetch? =
+      is_nil(last_fetched_at) ||
+        DateTime.compare(last_fetched_at, DateTime.add(DateTime.utc_now(), -60, :second)) == :lt
+
+    expires_after_last_fetch? && stale_fetch?
+  end
+
+  def possibly_stale?(_poll), do: true
 end

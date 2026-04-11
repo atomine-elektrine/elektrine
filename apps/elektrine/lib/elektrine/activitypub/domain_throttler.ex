@@ -12,8 +12,9 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
   use GenServer
   require Logger
 
-  # Max concurrent jobs per domain (reduced for performance)
-  @max_concurrent_per_domain 2
+  # Max concurrent jobs per domain. Keep this high enough that large instances
+  # like lemmy.world don't stall thread hydration behind reaction traffic.
+  @max_concurrent_per_domain 4
   # Base delay for exponential backoff (2 seconds)
   @base_backoff_ms 2_000
   # Max backoff delay (2 minutes)

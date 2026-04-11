@@ -569,6 +569,43 @@ defmodule Elektrine.AppCache do
     delete_with_telemetry({:pending_friend_requests, user_id})
   end
 
+  @doc """
+  Caches remote user/community count snapshots for profile pages.
+  """
+  def get_remote_user_counts(actor_id, fetch_fn) do
+    key = {:remote_user_counts, actor_id}
+
+    case fetch_with_telemetry(key, fn _key ->
+           {:commit, fetch_fn.(), ttl: @contact_ttl}
+         end) do
+      {:commit, value} -> {:ok, value}
+      {:commit, value, _opts} -> {:ok, value}
+      {:ok, value} -> {:ok, value}
+      error -> error
+    end
+  end
+
+  def put_remote_user_counts(actor_id, counts) do
+    put_with_telemetry({:remote_user_counts, actor_id}, counts, ttl: @contact_ttl)
+  end
+
+  def get_remote_user_community_stats(actor_id, fetch_fn) do
+    key = {:remote_user_community_stats, actor_id}
+
+    case fetch_with_telemetry(key, fn _key ->
+           {:commit, fetch_fn.(), ttl: @contact_ttl}
+         end) do
+      {:commit, value} -> {:ok, value}
+      {:commit, value, _opts} -> {:ok, value}
+      {:ok, value} -> {:ok, value}
+      error -> error
+    end
+  end
+
+  def put_remote_user_community_stats(actor_id, stats) do
+    put_with_telemetry({:remote_user_community_stats, actor_id}, stats, ttl: @contact_ttl)
+  end
+
   # Cache invalidation functions
 
   @doc """

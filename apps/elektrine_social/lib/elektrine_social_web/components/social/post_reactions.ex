@@ -7,7 +7,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
 
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
-  import ElektrineWeb.HtmlHelpers, only: [render_custom_emojis: 1]
+  import ElektrineWeb.HtmlHelpers, only: [render_custom_emojis: 2]
 
   @default_emojis ["👍", "❤️", "😂", "🔥", "😮", "😢"]
 
@@ -55,7 +55,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
           emoji: emoji,
           count: length(reactions),
           user_reacted: user_reacted,
-          usernames: usernames
+          usernames: usernames,
+          instance_domain: reaction_instance_domain(reactions, assigns.actor_uri)
         }
       end)
       |> Enum.sort_by(& &1.count, :desc)
@@ -93,7 +94,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
             type="button"
             data-tip={tooltip}
           >
-            <span>{raw(render_custom_emojis(reaction.emoji))}</span>
+            <span>{raw(render_custom_emojis(reaction.emoji, reaction.instance_domain))}</span>
             <span class={@text_class}>{reaction.count}</span>
           </button>
         <% end %>
@@ -163,4 +164,31 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
   end
 
   defp actor_uri_attr(_), do: []
+
+  defp reaction_instance_domain(reactions, actor_uri) when is_list(reactions) do
+    Enum.find_value(reactions, actor_uri_domain(actor_uri), fn reaction ->
+      cond do
+        reaction.remote_actor && is_binary(reaction.remote_actor.domain) &&
+            reaction.remote_actor.domain != "" ->
+          reaction.remote_actor.domain
+
+        is_binary(actor_uri_domain(actor_uri)) ->
+          actor_uri_domain(actor_uri)
+
+        true ->
+          nil
+      end
+    end)
+  end
+
+  defp reaction_instance_domain(_, actor_uri), do: actor_uri_domain(actor_uri)
+
+  defp actor_uri_domain(actor_uri) when is_binary(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> nil
+    end
+  end
+
+  defp actor_uri_domain(_), do: nil
 end

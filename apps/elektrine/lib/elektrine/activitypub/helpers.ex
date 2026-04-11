@@ -399,7 +399,7 @@ defmodule Elektrine.ActivityPub.Helpers do
         case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
           {:ok, post_object} ->
             preferred_actor_uri =
-              actor_uri || post_object["actor"] || post_object["attributedTo"]
+              extracted_object_actor_uri(post_object) || actor_uri
 
             store_or_resolve_remote_post(post_object, preferred_actor_uri)
 
@@ -411,6 +411,12 @@ defmodule Elektrine.ActivityPub.Helpers do
         {:ok, message}
     end
   end
+
+  defp extracted_object_actor_uri(%{} = post_object) do
+    post_object["attributedTo"] || post_object["actor"]
+  end
+
+  defp extracted_object_actor_uri(_), do: nil
 
   defp cached_remote_post(activitypub_id) when is_binary(activitypub_id) do
     Elektrine.Messaging.get_message_by_activitypub_ref(activitypub_id)

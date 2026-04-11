@@ -148,13 +148,45 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                       reply_content = Map.get(reply, :content) || ""
                       reply_preview = PostUtilities.plain_text_content(reply_content)
 
+                      reply_click =
+                        cond do
+                          is_integer(Map.get(reply, :id)) ->
+                            %{event: "navigate_to_post", id: Map.get(reply, :id), post_id: nil}
+
+                          is_binary(Map.get(reply, :activitypub_id)) &&
+                              Map.get(reply, :activitypub_id) != "" ->
+                            %{
+                              event: "navigate_to_remote_post",
+                              id: nil,
+                              post_id: Map.get(reply, :activitypub_id)
+                            }
+
+                          is_binary(Map.get(reply, :ap_id)) && Map.get(reply, :ap_id) != "" ->
+                            %{
+                              event: "navigate_to_remote_post",
+                              id: nil,
+                              post_id: Map.get(reply, :ap_id)
+                            }
+
+                          true ->
+                            nil
+                        end
+
                       reply_preview =
                         if String.length(reply_preview) > 150 do
                           String.slice(reply_preview, 0, 150) <> "..."
                         else
                           reply_preview
                         end %>
-                      <div class="timeline-thread-preview-item text-sm">
+                      <div
+                        class={[
+                          "timeline-thread-preview-item text-sm rounded-lg px-2 py-1.5 transition-colors",
+                          reply_click && "cursor-pointer hover:bg-base-200/70"
+                        ]}
+                        phx-click={reply_click && reply_click.event}
+                        phx-value-id={reply_click && reply_click.id}
+                        phx-value-post_id={reply_click && reply_click.post_id}
+                      >
                         <div class="flex items-center gap-2 mb-1">
                           <%= if has_sender do %>
                             <.username_with_effects

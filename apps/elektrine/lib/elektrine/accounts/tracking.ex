@@ -87,7 +87,7 @@ defmodule Elektrine.Accounts.Tracking do
   Delegates to update_last_seen/1 in a background task.
   """
   def update_last_seen_async(user_id) do
-    Task.start(fn -> update_last_seen(user_id) end)
+    update_last_seen(user_id)
     :ok
   end
 

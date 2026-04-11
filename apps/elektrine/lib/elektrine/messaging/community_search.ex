@@ -99,10 +99,6 @@ defmodule Elektrine.Messaging.CommunitySearch do
         case ActivityPub.get_or_fetch_actor(actor_uri) do
           {:ok, actor} ->
             if actor.actor_type == "Group" do
-              # Check if we already have a mirror
-              existing_mirror =
-                Elektrine.Messaging.FederatedCommunities.get_mirror_by_remote_actor(actor.id)
-
               [
                 %{
                   type: :remote,
@@ -110,8 +106,8 @@ defmodule Elektrine.Messaging.CommunitySearch do
                   name: extract_group_name(actor),
                   description: actor.summary && HtmlSanitizeEx.strip_tags(actor.summary),
                   member_count: extract_follower_count(actor),
-                  is_federated_mirror: !is_nil(existing_mirror),
-                  mirror_community: existing_mirror
+                  is_federated_mirror: false,
+                  mirror_community: nil
                 }
               ]
             else
@@ -130,16 +126,13 @@ defmodule Elektrine.Messaging.CommunitySearch do
   end
 
   @doc """
-  Follows a remote Group actor by creating a local mirror and sending Follow activity.
+  Follows a remote Group actor directly without creating a local mirror.
   """
   def follow_remote_group(user_id, group_actor_id) do
     with group_actor <- Repo.get(ActivityPub.Actor, group_actor_id),
          true <- group_actor && group_actor.actor_type == "Group",
-         {:ok, mirror} <-
-           Elektrine.Messaging.FederatedCommunities.create_or_get_mirror_community(group_actor),
-         {:ok, _member} <- ensure_user_in_mirror(mirror.id, user_id) do
-      maybe_follow_remote_group(user_id, group_actor_id)
-      {:ok, mirror}
+         {:ok, _follow} <- maybe_follow_remote_group(user_id, group_actor_id) do
+      {:ok, group_actor}
     else
       false -> {:error, :not_a_group}
       nil -> {:error, :actor_not_found}
@@ -168,8 +161,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
             MapSet.member?(member_community_ids, result.community.id)
 
           :remote ->
-            result.is_federated_mirror && result.mirror_community &&
-              MapSet.member?(member_community_ids, result.mirror_community.id)
+            false
         end
 
       Map.put(result, :is_member, is_member)
@@ -185,19 +177,6 @@ defmodule Elektrine.Messaging.CommunitySearch do
   defp extract_follower_count(actor) do
     # Try to get follower count from metadata
     get_in(actor.metadata, ["followers", "totalItems"]) || 0
-  end
-
-  defp ensure_user_in_mirror(mirror_id, user_id) do
-    case Elektrine.Messaging.join_conversation(mirror_id, user_id) do
-      {:ok, _member} = ok ->
-        ok
-
-      {:error, :already_member} ->
-        {:ok, :already_member}
-
-      error ->
-        error
-    end
   end
 
   defp maybe_follow_remote_group(user_id, group_actor_id) do

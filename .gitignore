@@ -100,3 +100,4 @@ npm-debug.log*
 _deploy_release
 /certs/
 /generated.mongooseim.toml
+_build_opencode/

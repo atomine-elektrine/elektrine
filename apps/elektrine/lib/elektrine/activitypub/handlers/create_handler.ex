@@ -549,19 +549,6 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
          reply_to_id,
          mentioned_local_users
        ) do
-    # Link to mirror community if from Group
-    if remote_actor.actor_type == "Group" do
-      Async.run(fn ->
-        case Messaging.FederatedCommunities.create_or_get_mirror_community(remote_actor) do
-          {:ok, _mirror} ->
-            Messaging.FederatedCommunities.link_message_to_mirror(message.id, remote_actor.id)
-
-          {:error, reason} ->
-            Logger.warning("Failed to link to mirror community: #{inspect(reason)}")
-        end
-      end)
-    end
-
     # Link hashtags
     if hashtags != [] do
       Async.run(fn -> link_hashtags_to_message(message.id, hashtags) end)
@@ -581,6 +568,10 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           remote_actor.id
         )
       end)
+    else
+      # If this is a reply but we don't have the parent locally yet, store the parent
+      # so thread previews and conversation pages can render real ancestor content.
+      Async.start(fn -> maybe_store_missing_reply_parent(message, remote_actor) end)
     end
 
     # Notify mentions
@@ -602,6 +593,53 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       {:new_public_post, reloaded_message}
     )
   end
+
+  defp maybe_store_missing_reply_parent(message, remote_actor) do
+    metadata = Map.get(message, :media_metadata) || %{}
+
+    in_reply_to_ref =
+      metadata["inReplyTo"] ||
+        metadata[:inReplyTo] ||
+        metadata["in_reply_to"] ||
+        metadata[:in_reply_to]
+
+    normalized_ref = normalize_uri(in_reply_to_ref)
+
+    cond do
+      !is_binary(normalized_ref) or normalized_ref == "" ->
+        :ok
+
+      message.reply_to_id ->
+        :ok
+
+      Messaging.get_message_by_activitypub_ref(normalized_ref) ->
+        :ok
+
+      true ->
+        case Helpers.get_or_store_remote_post(normalized_ref, remote_actor && remote_actor.uri) do
+          {:ok, parent_message} when is_map(parent_message) ->
+            maybe_link_orphan_reply_to_parent(message, parent_message)
+
+          _ ->
+            :ok
+        end
+
+        :ok
+    end
+  end
+
+  defp maybe_link_orphan_reply_to_parent(message, parent_message)
+       when is_map(message) and is_map(parent_message) do
+    if is_nil(message.reply_to_id) do
+      message
+      |> Ecto.Changeset.change(reply_to_id: parent_message.id)
+      |> Elektrine.Repo.update()
+    else
+      :ok
+    end
+  end
+
+  defp maybe_link_orphan_reply_to_parent(_, _), do: :ok
 
   defp build_poll_metadata(alt_texts, object, opts) do
     base = if map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}
@@ -1230,7 +1268,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       total_votes: voters_count,
       voters_count: voters_count,
       closes_at: end_time,
-      allow_multiple: !is_nil(object["anyOf"])
+      allow_multiple: !is_nil(object["anyOf"]),
+      hide_totals: false,
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
     }
   end
 
@@ -1425,13 +1465,12 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp mention_handle?(_), do: false
 
   defp determine_visibility(object) do
-    to = object["to"] || []
-    cc = object["cc"] || []
-    public_address = "https://www.w3.org/ns/activitystreams#Public"
+    to = List.wrap(object["to"])
+    cc = List.wrap(object["cc"])
 
     cond do
-      public_address in to -> "public"
-      public_address in cc -> "unlisted"
+      Enum.any?(to, &MapSet.member?(@public_audience_uris, &1)) -> "public"
+      Enum.any?(cc, &MapSet.member?(@public_audience_uris, &1)) -> "unlisted"
       true -> "followers"
     end
   end

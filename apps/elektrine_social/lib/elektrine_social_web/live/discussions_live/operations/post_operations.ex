@@ -638,18 +638,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
               end)
 
             # Track trust level activity - discussion replies
-            Task.start(fn ->
-              # Track reply creation for the person replying
-              Elektrine.Accounts.TrustLevel.increment_stat(user_id, :replies_created)
+            Elektrine.Accounts.TrustLevel.increment_stat(user_id, :replies_created)
 
-              # Track reply received for the person being replied to
-              if parent_post.sender_id != user_id do
-                Elektrine.Accounts.TrustLevel.increment_stat(
-                  parent_post.sender_id,
-                  :replies_received
-                )
-              end
-            end)
+            if parent_post.sender_id != user_id do
+              Elektrine.Accounts.TrustLevel.increment_stat(
+                parent_post.sender_id,
+                :replies_received
+              )
+            end
 
             {:noreply,
              socket
@@ -893,6 +889,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                 # Create poll
                 poll_duration_days = String.to_integer(params["poll_duration_days"] || "7")
                 allow_multiple = params["poll_allow_multiple"] == "on"
+                hide_totals = params["poll_hide_totals"] == "on"
 
                 closes_at =
                   if poll_duration_days > 0 do
@@ -906,7 +903,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
                        poll_question,
                        poll_options,
                        closes_at: closes_at,
-                       allow_multiple: allow_multiple
+                       allow_multiple: allow_multiple,
+                       hide_totals: hide_totals
                      ) do
                   {:ok, _poll} ->
                     complete_post_creation(updated_message, "", socket)

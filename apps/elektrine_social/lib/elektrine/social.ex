@@ -1660,7 +1660,9 @@ defmodule Elektrine.Social do
     from(c in Conversation,
       left_join: m in Message,
       on: m.conversation_id == c.id and m.inserted_at > ^week_ago,
-      where: c.type == "community" and c.is_public == true,
+      where:
+        c.type == "community" and c.is_public == true and
+          (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
       group_by: [c.id, c.name, c.description, c.member_count, c.community_category],
       order_by: [desc: count(m.id), desc: c.member_count],
       limit: ^limit,
@@ -2218,18 +2220,33 @@ defmodule Elektrine.Social do
   def create_poll(message_id, question, options, opts \\ []) do
     closes_at = Keyword.get(opts, :closes_at)
     allow_multiple = Keyword.get(opts, :allow_multiple, false)
+    hide_totals = Keyword.get(opts, :hide_totals, false)
+    options = normalize_poll_options(options)
 
-    if length(options) < 2 do
-      {:error, "Poll must have at least 2 options"}
-    else
+    with :ok <- validate_poll_options(options),
+         :ok <- validate_poll_expiration(closes_at) do
       Repo.transaction(fn ->
-        create_poll_transaction(message_id, question, closes_at, allow_multiple, options)
+        create_poll_transaction(
+          message_id,
+          question,
+          closes_at,
+          allow_multiple,
+          hide_totals,
+          options
+        )
       end)
     end
   end
 
-  defp create_poll_transaction(message_id, question, closes_at, allow_multiple, options) do
-    case insert_poll(message_id, question, closes_at, allow_multiple) do
+  defp create_poll_transaction(
+         message_id,
+         question,
+         closes_at,
+         allow_multiple,
+         hide_totals,
+         options
+       ) do
+    case insert_poll(message_id, question, closes_at, allow_multiple, hide_totals) do
       {:ok, poll} ->
         poll_options = insert_poll_options(poll.id, options)
         %{poll | options: poll_options}
@@ -2239,12 +2256,13 @@ defmodule Elektrine.Social do
     end
   end
 
-  defp insert_poll(message_id, question, closes_at, allow_multiple) do
+  defp insert_poll(message_id, question, closes_at, allow_multiple, hide_totals) do
     poll_attrs = %{
       message_id: message_id,
       question: question,
       closes_at: closes_at,
-      allow_multiple: allow_multiple
+      allow_multiple: allow_multiple,
+      hide_totals: hide_totals
     }
 
     %Poll{}
@@ -2271,16 +2289,17 @@ defmodule Elektrine.Social do
   def vote_on_poll(poll_id, option_id, user_id) do
     poll = Repo.get!(Poll, poll_id) |> Repo.preload([:options, :message])
 
-    with :ok <- validate_poll_vote_target(poll, option_id) do
+    with :ok <- validate_poll_vote_target(poll, option_id, user_id) do
       existing_votes = list_poll_votes_for_user(poll_id, user_id)
       result = apply_poll_vote(poll, poll_id, option_id, user_id, existing_votes)
       finalize_poll_vote_result(result, poll, option_id, user_id)
     end
   end
 
-  defp validate_poll_vote_target(poll, option_id) do
+  defp validate_poll_vote_target(poll, option_id, user_id) do
     cond do
       Poll.closed?(poll) -> {:error, :poll_closed}
+      poll.message && poll.message.sender_id == user_id -> {:error, :self_vote}
       not Enum.any?(poll.options, &(&1.id == option_id)) -> {:error, :invalid_option}
       true -> :ok
     end
@@ -2455,8 +2474,15 @@ defmodule Elektrine.Social do
       )
       |> Repo.one()
 
+    voters_count =
+      from(v in PollVote,
+        where: v.poll_id == ^poll_id,
+        select: count(fragment("distinct ?", v.user_id))
+      )
+      |> Repo.one()
+
     from(p in Poll, where: p.id == ^poll_id)
-    |> Repo.update_all(set: [total_votes: total_votes])
+    |> Repo.update_all(set: [total_votes: total_votes, voters_count: voters_count])
 
     # Broadcast poll update
     Phoenix.PubSub.broadcast(
@@ -2465,6 +2491,48 @@ defmodule Elektrine.Social do
       {:poll_updated, poll_id}
     )
   end
+
+  defp normalize_poll_options(options) when is_list(options) do
+    options
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp normalize_poll_options(_), do: []
+
+  defp validate_poll_options(options) do
+    cond do
+      length(options) < 2 ->
+        {:error, "Poll must have at least 2 options"}
+
+      length(options) > 4 ->
+        {:error, "Poll can have at most 4 options"}
+
+      Enum.any?(options, &(String.length(&1) > 50)) ->
+        {:error, "Poll options must be at most 50 characters"}
+
+      Enum.uniq_by(options, &String.downcase/1) |> length() != length(options) ->
+        {:error, "Poll options must be unique"}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_poll_expiration(nil), do: :ok
+
+  defp validate_poll_expiration(%DateTime{} = closes_at) do
+    seconds_until_close = DateTime.diff(closes_at, DateTime.utc_now(), :second)
+
+    cond do
+      seconds_until_close < 300 -> {:error, "Poll duration must be at least 5 minutes"}
+      seconds_until_close > 31 * 24 * 60 * 60 -> {:error, "Poll duration must be at most 1 month"}
+      true -> :ok
+    end
+  end
+
+  defp validate_poll_expiration(_), do: {:error, "Invalid poll expiration"}
 
   # NOTE: Post View Tracking functions are now in Elektrine.Social.Views
   # These are delegated at the top of this module.

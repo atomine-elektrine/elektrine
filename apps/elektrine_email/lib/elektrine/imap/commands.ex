@@ -1043,7 +1043,7 @@ defmodule Elektrine.IMAP.Commands do
               {_time_us, {:ok, message}} ->
                 if message.has_attachments && message.attachments &&
                      map_size(message.attachments) > 0 do
-                  Task.start(fn ->
+                  Elektrine.Async.start(fn ->
                     Elektrine.Jobs.AttachmentUploader.upload_message_attachments(message.id)
                   end)
                 end

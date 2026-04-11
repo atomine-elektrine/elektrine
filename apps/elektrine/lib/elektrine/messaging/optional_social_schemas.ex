@@ -25,9 +25,11 @@ defmodule Elektrine.Messaging.OptionalSocialSchemas.Poll do
     field :question, :string
     field :closes_at, :utc_datetime
     field :allow_multiple, :boolean, default: false
+    field :hide_totals, :boolean, default: false
     field :total_votes, :integer, default: 0
     field :voters_count, :integer, default: 0
     field :voter_uris, {:array, :string}, default: []
+    field :last_fetched_at, :utc_datetime
 
     belongs_to :message, Elektrine.Messaging.Message
     has_many :options, Elektrine.Messaging.OptionalSocialSchemas.PollOption, foreign_key: :poll_id

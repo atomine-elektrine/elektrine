@@ -51,6 +51,15 @@ function takeQueuedDwellPayload(postId) {
   return payload
 }
 
+function isHookConnected(hook) {
+  return Boolean(hook?.liveSocket?.isConnected?.() && hook?.el?.isConnected)
+}
+
+function safePushEvent(hook, event, payload) {
+  if (!isHookConnected(hook)) return Promise.resolve(null)
+  return Promise.resolve(hook.pushEvent(event, payload)).catch(() => null)
+}
+
 const REMOTE_FOLLOW_BUTTON_CLASSES = [
   'btn-ghost',
   'btn-secondary',
@@ -209,7 +218,7 @@ export const PostClick = {
     if (dwellTimeBuffer.size === 0) return
     const data = Array.from(dwellTimeBuffer.values())
     dwellTimeBuffer.clear()
-    try { this.pushEvent('record_dwell_times', { views: data }) } catch (e) {}
+    void safePushEvent(this, 'record_dwell_times', { views: data })
   },
 
   sendDwellData() {
@@ -222,18 +231,16 @@ export const PostClick = {
 
     if (directPayload) this.lastReportedDwellTime = this.totalDwellTime
 
-    try { this.pushEvent('record_dwell_time', payload) } catch (e) {}
+    void safePushEvent(this, 'record_dwell_time', payload)
   },
 
   recordScrollPast() {
     if (this.postId) {
-      try {
-        this.pushEvent('record_dismissal', {
-          post_id: this.postId,
-          type: 'scrolled_past',
-          dwell_time_ms: this.totalDwellTime
-        })
-      } catch (e) {}
+      void safePushEvent(this, 'record_dismissal', {
+        post_id: this.postId,
+        type: 'scrolled_past',
+        dwell_time_ms: this.totalDwellTime
+      })
     }
   }
 }
@@ -660,7 +667,7 @@ export const DwellTimeTracker = {
     if (dwellTimeBuffer.size === 0) return
     const data = Array.from(dwellTimeBuffer.values())
     dwellTimeBuffer.clear()
-    try { this.pushEvent('record_dwell_times', { views: data }) } catch (e) {}
+    void safePushEvent(this, 'record_dwell_times', { views: data })
   },
 
   sendDwellData() {
@@ -673,17 +680,15 @@ export const DwellTimeTracker = {
 
     if (directPayload) this.lastReportedDwellTime = this.totalDwellTime
 
-    try { this.pushEvent('record_dwell_time', payload) } catch (e) {}
+    void safePushEvent(this, 'record_dwell_time', payload)
   },
 
   recordScrollPast() {
-    try {
-      this.pushEvent('record_dismissal', {
-        post_id: this.postId,
-        type: 'scrolled_past',
-        dwell_time_ms: this.totalDwellTime
-      })
-    } catch (e) {}
+    void safePushEvent(this, 'record_dismissal', {
+      post_id: this.postId,
+      type: 'scrolled_past',
+      dwell_time_ms: this.totalDwellTime
+    })
   }
 }
 

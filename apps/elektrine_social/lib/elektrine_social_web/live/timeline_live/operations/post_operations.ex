@@ -265,13 +265,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       case Social.create_timeline_post(user.id, content, post_opts) do
         {:ok, real_post} ->
           if socket.assigns[:editing_draft_id] do
-            Task.start(fn -> Drafts.delete_draft(socket.assigns.editing_draft_id, user.id) end)
+            Drafts.delete_draft(socket.assigns.editing_draft_id, user.id)
           end
 
-          Task.start(fn ->
-            Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
-            Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
-          end)
+          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
+          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
 
           {:noreply,
            socket
@@ -563,10 +561,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
     case Drafts.publish_draft(draft_id, user.id) do
       {:ok, published_post} ->
-        Task.start(fn ->
-          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
-          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
-        end)
+        Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
+        Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
 
         {:noreply,
          socket
@@ -918,7 +914,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> assign(:post_replies, merged_post_replies)
     |> assign(:timeline_posts, updated_timeline_posts)
     |> Helpers.apply_timeline_filter()
-    |> maybe_queue_remote_data_fetch(more_posts)
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
     |> maybe_schedule_reply_ingestion_jobs(more_posts)
@@ -926,18 +921,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   defp special_timeline_view?(view) do
     view in ["communities", "replies", "friends", "my_posts", "trusted"]
-  end
-
-  defp timeline_remote_enrichment_enabled? do
-    Application.get_env(:elektrine, :timeline_remote_enrichment, false)
-  end
-
-  defp maybe_queue_remote_data_fetch(socket, posts) do
-    if timeline_remote_enrichment_enabled?() && posts != [] do
-      send(self(), {:load_remote_data, posts})
-    end
-
-    socket
   end
 
   defp maybe_queue_reply_context_preview_fetch(socket, posts) do
@@ -959,10 +942,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       |> Enum.take(20)
 
     if message_ids != [] do
-      Task.start(fn ->
-        Enum.each(message_ids, fn message_id ->
-          _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
-        end)
+      Enum.each(message_ids, fn message_id ->
+        _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
       end)
     end
 
@@ -981,10 +962,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       |> Enum.take(20)
 
     if message_ids != [] do
-      Task.start(fn ->
-        Enum.each(message_ids, fn message_id ->
-          _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
-        end)
+      Enum.each(message_ids, fn message_id ->
+        _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(message_id)
       end)
     end
 
