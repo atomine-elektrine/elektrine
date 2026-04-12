@@ -1471,6 +1471,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       else
         case latest_local_message_for_post(decoded_post_id) do
           %{} = msg ->
+            Logger.info("remote_post cache_hit mount ref=#{decoded_post_id} message_id=#{msg.id}")
+
             if can_view_local_post?(msg, socket.assigns[:current_user]) do
               cached_is_community = PostUtilities.community_post?(msg)
 
@@ -1513,6 +1515,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             end
 
           nil ->
+            Logger.info("remote_post cache_miss mount ref=#{decoded_post_id}")
             socket
         end
       end
@@ -1527,6 +1530,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         cached_msg = socket.assigns[:local_message]
 
         if cached_msg do
+          Logger.info(
+            "remote_post cache_hit connected ref=#{decoded_post_id} message_id=#{cached_msg.id}"
+          )
+
           # Keep cached content visible immediately, but always run the full remote post
           # follow-up loaders off the locally cached message so opening a known post does
           # not block on a cold remote fetch.
@@ -1548,6 +1555,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             )
           end
         else
+          Logger.info("remote_post cache_miss connected ref=#{decoded_post_id}")
           send(self(), {:load_remote_post, decoded_post_id})
         end
       end

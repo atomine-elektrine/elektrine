@@ -173,7 +173,7 @@
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-semibold text-sm">Members ({length(@list.list_members)})</h3>
 
-          <%= if length(@list.list_members) > 0 do %>
+          <%= if @is_owner && length(@list.list_members) > 0 do %>
             <button
               phx-click="follow_all_members"
               phx-value-confirm={length(@list.list_members)}

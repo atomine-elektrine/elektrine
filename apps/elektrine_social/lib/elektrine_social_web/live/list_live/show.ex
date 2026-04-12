@@ -351,37 +351,55 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   end
 
   def handle_event("follow_all_members", _params, socket) do
-    list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-    list_members = list.list_members
-    current_user_id = socket.assigns.current_user.id
+    if socket.assigns[:is_owner] != true do
+      {:noreply, put_flash(socket, :error, "Only the list owner can follow all members")}
+    else
+      list =
+        Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id) ||
+          Social.get_public_list(socket.assigns.list.id)
 
-    results =
-      Enum.map(list_members, fn member ->
-        cond do
-          member.user_id && member.user ->
-            case Elektrine.Profiles.follow_user(current_user_id, member.user_id) do
-              {:ok, _} -> {:ok, member.user.username}
-              {:error, _} -> {:ok, member.user.username}
-            end
+      case list do
+        %{list_members: list_members} ->
+          current_user_id = socket.assigns.current_user.id
 
-          member.remote_actor_id && member.remote_actor ->
-            {:ok, "@#{member.remote_actor.username}@#{member.remote_actor.domain}"}
+          results =
+            Enum.map(list_members, fn member ->
+              cond do
+                member.user_id && member.user ->
+                  case Elektrine.Profiles.follow_user(current_user_id, member.user_id) do
+                    {:ok, _} -> {:ok, member.user.username}
+                    {:error, _} -> {:ok, member.user.username}
+                  end
 
-          true ->
-            {:error, "unknown"}
-        end
-      end)
+                member.remote_actor_id && member.remote_actor ->
+                  {:ok, "@#{member.remote_actor.username}@#{member.remote_actor.domain}"}
 
-    successful =
-      Enum.count(results, fn
-        {:ok, _} -> true
-        _ -> false
-      end)
+                true ->
+                  {:error, "unknown"}
+              end
+            end)
 
-    total = length(list_members)
+          successful =
+            Enum.count(results, fn
+              {:ok, _} -> true
+              _ -> false
+            end)
 
-    {:noreply,
-     socket |> assign(:list, list) |> put_flash(:info, "Followed #{successful}/#{total} members")}
+          total = length(list_members)
+
+          {:noreply,
+           socket
+           |> assign(:list, list)
+           |> assign(:is_owner, list.user_id == current_user_id)
+           |> put_flash(:info, "Followed #{successful}/#{total} members")}
+
+        nil ->
+          {:noreply,
+           socket
+           |> put_flash(:error, "List not found")
+           |> push_navigate(to: Elektrine.Paths.lists_path())}
+      end
+    end
   end
 
   def handle_event("remove_member", %{"member_id" => member_id}, socket) do

@@ -45,7 +45,7 @@ defmodule Elektrine.Paths do
 
   def post_path(%{id: id, activitypub_id: activitypub_id})
       when is_integer(id) and is_binary(activitypub_id) and activitypub_id != "" do
-    post_path(id)
+    remote_post_path(id)
   end
 
   def post_path(ref) when is_integer(ref), do: "/post/#{ref}"
@@ -65,7 +65,7 @@ defmodule Elektrine.Paths do
 
   def post_path(ref), do: post_path(to_string(ref))
 
-  def remote_post_path(ref) when is_integer(ref), do: post_path(ref)
+  def remote_post_path(ref) when is_integer(ref), do: "/remote/post/#{ref}"
 
   def remote_post_path(ref) when is_binary(ref) do
     normalized_ref =
