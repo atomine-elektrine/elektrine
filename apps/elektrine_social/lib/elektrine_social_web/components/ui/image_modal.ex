@@ -206,7 +206,7 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
 
               # Federated post with activitypub_id - use remote post URL
               has_remote_actor && @post && Map.get(@post, :activitypub_id) ->
-                Elektrine.Paths.post_path(@post)
+                Elektrine.Paths.post_path(@post.activitypub_id)
 
               # Local timeline post with id
               @post && Map.get(@post, :id) && is_integer(@post.id) && !has_remote_actor ->
