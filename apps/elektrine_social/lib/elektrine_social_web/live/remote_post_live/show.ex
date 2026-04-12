@@ -1363,8 +1363,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   @impl true
-  def handle_params(%{"url" => url}, _uri, socket) do
-    current_path = Paths.post_path(url)
+  def handle_params(%{"url" => url}, uri, socket) do
+    current_path = current_post_path_from_uri(uri)
     canonical_path = canonical_remote_post_path(url)
 
     if is_binary(canonical_path) and canonical_path != current_path do
@@ -1469,11 +1469,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if is_local_post do
         socket
       else
-        case Elektrine.Messaging.get_message_by_activitypub_id(decoded_post_id) do
+        case latest_local_message_for_post(decoded_post_id) do
           %{} = msg ->
             if can_view_local_post?(msg, socket.assigns[:current_user]) do
-              msg = preload_cached_message_associations(msg)
-
               cached_is_community = PostUtilities.community_post?(msg)
 
               # Build post object from cached message
@@ -1530,12 +1528,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         if cached_msg do
           # Keep cached content visible immediately, but always run the full remote post
-          # loader on connect so community data, counts, and replies share one code path.
+          # follow-up loaders off the locally cached message so opening a known post does
+          # not block on a cold remote fetch.
           fallback_community_uri = community_uri_from_local_message(cached_msg)
 
           send(self(), {:load_main_post_interactions, cached_msg})
           send(self(), {:load_reactions, decoded_post_id})
           send(self(), {:load_reply_parent, socket.assigns.post})
+          send(self(), {:load_replies_for_cached, cached_msg})
+          send(self(), {:load_platform_counts, cached_msg.activitypub_id})
+
+          Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(cached_msg.id)
+          maybe_schedule_remote_poll_refresh(cached_msg)
 
           if socket.assigns.is_community_post || is_binary(fallback_community_uri) do
             send(
@@ -1543,9 +1547,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               {:load_community_for_cached, decoded_post_id, fallback_community_uri}
             )
           end
+        else
+          send(self(), {:load_remote_post, decoded_post_id})
         end
-
-        send(self(), {:load_remote_post, decoded_post_id})
       end
     end
 
@@ -2717,12 +2721,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp fetch_post_for_meta_tags(socket, post_id, false = _is_local) do
     # Remote post - try cache first, then quick fetch with timeout
     # First check if we have it cached locally
-    case Elektrine.Messaging.get_message_by_activitypub_id(post_id) do
+    case latest_local_message_for_post(post_id) do
       %{} = msg ->
         if can_view_local_post?(msg, socket.assigns[:current_user]) do
-          # Preload associations for actor info
-          msg = Elektrine.Repo.preload(msg, [:remote_actor, :sender])
-
           # We have it cached locally
           description = build_og_description(msg.content)
           image = get_first_media_url(msg.media_urls, msg)
@@ -2970,18 +2971,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     send(self(), {:hydrate_loaded_remote_post, post_object, remote_actor})
     send(self(), {:load_platform_counts, post_object["id"]})
 
-    if local_message do
-      send(self(), {:load_replies, post_object})
-      send(self(), {:load_reactions, post_object["id"]})
-    end
-
     if community_actor && community_actor.actor_type == "Group" do
       send(self(), :load_community_stats)
-    end
-
-    if local_message do
-      Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(local_message.id)
-      maybe_schedule_remote_poll_refresh(local_message)
     end
 
     socket

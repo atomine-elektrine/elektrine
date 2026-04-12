@@ -2,6 +2,7 @@ defmodule Elektrine.Paths do
   @moduledoc false
 
   alias Elektrine.{Accounts, Domains}
+  alias Elektrine.Messaging.Messages
 
   def post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
       when is_integer(id) and not is_nil(reply_to_id) do
@@ -75,7 +76,7 @@ defmodule Elektrine.Paths do
     case Integer.parse(normalized_ref) do
       {id, ""} -> post_path(id)
       _ when normalized_ref == "" -> nil
-      _ -> "/remote/post/#{URI.encode_www_form(normalized_ref)}"
+      _ -> canonical_remote_post_path(normalized_ref)
     end
   end
 
@@ -303,6 +304,13 @@ defmodule Elektrine.Paths do
     URI.decode_www_form(ref)
   rescue
     ArgumentError -> ref
+  end
+
+  defp canonical_remote_post_path(ref) when is_binary(ref) do
+    case Messages.get_message_by_activitypub_ref(ref) do
+      %{id: id} when is_integer(id) -> "/remote/post/#{id}"
+      _ -> "/remote/post/#{URI.encode_www_form(ref)}"
+    end
   end
 
   defp with_query(path, params) when is_binary(path) and is_list(params) do
