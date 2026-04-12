@@ -1161,7 +1161,12 @@
               <% recent_post_ids = MapSet.new(@recently_loaded_post_ids || []) %> <% first_recent_post =
                 Enum.find(@filtered_posts, fn post -> MapSet.member?(recent_post_ids, post.id) end) %> <% first_recent_post_id =
                 if first_recent_post, do: first_recent_post.id, else: nil %>
-              <div id="timeline-posts-stream" phx-update="stream" class="space-y-4">
+              <div
+                id="timeline-posts-stream"
+                phx-hook="PreserveStreamAnchor"
+                phx-update="stream"
+                class="space-y-4"
+              >
                 <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
                   <div id={stream_id} class="timeline-stream-entry">
                     <.live_component

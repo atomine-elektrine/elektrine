@@ -552,6 +552,103 @@ export const InfiniteScroll = {
 }
 
 /**
+ * Stream Anchor Hook
+ * Preserves the visible post position when stream patches prepend/update entries.
+ */
+export const PreserveStreamAnchor = {
+  mounted() {
+    this.prePatchAnchor = null
+    this.prePatchScrollY = null
+    this.restoreRAF = null
+    this.restoreTimeout = null
+
+    this.handleScroll = () => this.cancelPendingRestore()
+    window.addEventListener('scroll', this.handleScroll, { passive: true })
+  },
+
+  beforeUpdate() {
+    if (window.scrollY <= 0) {
+      this.prePatchAnchor = null
+      this.prePatchScrollY = null
+      return
+    }
+
+    this.prePatchAnchor = this.findVisiblePostAnchor()
+    this.prePatchScrollY = window.scrollY
+  },
+
+  updated() {
+    if (!this.prePatchAnchor?.postId) return
+
+    this.restoreAnchorPosition(this.prePatchAnchor)
+    this.schedulePendingRestore(this.prePatchAnchor)
+    this.prePatchAnchor = null
+    this.prePatchScrollY = null
+  },
+
+  findVisiblePostAnchor() {
+    const postCards = this.el.querySelectorAll('[data-post-id]')
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+
+    for (const card of postCards) {
+      const rect = card.getBoundingClientRect()
+      if (rect.bottom <= 0 || rect.top >= viewportHeight) continue
+
+      const postId = card.dataset.postId
+      if (!postId) continue
+
+      return { postId, top: rect.top }
+    }
+
+    return null
+  },
+
+  findPostById(postId) {
+    if (!postId) return null
+
+    const escapedPostId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(postId) : postId
+    return this.el.querySelector(`[data-post-id="${escapedPostId}"]`)
+  },
+
+  restoreAnchorPosition(anchorSnapshot) {
+    if (anchorSnapshot?.postId) {
+      const anchor = this.findPostById(anchorSnapshot.postId)
+
+      if (anchor) {
+        const delta = anchor.getBoundingClientRect().top - anchorSnapshot.top
+        if (delta !== 0) window.scrollBy(0, delta)
+      }
+    }
+  },
+
+  cancelPendingRestore() {
+    if (this.restoreRAF) cancelAnimationFrame(this.restoreRAF)
+    if (this.restoreTimeout) clearTimeout(this.restoreTimeout)
+    this.restoreRAF = null
+    this.restoreTimeout = null
+  },
+
+  schedulePendingRestore(anchorSnapshot) {
+    this.cancelPendingRestore()
+
+    this.restoreRAF = requestAnimationFrame(() => {
+      this.restoreRAF = null
+      this.restoreAnchorPosition(anchorSnapshot)
+    })
+
+    this.restoreTimeout = setTimeout(() => {
+      this.restoreTimeout = null
+      this.restoreAnchorPosition(anchorSnapshot)
+    }, 120)
+  },
+
+  destroyed() {
+    this.cancelPendingRestore()
+    if (this.handleScroll) window.removeEventListener('scroll', this.handleScroll)
+  }
+}
+
+/**
  * User Hover Card Hook
  * Shows a profile preview card when hovering over usernames/avatars
  */
