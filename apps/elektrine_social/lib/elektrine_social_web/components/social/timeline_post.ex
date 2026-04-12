@@ -58,10 +58,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   * `:id_prefix` - Prefix for element IDs (default: "post")
   * `:show_follow_button` - Whether to show follow button (default: true)
   * `:show_admin_actions` - Whether to show admin actions (default: true)
-  * `:on_navigate_post` - Event for navigating to post detail
   * `:on_navigate_profile` - Event for navigating to profile
   * `:on_image_click` - Event for opening image modal
-  * `:click_event` - Event when clicking the card (for navigation)
+  * `:clickable` - Whether clicking the card should open the post (default: true)
   * `:layout` - Layout variant: :timeline (default), :lemmy, or :compact
   * `:user_downvotes` - Map of post_id => boolean for downvote status (Lemmy layout)
   * `:post_interactions` - Map of post_id => interaction state for optimistic updates
@@ -95,7 +94,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :show_admin_actions, :boolean, default: true
   attr :show_post_dropdown, :boolean, default: true
   attr :show_view_button, :boolean, default: false
-  attr :on_navigate_post, :string, default: "navigate_to_post"
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
   attr :on_image_click, :string, default: "open_image_modal"
   attr :on_like, :string, default: "like_post"
@@ -104,7 +102,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :on_downvote, :string, default: "downvote_post"
   attr :on_undownvote, :string, default: "undownvote_post"
   attr :on_react, :string, default: "react_to_post"
-  attr :click_event, :string, default: nil
+  attr :clickable, :boolean, default: true
   attr :source, :string, default: "timeline"
   attr :resolve_reply_refs, :boolean, default: false
   attr :show_ancestor_actions, :boolean, default: false
@@ -131,9 +129,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Determine if this is a gallery post
     is_gallery_post = PostUtilities.gallery_post?(post)
 
-    # Determine click event
-    click_event = assigns.click_event || PostUtilities.get_post_click_event(post)
-
     # Resolve ancestor context (root -> parent) only for replies.
     reply_ancestors =
       if is_reply do
@@ -154,7 +149,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       assigns
       |> assign(:is_reply, is_reply)
       |> assign(:is_gallery_post, is_gallery_post)
-      |> assign(:click_event, click_event)
       |> assign(:reply_ancestors, reply_ancestors)
       |> assign(:direct_reply_target, List.last(reply_ancestors))
       |> assign(:has_thread_context, assigns.show_thread_context && reply_ancestors != [])
@@ -170,7 +164,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <div
           id={"#{@id_prefix}-card-#{@post.id}"}
           class={[
-            "card panel-card rounded-lg timeline-post-card shadow-sm max-w-full cursor-pointer overflow-visible relative z-0 transition-shadow",
+            "card panel-card rounded-lg timeline-post-card shadow-sm max-w-full overflow-visible relative z-0 transition-shadow",
+            if(@clickable, do: "cursor-pointer"),
             if(@has_thread_context, do: "timeline-thread-current-card border border-base-300/85"),
             if(@is_reply && !@has_thread_context,
               do: "timeline-thread-current-card border border-base-300/85"
@@ -183,15 +178,20 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           ]}
           data-post-id={@post.id}
           data-source={@source}
-          phx-hook="PostClick"
-          data-click-event={@click_event}
-          data-id={@post.id}
-          data-url={
-            if @post.federated && @post.activitypub_id,
-              do: URI.encode_www_form(@post.activitypub_id),
-              else: nil
-          }
+          phx-hook={if @clickable, do: "PostClick", else: nil}
         >
+          <%= if @clickable do %>
+            <.link
+              navigate={Elektrine.Paths.post_path(@post)}
+              class="hidden"
+              data-post-nav-link
+              tabindex="-1"
+              aria-hidden="true"
+            >
+              Open post
+            </.link>
+          <% end %>
+
           <div class="card-body timeline-post-card-body p-4 min-w-0 overflow-visible">
             <!-- Boosted By Indicator -->
             <.boost_indicator post={@post} />
@@ -1475,17 +1475,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp post_content(assigns) do
     title = resolve_federated_title(assigns.post)
-    assigns = assign(assigns, :title, title)
+
+    assigns =
+      assigns
+      |> assign(:title, title)
+      |> assign(:post_path, Elektrine.Paths.post_path(assigns.post))
 
     ~H"""
     <!-- Title -->
     <%= if @title do %>
-      <h3 class="font-semibold text-lg mb-2 break-words leading-tight post-content">
-        {@title}
-        <%= if @post.auto_title do %>
-          <span class="text-xs opacity-50 ml-2">(auto)</span>
-        <% end %>
-      </h3>
+      <.link navigate={@post_path} class="block hover:text-primary transition-colors">
+        <h3 class="font-semibold text-lg mb-2 break-words leading-tight post-content">
+          {@title}
+          <%= if @post.auto_title do %>
+            <span class="text-xs opacity-50 ml-2">(auto)</span>
+          <% end %>
+        </h3>
+      </.link>
     <% end %>
 
     <!-- Content Warning Indicator -->
@@ -1508,9 +1514,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <% end %>
         <div
           id={"quoted-post-#{@post.id}-#{@post.quoted_message_id}"}
-          phx-hook="PostClick"
-          data-click-event="navigate_to_embedded_post"
-          data-url={quoted_post_url(@post.quoted_message)}
           class="border border-base-300 rounded-lg p-3 bg-base-200/30 hover:bg-base-200/50 transition-colors"
         >
           <div class="flex items-center gap-2 mb-2">
@@ -1630,6 +1633,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               </a>
             </div>
           <% end %>
+
+          <.link
+            navigate={quoted_post_url(@post.quoted_message)}
+            class="mt-3 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" /> Open quoted post
+          </.link>
         </div>
       <% else %>
         <!-- Cross-posted content -->
@@ -2094,15 +2104,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3 sm:w-4 sm:h-4" />
             </a>
           <% else %>
-            <button
-              phx-click="navigate_to_post"
-              phx-value-id={@post.id}
+            <.link
+              navigate={Elektrine.Paths.post_path(@post)}
               class="btn btn-ghost btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm"
-              type="button"
               title="View full post"
             >
               <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3 sm:w-4 sm:h-4" />
-            </button>
+            </.link>
           <% end %>
         <% end %>
       </div>
@@ -2339,13 +2347,22 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       class="card panel-card timeline-post-card border border-base-300 rounded-lg overflow-visible transition-all relative z-0"
       data-post-id={@post.id}
       data-source={@source}
-      phx-hook="PostClick"
-      data-click-event="navigate_to_remote_post"
-      data-id={@post.id}
-      data-url={if @post.activitypub_id, do: URI.encode_www_form(@post.activitypub_id), else: nil}
+      phx-hook={if @clickable, do: "PostClick", else: nil}
       role="article"
       aria-label={"Post: #{@title || "Untitled"}"}
     >
+      <%= if @clickable do %>
+        <.link
+          navigate={Elektrine.Paths.post_path(@post)}
+          class="hidden"
+          data-post-nav-link
+          tabindex="-1"
+          aria-hidden="true"
+        >
+          Open post
+        </.link>
+      <% end %>
+
       <div class="flex">
         <!-- Vote Column -->
         <div
@@ -2440,13 +2457,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <% end %>
         
     <!-- Post Content -->
-        <div
-          class="flex-1 p-2 min-w-0 cursor-pointer"
-          phx-click="navigate_to_remote_post"
-          phx-value-post_id={
-            if @post.activitypub_id, do: URI.encode_www_form(@post.activitypub_id), else: @post.id
-          }
-        >
+        <div class="flex-1 p-2 min-w-0">
           <!-- Title -->
           <%= if @title do %>
             <%= if @external_link do %>
@@ -2457,7 +2468,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 </h3>
               </a>
             <% else %>
-              <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">{@title}</h3>
+              <.link navigate={Elektrine.Paths.post_path(@post)} class="block">
+                <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">{@title}</h3>
+              </.link>
             <% end %>
           <% end %>
           
@@ -2522,6 +2535,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <.local_time datetime={@post.inserted_at} format="relative" timezone={@timezone} />
             <span>·</span>
             <span>{@reply_count} comments</span>
+            <span>·</span>
+            <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
+              Open
+            </.link>
             <%= if @post.activitypub_url do %>
               <a
                 href={@post.activitypub_url}
@@ -2656,17 +2673,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               </div>
             <% end %>
             <%= if @reply_count > length(@replies) do %>
-              <div
-                class="text-xs text-primary cursor-pointer hover:underline"
-                phx-click="navigate_to_remote_post"
-                phx-value-post_id={
-                  if @post.activitypub_id,
-                    do: URI.encode_www_form(@post.activitypub_id),
-                    else: @post.id
-                }
+              <.link
+                navigate={Elektrine.Paths.post_path(@post)}
+                class="text-xs text-primary hover:underline"
               >
                 View all {@reply_count} comments
-              </div>
+              </.link>
             <% end %>
             <%= if @post.federated && @post.activitypub_url do %>
               <a
@@ -2691,7 +2703,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     post = assigns.post
     is_reply = PostUtilities.reply?(post)
     is_gallery_post = PostUtilities.gallery_post?(post)
-    click_event = assigns.click_event || PostUtilities.get_post_click_event(post)
 
     {display_like_count, display_comment_count} =
       PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
@@ -2708,7 +2719,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       assigns
       |> assign(:is_reply, is_reply)
       |> assign(:is_gallery_post, is_gallery_post)
-      |> assign(:click_event, click_event)
       |> assign(:display_like_count, display_like_count)
       |> assign(:display_comment_count, display_comment_count)
       |> assign(:title, title)
@@ -2719,21 +2729,27 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     <div
       id={"compact-post-#{@post.id}"}
       class={[
-        "flex items-start gap-3 p-3 border-b border-base-200 hover:bg-base-100 transition-colors cursor-pointer",
+        "flex items-start gap-3 p-3 border-b border-base-200 hover:bg-base-100 transition-colors",
+        if(@clickable, do: "cursor-pointer"),
         if(@is_reply, do: "border-l-2 border-l-error/40", else: "")
       ]}
       data-post-id={@post.id}
       data-source={@source}
-      phx-hook="PostClick"
-      data-click-event={@click_event}
-      data-id={@post.id}
-      data-url={
-        if @post.federated && @post.activitypub_id,
-          do: URI.encode_www_form(@post.activitypub_id),
-          else: nil
-      }
+      phx-hook={if @clickable, do: "PostClick", else: nil}
     >
-      <!-- Thumbnail -->
+      <%= if @clickable do %>
+        <.link
+          navigate={Elektrine.Paths.post_path(@post)}
+          class="hidden"
+          data-post-nav-link
+          tabindex="-1"
+          aria-hidden="true"
+        >
+          Open post
+        </.link>
+      <% end %>
+      
+    <!-- Thumbnail -->
       <%= if @has_image do %>
         <div class="w-16 h-16 flex-shrink-0 rounded overflow-hidden">
           <img src={@thumbnail} alt="" class="w-full h-full object-cover" loading="lazy" />
@@ -2743,7 +2759,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex-1 min-w-0">
         <!-- Title or content preview -->
         <%= if @title do %>
-          <h3 class="font-medium text-sm line-clamp-2 mb-1">{@title}</h3>
+          <.link navigate={Elektrine.Paths.post_path(@post)} class="block">
+            <h3 class="font-medium text-sm line-clamp-2 mb-1">{@title}</h3>
+          </.link>
         <% else %>
           <%= if @post.content do %>
             <div class="text-sm line-clamp-2 opacity-80 mb-1">
@@ -2777,6 +2795,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
             {@display_comment_count}
           </span>
+          <span>·</span>
+          <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
+            Open
+          </.link>
         </div>
       </div>
     </div>

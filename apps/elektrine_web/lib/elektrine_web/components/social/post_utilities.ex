@@ -125,9 +125,6 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
   def gallery_post?(post),
     do: OptionalModule.call(:social, @component_module, :gallery_post?, [post], false)
 
-  def get_post_click_event(post),
-    do: OptionalModule.call(:social, @component_module, :get_post_click_event, [post], nil)
-
   def get_display_counts(post, lemmy_counts, post_replies),
     do:
       OptionalModule.call(

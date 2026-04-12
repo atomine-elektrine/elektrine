@@ -410,16 +410,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   @doc """
-  Determines the appropriate click event for a post.
-  """
-  @spec get_post_click_event(map()) :: String.t()
-  def get_post_click_event(post) do
-    if post.federated && post.activitypub_id,
-      do: "navigate_to_remote_post",
-      else: "navigate_to_post"
-  end
-
-  @doc """
   Calculates display counts for a post, using Lemmy counts if available.
   """
   @spec get_display_counts(map(), map(), map()) :: {integer(), integer()}

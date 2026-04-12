@@ -131,21 +131,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
     end
   end
 
-  def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    post =
-      Enum.find(
-        (socket.assigns[:discussion_posts] || []) ++ (socket.assigns[:pinned_posts] || []),
-        &(&1.id == String.to_integer(id))
-      )
-
-    if post do
-      url = generate_discussion_url(socket.assigns.community, post)
-      {:noreply, push_navigate(socket, to: url)}
-    else
-      {:noreply, socket}
-    end
-  end
-
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket) do
     {:noreply, push_navigate(socket, to: url)}
   end
@@ -298,13 +283,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   end
 
   # Private helpers
-
-  defp generate_discussion_url(community, post) do
-    community_name = community.name
-    # Always use SEO-friendly URL with slug (falls back to just ID if no title)
-    slug = Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)
-    ~p"/communities/#{community_name}/post/#{slug}"
-  end
 
   defp notify_error(socket, message) do
     put_flash(socket, :error, message)

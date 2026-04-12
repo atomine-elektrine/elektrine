@@ -619,10 +619,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     {:noreply, push_navigate(socket, to: ~p"/#{handle}")}
   end
 
-  def handle_event("navigate_to_discussion", %{"community" => community, "slug" => slug}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/communities/#{community}/post/#{slug}")}
-  end
-
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
     {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
   end
