@@ -1661,10 +1661,7 @@ defmodule Elektrine.Messaging.Messages do
 
   defp message_id_by_activitypub_ref(ref, field_names)
        when is_binary(ref) and is_list(field_names) do
-    Enum.find_value(field_names, fn field_name ->
-      message_id_by_exact_activitypub_ref(ref, field_name) ||
-        maybe_message_id_by_canonicalized_activitypub_ref(ref, field_name)
-    end)
+    Enum.find_value(field_names, &message_id_by_exact_activitypub_ref(ref, &1))
   end
 
   defp message_id_by_exact_activitypub_ref(ref, field_name)
@@ -1675,29 +1672,6 @@ defmodule Elektrine.Messaging.Messages do
       limit: 1
     )
     |> Repo.one()
-  end
-
-  defp message_id_by_canonicalized_activitypub_ref(ref, field_name)
-       when is_binary(ref) and is_atom(field_name) do
-    from(m in Message,
-      where:
-        fragment(
-          "NULLIF(trim(trailing '/' from split_part(split_part(btrim(?), '#', 1), chr(63), 1)), '')",
-          field(m, ^field_name)
-        ) == ^ref,
-      select: m.id,
-      limit: 1
-    )
-    |> Repo.one()
-  end
-
-  defp maybe_message_id_by_canonicalized_activitypub_ref(_ref, field_name)
-       when field_name in [:activitypub_id_canonical, :activitypub_url_canonical] do
-    nil
-  end
-
-  defp maybe_message_id_by_canonicalized_activitypub_ref(ref, field_name) do
-    message_id_by_canonicalized_activitypub_ref(ref, field_name)
   end
 
   defp load_activitypub_lookup_message(id) when is_integer(id) do
