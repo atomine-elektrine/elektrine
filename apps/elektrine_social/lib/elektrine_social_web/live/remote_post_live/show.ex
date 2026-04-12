@@ -3217,7 +3217,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         send(self(), {:load_replies_for_cached, message})
         send(self(), {:load_platform_counts, message.activitypub_id})
         _ = Elektrine.ActivityPub.ThreadBackfillWorker.enqueue(message.id)
-        Process.send_after(self(), {:reload_local_post, message.id}, 1_500)
         maybe_schedule_remote_poll_refresh(message)
 
         if cached_is_community || is_binary(fallback_community_uri) do
