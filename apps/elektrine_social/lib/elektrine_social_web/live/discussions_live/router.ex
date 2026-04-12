@@ -253,9 +253,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Router do
       "view_original_context" ->
         UiOperations.handle_event(event_name, params, socket)
 
-      "navigate_to_post" ->
-        UiOperations.handle_event(event_name, params, socket)
-
       "navigate_to_embedded_post" ->
         UiOperations.handle_event(event_name, params, socket)
 

@@ -12,6 +12,21 @@ const BATCH_INTERVAL_MS = 5000
 // Global state for batching dwell time updates
 let dwellTimeBuffer = new Map()
 let batchTimeout = null
+let navigationFlushInProgress = false
+const activeDwellTrackers = new Set()
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('phx:page-loading-start', () => {
+    if (navigationFlushInProgress || activeDwellTrackers.size === 0) return
+
+    const firstTracker = activeDwellTrackers.values().next().value
+    if (firstTracker) void flushDwellBatchBeforeNavigation(firstTracker)
+  })
+
+  window.addEventListener('phx:page-loading-stop', () => {
+    navigationFlushInProgress = false
+  })
+}
 
 function buildDwellPayload(state, dwellTimeMs) {
   if (!state.postId || dwellTimeMs < MIN_DWELL_TIME_MS) return null
@@ -49,6 +64,37 @@ function takeQueuedDwellPayload(postId) {
   const payload = dwellTimeBuffer.get(postId) || null
   if (payload) dwellTimeBuffer.delete(postId)
   return payload
+}
+
+function registerDwellTracker(hook) {
+  if (hook?.postId) activeDwellTrackers.add(hook)
+}
+
+function unregisterDwellTracker(hook) {
+  activeDwellTrackers.delete(hook)
+}
+
+async function flushDwellBatchBeforeNavigation(hook) {
+  navigationFlushInProgress = true
+
+  activeDwellTrackers.forEach((tracker) => {
+    tracker.pauseTracking?.()
+  })
+
+  if (batchTimeout) {
+    clearTimeout(batchTimeout)
+    batchTimeout = null
+  }
+
+  if (dwellTimeBuffer.size === 0) return
+
+  const data = Array.from(dwellTimeBuffer.values())
+  dwellTimeBuffer.clear()
+
+  await Promise.race([
+    safePushEvent(hook, 'record_dwell_times', { views: data }),
+    new Promise((resolve) => setTimeout(resolve, 150))
+  ])
 }
 
 function isHookConnected(hook) {
@@ -94,7 +140,7 @@ const REMOTE_FOLLOW_BUTTON_VARIANTS = {
  */
 export const PostClick = {
   mounted() {
-    this.handleClick = (e) => {
+    this.handleClick = async (e) => {
       if (e.target.closest('a, button, input, textarea, select, option, label, .dropdown, details')) return
 
       const nestedPostClick = e.target.closest('[phx-hook="PostClick"]')
@@ -106,24 +152,24 @@ export const PostClick = {
       const selection = window.getSelection()
       if (selection && selection.toString().length > 0) return
 
-      const { clickEvent, url, id, community, slug } = this.el.dataset
+      const navLink = this.el.querySelector('[data-post-nav-link]')
 
-      if (clickEvent === "open_external_link" && url) {
-        this.pushEvent(clickEvent, { url })
-      } else if (clickEvent === "navigate_to_post" && id) {
-        this.pushEvent(clickEvent, { id })
-      } else if (clickEvent === "navigate_to_gallery_post" && id) {
-        this.pushEvent(clickEvent, { id, url: url || "" })
-      } else if (clickEvent === "navigate_to_embedded_post" && (id || url)) {
-        if (url) {
-          this.pushEvent(clickEvent, { url })
-        } else {
-          this.pushEvent(clickEvent, { id })
-        }
-      } else if (clickEvent === "navigate_to_remote_post" && (id || url)) {
-        this.pushEvent(clickEvent, { id, url: url || "" })
-      } else if (clickEvent === "navigate_to_discussion" && community && slug) {
-        this.pushEvent(clickEvent, { community, slug })
+      if (navLink) {
+        await flushDwellBatchBeforeNavigation(this)
+
+        navLink.dispatchEvent(
+          new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            shiftKey: e.shiftKey,
+            altKey: e.altKey,
+            button: e.button
+          })
+        )
+
+        return
       }
     }
 
@@ -146,6 +192,7 @@ export const PostClick = {
       { root: null, rootMargin: '0px', threshold: [0, 0.25, 0.5, 0.75, 1.0] }
     )
     this.observer.observe(this.el)
+    registerDwellTracker(this)
 
     this.handleVisibilityChange = () => {
       if (document.hidden && this.isVisible) this.pauseTracking()
@@ -160,7 +207,8 @@ export const PostClick = {
     if (this.handleVisibilityChange) {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange)
     }
-    if (this.postId) {
+    unregisterDwellTracker(this)
+    if (this.postId && !navigationFlushInProgress) {
       this.pauseTracking()
       this.sendDwellData()
     }
@@ -586,6 +634,7 @@ export const DwellTimeTracker = {
       { root: null, rootMargin: '0px', threshold: [0, 0.25, 0.5, 0.75, 1.0] }
     )
     this.observer.observe(this.el)
+    registerDwellTracker(this)
 
     this.el.addEventListener('click', (e) => this.handleClick(e))
 
@@ -601,7 +650,8 @@ export const DwellTimeTracker = {
     if (this.handleVisibilityChange) {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange)
     }
-    if (this.postId) {
+    unregisterDwellTracker(this)
+    if (this.postId && !navigationFlushInProgress) {
       this.pauseTracking()
       this.sendDwellData()
     }

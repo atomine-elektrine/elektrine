@@ -330,14 +330,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
             <% end %>
 
             <%= if @post.reply_count > length(replies) do %>
-              <button
-                phx-click="navigate_to_post"
-                phx-value-id={@post.id}
+              <.link
+                navigate={Elektrine.Paths.post_path(@post)}
                 class="text-sm text-primary hover:underline font-medium"
-                type="button"
               >
                 View all {@post.reply_count} replies →
-              </button>
+              </.link>
             <% end %>
           </div>
         <% else %>

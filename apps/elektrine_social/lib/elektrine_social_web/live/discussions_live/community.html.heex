@@ -764,27 +764,42 @@
                           <div
                             id={"pinned-post-content-#{post.id}"}
                             class="cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
+                            data-post-id={post.id}
+                            data-source="discussion"
                             phx-hook="PostClick"
-                            data-click-event="navigate_to_post"
-                            data-id={post.id}
                           >
-                            <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
-                              {display_discussion_title(post)}
-                              <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
-                                <span class="text-xs opacity-50 ml-2">(auto)</span>
-                              <% end %>
-                              <!-- Post type badges -->
-                              <%= cond do %>
-                                <% post.post_type == "link" -> %>
-                                  <span class="badge badge-info badge-xs ml-2">Link</span>
-                                <% post.post_type == "poll" -> %>
-                                  <span class="badge badge-success badge-xs ml-2">Poll</span>
-                                <% post.message_type == "image" -> %>
-                                  <span class="badge badge-warning badge-xs ml-2">Image</span>
-                                <% true -> %>
-                                  <% nil %>
-                              <% end %>
-                            </h3>
+                            <.link
+                              navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                              class="hidden"
+                              data-post-nav-link
+                              tabindex="-1"
+                              aria-hidden="true"
+                            >
+                              Open discussion
+                            </.link>
+
+                            <.link
+                              navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                              class="block"
+                            >
+                              <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight hover:text-primary">
+                                {display_discussion_title(post)}
+                                <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
+                                  <span class="text-xs opacity-50 ml-2">(auto)</span>
+                                <% end %>
+                                <!-- Post type badges -->
+                                <%= cond do %>
+                                  <% post.post_type == "link" -> %>
+                                    <span class="badge badge-info badge-xs ml-2">Link</span>
+                                  <% post.post_type == "poll" -> %>
+                                    <span class="badge badge-success badge-xs ml-2">Poll</span>
+                                  <% post.message_type == "image" -> %>
+                                    <span class="badge badge-warning badge-xs ml-2">Image</span>
+                                  <% true -> %>
+                                    <% nil %>
+                                <% end %>
+                              </h3>
+                            </.link>
 
                             <%= if post.shared_message_id && post.shared_message do %>
                               <!-- Cross-posted: Show comment + embedded post -->
@@ -1293,27 +1308,42 @@
                         <div
                           id={"discussion-post-content-#{post.id}"}
                           class="mb-3 cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
+                          data-post-id={post.id}
+                          data-source="discussion"
                           phx-hook="PostClick"
-                          data-click-event="navigate_to_post"
-                          data-id={post.id}
                         >
-                          <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight">
-                            {display_discussion_title(post)}
-                            <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
-                              <span class="text-xs opacity-50 ml-2">(auto)</span>
-                            <% end %>
-                            <!-- Post type badges -->
-                            <%= cond do %>
-                              <% post.post_type == "link" -> %>
-                                <span class="badge badge-info badge-xs ml-2">Link</span>
-                              <% post.post_type == "poll" -> %>
-                                <span class="badge badge-success badge-xs ml-2">Poll</span>
-                              <% post.message_type == "image" -> %>
-                                <span class="badge badge-warning badge-xs ml-2">Image</span>
-                              <% true -> %>
-                                <% nil %>
-                            <% end %>
-                          </h3>
+                          <.link
+                            navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                            class="hidden"
+                            data-post-nav-link
+                            tabindex="-1"
+                            aria-hidden="true"
+                          >
+                            Open discussion
+                          </.link>
+
+                          <.link
+                            navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                            class="block"
+                          >
+                            <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight hover:text-primary">
+                              {display_discussion_title(post)}
+                              <%= if post.auto_title && has_explicit_discussion_title?(post) do %>
+                                <span class="text-xs opacity-50 ml-2">(auto)</span>
+                              <% end %>
+                              <!-- Post type badges -->
+                              <%= cond do %>
+                                <% post.post_type == "link" -> %>
+                                  <span class="badge badge-info badge-xs ml-2">Link</span>
+                                <% post.post_type == "poll" -> %>
+                                  <span class="badge badge-success badge-xs ml-2">Poll</span>
+                                <% post.message_type == "image" -> %>
+                                  <span class="badge badge-warning badge-xs ml-2">Image</span>
+                                <% true -> %>
+                                  <% nil %>
+                              <% end %>
+                            </h3>
+                          </.link>
 
                           <%= if post.shared_message_id && post.shared_message do %>
                             <!-- Cross-posted: Show comment + embedded post -->

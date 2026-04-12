@@ -375,7 +375,6 @@
                   show_follow_button={false}
                   show_admin_actions={false}
                   show_post_dropdown={false}
-                  click_event="navigate_to_post"
                   resolve_reply_refs={true}
                   show_ancestor_actions={true}
                   source="remote_profile"
@@ -468,13 +467,12 @@
                             </div>
                           <% end %>
                           <%= if local_reply_count > 3 do %>
-                            <div
-                              class="text-xs text-primary cursor-pointer hover:underline"
-                              phx-click="navigate_to_post"
-                              phx-value-post_id={URI.encode_www_form(local_post_id)}
+                            <.link
+                              navigate={Elektrine.Paths.remote_post_path(local_post_id)}
+                              class="text-xs text-primary hover:underline"
                             >
                               View all {local_reply_count} comments
-                            </div>
+                            </.link>
                           <% end %>
                         </div>
                       </div>
@@ -559,7 +557,8 @@
                 reaction_surface =
                   post_reaction_surface(post["id"], @local_posts, @post_reactions)
 
-                encoded_post_id = URI.encode_www_form(post["id"] || "unknown") %>
+                encoded_post_id = URI.encode_www_form(post["id"] || "unknown")
+                native_post_path = Elektrine.Paths.remote_post_path(post["id"] || "unknown") %>
                 <article class={[
                   "card panel-card rounded-lg overflow-hidden",
                   if(is_reply_outbox,
@@ -570,11 +569,21 @@
                   <div
                     id={"remote-user-outbox-post-" <> encoded_post_id}
                     class="flex cursor-pointer"
+                    data-post-id={post["id"] || encoded_post_id}
+                    data-source="remote_user"
                     phx-hook="PostClick"
-                    data-click-event="navigate_to_post"
-                    data-id={encoded_post_id}
                   >
-                    <!-- Vote Column -->
+                    <.link
+                      navigate={native_post_path}
+                      class="hidden"
+                      data-post-nav-link
+                      tabindex="-1"
+                      aria-hidden="true"
+                    >
+                      Open post
+                    </.link>
+                    
+<!-- Vote Column -->
                     <div class="flex flex-col items-center p-2 bg-base-50 gap-1 w-10">
                       <%= if @current_user do %>
                         <button
@@ -648,27 +657,11 @@
                       
 <!-- Title -->
                       <%= if post_title do %>
-                        <%= if external_link_outbox do %>
-                          <a
-                            id={"outbox-external-title-#{URI.encode_www_form(post["id"] || "unknown")}"}
-                            href={external_link_outbox}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
-                          >
-                            <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-primary flex items-center gap-1">
-                              {post_title}
-                              <.icon
-                                name="hero-arrow-top-right-on-square"
-                                class="w-3 h-3 flex-shrink-0"
-                              />
-                            </h3>
-                          </a>
-                        <% else %>
+                        <.link navigate={native_post_path} class="block">
                           <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">
                             {post_title}
                           </h3>
-                        <% end %>
+                        </.link>
                       <% end %>
                       
 <!-- Content preview (only if no title) -->
@@ -734,6 +727,10 @@
                           <span>·</span>
                         <% end %>
                         <span>{loaded_reply_count} comments</span>
+                        <span>·</span>
+                        <.link navigate={native_post_path} class="hover:text-primary">
+                          Open post
+                        </.link>
                         <%= if post["url"] do %>
                           <a
                             id={"outbox-external-meta-#{URI.encode_www_form(post["id"] || "unknown")}"}
@@ -839,13 +836,12 @@
                           </div>
                         <% end %>
                         <%= if loaded_reply_count > 3 do %>
-                          <div
-                            class="text-xs text-primary cursor-pointer hover:underline"
-                            phx-click="navigate_to_post"
-                            phx-value-post_id={URI.encode_www_form(post["id"])}
+                          <.link
+                            navigate={native_post_path}
+                            class="text-xs text-primary hover:underline"
                           >
                             View all {loaded_reply_count} comments
-                          </div>
+                          </.link>
                         <% end %>
                       </div>
                     </div>
@@ -1304,7 +1300,6 @@
                     show_follow_button={false}
                     show_admin_actions={false}
                     show_post_dropdown={false}
-                    click_event="navigate_to_post"
                     resolve_reply_refs={true}
                     show_ancestor_actions={true}
                     source="remote_profile"
@@ -1402,13 +1397,12 @@
                               </div>
                             <% end %>
                             <%= if local_reply_count > 3 do %>
-                              <div
-                                class="text-xs text-primary cursor-pointer hover:underline"
-                                phx-click="navigate_to_post"
-                                phx-value-post_id={URI.encode_www_form(local_post_id)}
+                              <.link
+                                navigate={Elektrine.Paths.remote_post_path(local_post_id)}
+                                class="text-xs text-primary hover:underline"
                               >
                                 View all {local_reply_count} comments
-                              </div>
+                              </.link>
                             <% end %>
                           </div>
                         </div>
@@ -1441,14 +1435,25 @@
                   post["quoteUrl"] || post["_misskey_quote"] ||
                     get_in(post, ["pleroma", "quote_uri"])
 
-                encoded_post_id = URI.encode_www_form(post["id"] || "unknown") %>
+                encoded_post_id = URI.encode_www_form(post["id"] || "unknown")
+                native_post_path = Elektrine.Paths.remote_post_path(post["id"] || "unknown") %>
                 <article
                   id={"remote-user-timeline-post-" <> encoded_post_id}
                   class="px-4 py-4 hover:bg-base-50 transition-colors cursor-pointer"
+                  data-post-id={post["id"] || encoded_post_id}
+                  data-source="remote_user"
                   phx-hook="PostClick"
-                  data-click-event="navigate_to_post"
-                  data-id={encoded_post_id}
                 >
+                  <.link
+                    navigate={native_post_path}
+                    class="hidden"
+                    data-post-nav-link
+                    tabindex="-1"
+                    aria-hidden="true"
+                  >
+                    Open post
+                  </.link>
+
                   <% post_title = normalize_remote_post_title(post) %>
                   <div class="flex items-center justify-between mb-3">
                     <span class="text-xs opacity-60">
@@ -1457,7 +1462,9 @@
                   </div>
 
                   <%= if post_title do %>
-                    <h3 class="font-bold text-base mb-2">{post_title}</h3>
+                    <.link navigate={native_post_path} class="block">
+                      <h3 class="font-bold text-base mb-2 hover:text-primary">{post_title}</h3>
+                    </.link>
                   <% end %>
 
                   <%= if post["content"] do %>
@@ -1648,13 +1655,12 @@
                           </div>
                         <% end %>
                         <%= if loaded_reply_count > 3 do %>
-                          <div
-                            class="text-xs text-primary cursor-pointer hover:underline"
-                            phx-click="navigate_to_post"
-                            phx-value-post_id={URI.encode_www_form(post["id"])}
+                          <.link
+                            navigate={native_post_path}
+                            class="text-xs text-primary hover:underline"
                           >
                             View all {loaded_reply_count} comments
-                          </div>
+                          </.link>
                         <% end %>
                       </div>
                     </div>

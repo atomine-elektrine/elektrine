@@ -252,7 +252,23 @@
             <div class="space-y-4">
               <%= for post <- @posts do %>
                 <%= if post.sender || post.remote_actor do %>
-                  <div class={["card panel-card "]} data-post-id={post.id}>
+                  <div
+                    id={"list-post-card-#{post.id}"}
+                    class={["card panel-card cursor-pointer"]}
+                    data-post-id={post.id}
+                    data-source="list"
+                    phx-hook="PostClick"
+                  >
+                    <.link
+                      navigate={Elektrine.Paths.post_path(post)}
+                      class="hidden"
+                      data-post-nav-link
+                      tabindex="-1"
+                      aria-hidden="true"
+                    >
+                      Open post
+                    </.link>
+
                     <div class="card-body p-4">
                       <!-- Boosted By Indicator -->
                       <%= if post.media_metadata && post.media_metadata["boosted_by"] do %>
@@ -358,25 +374,15 @@
                       <!-- Post Content -->
                       <div
                         id={"list-post-content-#{post.id}"}
-                        class="mb-3 cursor-pointer hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
-                        phx-hook="PostClick"
-                        data-click-event={
-                          if post.remote_actor && post.activitypub_url,
-                            do: "open_external_link",
-                            else: "navigate_to_post"
-                        }
-                        data-url={
-                          if post.remote_actor && post.activitypub_url,
-                            do: post.activitypub_url,
-                            else: nil
-                        }
-                        data-id={post.id}
+                        class="mb-3 hover:bg-base-50 -mx-2 px-2 py-1 rounded-lg transition-colors"
                       >
                         <% post_title = plain_text_content(post.title) %>
                         <%= if post_title != "" do %>
-                          <h3 class="font-semibold text-lg mb-2 break-words leading-tight">
-                            {post_title}
-                          </h3>
+                          <.link navigate={Elektrine.Paths.post_path(post)} class="block">
+                            <h3 class="font-semibold text-lg mb-2 break-words leading-tight hover:text-primary">
+                              {post_title}
+                            </h3>
+                          </.link>
                         <% end %>
 
                         <div class="break-words">{raw(render_post_content(post))}</div>
@@ -392,8 +398,7 @@
                           comment_count={post.reply_count || 0}
                           boost_count={post.share_count || 0}
                           value_name="message_id"
-                          on_comment="navigate_to_post"
-                          comment_value_name="id"
+                          comment_path={Elektrine.Paths.post_path(post)}
                           show_quote={false}
                           show_save={false}
                         />
@@ -410,16 +415,14 @@
                             <span class="text-xs sm:text-sm">Open</span>
                           </a>
                         <% else %>
-                          <button
-                            phx-click="navigate_to_post"
-                            phx-value-id={post.id}
+                          <.link
+                            navigate={Elektrine.Paths.post_path(post)}
                             class="btn btn-sm btn-ghost"
-                            type="button"
                             title="View full post"
                           >
                             <.icon name="hero-arrow-top-right-on-square" class="w-4 h-4 mr-1" />
                             <span class="text-xs sm:text-sm">View</span>
-                          </button>
+                          </.link>
                         <% end %>
                       </div>
                     </div>
@@ -575,14 +578,12 @@
                         <% end %>
 
                         <%= if post.reply_count > length(replies) do %>
-                          <button
-                            phx-click="navigate_to_post"
-                            phx-value-id={post.id}
+                          <.link
+                            navigate={Elektrine.Paths.post_path(post)}
                             class="text-sm text-primary hover:underline font-medium"
-                            type="button"
                           >
                             View all {post.reply_count} replies →
-                          </button>
+                          </.link>
                         <% end %>
                       </div>
                     <% end %>

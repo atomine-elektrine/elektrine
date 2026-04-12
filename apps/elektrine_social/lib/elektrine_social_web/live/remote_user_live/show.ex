@@ -1823,46 +1823,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     {:noreply, socket}
   end
 
-  def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, post_id))}
-  end
-
-  def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, id))}
-  end
-
-  def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, message_id))}
-  end
-
-  def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
-      when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: Paths.post_path(url))}
-  end
-
-  def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
-  end
-
-  def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
-  end
-
-  def handle_event("navigate_to_remote_post", _params, socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event("open_external_link", %{"url" => url}, socket)
-      when is_binary(url) and url != "" do
-    {:noreply, redirect_to_external_url(socket, url)}
-  end
-
-  def handle_event("open_external_link", _params, socket) do
-    {:noreply, socket}
-  end
-
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket)
       when is_binary(handle) and handle != "" do
     {:noreply, push_navigate(socket, to: "/#{handle}")}
@@ -2425,31 +2385,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         to_string(decoded_value)
     end
   end
-
-  defp navigate_post_path(socket, value) do
-    decoded_value = decode_post_ref(value)
-
-    case parse_local_message_id(decoded_value) do
-      {:ok, id} ->
-        post =
-          Enum.find(socket.assigns.local_posts || [], &(&1.id == id)) ||
-            fetch_post_for_navigation(id)
-
-        Paths.post_path(post || id)
-
-      :error ->
-        Paths.post_path(normalize_navigate_post_id(socket, decoded_value))
-    end
-  end
-
-  defp fetch_post_for_navigation(id) when is_integer(id) do
-    case Elektrine.Messaging.get_message(id) do
-      %Elektrine.Messaging.Message{} = post -> Elektrine.Repo.preload(post, [:conversation])
-      _ -> nil
-    end
-  end
-
-  defp fetch_post_for_navigation(_), do: nil
 
   defp parse_local_message_id(value) when is_integer(value), do: {:ok, value}
 

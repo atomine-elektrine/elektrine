@@ -1123,7 +1123,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       user_boosts={%{@message.id => @interaction_state.boosted}}
       user_saves={%{@message.id => @saved?}}
       reactions={@reactions}
-      click_event="stop_event"
+      clickable={false}
       source="timeline"
       id_prefix="remote-post-detail"
       show_follow_button={false}

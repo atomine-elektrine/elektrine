@@ -1,7 +1,6 @@
 defmodule ElektrineSocialWeb.ListLive.Show do
   use ElektrineSocialWeb, :live_view
   require Logger
-  alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   import ElektrineSocialWeb.Components.Platform.ENav
   import Elektrine.Components.User.UsernameEffects
@@ -552,14 +551,6 @@ defmodule ElektrineSocialWeb.ListLive.Show do
     handle_event("boost_post", params, socket)
   end
 
-  def handle_event("navigate_to_post", %{"id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
-  end
-
-  def handle_event("open_external_link", %{"url" => url}, socket) do
-    {:noreply, redirect_to_external_url(socket, url)}
-  end
-
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do
     {:noreply, push_navigate(socket, to: ~p"/#{handle}")}
   end
@@ -726,12 +717,5 @@ defmodule ElektrineSocialWeb.ListLive.Show do
       end)
 
     {updated_posts, updated_replies}
-  end
-
-  defp redirect_to_external_url(socket, url) do
-    case SafeExternalURL.normalize(url) do
-      {:ok, safe_url} -> redirect(socket, external: safe_url)
-      {:error, _reason} -> put_flash(socket, :error, "Invalid external URL")
-    end
   end
 end

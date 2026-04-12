@@ -78,6 +78,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :quote_count, :integer, default: 0
   attr :value_name, :string, default: "post_id"
   attr :comment_value_name, :string, default: nil
+  attr :comment_path, :string, default: nil
   attr :size, :atom, default: :sm
   attr :style, :atom, default: :default
 
@@ -155,24 +156,37 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       <% end %>
 
       <%= if @show_comment do %>
-        <%= if @current_user do %>
-          <button
-            phx-click={@on_comment}
-            {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+        <%= if @comment_path do %>
+          <.link
+            navigate={@comment_path}
             class={[
               @btn_class,
-              "cursor-pointer transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+              "cursor-pointer transition-colors"
             ]}
-            type="button"
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
             <span class={@text_class}>{@comment_count}</span>
-          </button>
+          </.link>
         <% else %>
-          <div class={[@btn_class, "cursor-default opacity-60"]}>
-            <.icon name="hero-chat-bubble-left" class={@icon_size} />
-            <span class={@text_class}>{@comment_count}</span>
-          </div>
+          <%= if @current_user do %>
+            <button
+              phx-click={@on_comment}
+              {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              class={[
+                @btn_class,
+                "cursor-pointer transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+              ]}
+              type="button"
+            >
+              <.icon name="hero-chat-bubble-left" class={@icon_size} />
+              <span class={@text_class}>{@comment_count}</span>
+            </button>
+          <% else %>
+            <div class={[@btn_class, "cursor-default opacity-60"]}>
+              <.icon name="hero-chat-bubble-left" class={@icon_size} />
+              <span class={@text_class}>{@comment_count}</span>
+            </div>
+          <% end %>
         <% end %>
       <% end %>
 
@@ -296,21 +310,32 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       <% end %>
 
       <%= if @show_comment do %>
-        <%= if @current_user do %>
-          <button
-            phx-click={@on_comment}
-            {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
-            class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
-            type="button"
+        <%= if @comment_path do %>
+          <.link
+            navigate={@comment_path}
+            class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer"
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
             <span>{@comment_count}</span>
-          </button>
-        <% else %>
-          <div class="flex items-center gap-1.5 opacity-50 cursor-default">
-            <.icon name="hero-chat-bubble-left" class={@icon_size} />
-            <span>{@comment_count}</span>
-          </div>
+          </.link>
+        <% end %>
+        <%= if !@comment_path do %>
+          <%= if @current_user do %>
+            <button
+              phx-click={@on_comment}
+              {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+              type="button"
+            >
+              <.icon name="hero-chat-bubble-left" class={@icon_size} />
+              <span>{@comment_count}</span>
+            </button>
+          <% else %>
+            <div class="flex items-center gap-1.5 opacity-50 cursor-default">
+              <.icon name="hero-chat-bubble-left" class={@icon_size} />
+              <span>{@comment_count}</span>
+            </div>
+          <% end %>
         <% end %>
       <% end %>
 
