@@ -1123,7 +1123,10 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp transport_for_socket({:sslsocket, _, _}), do: :ssl
+  defp transport_for_socket(socket)
+       when is_tuple(socket) and tuple_size(socket) > 0 and elem(socket, 0) == :sslsocket,
+       do: :ssl
+
   defp transport_for_socket(_socket), do: :tcp
 
   defp active_table_name(:ssl), do: :pop3_active_connections_tls

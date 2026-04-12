@@ -91,6 +91,9 @@ defmodule Elektrine.Mail.Socket do
     end
   end
 
-  defp transport({:sslsocket, _, _}), do: :ssl
+  defp transport(socket)
+       when is_tuple(socket) and tuple_size(socket) > 0 and elem(socket, 0) == :sslsocket,
+       do: :ssl
+
   defp transport(_socket), do: :tcp
 end

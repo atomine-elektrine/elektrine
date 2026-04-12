@@ -90,6 +90,7 @@ defmodule Elektrine.MixProject do
        depth: 1},
       {:swoosh, "== 1.21.0"},
       {:finch, "== 0.21.0"},
+      {:castore, "~> 1.0"},
       {:mail, "~> 0.5.1"},
       {:telemetry_metrics, "== 1.1.0"},
       {:telemetry_poller, "== 1.3.0"},

@@ -35,6 +35,11 @@ defmodule Elektrine.Paths do
     chat_message_path(conversation_id, id)
   end
 
+  def post_path(%{activitypub_id: activitypub_id})
+      when is_binary(activitypub_id) and activitypub_id != "" do
+    remote_post_path(activitypub_id)
+  end
+
   def post_path(%{id: id}) when is_integer(id), do: post_path(id)
 
   def post_path(%{id: id, activitypub_id: activitypub_id})
