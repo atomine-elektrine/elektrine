@@ -3148,14 +3148,32 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     # Load local message from database
     import Ecto.Query
 
+    started_at = System.monotonic_time(:millisecond)
+
     message =
-      Elektrine.Messaging.Message
-      |> where([m], m.id == ^message_id)
-      |> Elektrine.Repo.one()
-      |> Elektrine.Repo.preload(
-        Elektrine.Messaging.Messages.timeline_post_preloads() ++
-          [replies: [sender: [:profile], remote_actor: []]]
-      )
+      case Elektrine.Messaging.Message
+           |> where([m], m.id == ^message_id)
+           |> Elektrine.Repo.one() do
+        nil ->
+          nil
+
+        message ->
+          preloads =
+            if message.federated && is_binary(message.activitypub_id) do
+              Elektrine.Messaging.Messages.timeline_post_preloads()
+            else
+              Elektrine.Messaging.Messages.timeline_post_preloads() ++
+                [replies: [sender: [:profile], remote_actor: []]]
+            end
+
+          Elektrine.Repo.preload(message, preloads)
+      end
+
+    log_remote_post_timing("load_local_post", started_at,
+      message_id: message_id,
+      found: not is_nil(message),
+      federated: message && message.federated
+    )
 
     if message && can_view_local_post?(message, socket.assigns[:current_user]) do
       if message.federated && is_binary(message.activitypub_id) do
@@ -3401,6 +3419,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     parent = self()
 
     Task.start(fn ->
+      started_at = System.monotonic_time(:millisecond)
+
       result =
         case ActivityPub.Fetcher.fetch_object(post_id) do
           {:ok, post_object} ->
@@ -3423,6 +3443,15 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           {:error, reason} ->
             {:error, reason}
         end
+
+      log_remote_post_timing("load_remote_post", started_at,
+        post_id: post_id,
+        result:
+          case result do
+            {:ok, _} -> :ok
+            {:error, reason} -> reason
+          end
+      )
 
       send(parent, {:remote_post_loaded, load_ref, result})
     end)
@@ -3669,6 +3698,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   # Load replies for cached posts
   def handle_info({:load_replies_for_cached, msg}, socket) do
+    started_at = System.monotonic_time(:millisecond)
     post_id = msg.activitypub_id || msg.activitypub_url
     post_url = msg.activitypub_url || post_id
     replies_count = cached_reply_count(msg)
@@ -3711,6 +3741,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     if is_binary(post_id) do
       send(self(), {:load_replies, post_object})
     end
+
+    log_remote_post_timing("load_replies_for_cached", started_at,
+      message_id: msg.id,
+      post_id: post_id,
+      cached_reply_count: replies_count,
+      local_replies: length(local_replies)
+    )
 
     {:noreply,
      socket
@@ -3778,10 +3815,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_info({:load_reply_parent, post_object}, socket) when is_map(post_object) do
+    started_at = System.monotonic_time(:millisecond)
     local_message = socket.assigns[:local_message]
     in_reply_to = extract_post_in_reply_to(post_object, local_message)
     socket = assign_reply_parent_fallback(socket, post_object, local_message)
     socket = hydrate_ancestor_surface_data(socket, socket.assigns.reply_ancestors)
+
+    log_remote_post_timing("load_reply_parent", started_at,
+      post_id: field_value(post_object, ["id", :id]),
+      in_reply_to: is_binary(in_reply_to)
+    )
 
     if is_binary(in_reply_to) do
       if maybe_store_reply_ancestor(in_reply_to, post_object) == :stored and
@@ -3853,6 +3896,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_info({:load_replies, post_object, opts}, socket) when is_map(post_object) do
+    started_at = System.monotonic_time(:millisecond)
     post_id = post_object["id"]
     force_sync = Keyword.get(opts, :force_sync, false)
 
@@ -3894,6 +3938,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       else
         send(self(), {:replies_loaded, [], post_id})
       end
+
+      log_remote_post_timing("load_replies", started_at,
+        post_id: post_id,
+        local_message_id: local_message.id,
+        cached_replies: length(cached_replies),
+        should_sync: should_sync_replies,
+        force_sync: force_sync
+      )
 
       {:noreply, socket}
     end
@@ -3955,7 +4007,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     current_post = socket.assigns[:post]
 
     Task.start(fn ->
+      started_at = System.monotonic_time(:millisecond)
       result = fetch_platform_counts_result(post_id, current_post)
+
+      log_remote_post_timing("load_platform_counts", started_at,
+        post_id: post_id,
+        result: inspect(result, limit: 5, printable_limit: 200)
+      )
+
       send(parent, {:platform_counts_loaded, load_ref, post_id, result})
     end)
 
@@ -5332,6 +5391,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp build_threaded_replies_with_actor_cache(replies, post_id, sort) do
     Threading.build_threaded_replies_with_actor_cache(replies, post_id, sort)
+  end
+
+  defp log_remote_post_timing(step, started_at, metadata) do
+    duration_ms = System.monotonic_time(:millisecond) - started_at
+
+    Logger.info(fn ->
+      metadata_text =
+        metadata
+        |> Enum.map_join(" ", fn {key, value} -> "#{key}=#{inspect(value)}" end)
+
+      "remote_post_timing step=#{step} duration_ms=#{duration_ms}" <>
+        if(metadata_text == "", do: "", else: " " <> metadata_text)
+    end)
   end
 
   defp field_value(nil, _keys), do: nil
