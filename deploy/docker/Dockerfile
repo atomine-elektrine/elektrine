@@ -24,7 +24,7 @@ ARG PROFILE_BASE_DOMAINS=example.com
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-ubuntu-${UBUNTU_VERSION}"
 ARG RUNNER_IMAGE="ubuntu:${UBUNTU_VERSION}"
 
-FROM ${BUILDER_IMAGE} as builder
+FROM ${BUILDER_IMAGE} AS builder
 
 ARG RELEASE_NAME
 ARG ELEKTRINE_RELEASE_MODULES
@@ -143,11 +143,11 @@ RUN mkdir -p /data/tor/elektrine /data/tor/data /data/certs && \
 COPY --chmod=644 deploy/onion/torrc /etc/tor/torrc
 
 # Set the locale
-RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
+RUN printf 'en_US.UTF-8 UTF-8\n' > /etc/locale.gen && locale-gen
 
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 
 WORKDIR "/app"
 RUN chown nobody /app
