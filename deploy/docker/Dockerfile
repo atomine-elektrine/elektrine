@@ -130,7 +130,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
       apt-get update -y && \
-      apt-get install -y libstdc++6 openssl libncurses5 ca-certificates libvips42 tor tini gnupg wireguard-tools iproute2 && \
+      apt-get install -y libstdc++6 openssl libncurses5 ca-certificates libvips42 tor gnupg wireguard-tools iproute2 && \
       apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done
@@ -165,9 +165,5 @@ COPY --from=builder --chown=nobody:root /app/_deploy_release/${RELEASE_NAME} ./
 
 # Expose ports for HTTP and HTTPS (non-privileged ports, fly.toml maps external 80/443)
 EXPOSE 8080 8443
-
-# Use tini for proper zombie process reaping (needed for Tor sidecar)
-# Entrypoint runs as root to fix volume permissions, then drops to nobody
-ENTRYPOINT ["/usr/bin/tini", "--"]
 
 CMD ["/app/docker-entrypoint.sh"]
