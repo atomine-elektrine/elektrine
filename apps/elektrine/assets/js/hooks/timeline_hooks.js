@@ -349,22 +349,29 @@ export const InfiniteScroll = {
     this.minRequestInterval = 500
     this.pendingResetTimeout = null
     this.checkRAF = null
+    this.restoreRAF = null
+    this.restoreTimeout = null
+    this.prePatchMode = null
     this.sentinel = null
     this.observer = null
     this.loadingMore = this.el.dataset.loadingMore === 'true'
-    this.prePatchLoadingMore = false
+    this.prePatchShouldPreserve = false
     this.prePatchScrollY = null
     this.prePatchAnchor = null
     this.loadCycleStartY = null
 
     this.setupObserver()
     this.requestCheck()
+
+    this.handleScroll = () => this.cancelSettledRestore()
+    window.addEventListener('scroll', this.handleScroll, { passive: true })
   },
 
   beforeUpdate() {
-    this.prePatchLoadingMore = this.loadingMore
+    this.prePatchMode = this.pending || this.loadingMore ? 'load-cycle' : null
+    this.prePatchShouldPreserve = this.prePatchMode !== null
 
-    if (this.prePatchLoadingMore) {
+    if (this.prePatchShouldPreserve) {
       this.prePatchScrollY = window.scrollY
       this.prePatchAnchor = this.findVisiblePostAnchor()
     } else {
@@ -442,29 +449,16 @@ export const InfiniteScroll = {
   updated() {
     this.loadingMore = this.el.dataset.loadingMore === 'true'
 
-    if (this.prePatchLoadingMore && !this.loadingMore) {
-      let restored = false
+    if (this.prePatchShouldPreserve) {
+      this.restoreAnchorPosition(this.prePatchAnchor, this.prePatchScrollY)
 
-      if (this.prePatchAnchor?.postId) {
-        const anchor = this.findPostById(this.prePatchAnchor.postId)
-
-        if (anchor) {
-          const newTop = anchor.getBoundingClientRect().top
-          const delta = newTop - this.prePatchAnchor.top
-
-          if (delta !== 0) window.scrollBy(0, delta)
-          restored = true
-        }
-      }
-
-      if (!restored && Number.isFinite(this.prePatchScrollY)) {
-        window.scrollTo({ top: this.prePatchScrollY, behavior: "auto" })
-      } else if (!restored && Number.isFinite(this.loadCycleStartY)) {
-        window.scrollTo({ top: this.loadCycleStartY, behavior: "auto" })
+      if (this.prePatchMode === 'load-cycle') {
+        this.scheduleSettledRestore(this.prePatchAnchor, this.prePatchScrollY, true)
       }
     }
 
-    this.prePatchLoadingMore = false
+    this.prePatchMode = null
+    this.prePatchShouldPreserve = false
     this.prePatchScrollY = null
     this.prePatchAnchor = null
     if (!this.loadingMore) this.loadCycleStartY = null
@@ -499,9 +493,60 @@ export const InfiniteScroll = {
     return this.el.querySelector(`[data-post-id="${escapedPostId}"]`)
   },
 
+  restoreAnchorPosition(anchorSnapshot, fallbackScrollY) {
+    let restored = false
+
+    if (anchorSnapshot?.postId) {
+      const anchor = this.findPostById(anchorSnapshot.postId)
+
+      if (anchor) {
+        const newTop = anchor.getBoundingClientRect().top
+        const delta = newTop - anchorSnapshot.top
+
+        if (delta !== 0) window.scrollBy(0, delta)
+        restored = true
+      }
+    }
+
+    if (!restored && Number.isFinite(fallbackScrollY)) {
+      window.scrollTo({ top: fallbackScrollY, behavior: 'auto' })
+      restored = true
+    } else if (!restored && Number.isFinite(this.loadCycleStartY)) {
+      window.scrollTo({ top: this.loadCycleStartY, behavior: 'auto' })
+      restored = true
+    }
+
+    return restored
+  },
+
+  cancelSettledRestore() {
+    if (this.restoreRAF) cancelAnimationFrame(this.restoreRAF)
+    if (this.restoreTimeout) clearTimeout(this.restoreTimeout)
+    this.restoreRAF = null
+    this.restoreTimeout = null
+  },
+
+  scheduleSettledRestore(anchorSnapshot, fallbackScrollY, includeTimeout = false) {
+    this.cancelSettledRestore()
+
+    this.restoreRAF = requestAnimationFrame(() => {
+      this.restoreRAF = null
+      this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY)
+    })
+
+    if (includeTimeout) {
+      this.restoreTimeout = setTimeout(() => {
+        this.restoreTimeout = null
+        this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY)
+      }, 120)
+    }
+  },
+
   destroyed() {
     if (this.pendingResetTimeout) clearTimeout(this.pendingResetTimeout)
     if (this.checkRAF) cancelAnimationFrame(this.checkRAF)
+    this.cancelSettledRestore()
+    if (this.handleScroll) window.removeEventListener('scroll', this.handleScroll)
     if (this.observer) this.observer.disconnect()
   }
 }

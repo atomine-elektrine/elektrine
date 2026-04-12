@@ -1663,7 +1663,7 @@ defmodule Elektrine.Messaging.Messages do
        when is_binary(ref) and is_list(field_names) do
     Enum.find_value(field_names, fn field_name ->
       message_id_by_exact_activitypub_ref(ref, field_name) ||
-        message_id_by_canonicalized_activitypub_ref(ref, field_name)
+        maybe_message_id_by_canonicalized_activitypub_ref(ref, field_name)
     end)
   end
 
@@ -1689,6 +1689,15 @@ defmodule Elektrine.Messaging.Messages do
       limit: 1
     )
     |> Repo.one()
+  end
+
+  defp maybe_message_id_by_canonicalized_activitypub_ref(_ref, field_name)
+       when field_name in [:activitypub_id_canonical, :activitypub_url_canonical] do
+    nil
+  end
+
+  defp maybe_message_id_by_canonicalized_activitypub_ref(ref, field_name) do
+    message_id_by_canonicalized_activitypub_ref(ref, field_name)
   end
 
   defp load_activitypub_lookup_message(id) when is_integer(id) do
