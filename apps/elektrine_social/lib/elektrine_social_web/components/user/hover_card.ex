@@ -49,7 +49,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
 
     ~H"""
     <div
-      class={["relative inline-block", @class]}
+      class={["relative inline-block overflow-visible z-0 hover:z-[360] focus-within:z-[360]", @class]}
       phx-hook="UserHoverCard"
       id={@hover_id}
     >
@@ -59,7 +59,7 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       <div
         data-hover-card
         class={[
-          "absolute z-[100] scale-95 opacity-0 invisible",
+          "absolute z-[360] scale-95 opacity-0 invisible",
           "transition-all duration-150 ease-out origin-top-left",
           card_position_classes(@card_position)
         ]}
