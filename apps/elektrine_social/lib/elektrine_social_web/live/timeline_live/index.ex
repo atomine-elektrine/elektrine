@@ -118,6 +118,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:refresh_remote_counts_ref, nil)
       |> assign(:timeline_load_ref, nil)
       |> assign(:timeline_hydration_ref, nil)
+      |> assign(:timeline_load_started_at, nil)
+      |> assign(:timeline_hydration_started_at, nil)
       |> assign(:show_quote_modal, false)
       |> assign(:quote_target_post, nil)
       |> assign(:quote_content, "")
@@ -230,6 +232,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp do_load_data_for_filter(socket, filter) do
+    started_at = System.monotonic_time()
     user = socket.assigns[:current_user]
     timeline_view = socket.assigns.timeline_filter
     search_query = socket.assigns.search_query
@@ -246,6 +249,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     cached_special_view = Map.get(special_view_cache, cache_key)
 
+    posts_started_at = System.monotonic_time()
+
     posts =
       case cached_special_view do
         %{posts: cached_posts} ->
@@ -258,11 +263,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           )
       end
 
+    posts_duration_ms = duration_ms(posts_started_at)
+
     cached_post_replies =
       case cached_special_view do
         %{post_replies: cached_replies} when is_map(cached_replies) -> cached_replies
         _ -> %{}
       end
+
+    base_posts_started_at = System.monotonic_time()
 
     base_timeline_posts =
       cond do
@@ -286,10 +295,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           )
       end
 
+    base_posts_duration_ms = duration_ms(base_posts_started_at)
+
     special_view_cache =
       Map.put(special_view_cache, cache_key, %{posts: posts, post_replies: cached_post_replies})
 
     queued_posts = queued_posts_for_active_filters(filter_context_socket)
+
+    rss_started_at = System.monotonic_time()
 
     {rss_items, rss_saves} =
       cond do
@@ -317,6 +330,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           {[], %{}}
       end
 
+    rss_duration_ms = duration_ms(rss_started_at)
+
+    Logger.info(
+      "timeline load_data_for_filter filter=#{filter} view=#{timeline_view} search=#{inspect(search_query)} posts=#{length(posts)} " <>
+        "cached=#{is_map(cached_special_view)} posts_ms=#{posts_duration_ms} base_posts_ms=#{base_posts_duration_ms} " <>
+        "rss_ms=#{rss_duration_ms} total_ms=#{duration_ms(started_at)}"
+    )
+
     {:noreply,
      socket
      |> assign(:current_filter, filter)
@@ -334,6 +355,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
      |> assign(:remote_post_data, socket.assigns[:remote_post_data] || %{})
      |> assign(:remote_data_request_ref, nil)
      |> assign(:refresh_remote_counts_ref, nil)
+     |> assign(:timeline_load_started_at, started_at)
      |> assign(:rss_items, rss_items)
      |> assign(:rss_saves, rss_saves)
      |> assign(:user_likes, %{})
@@ -429,16 +451,25 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     hydration_ref = System.unique_integer([:positive, :monotonic])
     parent = self()
     user_id = user && user.id
+    started_at = System.monotonic_time()
+
+    Logger.info(
+      "timeline hydration_start ref=#{hydration_ref} filter=#{filter} view=#{timeline_view} posts=#{length(posts)}"
+    )
 
     if test_env?() do
       hydrated_state = build_timeline_hydrated_state(posts, user_id)
       send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
     else
-      hydrated_state = build_timeline_hydrated_state(posts, user_id)
-      send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
+      Task.start(fn ->
+        hydrated_state = build_timeline_hydrated_state(posts, user_id)
+        send(parent, {:timeline_hydrated, hydration_ref, filter, timeline_view, hydrated_state})
+      end)
     end
 
-    assign(socket, :timeline_hydration_ref, hydration_ref)
+    socket
+    |> assign(:timeline_hydration_ref, hydration_ref)
+    |> assign(:timeline_hydration_started_at, started_at)
   end
 
   defp test_env? do
@@ -520,6 +551,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         {:noreply, socket}
 
       true ->
+        hydration_ms = duration_ms(socket.assigns.timeline_hydration_started_at)
+        total_since_load_ms = duration_ms(socket.assigns.timeline_load_started_at)
+
+        Logger.info(
+          "timeline hydration_done ref=#{hydration_ref} filter=#{filter} view=#{timeline_view} " <>
+            "hydration_ms=#{hydration_ms} total_since_load_ms=#{total_since_load_ms} " <>
+            "reply_maps=#{map_size(Map.get(hydrated_state, :post_replies, %{}))} " <>
+            "reaction_maps=#{map_size(Map.get(hydrated_state, :post_reactions, %{}))}"
+        )
+
         cache_key = {filter, timeline_view, socket.assigns.search_query}
         existing_cache = Map.get(socket.assigns.special_view_cache || %{}, cache_key, %{})
 
@@ -536,6 +577,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         {:noreply,
          socket
          |> assign(:special_view_cache, special_view_cache)
+         |> assign(:timeline_hydration_started_at, nil)
          |> assign(:post_replies, Map.get(hydrated_state, :post_replies, %{}))
          |> assign(:post_reactions, Map.get(hydrated_state, :post_reactions, %{}))
          |> assign(:user_likes, Map.get(hydrated_state, :user_likes, %{}))
@@ -551,6 +593,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   def handle_info(:load_timeline_data, socket) do
     user = socket.assigns[:current_user]
     filter = socket.assigns.current_filter
+    started_at = System.monotonic_time()
+
+    Logger.info(
+      "timeline load_timeline_data_start connected=#{connected?(socket)} filter=#{filter} view=#{socket.assigns.timeline_filter}"
+    )
+
     {:noreply, loaded_socket} = load_data_for_filter(socket, filter)
 
     loaded_socket =
@@ -567,6 +615,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     if user do
       send(self(), :load_secondary_data)
     end
+
+    Logger.info(
+      "timeline load_timeline_data_done filter=#{filter} view=#{loaded_socket.assigns.timeline_filter} " <>
+        "total_ms=#{duration_ms(started_at)} posts=#{length(loaded_socket.assigns.timeline_posts || [])}"
+    )
 
     {:noreply, loaded_socket}
   end
@@ -1201,6 +1254,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   @impl true
   def handle_info(_info, socket) do
     {:noreply, socket}
+  end
+
+  defp duration_ms(nil), do: nil
+
+  defp duration_ms(started_at) when is_integer(started_at) do
+    System.monotonic_time()
+    |> Kernel.-(started_at)
+    |> System.convert_time_unit(:native, :millisecond)
   end
 
   defp load_posts_for_filter(filter, user, timeline_view, opts) do

@@ -879,7 +879,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         acc
 
       true ->
-        entry = build_reply_ancestor_entry(message, ref, fallback_author, fallback_content)
+        entry =
+          build_reply_ancestor_entry(
+            message,
+            ref,
+            fallback_author,
+            fallback_content,
+            allow_db_lookups
+          )
 
         {next_message, next_ref, next_author, next_content} =
           next_ancestor_state(message, resolve_reply_refs, allow_db_lookups)
@@ -980,7 +987,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp next_ancestor_state(_, _, _), do: {nil, nil, nil, nil}
 
-  defp build_reply_ancestor_entry(message, ref, fallback_author, fallback_content) do
+  defp build_reply_ancestor_entry(
+         message,
+         ref,
+         fallback_author,
+         fallback_content,
+         allow_db_lookups
+       ) do
     local_id =
       if is_map(message) do
         normalize_local_id(Map.get(message, :id))
@@ -1013,7 +1026,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     preview_content =
       ancestor_preview_content(message, fallback_content) ||
-        local_ancestor_preview_content(activitypub_ref)
+        local_ancestor_preview_content(activitypub_ref, allow_db_lookups)
 
     instance_domain = ancestor_instance_domain(message, activitypub_ref)
 
@@ -1130,7 +1143,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp ancestor_preview_content(_, _), do: nil
 
-  defp local_ancestor_preview_content(activitypub_ref) when is_binary(activitypub_ref) do
+  defp local_ancestor_preview_content(activitypub_ref, true) when is_binary(activitypub_ref) do
     case Messaging.get_message_by_activitypub_ref(activitypub_ref) do
       %Message{} = message ->
         ancestor_preview_content(message, nil)
@@ -1140,7 +1153,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     end
   end
 
-  defp local_ancestor_preview_content(_), do: nil
+  defp local_ancestor_preview_content(_, _), do: nil
 
   defp ancestor_instance_domain(message, _activitypub_ref) when is_map(message),
     do: PostUtilities.get_instance_domain(message)
