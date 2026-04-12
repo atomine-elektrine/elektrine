@@ -2988,13 +2988,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp can_view_remote_post?(post_object, local_message, current_user) do
-    cond do
-      is_map(local_message) ->
-        can_view_local_post?(local_message, current_user) ||
-          remote_post_publicly_visible?(post_object)
-
-      true ->
+    if is_map(local_message) do
+      can_view_local_post?(local_message, current_user) ||
         remote_post_publicly_visible?(post_object)
+    else
+      remote_post_publicly_visible?(post_object)
     end
   end
 
