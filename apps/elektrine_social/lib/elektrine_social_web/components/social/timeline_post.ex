@@ -1847,6 +1847,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   id={"timeline-media-image-#{@post.id}-#{media_entry.index}-#{:erlang.phash2(media_entry.full_url)}"}
                   src={media_entry.full_url}
                   alt={media_entry.alt_text}
+                  width={media_entry.width}
+                  height={media_entry.height}
                   class="h-full w-full object-contain cursor-pointer hover:opacity-90 transition-opacity"
                   loading="lazy"
                   phx-hook="ImageFallback"
@@ -1943,9 +1945,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                   "Posted media",
               frame_style: media_frame_style(width, height, fallback_ratio),
               full_url: full_url,
+              height: height,
               index: index,
               is_audio: is_audio,
-              is_video: is_video
+              is_video: is_video,
+              width: width
             }
             | entries
           ]

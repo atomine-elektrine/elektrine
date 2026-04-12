@@ -23,6 +23,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
   @session_interest_dwell_ms 10_000
+  @dwell_rerank_delay_ms 350
   @overview_feed_limit 20
   @overview_feed_step 20
   @impl true
@@ -2458,7 +2459,9 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp maybe_note_dwell_interest(socket, post_id, dwell_time_ms) do
     if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
-      note_positive_signal(socket, find_overview_post(socket.assigns.all_posts, post_id))
+      socket
+      |> note_positive_signal(find_overview_post(socket.assigns.all_posts, post_id))
+      |> schedule_feed_rerank(@dwell_rerank_delay_ms)
     else
       socket
     end

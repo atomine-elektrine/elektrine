@@ -1238,7 +1238,7 @@
             <% end %>
             <!-- Load More Button -->
             <%= if length(@timeline_posts) >= 20 do %>
-              <div class="py-4 timeline-load-more-zone">
+              <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
                 <%= if @loading_more do %>
                   <div class="h-16 rounded-lg flex items-center justify-center">
                     <div class="flex items-center gap-2 text-sm text-base-content/70">
@@ -1246,7 +1246,7 @@
                     </div>
                   </div>
                 <% else %>
-                  <div class="text-center mb-4">
+                  <div class="text-center">
                     <button phx-click="load_more_posts" class="btn btn-ghost"> Load More </button>
                   </div>
                 <% end %>

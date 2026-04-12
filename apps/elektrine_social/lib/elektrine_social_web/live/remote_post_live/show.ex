@@ -3911,7 +3911,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       socket =
         socket
         |> assign(:local_message, local_message)
-        |> assign_reply_surface_from_db(post_id)
+        |> assign_reply_surface_from_db(post_id, current_local_replies(socket, post_id))
 
       cached_replies = socket.assigns.replies
 
@@ -4385,9 +4385,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp refresh_local_message(local_message), do: local_message
 
-  defp assign_reply_surface_from_db(socket, post_id) do
+  defp assign_reply_surface_from_db(socket, post_id, preloaded_replies) do
     local_replies =
-      if is_binary(post_id), do: SurfaceHelpers.merge_local_replies([], post_id), else: []
+      cond do
+        is_list(preloaded_replies) ->
+          preloaded_replies
+
+        is_binary(post_id) ->
+          SurfaceHelpers.merge_local_replies([], post_id)
+
+        true ->
+          []
+      end
 
     {threaded_replies, thread_reply_actors} =
       build_threaded_replies_with_actor_cache(local_replies, post_id, socket.assigns.comment_sort)
@@ -4418,6 +4427,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> assign(:post_reactions, post_reactions)
     |> sync_post_reply_counts(local_replies)
   end
+
+  defp current_local_replies(socket, post_id) when is_binary(post_id) do
+    current_post_id = field_value(socket.assigns[:post], ["id", :id])
+
+    if current_post_id == post_id and is_list(socket.assigns[:replies]) do
+      socket.assigns.replies
+    else
+      nil
+    end
+  end
+
+  defp current_local_replies(_, _), do: nil
 
   defp sync_post_reply_counts(socket, local_replies) when is_list(local_replies) do
     reply_count = length(local_replies)

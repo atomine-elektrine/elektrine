@@ -423,9 +423,15 @@ div.message-selected:hover {
 
 .timeline-feed-region,
 .timeline-load-more-zone,
-[phx-hook="InfiniteScroll"],
 [data-infinite-scroll-sentinel] {
   overflow-anchor: none;
+}
+
+.timeline-post-card,
+.timeline-stream-entry,
+.overview-post-entry,
+[data-post-id] {
+  overflow-anchor: auto;
 }
 
 /* --------------------------------------------------------------------------
