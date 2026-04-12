@@ -1149,7 +1149,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       <div class="flex min-h-[12rem] flex-col items-center justify-center text-center text-base-content/60">
         <.icon name="hero-chat-bubble-left" class="w-12 h-12 mb-3 opacity-30" />
         <%= cond do %>
-          <% @replies_loaded || @replies_loading -> %>
+          <% @replies_loading && !@replies_loaded -> %>
+            <div class="flex flex-col items-center gap-3" data-comments-loading-placeholder>
+              <span class="loading loading-spinner loading-md"></span>
+              <p>Loading comments...</p>
+            </div>
+          <% @replies_loaded -> %>
             <p>{@empty_message}</p>
           <% true -> %>
             <button phx-click="load_comments" class="btn btn-primary btn-sm">
@@ -2755,43 +2760,47 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         case Task.yield(task, 3_000) || Task.shutdown(task) do
           {:ok, {:ok, post_object}} ->
-            # Extract meta info from ActivityPub object
-            content = post_object["content"] || post_object["summary"] || ""
-            description = build_og_description(content)
+            if remote_post_publicly_visible?(post_object) do
+              # Extract meta info from ActivityPub object
+              content = post_object["content"] || post_object["summary"] || ""
+              description = build_og_description(content)
 
-            # Get first image from attachments
-            image =
-              case post_object["attachment"] do
-                [%{"url" => url} | _] when is_binary(url) -> url
-                [%{"url" => [%{"href" => url} | _]} | _] when is_binary(url) -> url
-                _ -> nil
-              end
+              # Get first image from attachments
+              image =
+                case post_object["attachment"] do
+                  [%{"url" => url} | _] when is_binary(url) -> url
+                  [%{"url" => [%{"href" => url} | _]} | _] when is_binary(url) -> url
+                  _ -> nil
+                end
 
-            # Build actor name from URI without extra DB lookup
-            actor_name =
-              case normalize_in_reply_to_ref(post_object["attributedTo"]) do
-                uri when is_binary(uri) ->
-                  username = SurfaceHelpers.extract_username_from_uri(uri)
+              # Build actor name from URI without extra DB lookup
+              actor_name =
+                case normalize_in_reply_to_ref(post_object["attributedTo"]) do
+                  uri when is_binary(uri) ->
+                    username = SurfaceHelpers.extract_username_from_uri(uri)
 
-                  case URI.parse(uri) do
-                    %URI{host: host} when is_binary(host) and host != "" ->
-                      "@#{username}@#{host}"
+                    case URI.parse(uri) do
+                      %URI{host: host} when is_binary(host) and host != "" ->
+                        "@#{username}@#{host}"
 
-                    _ ->
-                      "@#{username}"
-                  end
+                      _ ->
+                        "@#{username}"
+                    end
 
-                _ ->
-                  nil
-              end
+                  _ ->
+                    nil
+                end
 
-            page_title =
-              post_object["name"] || (actor_name && "Post by #{actor_name}") || "Remote Post"
+              page_title =
+                post_object["name"] || (actor_name && "Post by #{actor_name}") || "Remote Post"
 
-            socket
-            |> assign(:page_title, page_title)
-            |> assign(:meta_description, description)
-            |> assign(:og_image, image)
+              socket
+              |> assign(:page_title, page_title)
+              |> assign(:meta_description, description)
+              |> assign(:og_image, image)
+            else
+              socket
+            end
 
           _ ->
             # Timeout or error - just use defaults
@@ -2843,9 +2852,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp get_first_media_url(_, _context), do: nil
 
   defp apply_loaded_remote_post(socket, post_object, remote_actor, community_actor) do
-    local_message = ensure_local_message_for_remote_post(post_object, remote_actor)
+    post_id = normalize_in_reply_to_ref(post_object["id"] || post_object["url"])
+    local_message = latest_local_message_for_post(post_id)
 
-    post_object = merge_local_poll_data(post_object, local_message)
+    if can_view_remote_post?(post_object, local_message, socket.assigns[:current_user]) do
+      do_apply_loaded_remote_post(
+        socket,
+        post_object,
+        remote_actor,
+        community_actor,
+        local_message
+      )
+    else
+      deny_remote_post_access(socket)
+    end
+  end
+
+  defp do_apply_loaded_remote_post(
+         socket,
+         post_object,
+         remote_actor,
+         community_actor,
+         local_message
+       ) do
     local_community_uri = community_uri_from_local_message(local_message)
 
     community_actor =
@@ -2917,11 +2946,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     _ = Elektrine.Messaging.SyncRemoteCountsWorker.enqueue(post_object)
 
     socket =
-      socket
-      |> assign(:local_message, local_message)
-      |> assign_reply_parent_fallback(post_object, local_message)
-      |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
-      |> maybe_track_trust_detail_view(local_message, "remote_post_detail")
+      if local_message do
+        socket
+        |> assign(:local_message, local_message)
+        |> assign_reply_parent_fallback(post_object, local_message)
+        |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
+        |> maybe_track_trust_detail_view(local_message, "remote_post_detail")
+      else
+        socket
+        |> assign(:local_message, nil)
+        |> assign_reply_parent_fallback(post_object, nil)
+      end
 
     socket =
       if socket.assigns[:current_user] do
@@ -2932,9 +2967,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
 
     send(self(), {:load_reply_parent, post_object})
-    send(self(), {:load_replies, post_object})
+    send(self(), {:hydrate_loaded_remote_post, post_object, remote_actor})
     send(self(), {:load_platform_counts, post_object["id"]})
-    send(self(), {:load_reactions, post_object["id"]})
+
+    if local_message do
+      send(self(), {:load_replies, post_object})
+      send(self(), {:load_reactions, post_object["id"]})
+    end
 
     if community_actor && community_actor.actor_type == "Group" do
       send(self(), :load_community_stats)
@@ -2946,6 +2985,35 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
 
     socket
+  end
+
+  defp can_view_remote_post?(post_object, local_message, current_user) do
+    cond do
+      is_map(local_message) ->
+        can_view_local_post?(local_message, current_user) ||
+          remote_post_publicly_visible?(post_object)
+
+      true ->
+        remote_post_publicly_visible?(post_object)
+    end
+  end
+
+  defp remote_post_publicly_visible?(post_object) when is_map(post_object) do
+    to = post_object |> Map.get("to", []) |> List.wrap() |> Enum.map(&normalize_in_reply_to_ref/1)
+    cc = post_object |> Map.get("cc", []) |> List.wrap() |> Enum.map(&normalize_in_reply_to_ref/1)
+
+    Enum.any?(to, &MapSet.member?(@public_audience_uris, &1)) ||
+      Enum.any?(cc, &MapSet.member?(@public_audience_uris, &1))
+  end
+
+  defp remote_post_publicly_visible?(_), do: false
+
+  defp deny_remote_post_access(socket) do
+    socket
+    |> assign(:remote_post_load_ref, nil)
+    |> assign(:loading, false)
+    |> assign(:load_error, "Post not found")
+    |> push_navigate(to: ~p"/")
   end
 
   defp fetch_platform_counts_result(post_id, current_post) do
@@ -3349,19 +3417,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               end
 
             if remote_actor do
-              community_uri = find_community_uri(post_object)
-
-              community_actor =
-                if community_uri do
-                  case ActivityPub.get_or_fetch_actor(community_uri) do
-                    {:ok, actor} -> actor
-                    _ -> nil
-                  end
-                else
-                  nil
-                end
-
-              {:ok, %{post: post_object, actor: remote_actor, community: community_actor}}
+              {:ok, %{post: post_object, actor: remote_actor, community: nil}}
             else
               {:error, :actor_not_found}
             end
@@ -3416,6 +3472,46 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
        |> assign(:loading, false)
        |> assign(:load_error, "Remote server took too long to respond")
        |> put_flash(:error, "Remote server took too long to respond")}
+    end
+  end
+
+  def handle_info({:hydrate_loaded_remote_post, post_object, remote_actor}, socket) do
+    local_message =
+      socket.assigns[:local_message] ||
+        ensure_local_message_for_remote_post(post_object, remote_actor)
+
+    if can_view_remote_post?(post_object, local_message, socket.assigns[:current_user]) do
+      local_community_uri = community_uri_from_local_message(local_message)
+
+      socket =
+        if local_message do
+          socket
+          |> assign(:local_message, local_message)
+          |> assign(
+            :community_actor,
+            socket.assigns[:community_actor] || local_message_community_actor(local_message)
+          )
+          |> assign_reply_parent_fallback(post_object, local_message)
+          |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
+          |> maybe_track_trust_detail_view(local_message, "remote_post_detail")
+        else
+          socket
+        end
+
+      if local_message do
+        send(self(), {:load_replies, post_object})
+        send(self(), {:load_reactions, post_object["id"]})
+        Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(local_message.id)
+        maybe_schedule_remote_poll_refresh(local_message)
+
+        if is_binary(local_community_uri) && is_nil(socket.assigns[:community_actor]) do
+          send(self(), {:load_community_for_cached, post_object["id"], local_community_uri})
+        end
+      end
+
+      {:noreply, socket}
+    else
+      {:noreply, deny_remote_post_access(socket)}
     end
   end
 
@@ -3764,39 +3860,45 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     local_message =
       socket.assigns[:local_message] ||
-        latest_local_message_for_post(post_id) ||
-        ensure_local_message_for_remote_post(post_object, socket.assigns[:remote_actor])
+        latest_local_message_for_post(post_id)
 
-    socket =
-      socket
-      |> assign(:local_message, local_message)
-      |> assign_reply_surface_from_db(post_id)
-
-    cached_replies = socket.assigns.replies
-
-    should_sync_replies =
-      should_sync_db_replies?(local_message, post_object, cached_replies, force_sync)
-
-    socket =
-      socket
-      |> assign(:replies_loaded, cached_replies != [])
-      |> assign(:replies_loading, should_sync_replies)
-
-    if should_sync_replies do
-      _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(local_message.id)
-
-      if is_binary(post_id) do
-        Process.send_after(
-          self(),
-          {:refresh_cached_replies, local_message.id, post_id, 1},
-          @cached_reply_poll_interval_ms
-        )
-      end
+    if is_nil(local_message) do
+      {:noreply,
+       socket
+       |> assign(:replies_loading, true)
+       |> assign(:replies_loaded, false)}
     else
-      send(self(), {:replies_loaded, [], post_id})
-    end
+      socket =
+        socket
+        |> assign(:local_message, local_message)
+        |> assign_reply_surface_from_db(post_id)
 
-    {:noreply, socket}
+      cached_replies = socket.assigns.replies
+
+      should_sync_replies =
+        should_sync_db_replies?(local_message, post_object, cached_replies, force_sync)
+
+      socket =
+        socket
+        |> assign(:replies_loaded, cached_replies != [])
+        |> assign(:replies_loading, should_sync_replies)
+
+      if should_sync_replies do
+        _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(local_message.id)
+
+        if is_binary(post_id) do
+          Process.send_after(
+            self(),
+            {:refresh_cached_replies, local_message.id, post_id, 1},
+            @cached_reply_poll_interval_ms
+          )
+        end
+      else
+        send(self(), {:replies_loaded, [], post_id})
+      end
+
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:replies_loaded, replies, post_id}, socket) do

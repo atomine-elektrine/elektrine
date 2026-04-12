@@ -23,7 +23,7 @@ on:
 
 env:
   MIX_ENV: test
-  ELIXIR_VERSION: '1.19.4'
+  ELIXIR_VERSION: '1.19.5'
   OTP_VERSION: '28'
   DB_HOST: localhost
   DB_NAME: elektrine_test

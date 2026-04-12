@@ -343,6 +343,134 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert_received {:load_platform_counts, ^activitypub_id}
   end
 
+  test "remote_post_loaded denies cached non-public federated posts to unauthorized viewers" do
+    unique = System.unique_integer([:positive])
+    activitypub_id = "https://remote.example/posts/private-#{unique}"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/private#{unique}",
+        username: "private#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/private#{unique}/inbox",
+        public_key: "test-public-key-private-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, _message} =
+      Messaging.create_federated_message(%{
+        content: "followers-only federated post",
+        title: "Private remote post",
+        visibility: "followers",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: remote_actor.id
+      })
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{__changed__: %{}, current_user: nil, remote_post_load_ref: 7}
+    }
+
+    post_object = %{
+      "id" => activitypub_id,
+      "url" => activitypub_id,
+      "to" => ["https://remote.example/users/private#{unique}/followers"],
+      "cc" => []
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:remote_post_loaded, 7,
+                {:ok, %{post: post_object, actor: remote_actor, community: nil}}},
+               socket
+             )
+
+    assert updated_socket.assigns.load_error == "Post not found"
+    assert inspect(updated_socket.redirected) =~ "/"
+  end
+
+  test "remote_post_loaded renders before remote cache hydration finishes" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/fast#{unique}",
+        username: "fast#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/fast#{unique}/inbox",
+        public_key: "test-public-key-fast-#{unique}"
+      })
+      |> Repo.insert!()
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        current_user: nil,
+        remote_post_load_ref: 9,
+        loading: true,
+        replies_loading: false,
+        post_interactions: %{},
+        is_community_post: false,
+        community_actor: nil,
+        community_stats: %{members: 0, posts: 0},
+        community_lookup_complete: false,
+        is_following_community: false,
+        is_pending_community: false,
+        current_url: "https://elektrine.test/remote/post/test",
+        post_reactions: %{},
+        user_saves: %{}
+      }
+    }
+
+    post_object = %{
+      "id" => "https://remote.example/posts/#{unique}",
+      "url" => "https://remote.example/posts/#{unique}",
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "name" => "Fast render post",
+      "content" => "Shows before hydration"
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:remote_post_loaded, 9,
+                {:ok, %{post: post_object, actor: remote_actor, community: nil}}},
+               socket
+             )
+
+    refute updated_socket.assigns.loading
+    assert updated_socket.assigns.post == post_object
+    assert updated_socket.assigns.remote_actor.id == remote_actor.id
+    assert is_nil(updated_socket.assigns.local_message)
+
+    post_id = post_object["id"]
+
+    assert_received {:hydrate_loaded_remote_post, ^post_object, ^remote_actor}
+    assert_received {:load_platform_counts, ^post_id}
+    refute_received {:load_replies, ^post_object}
+  end
+
+  test "load_replies waits for hydration when no cached local message exists" do
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: nil,
+        replies_loading: false,
+        replies_loaded: false
+      }
+    }
+
+    post_object = %{"id" => "https://remote.example/posts/no-cache"}
+
+    assert {:noreply, updated_socket} = Show.handle_info({:load_replies, post_object, []}, socket)
+
+    assert updated_socket.assigns.replies_loading
+    refute updated_socket.assigns.replies_loaded
+  end
+
   test "cached Mastodon posts do not get inferred as community posts from followers collections" do
     post_object = %{
       "id" => "https://mastodon.social/users/alice/statuses/123",

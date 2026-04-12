@@ -9,7 +9,7 @@ defmodule Elektrine.MixProject do
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
-      elixir: "~> 1.14",
+      elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: elixirc_options(),
       start_permanent: Mix.env() == :prod,
@@ -69,13 +69,13 @@ defmodule Elektrine.MixProject do
 
   defp deps do
     [
-      {:phoenix, "== 1.8.3"},
+      {:phoenix, "== 1.8.5"},
       {:phoenix_ecto, "== 4.7.0"},
       {:ecto_sql, "== 3.13.4"},
       {:postgrex, "== 0.22.0"},
       {:phoenix_html, "== 4.3.0"},
       {:phoenix_live_reload, "== 1.6.2", only: :dev},
-      {:phoenix_live_view, "== 1.1.26"},
+      {:phoenix_live_view, "== 1.1.28"},
       {:floki, "== 0.38.0", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "== 0.8.7"},

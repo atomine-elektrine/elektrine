@@ -9,7 +9,7 @@ defmodule ElektrineChat.MixProject do
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
-      elixir: "~> 1.14",
+      elixir: "~> 1.19",
       elixirc_paths: elixirc_paths(Mix.env()),
       elixirc_options: elixirc_options(),
       start_permanent: Mix.env() == :prod,
@@ -43,9 +43,9 @@ defmodule ElektrineChat.MixProject do
     [
       internal_dep(:elektrine),
       internal_dep(:elektrine_web),
-      {:phoenix, "== 1.8.3"},
+      {:phoenix, "== 1.8.5"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.26"},
+      {:phoenix_live_view, "== 1.1.28"},
       {:jason, "== 1.4.4"}
     ]
   end
