@@ -24,7 +24,7 @@ on:
 env:
   MIX_ENV: test
   ELIXIR_VERSION: '1.19.5'
-  OTP_VERSION: '28'
+  OTP_VERSION: '28.1.1'
   DB_HOST: localhost
   DB_NAME: elektrine_test
   DB_USER: postgres

@@ -12,7 +12,7 @@
 #   - Ex: hexpm/elixir:1.19.5-erlang-28.0-ubuntu-noble-20260324
 #
 ARG ELIXIR_VERSION=1.19.5
-ARG OTP_VERSION=28.0
+ARG OTP_VERSION=28.1.1
 ARG UBUNTU_VERSION=noble-20260324
 ARG RELEASE_NAME=elektrine
 ARG ELEKTRINE_RELEASE_MODULES=all
@@ -130,7 +130,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
       apt-get update -y && \
-      apt-get install -y libstdc++6 openssl libncurses5 locales ca-certificates libvips42 tor tini gnupg wireguard-tools iproute2 && \
+      apt-get install -y libstdc++6 openssl libncurses5 ca-certificates libvips42 tor tini gnupg wireguard-tools iproute2 && \
       apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
       echo "Retry $i failed, waiting..." && sleep 5; \
     done
@@ -142,12 +142,10 @@ RUN mkdir -p /data/tor/elektrine /data/tor/data /data/certs && \
 # Copy Tor config with proper permissions
 COPY --chmod=644 deploy/onion/torrc /etc/tor/torrc
 
-# Set the locale
-RUN printf 'en_US.UTF-8 UTF-8\n' > /etc/locale.gen && locale-gen
-
-ENV LANG=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-ENV LC_ALL=en_US.UTF-8
+# Use a built-in UTF-8 locale available on Ubuntu images
+ENV LANG=C.UTF-8
+ENV LANGUAGE=C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 WORKDIR "/app"
 RUN chown nobody /app
