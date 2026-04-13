@@ -17,32 +17,37 @@
   discover_public_communities =
     (@filtered_public_communities || [])
     |> Enum.reject(&MapSet.member?(@joined_community_ids, &1.id))
-    |> Enum.take(6)
 
-  discover_remote_communities = Enum.take(@filtered_discover_remote_communities || [], 6)
+  discover_remote_communities = @filtered_discover_remote_communities || []
   sidebar_federated_suggestions = Enum.take(@filtered_discover_remote_communities || [], 3)
   followed_federated_count = length(@filtered_remote_communities || [])
+  followed_local_count = length(@filtered_communities || [])
+  feed_post_count = length(@filtered_community_posts || [])
 
-  spotlight_communities = Enum.take(@filtered_popular_communities || [], 3)
-  trending_threads = Enum.take(@filtered_discussions || [], 4)
-  recent_threads = Enum.take(@filtered_recent_activity || [], 4)
-  federated_threads = Enum.take(@filtered_federated_discussions || [], 3)
+  spotlight_communities = @filtered_popular_communities || []
+  trending_threads = @filtered_discussions || []
+  recent_threads = @filtered_recent_activity || []
+  federated_threads = @filtered_federated_discussions || []
   discover_cards = build_discovery_cards(spotlight_communities, discover_public_communities)
+  visible_discover_cards = Enum.take(discover_cards, @overview_card_limit || 6)
+  visible_remote_communities = Enum.take(discover_remote_communities, @overview_card_limit || 6)
 
   active_thread_cards =
     build_active_thread_cards(trending_threads, recent_threads, federated_threads)
 
+  visible_active_thread_cards = Enum.take(active_thread_cards, @overview_card_limit || 6)
+
   current_view_title =
     case @current_view do
-      "communities" -> "Communities"
-      "feed" -> "Community Feed"
+      "communities" -> "Joined Communities"
+      "feed" -> "Feed"
       _ -> "My Activity"
     end
 
   current_view_status =
     case @current_view do
       "communities" ->
-        "#{joined_count} joined · #{length(discover_cards)} local · #{length(discover_remote_communities)} federated"
+        "#{joined_count} joined · #{followed_local_count} local · #{followed_federated_count} federated"
 
       "feed" ->
         "#{length(@filtered_community_posts || [])} posts · #{String.capitalize(@feed_sort || "new")} first"
@@ -66,32 +71,14 @@
     <div class="grid grid-cols-3 gap-2" role="tablist" aria-label="Community views">
       <button
         phx-click="set_view"
-        phx-value-view="communities"
-        role="tab"
-        aria-selected={@current_view == "communities"}
-        class={[
-          "rounded-lg px-3 py-3 text-sm font-medium transition-all",
-          if(@current_view == "communities",
-            do: "bg-secondary text-secondary-content shadow-lg",
-            else: "bg-base-200/70 text-base-content/70"
-          )
-        ]}
-      >
-        <div class="flex flex-col items-center gap-1">
-          <.icon name="hero-squares-2x2" class="w-5 h-5" />
-          <span>Overview</span>
-        </div>
-      </button>
-      <button
-        phx-click="set_view"
         phx-value-view="feed"
         role="tab"
         aria-selected={@current_view == "feed"}
         class={[
-          "rounded-lg px-3 py-3 text-sm font-medium transition-all relative",
+          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
           if(@current_view == "feed",
-            do: "bg-secondary text-secondary-content shadow-lg",
-            else: "bg-base-200/70 text-base-content/70"
+            do: "btn-secondary",
+            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
           )
         ]}
       >
@@ -107,14 +94,32 @@
       </button>
       <button
         phx-click="set_view"
+        phx-value-view="communities"
+        role="tab"
+        aria-selected={@current_view == "communities"}
+        class={[
+          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
+          if(@current_view == "communities",
+            do: "btn-secondary",
+            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
+          )
+        ]}
+      >
+        <div class="flex flex-col items-center gap-1">
+          <.icon name="hero-user-group" class="w-5 h-5" />
+          <span>Joined</span>
+        </div>
+      </button>
+      <button
+        phx-click="set_view"
         phx-value-view="my_activity"
         role="tab"
         aria-selected={@current_view == "my_activity"}
         class={[
-          "rounded-lg px-3 py-3 text-sm font-medium transition-all",
+          "btn h-auto min-h-16 flex-col gap-1 rounded-2xl px-3 py-3 text-sm font-medium relative",
           if(@current_view == "my_activity",
-            do: "bg-secondary text-secondary-content shadow-lg",
-            else: "bg-base-200/70 text-base-content/70"
+            do: "btn-secondary",
+            else: "btn-ghost bg-base-200/60 hover:bg-base-200 text-base-content/70"
           )
         ]}
       >
@@ -147,20 +152,13 @@
           <div class="space-y-2">
             <button
               phx-click="set_view"
-              phx-value-view="communities"
-              class={[
-                "btn btn-sm rounded-full w-full justify-start",
-                if(@current_view == "communities", do: "btn-secondary", else: "btn-ghost")
-              ]}
-            >
-              <.icon name="hero-squares-2x2" class="w-4 h-4 mr-2" /> Overview
-            </button>
-            <button
-              phx-click="set_view"
               phx-value-view="feed"
               class={[
-                "btn btn-sm rounded-full w-full justify-start",
-                if(@current_view == "feed", do: "btn-secondary", else: "btn-ghost")
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
+                if(@current_view == "feed",
+                  do: "btn-secondary",
+                  else: "btn-ghost hover:bg-base-200"
+                )
               ]}
             >
               <.icon name="hero-rss" class="w-4 h-4 mr-2" /> Community Feed
@@ -172,10 +170,26 @@
             </button>
             <button
               phx-click="set_view"
+              phx-value-view="communities"
+              class={[
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
+                if(@current_view == "communities",
+                  do: "btn-secondary",
+                  else: "btn-ghost hover:bg-base-200"
+                )
+              ]}
+            >
+              <.icon name="hero-user-group" class="w-4 h-4 mr-2" /> Joined Communities
+            </button>
+            <button
+              phx-click="set_view"
               phx-value-view="my_activity"
               class={[
-                "btn btn-sm rounded-full w-full justify-start",
-                if(@current_view == "my_activity", do: "btn-secondary", else: "btn-ghost")
+                "btn btn-sm min-h-10 px-3 rounded-full w-full justify-start",
+                if(@current_view == "my_activity",
+                  do: "btn-secondary",
+                  else: "btn-ghost hover:bg-base-200"
+                )
               ]}
             >
               <.icon name="hero-document-text" class="w-4 h-4 mr-2" /> My Activity
@@ -187,7 +201,7 @@
             </button>
           </div>
 
-          <%= if @current_view == "communities" && followed_federated_count == 0 do %>
+          <%= if @current_view == "communities" do %>
             <div class="border-t border-base-300 pt-4 space-y-3">
               <div>
                 <h3 class="text-sm font-semibold">Suggested Federated Communities</h3>
@@ -260,9 +274,12 @@
       </div>
     </div>
 
-    <div class="flex-1 min-w-0 max-w-full">
+    <div class={[
+      "flex-1 min-w-0 max-w-full",
+      if(@current_view == "feed", do: "xl:max-w-4xl")
+    ]}>
       <div class="card panel-card overflow-hidden">
-        <div class="p-5 sm:p-6 border-b border-base-300 bg-base-100">
+        <div class="p-5 sm:p-6 border-b border-base-300/70 bg-base-200/45">
           <div class="flex flex-col gap-4">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div class="max-w-3xl">
@@ -344,7 +361,14 @@
           <% else %>
             <%= case @current_view do %>
               <% "communities" -> %>
-                <div class="space-y-6">
+                <div
+                  class="space-y-6"
+                  phx-hook={if !search_active?, do: "InfiniteScroll", else: nil}
+                  id="communities-overview-infinite-scroll"
+                  data-offset="500"
+                  data-no-more={if(search_active?, do: true, else: @overview_no_more)}
+                  data-loading-more={@loading_more}
+                >
                   <%= if search_active? do %>
                     <section class="space-y-4">
                       <div class="flex items-center justify-between gap-2">
@@ -737,9 +761,9 @@
                         <h2 class="text-xl font-semibold">Discover Local Communities</h2>
                       </div>
 
-                      <%= if discover_cards != [] do %>
+                      <%= if visible_discover_cards != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
-                          <%= for card <- discover_cards do %>
+                          <%= for card <- visible_discover_cards do %>
                             <% community = card.community
                             joined? = MapSet.member?(@joined_community_ids, community.id) %>
                             <article class="rounded-lg border border-base-300 bg-base-100 p-3.5 shadow-sm">
@@ -814,9 +838,9 @@
                         <h2 class="text-xl font-semibold">Federated Communities</h2>
                       </div>
 
-                      <%= if discover_remote_communities != [] do %>
+                      <%= if visible_remote_communities != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
-                          <%= for actor <- discover_remote_communities do %>
+                          <%= for actor <- visible_remote_communities do %>
                             <article class="card border border-base-300 bg-base-100 hover:border-info/40 transition-colors">
                               <div class="card-body p-4 gap-4">
                                 <.link href={community_route(actor)} class="block">
@@ -906,9 +930,9 @@
                         <h2 class="text-xl font-semibold">Active Conversations</h2>
                       </div>
 
-                      <%= if active_thread_cards != [] do %>
+                      <%= if visible_active_thread_cards != [] do %>
                         <div class="grid gap-3 xl:grid-cols-2">
-                          <%= for card <- active_thread_cards do %>
+                          <%= for card <- visible_active_thread_cards do %>
                             <% post = card.post %>
                             <.link
                               href={discussion_route(post)}
@@ -951,99 +975,172 @@
                         </div>
                       <% end %>
                     </section>
+
+                    <%= if !search_active? do %>
+                      <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
+                        <%= if @overview_no_more do %>
+                          <div class="text-sm text-base-content/60">No more overview cards</div>
+                        <% else %>
+                          <div class="text-center">
+                            <button phx-click="load_more_overview" class="btn btn-ghost">
+                              Load More
+                            </button>
+                          </div>
+                        <% end %>
+                      </div>
+
+                      <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true">
+                      </div>
+                    <% end %>
                   <% end %>
                 </div>
               <% "feed" -> %>
-                <div class="space-y-5">
-                  <div class="flex flex-wrap items-center gap-2 pb-3 border-b border-base-300">
-                    <span class="text-xs font-medium opacity-70">Sort:</span>
-                    <button
-                      phx-click="set_feed_sort"
-                      phx-value-sort="hot"
-                      class={[
-                        "btn btn-xs rounded-full",
-                        if(@feed_sort == "hot", do: "btn-secondary", else: "btn-ghost")
-                      ]}
-                    >
-                      Hot
-                    </button>
-                    <button
-                      phx-click="set_feed_sort"
-                      phx-value-sort="new"
-                      class={[
-                        "btn btn-xs rounded-full",
-                        if(@feed_sort == "new", do: "btn-secondary", else: "btn-ghost")
-                      ]}
-                    >
-                      New
-                    </button>
-                    <button
-                      phx-click="set_feed_sort"
-                      phx-value-sort="top"
-                      class={[
-                        "btn btn-xs rounded-full",
-                        if(@feed_sort == "top", do: "btn-secondary", else: "btn-ghost")
-                      ]}
-                    >
-                      Top
-                    </button>
-                    <button
-                      phx-click="set_feed_sort"
-                      phx-value-sort="comments"
-                      class={[
-                        "btn btn-xs rounded-full",
-                        if(@feed_sort == "comments", do: "btn-secondary", else: "btn-ghost")
-                      ]}
-                    >
-                      Active
-                    </button>
-                  </div>
+                <div
+                  class="space-y-5"
+                  phx-hook="InfiniteScroll"
+                  id="communities-feed-infinite-scroll"
+                  data-offset="500"
+                  data-no-more={@no_more_posts}
+                  data-loading-more={@loading_more}
+                >
+                  <section class="rounded-2xl border border-base-300 bg-base-200/40 p-4 sm:p-5">
+                    <div class="w-full sm:max-w-lg sm:ml-auto rounded-xl border border-base-300 bg-base-100/70 p-2 sm:p-3">
+                      <div
+                        class="grid grid-cols-2 sm:grid-cols-4 gap-2"
+                        role="tablist"
+                        aria-label="Sort community feed"
+                      >
+                        <button
+                          phx-click="set_feed_sort"
+                          phx-value-sort="hot"
+                          role="tab"
+                          aria-selected={@feed_sort == "hot"}
+                          class={[
+                            "btn btn-sm min-h-10 w-full rounded-full",
+                            if(@feed_sort == "hot",
+                              do: "btn-secondary",
+                              else: "btn-ghost hover:bg-base-200"
+                            )
+                          ]}
+                        >
+                          Hot
+                        </button>
+                        <button
+                          phx-click="set_feed_sort"
+                          phx-value-sort="new"
+                          role="tab"
+                          aria-selected={@feed_sort == "new"}
+                          class={[
+                            "btn btn-sm min-h-10 w-full rounded-full",
+                            if(@feed_sort == "new",
+                              do: "btn-secondary",
+                              else: "btn-ghost hover:bg-base-200"
+                            )
+                          ]}
+                        >
+                          New
+                        </button>
+                        <button
+                          phx-click="set_feed_sort"
+                          phx-value-sort="top"
+                          role="tab"
+                          aria-selected={@feed_sort == "top"}
+                          class={[
+                            "btn btn-sm min-h-10 w-full rounded-full",
+                            if(@feed_sort == "top",
+                              do: "btn-secondary",
+                              else: "btn-ghost hover:bg-base-200"
+                            )
+                          ]}
+                        >
+                          Top
+                        </button>
+                        <button
+                          phx-click="set_feed_sort"
+                          phx-value-sort="comments"
+                          role="tab"
+                          aria-selected={@feed_sort == "comments"}
+                          class={[
+                            "btn btn-sm min-h-10 w-full rounded-full",
+                            if(@feed_sort == "comments",
+                              do: "btn-secondary",
+                              else: "btn-ghost hover:bg-base-200"
+                            )
+                          ]}
+                        >
+                          Active
+                        </button>
+                      </div>
+                    </div>
+                  </section>
 
                   <%= if @current_user do %>
-                    <%= if length(@filtered_community_posts) > 0 do %>
-                      <%= for post <- @filtered_community_posts do %>
-                        <.timeline_post
-                          post={post}
-                          layout={:lemmy}
-                          current_user={@current_user}
-                          timezone={@timezone}
-                          time_format={@time_format}
-                          post_interactions={@post_interactions}
-                          user_likes={%{}}
-                          lemmy_counts={@lemmy_counts}
-                          post_reactions_map={@post_reactions}
-                          replies={Map.get(@post_replies, post.activitypub_id, [])}
-                          reactions={Map.get(@post_reactions, post.id, [])}
-                        />
+                    <%= if feed_post_count > 0 do %>
+                      <div class="space-y-4">
+                        <%= for post <- @filtered_community_posts do %>
+                          <.timeline_post
+                            post={post}
+                            layout={:lemmy}
+                            current_user={@current_user}
+                            timezone={@timezone}
+                            time_format={@time_format}
+                            post_interactions={@post_interactions}
+                            user_likes={%{}}
+                            lemmy_counts={@lemmy_counts}
+                            post_reactions_map={@post_reactions}
+                            replies={Map.get(@post_replies, post.activitypub_id, [])}
+                            reactions={Map.get(@post_reactions, post.id, [])}
+                          />
+                        <% end %>
+                      </div>
+
+                      <%= if length(@followed_community_posts || []) >= 20 do %>
+                        <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
+                          <%= if @loading_more do %>
+                            <div class="h-16 rounded-lg flex items-center justify-center">
+                              <div class="flex items-center gap-2 text-sm text-base-content/70">
+                                <.spinner size="sm" /> <span>Loading more posts...</span>
+                              </div>
+                            </div>
+                          <% else %>
+                            <div class="text-center">
+                              <button phx-click="load_more_posts" class="btn btn-ghost">
+                                Load More
+                              </button>
+                            </div>
+                          <% end %>
+                        </div>
                       <% end %>
                     <% else %>
-                      <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
+                      <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
                         <.icon name="hero-inbox" class="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <h3 class="text-lg font-semibold">Your community feed is empty</h3>
-                        <p class="text-sm text-base-content/60 mt-2">
-                          Use the overview to join communities first, then come back here for the stream.
+                        <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60 leading-6">
+                          Join a few communities first, then this view turns into a cleaner single-column stream of posts from the places you actually follow.
                         </p>
                         <button
                           phx-click="set_view"
                           phx-value-view="communities"
-                          class="btn btn-secondary mt-4"
+                          class="btn btn-secondary mt-5"
                         >
-                          Open Overview
+                          Open Joined Communities
                         </button>
                       </div>
                     <% end %>
                   <% else %>
-                    <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
+                    <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
                       <.icon name="hero-lock-closed" class="w-12 h-12 mx-auto mb-3 opacity-40" />
                       <h3 class="text-lg font-semibold">Sign in to build a personalized feed</h3>
-                      <p class="text-sm text-base-content/60 mt-2">
+                      <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60 leading-6">
                         The feed view is for communities you follow, so it starts working once you sign in.
                       </p>
-                      <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-4">
+                      <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-5">
                         Sign In
                       </.link>
                     </div>
                   <% end %>
+
+                  <div class="h-px w-full" data-infinite-scroll-sentinel aria-hidden="true"></div>
                 </div>
               <% "my_activity" -> %>
                 <div class="space-y-4">
@@ -1182,7 +1279,8 @@
                       <optgroup label="Local Communities">
                         <%= for community <- @communities do %>
                           <% slug =
-                            String.downcase(community.name) |> String.replace(~r/[^a-z0-9]+/, "-") %>
+                            String.downcase(community.name)
+                            |> String.replace(~r/[^a-z0-9]+/, "-") %>
                           <option value={"local:#{community.id}"}>!{slug}</option>
                         <% end %>
                       </optgroup>

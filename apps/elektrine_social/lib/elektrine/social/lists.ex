@@ -129,7 +129,13 @@ defmodule Elektrine.Social.Lists do
               link_preview: [],
               hashtags: [],
               reply_to: [sender: [:profile]],
-              shared_message: [sender: [:profile], conversation: []],
+              shared_message: [
+                sender: [:profile],
+                conversation: [],
+                remote_actor: [],
+                link_preview: [],
+                poll: [options: []]
+              ],
               poll: [options: []]
             ]
           )
@@ -158,6 +164,13 @@ defmodule Elektrine.Social.Lists do
               link_preview: [],
               hashtags: [],
               reply_to: [remote_actor: []],
+              shared_message: [
+                sender: [:profile],
+                conversation: [],
+                remote_actor: [],
+                link_preview: [],
+                poll: [options: []]
+              ],
               poll: [options: []]
             ]
           )

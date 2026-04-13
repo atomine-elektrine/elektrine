@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.OverviewLive.Index do
   use ElektrineWeb, :live_view
   require Logger
+  alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.Friends
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages, as: MessagingMessages
@@ -22,10 +23,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @feed_load_timeout_ms 12_000
   @stats_load_timeout_ms 8000
   @dashboard_load_timeout_ms 10_000
+  @activity_inspector_page_size 25
   @session_interest_dwell_ms 10_000
   @dwell_rerank_delay_ms 350
   @overview_feed_limit 20
   @overview_feed_step 20
+  @activity_sections ~w(posts timeline gallery discussions likes followers following)
   @impl true
   def mount(_params, session, socket) do
     user = socket.assigns[:current_user]
@@ -53,8 +56,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:all_posts, [])
        |> assign(:filtered_all_posts, [])
        |> assign(:user_likes, %{})
+       |> assign(:user_downvotes, %{})
        |> assign(:user_boosts, %{})
        |> assign(:user_saves, %{})
+       |> assign(:lemmy_counts, %{})
+       |> assign(:post_interactions, %{})
        |> assign(:user_follows, %{})
        |> assign(:pending_follows, %{})
        |> assign(:remote_follow_overrides, %{})
@@ -77,6 +83,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:visible_post_limit, @overview_feed_limit)
        |> assign(:loading_more, false)
        |> assign(:no_more_posts, false)
+       |> assign(:last_fetched_post_count, 0)
        |> assign(:session_context, default_session_context())
        |> assign(:feed_rerank_ref, nil)
        |> assign(:show_image_modal, false)
@@ -87,6 +94,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:show_quote_modal, false)
        |> assign(:quote_target_post, nil)
        |> assign(:quote_content, "")
+       |> assign(:show_activity_inspector, false)
+       |> assign(:activity_inspector, default_activity_inspector())
        |> assign(:loading_remote_replies, MapSet.new())}
     else
       {:ok,
@@ -98,6 +107,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
+    previous_filter = socket.assigns[:filter] || @default_filter
     filter = normalize_filter(params["filter"])
     attention_filter = normalize_attention_filter(params["attention"])
 
@@ -107,10 +117,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> assign(:attention_filter, attention_filter)
 
     socket =
-      if socket.assigns.data_loaded do
-        assign_overview_posts_for_current_filter(socket)
-      else
+      if socket.assigns.data_loaded && filter != previous_filter do
         socket
+        |> assign(:loading_feed, true)
+        |> assign(:loading_more, false)
+        |> load_feed_data(socket.assigns.visible_post_limit)
+      else
+        assign_overview_posts_for_current_filter(socket)
       end
 
     {:noreply, socket}
@@ -134,6 +147,134 @@ defmodule ElektrineWeb.OverviewLive.Index do
      push_patch(socket, to: ~p"/overview?#{[filter: socket.assigns.filter, attention: filter]}")}
   end
 
+  def handle_event("show_following", _params, socket) do
+    handle_event("inspect_activity", %{"section" => "following"}, socket)
+  end
+
+  def handle_event("close_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_activity_inspector, false)
+     |> assign(:activity_inspector, default_activity_inspector())}
+  end
+
+  def handle_event("inspect_activity", %{"section" => section}, socket) do
+    current_user = socket.assigns.current_user
+    section = normalize_activity_section(section)
+    page_size = @activity_inspector_page_size
+
+    entries =
+      list_activity_entries(current_user.id, section, offset: 0, limit: page_size, query: "")
+
+    inspector = %{
+      section: section,
+      title: activity_section_title(section),
+      empty_message: activity_section_empty_message(section),
+      entries: entries,
+      query: "",
+      offset: length(entries),
+      no_more: length(entries) < page_size,
+      stat_value: activity_section_stat_value(section, socket.assigns.personal_stats)
+    }
+
+    {:noreply,
+     socket
+     |> assign(:show_activity_inspector, true)
+     |> assign(:activity_inspector, inspector)}
+  end
+
+  def handle_event("load_more_activity", _params, socket) do
+    inspector = socket.assigns.activity_inspector
+
+    if socket.assigns.loading_stats or inspector.no_more or is_nil(inspector.section) do
+      {:noreply, socket}
+    else
+      next_entries =
+        list_activity_entries(
+          socket.assigns.current_user.id,
+          inspector.section,
+          offset: inspector.offset,
+          limit: @activity_inspector_page_size,
+          query: inspector.query
+        )
+
+      updated_inspector = %{
+        inspector
+        | entries: inspector.entries ++ next_entries,
+          offset: inspector.offset + length(next_entries),
+          no_more: length(next_entries) < @activity_inspector_page_size
+      }
+
+      {:noreply, assign(socket, :activity_inspector, updated_inspector)}
+    end
+  end
+
+  def handle_event("search_activity", %{"query" => query}, socket) do
+    inspector = socket.assigns.activity_inspector
+    query = String.trim(query || "")
+
+    if is_nil(inspector.section) do
+      {:noreply, socket}
+    else
+      entries =
+        list_activity_entries(
+          socket.assigns.current_user.id,
+          inspector.section,
+          offset: 0,
+          limit: @activity_inspector_page_size,
+          query: query
+        )
+
+      updated_inspector = %{
+        inspector
+        | query: query,
+          entries: entries,
+          offset: length(entries),
+          no_more: length(entries) < @activity_inspector_page_size
+      }
+
+      {:noreply, assign(socket, :activity_inspector, updated_inspector)}
+    end
+  end
+
+  def handle_event("unfollow_remote", %{"remote-actor-id" => remote_actor_id}, socket) do
+    current_user = socket.assigns.current_user
+
+    case Integer.parse(remote_actor_id) do
+      {actor_id, ""} ->
+        case Profiles.unfollow_remote_actor(current_user.id, actor_id) do
+          {:ok, :unfollowed} ->
+            {:noreply,
+             socket
+             |> refresh_overview_following_state(current_user.id)
+             |> put_flash(:info, "Unfollowed remote user")}
+
+          {:error, _reason} ->
+            {:noreply, put_flash(socket, :error, "Failed to unfollow")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Invalid user id")}
+    end
+  end
+
+  def handle_event("unfollow_local", %{"followed-id" => followed_id}, socket) do
+    current_user = socket.assigns.current_user
+
+    case Integer.parse(followed_id) do
+      {user_id, ""} ->
+        Profiles.unfollow_user(current_user.id, user_id)
+
+        {:noreply,
+         socket
+         |> refresh_overview_following_state(current_user.id)
+         |> put_flash(:info, "Unfollowed user")}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Invalid user id")}
+    end
+  end
+
   def handle_event("load-more", _params, socket) do
     if socket.assigns.loading_feed or socket.assigns.loading_more or socket.assigns.no_more_posts do
       {:noreply, socket}
@@ -144,10 +285,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
        socket
        |> assign(:loading_more, true)
        |> assign(:visible_post_limit, next_limit)
-       |> then(fn updated_socket ->
-         send(self(), {:load_more_feed, next_limit})
-         updated_socket
-       end)}
+       |> load_feed_data(next_limit)}
     end
   end
 
@@ -187,55 +325,64 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
+  def handle_event("like_post", %{"post_id" => post_id}, socket) do
+    handle_event("like_post", %{"message_id" => post_id}, socket)
+  end
+
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
-          user_id = socket.assigns.current_user.id
-          currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
           post = find_overview_post(socket.assigns.all_posts, message_id)
 
-          update_likes_fn = fn posts ->
-            Enum.map(posts, fn post ->
-              if post.id == message_id do
-                if currently_liked do
-                  %{post | like_count: max(0, (post.like_count || 0) - 1)}
-                else
-                  %{post | like_count: (post.like_count || 0) + 1}
-                end
-              else
-                post
-              end
-            end)
-          end
-
-          if currently_liked do
-            case Integrations.social_unlike_post(user_id, message_id) do
-              {:ok, _} ->
-                {:noreply,
-                 socket
-                 |> update(:user_likes, &Map.put(&1, message_id, false))
-                 |> update(:all_posts, update_likes_fn)
-                 |> update(:filtered_all_posts, update_likes_fn)
-                 |> sync_overview_posts_stream()}
-
-              {:error, _} ->
-                {:noreply, put_flash(socket, :error, "Failed to unlike post")}
-            end
+          if post && PostUtilities.community_post?(post) do
+            {:noreply, apply_overview_like_interaction(socket, post, message_id)}
           else
-            case Integrations.social_like_post(user_id, message_id) do
-              {:ok, _} ->
-                {:noreply,
-                 socket
-                 |> update(:user_likes, &Map.put(&1, message_id, true))
-                 |> update(:all_posts, update_likes_fn)
-                 |> update(:filtered_all_posts, update_likes_fn)
-                 |> sync_overview_posts_stream()
-                 |> note_positive_signal(post)
-                 |> schedule_feed_rerank(250)}
+            user_id = socket.assigns.current_user.id
+            currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
 
-              {:error, _} ->
-                {:noreply, put_flash(socket, :error, "Failed to like post")}
+            update_likes_fn = fn posts ->
+              Enum.map(posts, fn post ->
+                if post.id == message_id do
+                  if currently_liked do
+                    %{post | like_count: max(0, (post.like_count || 0) - 1)}
+                  else
+                    %{post | like_count: (post.like_count || 0) + 1}
+                  end
+                else
+                  post
+                end
+              end)
+            end
+
+            if currently_liked do
+              case Integrations.social_unlike_post(user_id, message_id) do
+                {:ok, _} ->
+                  {:noreply,
+                   socket
+                   |> update(:user_likes, &Map.put(&1, message_id, false))
+                   |> update(:all_posts, update_likes_fn)
+                   |> update(:filtered_all_posts, update_likes_fn)
+                   |> sync_overview_posts_stream()}
+
+                {:error, _} ->
+                  {:noreply, put_flash(socket, :error, "Failed to unlike post")}
+              end
+            else
+              case Integrations.social_like_post(user_id, message_id) do
+                {:ok, _} ->
+                  {:noreply,
+                   socket
+                   |> update(:user_likes, &Map.put(&1, message_id, true))
+                   |> update(:all_posts, update_likes_fn)
+                   |> update(:filtered_all_posts, update_likes_fn)
+                   |> sync_overview_posts_stream()
+                   |> note_positive_signal(post)
+                   |> schedule_feed_rerank(250)}
+
+                {:error, _} ->
+                  {:noreply, put_flash(socket, :error, "Failed to like post")}
+              end
             end
           end
 
@@ -1226,16 +1373,22 @@ defmodule ElektrineWeb.OverviewLive.Index do
       case load_with_timeout(
              :for_you_feed_rerank,
              fn ->
-               Integrations.overview_for_you_feed(
+               load_overview_feed_posts(
                  socket.assigns.current_user.id,
-                 limit: socket.assigns.visible_post_limit,
-                 session_context: socket.assigns[:session_context] || %{}
+                 socket.assigns.filter,
+                 socket.assigns.visible_post_limit,
+                 socket.assigns[:session_context] || %{}
                )
                |> build_feed_state(socket.assigns.current_user.id)
              end,
              4000
            ) do
         {:ok, feed_data} ->
+          feed_data =
+            Map.update(feed_data, :all_posts, socket.assigns.all_posts || [], fn posts ->
+              merge_overview_posts(socket.assigns.all_posts || [], posts || [])
+            end)
+
           {:noreply, assign_feed_data(socket, feed_data)}
 
         {:error, _reason} ->
@@ -1280,6 +1433,107 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp get_user_likes_map(user_id, posts) do
     get_user_likes(user_id, posts)
+  end
+
+  defp get_user_downvotes_map(_user_id, posts) do
+    Enum.reduce(posts, %{}, fn post, acc ->
+      Map.put(acc, post.id, false)
+    end)
+  end
+
+  defp apply_overview_like_interaction(socket, post, message_id) do
+    interaction_key = overview_post_interaction_key(post)
+
+    current_state =
+      Map.get(socket.assigns.post_interactions, interaction_key, %{
+        liked: false,
+        downvoted: false,
+        like_delta: 0
+      })
+
+    currently_liked =
+      Map.get(socket.assigns.user_likes, message_id, Map.get(current_state, :liked, false))
+
+    delta_change = if currently_liked, do: -1, else: 1
+
+    post_interactions =
+      Map.put(socket.assigns.post_interactions, interaction_key, %{
+        liked: !currently_liked,
+        downvoted: false,
+        like_delta: 0
+      })
+
+    update_likes_fn = fn posts ->
+      Enum.map(posts, fn post_candidate ->
+        if post_candidate.id == message_id do
+          base_like_count = post_candidate.like_count || post_candidate.score || 0
+          updated_like_count = max(base_like_count + delta_change, 0)
+
+          post_candidate
+          |> Map.put(:like_count, updated_like_count)
+          |> Map.put(:score, updated_like_count)
+        else
+          post_candidate
+        end
+      end)
+    end
+
+    result =
+      if currently_liked do
+        Integrations.social_unlike_post(socket.assigns.current_user.id, message_id)
+      else
+        Integrations.social_like_post(socket.assigns.current_user.id, message_id)
+      end
+
+    case result do
+      {:ok, _} ->
+        socket
+        |> update(:user_likes, &Map.put(&1, message_id, !currently_liked))
+        |> assign(:post_interactions, post_interactions)
+        |> update(:all_posts, update_likes_fn)
+        |> update(:filtered_all_posts, update_likes_fn)
+        |> sync_overview_posts_stream()
+
+      {:error, _} ->
+        put_flash(
+          socket,
+          :error,
+          if(currently_liked, do: "Failed to unlike post", else: "Failed to like post")
+        )
+    end
+  end
+
+  defp refresh_overview_following_state(socket, user_id) do
+    following_count = Profiles.get_following_count(user_id)
+
+    socket
+    |> update(:personal_stats, &Map.put(&1, :following, following_count))
+    |> maybe_refresh_activity_inspector(user_id)
+  end
+
+  defp maybe_refresh_activity_inspector(socket, user_id) do
+    inspector = socket.assigns[:activity_inspector] || default_activity_inspector()
+
+    if socket.assigns[:show_activity_inspector] and inspector.section == "following" do
+      entries =
+        list_activity_entries(user_id, "following",
+          offset: 0,
+          limit: max(inspector.offset, @activity_inspector_page_size),
+          query: inspector.query
+        )
+
+      updated_inspector = %{
+        inspector
+        | entries: entries,
+          offset: length(entries),
+          no_more: length(entries) < max(inspector.offset, @activity_inspector_page_size),
+          stat_value: Profiles.get_following_count(user_id)
+      }
+
+      assign(socket, :activity_inspector, updated_inspector)
+    else
+      socket
+    end
   end
 
   defp get_user_boosts_map(user_id, posts) do
@@ -2097,15 +2351,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
   end
 
   defp filtered_posts(posts, "timeline", _assigns) do
-    Enum.filter(posts, fn post -> post.post_type == "post" end)
+    Enum.filter(posts, fn post ->
+      !PostUtilities.gallery_post?(post) && !PostUtilities.community_post?(post)
+    end)
   end
 
   defp filtered_posts(posts, "gallery", _assigns) do
-    Enum.filter(posts, fn post -> post.post_type == "gallery" end)
+    Enum.filter(posts, &PostUtilities.gallery_post?/1)
   end
 
   defp filtered_posts(posts, "discussions", _assigns) do
-    Enum.filter(posts, fn post -> post.post_type == "discussion" end)
+    Enum.filter(posts, &PostUtilities.community_post?/1)
   end
 
   defp filtered_posts(posts, "my_posts", %{current_user: user}) do
@@ -2124,10 +2380,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
     @default_filter
   end
 
-  defp base_posts_for_filter("my_posts", %{current_user: user}) do
-    get_user_own_posts(user.id)
-  end
-
   defp base_posts_for_filter(_filter, %{all_posts: posts}) do
     posts
   end
@@ -2136,25 +2388,186 @@ defmodule ElektrineWeb.OverviewLive.Index do
     socket =
       socket
       |> register_post_state(post)
-      |> update(:all_posts, &prepend_and_cap_overview_posts(&1, post))
+      |> update(:all_posts, &prepend_overview_post(&1, post))
 
-    case socket.assigns.filter do
-      "my_posts" ->
-        current_user = socket.assigns[:current_user]
-
-        if current_user && post.sender_id == current_user.id do
-          socket
-          |> update(:filtered_all_posts, &prepend_and_cap_overview_posts(&1, post))
-          |> sync_overview_posts_stream()
-        else
-          socket
-        end
-
-      _ ->
-        socket
-        |> assign(:filtered_all_posts, socket.assigns.all_posts)
-        |> sync_overview_posts_stream()
+    if post_matches_current_filter?(post, socket.assigns) do
+      socket
+      |> update(:filtered_all_posts, &prepend_overview_post(&1, post))
+      |> sync_overview_posts_stream()
+    else
+      socket
     end
+  end
+
+  defp post_matches_current_filter?(post, assigns) do
+    case assigns.filter do
+      "my_posts" ->
+        current_user = assigns[:current_user]
+        current_user && post.sender_id == current_user.id
+
+      filter ->
+        [post]
+        |> filtered_posts(filter, assigns)
+        |> Enum.any?()
+    end
+  end
+
+  defp assign_feed_data(socket, feed_data) do
+    fetched_posts = feed_data.all_posts || []
+
+    fetched_posts =
+      if socket.assigns[:loading_more] do
+        merge_overview_posts(socket.assigns[:all_posts] || [], fetched_posts)
+      else
+        fetched_posts
+      end
+
+    fetched_post_count = length(fetched_posts)
+    previous_count = socket.assigns[:last_fetched_post_count] || 0
+
+    no_more_posts =
+      fetched_post_count < socket.assigns.visible_post_limit or
+        (previous_count > 0 and fetched_post_count <= previous_count)
+
+    socket
+    |> assign(:all_posts, fetched_posts)
+    |> assign(:user_likes, feed_data.user_likes)
+    |> assign(:user_downvotes, feed_data.user_downvotes)
+    |> assign(:user_boosts, feed_data.user_boosts)
+    |> assign(:user_saves, feed_data.user_saves)
+    |> assign(:lemmy_counts, feed_data.lemmy_counts || %{})
+    |> assign(:post_interactions, feed_data.post_interactions || %{})
+    |> assign(:user_follows, feed_data.user_follows)
+    |> assign(:pending_follows, feed_data.pending_follows)
+    |> assign(:post_reactions, feed_data.post_reactions)
+    |> assign(:loading_feed, false)
+    |> assign(:no_more_posts, no_more_posts)
+    |> assign(:last_fetched_post_count, fetched_post_count)
+    |> assign(:data_loaded, true)
+    |> assign_overview_posts_for_current_filter()
+  end
+
+  defp merge_overview_posts(existing_posts, fetched_posts) do
+    existing_by_id = Map.new(existing_posts, &{&1.id, &1})
+
+    fetched_posts
+    |> Enum.map(fn fetched_post ->
+      case Map.get(existing_by_id, fetched_post.id) do
+        nil ->
+          fetched_post
+
+        existing_post ->
+          Map.merge(fetched_post, existing_post, fn key, fetched_value, existing_value ->
+            if key in [:upvotes, :downvotes, :score] do
+              existing_value
+            else
+              fetched_value
+            end
+          end)
+      end
+    end)
+    |> then(fn merged_fetched_posts ->
+      merged_ids = MapSet.new(Enum.map(merged_fetched_posts, & &1.id))
+      merged_fetched_posts ++ Enum.reject(existing_posts, &MapSet.member?(merged_ids, &1.id))
+    end)
+  end
+
+  defp assign_overview_posts_for_current_filter(socket) do
+    base_posts = socket.assigns.filter |> base_posts_for_filter(socket.assigns)
+
+    socket
+    |> assign(:filtered_all_posts, base_posts)
+    |> sync_overview_posts_stream()
+  end
+
+  defp sync_overview_posts_stream(socket) do
+    _filtered_posts_for_view =
+      socket.assigns.filtered_all_posts
+      |> filtered_posts(socket.assigns.filter, socket.assigns)
+      |> maybe_group_reply_chains(socket)
+
+    socket
+    |> assign(:loading_more, false)
+  end
+
+  defp load_feed_data(socket, limit) do
+    user = socket.assigns.current_user
+    session_context = socket.assigns[:session_context] || %{}
+    filter = socket.assigns.filter || @default_filter
+
+    personalized_result =
+      load_with_timeout(
+        {:for_you_feed, filter},
+        fn ->
+          load_overview_feed_posts(user.id, filter, limit, session_context)
+          |> build_feed_state(user.id)
+        end,
+        @feed_load_timeout_ms
+      )
+
+    case personalized_result do
+      {:ok, feed_data} ->
+        assign_feed_data(socket, feed_data)
+
+      {:error, _reason} ->
+        fallback_posts = fallback_feed_posts(user.id, filter, limit)
+
+        socket
+        |> assign_feed_data(%{
+          build_feed_state(fallback_posts, user.id)
+          | all_posts: fallback_posts
+        })
+        |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")
+    end
+  end
+
+  defp fallback_feed_posts(user_id, "timeline", limit) do
+    Integrations.overview_public_timeline(user_id: user_id, limit: max(limit * 4, limit + 20))
+    |> filtered_posts("timeline", %{})
+    |> Enum.take(limit)
+  end
+
+  defp fallback_feed_posts(user_id, "gallery", limit) do
+    Integrations.overview_public_timeline(user_id: user_id, limit: max(limit * 4, limit + 20))
+    |> filtered_posts("gallery", %{})
+    |> Enum.take(limit)
+  end
+
+  defp fallback_feed_posts(user_id, "discussions", limit) do
+    Integrations.overview_public_community_posts(user_id: user_id, limit: limit)
+  end
+
+  defp fallback_feed_posts(user_id, "my_posts", limit) do
+    get_user_own_posts(user_id, limit)
+  end
+
+  defp fallback_feed_posts(user_id, _filter, limit) do
+    Integrations.overview_public_timeline(user_id: user_id, limit: limit)
+  end
+
+  defp load_overview_feed_posts(user_id, "discussions", limit, session_context) do
+    recommended_posts =
+      Integrations.overview_for_you_feed(
+        user_id,
+        limit: max(limit * 4, limit + 20),
+        session_context: session_context
+      )
+
+    community_posts = Enum.filter(recommended_posts, &PostUtilities.community_post?/1)
+
+    if community_posts == [] do
+      Integrations.overview_public_community_posts(user_id: user_id, limit: limit)
+    else
+      Enum.take(community_posts, limit)
+    end
+  end
+
+  defp load_overview_feed_posts(user_id, _filter, limit, session_context) do
+    Integrations.overview_for_you_feed(
+      user_id,
+      limit: limit,
+      session_context: session_context
+    )
   end
 
   defp parse_positive_int(value) when is_integer(value) and value > 0 do
@@ -2185,41 +2598,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp parse_non_negative_int(_, default) do
     default
-  end
-
-  defp assign_feed_data(socket, feed_data) do
-    socket
-    |> assign(:all_posts, feed_data.all_posts || [])
-    |> assign(:user_likes, feed_data.user_likes)
-    |> assign(:user_boosts, feed_data.user_boosts)
-    |> assign(:user_saves, feed_data.user_saves)
-    |> assign(:user_follows, feed_data.user_follows)
-    |> assign(:pending_follows, feed_data.pending_follows)
-    |> assign(:post_reactions, feed_data.post_reactions)
-    |> assign(:loading_feed, false)
-    |> assign(:data_loaded, true)
-    |> assign_overview_posts_for_current_filter()
-  end
-
-  defp assign_overview_posts_for_current_filter(socket) do
-    base_posts = socket.assigns.filter |> base_posts_for_filter(socket.assigns)
-
-    socket
-    |> assign(:filtered_all_posts, base_posts)
-    |> sync_overview_posts_stream()
-  end
-
-  defp sync_overview_posts_stream(socket) do
-    filtered_posts_for_view =
-      socket.assigns.filtered_all_posts
-      |> filtered_posts(socket.assigns.filter, socket.assigns)
-      |> maybe_group_reply_chains(socket)
-
-    no_more_posts = length(filtered_posts_for_view) < socket.assigns.visible_post_limit
-
-    socket
-    |> assign(:loading_more, false)
-    |> assign(:no_more_posts, no_more_posts)
   end
 
   defp maybe_group_reply_chains(posts, socket) when is_list(posts) do
@@ -2315,81 +2693,26 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp normalize_thread_ref(_), do: nil
 
-  defp load_feed_data(socket, limit) do
-    user = socket.assigns.current_user
-    session_context = socket.assigns[:session_context] || %{}
-
-    personalized_result =
-      load_with_timeout(
-        :for_you_feed,
-        fn ->
-          Integrations.overview_for_you_feed(
-            user.id,
-            limit: limit,
-            session_context: session_context
-          )
-          |> build_feed_state(user.id)
-        end,
-        @feed_load_timeout_ms
-      )
-
-    case personalized_result do
-      {:ok, feed_data} ->
-        assign_feed_data(socket, feed_data)
-
-      {:error, _reason} ->
-        fallback_result =
-          load_with_timeout(
-            :public_feed_fallback,
-            fn ->
-              Integrations.overview_public_timeline(
-                user_id: user.id,
-                limit: limit
-              )
-              |> build_feed_state(user.id)
-            end,
-            5000
-          )
-
-        case fallback_result do
-          {:ok, feed_data} ->
-            socket
-            |> assign_feed_data(feed_data)
-            |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")
-
-          {:error, _fallback_reason} ->
-            socket
-            |> assign(:all_posts, [])
-            |> assign(:filtered_all_posts, [])
-            |> assign(:user_likes, %{})
-            |> assign(:user_boosts, %{})
-            |> assign(:user_saves, %{})
-            |> assign(:user_follows, %{})
-            |> assign(:pending_follows, %{})
-            |> assign(:post_reactions, %{})
-            |> assign(:loading_feed, false)
-            |> assign(:loading_more, false)
-            |> assign(:no_more_posts, true)
-            |> assign(:data_loaded, true)
-            |> put_flash(:error, "Feed took too long to load. Please refresh to try again.")
-        end
-    end
-  end
-
-  defp cap_overview_posts(posts) when is_list(posts) do
-    Enum.take(posts, @overview_feed_limit)
-  end
-
-  defp cap_overview_posts(_posts), do: []
-
-  defp prepend_and_cap_overview_posts(posts, post) when is_list(posts) do
+  defp prepend_overview_post(posts, post) when is_list(posts) do
     updated_posts = [post | Enum.reject(posts, &(&1.id == post.id))]
-    cap_overview_posts(updated_posts)
+    updated_posts
   end
 
   defp build_feed_state(all_posts, user_id) do
-    all_posts = cap_overview_posts(all_posts)
+    all_posts =
+      if is_list(all_posts) do
+        Elektrine.Repo.preload(all_posts, [:conversation])
+      else
+        []
+      end
+
+    lemmy_counts = load_overview_lemmy_counts(all_posts)
+
     user_likes = get_user_likes_map(user_id, all_posts)
+    user_downvotes = get_user_downvotes_map(user_id, all_posts)
+
+    post_interactions = get_overview_post_interactions(all_posts, user_likes)
+
     user_boosts = get_user_boosts_map(user_id, all_posts)
     user_saves = get_user_saves(user_id, all_posts)
     user_follows = get_user_follows(user_id, all_posts)
@@ -2399,17 +2722,59 @@ defmodule ElektrineWeb.OverviewLive.Index do
     %{
       all_posts: all_posts,
       user_likes: user_likes,
+      user_downvotes: user_downvotes,
+      post_interactions: post_interactions,
       user_boosts: user_boosts,
       user_saves: user_saves,
+      lemmy_counts: lemmy_counts,
       user_follows: user_follows,
       pending_follows: pending_follows,
       post_reactions: post_reactions
     }
   end
 
+  defp load_overview_lemmy_counts(posts) when is_list(posts) do
+    activitypub_ids =
+      posts
+      |> Enum.map(&Map.get(&1, :activitypub_id))
+      |> Enum.filter(&(is_binary(&1) and &1 != ""))
+
+    case activitypub_ids do
+      [] ->
+        %{}
+
+      ids ->
+        {counts, _comments} = LemmyCache.get_cached_data(ids)
+        LemmyCache.schedule_refresh(ids)
+        counts
+    end
+  end
+
+  defp load_overview_lemmy_counts(_), do: %{}
+
+  defp get_overview_post_interactions(posts, user_likes) do
+    Map.new(posts, fn post ->
+      interaction_key = overview_post_interaction_key(post)
+
+      {interaction_key,
+       %{
+         liked: Map.get(user_likes, post.id, false),
+         downvoted: false,
+         like_delta: 0
+       }}
+    end)
+  end
+
+  defp overview_post_interaction_key(%{activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "",
+       do: activitypub_id
+
+  defp overview_post_interaction_key(%{id: id}) when is_integer(id), do: Integer.to_string(id)
+
   defp register_post_state(socket, %{id: message_id}) when is_integer(message_id) do
     socket
     |> update(:user_likes, &Map.put_new(&1, message_id, false))
+    |> update(:user_downvotes, &Map.put_new(&1, message_id, false))
     |> update(:user_boosts, &Map.put_new(&1, message_id, false))
     |> update(:user_saves, &Map.put_new(&1, message_id, false))
     |> update(:post_reactions, &Map.put_new(&1, message_id, []))
@@ -2695,6 +3060,19 @@ defmodule ElektrineWeb.OverviewLive.Index do
     }
   end
 
+  defp default_activity_inspector do
+    %{
+      section: nil,
+      title: nil,
+      empty_message: nil,
+      entries: [],
+      query: "",
+      offset: 0,
+      no_more: false,
+      stat_value: 0
+    }
+  end
+
   defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
     task = Task.async(loader)
 
@@ -2856,23 +3234,293 @@ defmodule ElektrineWeb.OverviewLive.Index do
     }
   end
 
-  defp get_user_own_posts(user_id) do
+  defp normalize_activity_section(section) when section in @activity_sections, do: section
+  defp normalize_activity_section(_section), do: "posts"
+
+  defp activity_section_title("posts"), do: "Posts"
+  defp activity_section_title("timeline"), do: "Timeline"
+  defp activity_section_title("gallery"), do: "Gallery"
+  defp activity_section_title("discussions"), do: "Discuss"
+  defp activity_section_title("likes"), do: "Likes"
+  defp activity_section_title("followers"), do: "Followers"
+  defp activity_section_title("following"), do: "Following"
+
+  defp activity_section_empty_message("posts"), do: "No posts yet"
+  defp activity_section_empty_message("timeline"), do: "No timeline posts yet"
+  defp activity_section_empty_message("gallery"), do: "No gallery posts yet"
+  defp activity_section_empty_message("discussions"), do: "No discussion posts yet"
+  defp activity_section_empty_message("likes"), do: "No liked posts to show yet"
+  defp activity_section_empty_message("followers"), do: "No followers yet"
+  defp activity_section_empty_message("following"), do: "Not following anyone yet"
+
+  defp activity_section_stat_value("posts", stats), do: Map.get(stats, :total_posts, 0)
+  defp activity_section_stat_value("timeline", stats), do: Map.get(stats, :timeline_posts, 0)
+  defp activity_section_stat_value("gallery", stats), do: Map.get(stats, :gallery_posts, 0)
+  defp activity_section_stat_value("discussions", stats), do: Map.get(stats, :discussion_posts, 0)
+  defp activity_section_stat_value("likes", stats), do: Map.get(stats, :total_likes, 0)
+  defp activity_section_stat_value("followers", stats), do: Map.get(stats, :followers, 0)
+  defp activity_section_stat_value("following", stats), do: Map.get(stats, :following, 0)
+
+  defp list_activity_entries(user_id, section, opts) do
+    offset = Keyword.get(opts, :offset, 0)
+    limit = Keyword.get(opts, :limit, @activity_inspector_page_size)
+    query = Keyword.get(opts, :query, "")
+
+    case section do
+      "posts" ->
+        list_activity_posts(user_id, ["post", "gallery", "discussion"], offset, limit, query)
+
+      "timeline" ->
+        list_activity_posts(user_id, ["post"], offset, limit, query)
+
+      "gallery" ->
+        list_activity_posts(user_id, ["gallery"], offset, limit, query)
+
+      "discussions" ->
+        list_activity_posts(user_id, ["discussion"], offset, limit, query)
+
+      "likes" ->
+        list_activity_likes(user_id, offset, limit, query)
+
+      "followers" ->
+        list_activity_relationships(user_id, :followers, offset, limit, query)
+
+      "following" ->
+        list_activity_relationships(user_id, :following, offset, limit, query)
+    end
+  end
+
+  defp list_activity_posts(user_id, post_types, offset, limit, query) do
     import Ecto.Query
+
+    search_term = activity_search_pattern(query)
+
+    from(m in Messaging.Message,
+      where:
+        m.sender_id == ^user_id and m.post_type in ^post_types and is_nil(m.deleted_at) and
+          m.is_draft == false,
+      where:
+        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", m.title), ^search_term) or
+          ilike(fragment("coalesce(?, '')", m.content), ^search_term),
+      order_by: [desc: m.inserted_at],
+      offset: ^offset,
+      limit: ^limit,
+      preload: [:conversation]
+    )
+    |> Repo.all()
+    |> Messaging.Message.decrypt_messages()
+    |> Enum.map(&activity_post_entry/1)
+  end
+
+  defp list_activity_likes(user_id, offset, limit, query) do
+    import Ecto.Query
+
+    search_term = activity_search_pattern(query)
+
+    from(m in Messaging.Message,
+      where:
+        m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
+          is_nil(m.deleted_at) and m.is_draft == false and m.like_count > 0,
+      where:
+        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", m.title), ^search_term) or
+          ilike(fragment("coalesce(?, '')", m.content), ^search_term),
+      order_by: [desc: m.like_count, desc: m.inserted_at],
+      offset: ^offset,
+      limit: ^limit,
+      preload: [:conversation]
+    )
+    |> Repo.all()
+    |> Messaging.Message.decrypt_messages()
+    |> Enum.map(&activity_like_entry/1)
+  end
+
+  defp list_activity_relationships(user_id, direction, offset, limit, query) do
+    import Ecto.Query
+
+    search_term = activity_search_pattern(query)
+
+    local_query =
+      case direction do
+        :followers ->
+          from(f in Profiles.Follow,
+            join: u in assoc(f, :follower),
+            where: f.followed_id == ^user_id and not is_nil(f.follower_id) and f.pending == false,
+            select: %{
+              type: "local",
+              name: fragment("coalesce(?, ?)", u.display_name, u.username),
+              handle: fragment("coalesce(?, ?)", u.handle, u.username),
+              domain: type(^nil, :string),
+              href: fragment("concat('/', coalesce(?, ?))", u.handle, u.username),
+              followed_at: f.inserted_at,
+              user_id: u.id,
+              remote_actor_id: type(^nil, :integer)
+            }
+          )
+
+        :following ->
+          from(f in Profiles.Follow,
+            join: u in assoc(f, :followed),
+            where: f.follower_id == ^user_id and not is_nil(f.followed_id) and f.pending == false,
+            select: %{
+              type: "local",
+              name: fragment("coalesce(?, ?)", u.display_name, u.username),
+              handle: fragment("coalesce(?, ?)", u.handle, u.username),
+              domain: type(^nil, :string),
+              href: fragment("concat('/', coalesce(?, ?))", u.handle, u.username),
+              followed_at: f.inserted_at,
+              user_id: u.id,
+              remote_actor_id: type(^nil, :integer)
+            }
+          )
+      end
+
+    remote_query =
+      case direction do
+        :followers ->
+          from(f in Profiles.Follow,
+            join: a in assoc(f, :remote_actor),
+            where:
+              f.followed_id == ^user_id and not is_nil(f.remote_actor_id) and f.pending == false,
+            select: %{
+              type: "remote",
+              name: fragment("coalesce(?, ?)", a.display_name, a.username),
+              handle: a.username,
+              domain: a.domain,
+              href: fragment("concat('/remote/', ?, '@', ?)", a.username, a.domain),
+              followed_at: f.inserted_at,
+              user_id: type(^nil, :integer),
+              remote_actor_id: a.id
+            }
+          )
+
+        :following ->
+          from(f in Profiles.Follow,
+            join: a in assoc(f, :remote_actor),
+            where:
+              f.follower_id == ^user_id and not is_nil(f.remote_actor_id) and
+                (f.pending == false or a.manually_approves_followers == false),
+            select: %{
+              type: "remote",
+              name: fragment("coalesce(?, ?)", a.display_name, a.username),
+              handle: a.username,
+              domain: a.domain,
+              href: fragment("concat('/remote/', ?, '@', ?)", a.username, a.domain),
+              followed_at: f.inserted_at,
+              user_id: type(^nil, :integer),
+              remote_actor_id: a.id
+            }
+          )
+      end
+
+    combined_query = union_all(local_query, ^remote_query)
+
+    from(r in subquery(combined_query),
+      where:
+        ^is_nil(search_term) or ilike(fragment("coalesce(?, '')", r.name), ^search_term) or
+          ilike(fragment("coalesce(?, '')", r.handle), ^search_term) or
+          ilike(fragment("coalesce(?, '')", r.domain), ^search_term),
+      order_by: [desc: r.followed_at],
+      offset: ^offset,
+      limit: ^limit
+    )
+    |> Repo.all()
+    |> Enum.map(&activity_relationship_entry(&1, direction))
+  end
+
+  defp activity_post_entry(post) do
+    image_preview_url =
+      post.media_urls
+      |> List.wrap()
+      |> PostUtilities.filter_image_urls()
+      |> List.first()
+
+    media_count = length(List.wrap(post.media_urls))
+
+    %{
+      kind: :post,
+      id: post.id,
+      href: Elektrine.Paths.post_path(post.id),
+      title: social_post_title(post),
+      preview: PostUtilities.plain_text_preview(post.content || "", 160),
+      meta: activity_post_type_label(post.post_type),
+      at: post.inserted_at,
+      count_label: nil,
+      count_value: nil,
+      media_count: media_count,
+      media_label: activity_media_label(post, media_count),
+      preview_image_url: image_preview_url,
+      remote_actor_id: nil,
+      user_id: nil
+    }
+  end
+
+  defp activity_like_entry(post) do
+    post
+    |> activity_post_entry()
+    |> Map.put(:meta, "#{activity_post_type_label(post.post_type)} post")
+    |> Map.put(:count_label, "likes")
+    |> Map.put(:count_value, post.like_count || 0)
+  end
+
+  defp activity_relationship_entry(entry, direction) do
+    handle =
+      case entry.type do
+        "remote" -> "@#{entry.handle}@#{entry.domain}"
+        _ -> "@#{entry.handle}"
+      end
+
+    %{
+      kind: :relationship,
+      id: entry.user_id || entry.remote_actor_id,
+      href: entry.href,
+      title: entry.name,
+      preview: handle,
+      meta: if(direction == :followers, do: "followed you", else: "you follow"),
+      at: entry.followed_at,
+      count_label: nil,
+      count_value: nil,
+      media_count: 0,
+      media_label: nil,
+      preview_image_url: nil,
+      remote_actor_id: entry.remote_actor_id,
+      user_id: entry.user_id
+    }
+  end
+
+  defp activity_post_type_label("post"), do: "Timeline"
+  defp activity_post_type_label("gallery"), do: "Gallery"
+  defp activity_post_type_label("discussion"), do: "Discuss"
+  defp activity_post_type_label(type), do: String.capitalize(type)
+
+  defp activity_search_pattern(query) do
+    case String.trim(query || "") do
+      "" -> nil
+      trimmed -> "%#{trimmed}%"
+    end
+  end
+
+  defp activity_media_label(_post, 0), do: nil
+
+  defp activity_media_label(post, count) when post.post_type == "gallery",
+    do: pluralize_media(count)
+
+  defp activity_media_label(_post, count), do: pluralize_media(count)
+
+  defp pluralize_media(1), do: "1 media item"
+  defp pluralize_media(count), do: "#{count} media items"
+
+  defp get_user_own_posts(user_id, limit) do
+    import Ecto.Query
+
+    preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
 
     from(m in Messaging.Message,
       where:
         m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
           is_nil(m.deleted_at),
       order_by: [desc: m.inserted_at],
-      limit: @overview_feed_limit,
-      preload: [
-        sender: [:profile],
-        conversation: [],
-        link_preview: [],
-        hashtags: [],
-        remote_actor: [],
-        reply_to: [sender: [:profile], remote_actor: []]
-      ]
+      limit: ^limit,
+      preload: ^preloads
     )
     |> Elektrine.Repo.all()
   end

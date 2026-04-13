@@ -14,52 +14,176 @@ defmodule Elektrine.Social.Recommendations do
   @doc "Gets personalized recommendation feed for a user.\n\n## Options\n- `:limit` - Maximum posts to return (default: 50)\n- `:session_context` - Map with session engagement data for real-time adaptation\n"
   def get_for_you_feed(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
+    filter = Keyword.get(opts, :filter, "all")
     session_context = Keyword.get(opts, :session_context, %{})
 
-    if recommendations_enabled?() do
-      user_profile = build_user_profile(user_id, session_context)
-      candidates = get_candidate_posts_fast(user_id, limit * 10)
+    cond do
+      filter == "my_posts" ->
+        get_recommended_own_posts(user_id, limit)
 
-      pre_scored =
-        candidates
-        |> Enum.map(fn post -> {post, score_post_quick(post, user_profile)} end)
-        |> Enum.sort_by(fn {_post, score} -> score end, :desc)
-        |> Enum.take(limit * 3)
+      recommendations_enabled?() ->
+        user_profile = build_user_profile(user_id, session_context)
 
-      ranked_scored =
-        pre_scored
-        |> Enum.map(fn {post, _quick_score} ->
-          {post, score_post_full(post, user_profile, user_id)}
-        end)
-        |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+        recommended_posts =
+          user_id
+          |> recommend_posts(expanded_limit(filter, limit), user_profile)
+          |> then(&filter_posts_for_feed(filter, &1))
+          |> Enum.take(limit)
 
-      fully_scored =
-        ranked_scored
-        |> Enum.filter(fn {post, score} ->
-          recommended_for_feed?(post, score, user_profile)
-        end)
-
-      fully_scored =
-        if fully_scored == [] do
-          ranked_scored
+        if recommended_posts == [] do
+          fallback_posts_for_filter(user_id, filter, limit)
         else
-          fully_scored
+          recommended_posts
         end
 
-      {exploit_posts, explore_candidates} = split_for_exploration(fully_scored, user_profile)
-
-      main_feed =
-        exploit_posts
-        |> Enum.take(ceil(limit * (1 - @exploration_ratio)))
-        |> Enum.map(fn {post, _score} -> post end)
-
-      explore_posts = select_exploration_posts(explore_candidates, limit, user_profile)
-
-      interleaved = interleave_posts(main_feed, explore_posts)
-      diversify_feed(interleaved)
-    else
-      Social.get_public_timeline(user_id: user_id, limit: limit)
+      true ->
+        fallback_posts_for_filter(user_id, filter, limit)
     end
+  end
+
+  defp recommend_posts(user_id, limit, user_profile) do
+    candidates = get_candidate_posts_fast(user_id, limit * 10)
+
+    pre_scored =
+      candidates
+      |> Enum.map(fn post -> {post, score_post_quick(post, user_profile)} end)
+      |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+      |> Enum.take(limit * 3)
+
+    ranked_scored =
+      pre_scored
+      |> Enum.map(fn {post, _quick_score} ->
+        {post, score_post_full(post, user_profile, user_id)}
+      end)
+      |> Enum.sort_by(fn {_post, score} -> score end, :desc)
+
+    fully_scored =
+      ranked_scored
+      |> Enum.filter(fn {post, score} ->
+        recommended_for_feed?(post, score, user_profile)
+      end)
+
+    fully_scored =
+      if fully_scored == [] do
+        ranked_scored
+      else
+        fully_scored
+      end
+
+    {exploit_posts, explore_candidates} = split_for_exploration(fully_scored, user_profile)
+
+    main_feed =
+      exploit_posts
+      |> Enum.take(ceil(limit * (1 - @exploration_ratio)))
+      |> Enum.map(fn {post, _score} -> post end)
+
+    explore_posts = select_exploration_posts(explore_candidates, limit, user_profile)
+
+    main_feed
+    |> interleave_posts(explore_posts)
+    |> diversify_feed()
+  end
+
+  defp expanded_limit("all", limit), do: limit
+  defp expanded_limit(_, limit), do: max(limit * 4, limit + 20)
+
+  defp filter_posts_for_feed("timeline", posts) do
+    Enum.filter(posts, &timeline_feed_post?/1)
+  end
+
+  defp filter_posts_for_feed("gallery", posts) do
+    Enum.filter(posts, &gallery_feed_post?/1)
+  end
+
+  defp filter_posts_for_feed("discussions", posts) do
+    Enum.filter(posts, &discussion_feed_post?/1)
+  end
+
+  defp filter_posts_for_feed(_filter, posts), do: posts
+
+  defp timeline_feed_post?(post) do
+    !gallery_feed_post?(post) && !discussion_feed_post?(post)
+  end
+
+  defp gallery_feed_post?(post) do
+    post_type = Map.get(post, :post_type)
+    media_urls = Map.get(post, :media_urls) || []
+
+    post_type == "gallery" or media_urls != []
+  end
+
+  defp discussion_feed_post?(post) do
+    conversation_type =
+      post
+      |> Map.get(:conversation)
+      |> case do
+        conversation when is_map(conversation) -> Map.get(conversation, :type)
+        _ -> nil
+      end
+
+    community_actor_uri = get_in(Map.get(post, :media_metadata) || %{}, ["community_actor_uri"])
+
+    Map.get(post, :post_type) == "discussion" or conversation_type == "community" or
+      is_binary(community_actor_uri)
+  end
+
+  defp fallback_posts_for_filter(user_id, "timeline", limit) do
+    Social.get_public_timeline(user_id: user_id, limit: expanded_limit("timeline", limit))
+    |> then(&filter_posts_for_feed("timeline", &1))
+    |> Enum.take(limit)
+  end
+
+  defp fallback_posts_for_filter(user_id, "gallery", limit) do
+    Social.get_public_timeline(user_id: user_id, limit: expanded_limit("gallery", limit))
+    |> then(&filter_posts_for_feed("gallery", &1))
+    |> Enum.take(limit)
+  end
+
+  defp fallback_posts_for_filter(user_id, "discussions", limit) do
+    Social.get_public_community_posts(user_id: user_id, limit: limit)
+  end
+
+  defp fallback_posts_for_filter(user_id, "my_posts", limit) do
+    get_recommended_own_posts(user_id, limit)
+  end
+
+  defp fallback_posts_for_filter(user_id, _filter, limit) do
+    Social.get_public_timeline(user_id: user_id, limit: limit)
+  end
+
+  defp get_recommended_own_posts(user_id, limit) do
+    from(m in Message,
+      left_join: c in Elektrine.Messaging.Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
+          is_nil(m.deleted_at),
+      order_by: [
+        desc:
+          fragment(
+            "(COALESCE(?, 0) * 4) + (COALESCE(?, 0) * 3) + (COALESCE(?, 0) * 2) + EXTRACT(EPOCH FROM ?) / 86400.0",
+            m.reply_count,
+            m.share_count,
+            m.like_count,
+            m.inserted_at
+          ),
+        desc: m.inserted_at,
+        desc: m.id
+      ],
+      limit: ^limit,
+      preload: ^own_post_preloads()
+    )
+    |> Repo.all()
+  end
+
+  defp own_post_preloads do
+    [
+      :conversation,
+      :link_preview,
+      :hashtags,
+      sender: [:profile],
+      shared_message: [:link_preview, :remote_actor, sender: [:profile]]
+    ]
   end
 
   defp recommendations_enabled? do

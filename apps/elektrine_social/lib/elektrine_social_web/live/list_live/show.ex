@@ -2,7 +2,9 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   use ElektrineSocialWeb, :live_view
   require Logger
   alias Elektrine.Social
+  alias Elektrine.Social.Recommendations
   import ElektrineSocialWeb.Components.Platform.ENav
+  import ElektrineSocialWeb.Components.Social.EmbeddedPost, only: [embedded_post: 1]
   import Elektrine.Components.User.UsernameEffects
   import ElektrineWeb.HtmlHelpers
   import ElektrineWeb.Live.Helpers.PostStateHelpers
@@ -68,6 +70,59 @@ defmodule ElektrineSocialWeb.ListLive.Show do
   @impl true
   def handle_event("toggle_add_member_form", _params, socket) do
     {:noreply, assign(socket, :show_add_member_form, !socket.assigns.show_add_member_form)}
+  end
+
+  def handle_event("record_dwell_time", params, socket) do
+    if user = socket.assigns[:current_user] do
+      post_id = Map.get(params, "post_id")
+
+      if is_binary(post_id) and post_id != "" do
+        Recommendations.record_view_with_dwell(user.id, post_id, %{
+          dwell_time_ms: Map.get(params, "dwell_time_ms"),
+          scroll_depth: Map.get(params, "scroll_depth"),
+          expanded: Map.get(params, "expanded") || false,
+          source: Map.get(params, "source") || "list"
+        })
+      end
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dwell_times", %{"views" => views}, socket) do
+    if user = socket.assigns[:current_user] do
+      Enum.each(views, fn view ->
+        post_id = Map.get(view, "post_id")
+
+        if is_binary(post_id) and post_id != "" do
+          Recommendations.record_view_with_dwell(user.id, post_id, %{
+            dwell_time_ms: Map.get(view, "dwell_time_ms"),
+            scroll_depth: Map.get(view, "scroll_depth"),
+            expanded: Map.get(view, "expanded") || false,
+            source: Map.get(view, "source") || "list"
+          })
+        end
+      end)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("record_dismissal", params, socket) do
+    if user = socket.assigns[:current_user] do
+      post_id = Map.get(params, "post_id")
+      type = Map.get(params, "type")
+
+      if is_binary(post_id) and post_id != "" and is_binary(type) and type != "" do
+        Recommendations.record_dismissal(user.id, post_id, type, Map.get(params, "dwell_time_ms"))
+      end
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_session_context", _params, socket) do
+    {:noreply, socket}
   end
 
   def handle_event("search_users", %{"value" => query}, socket) do

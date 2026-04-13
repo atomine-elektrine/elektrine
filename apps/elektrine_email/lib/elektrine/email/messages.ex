@@ -467,8 +467,9 @@ defmodule Elektrine.Email.Messages do
                 {:new_email, message}
               )
 
-              # Only create notification for received emails (not sent emails)
-              if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" do
+              # Only create notifications for actual incoming mail, not self-addressed inbox copies.
+              if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" &&
+                   !self_email_attrs?(threaded_attrs) do
                 # Create notification for new email if user has enabled it
                 user = Elektrine.Accounts.get_user!(mailbox_user_id)
 
@@ -671,6 +672,18 @@ defmodule Elektrine.Email.Messages do
       MailboxEncryption.placeholder_subject()
     else
       get_attr(attrs, :subject)
+    end
+  end
+
+  defp self_email_attrs?(attrs) when is_map(attrs) do
+    metadata = get_attr(attrs, :metadata)
+
+    case metadata do
+      metadata when is_map(metadata) ->
+        Map.get(metadata, :self_email) == true || Map.get(metadata, "self_email") == true
+
+      _ ->
+        false
     end
   end
 

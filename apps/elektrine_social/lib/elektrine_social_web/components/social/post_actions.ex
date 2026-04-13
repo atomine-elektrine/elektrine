@@ -132,7 +132,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             class={[
               @btn_class,
-              "cursor-pointer transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+              "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_liked &&
                 "bg-secondary/10 text-secondary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
               !@is_liked && "phx-click-loading:bg-secondary/10 phx-click-loading:text-secondary"
@@ -197,7 +197,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             class={[
               @btn_class,
-              "cursor-pointer transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+              "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_boosted &&
                 "bg-success/10 text-success phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
               !@is_boosted && "phx-click-loading:bg-success/10 phx-click-loading:text-success"
@@ -251,7 +251,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             class={[
               @btn_class,
-              "cursor-pointer transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+              "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_saved &&
                 "bg-warning/10 text-warning phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
               !@is_saved && "phx-click-loading:bg-warning/10 phx-click-loading:text-warning"
@@ -540,19 +540,20 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
     {btn_class, icon_class, score_class} =
       case assigns.size do
         :sm ->
-          {"btn btn-ghost btn-xs p-1 min-h-0 h-6 w-6", "w-3 h-3 sm:w-4 sm:h-4",
-           "text-xs font-bold"}
+          {"inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1",
+           "w-3 h-3 sm:w-4 sm:h-4 transition-none", "text-xs font-bold"}
 
         :md ->
-          {"btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 min-h-0 h-7 sm:h-8 w-7 sm:w-8",
-           "w-4 h-4 sm:w-5 sm:h-5", "text-sm font-bold"}
+          {"inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 sm:h-8 sm:w-8 sm:p-2",
+           "w-4 h-4 sm:w-5 sm:h-5 transition-none", "text-sm font-bold"}
 
         :lg ->
-          {"btn btn-ghost btn-sm p-2 min-h-0 h-9 w-9", "w-5 h-5", "text-base font-bold"}
+          {"inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent p-2",
+           "w-5 h-5 transition-none", "text-base font-bold"}
 
         _ ->
-          {"btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 min-h-0 h-7 sm:h-8 w-7 sm:w-8",
-           "w-4 h-4 sm:w-5 sm:h-5", "text-sm font-bold"}
+          {"inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 sm:h-8 sm:w-8 sm:p-2",
+           "w-4 h-4 sm:w-5 sm:h-5 transition-none", "text-sm font-bold"}
       end
 
     assigns =
@@ -575,7 +576,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           phx-value-type="up"
           class={[
             @btn_class,
-            "transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            "transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
             if(@is_upvoted,
               do: "bg-secondary/20 text-secondary hover:bg-secondary/30",
               else: "text-base-content/50 hover:bg-secondary/20 hover:text-secondary"
@@ -618,7 +619,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           phx-value-type="down"
           class={[
             @btn_class,
-            "transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+            "transition-none phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
             if(@is_downvoted,
               do: "bg-error/20 text-error hover:bg-error/30",
               else: "text-base-content/50 hover:bg-error/20 hover:text-error"

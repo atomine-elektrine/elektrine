@@ -610,7 +610,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           phx-click="vote"
           phx-value-message_id="#{reply.id}"
           phx-value-type="up"
-          class="btn btn-xs p-1 transition-colors #{upvote_class}"
+          class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none #{upvote_class}"
         >
           #{upvote_svg}
         </button>
@@ -621,14 +621,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           phx-click="vote"
           phx-value-message_id="#{reply.id}"
           phx-value-type="down"
-          class="btn btn-xs p-1 transition-colors #{downvote_class}"
+          class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 transition-none #{downvote_class}"
         >
           #{downvote_svg}
         </button>
         """
       else
         """
-        <div class="btn btn-ghost btn-xs p-1 opacity-50 cursor-not-allowed">
+        <div class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
           </svg>
@@ -636,7 +636,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
         <span class="text-sm font-medium">
           #{score}
         </span>
-        <div class="btn btn-ghost btn-xs p-1 opacity-50 cursor-not-allowed">
+        <div class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed">
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
           </svg>

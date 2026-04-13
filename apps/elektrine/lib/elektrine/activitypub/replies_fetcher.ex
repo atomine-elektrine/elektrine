@@ -22,6 +22,10 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
   @max_replies 100
   @max_depth 3
+  @max_pages 10
+  @full_thread_max_replies 1000
+  @full_thread_max_depth 5
+  @full_thread_max_pages 50
 
   @doc """
   Fetches replies for a post and stores them locally.
@@ -41,6 +45,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   """
   def fetch_and_store_replies(post_object, opts \\ []) do
     max_replies = Keyword.get(opts, :max_replies, @max_replies)
+    max_depth = Keyword.get(opts, :max_depth, @max_depth)
+    max_pages = Keyword.get(opts, :max_pages, @max_pages)
     parent_ap_id = post_object["id"]
     replies_collection = post_object["replies"] || post_object["comments"]
 
@@ -51,7 +57,13 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
       Logger.debug("Parent message not found for #{parent_ap_id}, skipping reply fetch")
       {:error, :parent_not_found}
     else
-      do_fetch_and_store_replies(replies_collection, parent_message.id, max_replies)
+      do_fetch_and_store_replies(
+        replies_collection,
+        parent_message.id,
+        max_replies,
+        max_depth,
+        max_pages
+      )
     end
   end
 
@@ -62,6 +74,11 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   """
   def fetch_replies_for_message(message_id)
       when is_binary(message_id) or is_integer(message_id) do
+    fetch_replies_for_message(message_id, [])
+  end
+
+  def fetch_replies_for_message(message_id, opts)
+      when (is_binary(message_id) or is_integer(message_id)) and is_list(opts) do
     case Elektrine.Repo.get(Messaging.Message, message_id) do
       nil ->
         {:error, :message_not_found}
@@ -70,9 +87,9 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         if message.activitypub_id do
           case Fetcher.fetch_object(message.activitypub_id) do
             {:ok, post_object} ->
-              case fetch_and_store_replies(post_object) do
+              case fetch_and_store_replies(post_object, opts) do
                 {:ok, 0} ->
-                  fetch_and_store_replies_via_fallback(post_object, message.id)
+                  fetch_and_store_replies_via_fallback(post_object, message.id, opts)
 
                 result ->
                   result
@@ -88,6 +105,23 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   @doc """
+  Backfills as much of a remote reply tree as possible within safety limits.
+  """
+  def fetch_full_thread_for_message(message_id, opts \\ []) do
+    opts =
+      Keyword.merge(
+        [
+          max_replies: @full_thread_max_replies,
+          max_depth: @full_thread_max_depth,
+          max_pages: @full_thread_max_pages
+        ],
+        opts
+      )
+
+    fetch_replies_for_message(message_id, opts)
+  end
+
+  @doc """
   Fetches replies from a collection URL directly.
 
   Use this when you have the replies collection URL but not the full post object.
@@ -95,25 +129,58 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   def fetch_from_collection_url(collection_url, parent_message_id, opts \\ [])
       when is_binary(collection_url) do
     max_replies = Keyword.get(opts, :max_replies, @max_replies)
-    do_fetch_and_store_replies(collection_url, parent_message_id, max_replies)
+    max_depth = Keyword.get(opts, :max_depth, @max_depth)
+    max_pages = Keyword.get(opts, :max_pages, @max_pages)
+
+    do_fetch_and_store_replies(
+      collection_url,
+      parent_message_id,
+      max_replies,
+      max_depth,
+      max_pages
+    )
   end
 
   # Private implementation
 
-  defp do_fetch_and_store_replies(nil, _parent_message_id, _max_replies) do
+  defp do_fetch_and_store_replies(nil, _parent_message_id, _max_replies, _max_depth, _max_pages) do
     {:ok, 0}
   end
 
-  defp do_fetch_and_store_replies(collection, parent_message_id, max_replies)
+  defp do_fetch_and_store_replies(
+         _collection,
+         _parent_message_id,
+         max_replies,
+         _max_depth,
+         _max_pages
+       )
+       when max_replies <= 0 do
+    {:ok, 0}
+  end
+
+  defp do_fetch_and_store_replies(
+         collection,
+         parent_message_id,
+         max_replies,
+         max_depth,
+         max_pages
+       )
        when is_binary(collection) or is_map(collection) do
-    case CollectionFetcher.fetch_collection(collection, max_items: max_replies) do
+    case CollectionFetcher.fetch_collection(collection,
+           max_items: max_replies,
+           max_pages: max_pages
+         ) do
       {:ok, items} ->
-        stored_count = process_reply_items(items, parent_message_id)
+        {stored_count, _remaining} =
+          process_reply_items(items, parent_message_id, max_replies, max_depth, max_pages)
+
         Logger.debug("Stored #{stored_count} replies for message #{parent_message_id}")
         {:ok, stored_count}
 
       {:partial, items} ->
-        stored_count = process_reply_items(items, parent_message_id)
+        {stored_count, _remaining} =
+          process_reply_items(items, parent_message_id, max_replies, max_depth, max_pages)
+
         Logger.debug("Stored #{stored_count} partial replies for message #{parent_message_id}")
         {:ok, stored_count}
 
@@ -123,13 +190,20 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     end
   end
 
-  defp fetch_and_store_replies_via_fallback(post_object, parent_message_id) do
+  defp fetch_and_store_replies_via_fallback(post_object, parent_message_id, opts) do
     post_ref = post_object["id"] || post_object["url"]
+    max_replies = Keyword.get(opts, :max_replies, @max_replies)
+    max_depth = Keyword.get(opts, :max_depth, @max_depth)
+    max_pages = Keyword.get(opts, :max_pages, @max_pages)
 
     cond do
       is_binary(post_ref) && LemmyApi.fetch_post_counts(post_ref) != nil ->
-        replies = LemmyApi.fetch_post_comments(post_ref, @max_replies)
-        {:ok, process_reply_items(replies, parent_message_id)}
+        replies = LemmyApi.fetch_post_comments(post_ref, max_replies)
+
+        {stored_count, _remaining} =
+          process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+        {:ok, stored_count}
 
       is_binary(post_ref) && MastodonApi.mastodon_compatible?(%{activitypub_id: post_ref}) ->
         case MastodonApi.fetch_status_context(post_ref) do
@@ -150,16 +224,21 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
                 }
               end)
 
-            {:ok, process_reply_items(replies, parent_message_id)}
+            {stored_count, _remaining} =
+              process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+            {:ok, stored_count}
 
           _ ->
             {:ok, 0}
         end
 
       true ->
-        case ActivityPub.fetch_remote_post_replies(post_object, limit: @max_replies) do
+        case ActivityPub.fetch_remote_post_replies(post_object, limit: max_replies) do
           {:ok, replies} when is_list(replies) ->
-            stored_count = process_reply_items(replies, parent_message_id)
+            {stored_count, _remaining} =
+              process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
             {:ok, stored_count}
 
           {:error, reason} ->
@@ -168,12 +247,72 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     end
   end
 
-  defp process_reply_items(items, parent_message_id) do
-    items
-    |> Enum.map(&normalize_reply_item/1)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.map(fn item -> store_reply(item, parent_message_id) end)
-    |> Enum.count(fn result -> result == :ok end)
+  defp process_reply_items(items, parent_message_id, remaining_budget, max_depth, max_pages) do
+    Enum.reduce_while(items, {0, remaining_budget}, fn item, {stored_count, remaining} ->
+      if remaining <= 0 do
+        {:halt, {stored_count, 0}}
+      else
+        normalized_item = normalize_reply_item(item)
+
+        {item_stored_count, item_remaining} =
+          process_reply_item(normalized_item, parent_message_id, remaining, max_depth, max_pages)
+
+        {:cont, {stored_count + item_stored_count, item_remaining}}
+      end
+    end)
+  end
+
+  defp process_reply_item(nil, _parent_message_id, remaining_budget, _max_depth, _max_pages),
+    do: {0, remaining_budget}
+
+  defp process_reply_item(object, parent_message_id, remaining_budget, max_depth, max_pages) do
+    case store_reply(object, parent_message_id) do
+      {:stored, reply_message} ->
+        nested_budget = remaining_budget - 1
+
+        {nested_count, final_remaining} =
+          maybe_fetch_nested_replies(object, reply_message, nested_budget, max_depth, max_pages)
+
+        {1 + nested_count, final_remaining}
+
+      {:existing, reply_message} when is_map(reply_message) ->
+        maybe_fetch_nested_replies(object, reply_message, remaining_budget, max_depth, max_pages)
+
+      _ ->
+        {0, remaining_budget}
+    end
+  end
+
+  defp maybe_fetch_nested_replies(
+         _object,
+         _reply_message,
+         remaining_budget,
+         max_depth,
+         _max_pages
+       )
+       when remaining_budget <= 0 or max_depth <= 1 do
+    {0, remaining_budget}
+  end
+
+  defp maybe_fetch_nested_replies(object, reply_message, remaining_budget, max_depth, max_pages) do
+    replies_collection = object["replies"] || object["comments"]
+
+    case replies_collection do
+      nil ->
+        {0, remaining_budget}
+
+      _ ->
+        case do_fetch_and_store_replies(
+               replies_collection,
+               reply_message.id,
+               remaining_budget,
+               max_depth - 1,
+               max_pages
+             ) do
+          {:ok, stored_count} -> {stored_count, max(remaining_budget - stored_count, 0)}
+          {:error, _reason} -> {0, remaining_budget}
+        end
+    end
   end
 
   # Normalize different reply item formats
@@ -259,21 +398,14 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
           }
 
           case Messaging.create_federated_message(attrs) do
-            {:ok, _message} ->
+            {:ok, message} ->
               # Increment parent's reply count
               Elektrine.ActivityPub.SideEffects.increment_reply_count(parent_message_id)
 
-              # Recursively fetch nested replies if they exist
-              if object["replies"] do
-                Elektrine.Async.start(fn ->
-                  fetch_and_store_replies(object, max_replies: 10, max_depth: 2)
-                end)
-              end
-
-              :ok
+              {:stored, message}
 
             {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
-              :already_exists
+              {:existing, Messaging.get_message_by_activitypub_id(object["id"])}
 
             {:error, reason} ->
               Logger.debug("Failed to create reply: #{inspect(reason)}")
@@ -284,7 +416,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         end
 
       _existing ->
-        :already_exists
+        {:existing, Messaging.get_message_by_activitypub_id(object["id"])}
     end
   end
 

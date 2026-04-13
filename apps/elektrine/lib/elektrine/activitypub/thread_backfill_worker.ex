@@ -36,7 +36,7 @@ defmodule Elektrine.ActivityPub.ThreadBackfillWorker do
         actor_uri = message.remote_actor && message.remote_actor.uri
         :ok = backfill_ancestors(message, actor_uri, 0)
 
-        case RepliesFetcher.fetch_replies_for_message(message.id) do
+        case RepliesFetcher.fetch_full_thread_for_message(message.id) do
           {:ok, _} -> :ok
           {:error, :message_not_found} -> {:discard, :message_not_found}
           {:error, :no_activitypub_id} -> {:discard, :no_activitypub_id}

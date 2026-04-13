@@ -431,6 +431,10 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:social, @social_module, :get_public_timeline, [opts], [])
   end
 
+  def overview_public_community_posts(opts \\ []) do
+    call_optional(:social, @social_module, :get_public_community_posts, [opts], [])
+  end
+
   def overview_for_you_feed(user_id, opts \\ []) do
     call_optional(:social, @social_recommendations_module, :get_for_you_feed, [user_id, opts], [])
   end

@@ -1561,6 +1561,8 @@ defmodule Elektrine.Email.Sender do
       attachments: attachments_to_store,
       mailbox_id: sender_mailbox_id,
       status: "received",
+      # Self-addressed mail should land in the inbox without looking like a new incoming message.
+      read: true,
       category: "inbox",
       metadata:
         enrich_metadata_for_pgp(

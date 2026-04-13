@@ -120,40 +120,91 @@
             </div>
           <% else %>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7">
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="posts"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View all posts"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Posts</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.total_posts}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="timeline"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View timeline posts"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Timeline</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.timeline_posts}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="gallery"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View gallery posts"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Gallery</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.gallery_posts}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="discussions"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View discussion posts"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Discuss</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.discussion_posts}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="likes"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View posts with likes"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Likes</p>
                 <p class="mt-1 text-xl font-semibold text-error">{@personal_stats.total_likes}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="followers"
+                data-action="show-followers"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View your followers"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Followers</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.followers}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
 
-              <div class="rounded-lg border border-base-300 p-3">
+              <button
+                type="button"
+                phx-click="inspect_activity"
+                phx-value-section="following"
+                data-action="show-following"
+                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                title="View who you're following"
+              >
                 <p class="text-xs uppercase tracking-wide opacity-60">Following</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.following}</p>
-              </div>
+                <p class="mt-2 text-xs opacity-70">Click to inspect</p>
+              </button>
             </div>
           <% end %>
         </div>
@@ -356,7 +407,7 @@
             <% "gallery" -> %>
               Gallery
             <% "discussions" -> %>
-              Discussions
+              Communities
             <% "my_posts" -> %>
               My Posts
             <% _ -> %>
@@ -404,7 +455,7 @@
             if(@filter == "discussions", do: "btn-secondary", else: "btn-ghost")
           ]}
         >
-          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Discussions
+          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Communities
         </button>
       </div>
       <!-- Unified Feed -->
@@ -461,9 +512,9 @@
                   pending_follows={@pending_follows}
                   remote_follow_overrides={@remote_follow_overrides}
                   user_statuses={@user_statuses}
-                  user_downvotes={%{}}
-                  lemmy_counts={%{}}
-                  post_interactions={%{}}
+                  user_downvotes={@user_downvotes}
+                  lemmy_counts={@lemmy_counts}
+                  post_interactions={@post_interactions}
                   post_reactions={@post_reactions}
                   post_replies={@post_replies}
                   reply_to_post={nil}
@@ -472,6 +523,7 @@
                   reply_to_reply_id={nil}
                   loading_remote_replies={@loading_remote_replies}
                   source="timeline"
+                  interaction_mode={if(@filter == "discussions", do: :like_only, else: :vote)}
                 />
               </div>
             <% end %>
@@ -581,6 +633,140 @@
                 </button>
               </div>
             </.form>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <%= if @show_activity_inspector do %>
+      <div class="modal modal-open p-4">
+        <div
+          class="modal-box max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          phx-click-away="close_modal"
+          phx-window-keydown="close_modal"
+          phx-key="Escape"
+        >
+          <div class="mb-4 flex items-center justify-between border-b border-base-300 p-4">
+            <div>
+              <h3 class="text-lg font-semibold">{@activity_inspector.title}</h3>
+              <p class="mt-1 text-sm opacity-70">
+                {@activity_inspector.stat_value} tracked
+              </p>
+            </div>
+
+            <button phx-click="close_modal" class="btn btn-ghost btn-sm btn-circle">
+              <.icon name="hero-x-mark" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <div class="space-y-3 p-4 pt-0" data-role="activity-inspector">
+            <.form for={%{}} phx-change="search_activity" class="mb-1">
+              <label class="input input-bordered flex items-center gap-2 bg-base-200/60">
+                <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+                <input
+                  type="text"
+                  name="query"
+                  value={@activity_inspector.query}
+                  placeholder={"Search #{String.downcase(@activity_inspector.title || "activity")}"}
+                  phx-debounce="250"
+                  autocomplete="off"
+                />
+              </label>
+            </.form>
+
+            <%= if Enum.empty?(@activity_inspector.entries) do %>
+              <p class="rounded-lg border border-dashed border-base-300 p-6 text-center text-base-content/60">
+                {if @activity_inspector.query != "",
+                  do: "No matches found for this search.",
+                  else: @activity_inspector.empty_message}
+              </p>
+            <% else %>
+              <%= for entry <- @activity_inspector.entries do %>
+                <div
+                  class="flex items-start gap-3 rounded-lg border border-base-300 p-3 hover:bg-base-200/45"
+                  data-role="activity-entry"
+                >
+                  <%= if entry.preview_image_url do %>
+                    <.link
+                      href={entry.href}
+                      class="block h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg border border-base-300 bg-base-200"
+                    >
+                      <img
+                        src={entry.preview_image_url}
+                        alt=""
+                        class="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </.link>
+                  <% end %>
+
+                  <.link href={entry.href} class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="truncate font-medium">{entry.title}</p>
+                      <span
+                        :if={entry.count_label && entry.count_value}
+                        class="badge badge-outline badge-sm"
+                      >
+                        {entry.count_value} {entry.count_label}
+                      </span>
+                    </div>
+
+                    <div class="mt-1 flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide opacity-60">
+                      <span>{entry.meta}</span>
+                      <span
+                        :if={entry.media_label}
+                        class="badge badge-outline badge-xs normal-case"
+                      >
+                        {entry.media_label}
+                      </span>
+                    </div>
+                    <p :if={entry.preview != ""} class="mt-1 text-sm opacity-80 line-clamp-3">
+                      {entry.preview}
+                    </p>
+                    <div class="mt-2 text-xs opacity-60">
+                      <.local_time
+                        datetime={entry.at}
+                        format="relative"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </div>
+                  </.link>
+
+                  <%= if @activity_inspector.section == "following" && entry.remote_actor_id do %>
+                    <button
+                      phx-click="unfollow_remote"
+                      phx-value-remote-actor-id={entry.remote_actor_id}
+                      class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                    >
+                      <span class="phx-click-loading:hidden">Unfollow</span>
+                      <span class="hidden phx-click-loading:inline-flex items-center">
+                        <.spinner size="sm" class="mr-1" /> Unfollowing...
+                      </span>
+                    </button>
+                  <% end %>
+
+                  <%= if @activity_inspector.section == "following" && entry.user_id do %>
+                    <button
+                      phx-click="unfollow_local"
+                      phx-value-followed-id={entry.user_id}
+                      class="btn btn-ghost btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80"
+                    >
+                      <span class="phx-click-loading:hidden">Unfollow</span>
+                      <span class="hidden phx-click-loading:inline-flex items-center">
+                        <.spinner size="sm" class="mr-1" /> Unfollowing...
+                      </span>
+                    </button>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <div :if={!@activity_inspector.no_more} class="flex justify-center pt-1">
+                <button type="button" phx-click="load_more_activity" class="btn btn-ghost btn-sm">
+                  Load more
+                </button>
+              </div>
+            <% end %>
           </div>
         </div>
       </div>

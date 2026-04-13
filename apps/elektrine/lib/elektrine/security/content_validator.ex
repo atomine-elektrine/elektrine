@@ -86,8 +86,8 @@ defmodule Elektrine.Security.ContentValidator do
     max_length =
       case context do
         :chat -> 2000
-        :timeline -> 4000
-        :discussion -> 10_000
+        :timeline -> 20_000
+        :discussion -> 20_000
         _ -> 2000
       end
 
