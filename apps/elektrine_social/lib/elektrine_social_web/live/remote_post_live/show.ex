@@ -1390,6 +1390,27 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     message.activitypub_id || message.id
   end
 
+  defp reset_main_post_vote_delta(post_interactions, post, local_message)
+       when is_map(post_interactions) do
+    [
+      post && post["id"],
+      local_message && local_message.activitypub_id,
+      local_message && local_message.id
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.uniq()
+    |> Enum.reduce(post_interactions, fn key, acc ->
+      if Map.has_key?(acc, key) do
+        Map.update!(acc, key, &Map.put(&1, :vote_delta, 0))
+      else
+        acc
+      end
+    end)
+  end
+
+  defp reset_main_post_vote_delta(post_interactions, _post, _local_message), do: post_interactions
+
   @impl true
   def mount(%{"url" => url}, _session, socket) when is_binary(url) do
     mount_post_ref(url, socket)
@@ -4185,11 +4206,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           socket.assigns.mastodon_counts
         end
 
+      updated_post_interactions =
+        reset_main_post_vote_delta(
+          socket.assigns.post_interactions,
+          socket.assigns.post,
+          local_message
+        )
+
       {:noreply,
        socket
        |> assign(:local_message, updated_local_message)
        |> assign(:post, updated_post)
        |> assign(:modal_post, updated_modal_post)
+       |> assign(:post_interactions, updated_post_interactions)
        |> assign(:lemmy_counts, updated_lemmy_counts)
        |> assign(:mastodon_counts, updated_mastodon_counts)}
     else

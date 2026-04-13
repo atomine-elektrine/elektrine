@@ -4,11 +4,14 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.AccountsFixtures
   alias Elektrine.AppCache
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Votes
+  alias ElektrineSocialWeb.RemotePostLive.Interactions
   alias Elektrine.Social.LinkPreview
   alias ElektrineSocialWeb.RemotePostLive.Show
 
@@ -298,6 +301,107 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     refute updated_socket.assigns.show_reply_form
     assert updated_socket.assigns.replying_to_comment_id == "https://remote.example/comments/1"
     assert updated_socket.assigns.comment_reply_content == ""
+  end
+
+  test "post_counts_updated clears optimistic vote delta for the main remote post" do
+    local_message = %{
+      id: 42,
+      activitypub_id: "https://remote.example/posts/42",
+      like_count: 10,
+      share_count: 2,
+      reply_count: 3
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: local_message,
+        post: %{"id" => local_message.activitypub_id, "like_count" => 10},
+        modal_post: nil,
+        lemmy_counts: %{score: 10, comments: 3},
+        mastodon_counts: %{},
+        post_interactions: %{
+          local_message.activitypub_id => %{
+            liked: false,
+            boosted: false,
+            like_delta: 0,
+            boost_delta: 0,
+            vote: "up",
+            vote_delta: 1
+          }
+        }
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:post_counts_updated,
+                %{
+                  message_id: local_message.id,
+                  counts: %{like_count: 11, share_count: 2, reply_count: 3}
+                }},
+               socket
+             )
+
+    assert updated_socket.assigns.local_message.like_count == 11
+    assert updated_socket.assigns.lemmy_counts.score == 11
+    assert updated_socket.assigns.post_interactions[local_message.activitypub_id].vote == "up"
+    assert updated_socket.assigns.post_interactions[local_message.activitypub_id].vote_delta == 0
+  end
+
+  test "vote_remote_target toggles an existing remote vote off in storage" do
+    user = AccountsFixtures.user_fixture()
+
+    actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/voter",
+        username: "voter",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/voter/inbox",
+        public_key: "test-public-key-voter"
+      })
+      |> Repo.insert!()
+
+    activitypub_id = "https://remote.example/posts/toggle-vote"
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "toggle vote",
+        title: "Toggle vote",
+        visibility: "public",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: actor.id
+      })
+
+    assert {:ok, _vote} = Votes.vote_on_message(user.id, message.id, "up")
+    assert Votes.get_user_vote(user.id, message.id) == "up"
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        current_user: user,
+        post_interactions: %{
+          activitypub_id => %{
+            liked: false,
+            boosted: false,
+            like_delta: 0,
+            boost_delta: 0,
+            vote: "up",
+            vote_delta: 0
+          }
+        }
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Interactions.vote_remote_target(socket, activitypub_id, "up")
+
+    assert Votes.get_user_vote(user.id, message.id) == nil
+    assert updated_socket.assigns.post_interactions[activitypub_id].vote == nil
+    assert updated_socket.assigns.post_interactions[activitypub_id].vote_delta == -1
   end
 
   test "cached community posts keep community audience when loading replies" do
