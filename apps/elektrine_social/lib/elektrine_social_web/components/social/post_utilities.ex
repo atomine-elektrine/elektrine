@@ -431,8 +431,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
     post_lemmy_counts = Map.get(lemmy_counts, post.activitypub_id)
     loaded_replies = Map.get(post_replies, post.id, [])
 
-    display_like_count =
-      if post_lemmy_counts, do: post_lemmy_counts.score, else: post.like_count || 0
+    display_like_count = display_primary_count(post, post_lemmy_counts)
 
     display_comment_count =
       cond do
@@ -442,6 +441,45 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       end
 
     {display_like_count || 0, display_comment_count || 0}
+  end
+
+  @doc """
+  Returns the visible primary engagement count for a post.
+
+  Vote-style posts prefer explicit upvote/downvote totals when available.
+  Like-style posts keep using like counts, with score only as a final fallback.
+  """
+  @spec display_primary_count(map(), map() | nil) :: integer()
+  def display_primary_count(post, post_counts \\ nil) do
+    cond do
+      lemmy_vote_post?(post) && vote_counts_available?(post_counts) ->
+        net_vote_count(post_counts)
+
+      lemmy_vote_post?(post) && vote_counts_available?(post) ->
+        net_vote_count(post)
+
+      is_map(post_counts) && is_integer(post_counts.score) ->
+        post_counts.score
+
+      is_integer(Map.get(post, :like_count)) ->
+        post.like_count
+
+      is_integer(Map.get(post, :score)) ->
+        post.score
+
+      true ->
+        0
+    end
+  end
+
+  defp vote_counts_available?(counts) when is_map(counts) do
+    is_integer(Map.get(counts, :upvotes)) || is_integer(Map.get(counts, :downvotes))
+  end
+
+  defp vote_counts_available?(_), do: false
+
+  defp net_vote_count(counts) when is_map(counts) do
+    (Map.get(counts, :upvotes) || 0) - (Map.get(counts, :downvotes) || 0)
   end
 
   defp maybe_render_custom_emojis(text, instance_domain) when is_binary(text) do

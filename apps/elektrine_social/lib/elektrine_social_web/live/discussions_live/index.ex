@@ -1169,17 +1169,46 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
          %{message_id: message_id, upvotes: upvotes, downvotes: downvotes, score: score}},
         socket
       ) do
-    if socket.assigns.current_view == "trending" do
-      updated_discussions =
-        Enum.map(socket.assigns.trending_discussions, fn discussion ->
-          if discussion.id == message_id do
-            %{discussion | upvotes: upvotes, downvotes: downvotes, score: score}
-          else
-            discussion
-          end
-        end)
+    if message_present_in_feed?(socket, message_id) do
+      update_vote_counts_fn = fn posts ->
+        update_posts_with_vote_counts(posts, message_id, upvotes, downvotes, score)
+      end
 
-      {:noreply, assign(socket, :trending_discussions, updated_discussions)}
+      socket =
+        socket
+        |> Phoenix.Component.update(:trending_discussions, update_vote_counts_fn)
+        |> Phoenix.Component.update(:filtered_discussions, update_vote_counts_fn)
+        |> Phoenix.Component.update(:federated_discussions, update_vote_counts_fn)
+        |> Phoenix.Component.update(:filtered_federated_discussions, update_vote_counts_fn)
+        |> Phoenix.Component.update(:followed_community_posts, update_vote_counts_fn)
+        |> Phoenix.Component.update(:filtered_community_posts, update_vote_counts_fn)
+
+      updated_lemmy_counts =
+        update_lemmy_vote_counts(
+          socket.assigns.lemmy_counts || %{},
+          socket,
+          message_id,
+          upvotes,
+          downvotes,
+          score
+        )
+
+      updated_post_interactions =
+        reset_feed_vote_delta(socket.assigns.post_interactions || %{}, socket, message_id)
+
+      sorted_filtered_community_posts =
+        sort_feed_posts(
+          socket.assigns.filtered_community_posts,
+          socket.assigns.feed_sort,
+          updated_lemmy_counts,
+          socket.assigns.session_context
+        )
+
+      {:noreply,
+       socket
+       |> assign(:lemmy_counts, updated_lemmy_counts)
+       |> assign(:post_interactions, updated_post_interactions)
+       |> assign(:filtered_community_posts, sorted_filtered_community_posts)}
     else
       {:noreply, socket}
     end
@@ -2311,6 +2340,22 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp update_posts_with_counts(posts, _message_id, _counts), do: posts
 
+  defp update_posts_with_vote_counts(posts, message_id, upvotes, downvotes, score)
+       when is_list(posts) do
+    Enum.map(posts, fn post ->
+      if is_map(post) && Map.get(post, :id) == message_id do
+        post
+        |> maybe_put_count(:upvotes, upvotes)
+        |> maybe_put_count(:downvotes, downvotes)
+        |> maybe_put_count(:score, score)
+      else
+        post
+      end
+    end)
+  end
+
+  defp update_posts_with_vote_counts(posts, _message_id, _upvotes, _downvotes, _score), do: posts
+
   defp maybe_put_count(post, field, value) do
     if Map.has_key?(post, field) do
       Map.put(post, field, value)
@@ -2343,6 +2388,64 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     else
       lemmy_counts
     end
+  end
+
+  defp update_lemmy_vote_counts(lemmy_counts, socket, message_id, upvotes, downvotes, score) do
+    post = find_feed_post_by_message_id(socket, message_id)
+    activitypub_id = post && post.activitypub_id
+
+    if is_binary(activitypub_id) do
+      existing = Map.get(lemmy_counts, activitypub_id, %{})
+
+      Map.put(
+        lemmy_counts,
+        activitypub_id,
+        existing
+        |> Map.put(:score, score)
+        |> Map.put(:upvotes, upvotes)
+        |> Map.put(:downvotes, downvotes)
+      )
+    else
+      lemmy_counts
+    end
+  end
+
+  defp reset_feed_vote_delta(post_interactions, socket, message_id)
+       when is_map(post_interactions) do
+    case find_feed_post_by_message_id(socket, message_id) do
+      nil ->
+        post_interactions
+
+      post ->
+        [post.activitypub_id, post.id]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(&ElektrineWeb.Live.PostInteractions.normalize_key/1)
+        |> Enum.uniq()
+        |> Enum.reduce(post_interactions, fn key, acc ->
+          if Map.has_key?(acc, key) do
+            Map.update!(acc, key, &Map.put(&1, :vote_delta, 0))
+          else
+            acc
+          end
+        end)
+    end
+  end
+
+  defp reset_feed_vote_delta(post_interactions, _socket, _message_id), do: post_interactions
+
+  defp find_feed_post_by_message_id(socket, message_id) do
+    candidate_lists = [
+      socket.assigns.followed_community_posts,
+      socket.assigns.filtered_community_posts,
+      socket.assigns.federated_discussions,
+      socket.assigns.filtered_federated_discussions,
+      socket.assigns.trending_discussions,
+      socket.assigns.filtered_discussions
+    ]
+
+    Enum.find_value(candidate_lists, fn posts ->
+      Enum.find(posts || [], fn candidate -> is_map(candidate) && candidate.id == message_id end)
+    end)
   end
 
   defp message_present_in_feed?(socket, message_id) do
