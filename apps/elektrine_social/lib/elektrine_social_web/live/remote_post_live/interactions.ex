@@ -452,14 +452,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
           vote_delta_change = calculate_vote_delta_change(current_vote, new_vote)
           new_vote_delta = current_vote_delta + vote_delta_change
 
-          result =
-            case new_vote do
-              nil ->
-                {:ok, :removed}
-
-              vote_type ->
-                Votes.vote_on_message(user_id, message.id, vote_type)
-            end
+          result = Votes.vote_on_message(user_id, message.id, vote_type)
 
           case result do
             {:ok, _} ->
