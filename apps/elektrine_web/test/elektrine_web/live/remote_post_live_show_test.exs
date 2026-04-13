@@ -3,16 +3,16 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.ActivityPub.Actor
   alias Elektrine.AccountsFixtures
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.AppCache
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.RemotePostLive.Interactions
-  alias Elektrine.Social.LinkPreview
   alias ElektrineSocialWeb.RemotePostLive.Show
 
   test "renders custom emoji in remote comment author display name" do

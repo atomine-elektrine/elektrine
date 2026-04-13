@@ -8,6 +8,7 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.SocialFixtures
+  alias ElektrineSocialWeb.DiscussionsLive.Index
 
   defp log_in_user(conn, user) do
     token =
@@ -279,5 +280,64 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
       |> live(~p"/communities?composer=community")
 
     assert render(view) =~ "Create Community"
+  end
+
+  test "community feed vote broadcast updates score without dropping voted state" do
+    post = %{
+      id: 101,
+      activitypub_id: "https://remote.example/posts/101",
+      score: 5,
+      upvotes: 5,
+      downvotes: 0,
+      like_count: 5,
+      reply_count: 2,
+      share_count: 0,
+      federated: true,
+      remote_actor_id: nil,
+      sender_id: nil,
+      title: "Feed vote test",
+      content: "",
+      media_urls: [],
+      inserted_at: ~N[2026-04-13 12:00:00]
+    }
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        followed_community_posts: [post],
+        filtered_community_posts: [post],
+        federated_discussions: [],
+        filtered_federated_discussions: [],
+        trending_discussions: [],
+        filtered_discussions: [],
+        lemmy_counts: %{"https://remote.example/posts/101" => %{score: 5, comments: 2}},
+        post_interactions: %{
+          "https://remote.example/posts/101" => %{
+            liked: true,
+            downvoted: false,
+            vote: "up",
+            vote_delta: 1,
+            like_delta: 0
+          }
+        },
+        feed_sort: "top",
+        session_context: nil
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Index.handle_info(
+               {:post_voted, %{message_id: 101, upvotes: 6, downvotes: 0, score: 6}},
+               socket
+             )
+
+    assert hd(updated_socket.assigns.filtered_community_posts).score == 6
+    assert updated_socket.assigns.lemmy_counts["https://remote.example/posts/101"].score == 6
+
+    assert updated_socket.assigns.post_interactions["https://remote.example/posts/101"].vote ==
+             "up"
+
+    assert updated_socket.assigns.post_interactions["https://remote.example/posts/101"].vote_delta ==
+             0
   end
 end

@@ -2227,17 +2227,21 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp get_post_score(post) when is_map(post) do
     cond do
-      # Local post with score field (Ecto schema)
-      Map.has_key?(post, :score) && post.score ->
-        post.score
-
-      # Local post with upvotes/downvotes
-      Map.has_key?(post, :upvotes) ->
+      ElektrineSocialWeb.Components.Social.PostUtilities.lemmy_vote_post?(post) &&
+          (Map.has_key?(post, :upvotes) || Map.has_key?(post, :downvotes)) ->
         (post.upvotes || 0) - (post.downvotes || 0)
+
+      ElektrineSocialWeb.Components.Social.PostUtilities.lemmy_vote_post?(post) &&
+        Map.has_key?(post, :score) && post.score ->
+        post.score
 
       # Local post with like_count only
       Map.has_key?(post, :like_count) && post.like_count ->
         post.like_count
+
+      # Local post with score field (Ecto schema)
+      Map.has_key?(post, :score) && post.score ->
+        post.score
 
       # Outbox post - check for likes object with totalItems
       is_map(post["likes"]) ->

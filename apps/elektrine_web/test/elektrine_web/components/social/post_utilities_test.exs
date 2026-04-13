@@ -142,4 +142,38 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
 
     assert PostUtilities.get_reply_author(reply) == "@carol@remote.example"
   end
+
+  test "get_display_counts/3 prefers net votes for vote-style posts" do
+    post = %{
+      id: 123,
+      activitypub_id: "https://remote.example/post/123",
+      post_type: "discussion",
+      upvotes: 5,
+      downvotes: 2,
+      like_count: 99,
+      reply_count: 4
+    }
+
+    lemmy_counts = %{
+      post.activitypub_id => %{upvotes: 8, downvotes: 3, score: 42, comments: 6}
+    }
+
+    assert PostUtilities.get_display_counts(post, lemmy_counts, %{}) == {5, 6}
+  end
+
+  test "get_display_counts/3 keeps like counts for non-vote posts" do
+    post = %{
+      id: 124,
+      activitypub_id: "https://remote.example/status/123",
+      post_type: "post",
+      like_count: 7,
+      reply_count: 2
+    }
+
+    lemmy_counts = %{
+      post.activitypub_id => %{score: 11, comments: 4}
+    }
+
+    assert PostUtilities.get_display_counts(post, lemmy_counts, %{}) == {11, 4}
+  end
 end

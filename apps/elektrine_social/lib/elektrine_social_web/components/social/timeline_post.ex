@@ -2332,11 +2332,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         like_only_mode && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
           (post.upvotes || 0) - (post.downvotes || 0)
 
-        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
-          lemmy_counts.score
+        is_vote_post &&
+          is_map(lemmy_counts) &&
+            (is_integer(lemmy_counts.upvotes) or is_integer(lemmy_counts.downvotes)) ->
+          (lemmy_counts.upvotes || 0) - (lemmy_counts.downvotes || 0)
 
         is_vote_post && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
           (post.upvotes || 0) - (post.downvotes || 0)
+
+        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
+          lemmy_counts.score
 
         is_vote_post && is_integer(post.score) ->
           post.score
