@@ -1660,55 +1660,46 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
         Create additional email addresses that deliver to your mailbox or forward elsewhere. You can have up to 15 aliases.
       </p>
 
-      <form
-        phx-submit="create_custom_domain"
-        class="mb-8 overflow-hidden rounded-lg border border-base-content/10 bg-base-100 shadow-sm"
-      >
-        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
-          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
-            Bring Your Own Domain
-          </div>
-          <h3 class="mt-1 text-lg font-semibold tracking-tight">Custom Domains</h3>
-          <p class="mt-1 text-sm text-base-content/60">
-            Route
+      <form phx-submit="create_custom_domain" class="card space-y-4 mb-8 p-5">
+        <div>
+          <h3 class="font-semibold text-lg mb-1">Custom Domains</h3>
+          <p class="text-sm text-base-content/60">
+            Bring your own domain and route
             <span class="font-mono text-base-content">{@current_user.username}@your-domain.com</span>
             into this mailbox.
           </p>
         </div>
 
-        <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <div>
           <label class="label pb-1">
             <span class="label-text font-medium">Domain</span>
           </label>
 
-          <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div>
-              <input
-                type="text"
-                name="domain"
-                placeholder="mail.example.com"
-                class="input input-bordered w-full"
-                required
-              />
-            </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              name="domain"
+              placeholder="mail.example.com"
+              class="input input-bordered sm:flex-1"
+              required
+            />
 
-            <button type="submit" class="btn btn-secondary lg:min-w-36 lg:mt-0">Add Domain</button>
+            <button type="submit" class="btn btn-secondary sm:self-start">Add Domain</button>
           </div>
         </div>
 
         <%= if Enum.empty?(@custom_domains) do %>
-          <div class="px-5 py-10 sm:px-6">
-            <div class="rounded-lg border border-dashed border-base-content/15 bg-base-200/20 px-6 py-8 text-center">
-              <div class="text-sm font-medium text-base-content/75">No custom domains added yet</div>
-              <div class="mt-1 text-xs text-base-content/50">
-                Add one above to generate the DNS records and verification target.
-              </div>
-            </div>
+          <div class="text-center py-8 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-globe-alt" class="w-10 h-10 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No custom domains added yet</p>
+            <p class="text-sm text-base-content/40 mt-1">
+              Add one above to generate DNS records and a verification target.
+            </p>
           </div>
         <% else %>
-          <div class="divide-y divide-base-content/10">
+          <div class="space-y-3">
             <%= for custom_domain <- @custom_domains do %>
-              <div class="px-5 py-5 sm:px-6">
+              <div class="card p-4">
                 <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div class="min-w-0 flex-1">
                     <div class="min-w-0">
@@ -1724,9 +1715,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                         </span>
                       </div>
 
-                      <div class="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                        Primary Address
-                      </div>
+                      <div class="mt-2 text-xs font-medium text-base-content/50">Primary Address</div>
                       <div class="mt-1 flex items-start gap-2">
                         <div class="font-mono text-sm text-base-content/80 break-all flex-1">
                           {@current_user.username}@{custom_domain.domain}
@@ -1753,14 +1742,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                       </div>
                     <% end %>
 
-                    <div class="mt-4 overflow-hidden rounded-lg border border-base-content/10">
-                      <div class="border-b border-base-content/10 bg-base-200/35 px-4 py-3">
-                        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                          DNS Records
-                        </div>
+                    <div class="mt-4 rounded-lg border border-base-content/10 bg-base-100/50">
+                      <div class="border-b border-base-content/10 px-4 py-3">
+                        <div class="text-sm font-medium text-base-content/70">DNS Records</div>
                       </div>
 
-                      <div class="divide-y divide-base-content/10 bg-base-100">
+                      <div class="divide-y divide-base-content/10">
                         <%= for {record, index} <-
                               Enum.with_index(Email.dns_records_for_custom_domain(custom_domain)) do %>
                           <div class="grid gap-3 px-4 py-3 sm:grid-cols-[88px_minmax(0,0.9fr)_minmax(0,1.4fr)]">
@@ -1771,9 +1758,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                             </div>
 
                             <div class="min-w-0">
-                              <div class="text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
-                                Host
-                              </div>
+                              <div class="text-xs font-medium text-base-content/50">Host</div>
                               <div class="mt-1 flex items-start gap-2">
                                 <div class="font-mono text-xs leading-5 text-base-content/80 break-all flex-1">
                                   {record.host}
@@ -1787,7 +1772,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                             </div>
 
                             <div class="min-w-0">
-                              <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-base-content/45">
+                              <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-base-content/50">
                                 <span>Value</span>
                                 <%= if record.priority do %>
                                   <span class="rounded-full bg-base-200 px-2 py-0.5 normal-case tracking-normal text-base-content/65">

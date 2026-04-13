@@ -1,6 +1,7 @@
 defmodule ElektrineSocialWeb.RemoteUserLive.ShowTest do
   use ExUnit.Case, async: true
 
+  alias Elektrine.AppCache
   alias ElektrineSocialWeb.RemoteUserLive.Show
 
   test "handles record_dwell_times for anonymous users" do
@@ -90,5 +91,42 @@ defmodule ElektrineSocialWeb.RemoteUserLive.ShowTest do
 
     assert [^high_score_post, ^low_score_post] =
              Show.sort_posts([low_score_post, high_score_post], "hot")
+  end
+
+  test "retries loading remote community stats while cache is still empty" do
+    actor_id = System.unique_integer([:positive])
+    AppCache.put_remote_user_community_stats(actor_id, %{members: 0, posts: 0})
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          remote_actor: %{id: actor_id},
+          community_stats: %{members: 0, posts: 0}
+        }
+      }
+
+    assert {:noreply, ^socket} =
+             Show.handle_info({:reload_remote_user_community_stats, actor_id, 1}, socket)
+
+    assert_receive {:reload_remote_user_community_stats, ^actor_id, 2}, 1_700
+  end
+
+  test "loads remote community stats immediately once cache is populated" do
+    actor_id = System.unique_integer([:positive])
+    stats = %{members: 24_719, posts: 29_067}
+    AppCache.put_remote_user_community_stats(actor_id, stats)
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          remote_actor: %{id: actor_id},
+          community_stats: %{members: 0, posts: 0}
+        }
+      }
+
+    assert {:noreply, ^socket} =
+             Show.handle_info({:reload_remote_user_community_stats, actor_id, 1}, socket)
+
+    assert_receive {:community_stats_loaded, ^stats}
   end
 end

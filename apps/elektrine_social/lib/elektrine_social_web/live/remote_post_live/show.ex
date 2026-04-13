@@ -220,7 +220,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   phx-value-comment_id={reply["id"]}
                   phx-value-type="up"
                   class={[
-                    "p-0.5 rounded transition-colors",
+                    "p-0.5 rounded transition-none",
                     if(user_vote == "up",
                       do: "text-success",
                       else: "text-base-content/40 hover:text-success"
@@ -230,7 +230,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 >
                   <.icon
                     name={if user_vote == "up", do: "hero-arrow-up-solid", else: "hero-arrow-up"}
-                    class="w-4 h-4"
+                    class="w-4 h-4 transition-none"
                   />
                 </button>
               <% else %>
@@ -254,7 +254,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   phx-value-comment_id={reply["id"]}
                   phx-value-type="down"
                   class={[
-                    "p-0.5 rounded transition-colors",
+                    "p-0.5 rounded transition-none",
                     if(user_vote == "down",
                       do: "text-error",
                       else: "text-base-content/40 hover:text-error"
@@ -266,7 +266,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                     name={
                       if user_vote == "down", do: "hero-arrow-down-solid", else: "hero-arrow-down"
                     }
-                    class="w-4 h-4"
+                    class="w-4 h-4 transition-none"
                   />
                 </button>
               <% else %>
@@ -278,13 +278,26 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             
     <!-- Comment Content -->
             <div
+              id={"reply-card-" <> URI.encode_www_form(to_string(reply_local_message_id || reply["id"] || "unknown"))}
               class={[
-                "card panel-card relative flex-1 min-w-0 rounded-lg border border-base-300 px-2 py-1.5 transition-all duration-150",
-                reply_click && "hover:border-base-content/20 hover:shadow-sm"
+                "card panel-card timeline-post-card relative flex-1 min-w-0 rounded-lg border border-base-300 shadow-sm px-2 py-1.5 transition-colors duration-150",
+                reply_click && "cursor-pointer hover:shadow-md"
               ]}
+              data-post-id={reply_local_message_id || reply["id"]}
+              data-source="remote_post_reply"
+              phx-hook={reply_click && "PostClick"}
               style="background: oklch(var(--b3)); box-shadow: 0 2px 12px oklch(var(--bc) / 0.08);"
             >
               <%= if reply_click do %>
+                <.link
+                  navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
+                  class="hidden"
+                  data-post-nav-link
+                  tabindex="-1"
+                  aria-hidden="true"
+                >
+                  Open reply
+                </.link>
                 <.link
                   navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
                   class="absolute inset-0 z-0 rounded-lg"
@@ -512,10 +525,26 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         <% else %>
           <!-- Timeline-style comment (traditional social media with hearts) -->
           <div
-            class="timeline-thread-tree-card card panel-card relative rounded-xl p-3 mb-2 border border-base-300 transition-all duration-150 hover:border-base-content/20 hover:shadow-md"
+            id={"reply-card-" <> URI.encode_www_form(to_string(reply_local_message_id || reply["id"] || "unknown"))}
+            class={[
+              "timeline-thread-tree-card card panel-card timeline-post-card relative rounded-xl p-3 mb-2 border border-base-300 shadow-sm transition-colors duration-150",
+              reply_click && "cursor-pointer hover:shadow-md"
+            ]}
+            data-post-id={reply_local_message_id || reply["id"]}
+            data-source="remote_post_reply"
+            phx-hook={reply_click && "PostClick"}
             style="background: oklch(var(--b3)); box-shadow: 0 4px 16px oklch(var(--bc) / 0.10);"
           >
             <%= if reply_click do %>
+              <.link
+                navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
+                class="hidden"
+                data-post-nav-link
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                Open reply
+              </.link>
               <.link
                 navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
                 class="absolute inset-0 z-0 rounded-xl"
@@ -1187,9 +1216,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <% reply_click = quick_reply_click_target(reply) %>
                 <div
                   class={[
-                    "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
+                    "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
                     reply_click &&
-                      "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
+                      "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
                   ]}
                   style="background-color: oklch(var(--b1));"
                   id={"remote-post-inline-component-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
@@ -1198,6 +1227,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   data-id={reply_click && reply_click.id}
                   data-post-id={reply_click && reply_click.post_id}
                 >
+                  <%= if reply_click do %>
+                    <.link
+                      navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
+                      class="hidden"
+                      data-post-nav-link
+                      tabindex="-1"
+                      aria-hidden="true"
+                    >
+                      Open reply
+                    </.link>
+                  <% end %>
                   <div class="flex items-center gap-2 mb-1 min-w-0">
                     <%= if author_preview.profile_path do %>
                       <.link
@@ -1422,6 +1462,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:thread_reply_actors, %{})
       |> assign(:replies_loading, false)
       |> assign(:replies_loaded, false)
+      |> assign(:reply_sync_checked, false)
       |> assign(:comment_sort, "hot")
       |> assign(:post_interactions, %{})
       |> assign(:user_saves, %{})
@@ -3662,7 +3703,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         Process.send_after(
           self(),
-          {:reload_remote_post_community_stats, community_actor.id},
+          {:reload_remote_post_community_stats, community_actor.id, 1},
           1_500
         )
 
@@ -3684,11 +3725,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:noreply, assign(socket, :community_stats, merged_stats)}
   end
 
-  def handle_info({:reload_remote_post_community_stats, actor_id}, socket) do
+  def handle_info({:reload_remote_post_community_stats, actor_id, attempt}, socket) do
     if socket.assigns.community_actor && socket.assigns.community_actor.id == actor_id do
       stats = ElektrineSocial.RemoteUser.Metrics.cached_community_stats(actor_id)
-      send(self(), {:community_stats_loaded, stats})
-      {:noreply, socket}
+
+      if community_stats_ready?(stats) || attempt >= 8 do
+        send(self(), {:community_stats_loaded, stats})
+        {:noreply, socket}
+      else
+        Process.send_after(
+          self(),
+          {:reload_remote_post_community_stats, actor_id, attempt + 1},
+          1_500
+        )
+
+        {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -3763,6 +3815,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:post_reactions, post_reactions)
      |> assign(:replies_loaded, local_replies != [])
      |> assign(:replies_loading, is_binary(post_id))
+     |> assign(:reply_sync_checked, false)
      |> sync_post_reply_counts(local_replies)
      |> assign(:is_community_post, socket.assigns.is_community_post || is_community_post)}
   end
@@ -3912,6 +3965,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket
         |> assign(:local_message, local_message)
         |> assign_reply_surface_from_db(post_id, current_local_replies(socket, post_id))
+        |> assign(:reply_sync_checked, false)
 
       cached_replies = socket.assigns.replies
 
@@ -3924,7 +3978,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         |> assign(:replies_loading, should_sync_replies)
 
       if should_sync_replies do
-        _ = Elektrine.ActivityPub.RepliesIngestWorker.enqueue(local_message.id)
+        _ = Elektrine.ActivityPub.ThreadBackfillWorker.enqueue(local_message.id)
 
         if is_binary(post_id) do
           Process.send_after(
@@ -3995,6 +4049,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> sync_post_reply_counts(merged_replies)
      |> assign(:replies_loading, false)
      |> assign(:replies_loaded, true)
+     |> assign(:reply_sync_checked, true)
      |> assign(:post_interactions, post_interactions)
      |> assign(:post_reactions, post_reactions)}
   end
@@ -5256,6 +5311,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp initial_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp community_stats_ready?(%{} = stats) do
+    (stats[:members] || 0) > 0 || (stats[:posts] || 0) > 0
+  end
+
+  defp community_stats_ready?(_), do: false
 
   defp local_message_community_actor(%{
          conversation: %{remote_group_actor: %{actor_type: "Group"} = actor}

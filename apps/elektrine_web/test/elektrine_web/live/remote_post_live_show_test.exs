@@ -4,6 +4,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.AppCache
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
@@ -130,6 +131,38 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     refute html =~ "Continue 1 nested reply on origin thread"
   end
 
+  test "standard timeline reply previews render with borders and post nav links" do
+    assigns = %{
+      __changed__: %{},
+      show_reply_form: true,
+      current_user: %{id: 1},
+      quick_reply_recent_replies: [
+        %{
+          "id" => "https://remote.example/notes/preview-1",
+          "attributedTo" => "https://remote.example/users/alice",
+          "content" => "Preview reply",
+          "published" => "2025-01-01T00:00:00Z"
+        }
+      ],
+      reply_content: "",
+      reply_content_domain: "remote.example",
+      replying_to_comment_id: nil,
+      show_recent_replies_preview: true
+    }
+
+    html =
+      assigns
+      |> Show.standard_timeline_detail_reply_box()
+      |> rendered_to_string()
+
+    assert html =~ "timeline-thread-preview-item relative"
+    assert html =~ "border border-base-300"
+    assert html =~ "data-post-nav-link"
+
+    assert html =~
+             "/remote/post/https%3A%2F%2Fremote.example%2Fnotes%2Fpreview-1"
+  end
+
   test "renders markdown embeds inside remote comment content" do
     comments = [
       %{
@@ -206,6 +239,24 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
                %{"url" => "#"},
                socket
              )
+  end
+
+  test "retries loading remote post community stats while cache is still empty" do
+    actor_id = System.unique_integer([:positive])
+    AppCache.put_remote_user_community_stats(actor_id, %{members: 0, posts: 0})
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          community_actor: %{id: actor_id},
+          community_stats: %{members: 0, posts: 0}
+        }
+      }
+
+    assert {:noreply, ^socket} =
+             Show.handle_info({:reload_remote_post_community_stats, actor_id, 1}, socket)
+
+    assert_receive {:reload_remote_post_community_stats, ^actor_id, 2}, 1_700
   end
 
   test "toggle_reply_form clears active comment reply state" do

@@ -31,7 +31,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
       reply_content: "",
       reply_to_reply_id: nil,
       loading_remote_replies: MapSet.new(),
-      source: "timeline"
+      source: "timeline",
+      interaction_mode: :vote
     }
 
     {:ok, socket |> assign(defaults) |> assign(assigns)}
@@ -76,6 +77,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           show_ancestor_actions={true}
           on_image_click="open_image_modal"
           source={@source}
+          interaction_mode={@interaction_mode}
         />
       <% else %>
         <.timeline_post

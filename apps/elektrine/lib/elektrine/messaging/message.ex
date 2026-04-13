@@ -4,6 +4,8 @@ defmodule Elektrine.Messaging.Message do
   import Ecto.Changeset
 
   @varchar_limit 255
+  @local_content_max 20_000
+  @federated_content_max 20_000
 
   schema "messages" do
     field :content, :string
@@ -193,7 +195,7 @@ defmodule Elektrine.Messaging.Message do
       "poll",
       "gallery"
     ])
-    |> validate_length(:content, max: 4000)
+    |> validate_length(:content, max: @local_content_max)
     |> validate_content_security()
     |> validate_media_urls_security()
     |> validate_content_or_media()
@@ -207,7 +209,9 @@ defmodule Elektrine.Messaging.Message do
   Changeset for federated messages from ActivityPub.
   Does not require conversation_id or sender_id.
   """
-  def federated_changeset(message, attrs) do
+  def federated_changeset(message, attrs) when is_map(attrs) do
+    attrs = normalize_federated_attrs(attrs)
+
     message
     |> cast(attrs, [
       :content,
@@ -238,9 +242,51 @@ defmodule Elektrine.Messaging.Message do
     |> validate_required([:activitypub_id, :remote_actor_id])
     |> put_change(:federated, true)
     |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private"])
-    |> validate_length(:content, max: 4000)
+    |> validate_length(:content, max: @federated_content_max)
     |> unique_constraint(:activitypub_id)
   end
+
+  def federated_changeset(message, attrs), do: federated_changeset(message, Map.new(attrs))
+
+  defp normalize_federated_attrs(attrs) do
+    normalize_optional_attr(attrs, :activitypub_url, &coerce_federated_remote_url_input/1)
+  end
+
+  defp normalize_optional_attr(attrs, key, normalizer) when is_map(attrs) do
+    string_key = Atom.to_string(key)
+
+    cond do
+      Map.has_key?(attrs, key) ->
+        Map.put(attrs, key, normalizer.(Map.get(attrs, key)))
+
+      Map.has_key?(attrs, string_key) ->
+        Map.put(attrs, string_key, normalizer.(Map.get(attrs, string_key)))
+
+      true ->
+        attrs
+    end
+  end
+
+  defp coerce_federated_remote_url_input(url) when is_binary(url), do: url
+
+  defp coerce_federated_remote_url_input([first | rest]),
+    do: coerce_federated_remote_url_input(first) || coerce_federated_remote_url_input(rest)
+
+  defp coerce_federated_remote_url_input([]), do: nil
+
+  defp coerce_federated_remote_url_input(%{"href" => href}),
+    do: coerce_federated_remote_url_input(href)
+
+  defp coerce_federated_remote_url_input(%{href: href}),
+    do: coerce_federated_remote_url_input(href)
+
+  defp coerce_federated_remote_url_input(%{"url" => url}),
+    do: coerce_federated_remote_url_input(url)
+
+  defp coerce_federated_remote_url_input(%{url: url}), do: coerce_federated_remote_url_input(url)
+  defp coerce_federated_remote_url_input(%{"id" => id}), do: coerce_federated_remote_url_input(id)
+  defp coerce_federated_remote_url_input(%{id: id}), do: coerce_federated_remote_url_input(id)
+  defp coerce_federated_remote_url_input(_), do: nil
 
   # Keep federated inserts safe when upstream payloads exceed varchar-backed fields.
   defp normalize_federated_columns(changeset) do

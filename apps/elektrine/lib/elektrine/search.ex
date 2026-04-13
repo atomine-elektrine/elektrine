@@ -171,7 +171,7 @@ defmodule Elektrine.Search do
           url:
             fragment(
               "CONCAT(?, COALESCE(?, CAST(? AS text)))",
-              ^(Elektrine.Paths.chat_root_path() <> "/"),
+              type(^(Elektrine.Paths.chat_root_path() <> "/"), :string),
               c.hash,
               c.id
             ),
@@ -231,7 +231,7 @@ defmodule Elektrine.Search do
               u.username
             ),
           content: "Timeline post",
-          url: fragment("CONCAT(?, ?)", "/post/", m.id),
+          url: fragment("CONCAT(?, ?)", type(^"/post/", :string), m.id),
           updated_at: m.inserted_at,
           relevance: 0.85,
           sender_id: m.sender_id
@@ -281,9 +281,9 @@ defmodule Elektrine.Search do
           url:
             fragment(
               "CONCAT(?, ?, ?, ?)",
-              ^(Elektrine.Paths.discussion_path("") <> "/"),
+              type(^(Elektrine.Paths.discussion_path("") <> "/"), :string),
               c.name,
-              "/post/",
+              type(^"/post/", :string),
               m.id
             ),
           updated_at: m.inserted_at,
@@ -313,7 +313,12 @@ defmodule Elektrine.Search do
         type: "community",
         title: c.name,
         content: c.description,
-        url: fragment("CONCAT(?, ?)", ^(Elektrine.Paths.discussion_path("") <> "/"), c.name),
+        url:
+          fragment(
+            "CONCAT(?, ?)",
+            type(^(Elektrine.Paths.discussion_path("") <> "/"), :string),
+            c.name
+          ),
         updated_at: c.updated_at,
         relevance: 0.8
       },
@@ -393,7 +398,12 @@ defmodule Elektrine.Search do
               type: "email",
               title: m.subject,
               content: "Email message",
-              url: fragment("CONCAT(?, ?)", ^Elektrine.Paths.email_view_path(""), m.id),
+              url:
+                fragment(
+                  "CONCAT(?, ?)",
+                  type(^Elektrine.Paths.email_view_path(""), :string),
+                  m.id
+                ),
               updated_at: m.inserted_at,
               relevance: 0.8,
               mailbox_id: m.mailbox_id

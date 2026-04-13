@@ -440,9 +440,9 @@
                         <div
                           id={"remote-post-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
                           class={[
-                            "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
+                            "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
                             reply_click &&
-                              "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
+                              "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
                           ]}
                           style="background-color: oklch(var(--b1));"
                           phx-hook={reply_click && "PostClick"}
@@ -450,6 +450,19 @@
                           data-id={reply_click && reply_click.id}
                           data-post-id={reply_click && reply_click.post_id}
                         >
+                          <%= if reply_click do %>
+                            <.link
+                              navigate={
+                                Elektrine.Paths.post_path(reply_click.id || reply_click.post_id)
+                              }
+                              class="hidden"
+                              data-post-nav-link
+                              tabindex="-1"
+                              aria-hidden="true"
+                            >
+                              Open reply
+                            </.link>
+                          <% end %>
                           <div class="flex items-center gap-2 mb-1 min-w-0">
                             <%= if author_preview.profile_path do %>
                               <.link
@@ -654,10 +667,11 @@
                             phx-click="vote_post"
                             phx-value-type="up"
                             class={[
-                              "btn btn-xs sm:btn-sm p-1 sm:p-2 transition-colors",
+                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2",
                               if(user_vote == "up",
                                 do: "bg-success/20 text-success hover:bg-success/30",
-                                else: "btn-ghost hover:bg-success/20 hover:text-success"
+                                else:
+                                  "text-base-content/75 hover:bg-success/20 hover:text-success"
                               )
                             ]}
                           >
@@ -667,11 +681,11 @@
                                   do: "hero-arrow-up-solid",
                                   else: "hero-arrow-up"
                               }
-                              class="w-4 h-4 sm:w-5 sm:h-5"
+                              class="w-4 h-4 sm:w-5 sm:h-5 transition-none"
                             />
                           </button>
                         <% else %>
-                          <div class="btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 opacity-50 cursor-not-allowed">
+                          <div class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed sm:h-9 sm:w-9 sm:p-2">
                             <.icon name="hero-arrow-up" class="w-4 h-4 sm:w-5 sm:h-5" />
                           </div>
                         <% end %>
@@ -681,10 +695,10 @@
                             phx-click="vote_post"
                             phx-value-type="down"
                             class={[
-                              "btn btn-xs sm:btn-sm p-1 sm:p-2 transition-colors",
+                              "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2",
                               if(user_vote == "down",
                                 do: "bg-error/20 text-error hover:bg-error/30",
-                                else: "btn-ghost hover:bg-error/20 hover:text-error"
+                                else: "text-base-content/75 hover:bg-error/20 hover:text-error"
                               )
                             ]}
                           >
@@ -694,11 +708,11 @@
                                   do: "hero-arrow-down-solid",
                                   else: "hero-arrow-down"
                               }
-                              class="w-4 h-4 sm:w-5 sm:h-5"
+                              class="w-4 h-4 sm:w-5 sm:h-5 transition-none"
                             />
                           </button>
                         <% else %>
-                          <div class="btn btn-ghost btn-xs sm:btn-sm p-1 sm:p-2 opacity-50 cursor-not-allowed">
+                          <div class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed sm:h-9 sm:w-9 sm:p-2">
                             <.icon name="hero-arrow-down" class="w-4 h-4 sm:w-5 sm:h-5" />
                           </div>
                         <% end %>
@@ -1266,9 +1280,9 @@
                                 <div
                                   id={"remote-post-inline-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
                                   class={[
-                                    "timeline-thread-preview-item text-sm rounded-lg border border-base-300/50 bg-base-100/80 px-2 py-2 transition-all duration-150",
+                                    "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
                                     reply_click &&
-                                      "cursor-pointer hover:border-base-300 hover:bg-base-200/80 hover:shadow-sm"
+                                      "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
                                   ]}
                                   style="background-color: oklch(var(--b1));"
                                   phx-hook={reply_click && "PostClick"}
@@ -1276,6 +1290,21 @@
                                   data-id={reply_click && reply_click.id}
                                   data-post-id={reply_click && reply_click.post_id}
                                 >
+                                  <%= if reply_click do %>
+                                    <.link
+                                      navigate={
+                                        Elektrine.Paths.post_path(
+                                          reply_click.id || reply_click.post_id
+                                        )
+                                      }
+                                      class="hidden"
+                                      data-post-nav-link
+                                      tabindex="-1"
+                                      aria-hidden="true"
+                                    >
+                                      Open reply
+                                    </.link>
+                                  <% end %>
                                   <div class="flex items-center gap-2 mb-1 min-w-0">
                                     <%= if author_preview.profile_path do %>
                                       <.link
@@ -1481,7 +1510,7 @@
                       </ul>
                     </div>
                   </div>
-                  <%= if !@is_community_post && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
+                  <%= if !@is_community_post && @reply_sync_checked && !@replies_loading && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon name="hero-information-circle" class="w-4 h-4" />
                       <span class="text-sm">

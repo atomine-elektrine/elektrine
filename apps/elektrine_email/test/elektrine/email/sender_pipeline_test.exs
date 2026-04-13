@@ -4,6 +4,7 @@ defmodule Elektrine.Email.SenderPipelineTest do
   alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.Sender
+  alias Elektrine.Notifications
   import Swoosh.TestAssertions
 
   setup :set_swoosh_global
@@ -159,6 +160,33 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert attachment["encoding"] == "base64"
       assert attachment["filename"] == "voice-note.m4a"
       assert Base.decode64!(attachment["data"]) == attachment_data
+    end
+
+    test "self-addressed mail does not create unread or notifications", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      params = %{
+        from: sender_mailbox.email,
+        to: sender_mailbox.email,
+        subject: "Note to self",
+        text_body: "hello"
+      }
+
+      assert {:ok, %{status: "received"}} = Sender.send_email(sender.id, params)
+
+      messages = Email.list_messages(sender_mailbox.id, 50, 0)
+      sent_copy = Enum.find(messages, &(&1.subject == "Note to self" && &1.status == "sent"))
+
+      received_copy =
+        Enum.find(messages, &(&1.subject == "Note to self" && &1.status == "received"))
+
+      assert sent_copy
+      assert received_copy
+      assert received_copy.read
+      assert received_copy.metadata["self_email"]
+      assert Email.unread_count(sender_mailbox.id) == 0
+      assert Notifications.list_notifications(sender.id) == []
     end
 
     test "blocks send when every recipient is suppressed", %{

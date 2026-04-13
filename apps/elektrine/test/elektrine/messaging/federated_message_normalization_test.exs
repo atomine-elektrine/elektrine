@@ -35,6 +35,24 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
 
       assert message.media_urls == [short_url]
     end
+
+    test "coerces structured activitypub_url values before casting" do
+      actor = remote_actor_fixture()
+
+      canonical_url =
+        "https://bsky.brid.gy/convert/ap/at://did:plc:pak3r4f5v4zu4jzo772y2iep/app.bsky.feed.post/3mjdqze7vpc2d"
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{
+                 activitypub_url: [
+                   %{"type" => "Link", "href" => canonical_url}
+                 ]
+               })
+               |> Messaging.create_federated_message()
+
+      assert message.activitypub_url == canonical_url
+    end
   end
 
   describe "federated_changeset/2 normalization on updates" do
@@ -58,6 +76,24 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
       assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :title) == String.slice(long_title, 0, 255)
       assert Ecto.Changeset.get_change(changeset, :media_urls) == [short_url]
+    end
+
+    test "coerces structured activitypub_url values on updates" do
+      actor = remote_actor_fixture()
+      canonical_url = "https://remote.example/notes/updated-url"
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{activitypub_url: nil})
+               |> Messaging.create_federated_message()
+
+      changeset =
+        Message.federated_changeset(message, %{
+          activitypub_url: [%{"href" => canonical_url}]
+        })
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :activitypub_url) == canonical_url
     end
   end
 

@@ -339,6 +339,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   @spec get_reply_content(map() | Message.t()) :: String.t()
   def get_reply_content(%Message{content: content}) when is_binary(content), do: content
   def get_reply_content(%{content: content}) when is_binary(content), do: content
+  def get_reply_content(%{"content" => content}) when is_binary(content), do: content
   def get_reply_content(_), do: ""
 
   @doc """
@@ -352,6 +353,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
 
   def get_reply_score(%{score: score}) when is_integer(score), do: score
   def get_reply_score(%{like_count: count}) when is_integer(count), do: count
+  def get_reply_score(%{"score" => score}) when is_integer(score), do: score
+  def get_reply_score(%{"like_count" => count}) when is_integer(count), do: count
   def get_reply_score(_), do: nil
 
   @doc """
@@ -384,6 +387,17 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   def community_post?(post) do
     has_community_uri?(post) || community_conversation_post?(post) ||
       community_post_url_match?(post)
+  end
+
+  @doc """
+  Checks if a post uses Lemmy-style voting semantics.
+  This is narrower than `community_post?/1` because some community posts are
+  Mastodon-style posts that should still use like counts instead of vote scores.
+  """
+  @spec lemmy_vote_post?(map()) :: boolean()
+  def lemmy_vote_post?(post) do
+    community_post_url_match?(post) || is_integer(Map.get(post, :upvotes)) ||
+      is_integer(Map.get(post, :downvotes)) || post.post_type == "discussion"
   end
 
   @doc """
@@ -490,7 +504,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   defp community_conversation_post?(%{
-         federated: true,
          conversation: %{type: "community"}
        }),
        do: true

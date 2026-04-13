@@ -103,20 +103,28 @@ defmodule Elektrine.ActivityPub.Fetcher do
             maybe_recover_object_from_html(uri, response, reason, opts)
         end
 
-      {:ok, %Finch.Response{status: status}}
-      when status in [401, 403] and sign_fetches == false ->
+      {:ok, %Finch.Response{} = response}
+      when response.status in [401, 403] and sign_fetches == false ->
         # Instance requires signed fetches - retry with signature
-        Logger.debug("Instance #{uri} requires signed fetch, retrying...")
-        do_signed_fetch(uri, Keyword.put(opts, :sign, true))
+        if cloudflare_blocked_response?(response) do
+          maybe_backoff_blocked_host(uri)
+
+          Logger.warning(
+            "Cloudflare blocked ActivityPub fetch from #{uri}, skipping signed retry"
+          )
+
+          {:error, :fetch_failed}
+        else
+          Logger.debug("Instance #{uri} requires signed fetch, retrying...")
+          do_signed_fetch(uri, Keyword.put(opts, :sign, true))
+        end
 
       {:ok, %Finch.Response{status: status, body: _body}} when status in [404, 410] ->
         Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
         {:error, :not_found}
 
-      {:ok, %Finch.Response{status: status, body: body}} ->
-        Logger.warning(
-          "Failed to fetch from #{uri}, status: #{status}, body: #{String.slice(body || "", 0, 200)}"
-        )
+      {:ok, %Finch.Response{} = response} ->
+        log_failed_fetch(uri, response)
 
         {:error, :fetch_failed}
 
@@ -282,6 +290,10 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp lemmy_resolve_url(uri) when is_binary(uri) do
     case URI.parse(uri) do
+      %URI{scheme: scheme, host: host, path: path}
+      when scheme in ["http", "https"] and is_binary(host) and path in [nil, "", "/"] ->
+        {:ok, "#{scheme}://#{host}/api/v4/site", :site}
+
       %URI{scheme: scheme, host: host, path: "/u/" <> _rest}
       when scheme in ["http", "https"] and is_binary(host) ->
         {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :person}
@@ -349,6 +361,44 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp fallback_lemmy_api_url(_), do: nil
 
   defp normalize_lemmy_resolved_actor(
+         %{"site_view" => %{"site" => site}},
+         requested_uri,
+         :site
+       )
+       when is_map(site) do
+    actor_id = site["actor_id"] || requested_uri
+
+    preferred_username =
+      actor_id
+      |> URI.parse()
+      |> Map.get(:host)
+      |> case do
+        host when is_binary(host) and host != "" -> host
+        _ -> site["name"] || "instance"
+      end
+
+    {:ok,
+     %{
+       "id" => actor_id,
+       "type" => "Application",
+       "preferredUsername" => preferred_username,
+       "name" => site["name"] || preferred_username,
+       "summary" => site["description"],
+       "icon" => normalize_lemmy_image(site["icon"]),
+       "image" => normalize_lemmy_image(site["banner"]),
+       "inbox" => site["inbox_url"] || actor_id <> "/inbox",
+       "published" => site["published"],
+       "updated" => site["updated"],
+       "publicKey" => %{
+         "id" => actor_id <> "#main-key",
+         "owner" => actor_id,
+         "publicKeyPem" => site["public_key"] || unavailable_public_key_pem()
+       },
+       "endpoints" => %{"sharedInbox" => shared_inbox_for_actor(actor_id)}
+     }}
+  end
+
+  defp normalize_lemmy_resolved_actor(
          %{"person" => %{"person" => person}},
          requested_uri,
          :person
@@ -414,6 +464,10 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp normalize_lemmy_resolved_object(resolved_body, requested_uri, :person) do
     normalize_lemmy_resolved_actor(resolved_body, requested_uri, :person)
+  end
+
+  defp normalize_lemmy_resolved_object(resolved_body, requested_uri, :site) do
+    normalize_lemmy_resolved_actor(resolved_body, requested_uri, :site)
   end
 
   defp normalize_lemmy_resolved_object(resolved_body, requested_uri, :group) do
@@ -521,4 +575,44 @@ defmodule Elektrine.ActivityPub.Fetcher do
     request_fun = Keyword.get(opts, :request_fun, &Backoff.get/3)
     request_fun.(url, headers, Keyword.drop(opts, [:request_fun]))
   end
+
+  defp log_failed_fetch(uri, %Finch.Response{} = response) do
+    if cloudflare_blocked_response?(response) do
+      maybe_backoff_blocked_host(uri)
+
+      Logger.warning(
+        "Cloudflare blocked ActivityPub fetch from #{uri} with status #{response.status}"
+      )
+    else
+      Logger.warning(
+        "Failed to fetch from #{uri}, status: #{response.status}, body: #{String.slice(response.body || "", 0, 200)}"
+      )
+    end
+  end
+
+  defp cloudflare_blocked_response?(%Finch.Response{status: 403, headers: headers, body: body}) do
+    server =
+      headers
+      |> Enum.find_value(fn {key, value} ->
+        if String.downcase(key) == "server", do: String.downcase(value), else: nil
+      end)
+
+    body_text = String.downcase(body || "")
+
+    server == "cloudflare" &&
+      (String.contains?(body_text, "attention required") ||
+         String.contains?(body_text, "sorry, you have been blocked") ||
+         String.contains?(body_text, "cloudflare ray id"))
+  end
+
+  defp cloudflare_blocked_response?(_), do: false
+
+  defp maybe_backoff_blocked_host(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> Backoff.set_backoff(host)
+      _ -> :ok
+    end
+  end
+
+  defp maybe_backoff_blocked_host(_), do: :ok
 end

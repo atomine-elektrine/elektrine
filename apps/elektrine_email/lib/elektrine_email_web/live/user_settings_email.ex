@@ -497,7 +497,7 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                 >
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-sm text-base-content/80" data-private-mailbox-status>
-                      {gettext("Mailbox unlocked in this tab.")}
+                      {gettext("Mailbox unlocked in memory for this tab.")}
                     </p>
                     <button
                       type="button"

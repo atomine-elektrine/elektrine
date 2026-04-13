@@ -91,7 +91,7 @@
                   data-private-mailbox-unlocked-content
                 >
                   <span class="text-sm text-base-content/80" data-private-mailbox-status>
-                    {gettext("Mailbox unlocked in this tab.")}
+                    {gettext("Mailbox unlocked in memory for this tab.")}
                   </span>
                   <button type="button" class="btn btn-ghost btn-sm" data-private-mailbox-lock>
                     {gettext("Lock")}
@@ -553,7 +553,7 @@
                   <iframe
                     class="w-full border-0 bg-white rounded-lg"
                     style="height: clamp(420px, 70vh, 680px);"
-                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    sandbox="allow-popups"
                     title={gettext("Protected email content")}
                     data-private-html-body-iframe
                   >

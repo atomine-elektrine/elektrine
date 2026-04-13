@@ -109,6 +109,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :show_quote_button, :boolean, default: true
   attr :show_save_button, :boolean, default: true
   attr :show_thread_context, :boolean, default: true
+  attr :interaction_mode, :atom, default: :vote
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -2270,29 +2271,104 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     post_state =
       Map.get(assigns.post_interactions, post_id, %{liked: false, downvoted: false, like_delta: 0})
 
-    # Check user_likes/user_downvotes with fallback to post_interactions
-    is_liked =
-      case Map.fetch(assigns.user_likes, post.id) do
-        {:ok, val} -> val
-        :error -> Map.get(post_state, :liked, false)
+    like_only_mode = assigns.interaction_mode == :like_only
+
+    # Prefer the explicit community vote state used by the remote post surface,
+    # while still supporting overview's existing user_likes/user_downvotes maps.
+    current_vote =
+      if like_only_mode do
+        nil
+      else
+        case Map.get(post_state, :vote) do
+          vote when vote in ["up", "down"] -> vote
+          _ -> nil
+        end
       end
 
-    is_downvoted =
-      case Map.fetch(assigns.user_downvotes, post.id) do
-        {:ok, val} -> val
-        :error -> Map.get(post_state, :downvoted, false)
+    raw_is_liked =
+      case current_vote do
+        "up" -> true
+        _ -> Map.get(assigns.user_likes, post.id, Map.get(post_state, :liked, false))
+      end
+
+    raw_is_downvoted =
+      case current_vote do
+        "down" -> true
+        _ -> Map.get(assigns.user_downvotes, post.id, Map.get(post_state, :downvoted, false))
+      end
+
+    {is_liked, is_downvoted} =
+      cond do
+        like_only_mode ->
+          {raw_is_liked, false}
+
+        current_vote == "up" ->
+          {true, false}
+
+        current_vote == "down" ->
+          {false, true}
+
+        raw_is_liked and raw_is_downvoted ->
+          {false, false}
+
+        true ->
+          {raw_is_liked, raw_is_downvoted}
       end
 
     lemmy_counts = Map.get(assigns.lemmy_counts, post.activitypub_id)
+    is_vote_post = PostUtilities.lemmy_vote_post?(post)
 
     base_count =
-      if lemmy_counts do
-        lemmy_counts.score
-      else
-        post.like_count || 0
+      cond do
+        like_only_mode && is_integer(post.like_count) ->
+          post.like_count
+
+        like_only_mode && is_integer(post.score) ->
+          post.score
+
+        like_only_mode && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
+          lemmy_counts.score
+
+        like_only_mode && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
+          (post.upvotes || 0) - (post.downvotes || 0)
+
+        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
+          lemmy_counts.score
+
+        is_vote_post && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
+          (post.upvotes || 0) - (post.downvotes || 0)
+
+        is_vote_post && is_integer(post.score) ->
+          post.score
+
+        is_vote_post && is_integer(post.like_count) ->
+          post.like_count
+
+        is_integer(post.like_count) ->
+          post.like_count
+
+        is_integer(post.score) ->
+          post.score
+
+        is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
+          lemmy_counts.score
+
+        true ->
+          0
       end
 
-    like_count = max(base_count || 0, 0)
+    score_delta =
+      if like_only_mode do
+        Map.get(post_state, :like_delta, 0)
+      else
+        if is_vote_post do
+          Map.get(post_state, :vote_delta, 0)
+        else
+          Map.get(post_state, :like_delta, 0)
+        end
+      end
+
+    score = (base_count || 0) + score_delta
 
     # Filter to actual image URLs
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -2325,30 +2401,48 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     reply_count = max(local_reply_count, remote_reply_count)
 
+    reaction_keys =
+      [post.activitypub_id, Integer.to_string(post.id), post.id]
+      |> Enum.reject(&is_nil/1)
+
+    reactions =
+      case reactions_for_keys(assigns.post_reactions_map, reaction_keys) do
+        [] -> assigns.reactions
+        live_reactions -> live_reactions
+      end
+
     # Format reactions
     current_user_id = if assigns.current_user, do: assigns.current_user.id, else: nil
-    formatted_reactions = PostUtilities.format_reactions(assigns.reactions, current_user_id)
+    formatted_reactions = PostUtilities.format_reactions(reactions, current_user_id)
 
     assigns =
       assigns
       |> assign(:post_id, post_id)
       |> assign(:is_liked, is_liked)
       |> assign(:is_downvoted, is_downvoted)
-      |> assign(:like_count, like_count)
+      |> assign(:score, score)
+      |> assign(:is_vote_post, is_vote_post)
+      |> assign(:like_only_mode, like_only_mode)
       |> assign(:has_image, has_image)
       |> assign(:image_url, image_url)
       |> assign(:image_urls, image_urls)
       |> assign(:title, title)
       |> assign(:community_uri, community_uri)
+      |> assign(:community_path, community_path(post, community_uri))
+      |> assign(:community_label, PostUtilities.extract_community_name(community_uri))
       |> assign(:external_link, external_link)
       |> assign(:reply_count, reply_count)
+      |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
       |> assign(:unique_id, "lemmy-post-#{post.id}")
 
     ~H"""
     <article
       id={@unique_id}
-      class="card panel-card timeline-post-card border border-base-300 rounded-lg overflow-visible transition-all relative z-0"
+      class={[
+        "card panel-card timeline-post-card border border-base-300 rounded-lg overflow-visible transition-colors relative z-0",
+        if(@clickable, do: "cursor-pointer")
+      ]}
       data-post-id={@post.id}
       data-source={@source}
       phx-hook={if @clickable, do: "PostClick", else: nil}
@@ -2379,39 +2473,58 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               phx-click={if @is_liked, do: @on_unlike, else: @on_like}
               phx-value-post_id={@post.id}
               class={[
-                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem] phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
-                if(@is_liked, do: "text-secondary", else: "text-base-content/50 hover:text-secondary")
+                "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                if(@is_liked,
+                  do:
+                    if(@like_only_mode,
+                      do: "bg-error/20 text-error hover:bg-error/30",
+                      else: "bg-success/20 text-success hover:bg-success/30"
+                    ),
+                  else:
+                    if(@like_only_mode,
+                      do: "text-base-content/75 hover:bg-error/20 hover:text-error",
+                      else: "text-base-content/75 hover:bg-success/20 hover:text-success"
+                    )
+                )
               ]}
-              aria-label={if @is_liked, do: "Remove upvote", else: "Upvote"}
+              aria-label={
+                if @like_only_mode,
+                  do: if(@is_liked, do: "Unlike", else: "Like"),
+                  else: if(@is_liked, do: "Remove upvote", else: "Upvote")
+              }
               aria-pressed={@is_liked}
               type="button"
             >
               <.icon
-                name={if @is_liked, do: "hero-arrow-up-solid", else: "hero-arrow-up"}
-                class="w-5 h-5"
+                name={
+                  if @like_only_mode,
+                    do: if(@is_liked, do: "hero-heart-solid", else: "hero-heart"),
+                    else: if(@is_liked, do: "hero-arrow-up-solid", else: "hero-arrow-up")
+                }
+                class="w-4 h-4 sm:w-5 sm:h-5 transition-none"
               />
             </button>
           <% else %>
-            <div class="text-base-content/30 p-2">
-              <.icon name="hero-arrow-up" class="w-5 h-5" />
+            <div class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed sm:h-9 sm:w-9 sm:p-2">
+              <.icon
+                name={if @like_only_mode, do: "hero-heart", else: "hero-arrow-up"}
+                class="w-4 h-4 sm:w-5 sm:h-5"
+              />
             </div>
           <% end %>
-          <span
-            class={[
-              "text-sm font-bold",
-              if(@is_liked, do: "text-secondary", else: if(@is_downvoted, do: "text-error", else: ""))
-            ]}
-            aria-label={"Score: #{@like_count}"}
-          >
-            {@like_count}
+          <span class="text-sm sm:text-lg font-bold" aria-label={"Score: #{@score}"}>
+            {@score}
           </span>
-          <%= if @current_user do %>
+          <%= if !@like_only_mode and @current_user do %>
             <button
               phx-click={if @is_downvoted, do: @on_undownvote, else: @on_downvote}
               phx-value-post_id={@post.id}
               class={[
-                "btn btn-ghost btn-sm btn-square min-h-[2.5rem] min-w-[2.5rem] phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
-                if(@is_downvoted, do: "text-error", else: "text-base-content/50 hover:text-error")
+                "inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 transition-none sm:h-9 sm:w-9 sm:p-2 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
+                if(@is_downvoted,
+                  do: "bg-error/20 text-error hover:bg-error/30",
+                  else: "text-base-content/75 hover:bg-error/20 hover:text-error"
+                )
               ]}
               aria-label={if @is_downvoted, do: "Remove downvote", else: "Downvote"}
               aria-pressed={@is_downvoted}
@@ -2419,13 +2532,15 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             >
               <.icon
                 name={if @is_downvoted, do: "hero-arrow-down-solid", else: "hero-arrow-down"}
-                class="w-5 h-5"
+                class="w-4 h-4 sm:w-5 sm:h-5 transition-none"
               />
             </button>
           <% else %>
-            <div class="text-base-content/30 p-2">
-              <.icon name="hero-arrow-down" class="w-5 h-5" />
-            </div>
+            <%= if !@like_only_mode do %>
+              <div class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-transparent p-1 opacity-50 cursor-not-allowed sm:h-9 sm:w-9 sm:p-2">
+                <.icon name="hero-arrow-down" class="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+            <% end %>
           <% end %>
         </div>
         
@@ -2531,9 +2646,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               <span>·</span>
             <% end %>
             <%= if @community_uri do %>
-              <span class="text-secondary">
-                {PostUtilities.extract_community_name(@community_uri)}
-              </span>
+              <%= if @community_path do %>
+                <.link navigate={@community_path} class="text-secondary hover:underline">
+                  {@community_label}
+                </.link>
+              <% else %>
+                <span class="text-secondary">{@community_label}</span>
+              <% end %>
               <span>·</span>
             <% end %>
             <.local_time datetime={@post.inserted_at} format="relative" timezone={@timezone} />
@@ -2631,7 +2750,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <div class="space-y-2">
             <%= for reply <- Enum.take(@replies, 3) do %>
               <% reply_reaction = reply_reaction_surface(reply, @post_reactions_map)
-              reply_avatar_url = PostUtilities.get_reply_avatar_url(reply) %>
+              reply_avatar_url = PostUtilities.get_reply_avatar_url(reply)
+              reply_content = PostUtilities.get_reply_content(reply)
+
+              reply_preview =
+                reply_content
+                |> PostUtilities.render_content_preview(PostUtilities.get_instance_domain(reply))
+                |> String.trim()
+
+              reply_fallback =
+                reply_content
+                |> PostUtilities.plain_text_preview(200)
+                |> String.trim() %>
               <div class="flex gap-2 text-sm">
                 <div class="w-0.5 bg-base-300 flex-shrink-0"></div>
                 <div class="flex-1 min-w-0">
@@ -2648,18 +2778,20 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     <span class="font-medium">
                       {PostUtilities.get_reply_author(reply)}
                     </span>
-                    <% score = PostUtilities.get_reply_score(reply) %>
-                    <%= if score && score > 0 do %>
-                      <span class="text-secondary">+{score}</span>
+                    <%= if (reply_score = PostUtilities.get_reply_score(reply)) && reply_score > 0 do %>
+                      <span class="text-secondary">+{reply_score}</span>
                     <% end %>
                   </div>
                   <div class="line-clamp-2 text-xs break-words">
-                    {raw(
-                      PostUtilities.render_content_preview(
-                        PostUtilities.get_reply_content(reply),
-                        PostUtilities.get_instance_domain(reply)
-                      )
-                    )}
+                    <%= if reply_preview != "" do %>
+                      {raw(reply_preview)}
+                    <% else %>
+                      <%= if reply_fallback != "" do %>
+                        {reply_fallback}
+                      <% else %>
+                        <span class="italic text-base-content/60">Media-only comment</span>
+                      <% end %>
+                    <% end %>
                   </div>
                   <%= if reply_reaction.target_id do %>
                     <div class="mt-1.5">
@@ -2811,6 +2943,30 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   # Helper functions - delegate to PostUtilities where possible
   defp extract_community_name(uri), do: PostUtilities.extract_community_name_simple(uri)
+
+  defp community_path(%{conversation: %{type: "community", name: name}}, _community_uri)
+       when is_binary(name),
+       do: "/communities/#{name}"
+
+  defp community_path(
+         %{conversation: %{remote_group_actor: %{username: username, domain: domain}}},
+         _community_uri
+       )
+       when is_binary(username) and is_binary(domain),
+       do: "/remote/!#{username}@#{domain}"
+
+  defp community_path(_post, community_uri) when is_binary(community_uri) do
+    case URI.parse(community_uri) do
+      %URI{host: host, path: "/c/" <> community_name}
+      when is_binary(host) and community_name != "" ->
+        "/remote/!#{community_name}@#{host}"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp community_path(_, _), do: nil
 
   defp video_url?(url), do: PostUtilities.video_url?(url)
 

@@ -65,6 +65,49 @@ defmodule Elektrine.Social.RecommendationsTest do
 
       assert followers_only_post.id in feed_ids
     end
+
+    test "does not crash when filtering discussions for timeline posts" do
+      viewer = user_fixture()
+      author = user_fixture()
+
+      timeline_post =
+        post_fixture(%{
+          user: author,
+          content: "timeline post #{System.unique_integer([:positive])}"
+        })
+
+      set_like_count(timeline_post.id, 8)
+
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id, limit: 20, filter: "discussions")
+        |> Enum.map(& &1.id)
+
+      refute timeline_post.id in feed_ids
+    end
+
+    test "falls back to public community posts when discussion recommendations are empty" do
+      previous = Application.get_env(:elektrine, :recommendations_enabled, true)
+      Application.put_env(:elektrine, :recommendations_enabled, true)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :recommendations_enabled, previous)
+      end)
+
+      viewer = user_fixture()
+      author = user_fixture()
+
+      discussion_post =
+        discussion_post_fixture(%{
+          user: author,
+          content: "community discussion #{System.unique_integer([:positive])}"
+        })
+
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id, limit: 20, filter: "discussions")
+        |> Enum.map(& &1.id)
+
+      assert discussion_post.id in feed_ids
+    end
   end
 
   describe "get_for_you_feed/2 feature flag" do

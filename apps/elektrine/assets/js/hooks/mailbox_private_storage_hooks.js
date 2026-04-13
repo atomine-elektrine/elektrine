@@ -6,9 +6,6 @@ const VERIFY_TEXT = "elektrine-private-mailbox-v1"
 const MESSAGE_AAD = new TextEncoder().encode("ElektrineMailboxStorageV1")
 const ATTACHMENT_AAD = new TextEncoder().encode("ElektrineMailboxAttachmentV1")
 const DEFAULT_SCRYPT = { n: 16384, r: 8, p: 1 }
-const LOGIN_PASSWORD_STORAGE_KEY = "elektrine-private-mailbox-login-password"
-const LOGIN_PASSWORD_TTL_MS = 15 * 60 * 1000
-
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 const importedPrivateKeys = new Map()
@@ -88,33 +85,26 @@ function cacheLoginPassword(password) {
 }
 
 function clearCachedLoginPassword() {
-  window.sessionStorage.removeItem(LOGIN_PASSWORD_STORAGE_KEY)
-}
-
-function getCachedLoginPassword() {
-  clearCachedLoginPassword()
   return null
 }
 
-function mailboxStorageKey(mailboxId) {
-  return `elektrine-private-mailbox-key:${mailboxId}`
+function getCachedLoginPassword() {
+  return null
 }
 
 function getStoredPrivateKey(mailboxId) {
   if (!mailboxId) return null
-  return window.sessionStorage.getItem(mailboxStorageKey(mailboxId))
+  return importedPrivateKeys.get(mailboxId) || null
 }
 
-function storePrivateKey(mailboxId, pkcs8Bytes) {
+function storePrivateKey(mailboxId, privateKey) {
   if (!mailboxId) return
-  importedPrivateKeys.delete(mailboxId)
-  window.sessionStorage.setItem(mailboxStorageKey(mailboxId), bytesToBase64(pkcs8Bytes))
+  importedPrivateKeys.set(mailboxId, privateKey)
 }
 
 function clearPrivateKey(mailboxId) {
   if (!mailboxId) return
   importedPrivateKeys.delete(mailboxId)
-  window.sessionStorage.removeItem(mailboxStorageKey(mailboxId))
 }
 
 function dispatchMailboxEvent(name, mailboxId) {
@@ -210,22 +200,7 @@ async function generateMailboxKeypair() {
 }
 
 async function importStoredPrivateKey(mailboxId) {
-  const serialized = getStoredPrivateKey(mailboxId)
-  if (!serialized) return null
-
-  const cached = importedPrivateKeys.get(mailboxId)
-  if (cached?.serialized === serialized) return cached.key
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    base64ToBytes(serialized),
-    { name: "RSA-OAEP", hash: "SHA-256" },
-    false,
-    ["decrypt"]
-  )
-
-  importedPrivateKeys.set(mailboxId, { serialized, key })
-  return key
+  return getStoredPrivateKey(mailboxId)
 }
 
 function htmlToText(html) {
@@ -259,11 +234,27 @@ function escapeHtml(value) {
 }
 
 function buildSandboxedEmailHtml(content) {
+  const csp = [
+    "default-src 'none'",
+    "img-src data: cid:",
+    "media-src data: cid:",
+    "style-src 'unsafe-inline'",
+    "font-src data:",
+    "connect-src 'none'",
+    "frame-src 'none'",
+    "child-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'"
+  ].join("; ")
+
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="${csp}">
   <style>
     body {
       margin: 0;
@@ -286,6 +277,105 @@ function buildSandboxedEmailHtml(content) {
 </head>
 <body>${content || ""}</body>
 </html>`
+}
+
+function removeUnsafeElement(element) {
+  if (element && typeof element.remove === "function") {
+    element.remove()
+  }
+}
+
+function isDangerousUrl(value) {
+  if (typeof value !== "string") return false
+
+  const normalized = value.replace(/[\u0000-\u001F\u007F\s]+/g, "").toLowerCase()
+  return (
+    normalized.startsWith("javascript:") ||
+    normalized.startsWith("vbscript:") ||
+    normalized.startsWith("data:text/html")
+  )
+}
+
+function isRemoteUrl(value) {
+  if (typeof value !== "string") return false
+
+  const normalized = value.trim().toLowerCase()
+  return normalized.startsWith("http://") || normalized.startsWith("https://") || normalized.startsWith("//")
+}
+
+function scrubSrcset(value) {
+  if (typeof value !== "string") return ""
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => {
+      const [candidate] = entry.split(/\s+/, 1)
+      return candidate && !isRemoteUrl(candidate) && !isDangerousUrl(candidate)
+    })
+    .join(", ")
+}
+
+function sanitizeProtectedHtml(content) {
+  if (typeof content !== "string" || content.trim() === "") return ""
+
+  const doc = new DOMParser().parseFromString(content, "text/html")
+
+  doc.querySelectorAll("script, iframe, frame, frameset, object, embed, applet, form, input, textarea, select, button, meta[http-equiv], base").forEach(removeUnsafeElement)
+
+  doc.querySelectorAll("link").forEach((element) => {
+    const href = element.getAttribute("href") || ""
+    if (isRemoteUrl(href) || isDangerousUrl(href)) {
+      removeUnsafeElement(element)
+    }
+  })
+
+  doc.querySelectorAll("*").forEach((element) => {
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase()
+      const value = attribute.value || ""
+
+      if (name.startsWith("on")) {
+        element.removeAttribute(attribute.name)
+        return
+      }
+
+      if ((name === "src" || name === "href" || name === "poster") && isDangerousUrl(value)) {
+        element.removeAttribute(attribute.name)
+        return
+      }
+
+      if (["src", "poster"].includes(name) && isRemoteUrl(value)) {
+        element.removeAttribute(attribute.name)
+        return
+      }
+
+      if (name === "srcset") {
+        const scrubbed = scrubSrcset(value)
+        if (scrubbed) {
+          element.setAttribute(attribute.name, scrubbed)
+        } else {
+          element.removeAttribute(attribute.name)
+        }
+        return
+      }
+
+      if (name === "style") {
+        const scrubbedStyle = value
+          .replace(/url\(\s*(['"]?)(https?:|\/\/)[^)]+\1\s*\)/gi, "none")
+          .replace(/url\(\s*(['"]?)javascript:[^)]+\1\s*\)/gi, "none")
+          .replace(/expression\s*\([^)]*\)/gi, "")
+
+        if (scrubbedStyle.trim() === "") {
+          element.removeAttribute(attribute.name)
+        } else {
+          element.setAttribute(attribute.name, scrubbedStyle)
+        }
+      }
+    })
+  })
+
+  return doc.body?.innerHTML || ""
 }
 
 function downloadBytes(filename, contentType, data) {
@@ -368,7 +458,14 @@ async function unlockMailbox(mailboxId, wrappedKeyPayload, verifierPayload, pass
     verifierPayload,
     passphrase
   )
-  storePrivateKey(mailboxId, privateKeyBytes)
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    privateKeyBytes,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["decrypt"]
+  )
+  storePrivateKey(mailboxId, privateKey)
   dispatchMailboxEvent("elektrine:private-mailbox-unlocked", mailboxId)
 }
 
@@ -617,7 +714,7 @@ export const MailboxPrivateStorage = {
     const hasUnlockedKey = this.mailboxId && getStoredPrivateKey(this.mailboxId)
 
     if (hasUnlockedKey) {
-      this.setStatusText("Mailbox unlocked in this tab.")
+      this.setStatusText("Mailbox unlocked in memory for this tab.")
       this.renderUnlockPanels(true)
       return
     }
@@ -630,7 +727,7 @@ export const MailboxPrivateStorage = {
 
     this.setStatusText(
       this.unlockMode === "account_password"
-        ? "Mailbox locked. Signing in with your password can unlock it automatically."
+        ? "Mailbox locked. Enter your account password again to unlock it in this tab."
         : "Mailbox locked."
     )
     this.renderUnlockPanels(false)
@@ -865,7 +962,7 @@ export const PrivateMailboxMessages = {
           }
 
           if (iframe && iframeContainer && typeof payload.html_body === "string" && payload.html_body.trim() !== "") {
-            iframe.srcdoc = buildSandboxedEmailHtml(payload.html_body)
+             iframe.srcdoc = buildSandboxedEmailHtml(sanitizeProtectedHtml(payload.html_body))
             iframeContainer.classList.remove("hidden")
 
             if (bodyEl) {

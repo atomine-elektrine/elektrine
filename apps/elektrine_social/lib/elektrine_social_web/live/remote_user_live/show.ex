@@ -21,6 +21,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   @reply_preview_poll_interval_ms 1_500
   @reply_preview_poll_max_attempts 8
+  @community_stats_poll_interval_ms 1_500
+  @community_stats_poll_max_attempts 8
 
   @impl true
   def mount(params, _session, socket) do
@@ -386,7 +388,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     case socket.assigns.remote_actor do
       %{actor_type: "Group"} = remote_actor ->
         _ = ElektrineSocial.RemoteUser.MetricsWorker.enqueue(remote_actor.id, "community_stats")
-        Process.send_after(self(), :reload_remote_user_community_stats, 1_500)
+
+        Process.send_after(
+          self(),
+          {:reload_remote_user_community_stats, remote_actor.id, 1},
+          @community_stats_poll_interval_ms
+        )
 
         {:noreply, socket}
 
@@ -434,13 +441,24 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     end
   end
 
-  def handle_info(:reload_remote_user_community_stats, socket) do
-    remote_actor = socket.assigns.remote_actor
+  def handle_info({:reload_remote_user_community_stats, actor_id, attempt}, socket) do
+    current_actor = socket.assigns[:remote_actor]
 
-    if remote_actor do
-      stats = ElektrineSocial.RemoteUser.Metrics.cached_community_stats(remote_actor.id)
-      send(self(), {:community_stats_loaded, stats})
-      {:noreply, socket}
+    if current_actor && current_actor.id == actor_id do
+      stats = ElektrineSocial.RemoteUser.Metrics.cached_community_stats(actor_id)
+
+      if community_stats_ready?(stats) || attempt >= @community_stats_poll_max_attempts do
+        send(self(), {:community_stats_loaded, stats})
+        {:noreply, socket}
+      else
+        Process.send_after(
+          self(),
+          {:reload_remote_user_community_stats, actor_id, attempt + 1},
+          @community_stats_poll_interval_ms
+        )
+
+        {:noreply, socket}
+      end
     else
       {:noreply, socket}
     end
@@ -2013,6 +2031,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp initial_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp community_stats_ready?(%{} = stats) do
+    (stats[:members] || 0) > 0 || (stats[:posts] || 0) > 0
+  end
+
+  defp community_stats_ready?(_), do: false
 
   # Helper functions - delegating to shared APHelpers module
 
