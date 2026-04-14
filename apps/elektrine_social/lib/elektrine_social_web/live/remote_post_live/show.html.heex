@@ -1430,6 +1430,9 @@
                   is_map(@mastodon_counts) and is_integer(@mastodon_counts[:replies_count]) ->
                     @mastodon_counts[:replies_count]
 
+                  is_map(@local_message) and is_integer(@local_message.reply_count) ->
+                    @local_message.reply_count
+
                   is_map(@post) ->
                     max(
                       max(
@@ -1443,15 +1446,16 @@
                     0
                 end
 
-              missing_remote_replies = max(reported_reply_count - length(@replies), 0) %>
-              <%= if length(@replies) > 0 do %>
+              displayed_reply_count = max(reported_reply_count, length(@replies))
+              missing_remote_replies = max(displayed_reply_count - length(@replies), 0) %>
+              <%= if displayed_reply_count > 0 do %>
                 <div class="mb-6">
                   <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-bold flex items-center gap-2">
                       <%= if @is_community_post do %>
-                        Comments ({length(@replies)})
+                        Comments ({displayed_reply_count})
                       <% else %>
-                        Conversation ({length(@replies)})
+                        Conversation ({displayed_reply_count})
                       <% end %>
                       <button
                         phx-click="refresh_comments"
@@ -1463,7 +1467,7 @@
                           name={
                             if @replies_loading, do: "hero-arrow-path", else: "hero-arrow-path"
                           }
-                          class="w-4 h-4 animate-spin"
+                          class={["w-4 h-4", @replies_loading && "animate-spin"]}
                         />
                       </button>
                     </h2>
@@ -1543,10 +1547,19 @@
                       </.link>
                     </div>
                   <% end %>
-                  <div class="timeline-thread-replies space-y-2">
-                    <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
-                    {render_threaded_comments(assigns, @threaded_replies)}
-                  </div>
+                  <%= if length(@replies) > 0 do %>
+                    <div class="timeline-thread-replies space-y-2">
+                      <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
+                      {render_threaded_comments(assigns, @threaded_replies)}
+                    </div>
+                  <% else %>
+                    <.empty_comments_state
+                      replies_loading={@replies_loading}
+                      replies_loaded={@replies_loaded}
+                      empty_message="Comments are available on the original server."
+                      load_label="Load Comments"
+                    />
+                  <% end %>
                 </div>
               <% else %>
                 <.empty_comments_state

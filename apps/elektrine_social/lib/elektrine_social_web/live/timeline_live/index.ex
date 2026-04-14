@@ -754,10 +754,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     updated_replies =
       update_reply_previews_for_counts(socket.assigns.post_replies, message_id, counts)
 
+    updated_filtered_posts =
+      update_posts_for_counts(socket.assigns.filtered_posts || [], message_id, counts)
+
     updated_socket =
       socket
       |> TimelineHelpers.update_cached_posts(update_fn)
       |> assign(:post_replies, updated_replies)
+      |> TimelineHelpers.assign_filtered_posts(updated_filtered_posts)
 
     message_post =
       find_message_post(updated_socket.assigns.timeline_posts, message_id) ||
@@ -1073,33 +1077,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:post_liked, %{message_id: message_id, like_count: like_count}}, socket) do
-    updated_posts =
-      Enum.map(socket.assigns.timeline_posts, fn post ->
-        if post.id == message_id do
-          %{post | like_count: like_count}
-        else
-          post
-        end
-      end)
+    message =
+      find_message_post(socket.assigns.timeline_posts, message_id) ||
+        find_message_post(socket.assigns.base_timeline_posts || [], message_id) ||
+        find_message_reply(socket.assigns.post_replies, message_id)
+
+    counts = %{
+      like_count: like_count,
+      share_count: Map.get(message || %{}, :share_count, 0),
+      reply_count: Map.get(message || %{}, :reply_count, 0)
+    }
+
+    update_fn = &update_posts_for_counts(&1, message_id, counts)
 
     updated_replies =
-      Map.new(socket.assigns.post_replies, fn {post_id, replies} ->
-        updated_reply_list =
-          Enum.map(replies, fn reply ->
-            if reply.id == message_id do
-              %{reply | like_count: like_count}
-            else
-              reply
-            end
-          end)
+      update_reply_previews_for_counts(socket.assigns.post_replies, message_id, counts)
 
-        {post_id, updated_reply_list}
-      end)
+    updated_filtered_posts =
+      update_posts_for_counts(socket.assigns.filtered_posts || [], message_id, counts)
 
     {:noreply,
      socket
-     |> assign(:timeline_posts, updated_posts)
+     |> TimelineHelpers.update_cached_posts(update_fn)
      |> assign(:post_replies, updated_replies)
+     |> TimelineHelpers.assign_filtered_posts(updated_filtered_posts)
      |> clear_post_interaction_state(message_id)
      |> TimelineHelpers.refresh_interaction_posts(message_id)}
   end
@@ -1841,7 +1842,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
              inserted_at: parse_lemmy_published(Map.get(comment, :published)),
              like_count: Map.get(comment, :upvotes, 0),
              reply_count: Map.get(comment, :child_count, 0),
-             share_count: 0
+             share_count: 0,
+             upvotes: Map.get(comment, :upvotes, 0),
+             downvotes: Map.get(comment, :downvotes, 0),
+             score: Map.get(comment, :score, 0)
            }) do
       merge_lemmy_comment_counts(%{message | remote_actor: remote_actor}, comment)
     else
@@ -1885,7 +1889,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     %{
       message
       | like_count: max(message.like_count || 0, Map.get(comment, :upvotes, 0)),
-        reply_count: max(message.reply_count || 0, Map.get(comment, :child_count, 0))
+        reply_count: max(message.reply_count || 0, Map.get(comment, :child_count, 0)),
+        upvotes: max(message.upvotes || 0, Map.get(comment, :upvotes, 0)),
+        downvotes: max(message.downvotes || 0, Map.get(comment, :downvotes, 0)),
+        score: max(message.score || 0, Map.get(comment, :score, 0))
     }
   end
 

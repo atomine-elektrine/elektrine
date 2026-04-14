@@ -123,7 +123,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         where: is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at],
         limit: ^@batch_size,
-        select: [:id, :activitypub_id, :like_count, :reply_count, :share_count]
+        select: [
+          :id,
+          :activitypub_id,
+          :like_count,
+          :reply_count,
+          :share_count,
+          :upvotes,
+          :downvotes,
+          :score
+        ]
       )
       |> Repo.all()
 
@@ -142,7 +151,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           desc: fragment("? + ? * 2 + ? * 3", m.like_count, m.reply_count, m.share_count)
         ],
         limit: ^@batch_size,
-        select: [:id, :activitypub_id, :like_count, :reply_count, :share_count]
+        select: [
+          :id,
+          :activitypub_id,
+          :like_count,
+          :reply_count,
+          :share_count,
+          :upvotes,
+          :downvotes,
+          :score
+        ]
       )
       |> Repo.all()
 
@@ -162,7 +180,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         where: m.updated_at < ^stale_cutoff or is_nil(m.updated_at),
         order_by: [asc: m.updated_at],
         limit: ^@batch_size,
-        select: [:id, :activitypub_id, :like_count, :reply_count, :share_count]
+        select: [
+          :id,
+          :activitypub_id,
+          :like_count,
+          :reply_count,
+          :share_count,
+          :upvotes,
+          :downvotes,
+          :score
+        ]
       )
       |> Repo.all()
 
@@ -219,7 +246,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       posts =
         from(m in Message,
           where: m.id in ^all_ids,
-          select: [:id, :activitypub_id, :like_count, :reply_count, :share_count]
+          select: [
+            :id,
+            :activitypub_id,
+            :like_count,
+            :reply_count,
+            :share_count,
+            :upvotes,
+            :downvotes,
+            :score
+          ]
         )
         |> Repo.all()
 
@@ -283,12 +319,18 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     end)
   end
 
-  defp refresh_lemmy_post(post, %{score: score, comments: comments}) do
-    if counts_changed?(post, score, comments, 0) do
+  defp refresh_lemmy_post(post, %{score: score, comments: comments} = counts) do
+    if counts_changed?(post, score, comments, 0) ||
+         (post.upvotes || 0) != (counts.upvotes || 0) ||
+         (post.downvotes || 0) != (counts.downvotes || 0) ||
+         (post.score || 0) != (score || 0) do
       updated_counts = %{
         like_count: max(score, post.like_count || 0),
         reply_count: max(comments, post.reply_count || 0),
-        share_count: post.share_count || 0
+        share_count: post.share_count || 0,
+        upvotes: max(counts.upvotes || 0, post.upvotes || 0),
+        downvotes: max(counts.downvotes || 0, post.downvotes || 0),
+        score: max(score || 0, post.score || 0)
       }
 
       Repo.update_all(
@@ -296,6 +338,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         set: [
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
+          upvotes: updated_counts.upvotes,
+          downvotes: updated_counts.downvotes,
+          score: updated_counts.score,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
@@ -378,20 +423,35 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       like_count: new_counts[:like_count] || new_counts[:favourites_count] || 0,
       reply_count:
         new_counts[:reply_count] || new_counts[:replies_count] || new_counts[:comments] || 0,
-      share_count: new_counts[:share_count] || new_counts[:reblogs_count] || 0
+      share_count: new_counts[:share_count] || new_counts[:reblogs_count] || 0,
+      upvotes: new_counts[:upvotes] || get_in(new_counts, [:raw, :upvotes]) || 0,
+      downvotes: new_counts[:downvotes] || get_in(new_counts, [:raw, :downvotes]) || 0,
+      score:
+        new_counts[:score] || get_in(new_counts, [:raw, :score]) ||
+          new_counts[:like_count] ||
+          new_counts[:favourites_count] || 0
     }
   end
 
   defp maybe_update_refreshed_counts(post, id, ap_id, %{
          like_count: likes,
          reply_count: replies,
-         share_count: shares
+         share_count: shares,
+         upvotes: upvotes,
+         downvotes: downvotes,
+         score: score
        }) do
-    if counts_changed?(post, likes, replies, shares) do
+    if counts_changed?(post, likes, replies, shares) ||
+         (post.upvotes || 0) != upvotes ||
+         (post.downvotes || 0) != downvotes ||
+         (post.score || 0) != score do
       updated_counts = %{
         like_count: max(likes, post.like_count || 0),
         reply_count: max(replies, post.reply_count || 0),
-        share_count: max(shares, post.share_count || 0)
+        share_count: max(shares, post.share_count || 0),
+        upvotes: max(upvotes, post.upvotes || 0),
+        downvotes: max(downvotes, post.downvotes || 0),
+        score: max(score, post.score || 0)
       }
 
       Repo.update_all(
@@ -400,6 +460,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
+          upvotes: updated_counts.upvotes,
+          downvotes: updated_counts.downvotes,
+          score: updated_counts.score,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
@@ -416,7 +479,10 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        %{
          like_count: post.like_count,
          reply_count: post.reply_count,
-         share_count: post.share_count
+         share_count: post.share_count,
+         upvotes: post.upvotes || 0,
+         downvotes: post.downvotes || 0,
+         score: post.score || 0
        }}
     end
   end

@@ -53,6 +53,25 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
 
       assert message.activitypub_url == canonical_url
     end
+
+    test "preserves federated vote counters" do
+      actor = remote_actor_fixture()
+
+      assert {:ok, message} =
+               actor
+               |> federated_attrs(%{
+                 like_count: 7,
+                 upvotes: 7,
+                 downvotes: 2,
+                 score: 5
+               })
+               |> Messaging.create_federated_message()
+
+      assert message.like_count == 7
+      assert message.upvotes == 7
+      assert message.downvotes == 2
+      assert message.score == 5
+    end
   end
 
   describe "federated_changeset/2 normalization on updates" do

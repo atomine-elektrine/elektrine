@@ -317,10 +317,8 @@
                             />
                             <span class="flex-shrink-0">Boosted by</span>
                             <%= if Ecto.assoc_loaded?(post.sender) && post.sender do %>
-                              <button
-                                phx-click="navigate_to_profile"
-                                phx-value-handle={post.sender.handle || post.sender.username}
-                                type="button"
+                              <.link
+                                navigate={"/#{post.sender.handle || post.sender.username}"}
                                 class="font-medium hover:underline text-success truncate min-w-0"
                               >
                                 <.username_with_effects
@@ -328,7 +326,7 @@
                                   display_name={true}
                                   verified_size="xs"
                                 />
-                              </button>
+                              </.link>
                             <% else %>
                               <%= if post.remote_actor do %>
                                 <.link
@@ -345,19 +343,15 @@
                       <!-- Post Header -->
                       <div class="flex items-center gap-3 mb-3">
                         <%= if Ecto.assoc_loaded?(post.sender) && post.sender do %>
-                          <button
-                            phx-click="navigate_to_profile"
-                            phx-value-handle={post.sender.handle || post.sender.username}
-                            type="button"
+                          <.link
+                            navigate={"/#{post.sender.handle || post.sender.username}"}
                             class="w-10 h-10"
                           >
                             <.user_avatar user={post.sender} size="sm" />
-                          </button>
+                          </.link>
                           <div class="flex-1">
-                            <button
-                              phx-click="navigate_to_profile"
-                              phx-value-handle={post.sender.handle || post.sender.username}
-                              type="button"
+                            <.link
+                              navigate={"/#{post.sender.handle || post.sender.username}"}
                               class="font-medium hover:underline text-left"
                             >
                               <.username_with_effects
@@ -365,7 +359,7 @@
                                 display_name={true}
                                 verified_size="sm"
                               />
-                            </button>
+                            </.link>
                             <div class="text-sm opacity-70">
                               @{post.sender.username} · {Elektrine.Social.time_ago_in_words(
                                 post.inserted_at

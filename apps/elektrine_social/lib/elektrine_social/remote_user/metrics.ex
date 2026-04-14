@@ -4,6 +4,7 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.MastodonApi
   alias Elektrine.AppCache
@@ -32,8 +33,7 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
     case Repo.get(Actor, actor_id) do
       %Actor{actor_type: "Group"} = actor ->
         stats = fetch_group_stats(actor)
-        AppCache.put_remote_user_community_stats(actor_id, stats)
-        {:ok, stats}
+        cache_community_stats(actor, stats)
 
       _ ->
         {:error, :actor_not_found}
@@ -50,11 +50,39 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   end
 
   def cached_community_stats(actor_id) when is_integer(actor_id) do
-    case AppCache.get_remote_user_community_stats(actor_id, fn -> %{members: 0, posts: 0} end) do
-      {:ok, value} -> value
-      _ -> %{members: 0, posts: 0}
+    persisted_stats = persisted_community_stats(actor_id)
+
+    case AppCache.get_remote_user_community_stats(actor_id, fn -> persisted_stats end) do
+      {:ok, value} -> merge_community_stats(persisted_stats, value)
+      _ -> persisted_stats
     end
   end
+
+  def cache_community_stats(%Actor{} = actor, stats) when is_map(stats) do
+    persisted_stats = merge_community_stats(community_stats_from_actor(actor), stats)
+
+    metadata =
+      (actor.metadata || %{})
+      |> Map.new(fn {key, value} -> {to_string(key), value} end)
+      |> Map.put("subscriber_count", persisted_stats.members)
+      |> Map.put("posts_count", persisted_stats.posts)
+      |> Map.put(
+        "community_stats_fetched_at",
+        DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+      )
+
+    case actor |> Actor.changeset(%{metadata: metadata}) |> Repo.update() do
+      {:ok, _updated_actor} ->
+        AppCache.put_remote_user_community_stats(actor.id, persisted_stats)
+        {:ok, persisted_stats}
+
+      {:error, _reason} ->
+        AppCache.put_remote_user_community_stats(actor.id, persisted_stats)
+        {:ok, persisted_stats}
+    end
+  end
+
+  def cache_community_stats(_, _), do: {:error, :invalid_actor}
 
   defp local_posts_for_actor(%Actor{actor_type: "Group", uri: uri}) do
     Repo.all(
@@ -66,7 +94,10 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
           activitypub_id: m.activitypub_id,
           like_count: m.like_count,
           reply_count: m.reply_count,
-          share_count: m.share_count
+          share_count: m.share_count,
+          upvotes: m.upvotes,
+          downvotes: m.downvotes,
+          score: m.score
         }
       )
     )
@@ -82,7 +113,10 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
           activitypub_id: m.activitypub_id,
           like_count: m.like_count,
           reply_count: m.reply_count,
-          share_count: m.share_count
+          share_count: m.share_count,
+          upvotes: m.upvotes,
+          downvotes: m.downvotes,
+          score: m.score
         }
       )
     )
@@ -97,7 +131,10 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
           counts = Map.get(lemmy_counts, ap_id) ->
             [
               like_count: max(counts.score, post.like_count || 0),
-              reply_count: max(counts.comments, post.reply_count || 0)
+              reply_count: max(counts.comments, post.reply_count || 0),
+              upvotes: max(counts.upvotes || 0, post.upvotes || 0),
+              downvotes: max(counts.downvotes || 0, post.downvotes || 0),
+              score: max(counts.score || 0, post.score || 0)
             ]
 
           counts = Map.get(mastodon_counts, ap_id) ->
@@ -159,35 +196,53 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
 
   defp fetch_collection_count(_), do: 0
 
-  defp get_follower_count(metadata) do
-    case metadata["followers_count"] || metadata["followersCount"] do
-      value when is_integer(value) ->
-        value
-
-      value when is_binary(value) ->
-        case Integer.parse(String.trim(value)) do
-          {n, _} -> max(n, 0)
-          :error -> 0
-        end
-
-      _ ->
-        0
+  defp persisted_community_stats(actor_id) do
+    case Repo.get(Actor, actor_id) do
+      %Actor{} = actor -> community_stats_from_actor(actor)
+      _ -> %{members: 0, posts: 0}
     end
   end
 
-  defp get_status_count(metadata) do
-    case metadata["statuses_count"] || metadata["statusesCount"] || metadata["outbox_count"] do
-      value when is_integer(value) ->
-        value
+  defp community_stats_from_actor(%Actor{metadata: metadata}) do
+    %{
+      members: get_follower_count(metadata || %{}),
+      posts: get_status_count(metadata || %{})
+    }
+  end
 
-      value when is_binary(value) ->
-        case Integer.parse(String.trim(value)) do
-          {n, _} -> max(n, 0)
-          :error -> 0
-        end
+  defp community_stats_from_actor(_), do: %{members: 0, posts: 0}
 
-      _ ->
-        0
+  defp merge_community_stats(current, incoming) do
+    normalized_current = normalize_community_stats(current)
+    normalized_incoming = normalize_community_stats(incoming)
+
+    %{
+      members: max(normalized_current.members, normalized_incoming.members),
+      posts: max(normalized_current.posts, normalized_incoming.posts)
+    }
+  end
+
+  defp normalize_community_stats(stats) when is_map(stats) do
+    %{
+      members: normalize_count(Map.get(stats, :members) || Map.get(stats, "members")),
+      posts: normalize_count(Map.get(stats, :posts) || Map.get(stats, "posts"))
+    }
+  end
+
+  defp normalize_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp normalize_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, _} -> max(parsed, 0)
+      :error -> 0
     end
   end
+
+  defp normalize_count(_), do: 0
+
+  defp get_follower_count(metadata), do: APHelpers.get_follower_count(metadata)
+
+  defp get_status_count(metadata), do: APHelpers.get_status_count(metadata)
 end

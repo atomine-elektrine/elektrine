@@ -396,8 +396,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec lemmy_vote_post?(map()) :: boolean()
   def lemmy_vote_post?(post) do
-    community_post_url_match?(post) || is_integer(Map.get(post, :upvotes)) ||
-      is_integer(Map.get(post, :downvotes)) || post.post_type == "discussion"
+    community_post_url_match?(post) || post.post_type == "discussion" ||
+      explicit_vote_totals?(post)
   end
 
   @doc """
@@ -430,18 +430,41 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   def get_display_counts(post, lemmy_counts, post_replies) do
     post_lemmy_counts = Map.get(lemmy_counts, post.activitypub_id)
     loaded_replies = Map.get(post_replies, post.id, [])
+    cached_reply_count = cached_reply_count(post)
 
     display_like_count = display_primary_count(post, post_lemmy_counts)
 
     display_comment_count =
       cond do
-        post_lemmy_counts -> max(length(loaded_replies), post_lemmy_counts.comments)
-        loaded_replies != [] -> max(length(loaded_replies), post.reply_count || 0)
-        true -> post.reply_count || 0
+        post_lemmy_counts ->
+          max(length(loaded_replies), post_lemmy_counts.comments || cached_reply_count)
+
+        loaded_replies != [] ->
+          max(length(loaded_replies), cached_reply_count)
+
+        true ->
+          cached_reply_count
       end
 
     {display_like_count || 0, display_comment_count || 0}
   end
+
+  defp cached_reply_count(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
+
+    [
+      parse_non_negative_count(Map.get(post, :reply_count) || Map.get(post, "reply_count")),
+      parse_non_negative_count(metadata["original_reply_count"]),
+      parse_non_negative_count(metadata["reply_count"]),
+      parse_non_negative_count(metadata["replies_count"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "replies"])),
+      extract_count_from_collection(metadata["replies"]),
+      extract_count_from_collection(metadata["comments"])
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp cached_reply_count(_), do: 0
 
   @doc """
   Returns the visible primary engagement count for a post.
@@ -458,8 +481,14 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       lemmy_vote_post?(post) && vote_counts_available?(post) ->
         net_vote_count(post)
 
-      is_map(post_counts) && is_integer(post_counts.score) ->
+      is_map(post_counts) && is_integer(post_counts.score) && post_counts.score != 0 ->
         post_counts.score
+
+      is_integer(Map.get(post, :like_count)) && post.like_count > 0 ->
+        post.like_count
+
+      is_integer(Map.get(post, :score)) && post.score != 0 ->
+        post.score
 
       is_integer(Map.get(post, :like_count)) ->
         post.like_count
@@ -473,7 +502,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   defp vote_counts_available?(counts) when is_map(counts) do
-    is_integer(Map.get(counts, :upvotes)) || is_integer(Map.get(counts, :downvotes))
+    non_zero_integer?(Map.get(counts, :upvotes)) || non_zero_integer?(Map.get(counts, :downvotes))
   end
 
   defp vote_counts_available?(_), do: false
@@ -481,6 +510,42 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   defp net_vote_count(counts) when is_map(counts) do
     (Map.get(counts, :upvotes) || 0) - (Map.get(counts, :downvotes) || 0)
   end
+
+  defp explicit_vote_totals?(post) when is_map(post) do
+    non_zero_integer?(Map.get(post, :upvotes) || Map.get(post, "upvotes")) ||
+      non_zero_integer?(Map.get(post, :downvotes) || Map.get(post, "downvotes"))
+  end
+
+  defp explicit_vote_totals?(_), do: false
+
+  defp non_zero_integer?(value) when is_integer(value), do: value != 0
+  defp non_zero_integer?(_), do: false
+
+  defp parse_non_negative_count(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} when count >= 0 -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_non_negative_count(_), do: 0
+
+  defp extract_count_from_collection(collection) when is_integer(collection),
+    do: max(collection, 0)
+
+  defp extract_count_from_collection(collection) when is_map(collection) do
+    parse_non_negative_count(
+      Map.get(collection, "totalItems") || Map.get(collection, :totalItems) ||
+        Map.get(collection, "total_items") || Map.get(collection, :total_items)
+    )
+  end
+
+  defp extract_count_from_collection(collection) when is_binary(collection),
+    do: parse_non_negative_count(collection)
+
+  defp extract_count_from_collection(_), do: 0
 
   defp maybe_render_custom_emojis(text, instance_domain) when is_binary(text) do
     if contains_emoji_shortcode?(text) do

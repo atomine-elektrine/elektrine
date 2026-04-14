@@ -405,37 +405,6 @@ export const KeyboardShortcuts = {
   }
 }
 
-// Hook to make email links open in new tabs
-export const EmailContentLinks = {
-  mounted() {
-    this.setupLinks()
-  },
-
-  updated() {
-    this.setupLinks()
-  },
-
-  setupLinks() {
-    // Find all links within the email content
-    const links = this.el.querySelectorAll('a')
-
-    links.forEach(link => {
-      // Only modify external links (not anchor links)
-      if (link.href && !link.href.startsWith('#')) {
-        // Add target="_blank" to open in new tab
-        link.setAttribute('target', '_blank')
-        // Add rel="noopener noreferrer" for security
-        // noopener: prevents window.opener access
-        // noreferrer: doesn't send referrer information
-        link.setAttribute('rel', 'noopener noreferrer')
-
-        // Add visual indication that link opens in new tab
-        link.classList.add('text-primary', 'hover:underline')
-      }
-    })
-  }
-}
-
 // Hook to automatically resize email content iframe based on content height
 export const EmailIframeResize = {
   mounted() {

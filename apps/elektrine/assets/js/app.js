@@ -19,7 +19,6 @@ import { initPrivateMailboxAuthForms } from "./hooks/mailbox_private_storage_hoo
 import {
   initEmailSelection,
   initDropdownManagement,
-  initNavigationHandlers,
   initClipboardHandlers
 } from "./utils"
 import { submitFormPreservingEvents } from "./utils/form_submission"
@@ -511,7 +510,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize utility handlers
   initEmailSelection()
   initDropdownManagement()
-  initNavigationHandlers()
   initClipboardHandlers()
   initAutoDismissFlashes()
   initTimezoneDetectors()

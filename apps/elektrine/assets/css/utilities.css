@@ -47,6 +47,25 @@
   margin-bottom: 1rem;
 }
 
+.social-page-wrap,
+.social-page-rail,
+.card,
+.card-body,
+.panel-card,
+.modal-box,
+.modal-action,
+#editor-container.flex {
+  min-width: 0;
+}
+
+.card-body > *,
+.modal-box > *,
+.modal-action > *,
+#editor-container.flex > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 /* --------------------------------------------------------------------------
    PROFILE THEME UTILITIES
    -------------------------------------------------------------------------- */
@@ -245,11 +264,11 @@ div.message-selected:hover {
 }
 
 #editor-container.flex #editor-write {
-  width: 50%;
+  flex: 1 1 0;
 }
 
 #editor-container.flex #editor-preview {
-  width: 50%;
+  flex: 1 1 0;
 }
 
 #editor-container.flex textarea {
@@ -441,6 +460,10 @@ div.message-selected:hover {
 @media (max-width: 640px) {
   iframe {
     max-width: 100% !important;
+  }
+
+  #editor-container.flex {
+    flex-direction: column;
   }
 
   #profile-container {

@@ -153,9 +153,12 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 Open your authenticator app and scan this QR code
               </p>
 
-              <a href={~p"/account/two_factor/setup?refresh=true"} class="btn btn-ghost btn-sm mt-2">
+              <.link
+                href={~p"/account/two_factor/setup?refresh=true"}
+                class="btn btn-ghost btn-sm mt-2"
+              >
                 <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Generate New QR Code
-              </a>
+              </.link>
 
               <div class="alert alert-warning mt-4 max-w-md">
                 <.icon name="hero-exclamation-triangle" class="h-5 w-5" />

@@ -8,8 +8,10 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Paths
-  alias Elektrine.{Repo, Social}
+  alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
+  alias Elektrine.Social
+  alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
   alias ElektrineWeb.Live.PostInteractions
 
@@ -221,7 +223,10 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     |> assign(:is_following, is_following)
     |> assign(:is_pending, is_pending)
     |> assign(:instance_info, instance_info)
-    |> assign(:community_stats, initial_community_stats(remote_actor))
+    |> assign(
+      :community_stats,
+      resolved_community_stats(remote_actor, socket.assigns[:community_stats])
+    )
     |> assign(:actor_loading, false)
   end
 
@@ -1246,6 +1251,74 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     handle_event("unlike_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
   end
 
+  def handle_event("upvote_post", %{"post_id" => post_id}, socket) do
+    vote_remote_feed_post(socket, post_id, "up")
+  end
+
+  def handle_event("upvote_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "upvote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("upvote_post", %{"id" => id}, socket) do
+    handle_event("upvote_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
+  def handle_event("unupvote_post", %{"post_id" => post_id}, socket) do
+    vote_remote_feed_post(socket, post_id, "up")
+  end
+
+  def handle_event("unupvote_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "unupvote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("unupvote_post", %{"id" => id}, socket) do
+    handle_event("unupvote_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
+  def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
+    vote_remote_feed_post(socket, post_id, "down")
+  end
+
+  def handle_event("downvote_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "downvote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("downvote_post", %{"id" => id}, socket) do
+    handle_event("downvote_post", %{"post_id" => normalize_post_id_for_reply(socket, id)}, socket)
+  end
+
+  def handle_event("undownvote_post", %{"post_id" => post_id}, socket) do
+    vote_remote_feed_post(socket, post_id, "down")
+  end
+
+  def handle_event("undownvote_post", %{"message_id" => message_id}, socket) do
+    handle_event(
+      "undownvote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+      socket
+    )
+  end
+
+  def handle_event("undownvote_post", %{"id" => id}, socket) do
+    handle_event(
+      "undownvote_post",
+      %{"post_id" => normalize_post_id_for_reply(socket, id)},
+      socket
+    )
+  end
+
   # Modal like toggle (for image modal)
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
     if current_user_missing?(socket) do
@@ -1816,6 +1889,25 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     {:noreply, socket}
   end
 
+  def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, post_id)
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+  end
+
+  def handle_event("navigate_to_post", %{"id" => id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, id)
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+  end
+
+  def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
+    navigate_id = normalize_navigate_post_id(socket, message_id)
+    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+  end
+
+  def handle_event("navigate_to_post", _params, socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
     {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
@@ -2031,6 +2123,49 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp initial_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp resolved_community_stats(%{actor_type: "Group", id: actor_id} = actor, current_stats)
+       when is_integer(actor_id) do
+    merge_community_stats(
+      merge_community_stats(current_stats, initial_community_stats(actor)),
+      ElektrineSocial.RemoteUser.Metrics.cached_community_stats(actor_id)
+    )
+  end
+
+  defp resolved_community_stats(actor, current_stats) do
+    merge_community_stats(current_stats, initial_community_stats(actor))
+  end
+
+  defp merge_community_stats(current_stats, incoming_stats) do
+    current = normalize_community_stats(current_stats)
+    incoming = normalize_community_stats(incoming_stats)
+
+    %{
+      members: max(current.members, incoming.members),
+      posts: max(current.posts, incoming.posts)
+    }
+  end
+
+  defp normalize_community_stats(stats) when is_map(stats) do
+    %{
+      members:
+        normalize_community_stat_value(Map.get(stats, :members) || Map.get(stats, "members")),
+      posts: normalize_community_stat_value(Map.get(stats, :posts) || Map.get(stats, "posts"))
+    }
+  end
+
+  defp normalize_community_stats(_), do: %{members: 0, posts: 0}
+
+  defp normalize_community_stat_value(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_community_stat_value(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, _} -> max(parsed, 0)
+      :error -> 0
+    end
+  end
+
+  defp normalize_community_stat_value(_), do: 0
 
   defp community_stats_ready?(%{} = stats) do
     (stats[:members] || 0) > 0 || (stats[:posts] || 0) > 0
@@ -2437,6 +2572,61 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp decode_post_ref(value), do: value
 
+  defp vote_remote_feed_post(socket, post_id, vote_type) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+    else
+      case PostInteractions.resolve_message_for_interaction(post_id,
+             actor_uri: socket.assigns.remote_actor.uri
+           ) do
+        {:ok, message} ->
+          interaction_key = PostInteractions.interaction_key(post_id, message)
+          current_state = Map.get(socket.assigns.post_interactions, interaction_key, %{})
+          current_vote = Map.get(current_state, :vote)
+          current_vote_delta = Map.get(current_state, :vote_delta, 0)
+          new_vote = if current_vote == vote_type, do: nil, else: vote_type
+          vote_delta_change = vote_delta_change(current_vote, new_vote)
+
+          case Votes.vote_on_message(socket.assigns.current_user.id, message.id, vote_type) do
+            {:ok, _} ->
+              updated_state = %{
+                liked: Map.get(current_state, :liked, false),
+                boosted: Map.get(current_state, :boosted, false),
+                like_delta: Map.get(current_state, :like_delta, 0),
+                boost_delta: Map.get(current_state, :boost_delta, 0),
+                vote: new_vote,
+                vote_delta: current_vote_delta + vote_delta_change
+              }
+
+              post_interactions =
+                put_remote_post_interaction_state(
+                  socket.assigns.post_interactions,
+                  interaction_key,
+                  message,
+                  updated_state
+                )
+
+              {:noreply, assign(socket, :post_interactions, post_interactions)}
+
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to vote")}
+          end
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to process remote post")}
+      end
+    end
+  end
+
+  defp vote_delta_change(nil, nil), do: 0
+  defp vote_delta_change(nil, "up"), do: 1
+  defp vote_delta_change(nil, "down"), do: -1
+  defp vote_delta_change("up", nil), do: -1
+  defp vote_delta_change("down", nil), do: 1
+  defp vote_delta_change("up", "down"), do: -2
+  defp vote_delta_change("down", "up"), do: 2
+  defp vote_delta_change(_, _), do: 0
+
   defp likes_by_local_id(posts, post_interactions) when is_list(posts) do
     Enum.reduce(posts, %{}, fn
       %{id: id} = post, acc when is_integer(id) ->
@@ -2516,6 +2706,34 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         value -> value
       end
     end) || false
+  end
+
+  defp interaction_state_for_remote_post(post, post_interactions) when is_map(post) do
+    key_candidates =
+      [
+        post["id"],
+        post[:id],
+        post["_local_activitypub_id"],
+        post[:_local_activitypub_id],
+        post["_local_message_id"],
+        post[:_local_message_id]
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    Enum.find_value(key_candidates, PostInteractions.default_interaction_state(), fn key ->
+      Map.get(post_interactions || %{}, key) || Map.get(post_interactions || %{}, to_string(key))
+    end) || PostInteractions.default_interaction_state()
+  end
+
+  defp interaction_state_for_remote_post(_, _), do: PostInteractions.default_interaction_state()
+
+  defp put_remote_post_interaction_state(post_interactions, interaction_key, message, state) do
+    [interaction_key, message.activitypub_id, Integer.to_string(message.id), message.id]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.reduce(post_interactions || %{}, fn key, acc ->
+      Map.put(acc, key, state)
+    end)
   end
 
   defp replies_for_post(post, post_replies) do

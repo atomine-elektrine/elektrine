@@ -769,7 +769,9 @@
                             phx-hook="PostClick"
                           >
                             <.link
-                              navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                              navigate={
+                                ~p"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"
+                              }
                               class="hidden"
                               data-post-nav-link
                               tabindex="-1"
@@ -779,7 +781,9 @@
                             </.link>
 
                             <.link
-                              navigate={"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"}
+                              navigate={
+                                ~p"/communities/#{@community.name}/post/#{Elektrine.Utils.Slug.discussion_url_slug(post.id, post.title)}"
+                              }
                               class="block"
                             >
                               <h3 class="font-semibold text-base sm:text-lg text-base-content mb-2 break-words leading-tight hover:text-primary">

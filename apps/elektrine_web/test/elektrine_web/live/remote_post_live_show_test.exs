@@ -206,6 +206,49 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ ">TEE<"
   end
 
+  test "renders Lemmy comment vote column from upvotes instead of net score" do
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://lemmy.world/comment/123",
+          "attributedTo" => "https://lemmy.world/u/lemmy_bob",
+          "content" => "Vote count should use upvotes",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0},
+          "_lemmy" => %{
+            "creator_name" => "Lemmy Bob",
+            "score" => 0,
+            "upvotes" => 12
+          }
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: %{domain: "lemmy.world"},
+      remote_actor: %{domain: "lemmy.world"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://lemmy.world/post/1"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ "12"
+
+    refute html =~
+             ~s(<span class="text-xs font-medium text-base-content/60">\n            0\n          </span>)
+  end
+
   test "navigates embedded local post URLs" do
     socket = %Phoenix.LiveView.Socket{assigns: %{}}
 

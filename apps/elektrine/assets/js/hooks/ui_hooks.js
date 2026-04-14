@@ -32,9 +32,7 @@ export const CopyEmail = {
               icon.className = originalClass
             }, 2000)
           }
-        }).catch(err => {
-          console.error('Copy failed:', err)
-        })
+        }).catch(() => {})
       }
     })
   }
@@ -187,9 +185,7 @@ export const CopyToClipboard = {
           if (copied) {
             showTemporaryCopySuccess(this.el)
           }
-        }).catch(err => {
-          console.error('Copy failed:', err)
-        })
+        }).catch(() => {})
       }
     })
   }
@@ -559,9 +555,7 @@ export const CopyButton = {
         if (copied) {
           this.showSuccess()
         }
-      }).catch(err => {
-        console.error('Copy failed:', err)
-      })
+      }).catch(() => {})
     })
   },
   
@@ -577,31 +571,6 @@ export const CopyButton = {
       this.el.classList.remove('btn-success')
       this.el.classList.add('btn-primary')
     }, 2000)
-  }
-}
-
-export const FocusOnMount = {
-  mounted() {
-    // Focus on the textarea when mounted
-    this.el.focus()
-
-    // Add event listener to combine new message with original when form is submitted
-    const form = this.el.closest('form')
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        const newMessage = this.el.value.trim()
-        const hiddenBodyField = form.querySelector('#full-message-body')
-        const originalMessage = hiddenBodyField.value
-
-        // Combine new message with original
-        if (newMessage) {
-          hiddenBodyField.value = newMessage + originalMessage
-        } else {
-          // If no new message, just use original (for forwarding without adding text)
-          hiddenBodyField.value = originalMessage
-        }
-      })
-    }
   }
 }
 
@@ -780,41 +749,6 @@ export const TimelineReply = {
   }
 }
 
-export const FileDownloader = {
-  mounted() {
-    this.handleEvent("download_file", ({filename, data, content_type}) => {
-      try {
-        // Decode base64 data
-        const binaryString = atob(data)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i)
-        }
-
-        // Create blob and download
-        const blob = new Blob([bytes], { type: content_type })
-        const url = URL.createObjectURL(blob)
-
-        const link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        link.style.display = 'none'
-
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-
-        // Clean up
-        URL.revokeObjectURL(url)
-      } catch (error) {
-        console.error('Failed to download file:', error)
-        // Show error to user via flash message
-        this.pushEvent("download_error", {message: "Failed to download attachment"})
-      }
-    })
-  }
-}
-
 export const IframeAutoResize = {
   mounted() {
     const iframe = this.el
@@ -874,21 +808,6 @@ export const IframeAutoResize = {
     if (this.resizeFunction) {
       window.removeEventListener('resize', this.resizeFunction)
     }
-  }
-}
-
-export const BackupCodesPrinter = {
-  mounted() {
-    this.codes = JSON.parse(this.el.dataset.codes || '[]')
-    initBackupCodesPrinter(this.el)
-  },
-
-  destroyed() {
-    destroyBackupCodesPrinter(this.el)
-  },
-
-  printCodes() {
-    printBackupCodes(this.codes || [])
   }
 }
 
@@ -968,23 +887,6 @@ function printBackupCodes(codes) {
   printWindow.document.write(printContent)
   printWindow.document.close()
   printWindow.print()
-}
-
-// Preserve details/dropdown open state across LiveView re-renders
-export const DetailsPreserve = {
-  mounted() {
-    this._wasOpen = false
-  },
-
-  beforeUpdate() {
-    this._wasOpen = this.el.open
-  },
-
-  updated() {
-    if (this._wasOpen) {
-      this.el.open = true
-    }
-  }
 }
 
 // Scroll to top button that appears when scrolled down
@@ -1085,127 +987,6 @@ export const ScrollToTop = {
 }
 
 /**
- * ScrollToBottom - Auto-scrolls container to bottom when content changes
- * Used for chat/activity interfaces to keep newest content visible
- *
- * Features:
- * - Respects user scroll position - won't auto-scroll if user scrolled up
- * - Shows "Jump to bottom" button when user scrolls up
- * - Tracks new items count when scrolled up
- * - Only resets scroll lock when user clicks the button
- */
-export const ScrollToBottom = {
-  mounted() {
-    this.userScrolledUp = false
-    this.lastScrollTop = 0
-    this.scrollThreshold = 150 // pixels from bottom to consider "at bottom"
-    this.newItemsWhileScrolledUp = 0
-    this.scrollLocked = false // True when user has intentionally scrolled up
-
-    // Create jump-to-bottom button
-    this.createJumpButton()
-
-    // Track user scroll with intent detection
-    this.handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = this.el
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isAtBottom = distanceFromBottom < this.scrollThreshold
-
-      // Detect intentional scroll UP (not just content pushing)
-      if (scrollTop < this.lastScrollTop && !isAtBottom) {
-        this.scrollLocked = true
-        this.showJumpButton()
-      }
-
-      // If user scrolls back to bottom manually, unlock
-      if (isAtBottom && this.scrollLocked) {
-        this.scrollLocked = false
-        this.newItemsWhileScrolledUp = 0
-        this.hideJumpButton()
-      }
-
-      this.lastScrollTop = scrollTop
-      this.userScrolledUp = !isAtBottom
-    }
-
-    this.el.addEventListener('scroll', this.handleScroll, { passive: true })
-
-    // Initial scroll to bottom
-    requestAnimationFrame(() => this.scrollToBottom())
-  },
-
-  updated() {
-    // Only auto-scroll if:
-    // 1. data-follow is true (scan is running)
-    // 2. User hasn't locked scroll by scrolling up
-    if (this.el.dataset.follow === "true" && !this.scrollLocked) {
-      requestAnimationFrame(() => this.scrollToBottom())
-    } else if (this.scrollLocked) {
-      // Track new items when scrolled up
-      this.newItemsWhileScrolledUp++
-      this.updateJumpButtonCount()
-    }
-  },
-
-  destroyed() {
-    this.el.removeEventListener('scroll', this.handleScroll)
-    if (this.jumpButton && this.jumpButton.parentNode) {
-      this.jumpButton.parentNode.removeChild(this.jumpButton)
-    }
-  },
-
-  createJumpButton() {
-    this.jumpButton = document.createElement('button')
-    this.jumpButton.className = 'fixed bottom-24 right-8 z-50 btn btn-primary btn-sm shadow-lg gap-2 opacity-0 pointer-events-none transition-all duration-200 transform translate-y-2'
-    this.jumpButton.innerHTML = `
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
-      </svg>
-      <span class="jump-text">Jump to bottom</span>
-    `
-    this.jumpButton.addEventListener('click', () => {
-      this.scrollLocked = false
-      this.newItemsWhileScrolledUp = 0
-      this.scrollToBottom()
-      this.hideJumpButton()
-    })
-
-    // Append to parent container or body
-    const parent = this.el.closest('.card-body') || this.el.parentNode || document.body
-    parent.style.position = 'relative'
-    parent.appendChild(this.jumpButton)
-  },
-
-  showJumpButton() {
-    if (this.jumpButton) {
-      this.jumpButton.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2')
-      this.jumpButton.classList.add('opacity-100', 'pointer-events-auto', 'translate-y-0')
-    }
-  },
-
-  hideJumpButton() {
-    if (this.jumpButton) {
-      this.jumpButton.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2')
-      this.jumpButton.classList.remove('opacity-100', 'pointer-events-auto', 'translate-y-0')
-    }
-  },
-
-  updateJumpButtonCount() {
-    if (this.jumpButton && this.newItemsWhileScrolledUp > 0) {
-      const textEl = this.jumpButton.querySelector('.jump-text')
-      if (textEl) {
-        textEl.textContent = `${this.newItemsWhileScrolledUp} new`
-      }
-    }
-  },
-
-  scrollToBottom() {
-    this.el.scrollTop = this.el.scrollHeight
-    this.lastScrollTop = this.el.scrollTop
-  }
-}
-
-/**
  * ImageFallback - Handles image load errors without inline event handlers
  * Hides the image and shows a fallback element when image fails to load
  *
@@ -1259,74 +1040,5 @@ export const ImageFallback = {
     }
 
     return this.el
-  }
-}
-
-// 3D tilt effect that follows mouse position with smooth easing
-export const Tilt3D = {
-  mounted() {
-    this.maxTilt = 12 // max tilt in degrees
-    this.ease = 0.08 // easing factor (lower = smoother)
-
-    // Current and target values
-    this.currentX = 0
-    this.currentY = 0
-    this.targetX = 0
-    this.targetY = 0
-    this.animating = false
-
-    this.animate = () => {
-      // Lerp toward target
-      this.currentX += (this.targetX - this.currentX) * this.ease
-      this.currentY += (this.targetY - this.currentY) * this.ease
-
-      this.el.style.setProperty('--tilt-x', `${this.currentX}deg`)
-      this.el.style.setProperty('--tilt-y', `${this.currentY}deg`)
-
-      // Keep animating if not close enough to target
-      if (Math.abs(this.targetX - this.currentX) > 0.01 ||
-          Math.abs(this.targetY - this.currentY) > 0.01) {
-        requestAnimationFrame(this.animate)
-      } else {
-        this.animating = false
-      }
-    }
-
-    this.startAnimation = () => {
-      if (!this.animating) {
-        this.animating = true
-        requestAnimationFrame(this.animate)
-      }
-    }
-
-    this.handleMouseMove = (e) => {
-      const rect = this.el.getBoundingClientRect()
-      const centerX = rect.left + rect.width / 2
-      const centerY = rect.top + rect.height / 2
-
-      // Calculate distance from center (-1 to 1)
-      const percentX = (e.clientX - centerX) / (rect.width / 2)
-      const percentY = (e.clientY - centerY) / (rect.height / 2)
-
-      // Set target tilt (invert Y for natural feel)
-      this.targetX = -percentY * this.maxTilt
-      this.targetY = percentX * this.maxTilt
-
-      this.startAnimation()
-    }
-
-    this.handleMouseLeave = () => {
-      this.targetX = 0
-      this.targetY = 0
-      this.startAnimation()
-    }
-
-    this.el.addEventListener('mousemove', this.handleMouseMove)
-    this.el.addEventListener('mouseleave', this.handleMouseLeave)
-  },
-
-  destroyed() {
-    this.el.removeEventListener('mousemove', this.handleMouseMove)
-    this.el.removeEventListener('mouseleave', this.handleMouseLeave)
   }
 }

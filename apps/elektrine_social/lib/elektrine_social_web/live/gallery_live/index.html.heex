@@ -439,17 +439,15 @@
                     <div class="min-w-0">
                       <%= cond do %>
                         <% photo.sender && Ecto.assoc_loaded?(photo.sender) -> %>
-                          <button
-                            type="button"
-                            phx-click="navigate_to_profile"
-                            phx-value-handle={photo.sender.handle || photo.sender.username}
-                            class="text-left font-medium hover:underline line-clamp-1"
+                          <.link
+                            navigate={"/#{photo.sender.handle || photo.sender.username}"}
+                            class="text-left font-medium hover:underline line-clamp-1 block"
                           >
                             {raw(gallery_creator_name_markup(photo))}
-                          </button>
+                          </.link>
                         <% photo.remote_actor && Ecto.assoc_loaded?(photo.remote_actor) -> %>
                           <.link
-                            href={"/remote/#{photo.remote_actor.username}@#{photo.remote_actor.domain}"}
+                            navigate={"/remote/#{photo.remote_actor.username}@#{photo.remote_actor.domain}"}
                             class="font-medium hover:underline line-clamp-1 block"
                           >
                             {raw(gallery_creator_name_markup(photo))}

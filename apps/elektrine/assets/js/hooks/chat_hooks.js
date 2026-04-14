@@ -327,109 +327,6 @@ export const SimpleChatInput = {
   }
 }
 
-export const MessageInput = {
-  mounted() {
-    this.sendingMessage = false
-    this.lastSentContent = ""
-    this.lastSentTime = 0
-
-    this.el.addEventListener("keydown", (e) => {
-      // Send message on Enter (without Shift)
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault()
-
-        const content = this.el.value.trim()
-        const now = Date.now()
-
-        // Enhanced duplicate prevention
-        if (this.sendingMessage ||
-            !content ||
-            (content === this.lastSentContent && (now - this.lastSentTime) < 500)) {
-          return
-        }
-
-        const form = this.el.closest("form")
-        if (form) {
-          this.sendingMessage = true
-          this.lastSentContent = content
-          this.lastSentTime = now
-
-          // Disable the submit button temporarily
-          const submitBtn = form.querySelector('button[type="submit"]')
-          if (submitBtn) {
-            submitBtn.disabled = true
-          }
-
-          form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
-        }
-      }
-    })
-
-    // Handle clear message input event
-    this.handleEvent("clear_message_input", () => {
-      this.sendingMessage = false
-      this.el.value = ""
-      this.el.focus()
-
-      // Re-enable submit button
-      const form = this.el.closest("form")
-      if (form) {
-        const submitBtn = form.querySelector('button[type="submit"]')
-        if (submitBtn) {
-          submitBtn.disabled = false
-        }
-      }
-
-      // Trigger change event to update LiveView state
-      this.el.dispatchEvent(new Event("input", { bubbles: true }))
-    })
-
-    // Focus input on mount
-    this.el.focus()
-  },
-
-  updated() {
-    // Reset sending state and keep focus
-    this.sendingMessage = false
-    if (document.activeElement !== this.el) {
-      this.el.focus()
-    }
-  }
-}
-
-export const MessagesContainer = {
-  mounted() {
-    // Only respond to LiveView commands - no auto-scrolling
-    this.handleEvent("scroll_to_bottom", () => {
-      this.scrollToBottom()
-    })
-
-    this.handleEvent("scroll_to_element", ({element_id, position}) => {
-      const element = document.getElementById(element_id)
-      if (element) {
-        const containerHeight = this.el.clientHeight
-        const elementOffset = element.offsetTop
-        let targetScroll = position === "center" ? elementOffset - (containerHeight / 2) :
-                          position === "top-third" ? elementOffset - (containerHeight / 3) :
-                          elementOffset
-
-        this.el.scrollTo({
-          top: Math.max(0, targetScroll),
-          behavior: 'smooth'
-        })
-      }
-    })
-  },
-
-  updated() {
-    // LiveView controls all scrolling
-  },
-
-  scrollToBottom() {
-    this.el.scrollTop = this.el.scrollHeight
-  }
-}
-
 export const MessageList = {
   mounted() {
     const container = this.el
@@ -821,8 +718,7 @@ export const VoiceRecorder = {
           }
         }, 1000)
 
-      } catch (err) {
-        console.error('Failed to start recording:', err)
+      } catch (_err) {
         this.pushEvent('voice_recording_error', { error: 'Microphone access denied' })
       }
     }

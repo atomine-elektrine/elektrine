@@ -307,7 +307,9 @@ defmodule ElektrineWeb.AuthLive.Register do
                 </label>
                 <div class="flex items-center gap-3">
                   <img src={~p"/captcha"} alt="Captcha" class="rounded border border-base-300" />
-                  <a href={~p"/register"} class="btn btn-ghost btn-sm">{gettext("Refresh")}</a>
+                  <.link href={~p"/register"} class="btn btn-ghost btn-sm">
+                    {gettext("Refresh")}
+                  </.link>
                 </div>
                 <input
                   type="text"

@@ -65,7 +65,7 @@ body[data-grid="purple"], body.grid-purple { --theme-grid-color: color-mix(in sr
 } /* ========================================================================== BLINKENLIGHTS - Retro mainframe-style blinking lights grid ========================================================================== */ /* Hide regular grid when blinkenlights are active */
 body.has-blinkenlights { background-image: none !important;
 } body.has-blinkenlights #cursor-glow-overlay { display: none;
-} #blinkenlights-container { position: fixed; top: 0; left: 0; width: 100vw; height: calc(100vh + 100px); height: calc(100dvh + 100px); pointer-events: none; z-index: 0;
+} #blinkenlights-container { position: fixed; top: 0; left: 0; width: 100%; height: calc(100vh + 100px); height: calc(100dvh + 100px); pointer-events: none; z-index: 0;
 } .blinkenlight { position: absolute; width: 3px; height: 3px; border-radius: 50%; background-color: rgba(150, 150, 150, 0.5); transition: opacity 0.15s;
 } .blinkenlight.active { animation: blinken-mono var(--blinken-duration, 6s) var(--blinken-delay, 0s) infinite ease-in-out;
 } .blinkenlight.finding { background-color: rgba(255, 255, 255, 1) !important; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);

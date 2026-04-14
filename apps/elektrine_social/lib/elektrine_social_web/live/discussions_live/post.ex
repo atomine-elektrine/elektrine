@@ -644,6 +644,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
         """
       end
 
+    profile_path = ~p"/#{escaped_username}"
+
     """
     <div class="#{indent_class} relative">
       #{if depth > 0 do
@@ -665,11 +667,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
             <div class="flex-1 min-w-0">
               <!-- Reply Header -->
               <div class="flex items-center gap-2 mb-2">
-                <a href="/#{escaped_username}" class="w-6 h-6">
+                <a href="#{profile_path}" class="w-6 h-6">
                   #{render_user_avatar(reply.sender)}
                 </a>
                 <div class="flex items-center gap-1 flex-wrap">
-                  <a href="/#{escaped_username}" class="inline-flex items-center font-medium text-sm hover:underline">
+                  <a href="#{profile_path}" class="inline-flex items-center font-medium text-sm hover:underline">
                     #{escaped_username}
                   </a>
                   #{flair_html}
