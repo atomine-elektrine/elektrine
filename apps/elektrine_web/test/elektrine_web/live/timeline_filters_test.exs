@@ -1115,6 +1115,37 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Loading replies..."
   end
 
+  test "federated post count updates do not crash when lemmy counts are partial", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, post} =
+      Social.create_timeline_post(author.id, "Federated count update target",
+        visibility: "public"
+      )
+
+    activitypub_id = "urn:ap:object:#{post.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^post.id),
+      set: [federated: true, activitypub_id: activitypub_id]
+    )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=all")
+
+    send(
+      view.pid,
+      {:post_counts_updated,
+       %{message_id: post.id, counts: %{like_count: 1, reply_count: 0, share_count: 0}}}
+    )
+
+    html = render(view)
+    assert html =~ "Federated count update target"
+  end
+
   test "new posts banner only appears for posts matching the active timeline view", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
@@ -1131,7 +1162,11 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       Repo.preload(queued_post, [:sender, :remote_actor, :link_preview, poll: [options: []]])
 
     send(view.pid, {:new_post_preloaded, :timeline, queued_post})
-    assert render(view) =~ "Show 1 new post"
+    html = render(view)
+    assert html =~ "Show 1 new post"
+    assert html =~ ~s(data-load-queued-posts)
+    assert html =~ ~s(type="button")
+    assert html =~ ~s(phx-hook="PreserveQueuedPostsButtonScroll")
 
     render_hook(view, "filter_timeline", %{"filter" => "replies"})
     assert_patch(view, ~p"/timeline?filter=explore&view=replies")
@@ -1139,7 +1174,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute render(view) =~ "Show 1 new post"
   end
 
-  test "load more shows a single loading state", %{conn: conn} do
+  test "load more appends older posts without a full reload", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
     author_timeline = timeline_conversation_fixture(author)
@@ -1158,15 +1193,17 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> log_in_user(viewer)
       |> live(~p"/timeline?filter=all&view=all")
 
-    assert render(view) =~ "Load More"
+    initial_html = render(view)
+    assert initial_html =~ "Load More"
+    assert initial_html =~ ~s(button type="button" phx-click="load_more_posts")
+    refute initial_html =~ "Load more timeline post 25"
 
     html =
       view
       |> element("button[phx-click='load_more_posts']")
       |> render_click()
 
-    assert length(Regex.scan(~r/Loading more posts\.\.\./, html)) == 1
-    refute html =~ "Fetching more posts"
+    assert html =~ "Load more timeline post 25"
   end
 
   test "hide_post removes the post from the timeline immediately", %{conn: conn} do

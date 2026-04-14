@@ -2227,6 +2227,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     socket
     |> assign(:local_message, message)
     |> assign(:post, post_object)
+    |> maybe_assign_cached_lemmy_counts(message)
     |> assign(:remote_actor, message.remote_actor)
     |> assign(:community_actor, community_actor)
     |> assign(
@@ -2287,6 +2288,21 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp activitypub_ref_for_message(_), do: nil
+
+  defp maybe_assign_cached_lemmy_counts(socket, message) when is_map(message) do
+    if is_nil(socket.assigns[:lemmy_counts]) && PostUtilities.community_post?(message) do
+      assign(socket, :lemmy_counts, %{
+        upvotes: max(Map.get(message, :upvotes) || 0, 0),
+        downvotes: max(Map.get(message, :downvotes) || 0, 0),
+        score: max(Map.get(message, :score) || 0, Map.get(message, :like_count) || 0),
+        comments: max(cached_reply_count(message), 0)
+      })
+    else
+      socket
+    end
+  end
+
+  defp maybe_assign_cached_lemmy_counts(socket, _message), do: socket
 
   defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
   defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
@@ -3066,6 +3082,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if local_message do
         socket
         |> assign(:local_message, local_message)
+        |> maybe_assign_cached_lemmy_counts(local_message)
         |> assign_reply_parent_fallback(post_object, local_message)
         |> ensure_submitted_link_preview(post_object, local_message, remote_actor.domain)
         |> maybe_track_trust_detail_view(local_message, "remote_post_detail")

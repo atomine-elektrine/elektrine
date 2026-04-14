@@ -23,6 +23,49 @@ let dwellTimeBuffer = new Map()
 let batchTimeout = null
 let navigationFlushInProgress = false
 const activeDwellTrackers = new Set()
+let queuedPostsScrollSnapshot = null
+
+function findVisiblePostAnchor(root = document) {
+  const postCards = root.querySelectorAll('[data-post-id]')
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+
+  for (const card of postCards) {
+    const rect = card.getBoundingClientRect()
+    if (rect.bottom <= 0 || rect.top >= viewportHeight) continue
+
+    const postId = card.dataset.postId
+    if (!postId) continue
+
+    return { postId, top: rect.top }
+  }
+
+  return null
+}
+
+function findPostById(root, postId) {
+  if (!postId) return null
+
+  const escapedPostId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(postId) : postId
+  return root.querySelector(`[data-post-id="${escapedPostId}"]`)
+}
+
+function restoreQueuedPostsScroll(root = document) {
+  if (!queuedPostsScrollSnapshot) return
+
+  const { anchor, scrollY } = queuedPostsScrollSnapshot
+
+  if (anchor?.postId) {
+    const anchorEl = findPostById(root, anchor.postId)
+
+    if (anchorEl) {
+      const delta = anchorEl.getBoundingClientRect().top - anchor.top
+      if (delta !== 0) window.scrollBy(0, delta)
+      return
+    }
+  }
+
+  if (Number.isFinite(scrollY)) window.scrollTo({ top: scrollY, behavior: 'auto' })
+}
 
 if (typeof window !== 'undefined') {
   window.addEventListener('phx:page-loading-start', () => {
@@ -440,11 +483,8 @@ export const InfiniteScroll = {
     const now = Date.now()
     if (now - this.lastRequestTime < this.minRequestInterval) return
 
-    this.pending = true
     this.lastRequestTime = now
-    this.lastKnownScrollY = currentScrollY()
-    this.loadCycleStartY = this.lastKnownScrollY
-    if (this.observer) this.observer.disconnect()
+    this.beginLoadCycle()
 
     try {
       this.pushEvent("load-more", {})
@@ -458,6 +498,17 @@ export const InfiniteScroll = {
       this.pending = false
       this.pendingResetTimeout = null
     }, 3000)
+  },
+
+  beginLoadCycle() {
+    this.pending = true
+    this.lastKnownScrollY = currentScrollY()
+    this.loadCycleStartY = this.lastKnownScrollY
+    this.prePatchMode = 'load-cycle'
+    this.prePatchShouldPreserve = true
+    this.prePatchScrollY = this.lastKnownScrollY
+    this.prePatchAnchor = this.findVisiblePostAnchor()
+    if (this.observer) this.observer.disconnect()
   },
 
   updated() {
@@ -696,6 +747,47 @@ export const PreserveStreamAnchor = {
   destroyed() {
     this.cancelPendingRestore()
     if (this.handleScroll) window.removeEventListener('scroll', this.handleScroll)
+  }
+}
+
+export const PreserveQueuedPostsButtonScroll = {
+  mounted() {
+    this.restoreRAF = null
+    this.restoreTimeouts = []
+
+    this.handleClick = () => {
+      const stream = document.getElementById('timeline-posts-stream') || document
+
+      queuedPostsScrollSnapshot = {
+        anchor: findVisiblePostAnchor(stream),
+        scrollY: currentScrollY()
+      }
+    }
+
+    this.el.addEventListener('click', this.handleClick)
+  },
+
+  destroyed() {
+    if (this.handleClick) this.el.removeEventListener('click', this.handleClick)
+    if (!queuedPostsScrollSnapshot) return
+
+    this.restoreRAF = requestAnimationFrame(() => {
+      this.restoreRAF = null
+      restoreQueuedPostsScroll()
+    })
+
+    ;[120, 280, 520].forEach((delay) => {
+      const timeoutId = setTimeout(() => {
+        this.restoreTimeouts = this.restoreTimeouts.filter((id) => id !== timeoutId)
+        restoreQueuedPostsScroll()
+      }, delay)
+
+      this.restoreTimeouts.push(timeoutId)
+    })
+
+    setTimeout(() => {
+      queuedPostsScrollSnapshot = null
+    }, 600)
   }
 }
 

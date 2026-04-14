@@ -1022,6 +1022,9 @@
         <%= if length(@queued_posts) > 0 do %>
           <div class="mx-4 mb-2 flex justify-center">
             <button
+              id="load-queued-posts-button"
+              type="button"
+              phx-hook="PreserveQueuedPostsButtonScroll"
               phx-click="load_queued_posts"
               data-load-queued-posts
               class="btn btn-secondary btn-sm sm:btn-md gap-2-sm animate-bounce-subtle"
@@ -1255,7 +1258,13 @@
                   </div>
                 <% else %>
                   <div class="text-center">
-                    <button phx-click="load_more_posts" class="btn btn-ghost"> Load More </button>
+                    <button
+                      type="button"
+                      phx-click="load_more_posts"
+                      class="btn btn-ghost"
+                    >
+                      Load More
+                    </button>
                   </div>
                 <% end %>
               </div>

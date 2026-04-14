@@ -70,6 +70,7 @@ import {
   RemoteFollowButton,
   InfiniteScroll,
   PreserveStreamAnchor,
+  PreserveQueuedPostsButtonScroll,
   UserHoverCard,
   ImageModal
 } from './timeline_hooks'
@@ -170,6 +171,7 @@ export const Hooks = {
   RemoteFollowButton,
   InfiniteScroll,
   PreserveStreamAnchor,
+  PreserveQueuedPostsButtonScroll,
   UserHoverCard,
   ImageModal,
 

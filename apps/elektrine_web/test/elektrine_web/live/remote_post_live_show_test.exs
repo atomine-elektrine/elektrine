@@ -932,6 +932,122 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ "Video title"
   end
 
+  test "renders cached community score before fresh lemmy counts load" do
+    activitypub_id = "https://lemmy.world/post/137"
+
+    local_message = %{
+      id: 54_322,
+      federated: true,
+      activitypub_id: activitypub_id,
+      activitypub_url: activitypub_id,
+      sender: nil,
+      remote_actor: %{
+        username: "alice",
+        domain: "lemmy.world",
+        display_name: "Alice",
+        avatar_url: nil,
+        avatar: nil,
+        uri: "https://lemmy.world/u/alice"
+      },
+      title: "Cached Lemmy score",
+      content: "Post body",
+      post_type: nil,
+      poll: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      media_urls: [],
+      media_metadata: %{},
+      primary_url: nil,
+      link_preview: nil,
+      like_count: 0,
+      reply_count: 5,
+      share_count: 0,
+      upvotes: 0,
+      downvotes: 0,
+      score: 4321,
+      inserted_at: ~N[2026-02-25 03:31:05]
+    }
+
+    assigns = %{
+      __changed__: %{},
+      z: %{},
+      loading: false,
+      load_error: nil,
+      is_local_post: true,
+      local_message: local_message,
+      post: %{
+        "id" => activitypub_id,
+        "url" => activitypub_id,
+        "type" => "Page",
+        "name" => "Cached Lemmy score",
+        "content" => "Post body",
+        "published" => "2026-02-25T03:31:05Z",
+        "likes" => %{"totalItems" => 0},
+        "shares" => %{"totalItems" => 0},
+        "replies" => %{"totalItems" => 5},
+        "repliesCount" => 5,
+        "reply_count" => 5,
+        "score" => 4321,
+        "attributedTo" => "https://lemmy.world/u/alice"
+      },
+      remote_actor: %{
+        username: "alice",
+        domain: "lemmy.world",
+        display_name: "Alice",
+        avatar_url: nil,
+        avatar: nil,
+        uri: "https://lemmy.world/u/alice"
+      },
+      community_actor: %{
+        username: "tech",
+        domain: "lemmy.world",
+        display_name: "Tech",
+        avatar_url: nil,
+        avatar: nil,
+        uri: "https://lemmy.world/c/tech",
+        summary: nil,
+        published_at: nil
+      },
+      community_stats: %{members: 0, posts: 0},
+      is_community_post: true,
+      is_following_community: false,
+      is_pending_community: false,
+      replies: [],
+      threaded_replies: [],
+      replies_loading: false,
+      replies_loaded: true,
+      comment_sort: "hot",
+      post_interactions: %{},
+      user_saves: %{},
+      lemmy_counts: nil,
+      lemmy_comment_counts: %{},
+      mastodon_counts: nil,
+      show_reply_form: false,
+      reply_content: "",
+      quick_reply_recent_replies: [],
+      replying_to_comment_id: nil,
+      comment_reply_content: "",
+      show_image_modal: false,
+      modal_image_url: nil,
+      modal_images: [],
+      modal_image_index: 0,
+      modal_post: nil,
+      post_reactions: %{},
+      in_reply_to: nil,
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [],
+      current_user: nil
+    }
+
+    html =
+      assigns
+      |> Show.render()
+      |> rendered_to_string()
+
+    assert html =~ ~r/>\s*4321\s*</
+  end
+
   test "renders a stable loading placeholder while comments are loading" do
     local_message = %{
       id: 54_322,

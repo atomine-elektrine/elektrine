@@ -2326,16 +2326,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         like_only_mode && is_integer(post.score) ->
           post.score
 
-        like_only_mode && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
-          lemmy_counts.score
+        like_only_mode && is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) ->
+          Map.get(lemmy_counts, :score)
 
         like_only_mode && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
           (post.upvotes || 0) - (post.downvotes || 0)
 
         is_vote_post &&
           is_map(lemmy_counts) &&
-            ((lemmy_counts.upvotes || 0) != 0 or (lemmy_counts.downvotes || 0) != 0) ->
-          (lemmy_counts.upvotes || 0) - (lemmy_counts.downvotes || 0)
+            (Map.get(lemmy_counts, :upvotes, 0) != 0 or
+               Map.get(lemmy_counts, :downvotes, 0) != 0) ->
+          Map.get(lemmy_counts, :upvotes, 0) - Map.get(lemmy_counts, :downvotes, 0)
 
         is_vote_post && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
           (post.upvotes || 0) - (post.downvotes || 0)
@@ -2343,9 +2344,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_vote_post && (is_integer(post.like_count) or is_integer(post.dislike_count)) ->
           (post.like_count || 0) - (post.dislike_count || 0)
 
-        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) &&
-            lemmy_counts.score != 0 ->
-          lemmy_counts.score
+        is_vote_post && is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
+            Map.get(lemmy_counts, :score) != 0 ->
+          Map.get(lemmy_counts, :score)
 
         is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
@@ -2362,8 +2363,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_integer(post.score) ->
           post.score
 
-        is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
-          lemmy_counts.score
+        is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) ->
+          Map.get(lemmy_counts, :score)
 
         true ->
           0
@@ -2398,8 +2399,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     remote_reply_count =
       cond do
-        lemmy_counts ->
-          lemmy_counts.comments || 0
+        is_map(lemmy_counts) ->
+          Map.get(lemmy_counts, :comments, 0)
 
         is_integer(get_in(post.media_metadata || %{}, ["remote_engagement", "replies"])) ->
           get_in(post.media_metadata || %{}, ["remote_engagement", "replies"])
