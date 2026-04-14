@@ -752,6 +752,8 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp upsert_cached_actor(%Actor{} = existing_actor, attrs) do
+    attrs = merge_existing_actor_metadata(existing_actor, attrs)
+
     existing_actor
     |> Actor.changeset(attrs)
     |> Repo.update()
@@ -780,6 +782,8 @@ defmodule Elektrine.ActivityPub do
         {:error, original_changeset}
 
       %Actor{} = existing_actor ->
+        attrs = merge_existing_actor_metadata(existing_actor, attrs)
+
         case existing_actor |> Actor.changeset(attrs) |> Repo.update() do
           {:ok, updated_actor} ->
             {:ok, updated_actor}
@@ -796,6 +800,21 @@ defmodule Elektrine.ActivityPub do
         end
     end
   end
+
+  defp merge_existing_actor_metadata(%Actor{} = existing_actor, attrs) when is_map(attrs) do
+    existing_metadata = normalize_actor_metadata(existing_actor.metadata)
+    incoming_metadata = normalize_actor_metadata(Map.get(attrs, :metadata))
+
+    Map.put(attrs, :metadata, Map.merge(existing_metadata, incoming_metadata))
+  end
+
+  defp merge_existing_actor_metadata(_, attrs), do: attrs
+
+  defp normalize_actor_metadata(metadata) when is_map(metadata) do
+    Map.new(metadata, fn {key, value} -> {to_string(key), value} end)
+  end
+
+  defp normalize_actor_metadata(_), do: %{}
 
   defp extract_username_from_uri(uri) do
     # Extract username from URIs like https://mastodon.social/users/alice

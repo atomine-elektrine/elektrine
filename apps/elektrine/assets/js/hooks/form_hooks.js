@@ -80,20 +80,6 @@ export const SuggestionDropdown = {
   }
 }
 
-/**
- * Timezone Detector Hook
- * Detects user's timezone and saves to cookie
- */
-export const TimezoneDetector = {
-  mounted() {
-    detectAndSaveTimezone(this.el)
-  },
-
-  updated() {
-    detectAndSaveTimezone(this.el)
-  }
-}
-
 export function detectAndSaveTimezone(element = null) {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
   document.cookie = `detected_timezone=${timezone}; path=/; max-age=31536000; SameSite=Lax`

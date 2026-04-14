@@ -77,7 +77,6 @@ export const PasskeyRegister = {
       try {
         await this.handleRegistration(data)
       } catch (error) {
-        console.error('Passkey registration error:', error)
         this.pushEvent('passkey_registration_error', {
           error: error.name === 'NotAllowedError'
             ? 'Registration was cancelled or timed out'
@@ -171,7 +170,6 @@ export const PasskeyAuth = {
         }
         await this.handleAuthentication(challengeData)
       } catch (error) {
-        console.error('Passkey authentication error:', error)
         if (window.showNotification) {
           window.showNotification(
             error.name === 'NotAllowedError'
@@ -288,147 +286,6 @@ export const PasskeyAuth = {
     if (this.challengeEventRef) {
       this.removeHandleEvent(this.challengeEventRef)
       this.challengeEventRef = null
-    }
-  }
-}
-
-/**
- * PasskeyConditionalUI Hook
- * Enables browser autofill integration for passkeys.
- * This allows the browser to show passkey suggestions in the username field.
- *
- * Usage: <input phx-hook="PasskeyConditionalUI" autocomplete="username webauthn">
- */
-export const PasskeyConditionalUI = {
-  async mounted() {
-    // Check if conditional UI is available
-    const available = await isConditionalUIAvailable()
-    if (!available) {
-      return
-    }
-
-    // Mark the input for conditional mediation
-    this.el.setAttribute('autocomplete', 'username webauthn')
-
-    // Start conditional UI authentication
-    try {
-      await this.startConditionalUI()
-    } catch (error) {
-      // Conditional UI errors are expected (user may dismiss, etc.)
-      console.debug('Conditional UI not started:', error.message)
-    }
-  },
-
-  async startConditionalUI() {
-    // Request challenge from server for conditional UI
-    const challengeData = await this.getConditionalChallenge()
-    if (challengeData.error) {
-      return
-    }
-
-    const publicKey = {
-      challenge: base64URLToBuffer(challengeData.challenge_b64),
-      rpId: challengeData.rp_id,
-      timeout: challengeData.timeout,
-      userVerification: challengeData.user_verification || 'preferred',
-      allowCredentials: [] // Empty for discoverable credentials
-    }
-
-    try {
-      this.abortController = new AbortController()
-
-      // Use conditional mediation
-      const credential = await navigator.credentials.get({
-        publicKey,
-        mediation: 'conditional',
-        signal: this.abortController.signal
-      })
-
-      if (credential) {
-        // User selected a passkey from autofill
-        const response = credential.response
-        const assertionResponse = {
-          id: credential.id,
-          rawId: bufferToBase64URL(credential.rawId),
-          type: credential.type,
-          response: {
-            clientDataJSON: bufferToBase64URL(response.clientDataJSON),
-            authenticatorData: bufferToBase64URL(response.authenticatorData),
-            signature: bufferToBase64URL(response.signature)
-          }
-        }
-
-        if (response.userHandle) {
-          assertionResponse.response.userHandle = bufferToBase64URL(response.userHandle)
-        }
-
-        // Submit authentication
-        this.submitConditionalAuth(assertionResponse, challengeData.challenge_b64)
-      }
-    } catch (error) {
-      // AbortError is expected when user navigates away or cancels
-      if (error.name !== 'AbortError') {
-        console.error('Conditional UI error:', error)
-      }
-    }
-  },
-
-  async getConditionalChallenge() {
-    return new Promise((resolve) => {
-      const challengeRef = this.handleEvent('passkey_conditional_challenge', (data) => {
-        this.removeHandleEvent(challengeRef)
-        if (this.conditionalChallengeRef === challengeRef) {
-          this.conditionalChallengeRef = null
-        }
-        resolve(data)
-      })
-
-      this.conditionalChallengeRef = challengeRef
-      this.pushEvent('get_passkey_conditional_challenge', {})
-    })
-  },
-
-  submitConditionalAuth(assertion, challenge) {
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = '/passkey/authenticate'
-    form.style.display = 'none'
-
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
-    if (csrfToken) {
-      const csrfInput = document.createElement('input')
-      csrfInput.type = 'hidden'
-      csrfInput.name = '_csrf_token'
-      csrfInput.value = csrfToken
-      form.appendChild(csrfInput)
-    }
-
-    const assertionInput = document.createElement('input')
-    assertionInput.type = 'hidden'
-    assertionInput.name = 'assertion'
-    assertionInput.value = JSON.stringify(assertion)
-    form.appendChild(assertionInput)
-
-    const challengeInput = document.createElement('input')
-    challengeInput.type = 'hidden'
-    challengeInput.name = 'challenge'
-    challengeInput.value = challenge
-    form.appendChild(challengeInput)
-
-    document.body.appendChild(form)
-    submitFormPreservingEvents(form)
-  },
-
-  destroyed() {
-    if (this.conditionalChallengeRef) {
-      this.removeHandleEvent(this.conditionalChallengeRef)
-      this.conditionalChallengeRef = null
-    }
-
-    // Abort any pending conditional UI request
-    if (this.abortController) {
-      this.abortController.abort()
-      this.abortController = null
     }
   }
 }

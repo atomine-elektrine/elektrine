@@ -193,31 +193,3 @@ export const DeviceDetector = {
     };
   }
 };
-
-/**
- * PresenceIndicator - Updates presence indicator UI
- * 
- * Listens for presence updates and updates the UI accordingly.
- * Can show device icons, connection quality, etc.
- */
-export const PresenceIndicator = {
-  mounted() {
-    // Listen for presence updates
-    this.handleEvent("presence_updated", ({ user_id, status, device_type, devices }) => {
-      this.updateIndicator(user_id, status, device_type, devices);
-    });
-  },
-  
-  updateIndicator(userId, status, deviceType, devices) {
-    // The actual UI update happens via LiveView assigns
-    // This hook can be extended to add animations or tooltips
-    const indicator = this.el.querySelector(`[data-user-id="${userId}"]`);
-    if (indicator) {
-      // Add animation class for status change
-      indicator.classList.add('presence-updated');
-      setTimeout(() => {
-        indicator.classList.remove('presence-updated');
-      }, 300);
-    }
-  }
-};

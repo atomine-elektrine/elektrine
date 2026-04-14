@@ -10,8 +10,6 @@ import { TagInput } from '../tag_input'
 import {
   AutoExpandTextarea,
   SimpleChatInput,
-  MessageInput,
-  MessagesContainer,
   MessageList,
   ContextMenu,
   MessageContextMenu,
@@ -22,14 +20,13 @@ import {
 // Email hooks
 import {
   KeyboardShortcuts,
-  EmailContentLinks,
   EmailIframeResize,
   EmailShowKeyboardShortcuts,
   EmailComposeKeyboardShortcuts
 } from './email_hooks'
 
 // Markdown hooks
-import { MarkdownEditor, ReplyMarkdownEditor } from './markdown_hooks'
+import { ReplyMarkdownEditor } from './markdown_hooks'
 
 // Notification hooks
 import { NotificationHandler, NotificationDropdown } from './notification_hooks'
@@ -40,19 +37,12 @@ import {
   CopyEmail,
   PreserveFocus,
   FlashAutoDismiss,
-  FlashMessage,
   CopyToClipboard,
   FileExplorer,
   CopyButton,
-  FocusOnMount,
   TimelineReply,
-  FileDownloader,
   IframeAutoResize,
-  BackupCodesPrinter,
-  DetailsPreserve,
   ScrollToTop,
-  ScrollToBottom,
-  Tilt3D,
   ImageFallback
 } from './ui_hooks'
 
@@ -81,11 +71,7 @@ import {
   InfiniteScroll,
   PreserveStreamAnchor,
   UserHoverCard,
-  ImageModal,
-  DwellTimeTracker,
-  NotInterestedButton,
-  HidePostButton,
-  SessionContextTracker
+  ImageModal
 } from './timeline_hooks'
 
 // Form/Utility hooks
@@ -93,7 +79,6 @@ import {
   FormSubmit,
   TagInputHook,
   SuggestionDropdown,
-  TimezoneDetector,
   VPNDownload,
   Turnstile
 } from './form_hooks'
@@ -111,15 +96,13 @@ import {
 // Passkey hooks
 import {
   PasskeyRegister,
-  PasskeyAuth,
-  PasskeyConditionalUI
+  PasskeyAuth
 } from './passkey_hooks'
 
 // Presence hooks
 import {
   ActivityTracker,
-  DeviceDetector,
-  PresenceIndicator
+  DeviceDetector
 } from './presence_hooks'
 
 // Static site hooks
@@ -136,8 +119,6 @@ export const Hooks = {
   // Chat
   AutoExpandTextarea,
   SimpleChatInput,
-  MessageInput,
-  MessagesContainer,
   MessageList,
   ContextMenu,
   MessageContextMenu,
@@ -146,13 +127,11 @@ export const Hooks = {
 
   // Email
   KeyboardShortcuts,
-  EmailContentLinks,
   EmailIframeResize,
   EmailShowKeyboardShortcuts,
   EmailComposeKeyboardShortcuts,
 
   // Markdown
-  MarkdownEditor,
   ReplyMarkdownEditor,
 
   // Notifications
@@ -164,19 +143,12 @@ export const Hooks = {
   CopyEmail,
   PreserveFocus,
   FlashAutoDismiss,
-  FlashMessage,
   CopyToClipboard,
   FileExplorer,
   CopyButton,
-  FocusOnMount,
   TimelineReply,
-  FileDownloader,
   IframeAutoResize,
-  BackupCodesPrinter,
-  DetailsPreserve,
   ScrollToTop,
-  ScrollToBottom,
-  Tilt3D,
   ImageFallback,
 
   // Calls
@@ -200,16 +172,11 @@ export const Hooks = {
   PreserveStreamAnchor,
   UserHoverCard,
   ImageModal,
-  DwellTimeTracker,
-  NotInterestedButton,
-  HidePostButton,
-  SessionContextTracker,
 
   // Form/Utility
   FormSubmit,
   TagInputHook,
   SuggestionDropdown,
-  TimezoneDetector,
   VPNDownload,
   Turnstile,
   PasswordVault,
@@ -224,12 +191,10 @@ export const Hooks = {
   // Presence
   ActivityTracker,
   DeviceDetector,
-  PresenceIndicator,
 
   // Passkey
   PasskeyRegister,
   PasskeyAuth,
-  PasskeyConditionalUI,
 
   // (intentionally no product-specific hooks here)
 }

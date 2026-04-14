@@ -378,24 +378,23 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         if visibility in ["public", "unlisted"] do
           {media_urls, alt_texts} = extract_media_with_alt_text(object)
 
-          attrs = %{
-            content: content,
-            visibility: visibility,
-            activitypub_id: object["id"],
-            activitypub_url: object["url"] || object["id"],
-            federated: true,
-            remote_actor_id: remote_actor.id,
-            reply_to_id: parent_message_id,
-            media_urls: media_urls,
-            media_metadata:
-              if(map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}),
-            inserted_at: Helpers.parse_published_date(object["published"]),
-            like_count: Helpers.extract_interaction_count(object, "likes"),
-            reply_count: Helpers.extract_interaction_count(object, "replies"),
-            share_count: Helpers.extract_interaction_count(object, "shares"),
-            sensitive: object["sensitive"] || false,
-            content_warning: object["summary"]
-          }
+          attrs =
+            %{
+              content: content,
+              visibility: visibility,
+              activitypub_id: object["id"],
+              activitypub_url: object["url"] || object["id"],
+              federated: true,
+              remote_actor_id: remote_actor.id,
+              reply_to_id: parent_message_id,
+              media_urls: media_urls,
+              media_metadata:
+                if(map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}),
+              inserted_at: Helpers.parse_published_date(object["published"]),
+              sensitive: object["sensitive"] || false,
+              content_warning: object["summary"]
+            }
+            |> Map.merge(reply_count_attrs(object))
 
           case Messaging.create_federated_message(attrs) do
             {:ok, message} ->
@@ -405,7 +404,10 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
               {:stored, message}
 
             {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
-              {:existing, Messaging.get_message_by_activitypub_id(object["id"])}
+              {:existing,
+               object["id"]
+               |> Messaging.get_message_by_activitypub_id()
+               |> refresh_existing_reply_counts(object)}
 
             {:error, reason} ->
               Logger.debug("Failed to create reply: #{inspect(reason)}")
@@ -415,10 +417,49 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
           :skip
         end
 
-      _existing ->
-        {:existing, Messaging.get_message_by_activitypub_id(object["id"])}
+      existing ->
+        {:existing, refresh_existing_reply_counts(existing, object)}
     end
   end
+
+  defp refresh_existing_reply_counts(message, object) when is_map(message) and is_map(object) do
+    attrs = reply_count_attrs(object)
+
+    if reply_count_attrs_changed?(message, attrs) do
+      case Elektrine.Messaging.Messages.update_message_metadata(message, attrs) do
+        {:ok, updated_message} -> updated_message
+        _ -> message
+      end
+    else
+      message
+    end
+  end
+
+  defp refresh_existing_reply_counts(message, _), do: message
+
+  defp reply_count_attrs(object) when is_map(object) do
+    %{
+      like_count: Helpers.extract_interaction_count(object, "likes"),
+      reply_count: Helpers.extract_interaction_count(object, "replies"),
+      share_count: Helpers.extract_interaction_count(object, "shares"),
+      upvotes: object["upvotes"] || 0,
+      downvotes: object["downvotes"] || 0,
+      score: object["score"] || 0
+    }
+  end
+
+  defp reply_count_attrs(_), do: %{}
+
+  defp reply_count_attrs_changed?(message, attrs) when is_map(message) and is_map(attrs) do
+    (message.like_count || 0) != (attrs[:like_count] || 0) ||
+      (message.reply_count || 0) != (attrs[:reply_count] || 0) ||
+      (message.share_count || 0) != (attrs[:share_count] || 0) ||
+      (message.upvotes || 0) != (attrs[:upvotes] || 0) ||
+      (message.downvotes || 0) != (attrs[:downvotes] || 0) ||
+      (message.score || 0) != (attrs[:score] || 0)
+  end
+
+  defp reply_count_attrs_changed?(_, _), do: false
 
   defp resolve_parent_message_id(object, fallback_parent_message_id) when is_map(object) do
     in_reply_to_ref = normalize_in_reply_to_ref(object["inReplyTo"])

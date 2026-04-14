@@ -13,7 +13,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
   @community_feed_page_size 20
   @overview_page_size 6
-  @community_feed_rerank_delay_ms 1200
   @session_interest_dwell_ms 10_000
   @impl true
   def mount(_params, session, socket) do
@@ -77,7 +76,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:overview_no_more, false)
       |> assign(:feed_sort, "new")
       |> assign(:session_context, default_session_context())
-      |> assign(:community_feed_rerank_ref, nil)
       |> assign(:remote_user_preview, nil)
       |> assign(:remote_user_loading, false)
       |> assign(:show_image_upload_modal, false)
@@ -145,7 +143,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
             acc
           end
         end)
-        |> schedule_community_feed_rerank()
       else
         socket
       end
@@ -168,7 +165,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         socket
         |> note_community_view_signal(params["post_id"])
         |> maybe_note_community_dwell_interest(params["post_id"], params["dwell_time_ms"])
-        |> schedule_community_feed_rerank()
       else
         socket
       end
@@ -190,7 +186,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         socket
         |> note_community_dismissal_signal(params["post_id"])
-        |> schedule_community_feed_rerank()
       else
         socket
       end
@@ -223,8 +218,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
     {:noreply,
      socket
-     |> assign(:session_context, updated_context)
-     |> schedule_community_feed_rerank()}
+     |> assign(:session_context, updated_context)}
   end
 
   def handle_event("stop_propagation", _params, socket) do
@@ -725,8 +719,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
           {:noreply,
            updated_socket
-           |> note_community_positive_signal(post)
-           |> schedule_community_feed_rerank(250)}
+           |> note_community_positive_signal(post)}
 
         :error ->
           {:noreply, socket}
@@ -745,8 +738,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
           {:noreply,
            updated_socket
-           |> note_community_dismissal_signal(post_id)
-           |> schedule_community_feed_rerank(300)}
+           |> note_community_dismissal_signal(post_id)}
 
         :error ->
           {:noreply, socket}
@@ -1196,19 +1188,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       updated_post_interactions =
         reset_feed_vote_delta(socket.assigns.post_interactions || %{}, socket, message_id)
 
-      sorted_filtered_community_posts =
-        sort_feed_posts(
-          socket.assigns.filtered_community_posts,
-          socket.assigns.feed_sort,
-          updated_lemmy_counts,
-          socket.assigns.session_context
-        )
-
       {:noreply,
        socket
        |> assign(:lemmy_counts, updated_lemmy_counts)
        |> assign(:post_interactions, updated_post_interactions)
-       |> assign(:filtered_community_posts, sorted_filtered_community_posts)}
+       |> assign(:filtered_community_posts, socket.assigns.filtered_community_posts)}
     else
       {:noreply, socket}
     end
@@ -1230,18 +1214,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       updated_lemmy_counts =
         update_lemmy_counts(socket.assigns.lemmy_counts || %{}, socket, message_id, counts)
 
-      sorted_filtered_community_posts =
-        sort_feed_posts(
-          socket.assigns.filtered_community_posts,
-          socket.assigns.feed_sort,
-          updated_lemmy_counts,
-          socket.assigns.session_context
-        )
-
       {:noreply,
        socket
        |> assign(:lemmy_counts, updated_lemmy_counts)
-       |> assign(:filtered_community_posts, sorted_filtered_community_posts)}
+       |> assign(:filtered_community_posts, socket.assigns.filtered_community_posts)}
     else
       {:noreply, socket}
     end
@@ -1516,24 +1492,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:no_more_posts, length(followed_community_posts) < @community_feed_page_size)
      |> assign(:overview_no_more, overview_no_more?(overview_data))
      |> assign(:loading_communities, false)}
-  end
-
-  def handle_info(:refresh_community_feed_ranking, socket) do
-    socket = assign(socket, :community_feed_rerank_ref, nil)
-
-    cond do
-      socket.assigns.current_view != "feed" ->
-        {:noreply, socket}
-
-      is_nil(socket.assigns[:current_user]) ->
-        {:noreply, socket}
-
-      socket.assigns.loading_more ->
-        {:noreply, socket}
-
-      true ->
-        {:noreply, rerank_followed_community_feed(socket)}
-    end
   end
 
   def handle_info(_info, socket) do
@@ -2251,22 +2209,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     Map.put(session_context, :engagement_rate, total_interactions / total_views)
   end
 
-  defp schedule_community_feed_rerank(socket, delay_ms \\ @community_feed_rerank_delay_ms) do
-    if socket.assigns.current_view != "feed" do
-      socket
-    else
-      if is_reference(socket.assigns[:community_feed_rerank_ref]) do
-        Process.cancel_timer(socket.assigns.community_feed_rerank_ref)
-      end
-
-      assign(
-        socket,
-        :community_feed_rerank_ref,
-        Process.send_after(self(), :refresh_community_feed_ranking, delay_ms)
-      )
-    end
-  end
-
   defp normalize_post_id(post_id) when is_integer(post_id) and post_id > 0, do: post_id
 
   defp normalize_post_id(post_id) when is_binary(post_id) do
@@ -2561,66 +2503,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp vote_value("up"), do: 1
   defp vote_value("down"), do: -1
   defp vote_value(_), do: 0
-
-  defp rerank_followed_community_feed(socket) do
-    current_posts = socket.assigns.followed_community_posts || []
-    refresh_limit = max(length(current_posts), @community_feed_page_size)
-
-    refreshed_posts =
-      get_followed_community_posts(socket.assigns.current_user.id,
-        limit: refresh_limit
-      )
-
-    followed_community_posts = merge_refreshed_feed_posts(current_posts, refreshed_posts)
-    {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, refreshed_posts)
-
-    post_interactions =
-      Map.merge(
-        socket.assigns.post_interactions || %{},
-        load_post_interactions(refreshed_posts, socket.assigns.current_user)
-      )
-
-    post_reactions =
-      Map.merge(socket.assigns.post_reactions || %{}, get_post_reactions(refreshed_posts))
-
-    filtered_community_posts =
-      followed_community_posts
-      |> filter_community_posts_by_category(socket.assigns.selected_category)
-      |> sort_feed_posts(socket.assigns.feed_sort, lemmy_counts, socket.assigns.session_context)
-
-    socket
-    |> assign(:followed_community_posts, followed_community_posts)
-    |> assign(:filtered_community_posts, filtered_community_posts)
-    |> assign(:lemmy_counts, lemmy_counts)
-    |> assign(:post_replies, post_replies)
-    |> assign(:post_interactions, post_interactions)
-    |> assign(:post_reactions, post_reactions)
-  end
-
-  defp merge_refreshed_feed_posts(existing_posts, refreshed_posts) do
-    existing_by_id = Map.new(existing_posts, &{&1.id, &1})
-
-    refreshed_posts
-    |> Enum.map(fn refreshed_post ->
-      case Map.get(existing_by_id, refreshed_post.id) do
-        nil ->
-          refreshed_post
-
-        existing_post ->
-          Map.merge(refreshed_post, existing_post, fn key, refreshed_value, existing_value ->
-            if key in [:upvotes, :downvotes, :score] do
-              existing_value
-            else
-              refreshed_value
-            end
-          end)
-      end
-    end)
-    |> then(fn merged_refreshed_posts ->
-      merged_ids = MapSet.new(Enum.map(merged_refreshed_posts, & &1.id))
-      merged_refreshed_posts ++ Enum.reject(existing_posts, &MapSet.member?(merged_ids, &1.id))
-    end)
-  end
 
   defp load_with_fallback(key, loader, fallback) when is_function(loader, 0) do
     loader.()

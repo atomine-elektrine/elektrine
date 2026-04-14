@@ -330,6 +330,12 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
              ~s(button[phx-click="like_post"][phx-value-message_id="#{post.id}"] .hero-heart)
            )
 
+    assert has_element?(
+             view,
+             ~s(button[phx-click="like_post"][phx-value-message_id="#{post.id}"] span),
+             "0"
+           )
+
     render_hook(view, "like_post", %{"message_id" => Integer.to_string(post.id)})
 
     assert Social.user_liked_post?(viewer.id, post.id)
@@ -337,6 +343,12 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert has_element?(
              view,
              ~s(button[phx-click="unlike_post"][phx-value-message_id="#{post.id}"] .hero-heart-solid)
+           )
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="unlike_post"][phx-value-message_id="#{post.id}"] span),
+             "1"
            )
   end
 

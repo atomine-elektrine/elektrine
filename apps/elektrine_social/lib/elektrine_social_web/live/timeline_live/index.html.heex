@@ -1092,9 +1092,12 @@
                     Subscribe to RSS feeds in Settings to see articles here
                   </p>
 
-                  <a href="/account?tab=timeline" class="btn btn-secondary btn-sm mt-4">
+                  <.link
+                    navigate={~p"/account?tab=timeline"}
+                    class="btn btn-secondary btn-sm mt-4"
+                  >
                     Manage RSS Feeds
-                  </a>
+                  </.link>
                 </div>
               <% else %>
                 <%= for item <- @rss_items do %>

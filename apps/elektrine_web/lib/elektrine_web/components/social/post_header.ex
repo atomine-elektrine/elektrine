@@ -54,18 +54,13 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
               user_follows={@user_follows}
               current_user={@current_user}
             >
-              <button
-                phx-click="navigate_to_profile"
-                phx-value-handle={@normalized.handle}
-                type="button"
-                class="w-10 h-10"
-              >
+              <.link navigate={"/#{@normalized.handle}"} class="w-10 h-10">
                 <.user_avatar
                   user={@post.sender}
                   size="sm"
                   user_statuses={@user_statuses}
                 />
-              </button>
+              </.link>
             </.user_hover_card>
           <% :remote -> %>
             <.user_hover_card
@@ -101,18 +96,16 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                 user_follows={@user_follows}
                 current_user={@current_user}
               >
-                <button
-                  phx-click="navigate_to_profile"
-                  phx-value-handle={@normalized.handle}
+                <.link
+                  navigate={"/#{@normalized.handle}"}
                   class="font-medium hover:text-error transition-colors text-left"
-                  type="button"
                 >
                   <.username_with_effects
                     user={@post.sender}
                     display_name={true}
                     verified_size="sm"
                   />
-                </button>
+                </.link>
               </.user_hover_card>
               <div class="text-sm opacity-70 flex items-center gap-2 truncate">
                 <span class="truncate">

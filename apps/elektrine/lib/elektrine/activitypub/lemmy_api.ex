@@ -27,18 +27,18 @@ defmodule Elektrine.ActivityPub.LemmyApi do
                 }
 
               _ ->
-                nil
+                fetch_post_counts_from_html(post_url)
             end
 
           {:ok, %Finch.Response{status: _status}} ->
-            nil
+            fetch_post_counts_from_html(post_url)
 
           {:error, _reason} ->
-            nil
+            fetch_post_counts_from_html(post_url)
         end
 
       :error ->
-        nil
+        fetch_post_counts_from_html(post_url)
     end
   end
 
@@ -120,46 +120,88 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_comment_counts(post_url) when is_binary(post_url) do
     case resolve_post_reference(post_url) do
       {:ok, domain, post_id} ->
-        api_url = "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=100"
-        headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
-
-        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
-          {:ok, %Finch.Response{status: 200, body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"comments" => comments}} ->
-                comments
-                |> Enum.map(fn comment_view ->
-                  ap_id = get_in(comment_view, ["comment", "ap_id"])
-                  counts = comment_view["counts"] || %{}
-
-                  {ap_id,
-                   %{
-                     score: counts["score"] || 0,
-                     upvotes: counts["upvotes"] || 0,
-                     downvotes: counts["downvotes"] || 0,
-                     child_count: counts["child_count"] || 0
-                   }}
-                end)
-                |> Enum.filter(fn {ap_id, _} -> ap_id != nil end)
-                |> Map.new()
-
-              _ ->
-                %{}
-            end
-
-          {:ok, %Finch.Response{status: _status}} ->
-            %{}
-
-          {:error, _reason} ->
-            %{}
+        domain
+        |> fetch_comment_counts_pages(post_id, 100, 1, %{})
+        |> case do
+          %{} = counts when map_size(counts) > 0 -> counts
+          _ -> fetch_comment_counts_from_post_comments(post_url)
         end
 
       :error ->
-        %{}
+        fetch_comment_counts_from_post_comments(post_url)
     end
   end
 
   def fetch_comment_counts(_), do: %{}
+
+  defp fetch_comment_counts_pages(_domain, _post_id, _page_size, page, acc) when page > 10,
+    do: acc
+
+  defp fetch_comment_counts_pages(domain, post_id, page_size, page, acc) do
+    api_url =
+      "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{page_size}&page=#{page}&max_depth=10"
+
+    headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
+
+    case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"comments" => comments}} when is_list(comments) ->
+            updated_acc =
+              Enum.reduce(comments, acc, fn comment_view, current_acc ->
+                ap_id = get_in(comment_view, ["comment", "ap_id"])
+                counts = comment_view["counts"] || %{}
+
+                if is_binary(ap_id) do
+                  Map.put(current_acc, ap_id, %{
+                    score: counts["score"] || 0,
+                    upvotes: counts["upvotes"] || 0,
+                    downvotes: counts["downvotes"] || 0,
+                    child_count: counts["child_count"] || 0
+                  })
+                else
+                  current_acc
+                end
+              end)
+
+            cond do
+              comments == [] ->
+                updated_acc
+
+              length(comments) < page_size ->
+                updated_acc
+
+              true ->
+                fetch_comment_counts_pages(domain, post_id, page_size, page + 1, updated_acc)
+            end
+
+          _ ->
+            acc
+        end
+
+      _ ->
+        acc
+    end
+  end
+
+  defp fetch_comment_counts_from_post_comments(post_url) when is_binary(post_url) do
+    post_url
+    |> fetch_post_comments(500)
+    |> Enum.reduce(%{}, fn
+      %{"id" => ap_id} = comment, acc when is_binary(ap_id) ->
+        Map.put(acc, ap_id, %{
+          score: parse_count(comment["score"]),
+          upvotes: parse_count(comment["upvotes"]),
+          downvotes: parse_count(comment["downvotes"]),
+          child_count: extract_collection_total(comment["replies"])
+        })
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp fetch_comment_counts_from_post_comments(_), do: %{}
 
   @doc """
   Fetch top comments for a Lemmy post with content.
@@ -322,9 +364,12 @@ defmodule Elektrine.ActivityPub.LemmyApi do
         "published" => comment["published"],
         "attributedTo" => actor_id,
         "inReplyTo" => parse_lemmy_parent_ref(comment, comment_id_to_ap, post_url),
-        "likes" => %{"totalItems" => counts["score"] || 0},
+        "likes" => %{"totalItems" => counts["upvotes"] || 0},
         "replies" => %{"totalItems" => counts["child_count"] || 0},
         "shares" => %{"totalItems" => 0},
+        "upvotes" => counts["upvotes"] || 0,
+        "downvotes" => counts["downvotes"] || 0,
+        "score" => counts["score"] || 0,
         "sensitive" => false
       }
     end
@@ -458,6 +503,70 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   end
 
   defp parse_count(_), do: 0
+
+  defp extract_collection_total(%{"totalItems" => total}), do: parse_count(total)
+  defp extract_collection_total(%{totalItems: total}), do: parse_count(total)
+
+  defp extract_collection_total(total) when is_integer(total) or is_binary(total),
+    do: parse_count(total)
+
+  defp extract_collection_total(_), do: 0
+
+  defp fetch_post_counts_from_html(post_url) when is_binary(post_url) do
+    headers = [{"Accept", "text/html,application/xhtml+xml"}, {"User-Agent", "Elektrine/1.0"}]
+
+    case safe_request(:get, post_url, headers, nil, receive_timeout: 5_000) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        parse_post_counts_from_html(body)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp fetch_post_counts_from_html(_), do: nil
+
+  defp parse_post_counts_from_html(body) when is_binary(body) do
+    score = extract_named_capture_integer(body, ~r/class="score"[^>]*>(?<value>[^<]+)</)
+
+    comments =
+      extract_named_capture_integer(body, ~r/<h2[^>]*>\s*(?<value>\d+)\s+Comments\s*<\/h2>/i) ||
+        extract_named_capture_integer(body, ~r/post_reply_count_text">\s*(?<value>\d+)\s*</i)
+
+    upvotes =
+      extract_named_capture_integer(body, ~r/class="score"[^>]*title="(?<value>\d+)\s*,\s*\d+"/)
+
+    downvotes =
+      extract_named_capture_integer(body, ~r/class="score"[^>]*title="\d+\s*,\s*(?<value>\d+)"/)
+
+    if is_integer(score) or is_integer(comments) do
+      %{
+        upvotes: upvotes || max(score || 0, 0),
+        downvotes: downvotes || 0,
+        score: score || 0,
+        comments: comments || 0
+      }
+    else
+      nil
+    end
+  end
+
+  defp parse_post_counts_from_html(_), do: nil
+
+  defp extract_named_capture_integer(body, regex) when is_binary(body) do
+    case Regex.named_captures(regex, body) do
+      %{"value" => value} ->
+        case Integer.parse(String.trim(value)) do
+          {parsed, _} -> parsed
+          :error -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_named_capture_integer(_, _), do: nil
 
   defp safe_request(method, url, headers, body, opts) do
     request = Finch.build(method, url, headers, body || "")

@@ -326,6 +326,7 @@
           <% # Combine and sort all posts
           all_posts = @local_posts ++ @timeline_posts
           sorted_posts = ElektrineSocialWeb.RemoteUserLive.Show.sort_posts(all_posts, @sort_by)
+          remote_community_feed? = @remote_actor && @remote_actor.actor_type == "Group"
           local_likes = likes_by_local_id(@local_posts, @post_interactions)
           local_boosts = boosts_by_local_id(@local_posts, @post_interactions)
           local_saves = saves_by_local_id(@local_posts, @user_saves)
@@ -365,6 +366,8 @@
                   current_user={@current_user}
                   timezone={assigns[:timezone] || "UTC"}
                   time_format={assigns[:time_format] || "12h"}
+                  layout={if remote_community_feed?, do: :lemmy, else: :timeline}
+                  interaction_mode={if remote_community_feed?, do: :vote, else: :like_only}
                   user_likes={local_likes}
                   user_boosts={local_boosts}
                   user_saves={local_saves}
@@ -377,6 +380,10 @@
                   show_post_dropdown={false}
                   resolve_reply_refs={true}
                   show_ancestor_actions={true}
+                  on_like={if remote_community_feed?, do: "upvote_post", else: "like_post"}
+                  on_unlike={if remote_community_feed?, do: "unupvote_post", else: "unlike_post"}
+                  on_downvote="downvote_post"
+                  on_undownvote="undownvote_post"
                   source="remote_profile"
                   id_prefix="remote-profile"
                 />
@@ -500,11 +507,15 @@
               <% else %>
                 <!-- Outbox Post (fetched from remote) -->
                 <% post_state =
-                  Map.get(@post_interactions, post["id"], %{liked: false, like_delta: 0})
+                  interaction_state_for_remote_post(post, @post_interactions)
 
+                is_remote_community_feed = @remote_actor && @remote_actor.actor_type == "Group"
+                current_vote = Map.get(post_state, :vote)
                 is_liked = Map.get(post_state, :liked, false)
                 like_delta = Map.get(post_state, :like_delta, 0)
+                is_downvoted = current_vote == "down"
                 like_count = (get_collection_total_items(post["likes"]) || 0) + like_delta
+                vote_score = get_post_score(post) + Map.get(post_state, :vote_delta, 0)
                 loaded_replies = Map.get(@post_replies, post["id"], [])
                 loaded_reply_count = length(loaded_replies)
 
@@ -587,13 +598,30 @@
                     <div class="flex flex-col items-center p-2 bg-base-50 gap-1 w-10">
                       <%= if @current_user do %>
                         <button
-                          phx-click={if is_liked, do: "unlike_post", else: "like_post"}
+                          phx-click={
+                            if is_remote_community_feed,
+                              do:
+                                if(current_vote == "up", do: "unupvote_post", else: "upvote_post"),
+                              else: if(is_liked, do: "unlike_post", else: "like_post")
+                          }
                           phx-value-post_id={post["id"]}
                           class={[
                             "btn btn-ghost btn-xs btn-square",
-                            if(is_liked,
-                              do: "text-error",
-                              else: "text-base-content/50 hover:text-error"
+                            if(
+                              if(is_remote_community_feed,
+                                do: current_vote == "up",
+                                else: is_liked
+                              ),
+                              do:
+                                if(is_remote_community_feed,
+                                  do: "text-success",
+                                  else: "text-error"
+                                ),
+                              else:
+                                if(is_remote_community_feed,
+                                  do: "text-base-content/50 hover:text-success",
+                                  else: "text-base-content/50 hover:text-error"
+                                )
                             )
                           ]}
                         >
@@ -604,10 +632,30 @@
                           <.icon name="hero-arrow-up" class="w-4 h-4" />
                         </div>
                       <% end %>
-                      <span class="text-xs font-bold">{like_count}</span>
-                      <div class="text-base-content/30">
-                        <.icon name="hero-arrow-down" class="w-4 h-4" />
-                      </div>
+                      <span class="text-xs font-bold">
+                        {if is_remote_community_feed, do: vote_score, else: like_count}
+                      </span>
+                      <%= if is_remote_community_feed && @current_user do %>
+                        <button
+                          phx-click={
+                            if is_downvoted, do: "undownvote_post", else: "downvote_post"
+                          }
+                          phx-value-post_id={post["id"]}
+                          class={[
+                            "btn btn-ghost btn-xs btn-square",
+                            if(is_downvoted,
+                              do: "text-error",
+                              else: "text-base-content/50 hover:text-error"
+                            )
+                          ]}
+                        >
+                          <.icon name="hero-arrow-down" class="w-4 h-4" />
+                        </button>
+                      <% else %>
+                        <div class="text-base-content/30">
+                          <.icon name="hero-arrow-down" class="w-4 h-4" />
+                        </div>
+                      <% end %>
                     </div>
                     
 <!-- Thumbnail for image posts or link icon -->

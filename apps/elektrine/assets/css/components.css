@@ -83,7 +83,8 @@ html[data-theme="dark"] .btn:focus-visible,
 } @keyframes app-flash-exit { from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); } to { opacity: 0; transform: translate3d(24px, -4px, 0) scale(0.95); }
 } .flash-message { position: fixed !important; right: 1rem !important; width: 20rem !important; max-width: calc(100vw - 2rem) !important; z-index: 9999 !important; pointer-events: auto !important; animation: flash-slide-in 0.3s ease-out;
 } @keyframes flash-slide-in { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: translateX(0); }
-} .alert { border: 1px solid color-mix(in srgb, var(--color-base-300) 68%, white 32%); background-color: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); color: var(--color-base-content); box-shadow: none;
+} .alert { border: 1px solid color-mix(in srgb, var(--color-base-300) 68%, white 32%); background-color: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); color: var(--color-base-content); box-shadow: none; flex-wrap: wrap; min-width: 0; overflow-wrap: anywhere;
+} .alert > * { min-width: 0;
 } .alert-info { border-color: color-mix(in srgb, var(--color-info) 22%, var(--color-base-300) 78%); background-color: color-mix(in srgb, var(--color-info) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-info) 36%, var(--color-base-content) 64%);
 } .alert-success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-success) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-success) 34%, var(--color-base-content) 66%);
 } .alert-warning { border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-base-300) 74%); background-color: color-mix(in srgb, var(--color-warning) 11%, var(--color-base-200) 89%); color: color-mix(in srgb, var(--color-warning) 38%, var(--color-base-content) 62%);
@@ -163,7 +164,8 @@ html[data-theme="dark"] .btn:focus-visible,
 } .modal-backdrop { background: var(--theme-modal-backdrop) !important;
 } .modal-surface,
 .modal-box { border: 1px solid transparent; border-color: var(--surface-modal-border); background-color: var(--surface-modal-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-modal-shadow);
-} .modal-box { position: relative; isolation: isolate; border-radius: 0.75rem !important; animation: modal-pop 0.2s ease-out;
+} .modal-box { position: relative; isolation: isolate; border-radius: 0.75rem !important; animation: modal-pop 0.2s ease-out; max-width: min(32rem, calc(100dvw - 2rem));
+} .modal-action { flex-wrap: wrap;
 } @keyframes modal-pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); }
 } /* -------------------------------------------------------------------------- MENUS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- BADGES & TABS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- AVATARS -------------------------------------------------------------------------- */ .avatar:hover,
 .avatar img:hover,

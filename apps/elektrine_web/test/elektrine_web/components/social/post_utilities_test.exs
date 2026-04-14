@@ -176,4 +176,20 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
 
     assert PostUtilities.get_display_counts(post, lemmy_counts, %{}) == {11, 4}
   end
+
+  test "get_display_counts/3 falls back to cached federated reply metadata" do
+    post = %{
+      id: 125,
+      activitypub_id: "https://remote.example/post/125",
+      post_type: "discussion",
+      reply_count: 0,
+      media_metadata: %{
+        "reply_count" => 9,
+        "comments" => %{"totalItems" => 12},
+        "remote_engagement" => %{"replies" => 7}
+      }
+    }
+
+    assert PostUtilities.get_display_counts(post, %{}, %{}) == {0, 12}
+  end
 end

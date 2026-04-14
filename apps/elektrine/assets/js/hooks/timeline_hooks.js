@@ -9,6 +9,15 @@ const SCROLL_PAST_THRESHOLD_MS = 500
 const MIN_DWELL_TIME_MS = 1000
 const BATCH_INTERVAL_MS = 5000
 
+function currentScrollY() {
+  return Math.max(
+    window.scrollY || 0,
+    window.pageYOffset || 0,
+    document.documentElement?.scrollTop || 0,
+    document.body?.scrollTop || 0
+  )
+}
+
 // Global state for batching dwell time updates
 let dwellTimeBuffer = new Map()
 let batchTimeout = null
@@ -350,7 +359,7 @@ export const InfiniteScroll = {
     this.pendingResetTimeout = null
     this.checkRAF = null
     this.restoreRAF = null
-    this.restoreTimeout = null
+    this.restoreTimeouts = []
     this.prePatchMode = null
     this.sentinel = null
     this.observer = null
@@ -359,11 +368,15 @@ export const InfiniteScroll = {
     this.prePatchScrollY = null
     this.prePatchAnchor = null
     this.loadCycleStartY = null
+    this.lastKnownScrollY = currentScrollY()
 
     this.setupObserver()
     this.requestCheck()
 
-    this.handleScroll = () => this.cancelSettledRestore()
+    this.handleScroll = () => {
+      this.lastKnownScrollY = currentScrollY()
+      this.cancelSettledRestore()
+    }
     window.addEventListener('scroll', this.handleScroll, { passive: true })
   },
 
@@ -372,7 +385,7 @@ export const InfiniteScroll = {
     this.prePatchShouldPreserve = this.prePatchMode !== null
 
     if (this.prePatchShouldPreserve) {
-      this.prePatchScrollY = window.scrollY
+      this.prePatchScrollY = this.getStableScrollY()
       this.prePatchAnchor = this.findVisiblePostAnchor()
     } else {
       this.prePatchScrollY = null
@@ -429,7 +442,8 @@ export const InfiniteScroll = {
 
     this.pending = true
     this.lastRequestTime = now
-    this.loadCycleStartY = window.scrollY
+    this.lastKnownScrollY = currentScrollY()
+    this.loadCycleStartY = this.lastKnownScrollY
     if (this.observer) this.observer.disconnect()
 
     try {
@@ -461,6 +475,7 @@ export const InfiniteScroll = {
     this.prePatchShouldPreserve = false
     this.prePatchScrollY = null
     this.prePatchAnchor = null
+    this.lastKnownScrollY = currentScrollY()
     if (!this.loadingMore) this.loadCycleStartY = null
     this.pending = false
     this.disabled =
@@ -484,6 +499,17 @@ export const InfiniteScroll = {
     }
 
     return null
+  },
+
+  getStableScrollY() {
+    const scrollY = currentScrollY()
+
+    if (scrollY === 0 && this.lastKnownScrollY > 0) {
+      return this.lastKnownScrollY
+    }
+
+    this.lastKnownScrollY = scrollY
+    return scrollY
   },
 
   findPostById(postId) {
@@ -521,9 +547,9 @@ export const InfiniteScroll = {
 
   cancelSettledRestore() {
     if (this.restoreRAF) cancelAnimationFrame(this.restoreRAF)
-    if (this.restoreTimeout) clearTimeout(this.restoreTimeout)
+    this.restoreTimeouts.forEach((timeoutId) => clearTimeout(timeoutId))
     this.restoreRAF = null
-    this.restoreTimeout = null
+    this.restoreTimeouts = []
   },
 
   scheduleSettledRestore(anchorSnapshot, fallbackScrollY, includeTimeout = false) {
@@ -535,10 +561,14 @@ export const InfiniteScroll = {
     })
 
     if (includeTimeout) {
-      this.restoreTimeout = setTimeout(() => {
-        this.restoreTimeout = null
-        this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY)
-      }, 120)
+      ;[120, 280, 520].forEach((delay) => {
+        const timeoutId = setTimeout(() => {
+          this.restoreTimeouts = this.restoreTimeouts.filter((id) => id !== timeoutId)
+          this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY)
+        }, delay)
+
+        this.restoreTimeouts.push(timeoutId)
+      })
     }
   },
 
@@ -560,21 +590,27 @@ export const PreserveStreamAnchor = {
     this.prePatchAnchor = null
     this.prePatchScrollY = null
     this.restoreRAF = null
-    this.restoreTimeout = null
+    this.restoreTimeouts = []
+    this.lastKnownScrollY = currentScrollY()
 
-    this.handleScroll = () => this.cancelPendingRestore()
+    this.handleScroll = () => {
+      this.lastKnownScrollY = currentScrollY()
+      this.cancelPendingRestore()
+    }
     window.addEventListener('scroll', this.handleScroll, { passive: true })
   },
 
   beforeUpdate() {
-    if (window.scrollY <= 0) {
+    const stableScrollY = this.getStableScrollY()
+
+    if (stableScrollY <= 0) {
       this.prePatchAnchor = null
       this.prePatchScrollY = null
       return
     }
 
     this.prePatchAnchor = this.findVisiblePostAnchor()
-    this.prePatchScrollY = window.scrollY
+    this.prePatchScrollY = stableScrollY
   },
 
   updated() {
@@ -603,6 +639,17 @@ export const PreserveStreamAnchor = {
     return null
   },
 
+  getStableScrollY() {
+    const scrollY = currentScrollY()
+
+    if (scrollY === 0 && this.lastKnownScrollY > 0) {
+      return this.lastKnownScrollY
+    }
+
+    this.lastKnownScrollY = scrollY
+    return scrollY
+  },
+
   findPostById(postId) {
     if (!postId) return null
 
@@ -623,9 +670,9 @@ export const PreserveStreamAnchor = {
 
   cancelPendingRestore() {
     if (this.restoreRAF) cancelAnimationFrame(this.restoreRAF)
-    if (this.restoreTimeout) clearTimeout(this.restoreTimeout)
+    this.restoreTimeouts.forEach((timeoutId) => clearTimeout(timeoutId))
     this.restoreRAF = null
-    this.restoreTimeout = null
+    this.restoreTimeouts = []
   },
 
   schedulePendingRestore(anchorSnapshot) {
@@ -636,10 +683,14 @@ export const PreserveStreamAnchor = {
       this.restoreAnchorPosition(anchorSnapshot)
     })
 
-    this.restoreTimeout = setTimeout(() => {
-      this.restoreTimeout = null
-      this.restoreAnchorPosition(anchorSnapshot)
-    }, 120)
+    ;[120, 280, 520].forEach((delay) => {
+      const timeoutId = setTimeout(() => {
+        this.restoreTimeouts = this.restoreTimeouts.filter((id) => id !== timeoutId)
+        this.restoreAnchorPosition(anchorSnapshot)
+      }, delay)
+
+      this.restoreTimeouts.push(timeoutId)
+    })
   },
 
   destroyed() {
@@ -753,240 +804,5 @@ export const ImageModal = {
   destroyed() {
     document.removeEventListener('keydown', this.handleKeyDown)
     document.removeEventListener('wheel', this.handleWheel)
-  }
-}
-
-/**
- * Dwell Time Tracker Hook
- * Standalone tracker for posts (alternative to PostClick)
- */
-export const DwellTimeTracker = {
-  mounted() {
-    this.postId = this.el.dataset.postId
-    this.source = this.el.dataset.source || 'feed'
-    this.startTime = null
-    this.totalDwellTime = 0
-    this.lastReportedDwellTime = 0
-    this.maxScrollDepth = 0
-    this.isVisible = false
-    this.wasExpanded = false
-
-    this.observer = new IntersectionObserver(
-      (entries) => this.handleIntersection(entries),
-      { root: null, rootMargin: '0px', threshold: [0, 0.25, 0.5, 0.75, 1.0] }
-    )
-    this.observer.observe(this.el)
-    registerDwellTracker(this)
-
-    this.el.addEventListener('click', (e) => this.handleClick(e))
-
-    this.handleVisibilityChange = () => {
-      if (document.hidden && this.isVisible) this.pauseTracking()
-      else if (!document.hidden && this.isVisible) this.resumeTracking()
-    }
-    document.addEventListener('visibilitychange', this.handleVisibilityChange)
-  },
-
-  destroyed() {
-    if (this.observer) this.observer.disconnect()
-    if (this.handleVisibilityChange) {
-      document.removeEventListener('visibilitychange', this.handleVisibilityChange)
-    }
-    unregisterDwellTracker(this)
-    if (this.postId && !navigationFlushInProgress) {
-      this.pauseTracking()
-      this.sendDwellData()
-    }
-  },
-
-  handleIntersection(entries) {
-    const entry = entries[0]
-    if (entry.isIntersecting) {
-      if (!this.isVisible) {
-        this.isVisible = true
-        this.resumeTracking()
-      }
-      if (entry.intersectionRatio > this.maxScrollDepth) {
-        this.maxScrollDepth = entry.intersectionRatio
-      }
-    } else if (this.isVisible) {
-      this.isVisible = false
-      this.pauseTracking()
-      if (this.totalDwellTime < SCROLL_PAST_THRESHOLD_MS && this.totalDwellTime > 0) {
-        this.recordScrollPast()
-      }
-    }
-  },
-
-  handleClick(e) {
-    const isExpandClick = e.target.closest('[data-expand]') ||
-                          e.target.closest('.read-more') ||
-                          e.target.closest('.expand-post')
-    if (isExpandClick) this.wasExpanded = true
-  },
-
-  resumeTracking() {
-    if (!this.startTime) this.startTime = Date.now()
-  },
-
-  pauseTracking() {
-    if (this.startTime) {
-      this.totalDwellTime += Date.now() - this.startTime
-      this.startTime = null
-      this.bufferDwellData()
-    }
-  },
-
-  bufferDwellData() {
-    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
-    const payload = buildDwellPayload(this, pendingDwellTime)
-
-    if (!payload) return
-
-    queueDwellPayload(this.postId, payload)
-    this.lastReportedDwellTime = this.totalDwellTime
-    this.scheduleBatchSend()
-  },
-
-  scheduleBatchSend() {
-    if (!batchTimeout) {
-      batchTimeout = setTimeout(() => {
-        this.sendBatch()
-        batchTimeout = null
-      }, BATCH_INTERVAL_MS)
-    }
-  },
-
-  sendBatch() {
-    if (dwellTimeBuffer.size === 0) return
-    const data = Array.from(dwellTimeBuffer.values())
-    dwellTimeBuffer.clear()
-    void safePushEvent(this, 'record_dwell_times', { views: data })
-  },
-
-  sendDwellData() {
-    const queuedPayload = takeQueuedDwellPayload(this.postId)
-    const pendingDwellTime = this.totalDwellTime - this.lastReportedDwellTime
-    const directPayload = buildDwellPayload(this, pendingDwellTime)
-    const payload = mergeDwellPayloads(queuedPayload, directPayload)
-
-    if (!payload) return
-
-    if (directPayload) this.lastReportedDwellTime = this.totalDwellTime
-
-    void safePushEvent(this, 'record_dwell_time', payload)
-  },
-
-  recordScrollPast() {
-    void safePushEvent(this, 'record_dismissal', {
-      post_id: this.postId,
-      type: 'scrolled_past',
-      dwell_time_ms: this.totalDwellTime
-    })
-  }
-}
-
-/**
- * Not Interested Button Hook
- * Handles explicit "not interested" actions from users
- */
-export const NotInterestedButton = {
-  mounted() {
-    this.el.addEventListener('click', () => {
-      const postId = this.el.dataset.postId
-      this.pushEvent('record_dismissal', { post_id: postId, type: 'not_interested' })
-
-      const postElement = document.getElementById(`post-${postId}`)
-      if (postElement) {
-        postElement.style.opacity = '0'
-        postElement.style.transition = 'opacity 0.3s'
-        setTimeout(() => { postElement.style.display = 'none' }, 300)
-      }
-    })
-  }
-}
-
-/**
- * Hide Post Button Hook
- * Handles explicit "hide" actions from users
- */
-export const HidePostButton = {
-  mounted() {
-    this.el.addEventListener('click', () => {
-      const postId = this.el.dataset.postId
-      this.pushEvent('record_dismissal', { post_id: postId, type: 'hidden' })
-
-      const postElement = document.getElementById(`post-${postId}`)
-      if (postElement) {
-        postElement.style.opacity = '0'
-        postElement.style.transition = 'opacity 0.3s'
-        setTimeout(() => { postElement.style.display = 'none' }, 300)
-      }
-    })
-  }
-}
-
-/**
- * Session Context Tracker
- * Tracks session-level engagement for real-time feed adaptation
- */
-export const SessionContextTracker = {
-  mounted() {
-    this.sessionData = {
-      liked_hashtags: [],
-      liked_creators: [],
-      liked_local_creators: [],
-      liked_remote_creators: [],
-      viewed_posts: [],
-      total_interactions: 0,
-      total_views: 0
-    }
-
-    this.handleEvent('post_liked', (data) => {
-      this.sessionData.total_interactions++
-      if (data.hashtags) {
-        this.sessionData.liked_hashtags.push(...data.hashtags)
-        this.sessionData.liked_hashtags = [...new Set(this.sessionData.liked_hashtags)]
-      }
-
-      const localCreatorId =
-        data.sender_id || (data.creator_type === 'local' ? data.creator_id : null)
-      const remoteCreatorId =
-        data.remote_actor_id || (data.creator_type === 'remote' ? data.creator_id : null)
-
-      if (localCreatorId && !this.sessionData.liked_local_creators.includes(localCreatorId)) {
-        this.sessionData.liked_local_creators.push(localCreatorId)
-      }
-      if (remoteCreatorId && !this.sessionData.liked_remote_creators.includes(remoteCreatorId)) {
-        this.sessionData.liked_remote_creators.push(remoteCreatorId)
-      }
-
-      // Legacy field for LiveViews that still read liked_creators.
-      this.sessionData.liked_creators = this.sessionData.liked_local_creators
-      this.updateEngagementRate()
-    })
-
-    this.handleEvent('post_viewed', (data) => {
-      this.sessionData.total_views++
-      if (data.post_id && !this.sessionData.viewed_posts.includes(data.post_id)) {
-        this.sessionData.viewed_posts.push(data.post_id)
-      }
-      this.updateEngagementRate()
-    })
-  },
-
-  updateEngagementRate() {
-    const engagementRate = this.sessionData.total_views > 0
-      ? this.sessionData.total_interactions / this.sessionData.total_views
-      : 0
-
-    this.pushEvent('update_session_context', {
-      liked_hashtags: this.sessionData.liked_hashtags.slice(-20),
-      liked_creators: this.sessionData.liked_creators.slice(-10),
-      liked_local_creators: this.sessionData.liked_local_creators.slice(-10),
-      liked_remote_creators: this.sessionData.liked_remote_creators.slice(-10),
-      viewed_posts: this.sessionData.viewed_posts.slice(-50),
-      engagement_rate: engagementRate
-    })
   }
 }

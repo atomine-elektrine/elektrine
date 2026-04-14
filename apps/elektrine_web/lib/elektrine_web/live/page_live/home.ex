@@ -29,9 +29,9 @@ defmodule ElektrineWeb.PageLive.Home do
 
       <div class="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-6 sm:px-8 lg:px-10">
         <header class="flex items-center justify-between gap-4 py-2">
-          <a href="/" class="inline-flex items-center">
+          <.link navigate={~p"/"} class="inline-flex items-center">
             <img src="/images/logo.svg" alt="Elektrine" class="h-8 w-auto sm:h-9" />
-          </a>
+          </.link>
         </header>
 
         <main class="flex flex-1 items-center py-8 lg:py-10">

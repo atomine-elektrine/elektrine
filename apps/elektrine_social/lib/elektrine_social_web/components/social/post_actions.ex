@@ -561,6 +561,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       |> assign(:btn_class, btn_class)
       |> assign(:icon_class, icon_class)
       |> assign(:score_class, score_class)
+      |> assign(:show_score, assigns.score != 0 || assigns.is_upvoted || assigns.is_downvoted)
 
     ~H"""
     <div
@@ -597,19 +598,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         </div>
       <% end %>
 
-      <span
-        class={[
-          @score_class,
-          cond do
-            @is_upvoted -> "text-secondary"
-            @is_downvoted -> "text-error"
-            true -> ""
-          end
-        ]}
-        aria-label={"Score: #{@score}"}
-      >
-        {@score}
-      </span>
+      <%= if @show_score do %>
+        <span
+          class={[
+            @score_class,
+            cond do
+              @is_upvoted -> "text-secondary"
+              @is_downvoted -> "text-error"
+              true -> ""
+            end
+          ]}
+          aria-label={"Score: #{@score}"}
+        >
+          {@score}
+        </span>
+      <% end %>
 
       <%= if @current_user do %>
         <button

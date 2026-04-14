@@ -407,45 +407,45 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     subject = extract_subject(params)
     in_reply_to = extract_threading_header(params, ["in_reply_to", "in-reply-to"])
     references = extract_threading_header(params, ["references"])
-
-    authenticated_context =
-      if trusted_local_sender?(params, from) do
-        %{authenticated: true}
-      else
-        nil
-      end
-
-    case HeaderSanitizer.check_local_domain_spoofing(from, authenticated_context) do
-      {:error, reason} -> throw({:security_rejection, {:local_domain_spoofing, reason}})
-      _ -> :ok
-    end
-
-    case HeaderSanitizer.check_bounce_attack(%{from: from, to: to, subject: subject}) do
-      {:error, reason} -> throw({:security_rejection, {:bounce_attack, reason}})
-      _ -> :ok
-    end
-
-    if params["raw"] do
-      case HeaderSanitizer.check_multiple_from_headers(params["raw"]) do
-        {:error, reason} -> throw({:security_rejection, {:multiple_from_headers, reason}})
-        _ -> :ok
-      end
-    end
-
-    raw_text_body = ensure_safe_utf8(params["text_body"] || "")
-    raw_html_body = ensure_safe_utf8(params["html_body"] || "")
-    raw_attachments = normalize_attachments_to_list(params["attachments"])
-
-    {text_body, html_body, attachments} =
-      reconstruct_pgp_mime_if_needed(raw_text_body, raw_html_body, raw_attachments)
-
-    has_attachments = map_size(attachments) > 0
     is_outbound = InboundRouting.outbound_email?(from, to)
-    is_loopback = InboundRouting.loopback_email?(from, to, subject)
 
     if is_outbound do
       {:ok, %{id: "skipped-outbound", message_id: message_id}}
     else
+      authenticated_context =
+        if trusted_local_sender?(params, from) do
+          %{authenticated: true}
+        else
+          nil
+        end
+
+      case HeaderSanitizer.check_local_domain_spoofing(from, authenticated_context) do
+        {:error, reason} -> throw({:security_rejection, {:local_domain_spoofing, reason}})
+        _ -> :ok
+      end
+
+      case HeaderSanitizer.check_bounce_attack(%{from: from, to: to, subject: subject}) do
+        {:error, reason} -> throw({:security_rejection, {:bounce_attack, reason}})
+        _ -> :ok
+      end
+
+      if params["raw"] do
+        case HeaderSanitizer.check_multiple_from_headers(params["raw"]) do
+          {:error, reason} -> throw({:security_rejection, {:multiple_from_headers, reason}})
+          _ -> :ok
+        end
+      end
+
+      raw_text_body = ensure_safe_utf8(params["text_body"] || "")
+      raw_html_body = ensure_safe_utf8(params["html_body"] || "")
+      raw_attachments = normalize_attachments_to_list(params["attachments"])
+
+      {text_body, html_body, attachments} =
+        reconstruct_pgp_mime_if_needed(raw_text_body, raw_html_body, raw_attachments)
+
+      has_attachments = map_size(attachments) > 0
+      is_loopback = InboundRouting.loopback_email?(from, to, subject)
+
       if is_loopback do
         {:ok, %{id: "skipped-loopback", message_id: message_id}}
       else
@@ -1033,15 +1033,31 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   defp authenticated_submission?(params) when is_map(params) do
     bool_keys = ["authenticated", "auth", "smtp_authenticated", "is_authenticated"]
     user_keys = ["auth_user", "auth_username", "authenticated_user"]
-    has_truthy_boolean = Enum.any?(bool_keys, fn key -> truthy?(params[key]) end)
 
-    has_auth_user =
-      Enum.any?(user_keys, fn key ->
-        value = params[key]
-        Elektrine.Strings.present?(value)
+    auth_contexts =
+      [
+        params,
+        map_value(params, "notes"),
+        map_value(params, "connection"),
+        params |> map_value("connection") |> map_value("notes")
+      ]
+      |> Enum.filter(&is_map/1)
+
+    has_truthy_boolean =
+      Enum.any?(auth_contexts, fn auth_context ->
+        Enum.any?(bool_keys, fn key -> truthy?(map_value(auth_context, key)) end)
       end)
 
-    has_truthy_boolean or has_auth_user
+    has_auth_user =
+      Enum.any?(auth_contexts, fn auth_context ->
+        Enum.any?(user_keys, fn key ->
+          value = map_value(auth_context, key)
+          Elektrine.Strings.present?(value)
+        end)
+      end)
+
+    has_truthy_boolean or has_auth_user or
+      Enum.any?(auth_contexts, &truthy?(map_value(&1, "relaying")))
   end
 
   defp authenticated_submission?(_) do
@@ -1063,6 +1079,14 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   defp truthy?(_) do
     false
   end
+
+  defp map_value(map, key) when is_map(map) and is_binary(key) do
+    Map.get(map, key) || Map.get(map, String.to_atom(key))
+  rescue
+    ArgumentError -> Map.get(map, key)
+  end
+
+  defp map_value(_, _), do: nil
 
   defp valid_internal_origin_signature?(params, from) do
     with secret when is_binary(secret) <- internal_signing_secret(),

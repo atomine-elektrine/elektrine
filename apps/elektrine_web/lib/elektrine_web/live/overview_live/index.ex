@@ -25,7 +25,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
   @dashboard_load_timeout_ms 10_000
   @activity_inspector_page_size 25
   @session_interest_dwell_ms 10_000
-  @dwell_rerank_delay_ms 350
   @overview_feed_limit 20
   @overview_feed_step 20
   @activity_sections ~w(posts timeline gallery discussions likes followers following)
@@ -85,7 +84,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:no_more_posts, false)
        |> assign(:last_fetched_post_count, 0)
        |> assign(:session_context, default_session_context())
-       |> assign(:feed_rerank_ref, nil)
        |> assign(:show_image_modal, false)
        |> assign(:modal_image_url, nil)
        |> assign(:modal_images, [])
@@ -377,8 +375,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                    |> update(:all_posts, update_likes_fn)
                    |> update(:filtered_all_posts, update_likes_fn)
                    |> sync_overview_posts_stream()
-                   |> note_positive_signal(post)
-                   |> schedule_feed_rerank(250)}
+                   |> note_positive_signal(post)}
 
                 {:error, _} ->
                   {:noreply, put_flash(socket, :error, "Failed to like post")}
@@ -446,8 +443,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
                  |> update(:all_posts, update_boosts_fn)
                  |> update(:filtered_all_posts, update_boosts_fn)
                  |> sync_overview_posts_stream()
-                 |> note_positive_signal(post)
-                 |> schedule_feed_rerank(350)}
+                 |> note_positive_signal(post)}
 
               {:error, _} ->
                 {:noreply, put_flash(socket, :error, "Failed to boost post")}
@@ -1059,7 +1055,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
         socket
         |> note_dismissal_signal(post_id)
         |> remove_overview_post(post_id)
-        |> schedule_feed_rerank(150)
         |> put_flash(:info, "We’ll show less like this.")
       else
         socket
@@ -1078,7 +1073,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
         socket
         |> note_dismissal_signal(post_id)
         |> remove_overview_post(post_id)
-        |> schedule_feed_rerank(150)
         |> put_flash(:info, "Post hidden from your overview.")
       else
         socket
@@ -1361,40 +1355,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   def handle_info({:load_more_feed, limit}, socket) do
     {:noreply, load_feed_data(socket, limit)}
-  end
-
-  def handle_info(:refresh_feed_ranking, socket) do
-    socket = assign(socket, :feed_rerank_ref, nil)
-
-    if is_nil(socket.assigns[:current_user]) or socket.assigns.loading_feed or
-         !socket.assigns.data_loaded do
-      {:noreply, socket}
-    else
-      case load_with_timeout(
-             :for_you_feed_rerank,
-             fn ->
-               load_overview_feed_posts(
-                 socket.assigns.current_user.id,
-                 socket.assigns.filter,
-                 socket.assigns.visible_post_limit,
-                 socket.assigns[:session_context] || %{}
-               )
-               |> build_feed_state(socket.assigns.current_user.id)
-             end,
-             4000
-           ) do
-        {:ok, feed_data} ->
-          feed_data =
-            Map.update(feed_data, :all_posts, socket.assigns.all_posts || [], fn posts ->
-              merge_overview_posts(socket.assigns.all_posts || [], posts || [])
-            end)
-
-          {:noreply, assign_feed_data(socket, feed_data)}
-
-        {:error, _reason} ->
-          {:noreply, socket}
-      end
-    end
   end
 
   def handle_info(:load_stats_data, socket) do
@@ -2826,7 +2786,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
     if coerce_int(dwell_time_ms, 0) >= @session_interest_dwell_ms do
       socket
       |> note_positive_signal(find_overview_post(socket.assigns.all_posts, post_id))
-      |> schedule_feed_rerank(@dwell_rerank_delay_ms)
     else
       socket
     end
@@ -2892,14 +2851,6 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     total_interactions = session_context.total_interactions || 0
     Map.put(session_context, :engagement_rate, total_interactions / total_views)
-  end
-
-  defp schedule_feed_rerank(socket, delay_ms) do
-    if is_reference(socket.assigns[:feed_rerank_ref]) do
-      Process.cancel_timer(socket.assigns.feed_rerank_ref)
-    end
-
-    assign(socket, :feed_rerank_ref, Process.send_after(self(), :refresh_feed_ranking, delay_ms))
   end
 
   defp remove_overview_post(socket, post_id) do

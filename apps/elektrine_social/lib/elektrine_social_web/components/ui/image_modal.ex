@@ -20,14 +20,25 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
   attr :time_format, :string, default: "24h"
   attr :user_statuses, :map, default: %{}
   attr :is_liked, :boolean, default: false
-  attr :like_count, :integer, default: 0
+  attr :like_count, :any, default: nil
   attr :current_user, :map, default: nil
   attr :can_like, :boolean, default: false
 
   def image_modal(assigns) do
     # Generate unique ID based on image URL to ensure hook remounts properly
     modal_id = "image-modal-#{:erlang.phash2(assigns.image_url || "default")}"
-    assigns = assign(assigns, :modal_id, modal_id)
+
+    display_like_count =
+      cond do
+        is_integer(assigns.like_count) -> assigns.like_count
+        is_map(assigns.post) -> Map.get(assigns.post, :like_count, 0) || 0
+        true -> 0
+      end
+
+    assigns =
+      assigns
+      |> assign(:modal_id, modal_id)
+      |> assign(:display_like_count, display_like_count)
 
     ~H"""
     <%= if @show do %>
@@ -242,25 +253,25 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <!-- Like Button -->
-                  <%= if can_like_in_modal do %>
-                    <%= if @current_user do %>
-                      <button
-                        type="button"
-                        phx-click="toggle_modal_like"
-                        phx-value-post_id={post_id_for_like}
-                        class="btn btn-ghost btn-sm gap-1"
-                      >
-                        <%= if @is_liked do %>
-                          <.icon name="hero-heart-solid" class="w-4 h-4 text-error" />
-                        <% else %>
-                          <.icon name="hero-heart" class="w-4 h-4" />
-                        <% end %>
-                        <span>{@like_count}</span>
-                      </button>
-                    <% else %>
+                  <%= if can_like_in_modal && @current_user do %>
+                    <button
+                      type="button"
+                      phx-click="toggle_modal_like"
+                      phx-value-post_id={post_id_for_like}
+                      class="btn btn-ghost btn-sm gap-1"
+                    >
+                      <%= if @is_liked do %>
+                        <.icon name="hero-heart-solid" class="w-4 h-4 text-error" />
+                      <% else %>
+                        <.icon name="hero-heart" class="w-4 h-4" />
+                      <% end %>
+                      <span>{@display_like_count}</span>
+                    </button>
+                  <% else %>
+                    <%= if @post do %>
                       <div class="flex items-center gap-1 text-sm opacity-70">
                         <.icon name="hero-heart" class="w-4 h-4" />
-                        <span>{@like_count}</span>
+                        <span>{@display_like_count}</span>
                       </div>
                     <% end %>
                   <% end %>

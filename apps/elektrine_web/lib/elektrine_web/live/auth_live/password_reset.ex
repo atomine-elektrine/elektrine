@@ -62,9 +62,9 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                     </label>
                     <div class="flex items-center gap-3">
                       <img src={~p"/captcha"} alt="Captcha" class="rounded border border-base-300" />
-                      <a href={~p"/password/reset"} class="btn btn-ghost btn-sm">
+                      <.link href={~p"/password/reset"} class="btn btn-ghost btn-sm">
                         {gettext("Refresh")}
-                      </a>
+                      </.link>
                     </div>
                     <input
                       type="text"

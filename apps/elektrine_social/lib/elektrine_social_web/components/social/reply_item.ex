@@ -87,14 +87,9 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                 user_follows={@user_follows}
                 current_user={@current_user}
               >
-                <button
-                  phx-click="navigate_to_profile"
-                  phx-value-handle={@normalized.handle}
-                  type="button"
-                  class="w-8 h-8"
-                >
+                <.link navigate={"/#{@normalized.handle}"} class="w-8 h-8">
                   <.user_avatar user={@reply.sender} size="xs" />
-                </button>
+                </.link>
               </.user_hover_card>
             <% :remote -> %>
               <.user_hover_card
@@ -146,10 +141,8 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                   user_follows={@user_follows}
                   current_user={@current_user}
                 >
-                  <button
-                    phx-click="navigate_to_profile"
-                    phx-value-handle={@normalized.handle}
-                    type="button"
+                  <.link
+                    navigate={"/#{@normalized.handle}"}
                     class="font-medium text-sm text-left truncate"
                   >
                     <.username_with_effects
@@ -157,7 +150,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                       display_name={true}
                       verified_size="xs"
                     />
-                  </button>
+                  </.link>
                 </.user_hover_card>
                 <div class="text-xs opacity-70 truncate">
                   {AccountIdentifiers.at_local_handle(@normalized.handle)}
@@ -200,8 +193,8 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                 </.link>
                 <div class="text-xs opacity-70 truncate">
                   @{@normalized.handle}@{@normalized.domain}
-                  <%= if @normalized.score do %>
-                    · {@normalized.score} points
+                  <%= if reply_like_display_count(@normalized) > 0 do %>
+                    · {reply_like_display_count(@normalized)} upvotes
                   <% end %>
                 </div>
             <% end %>
@@ -275,7 +268,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
               }
               class={["w-3 h-3", is_liked && "text-error"]}
             />
-            <span class="text-xs">{@normalized.like_count || 0}</span>
+            <span class="text-xs">{reply_like_display_count(@normalized)}</span>
           </span>
         </button>
       <% end %>
@@ -323,10 +316,10 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
 
       <%= if !@interaction_id do %>
         <!-- Remote reply stats (read-only) -->
-        <%= if @normalized.like_count > 0 || @normalized.score do %>
+        <%= if reply_like_display_count(@normalized) > 0 do %>
           <div class="flex items-center gap-1 text-xs opacity-60">
             <.icon name="hero-heart" class="w-3 h-3" />
-            <span>{@normalized.score || @normalized.like_count}</span>
+            <span>{reply_like_display_count(@normalized)}</span>
           </div>
         <% end %>
         <%= if @normalized.reply_count > 0 do %>
@@ -376,6 +369,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           content: reply.content,
           timestamp: reply.inserted_at,
           like_count: reply.like_count || 0,
+          upvotes: 0,
           reply_count: reply.reply_count || 0,
           share_count: reply.share_count || 0,
           score: nil,
@@ -396,9 +390,10 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           content: reply.content,
           timestamp: reply.inserted_at,
           like_count: reply.like_count || 0,
+          upvotes: reply.upvotes || 0,
           reply_count: reply.reply_count || 0,
           share_count: reply.share_count || 0,
-          score: nil,
+          score: reply.score,
           ap_id: reply.activitypub_id || reply.activitypub_url
         }
 
@@ -415,6 +410,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           content: reply.content,
           timestamp: nil,
           like_count: 0,
+          upvotes: reply[:upvotes] || 0,
           reply_count: reply[:child_count] || 0,
           share_count: 0,
           score: reply[:score] || reply[:upvotes],
@@ -434,6 +430,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           content: Map.get(reply, :content),
           timestamp: nil,
           like_count: 0,
+          upvotes: 0,
           reply_count: 0,
           share_count: 0,
           score: nil,
@@ -484,6 +481,19 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   end
 
   defp reply_click_target(_, _), do: nil
+
+  defp reply_like_display_count(normalized) when is_map(normalized) do
+    cond do
+      is_integer(Map.get(normalized, :upvotes)) && Map.get(normalized, :upvotes) > 0 ->
+        Map.get(normalized, :upvotes)
+
+      is_integer(Map.get(normalized, :like_count)) && Map.get(normalized, :like_count) > 0 ->
+        Map.get(normalized, :like_count)
+
+      true ->
+        0
+    end
+  end
 
   defp render_reply_content_html(%{
          author_type: author_type,

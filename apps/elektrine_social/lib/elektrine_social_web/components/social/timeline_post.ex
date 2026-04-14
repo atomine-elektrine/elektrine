@@ -142,9 +142,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         []
       end
 
-    # Calculate display counts
-    {display_like_count, display_comment_count} =
+    # Calculate display counts and apply optimistic like state for live button updates.
+    {base_like_count, display_comment_count} =
       PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
+
+    interaction_key = if post.activitypub_id, do: post.activitypub_id, else: to_string(post.id)
+    post_state = Map.get(assigns.post_interactions, interaction_key, %{like_delta: 0})
+    display_like_count = max((base_like_count || 0) + Map.get(post_state, :like_delta, 0), 0)
 
     assigns =
       assigns
@@ -1524,32 +1528,24 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <div class="flex items-center gap-2 mb-2">
             <%= if @post.quoted_message.sender do %>
               <.user_hover_card user={@post.quoted_message.sender}>
-                <button
-                  phx-click="navigate_to_profile"
-                  phx-value-handle={
-                    @post.quoted_message.sender.handle || @post.quoted_message.sender.username
-                  }
+                <.link
+                  navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="w-6 h-6"
-                  type="button"
                 >
                   <.user_avatar user={@post.quoted_message.sender} size="xs" />
-                </button>
+                </.link>
               </.user_hover_card>
               <.user_hover_card user={@post.quoted_message.sender}>
-                <button
-                  phx-click="navigate_to_profile"
-                  phx-value-handle={
-                    @post.quoted_message.sender.handle || @post.quoted_message.sender.username
-                  }
+                <.link
+                  navigate={"/#{@post.quoted_message.sender.handle || @post.quoted_message.sender.username}"}
                   class="font-medium text-sm hover:text-error transition-colors"
-                  type="button"
                 >
                   <.username_with_effects
                     user={@post.quoted_message.sender}
                     display_name={true}
                     verified_size="xs"
                   />
-                </button>
+                </.link>
               </.user_hover_card>
               <span class="text-xs opacity-60">@{@post.quoted_message.sender.username}</span>
             <% else %>
@@ -2269,7 +2265,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     # Get interaction state
     post_state =
-      Map.get(assigns.post_interactions, post_id, %{liked: false, downvoted: false, like_delta: 0})
+      [post.activitypub_id, Integer.to_string(post.id), post.id]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.find_value(%{liked: false, downvoted: false, like_delta: 0}, fn key ->
+        Map.get(assigns.post_interactions, key)
+      end)
 
     like_only_mode = assigns.interaction_mode == :like_only
 
@@ -2329,25 +2329,32 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         like_only_mode && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
           lemmy_counts.score
 
-        like_only_mode && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
+        like_only_mode && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
           (post.upvotes || 0) - (post.downvotes || 0)
 
         is_vote_post &&
           is_map(lemmy_counts) &&
-            (is_integer(lemmy_counts.upvotes) or is_integer(lemmy_counts.downvotes)) ->
+            ((lemmy_counts.upvotes || 0) != 0 or (lemmy_counts.downvotes || 0) != 0) ->
           (lemmy_counts.upvotes || 0) - (lemmy_counts.downvotes || 0)
 
-        is_vote_post && (is_integer(post.upvotes) or is_integer(post.downvotes)) ->
+        is_vote_post && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
           (post.upvotes || 0) - (post.downvotes || 0)
 
-        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) ->
+        is_vote_post && (is_integer(post.like_count) or is_integer(post.dislike_count)) ->
+          (post.like_count || 0) - (post.dislike_count || 0)
+
+        is_vote_post && is_map(lemmy_counts) && is_integer(lemmy_counts.score) &&
+            lemmy_counts.score != 0 ->
           lemmy_counts.score
 
-        is_vote_post && is_integer(post.score) ->
+        is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
         is_vote_post && is_integer(post.like_count) ->
           post.like_count
+
+        is_vote_post && is_integer(post.score) ->
+          post.score
 
         is_integer(post.like_count) ->
           post.like_count
@@ -2469,7 +2476,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex">
         <!-- Vote Column -->
         <div
-          class="flex flex-col items-center p-2 bg-base-200/50 gap-1 w-12 flex-shrink-0"
+          class="flex flex-col items-center self-start h-fit p-2 bg-base-200/50 gap-1 w-12 flex-shrink-0"
           role="group"
           aria-label="Voting"
         >

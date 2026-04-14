@@ -20,8 +20,6 @@ defmodule Elektrine.ActivityPub.Fetcher do
   """
   def fetch_actor(uri, opts \\ []) do
     with :ok <- validate_fetch_url(uri, :actor, opts) do
-      Logger.info("Fetching actor from: #{uri}")
-
       # Tests may inject a request function and don't need nodeinfo side effects.
       unless Keyword.has_key?(opts, :request_fun) do
         # Trigger nodeinfo fetch for this instance (async, deduplicated)

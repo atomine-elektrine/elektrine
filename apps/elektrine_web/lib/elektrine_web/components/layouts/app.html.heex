@@ -34,9 +34,9 @@
         <ul tabindex="0" class="menu dropdown-content mt-3 z-[1] p-2 rounded-lg w-52">
           <%= if @current_user do %>
             <li>
-              <a href={~p"/account"} class="rounded-lg">
+              <.link navigate={~p"/account"} class="rounded-lg">
                 <.icon name="hero-user-circle" class="w-5 h-5" /> {gettext("Account")}
-              </a>
+              </.link>
             </li>
 
             <%= if @current_user.is_admin do %>
@@ -68,9 +68,9 @@
         </ul>
       </div>
 
-      <a href="/" class="btn btn-ghost px-2 sm:px-3 flex-shrink-0">
+      <.link navigate={~p"/"} class="btn btn-ghost px-2 sm:px-3 flex-shrink-0">
         <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
-      </a>
+      </.link>
     </div>
 
     <div class="navbar-center hidden lg:flex">
@@ -515,10 +515,15 @@
           </ul>
         </div>
       <% else %>
-        <a href={Elektrine.Paths.login_path()} class="btn btn-ghost rounded-full flex-shrink-0">
+        <.link
+          navigate={Elektrine.Paths.login_path()}
+          class="btn btn-ghost rounded-full flex-shrink-0"
+        >
           Log in
-        </a>
-        <a href={~p"/register"} class="btn btn-primary rounded-full flex-shrink-0">Register</a>
+        </.link>
+        <.link navigate={~p"/register"} class="btn btn-primary rounded-full flex-shrink-0">
+          Register
+        </.link>
       <% end %>
     </div>
   </div>

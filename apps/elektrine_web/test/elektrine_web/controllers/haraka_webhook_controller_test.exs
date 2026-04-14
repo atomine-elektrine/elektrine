@@ -787,6 +787,58 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
       assert json_response(conn, 200)["status"] == "success"
       assert length(Email.list_inbox_messages(mailbox.id)) == 1
     end
+
+    test "allows local-domain sender when Haraka nests SMTP auth metadata", %{conn: conn} do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "recipient@example.com"})
+
+      params = %{
+        "from" => "trusted@example.com",
+        "to" => "recipient@example.com",
+        "rcpt_to" => "recipient@example.com",
+        "subject" => "Nested auth metadata",
+        "text_body" => "hello",
+        "connection" => %{
+          "relaying" => true,
+          "notes" => %{"auth_user" => "trusted@example.com"}
+        },
+        "message_id" => "nested-auth-local-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+      assert length(Email.list_inbox_messages(mailbox.id)) == 1
+      assert_spoof_alert_count(mailbox.id, 0)
+    end
+
+    test "skips outbound local mail to external recipients without generating spoof alerts", %{
+      conn: conn
+    } do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      params = %{
+        "from" => mailbox.email,
+        "to" => "outside@remote.test",
+        "rcpt_to" => "outside@remote.test",
+        "subject" => "Outbound delivery",
+        "text_body" => "hello",
+        "message_id" => "outbound-local-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+      assert Email.list_inbox_messages(mailbox.id) == []
+      assert_spoof_alert_count(mailbox.id, 0)
+    end
   end
 
   describe "cross-domain mailing lists" do
