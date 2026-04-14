@@ -79,7 +79,7 @@
   background: var(--theme-effect-mark-glow);
   border-radius: 50%;
   animation: mark-rotate 8s linear infinite;
-  blur: 4px;
+  filter: blur(4px);
   opacity: 0.7;
 }
 

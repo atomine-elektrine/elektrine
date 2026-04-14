@@ -604,7 +604,11 @@ defmodule Elektrine.Email.PGP do
 
   @doc "Returns true when the `gpg` executable is available on this node.\n"
   def gpg_available? do
-    match?(path when is_binary(path), System.find_executable("gpg"))
+    is_binary(gpg_executable())
+  end
+
+  defp gpg_executable do
+    System.find_executable("gpg") || System.find_executable("gpg2")
   end
 
   @doc "Converts binary key data to ASCII armor format.\n"
@@ -652,6 +656,8 @@ defmodule Elektrine.Email.PGP do
   end
 
   defp encrypt_with_gpg(plaintext, public_key_armors) do
+    gpg = gpg_executable()
+
     temp_dir =
       Path.join(
         System.tmp_dir!(),
@@ -692,7 +698,7 @@ defmodule Elektrine.Email.PGP do
             ] ++ Enum.flat_map(key_files, &["--recipient-file", &1]) ++ [input_file]
 
           {output, encrypt_status} =
-            System.cmd("gpg", encrypt_args, stderr_to_stdout: true)
+            System.cmd(gpg, encrypt_args, stderr_to_stdout: true)
 
           if encrypt_status == 0 and File.exists?(encrypted_file) do
             {:ok, File.read!(encrypted_file)}
@@ -715,9 +721,11 @@ defmodule Elektrine.Email.PGP do
   end
 
   defp import_keys(homedir, key_files) do
+    gpg = gpg_executable()
+
     Enum.reduce_while(key_files, :ok, fn key_file, _acc ->
       case System.cmd(
-             "gpg",
+             gpg,
              ["--homedir", homedir, "--batch", "--yes", "--import", key_file],
              stderr_to_stdout: true
            ) do

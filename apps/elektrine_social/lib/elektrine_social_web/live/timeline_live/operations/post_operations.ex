@@ -388,8 +388,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     if socket.assigns.loading_more || socket.assigns[:no_more_posts] do
       {:noreply, socket}
     else
-      send(self(), :load_more_timeline_posts)
-      {:noreply, assign(socket, :loading_more, true)}
+      {:noreply, handle_load_more(socket)}
     end
   end
 

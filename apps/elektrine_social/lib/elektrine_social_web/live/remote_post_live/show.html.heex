@@ -642,26 +642,32 @@
                       base_score =
                         cond do
                           is_map(lemmy) and
-                              (is_integer(lemmy.upvotes) or is_integer(lemmy.downvotes)) ->
+                              ((lemmy.upvotes || 0) != 0 or (lemmy.downvotes || 0) != 0) ->
                             (lemmy.upvotes || 0) - (lemmy.downvotes || 0)
 
                           is_map(lemmy) and is_integer(lemmy.score) ->
                             lemmy.score
 
                           is_map(embedded_lemmy) and
-                              (is_integer(embedded_lemmy["upvotes"]) or
-                                 is_integer(embedded_lemmy["downvotes"])) ->
+                              ((embedded_lemmy["upvotes"] || 0) != 0 or
+                                 (embedded_lemmy["downvotes"] || 0) != 0) ->
                             (embedded_lemmy["upvotes"] || 0) - (embedded_lemmy["downvotes"] || 0)
 
                           is_map(embedded_lemmy) and is_integer(embedded_lemmy["score"]) ->
                             embedded_lemmy["score"]
 
                           @local_message &&
-                              (is_integer(@local_message.upvotes) or
-                                 is_integer(@local_message.downvotes)) ->
+                              ((@local_message.upvotes || 0) != 0 or
+                                 (@local_message.downvotes || 0) != 0) ->
                             (@local_message.upvotes || 0) - (@local_message.downvotes || 0)
 
-                          is_integer(@post["upvotes"]) or is_integer(@post["downvotes"]) ->
+                          is_integer(@post["score"]) ->
+                            @post["score"]
+
+                          @local_message && is_integer(@local_message.score) ->
+                            @local_message.score
+
+                          (@post["upvotes"] || 0) != 0 or (@post["downvotes"] || 0) != 0 ->
                             (@post["upvotes"] || 0) - (@post["downvotes"] || 0)
 
                           is_integer(@post["like_count"]) ->
