@@ -4,6 +4,16 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: elektrine_db
+    command:
+      [
+        "postgres",
+        "-c",
+        "shared_preload_libraries=pg_stat_statements",
+        "-c",
+        "pg_stat_statements.max=10000",
+        "-c",
+        "pg_stat_statements.track=all"
+      ]
     environment:
       POSTGRES_USER: elektrine
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}

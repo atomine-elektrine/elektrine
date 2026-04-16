@@ -12,6 +12,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
   alias Elektrine.Social.Votes
+  alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
   alias ElektrineWeb.Live.PostInteractions
 
