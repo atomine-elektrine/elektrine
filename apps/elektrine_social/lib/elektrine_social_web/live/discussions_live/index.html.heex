@@ -1075,74 +1075,100 @@
                   </section>
 
                   <%= if @current_user do %>
-                    <%= if feed_post_count > 0 do %>
-                      <div class="space-y-4">
-                        <%= for {post, index} <- Enum.with_index(@filtered_community_posts) do %>
-                          <%= if show_public_fallback_divider?(
+                    <%= if @loading_communities do %>
+                      <div class="space-y-4 animate-pulse" aria-label="Loading community feed">
+                        <%= for _i <- 1..4 do %>
+                          <article class="card panel-card timeline-post-card border border-base-300 rounded-lg overflow-hidden">
+                            <div class="flex">
+                              <div class="flex flex-col items-center gap-2 w-12 flex-shrink-0 bg-base-200/50 p-2">
+                                <div class="w-6 h-6 rounded bg-base-300"></div>
+                                <div class="w-6 h-4 rounded bg-base-300"></div>
+                                <div class="w-6 h-6 rounded bg-base-300"></div>
+                              </div>
+                              <div class="w-20 h-20 flex-shrink-0 m-2 rounded bg-base-300"></div>
+                              <div class="flex-1 p-2 min-w-0 space-y-3">
+                                <div class="h-4 w-5/6 rounded bg-base-300"></div>
+                                <div class="h-3 w-1/3 rounded bg-base-300"></div>
+                                <div class="flex gap-2">
+                                  <div class="h-3 w-16 rounded bg-base-300"></div>
+                                  <div class="h-3 w-20 rounded bg-base-300"></div>
+                                  <div class="h-3 w-14 rounded bg-base-300"></div>
+                                </div>
+                              </div>
+                            </div>
+                          </article>
+                        <% end %>
+                      </div>
+                    <% else %>
+                      <%= if feed_post_count > 0 do %>
+                        <div class="space-y-4">
+                          <%= for {post, index} <- Enum.with_index(@filtered_community_posts) do %>
+                            <%= if show_public_fallback_divider?(
                             @filtered_community_posts,
                             @public_fallback_post_ids,
                             index
                           ) do %>
-                            <div class="rounded-2xl border border-dashed border-base-300/80 bg-base-200/40 px-4 py-3 text-sm text-base-content/70">
-                              More from public communities
-                            </div>
-                          <% end %>
-                          <.timeline_post
-                            post={post}
-                            layout={:lemmy}
-                            current_user={@current_user}
-                            timezone={@timezone}
-                            time_format={@time_format}
-                            post_interactions={@post_interactions}
-                            user_likes={%{}}
-                            lemmy_counts={@lemmy_counts}
-                            post_reactions_map={@post_reactions}
-                            replies={Map.get(@post_replies, post.activitypub_id, [])}
-                            reactions={Map.get(@post_reactions, post.id, [])}
-                          />
-                        <% end %>
-                      </div>
-
-                      <%= if length(@followed_community_posts || []) >= 20 do %>
-                        <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
-                          <%= if @loading_more do %>
-                            <div class="h-16 rounded-lg flex items-center justify-center">
-                              <div class="flex items-center gap-2 text-sm text-base-content/70">
-                                <.spinner size="sm" /> <span>Loading more posts...</span>
-                              </div>
-                            </div>
-                          <% else %>
-                            <%= if @no_more_posts do %>
-                              <div class="text-sm text-base-content/60">No more posts</div>
-                            <% else %>
-                              <div class="text-center">
-                                <button
-                                  type="button"
-                                  phx-click="load_more_posts"
-                                  class="btn btn-ghost"
-                                >
-                                  Load More
-                                </button>
+                              <div class="rounded-2xl border border-dashed border-base-300/80 bg-base-200/40 px-4 py-3 text-sm text-base-content/70">
+                                More from public communities
                               </div>
                             <% end %>
+                            <.timeline_post
+                              post={post}
+                              layout={:lemmy}
+                              current_user={@current_user}
+                              timezone={@timezone}
+                              time_format={@time_format}
+                              post_interactions={@post_interactions}
+                              user_likes={%{}}
+                              lemmy_counts={@lemmy_counts}
+                              post_reactions_map={@post_reactions}
+                              replies={Map.get(@post_replies, post.activitypub_id, [])}
+                              reactions={Map.get(@post_reactions, post.id, [])}
+                            />
                           <% end %>
                         </div>
+
+                        <%= if length(@followed_community_posts || []) >= 20 do %>
+                          <div class="py-4 h-24 flex items-center justify-center timeline-load-more-zone">
+                            <%= if @loading_more do %>
+                              <div class="h-16 rounded-lg flex items-center justify-center">
+                                <div class="flex items-center gap-2 text-sm text-base-content/70">
+                                  <.spinner size="sm" /> <span>Loading more posts...</span>
+                                </div>
+                              </div>
+                            <% else %>
+                              <%= if @no_more_posts do %>
+                                <div class="text-sm text-base-content/60">No more posts</div>
+                              <% else %>
+                                <div class="text-center">
+                                  <button
+                                    type="button"
+                                    phx-click="load_more_posts"
+                                    class="btn btn-ghost"
+                                  >
+                                    Load More
+                                  </button>
+                                </div>
+                              <% end %>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      <% else %>
+                        <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
+                          <.icon name="hero-inbox" class="w-12 h-12 mx-auto mb-3 opacity-40" />
+                          <h3 class="text-lg font-semibold">Your community feed is empty</h3>
+                          <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60 leading-6">
+                            Join a few communities first, then this view turns into a cleaner single-column stream of posts from the places you actually follow.
+                          </p>
+                          <button
+                            phx-click="set_view"
+                            phx-value-view="communities"
+                            class="btn btn-secondary mt-5"
+                          >
+                            Open Joined Communities
+                          </button>
+                        </div>
                       <% end %>
-                    <% else %>
-                      <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-10 text-center">
-                        <.icon name="hero-inbox" class="w-12 h-12 mx-auto mb-3 opacity-40" />
-                        <h3 class="text-lg font-semibold">Your community feed is empty</h3>
-                        <p class="mx-auto mt-2 max-w-md text-sm text-base-content/60 leading-6">
-                          Join a few communities first, then this view turns into a cleaner single-column stream of posts from the places you actually follow.
-                        </p>
-                        <button
-                          phx-click="set_view"
-                          phx-value-view="communities"
-                          class="btn btn-secondary mt-5"
-                        >
-                          Open Joined Communities
-                        </button>
-                      </div>
                     <% end %>
                   <% else %>
                     <div class="rounded-2xl border border-dashed border-base-300 bg-base-200/55 p-10 text-center">

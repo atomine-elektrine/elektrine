@@ -1159,9 +1159,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     end
   end
 
-  defp normalize_quick_post_link_url(url) when is_binary(url), do: String.trim(url)
-  defp normalize_quick_post_link_url(_), do: ""
-
   def handle_info(
         {:post_voted,
          %{message_id: message_id, upvotes: upvotes, downvotes: downvotes, score: score}},
@@ -1547,6 +1544,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   def handle_info(_info, socket) do
     {:noreply, socket}
   end
+
+  defp normalize_quick_post_link_url(url) when is_binary(url), do: String.trim(url)
+  defp normalize_quick_post_link_url(_), do: ""
 
   defp update_post_reactions(socket, post_id, reaction, action) do
     current_reactions = Map.get(socket.assigns, :post_reactions, %{})
