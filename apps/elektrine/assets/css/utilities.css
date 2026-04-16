@@ -226,6 +226,8 @@
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .message-selected,

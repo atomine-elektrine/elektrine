@@ -121,6 +121,13 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
           )
       end
     else
+      {:error, :not_found} ->
+        if remote_object_uri?(object_uri) do
+          {:ok, :ignored}
+        else
+          {:error, :announce_object_fetch_failed}
+        end
+
       {:error, :nested_fetch_failed} ->
         {:error, :announce_object_fetch_failed}
 
@@ -345,6 +352,18 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   end
 
   defp relay_uri?(_), do: false
+
+  defp remote_object_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host} when is_binary(host) and host != "" ->
+        String.downcase(host) != String.downcase(ActivityPub.instance_domain())
+
+      _ ->
+        false
+    end
+  end
+
+  defp remote_object_uri?(_), do: false
 
   defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do
     ["to", "cc", "audience", "published"]

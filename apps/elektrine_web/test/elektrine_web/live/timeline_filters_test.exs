@@ -802,6 +802,66 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Reply to local parent"
   end
 
+  test "federated replies view excludes local replies to federated threads", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+    viewer_timeline = timeline_conversation_fixture(viewer)
+    author_timeline = timeline_conversation_fixture(author)
+    remote_actor = remote_actor_fixture(%{domain: "mastodon.example"})
+
+    federated_parent =
+      post_fixture(
+        user: author,
+        conversation: author_timeline,
+        content: "Federated parent for source filter"
+      )
+
+    parent_ref = "https://mastodon.example/users/alice/statuses/#{federated_parent.id}"
+
+    Repo.update_all(
+      from(m in Message, where: m.id == ^federated_parent.id),
+      set: [federated: true, activitypub_id: parent_ref, activitypub_url: parent_ref]
+    )
+
+    {:ok, _local_reply} =
+      %Message{}
+      |> Message.changeset(%{
+        conversation_id: viewer_timeline.id,
+        sender_id: viewer.id,
+        content: "Local reply to federated parent",
+        message_type: "text",
+        visibility: "public",
+        post_type: "post",
+        reply_to_id: federated_parent.id,
+        like_count: 0,
+        reply_count: 0,
+        share_count: 0
+      })
+      |> Repo.insert()
+
+    {:ok, _remote_reply} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: remote_actor.id,
+        content: "Remote mastodon reply",
+        visibility: "public",
+        federated: true,
+        activitypub_id:
+          "https://mastodon.example/users/alice/statuses/reply-#{System.unique_integer([:positive])}",
+        activitypub_url:
+          "https://mastodon.example/users/alice/statuses/reply-url-#{System.unique_integer([:positive])}",
+        media_metadata: %{"inReplyTo" => parent_ref}
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=replies")
+
+    html = render(view)
+    assert html =~ "Remote mastodon reply"
+    refute html =~ "Local reply to federated parent"
+  end
+
   test "navigate_to_post routes federated posts to remote post detail", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

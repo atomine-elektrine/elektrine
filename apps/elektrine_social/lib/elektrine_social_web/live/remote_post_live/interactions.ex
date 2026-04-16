@@ -456,6 +456,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
 
           case result do
             {:ok, _} ->
+              fresh_message = Repo.get(Message, message.id)
+
               post_interactions =
                 Map.put(socket.assigns.post_interactions, interaction_key, %{
                   liked: Map.get(current_state, :liked, false),
@@ -466,7 +468,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
                   vote_delta: new_vote_delta
                 })
 
-              {:noreply, Phoenix.Component.assign(socket, :post_interactions, post_interactions)}
+              updated_socket =
+                socket
+                |> Phoenix.Component.assign(:post_interactions, post_interactions)
+                |> maybe_run_refresh(opts, fresh_message)
+
+              {:noreply, updated_socket}
 
             {:error, _} ->
               {:noreply, Phoenix.LiveView.put_flash(socket, :error, "Failed to vote")}

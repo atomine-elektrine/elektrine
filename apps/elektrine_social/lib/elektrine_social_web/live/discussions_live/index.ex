@@ -48,6 +48,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:show_quick_post, false)
       |> assign(:quick_post_content, "")
       |> assign(:quick_post_title, "")
+      |> assign(:quick_post_link_url, "")
       |> assign(:quick_post_community_id, nil)
       |> assign(:new_community_name, "")
       |> assign(:new_community_description, "")
@@ -62,6 +63,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:filtered_community_posts, [])
       |> assign(:filtered_remote_communities, [])
       |> assign(:filtered_discover_remote_communities, [])
+      |> assign(:public_fallback_post_ids, MapSet.new())
       |> assign(:joined_community_ids, MapSet.new())
       |> assign(:search_query, "")
       |> assign(:search_results, [])
@@ -316,46 +318,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         {:noreply, socket}
 
       true ->
-        current_posts = socket.assigns.followed_community_posts || []
-        before_id = current_posts |> List.last() |> then(&(&1 && &1.id))
-
-        more_posts =
-          get_followed_community_posts(socket.assigns.current_user.id,
-            limit: @community_feed_page_size,
-            before_id: before_id
-          )
-
-        merged_posts = merge_loaded_feed_posts(current_posts, more_posts)
-        {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, more_posts)
-
-        post_interactions =
-          Map.merge(
-            socket.assigns.post_interactions || %{},
-            load_post_interactions(more_posts, socket.assigns.current_user)
-          )
-
-        post_reactions =
-          Map.merge(socket.assigns.post_reactions || %{}, get_post_reactions(more_posts))
-
-        filtered_posts =
-          merged_posts
-          |> filter_community_posts_by_category(socket.assigns.selected_category)
-          |> sort_feed_posts(
-            socket.assigns.feed_sort,
-            lemmy_counts,
-            socket.assigns.session_context
-          )
-
-        {:noreply,
-         socket
-         |> assign(:loading_more, false)
-         |> assign(:no_more_posts, length(more_posts) < @community_feed_page_size)
-         |> assign(:followed_community_posts, merged_posts)
-         |> assign(:filtered_community_posts, filtered_posts)
-         |> assign(:lemmy_counts, lemmy_counts)
-         |> assign(:post_replies, post_replies)
-         |> assign(:post_interactions, post_interactions)
-         |> assign(:post_reactions, post_reactions)}
+        send(self(), :load_more_community_feed_posts)
+        {:noreply, assign(socket, :loading_more, true)}
     end
   end
 
@@ -631,6 +595,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:show_quick_post, false)
      |> assign(:quick_post_content, "")
      |> assign(:quick_post_title, "")
+     |> assign(:quick_post_link_url, "")
      |> assign(:quick_post_community_id, nil)
      |> assign(:pending_media_urls, [])
      |> assign(:pending_media_attachments, [])
@@ -880,43 +845,56 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       community_selector = params["community_id"]
       title = params["title"]
       content = params["content"]
+      link_url = normalize_quick_post_link_url(params["link_url"])
       media_urls = socket.assigns.pending_media_urls
       media_attachments = socket.assigns.pending_media_attachments || []
       alt_texts = socket.assigns.pending_media_alt_texts
       content_empty = not Elektrine.Strings.present?(content)
       has_media = !Enum.empty?(media_urls)
+      has_link = Elektrine.Strings.present?(link_url)
 
-      if not Elektrine.Strings.present?(title) or (content_empty and not has_media) do
-        {:noreply, notify_error(socket, "Title and content (or media) are required")}
-      else
-        case String.split(community_selector, ":", parts: 2) do
-          ["local", id_str] ->
-            create_local_community_post(
-              String.to_integer(id_str),
-              title,
-              content,
-              media_urls,
-              media_attachments,
-              alt_texts,
-              has_media,
-              socket
-            )
+      cond do
+        not Elektrine.Strings.present?(title) ->
+          {:noreply, notify_error(socket, "Title is required")}
 
-          ["remote", id_str] ->
-            create_remote_community_post(
-              String.to_integer(id_str),
-              title,
-              content,
-              media_urls,
-              media_attachments,
-              alt_texts,
-              has_media,
-              socket
-            )
+        content_empty and not has_media and not has_link ->
+          {:noreply, notify_error(socket, "Add content, a link, or media")}
 
-          _ ->
-            {:noreply, notify_error(socket, "Please select a community")}
-        end
+        has_link and not String.starts_with?(link_url, ["http://", "https://"]) ->
+          {:noreply,
+           notify_error(socket, "Link must be a valid URL starting with http:// or https://")}
+
+        true ->
+          case String.split(community_selector, ":", parts: 2) do
+            ["local", id_str] ->
+              create_local_community_post(
+                String.to_integer(id_str),
+                title,
+                content,
+                link_url,
+                media_urls,
+                media_attachments,
+                alt_texts,
+                has_media,
+                socket
+              )
+
+            ["remote", id_str] ->
+              create_remote_community_post(
+                String.to_integer(id_str),
+                title,
+                content,
+                link_url,
+                media_urls,
+                media_attachments,
+                alt_texts,
+                has_media,
+                socket
+              )
+
+            _ ->
+              {:noreply, notify_error(socket, "Please select a community")}
+          end
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to create a discussion")}
@@ -1000,22 +978,33 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
          community_id,
          title,
          content,
+         link_url,
          media_urls,
          media_attachments,
          alt_texts,
          has_media,
          socket
        ) do
+    message_content =
+      [content, if(Elektrine.Strings.present?(link_url), do: link_url, else: nil)]
+      |> Enum.filter(&Elektrine.Strings.present?/1)
+      |> Enum.join("\n\n")
+
     case Elektrine.Messaging.create_text_message(
            community_id,
            socket.assigns.current_user.id,
-           content
+           message_content
          ) do
       {:ok, message} ->
         media_metadata =
           Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
-        update_attrs = %{post_type: "discussion", title: title, visibility: "public"}
+        update_attrs = %{
+          post_type: if(Elektrine.Strings.present?(link_url), do: "link", else: "discussion"),
+          primary_url: link_url,
+          title: title,
+          visibility: "public"
+        }
 
         update_attrs =
           if has_media do
@@ -1054,6 +1043,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
          |> assign(:show_quick_post, false)
          |> assign(:quick_post_content, "")
          |> assign(:quick_post_title, "")
+         |> assign(:quick_post_link_url, "")
          |> assign(:pending_media_urls, [])
          |> assign(:pending_media_attachments, [])
          |> assign(:pending_media_alt_texts, %{})
@@ -1069,6 +1059,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
          actor_id,
          title,
          content,
+         link_url,
          media_urls,
          media_attachments,
          alt_texts,
@@ -1078,19 +1069,30 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     remote_actor = Enum.find(socket.assigns.followed_remote_communities, &(&1.id == actor_id))
 
     if remote_actor do
+      body_content =
+        [content, if(Elektrine.Strings.present?(link_url), do: link_url, else: nil)]
+        |> Enum.filter(&Elektrine.Strings.present?/1)
+        |> Enum.join("\n\n")
+
       full_content =
         if Elektrine.Strings.present?(title) do
           "**#{title}**
 
-#{content}"
+#{body_content}"
         else
-          content
+          body_content
         end
 
       media_metadata =
         Social.merge_post_media_metadata(%{"attachments" => media_attachments}, alt_texts)
 
-      post_opts = [visibility: "public", community_actor_uri: remote_actor.uri]
+      post_opts = [
+        visibility: "public",
+        community_actor_uri: remote_actor.uri,
+        post_type: if(Elektrine.Strings.present?(link_url), do: "link", else: "post"),
+        primary_url: link_url,
+        title: title
+      ]
 
       post_opts =
         if has_media do
@@ -1112,6 +1114,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
            |> assign(:show_quick_post, false)
            |> assign(:quick_post_content, "")
            |> assign(:quick_post_title, "")
+           |> assign(:quick_post_link_url, "")
            |> assign(:pending_media_urls, [])
            |> assign(:pending_media_attachments, [])
            |> assign(:pending_media_alt_texts, %{})
@@ -1155,6 +1158,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       {:noreply, socket}
     end
   end
+
+  defp normalize_quick_post_link_url(url) when is_binary(url), do: String.trim(url)
+  defp normalize_quick_post_link_url(_), do: ""
 
   def handle_info(
         {:post_voted,
@@ -1345,17 +1351,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
           fn -> get_discover_remote_communities(user && user.id, limit: 24) end,
           []
         ),
-      followed_community_posts:
+      followed_community_feed_page:
         load_with_fallback(
-          :followed_community_posts,
-          fn ->
-            if user do
-              get_followed_community_posts(user.id, limit: @community_feed_page_size)
-            else
-              []
-            end
-          end,
-          []
+          :followed_community_feed_page,
+          fn -> load_community_feed_page(user, [], limit: @community_feed_page_size) end,
+          %{posts: [], public_fallback_ids: MapSet.new()}
         ),
       recent_activity:
         load_with_fallback(
@@ -1395,7 +1395,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     federated_discussions = results.federated_discussions
     followed_remote_communities = results.followed_remote_communities
     discover_remote_communities = results.discover_remote_communities
-    followed_community_posts = results.followed_community_posts
+    followed_community_feed_page = results.followed_community_feed_page
+    followed_community_posts = followed_community_feed_page.posts
     recent_activity = results.recent_activity
     popular_communities = results.popular_communities
     my_community_posts = results.my_community_posts
@@ -1484,6 +1485,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:filtered_community_posts, filtered_followed_posts)
      |> assign(:filtered_remote_communities, followed_remote_communities)
      |> assign(:filtered_discover_remote_communities, discover_remote_communities)
+     |> assign(:public_fallback_post_ids, followed_community_feed_page.public_fallback_ids)
      |> assign(:joined_community_ids, joined_community_ids)
      |> assign(:post_interactions, post_interactions)
      |> assign(:lemmy_counts, lemmy_counts)
@@ -1492,6 +1494,54 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:no_more_posts, length(followed_community_posts) < @community_feed_page_size)
      |> assign(:overview_no_more, overview_no_more?(overview_data))
      |> assign(:loading_communities, false)}
+  end
+
+  def handle_info(:load_more_community_feed_posts, socket) do
+    current_posts = socket.assigns.followed_community_posts || []
+    before_post = List.last(current_posts)
+
+    feed_page =
+      load_community_feed_page(socket.assigns.current_user, current_posts,
+        limit: @community_feed_page_size,
+        before_post: before_post
+      )
+
+    more_posts = feed_page.posts
+
+    merged_posts = merge_loaded_feed_posts(current_posts, more_posts)
+    {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, more_posts)
+
+    post_interactions =
+      Map.merge(
+        socket.assigns.post_interactions || %{},
+        load_post_interactions(more_posts, socket.assigns.current_user)
+      )
+
+    post_reactions =
+      Map.merge(socket.assigns.post_reactions || %{}, get_post_reactions(more_posts))
+
+    filtered_posts =
+      merged_posts
+      |> filter_community_posts_by_category(socket.assigns.selected_category)
+      |> sort_feed_posts(
+        socket.assigns.feed_sort,
+        lemmy_counts,
+        socket.assigns.session_context
+      )
+
+    {:noreply,
+     socket
+     |> assign(:loading_more, false)
+     |> assign(:no_more_posts, length(more_posts) < @community_feed_page_size)
+     |> assign(:followed_community_posts, merged_posts)
+     |> Phoenix.Component.update(:public_fallback_post_ids, fn existing_ids ->
+       MapSet.union(existing_ids || MapSet.new(), feed_page.public_fallback_ids)
+     end)
+     |> assign(:filtered_community_posts, filtered_posts)
+     |> assign(:lemmy_counts, lemmy_counts)
+     |> assign(:post_replies, post_replies)
+     |> assign(:post_interactions, post_interactions)
+     |> assign(:post_reactions, post_reactions)}
   end
 
   def handle_info(_info, socket) do
@@ -1588,7 +1638,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
-    before_id = Keyword.get(opts, :before_id)
+    before_post = Keyword.get(opts, :before_post)
 
     joined_community_ids =
       from(cm in Messaging.ConversationMember,
@@ -1684,12 +1734,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         )
         |> where([m], ^community_filter)
 
-      query =
-        if is_integer(before_id) do
-          query |> where([m], m.id < ^before_id)
-        else
-          query
-        end
+      query = maybe_apply_feed_cursor(query, before_post)
 
       query
       |> order_by([m], desc: m.inserted_at, desc: m.id)
@@ -1698,6 +1743,100 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> Repo.all()
     end
   end
+
+  defp load_community_feed_page(nil, _existing_posts, opts) do
+    _limit = Keyword.get(opts, :limit, @community_feed_page_size)
+    %{posts: [], public_fallback_ids: MapSet.new()}
+  end
+
+  defp load_community_feed_page(user, existing_posts, opts) do
+    limit = Keyword.get(opts, :limit, @community_feed_page_size)
+    before_post = Keyword.get(opts, :before_post)
+
+    followed_posts =
+      get_followed_community_posts(user.id,
+        limit: limit,
+        before_post: before_post
+      )
+
+    remaining = limit - length(followed_posts)
+
+    if remaining <= 0 do
+      %{posts: followed_posts, public_fallback_ids: MapSet.new()}
+    else
+      exclude_ids =
+        existing_posts
+        |> Enum.map(& &1.id)
+        |> Kernel.++(Enum.map(followed_posts, & &1.id))
+
+      public_before_post =
+        if followed_posts == [] do
+          nil
+        else
+          before_post
+        end
+
+      public_posts =
+        get_public_community_feed_posts(
+          limit: remaining,
+          before_post: public_before_post,
+          exclude_ids: exclude_ids
+        )
+
+      %{
+        posts: followed_posts ++ public_posts,
+        public_fallback_ids: MapSet.new(Enum.map(public_posts, & &1.id))
+      }
+    end
+  end
+
+  defp get_public_community_feed_posts(opts) do
+    limit = Keyword.get(opts, :limit, @community_feed_page_size)
+    before_post = Keyword.get(opts, :before_post)
+    exclude_ids = Keyword.get(opts, :exclude_ids, [])
+
+    query =
+      Messaging.Message
+      |> join(:left, [m], c in Messaging.Conversation, on: c.id == m.conversation_id)
+      |> where(
+        [m, c],
+        m.visibility == "public" and is_nil(m.deleted_at) and
+          (m.approval_status == "approved" or is_nil(m.approval_status)) and
+          is_nil(m.reply_to_id) and fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
+          (c.type == "community" or
+             fragment("?->>'community_actor_uri' IS NOT NULL", m.media_metadata))
+      )
+
+    query = maybe_apply_feed_cursor(query, before_post)
+
+    query =
+      if exclude_ids == [] do
+        query
+      else
+        where(query, [m, _c], m.id not in ^exclude_ids)
+      end
+
+    query
+    |> order_by([m, _c], desc: m.inserted_at, desc: m.id)
+    |> limit(^limit)
+    |> preload([:conversation, :remote_actor, :hashtags, :link_preview])
+    |> Repo.all()
+  end
+
+  defp maybe_apply_feed_cursor(query, %{inserted_at: inserted_at, id: id})
+       when not is_nil(inserted_at) and is_integer(id) do
+    where(
+      query,
+      [m],
+      m.inserted_at < ^inserted_at or (m.inserted_at == ^inserted_at and m.id < ^id)
+    )
+  end
+
+  defp maybe_apply_feed_cursor(query, %{id: id}) when is_integer(id) do
+    where(query, [m], m.id < ^id)
+  end
+
+  defp maybe_apply_feed_cursor(query, _), do: query
 
   defp merge_loaded_feed_posts(existing_posts, more_posts) do
     (existing_posts ++ more_posts)
@@ -1754,6 +1893,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     limit >= length(discover_cards) && limit >= length(active_cards) &&
       limit >= length(remote_communities)
   end
+
+  defp show_public_fallback_divider?(posts, fallback_ids, index)
+       when is_list(posts) and is_integer(index) do
+    fallback_ids = fallback_ids || MapSet.new()
+    post = Enum.at(posts, index)
+    previous_post = if index > 0, do: Enum.at(posts, index - 1), else: nil
+
+    is_map(post) and MapSet.member?(fallback_ids, post.id) and
+      (is_nil(previous_post) or not MapSet.member?(fallback_ids, previous_post.id))
+  end
+
+  defp show_public_fallback_divider?(_, _, _), do: false
 
   defp get_public_communities(limit) do
     from(c in Messaging.Conversation,

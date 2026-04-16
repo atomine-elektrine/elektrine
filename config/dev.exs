@@ -1,14 +1,36 @@
 import Config
 
 dev_port = String.to_integer(System.get_env("PORT") || "4000")
-dev_public_host = System.get_env("PHX_HOST") || System.get_env("PRIMARY_DOMAIN") || "localhost"
+
+dev_public_url_env =
+  System.get_env("PUBLIC_BASE_URL") ||
+    System.get_env("APP_BASE_URL") ||
+    System.get_env("PHX_PUBLIC_URL") ||
+    System.get_env("NGROK_URL")
+
+dev_public_uri =
+  case dev_public_url_env do
+    value when is_binary(value) and value != "" -> URI.parse(String.trim(value))
+    _ -> nil
+  end
+
+dev_public_host =
+  (dev_public_uri && dev_public_uri.host) || System.get_env("PHX_HOST") ||
+    System.get_env("PRIMARY_DOMAIN") ||
+    "localhost"
 
 dev_public_scheme =
-  if String.contains?(dev_public_host, ".") and
-       not String.starts_with?(dev_public_host, "localhost") do
-    "https"
-  else
-    "http"
+  cond do
+    is_binary(dev_public_uri && dev_public_uri.scheme) and
+        (dev_public_uri && dev_public_uri.scheme) != "" ->
+      dev_public_uri.scheme
+
+    String.contains?(dev_public_host, ".") and
+        not String.starts_with?(dev_public_host, "localhost") ->
+      "https"
+
+    true ->
+      "http"
   end
 
 dev_check_origins = [

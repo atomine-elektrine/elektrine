@@ -223,6 +223,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
         :title,
         :visibility,
         :activitypub_url,
+        :primary_url,
         :media_urls,
         :reply_to_id,
         :quoted_message_id,
@@ -237,6 +238,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
         :media_metadata,
         merge_remote_media_metadata(message.media_metadata, payload.attrs.media_metadata)
       )
+      |> maybe_put_primary_url_from_metadata(message)
 
     message
     |> Message.federated_changeset(attrs)
@@ -269,6 +271,22 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
     existing_metadata
     |> Map.drop(@remote_media_metadata_keys)
     |> Map.merge(fresh_metadata)
+  end
+
+  defp maybe_put_primary_url_from_metadata(attrs, message) when is_map(attrs) do
+    cond do
+      Elektrine.Strings.present?(attrs[:primary_url]) ->
+        attrs
+
+      Elektrine.Strings.present?(message.primary_url) ->
+        attrs
+
+      true ->
+        case get_in(attrs[:media_metadata] || %{}, ["external_link"]) do
+          url when is_binary(url) and url != "" -> Map.put(attrs, :primary_url, url)
+          _ -> attrs
+        end
+    end
   end
 
   defp log_update_failure(message_id, changeset) do

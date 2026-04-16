@@ -616,9 +616,9 @@ defmodule Elektrine.ActivityPub do
 
   defp apply_actor_policies(actor_data, _uri), do: {:ok, actor_data}
 
-  defp validate_fetched_actor_identity(uri, %{"id" => actor_id})
-       when is_binary(uri) and is_binary(actor_id) do
-    if comparable_actor_uri(uri) == comparable_actor_uri(actor_id) do
+  defp validate_fetched_actor_identity(uri, %{"id" => actor_id} = actor_data)
+       when is_binary(uri) and is_binary(actor_id) and is_map(actor_data) do
+    if actor_identity_matches?(uri, actor_id, actor_data) do
       :ok
     else
       Logger.warning(
@@ -630,6 +630,45 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp validate_fetched_actor_identity(_uri, _actor_data), do: {:error, :actor_id_mismatch}
+
+  defp actor_identity_matches?(requested_uri, actor_id, actor_data) when is_map(actor_data) do
+    comparable_actor_uri(requested_uri) == comparable_actor_uri(actor_id) ||
+      actor_username_alias_match?(requested_uri, actor_id, actor_data)
+  end
+
+  defp actor_identity_matches?(_, _, _), do: false
+
+  defp actor_username_alias_match?(requested_uri, actor_id, actor_data) do
+    with %URI{host: requested_host} <- URI.parse(requested_uri),
+         %URI{host: actor_host} <- URI.parse(actor_id),
+         true <- is_binary(requested_host) and is_binary(actor_host),
+         true <- String.downcase(requested_host) == String.downcase(actor_host),
+         requested_username when is_binary(requested_username) <-
+           actor_uri_username(requested_uri),
+         fetched_username when is_binary(fetched_username) <- fetched_actor_username(actor_data) do
+      String.downcase(requested_username) == String.downcase(fetched_username)
+    else
+      _ -> false
+    end
+  end
+
+  defp actor_uri_username(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{path: "/users/" <> username} -> username |> String.split("/", parts: 2) |> List.first()
+      %URI{path: "/@" <> username} -> username |> String.split("/", parts: 2) |> List.first()
+      _ -> nil
+    end
+  end
+
+  defp actor_uri_username(_), do: nil
+
+  defp fetched_actor_username(actor_data) when is_map(actor_data) do
+    actor_data["preferredUsername"] ||
+      actor_data["preferred_username"] ||
+      actor_data["name"]
+  end
+
+  defp fetched_actor_username(_), do: nil
 
   defp validate_fetched_actor_urls(actor_data) when is_map(actor_data) do
     actor_data

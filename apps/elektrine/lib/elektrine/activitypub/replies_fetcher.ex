@@ -11,8 +11,9 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
+  alias Elektrine.ActivityPub.{Actor, CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
   alias Elektrine.Messaging
+  alias Elektrine.Repo
 
   @public_audience_uris MapSet.new([
                           "Public",
@@ -95,8 +96,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
                   result
               end
 
-            {:error, reason} ->
-              {:error, reason}
+            {:error, _reason} ->
+              fetch_replies_without_post_object(message.activitypub_id, message.id, opts)
           end
         else
           {:error, :no_activitypub_id}
@@ -215,7 +216,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
                   "url" => status.url || status.uri,
                   "type" => "Note",
                   "content" => status.content,
-                  "attributedTo" => status.account[:url] || status.account[:uri],
+                  "attributedTo" => mastodon_status_actor_ref(status),
+                  "_account" => status.account,
                   "published" => status.created_at,
                   "inReplyTo" => status.in_reply_to_uri,
                   "likes" => %{"totalItems" => status.favourites_count || 0},
@@ -244,6 +246,55 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
           {:error, reason} ->
             {:error, reason}
         end
+    end
+  end
+
+  defp fetch_replies_without_post_object(post_ref, parent_message_id, opts)
+       when is_binary(post_ref) do
+    max_replies = Keyword.get(opts, :max_replies, @max_replies)
+    max_depth = Keyword.get(opts, :max_depth, @max_depth)
+    max_pages = Keyword.get(opts, :max_pages, @max_pages)
+
+    cond do
+      LemmyApi.fetch_post_counts(post_ref) != nil ->
+        replies = LemmyApi.fetch_post_comments(post_ref, max_replies)
+
+        {stored_count, _remaining} =
+          process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+        {:ok, stored_count}
+
+      MastodonApi.mastodon_compatible?(%{activitypub_id: post_ref}) ->
+        case MastodonApi.fetch_status_context(post_ref) do
+          {:ok, descendants} when is_list(descendants) ->
+            replies =
+              Enum.map(descendants, fn status ->
+                %{
+                  "id" => status.uri || status.url || "#{post_ref}#status-#{status.id}",
+                  "url" => status.url || status.uri,
+                  "type" => "Note",
+                  "content" => status.content,
+                  "attributedTo" => mastodon_status_actor_ref(status),
+                  "_account" => status.account,
+                  "published" => status.created_at,
+                  "inReplyTo" => status.in_reply_to_uri,
+                  "likes" => %{"totalItems" => status.favourites_count || 0},
+                  "shares" => %{"totalItems" => status.reblogs_count || 0},
+                  "replies" => %{"totalItems" => status.replies_count || 0}
+                }
+              end)
+
+            {stored_count, _remaining} =
+              process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+            {:ok, stored_count}
+
+          _ ->
+            {:ok, 0}
+        end
+
+      true ->
+        {:error, :fetch_failed}
     end
   end
 
@@ -357,8 +408,19 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
           create_reply_message(object, remote_actor, resolved_parent_message_id)
 
         {:error, reason} ->
-          Logger.debug("Failed to fetch actor #{actor_uri}: #{inspect(reason)}")
-          :error
+          case fallback_remote_actor(object, actor_uri) do
+            %Actor{} = remote_actor ->
+              Logger.debug(
+                "Using fallback actor for #{actor_uri} after fetch failure: #{inspect(reason)}"
+              )
+
+              resolved_parent_message_id = resolve_parent_message_id(object, parent_message_id)
+              create_reply_message(object, remote_actor, resolved_parent_message_id)
+
+            _ ->
+              Logger.debug("Failed to fetch actor #{actor_uri}: #{inspect(reason)}")
+              :error
+          end
       end
     end
   rescue
@@ -400,6 +462,13 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
             {:ok, message} ->
               # Increment parent's reply count
               Elektrine.ActivityPub.SideEffects.increment_reply_count(parent_message_id)
+
+              Phoenix.PubSub.broadcast(
+                Elektrine.PubSub,
+                "timeline:public",
+                {:new_public_post,
+                 Repo.preload(message, [:remote_actor, :sender, :link_preview, :hashtags])}
+              )
 
               {:stored, message}
 
@@ -490,6 +559,118 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
   defp normalize_in_reply_to_ref(value) when is_binary(value), do: String.trim(value)
   defp normalize_in_reply_to_ref(_), do: nil
+
+  defp mastodon_status_actor_ref(status) when is_map(status) do
+    account = Map.get(status, :account) || %{}
+
+    case account[:uri] || account["uri"] do
+      uri when is_binary(uri) and uri != "" ->
+        uri
+
+      _ ->
+        normalize_mastodon_profile_url(account[:url] || account["url"])
+    end
+  end
+
+  defp mastodon_status_actor_ref(_), do: nil
+
+  defp fallback_remote_actor(%{"_account" => account}, actor_uri) when is_map(account) do
+    create_or_get_fallback_actor(actor_uri, account)
+  end
+
+  defp fallback_remote_actor(_, _), do: nil
+
+  defp create_or_get_fallback_actor(actor_uri, account)
+       when is_binary(actor_uri) and is_map(account) do
+    username = account[:username] || account["username"]
+    acct = account[:acct] || account["acct"]
+    actor_url = account[:url] || account["url"]
+    avatar = account[:avatar] || account["avatar"]
+    display_name = account[:display_name] || account["display_name"] || username
+    domain = actor_domain_from_acct_or_uri(acct, actor_uri)
+
+    cond do
+      existing = ActivityPub.get_actor_by_uri(actor_uri) ->
+        existing
+
+      !is_binary(username) or username == "" or !is_binary(domain) or domain == "" ->
+        nil
+
+      true ->
+        attrs = %{
+          uri: actor_uri,
+          username: username,
+          domain: domain,
+          display_name: display_name,
+          avatar_url: avatar,
+          inbox_url: fallback_actor_inbox(actor_uri),
+          outbox_url: fallback_actor_outbox(actor_uri),
+          public_key: "placeholder-public-key",
+          actor_type: "Person",
+          last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          metadata: %{
+            "acct" => acct,
+            "url" => actor_url,
+            "fallback" => true
+          }
+        }
+
+        %Actor{}
+        |> Actor.changeset(attrs)
+        |> Repo.insert(
+          on_conflict: {:replace, [:display_name, :avatar_url, :last_fetched_at, :metadata]},
+          conflict_target: :uri,
+          returning: true
+        )
+        |> case do
+          {:ok, actor} -> actor
+          _ -> ActivityPub.get_actor_by_uri(actor_uri)
+        end
+    end
+  end
+
+  defp create_or_get_fallback_actor(_, _), do: nil
+
+  defp actor_domain_from_acct_or_uri(acct, actor_uri) when is_binary(acct) do
+    case String.split(acct, "@", parts: 2) do
+      [_username, domain] when domain != "" -> domain
+      _ -> actor_domain_from_uri(actor_uri)
+    end
+  end
+
+  defp actor_domain_from_acct_or_uri(_, actor_uri), do: actor_domain_from_uri(actor_uri)
+
+  defp actor_domain_from_uri(actor_uri) when is_binary(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{host: host} when is_binary(host) -> host
+      _ -> nil
+    end
+  end
+
+  defp actor_domain_from_uri(_), do: nil
+
+  defp fallback_actor_inbox(actor_uri) when is_binary(actor_uri), do: actor_uri <> "/inbox"
+  defp fallback_actor_inbox(_), do: nil
+
+  defp fallback_actor_outbox(actor_uri) when is_binary(actor_uri), do: actor_uri <> "/outbox"
+  defp fallback_actor_outbox(_), do: nil
+
+  defp normalize_mastodon_profile_url(url) when is_binary(url) do
+    case URI.parse(String.trim(url)) do
+      %URI{scheme: scheme, host: host, path: path}
+      when scheme in ["http", "https"] and is_binary(host) and is_binary(path) ->
+        if String.starts_with?(path, "/@") do
+          "#{scheme}://#{host}/users/#{String.trim_leading(path, "/@")}"
+        else
+          url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp normalize_mastodon_profile_url(_), do: nil
 
   # Helper functions (simplified versions from CreateHandler)
 

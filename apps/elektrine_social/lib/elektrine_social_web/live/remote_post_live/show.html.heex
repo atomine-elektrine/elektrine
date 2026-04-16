@@ -316,8 +316,13 @@
                 />
               <% end %>
 
+              <% submitted_url = current_submitted_url(@socket) %>
               <% link_preview =
-                effective_link_preview(@local_message, Map.get(assigns, :submitted_link_preview)) %>
+                effective_link_preview(
+                  @local_message,
+                  Map.get(assigns, :submitted_link_preview),
+                  submitted_url
+                ) %>
               <%= if link_preview do %>
                 <% youtube_id = extract_youtube_id(link_preview.url) %>
                 <% hide_preview_title =
@@ -483,7 +488,7 @@
                               </.link>
                               <.link
                                 navigate={author_preview.profile_path}
-                                class="font-medium truncate hover:underline"
+                                class="font-medium break-words hover:underline"
                               >
                                 {author_preview.label}
                               </.link>
@@ -499,7 +504,7 @@
                                   <.icon name="hero-user" class="w-3 h-3 opacity-60" />
                                 </div>
                               <% end %>
-                              <span class="font-medium truncate">{author_preview.label}</span>
+                              <span class="font-medium break-words">{author_preview.label}</span>
                             <% end %>
                             <%= if reply["published"] do %>
                               <span class="text-xs opacity-50">
@@ -508,7 +513,12 @@
                             <% end %>
                           </div>
                           <div class="text-xs opacity-75 line-clamp-2 break-words">
-                            {raw(render_remote_post_content(reply["content"] || "", nil))}
+                            {raw(
+                              render_remote_post_content(
+                                reply["content"] || "",
+                                @reply_content_domain
+                              )
+                            )}
                           </div>
                         </div>
                       <% end %>
@@ -830,16 +840,19 @@
                       
 <!-- Post Content -->
                       <% submitted_url =
-                        detect_submitted_url(
-                          @post,
-                          @local_message,
-                          @remote_actor && @remote_actor.domain
-                        )
+                        if(@local_message, do: message_submitted_link(@local_message), else: nil) ||
+                          detect_submitted_url(
+                            @post,
+                            @local_message,
+                            @remote_actor && @remote_actor.domain
+                          ) ||
+                          (@local_message && @local_message.primary_url)
 
                       link_preview =
                         effective_link_preview(
                           @local_message,
-                          Map.get(assigns, :submitted_link_preview)
+                          Map.get(assigns, :submitted_link_preview),
+                          submitted_url
                         )
 
                       submitted_url_host = submitted_url_host(submitted_url)
@@ -1056,12 +1069,12 @@
                               <div class="p-3 border-t border-base-200">
                                 <%= if link_preview.title && !hide_preview_title do %>
                                   <h4 class="font-medium text-sm line-clamp-2 mb-1">
-                                    {link_preview.title}
+                                    {preview_display_text(link_preview.title)}
                                   </h4>
                                 <% end %>
                                 <%= if link_preview.description do %>
                                   <p class="text-xs opacity-70 line-clamp-2 mb-2">
-                                    {link_preview.description}
+                                    {preview_display_text(link_preview.description)}
                                   </p>
                                 <% end %>
                               </div>
@@ -1087,12 +1100,12 @@
                                 <div class="p-3">
                                   <%= if link_preview.title && !hide_preview_title do %>
                                     <h4 class="font-medium text-sm line-clamp-2 mb-1">
-                                      {link_preview.title}
+                                      {preview_display_text(link_preview.title)}
                                     </h4>
                                   <% end %>
                                   <%= if link_preview.description do %>
                                     <p class="text-xs opacity-70 line-clamp-2 mb-2">
-                                      {link_preview.description}
+                                      {preview_display_text(link_preview.description)}
                                     </p>
                                   <% end %>
                                   <div class="text-xs opacity-50 flex items-center gap-1">
@@ -1348,7 +1361,7 @@
                                       </.link>
                                       <.link
                                         navigate={author_preview.profile_path}
-                                        class="font-medium truncate hover:underline"
+                                        class="font-medium break-words hover:underline"
                                       >
                                         {author_preview.label}
                                       </.link>
@@ -1364,7 +1377,7 @@
                                           <.icon name="hero-user" class="w-3 h-3 opacity-60" />
                                         </div>
                                       <% end %>
-                                      <span class="font-medium truncate">
+                                      <span class="font-medium break-words">
                                         {author_preview.label}
                                       </span>
                                     <% end %>
@@ -1453,16 +1466,34 @@
                 end
 
               displayed_reply_count = max(reported_reply_count, length(@replies))
-              missing_remote_replies = max(displayed_reply_count - length(@replies), 0) %>
+              loaded_reply_count = length(@replies)
+              missing_remote_replies = max(displayed_reply_count - loaded_reply_count, 0)
+
+              hydration_state =
+                thread_hydration_state(
+                  displayed_reply_count,
+                  loaded_reply_count,
+                  @replies_loading,
+                  @reply_sync_checked
+                ) %>
               <%= if displayed_reply_count > 0 do %>
                 <div class="mb-6">
                   <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-bold flex items-center gap-2">
-                      <%= if @is_community_post do %>
-                        Comments ({displayed_reply_count})
-                      <% else %>
-                        Conversation ({displayed_reply_count})
+                    <div class="space-y-1">
+                      <h2 class="text-lg font-bold flex items-center gap-2">
+                        <%= if @is_community_post do %>
+                          Comments ({displayed_reply_count})
+                        <% else %>
+                          Conversation ({displayed_reply_count})
+                        <% end %>
+                      </h2>
+                      <%= if hydration_state in ["syncing", "partial"] and missing_remote_replies > 0 do %>
+                        <div class="text-xs text-base-content/60">
+                          Showing {loaded_reply_count} of {displayed_reply_count} cached locally.
+                        </div>
                       <% end %>
+                    </div>
+                    <div class="flex items-center gap-2">
                       <button
                         phx-click="refresh_comments"
                         class="btn btn-ghost btn-xs"
@@ -1476,7 +1507,7 @@
                           class={["w-4 h-4", @replies_loading && "animate-spin"]}
                         />
                       </button>
-                    </h2>
+                    </div>
                     <div class="dropdown dropdown-end">
                       <label tabindex="0" class="btn btn-ghost btn-sm gap-1">
                         <.icon name="hero-bars-arrow-down" class="w-4 h-4" />
@@ -1537,6 +1568,34 @@
                       </ul>
                     </div>
                   </div>
+                  <%= if hydration_state in ["syncing", "partial"] and displayed_reply_count > 0 do %>
+                    <div class="alert alert-info py-2 mb-3">
+                      <.icon
+                        name="hero-arrow-path"
+                        class={[@replies_loading && "animate-spin", "w-4 h-4"]}
+                      />
+                      <span class="text-sm">
+                        <%= if missing_remote_replies > 0 do %>
+                          Syncing comments from the remote thread. {missing_remote_replies} more {if missing_remote_replies ==
+                                                                                                       1,
+                                                                                                     do:
+                                                                                                       "reply is",
+                                                                                                     else:
+                                                                                                       "replies are"} still loading.
+                        <% else %>
+                          Syncing comments from the remote thread...
+                        <% end %>
+                      </span>
+                    </div>
+                  <% end %>
+                  <%= if hydration_state == "failed" do %>
+                    <div class="alert alert-warning py-2 mb-3">
+                      <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
+                      <span class="text-sm">
+                        Couldn&apos;t import comments yet. Try refreshing to retry the sync.
+                      </span>
+                    </div>
+                  <% end %>
                   <%= if !@is_community_post && @reply_sync_checked && !@replies_loading && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon name="hero-information-circle" class="w-4 h-4" />
@@ -1562,7 +1621,10 @@
                     <.empty_comments_state
                       replies_loading={@replies_loading}
                       replies_loaded={@replies_loaded}
-                      empty_message="Comments are available on the original server."
+                      hydration_state={hydration_state}
+                      reported_reply_count={displayed_reply_count}
+                      loaded_reply_count={loaded_reply_count}
+                      empty_message="No comments have been cached locally yet."
                       load_label="Load Comments"
                     />
                   <% end %>

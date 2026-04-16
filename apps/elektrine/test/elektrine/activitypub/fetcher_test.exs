@@ -69,6 +69,100 @@ defmodule Elektrine.ActivityPub.FetcherTest do
                }
              ]
     end
+
+    test "recovers Lemmy comments when the comment URL returns HTML" do
+      comment_uri = "https://startrek.website/comment/22443688"
+
+      resolve_url =
+        "https://startrek.website/api/v4/resolve_object?q=https%3A%2F%2Fstartrek.website%2Fcomment%2F22443688"
+
+      request_fun = fn
+        ^comment_uri, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "text/html; charset=utf-8"}],
+             body: "<!DOCTYPE html><html><body>comment page</body></html>"
+           }}
+
+        ^resolve_url, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             body:
+               Jason.encode!(%{
+                 "comment" => %{
+                   "comment" => %{
+                     "ap_id" => comment_uri,
+                     "content" => "Comment body",
+                     "published" => "2026-04-16T00:00:00Z",
+                     "path" => "0.22440000.22443688"
+                   },
+                   "creator" => %{
+                     "actor_id" => "https://startrek.website/u/threecoloured",
+                     "name" => "threecoloured"
+                   },
+                   "post" => %{
+                     "ap_id" => "https://startrek.website/post/37631588"
+                   },
+                   "community" => %{
+                     "actor_id" => "https://startrek.website/c/startrek"
+                   },
+                   "counts" => %{"child_count" => 7, "score" => 9, "upvotes" => 11}
+                 }
+               })
+           }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(comment_uri, skip_cache: true, request_fun: request_fun)
+
+      assert object["id"] == comment_uri
+      assert object["type"] == "Note"
+      assert object["content"] == "Comment body"
+      assert object["attributedTo"] == "https://startrek.website/u/threecoloured"
+      assert object["inReplyTo"] == "https://startrek.website/comment/22440000"
+      assert get_in(object, ["replies", "totalItems"]) == 7
+      assert get_in(object, ["_lemmy", "upvotes"]) == 11
+    end
+
+    test "recovers Mastodon status objects when the AP URL returns 404" do
+      status_uri = "https://mastodon.world/users/alice/statuses/115379251737165990"
+      api_url = "https://mastodon.world/api/v1/statuses/115379251737165990"
+
+      request_fun = fn
+        ^status_uri, _headers, _opts ->
+          {:ok, %Finch.Response{status: 404, headers: [], body: ""}}
+
+        ^api_url, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "application/json"}],
+             body:
+               Jason.encode!(%{
+                 "uri" => status_uri,
+                 "url" => "https://mastodon.world/@alice/115379251737165990",
+                 "content" => "<p>Hello from API fallback</p>",
+                 "created_at" => "2026-04-16T00:00:00Z",
+                 "visibility" => "public",
+                 "sensitive" => false,
+                 "spoiler_text" => "",
+                 "media_attachments" => [],
+                 "account" => %{"username" => "alice"}
+               })
+           }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(status_uri, skip_cache: true, request_fun: request_fun)
+
+      assert object["id"] == status_uri
+      assert object["type"] == "Note"
+      assert object["attributedTo"] == "https://mastodon.world/users/alice"
+      assert object["url"] == "https://mastodon.world/@alice/115379251737165990"
+      assert object["to"] == ["https://www.w3.org/ns/activitystreams#Public"]
+    end
   end
 
   describe "webfinger_lookup/2" do
@@ -101,6 +195,36 @@ defmodule Elektrine.ActivityPub.FetcherTest do
 
       assert {:error, :actor_id_mismatch} =
                ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
+    end
+
+    test "accepts actor documents that use /ap/users canonical ids on the same host" do
+      actor_uri = "https://mastodon.social/users/Sea1Am"
+
+      request_fun = fn ^actor_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "id" => "https://mastodon.social/ap/users/116313284892040418",
+               "type" => "Person",
+               "preferredUsername" => "Sea1Am",
+               "inbox" => "https://mastodon.social/users/Sea1Am/inbox",
+               "outbox" => "https://mastodon.social/users/Sea1Am/outbox",
+               "followers" => "https://mastodon.social/users/Sea1Am/followers",
+               "following" => "https://mastodon.social/users/Sea1Am/following",
+               "publicKey" => %{
+                 "id" => "https://mastodon.social/ap/users/116313284892040418#main-key",
+                 "owner" => "https://mastodon.social/ap/users/116313284892040418",
+                 "publicKeyPem" => "-----BEGIN PUBLIC KEY-----\nSEA1AM\n-----END PUBLIC KEY-----"
+               }
+             })
+         }}
+      end
+
+      assert {:ok, actor} = ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
+      assert actor.uri == "https://mastodon.social/ap/users/116313284892040418"
+      assert actor.username == "Sea1Am"
     end
 
     test "rejects actor documents that advertise unsafe inboxes" do

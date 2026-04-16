@@ -165,7 +165,13 @@ defmodule Elektrine.ActivityPub.SideEffects do
   Increments the reply count on a parent message.
   """
   def increment_reply_count(parent_message_id) when not is_nil(parent_message_id) do
-    Elektrine.Social.increment_reply_count(parent_message_id)
+    import Ecto.Query
+
+    Elektrine.Repo.update_all(
+      from(m in Elektrine.Messaging.Message, where: m.id == ^parent_message_id),
+      inc: [reply_count: 1]
+    )
+
     :ok
   end
 

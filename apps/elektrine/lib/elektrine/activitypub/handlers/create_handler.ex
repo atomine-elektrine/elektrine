@@ -178,6 +178,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     title = normalize_object_title(object["name"])
     hashtags = extract_hashtags(object, content)
     {media_urls, alt_texts} = extract_media_with_alt_text(object)
+    primary_url = extract_primary_url(object)
 
     %{
       attrs: %{
@@ -186,6 +187,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
         visibility: determine_visibility(object),
         activitypub_id: object["id"],
         activitypub_url: object["url"] || object["id"],
+        primary_url: primary_url,
         media_urls: media_urls,
         media_metadata:
           build_metadata_with_engagement(
@@ -883,30 +885,97 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp user_actor_uri?(_), do: false
 
   # Extract external link from Lemmy/other link posts
-  # Lemmy stores the submitted URL in attachment with type "Link"
+  # Supports several common AP shapes used by Lemmy / PieFed / Mbin / others.
   defp extract_external_link(object) do
-    attachments = object["attachment"] || []
+    activity_id = normalize_external_link_candidate(object["id"])
 
-    # Look for Link type attachment (Lemmy link posts)
-    link_attachment =
-      Enum.find(attachments, fn att ->
-        att["type"] == "Link" && is_binary(att["href"])
-      end)
+    submitted_link =
+      [
+        extract_attachment_link(object["attachment"]),
+        extract_url_field_link(object["url"], activity_id),
+        extract_source_field_link(object["source"], activity_id)
+      ]
+      |> Enum.find(&is_binary/1)
 
-    cond do
-      # Found a Link attachment
-      link_attachment && link_attachment["href"] ->
-        %{"external_link" => link_attachment["href"]}
+    if is_binary(submitted_link), do: %{"external_link" => submitted_link}, else: %{}
+  end
 
-      # Check source field (some implementations use this)
-      is_map(object["source"]) && is_binary(object["source"]["url"]) ->
-        %{"external_link" => object["source"]["url"]}
-
-      # No external link found
-      true ->
-        %{}
+  defp extract_primary_url(object) do
+    case extract_external_link(object) do
+      %{"external_link" => url} when is_binary(url) -> url
+      _ -> nil
     end
   end
+
+  defp extract_attachment_link(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.find_value(fn
+      %{"type" => "Link"} = att ->
+        normalize_external_link_candidate(
+          att["href"] || att["url"] || get_in(att, ["url", "href"])
+        )
+
+      %{} = att ->
+        normalize_external_link_candidate(att["href"])
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp extract_attachment_link(%{} = attachment), do: extract_attachment_link([attachment])
+  defp extract_attachment_link(_), do: nil
+
+  defp extract_url_field_link(url_field, activity_id) do
+    url_field
+    |> expand_external_link_candidates()
+    |> Enum.find(fn candidate ->
+      is_binary(candidate) and candidate != activity_id
+    end)
+  end
+
+  defp extract_source_field_link(%{} = source, activity_id) do
+    [source["url"], source["href"], source["content"]]
+    |> expand_external_link_candidates()
+    |> Enum.find(fn candidate ->
+      is_binary(candidate) and candidate != activity_id
+    end)
+  end
+
+  defp extract_source_field_link(_, _), do: nil
+
+  defp expand_external_link_candidates(value) when is_list(value) do
+    Enum.flat_map(value, &expand_external_link_candidates/1)
+  end
+
+  defp expand_external_link_candidates(%{"href" => href}),
+    do: expand_external_link_candidates(href)
+
+  defp expand_external_link_candidates(%{"url" => url}), do: expand_external_link_candidates(url)
+  defp expand_external_link_candidates(%{href: href}), do: expand_external_link_candidates(href)
+  defp expand_external_link_candidates(%{url: url}), do: expand_external_link_candidates(url)
+
+  defp expand_external_link_candidates(value) when is_binary(value) do
+    case normalize_external_link_candidate(value) do
+      normalized when is_binary(normalized) -> [normalized]
+      _ -> []
+    end
+  end
+
+  defp expand_external_link_candidates(_), do: []
+
+  defp normalize_external_link_candidate(value) when is_binary(value) do
+    case URI.parse(String.trim(value)) do
+      %URI{scheme: scheme, host: host} = parsed
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        URI.to_string(parsed)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp normalize_external_link_candidate(_), do: nil
 
   # Extract reply context from the ActivityPub object for display purposes
   defp build_reply_context(object) do

@@ -9,8 +9,26 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
   @doc "Extracts URLs from text content.\n"
   def extract_urls(content) do
     url_regex = ~r/https?:\/\/[^\s<>"{}|\\^`\[\]]+/i
-    Regex.scan(url_regex, content) |> Enum.map(&List.first/1) |> Enum.uniq()
+
+    Regex.scan(url_regex, content)
+    |> Enum.map(&List.first/1)
+    |> Enum.map(&trim_trailing_url_punctuation/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
   end
+
+  defp trim_trailing_url_punctuation(url) when is_binary(url) do
+    trimmed = String.trim(url)
+    sanitized = Regex.replace(~r/[\)\]\}\.,!?;:]+$/u, trimmed, "")
+
+    if sanitized == "" do
+      nil
+    else
+      sanitized
+    end
+  end
+
+  defp trim_trailing_url_punctuation(_), do: nil
 
   @doc "Gets or creates a link preview for a URL.\n"
   def get_or_create_preview(url) do

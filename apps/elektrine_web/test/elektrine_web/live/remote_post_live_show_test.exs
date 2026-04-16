@@ -74,6 +74,43 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert html =~ "blobcat.png"
   end
 
+  test "renders short mentions in remote comments using in-reply-to author domain" do
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://mas.to/users/helenclayton/statuses/1",
+          "attributedTo" => "https://mas.to/users/helenclayton",
+          "content" => "@louisa_ I started doing this",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0},
+          "inReplyToAuthor" => "@louisa_@mastodon.social"
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: nil,
+      remote_actor: %{domain: "mastodon.social"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://mastodon.social/posts/1"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ ~s(href="/remote/louisa_@mastodon.social")
+    refute html =~ ~s(/remote/louisa_@mas.to)
+  end
+
   test "renders nested timeline replies directly without continuation link" do
     comments = [
       %{
@@ -539,6 +576,257 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assert_received {:load_replies_for_cached, %{id: ^message_id}}
     assert_received {:load_platform_counts, ^activitypub_id}
+  end
+
+  test "platform count refresh does not lower an already displayed reply count" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/count#{unique}",
+        username: "count#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/count#{unique}/inbox",
+        public_key: "test-public-key-count-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "counted post",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/#{unique}",
+        activitypub_url: "https://remote.example/posts/#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 1
+      })
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: message,
+        post: %{
+          "id" => message.activitypub_id,
+          "reply_count" => 5,
+          "repliesCount" => 5,
+          "replies" => %{"totalItems" => 5},
+          "comments" => %{"totalItems" => 5}
+        },
+        modal_post: nil,
+        post_interactions: %{},
+        lemmy_counts: nil,
+        mastodon_counts: nil,
+        platform_counts_load_ref: 42,
+        platform_counts_refresh_ref: nil,
+        is_community_post: false,
+        community_actor: nil,
+        community_stats: nil,
+        current_user: nil,
+        page_title: nil
+      }
+    }
+
+    result = %{
+      mastodon_counts: nil,
+      lemmy_counts: nil,
+      lemmy_comment_counts: nil,
+      fresh_post: nil
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:platform_counts_loaded, 42, message.activitypub_id, result},
+               socket
+             )
+
+    assert updated_socket.assigns.post["reply_count"] == 5
+    assert updated_socket.assigns.post["repliesCount"] == 5
+    assert get_in(updated_socket.assigns.post, ["replies", "totalItems"]) == 5
+  end
+
+  test "cached reply loading uses database descendants when preloaded replies are stale" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/stale#{unique}",
+        username: "stale#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/stale#{unique}/inbox",
+        public_key: "test-public-key-stale-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "root",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/#{unique}",
+        activitypub_url: "https://remote.example/posts/#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 2
+      })
+
+    {:ok, first_reply} =
+      Messaging.create_federated_message(%{
+        content: "first reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/#{unique}-1",
+        activitypub_url: "https://remote.example/comments/#{unique}-1",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    {:ok, _second_reply} =
+      Messaging.create_federated_message(%{
+        content: "second reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/#{unique}-2",
+        activitypub_url: "https://remote.example/comments/#{unique}-2",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    stale_message = %{root_message | replies: [first_reply]}
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{},
+        post_reactions: %{},
+        is_community_post: false
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:load_replies_for_cached, stale_message}, socket)
+
+    assert length(updated_socket.assigns.replies) == 2
+  end
+
+  test "local-style remote thread replies link short mentions to parent actor domain" do
+    unique = System.unique_integer([:positive])
+
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://mas.to/users/helen#{unique}/statuses/#{unique}",
+          "_local_message_id" => 99_000 + unique,
+          "attributedTo" => "https://mas.to/users/helen#{unique}",
+          "content" => "@louisa_#{unique} hello there",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0},
+          "inReplyToAuthor" => "@louisa_#{unique}@mastodon.social"
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: nil,
+      remote_actor: %{domain: "mastodon.social"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://mastodon.social/posts/#{unique}"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ ~s(href="/remote/louisa_#{unique}@mastodon.social")
+    refute html =~ ~s(/remote/louisa_#{unique}@mas.to)
+  end
+
+  test "new_public_post refreshes displayed replies for ingested thread replies" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/thread#{unique}",
+        username: "thread#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/thread#{unique}/inbox",
+        public_key: "test-public-key-thread-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "root",
+        title: "Root post",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/#{unique}",
+        activitypub_url: "https://remote.example/posts/#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id
+      })
+
+    {:ok, existing_reply} =
+      Messaging.create_federated_message(%{
+        content: "existing reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/#{unique}-1",
+        activitypub_url: "https://remote.example/comments/#{unique}-1",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    {:ok, ingested_reply} =
+      Messaging.create_federated_message(%{
+        content: "ingested reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/#{unique}-2",
+        activitypub_url: "https://remote.example/comments/#{unique}-2",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: existing_reply.id
+      })
+
+    root_message = Repo.preload(root_message, remote_actor: [])
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: root_message,
+        post: %{"id" => root_message.activitypub_id},
+        replies: [],
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{},
+        post_reactions: %{}
+      }
+    }
+
+    post_id = root_message.activitypub_id
+
+    assert {:noreply, same_socket} = Show.handle_info({:new_public_post, ingested_reply}, socket)
+    assert same_socket.assigns.replies == []
+    assert_received {:replies_loaded, [], ^post_id}
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:replies_loaded, [], post_id}, socket)
+
+    reply_ids = Enum.map(updated_socket.assigns.replies, &(&1["id"] || &1[:id]))
+
+    assert existing_reply.activitypub_id in reply_ids
+    assert ingested_reply.activitypub_id in reply_ids
   end
 
   test "remote_post_loaded denies cached non-public federated posts to unauthorized viewers" do
