@@ -158,6 +158,19 @@ html[data-theme="dark"] .btn:focus-visible,
 } .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.75rem; top: 0.3rem; bottom: 0.25rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, oklch(var(--bc) / 0.14), oklch(var(--bc) / 0.08));
 } .timeline-thread-preview-item { position: relative; background: oklch(var(--b1));
 } .timeline-thread-preview-item::before { content: ""; position: absolute; left: -1rem; top: 0.9rem; width: 0.75rem; height: 2px; border-radius: 9999px; background: oklch(var(--bc) / 0.12);
+} @media (max-width: 640px) {
+  .timeline-thread-replies { margin-left: 0.25rem; padding-left: 1.3rem;
+  } .timeline-thread-replies__rail { left: 0.35rem; top: -0.75rem; width: 2px;
+  } .timeline-thread-reply-node { left: -0.95rem; top: 0.95rem; width: 10px; height: 10px;
+  } .timeline-thread-reply-elbow { left: -0.72rem; top: 1.21rem; width: 0.45rem;
+  } .timeline-thread-inline-form { margin-left: 0.25rem;
+  } .timeline-thread-tree-node--nested { margin-left: 0.5rem; padding-left: 1rem;
+  } .timeline-thread-tree-node--nested::before { left: 0.4rem; width: 2px;
+  } .timeline-thread-tree-node--nested::after { left: 0.4rem; top: 1.2rem; width: 0.6rem; height: 2px;
+  } .timeline-thread-preview-list { padding-left: 1.1rem;
+  } .timeline-thread-preview-list::before { left: 0.4rem;
+  } .timeline-thread-preview-item::before { left: -0.65rem; width: 0.45rem;
+  }
 } /* -------------------------------------------------------------------------- MODALS -------------------------------------------------------------------------- */ .modal,
 .modal.modal-open { background: var(--theme-modal-backdrop);
 } .modal::backdrop { background: var(--theme-modal-backdrop);

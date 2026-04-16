@@ -652,7 +652,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
             limit: 20,
             before_id: before_id,
             user_id: current_user && current_user.id,
-            search_query: search_query
+            search_query: search_query,
+            source_filter: socket.assigns.current_filter
           )
 
         "friends" ->

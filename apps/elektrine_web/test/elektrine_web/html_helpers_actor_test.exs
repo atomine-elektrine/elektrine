@@ -3,6 +3,7 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.Emojis.CustomEmoji
   alias ElektrineWeb.HtmlHelpers
 
@@ -73,5 +74,35 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert html =~ ~s(href="/remote/alice@mastodon.social")
     assert html =~ ">@alice</a>"
+  end
+
+  test "render_post_content prefers reply-author domain for short mentions" do
+    html =
+      HtmlHelpers.render_post_content(%{
+        content: "<p>@JackTheCat lool</p>",
+        remote_actor: %Actor{domain: "mastodon.online"},
+        media_metadata: %{"inReplyToAuthor" => "@JackTheCat@mastodon.scot"},
+        reply_to: %{
+          remote_actor: %Actor{username: "JackTheCat", domain: "mastodon.scot"}
+        }
+      })
+
+    assert html =~ ~s(href="/remote/JackTheCat@mastodon.scot")
+    refute html =~ ~s(/remote/JackTheCat@mastodon.online)
+    assert html =~ ">@JackTheCat</a>"
+  end
+
+  test "render_post_content prefers loaded reply target domain for short mentions" do
+    html =
+      HtmlHelpers.render_post_content(%{
+        content: "<p>@JackTheCat lool</p>",
+        remote_actor: %Actor{domain: "mastodon.online"},
+        reply_to: %{
+          remote_actor: %Actor{username: "JackTheCat", domain: "mastodon.scot"}
+        }
+      })
+
+    assert html =~ ~s(href="/remote/JackTheCat@mastodon.scot")
+    refute html =~ ~s(/remote/JackTheCat@mastodon.online)
   end
 end

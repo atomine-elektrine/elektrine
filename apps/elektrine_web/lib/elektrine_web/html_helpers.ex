@@ -23,6 +23,7 @@ defmodule ElektrineWeb.HtmlHelpers do
   @doc ~s|Renders post content appropriately based on whether it's a local or federated post.\n\nFor federated posts (with remote_actor), uses render_remote_post_content which:\n- Rewrites hashtag links to local /hashtag/ paths\n- Rewrites mention links to local /remote/ paths\n- Renders custom emojis from the remote instance\n\nFor local posts, uses make_content_safe_with_links.\n\n## Examples\n\n    iex> render_post_content(%{content: \"Hello #world\", remote_actor: nil})\n    # Uses make_content_safe_with_links\n\n    iex> render_post_content(%{content: \"Hello #world\", remote_actor: %{domain: \"mastodon.social\"}})\n    # Uses render_remote_post_content with proper hashtag rewriting\n|
   def render_post_content(post) do
     content = post.content
+    mention_domain_hints = mention_domain_hints(post)
 
     cond do
       is_nil(content) || content == "" ->
@@ -32,7 +33,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         ""
 
       Ecto.assoc_loaded?(post.remote_actor) && post.remote_actor != nil ->
-        render_remote_post_content(content, post.remote_actor.domain)
+        render_remote_post_content(content, post.remote_actor.domain, mention_domain_hints)
 
       true ->
         content
@@ -561,15 +562,18 @@ defmodule ElektrineWeb.HtmlHelpers do
   end
 
   @doc ~s|Renders a federated post's content with sanitization and link rewriting.\n\nThis function:\n1. Sanitizes HTML using HtmlSanitizeEx to allow basic formatting\n2. Rewrites remote hashtag links to local /hashtag/ paths\n3. Rewrites remote mention links to local /remote/ paths\n4. Linkifies plain text URLs that weren't already links\n5. Renders custom emojis from the instance\n\n## Examples\n\n    iex> render_remote_post_content(\"<p>Check out #plushtodon</p>\", \"mastodon.social\")\n    # Returns HTML with local hashtag link\n|
-  def render_remote_post_content(nil, _instance_domain) do
+  def render_remote_post_content(content, instance_domain, mention_domain_hints \\ %{})
+
+  def render_remote_post_content(nil, _instance_domain, _mention_domain_hints) do
     ""
   end
 
-  def render_remote_post_content("", _instance_domain) do
+  def render_remote_post_content("", _instance_domain, _mention_domain_hints) do
     ""
   end
 
-  def render_remote_post_content(content, instance_domain) when is_binary(content) do
+  def render_remote_post_content(content, instance_domain, mention_domain_hints)
+      when is_binary(content) and is_map(mention_domain_hints) do
     content
     |> normalize_remote_post_markup()
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
@@ -577,7 +581,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> strip_mastodon_link_spans()
     |> rewrite_hashtag_links_to_local()
     |> linkify_plain_text_hashtags()
-    |> rewrite_mention_links_to_local(instance_domain)
+    |> rewrite_mention_links_to_local(instance_domain, mention_domain_hints)
     |> linkify_plain_text_urls()
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
@@ -586,7 +590,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     _ -> HtmlSanitizeEx.strip_tags(content)
   end
 
-  def render_remote_post_content(_, _instance_domain) do
+  def render_remote_post_content(_, _instance_domain, _mention_domain_hints) do
     ""
   end
 
@@ -743,15 +747,16 @@ defmodule ElektrineWeb.HtmlHelpers do
   end
 
   @doc ~s|Rewrites mention links to local profile routes.\nFor local ActivityPub domains, mentions resolve to local profile/community pages.\nFor remote domains, mentions resolve to /remote/user@domain paths.\nHandles various ActivityPub mention link formats:\n- https://domain.com/@username\n- https://domain.com/users/username\n- https://domain.com/u/username (Lemmy)\n|
-  def rewrite_mention_links_to_local(html, instance_domain \\ nil)
+  def rewrite_mention_links_to_local(html, instance_domain \\ nil, mention_domain_hints \\ %{})
 
-  def rewrite_mention_links_to_local(html, instance_domain) when is_binary(html) do
+  def rewrite_mention_links_to_local(html, instance_domain, mention_domain_hints)
+      when is_binary(html) and is_map(mention_domain_hints) do
     html
     |> rewrite_mention_hrefs()
-    |> linkify_plain_text_mentions(instance_domain)
+    |> linkify_plain_text_mentions(instance_domain, mention_domain_hints)
   end
 
-  def rewrite_mention_links_to_local(content, _instance_domain) do
+  def rewrite_mention_links_to_local(content, _instance_domain, _mention_domain_hints) do
     content
   end
 
@@ -810,7 +815,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     )
   end
 
-  defp linkify_plain_text_mentions(html, instance_domain) do
+  defp linkify_plain_text_mentions(html, instance_domain, mention_domain_hints) do
     html
     |> String.split(~r/(<a\s[^>]*>.*?<\/a>|<img\s[^>]*\/?>|<[^>]+>)/s, include_captures: true)
     |> Enum.map(fn segment ->
@@ -826,28 +831,92 @@ defmodule ElektrineWeb.HtmlHelpers do
             "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
           end
         )
-        |> maybe_linkify_short_mentions(instance_domain)
+        |> maybe_linkify_short_mentions(instance_domain, mention_domain_hints)
       end
     end)
     |> Enum.map_join("", & &1)
   end
 
-  defp maybe_linkify_short_mentions(segment, instance_domain)
-       when is_binary(segment) and is_binary(instance_domain) and instance_domain != "" do
+  defp maybe_linkify_short_mentions(segment, instance_domain, mention_domain_hints)
+       when is_binary(segment) and is_binary(instance_domain) and instance_domain != "" and
+              is_map(mention_domain_hints) do
     Regex.replace(
       ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@])/,
       segment,
       fn _full, prefix, username ->
+        domain = Map.get(mention_domain_hints, String.downcase(username), instance_domain)
+
         href =
-          Paths.profile_path(username, instance_domain) ||
-            "/remote/#{username}@#{instance_domain}"
+          Paths.profile_path(username, domain) ||
+            "/remote/#{username}@#{domain}"
 
         "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}</a>"
       end
     )
   end
 
-  defp maybe_linkify_short_mentions(segment, _instance_domain), do: segment
+  defp maybe_linkify_short_mentions(segment, _instance_domain, _mention_domain_hints), do: segment
+
+  defp mention_domain_hints(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
+
+    metadata_hints =
+      metadata
+      |> in_reply_to_author_from_metadata()
+      |> short_mention_domain_hints()
+
+    reply_to_hints =
+      post
+      |> Map.get(:reply_to)
+      |> short_mention_domain_hints_from_reply_to()
+
+    Map.merge(metadata_hints, reply_to_hints)
+  end
+
+  defp mention_domain_hints(_), do: %{}
+
+  defp in_reply_to_author_from_metadata(metadata) when is_map(metadata) do
+    Map.get(metadata, "inReplyToAuthor") ||
+      Map.get(metadata, "in_reply_to_author") ||
+      Map.get(metadata, :inReplyToAuthor) ||
+      Map.get(metadata, :in_reply_to_author)
+  end
+
+  defp in_reply_to_author_from_metadata(_), do: nil
+
+  defp short_mention_domain_hints(author) when is_binary(author) do
+    case Regex.run(
+           ~r/^@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])$/,
+           String.trim(author)
+         ) do
+      [_, username, domain] -> %{String.downcase(username) => domain}
+      _ -> %{}
+    end
+  end
+
+  defp short_mention_domain_hints(_), do: %{}
+
+  defp short_mention_domain_hints_from_reply_to(reply_to) when is_map(reply_to) do
+    remote_actor = Map.get(reply_to, :remote_actor)
+
+    if Ecto.assoc_loaded?(remote_actor) && is_map(remote_actor) do
+      username = Map.get(remote_actor, :username) || Map.get(remote_actor, "username")
+      domain = Map.get(remote_actor, :domain) || Map.get(remote_actor, "domain")
+
+      case {username, domain} do
+        {username, domain}
+        when is_binary(username) and username != "" and is_binary(domain) and domain != "" ->
+          %{String.downcase(username) => domain}
+
+        _ ->
+          %{}
+      end
+    else
+      %{}
+    end
+  end
+
+  defp short_mention_domain_hints_from_reply_to(_), do: %{}
 
   defp add_link_styles(html) when is_binary(html) do
     Regex.replace(

@@ -1077,7 +1077,16 @@
                   <%= if @current_user do %>
                     <%= if feed_post_count > 0 do %>
                       <div class="space-y-4">
-                        <%= for post <- @filtered_community_posts do %>
+                        <%= for {post, index} <- Enum.with_index(@filtered_community_posts) do %>
+                          <%= if show_public_fallback_divider?(
+                            @filtered_community_posts,
+                            @public_fallback_post_ids,
+                            index
+                          ) do %>
+                            <div class="rounded-2xl border border-dashed border-base-300/80 bg-base-200/40 px-4 py-3 text-sm text-base-content/70">
+                              More from public communities
+                            </div>
+                          <% end %>
                           <.timeline_post
                             post={post}
                             layout={:lemmy}
@@ -1103,11 +1112,19 @@
                               </div>
                             </div>
                           <% else %>
-                            <div class="text-center">
-                              <button phx-click="load_more_posts" class="btn btn-ghost">
-                                Load More
-                              </button>
-                            </div>
+                            <%= if @no_more_posts do %>
+                              <div class="text-sm text-base-content/60">No more posts</div>
+                            <% else %>
+                              <div class="text-center">
+                                <button
+                                  type="button"
+                                  phx-click="load_more_posts"
+                                  class="btn btn-ghost"
+                                >
+                                  Load More
+                                </button>
+                              </div>
+                            <% end %>
                           <% end %>
                         </div>
                       <% end %>
@@ -1318,6 +1335,14 @@
                     phx-update="ignore"
                     id="quick-post-textarea"
                   ><%= @quick_post_content %></textarea>
+
+                  <input
+                    type="url"
+                    name="link_url"
+                    placeholder="Optional link URL..."
+                    class="input input-bordered input-sm w-full"
+                    value={@quick_post_link_url}
+                  />
                   
 <!-- Media Preview -->
                   <%= if !Enum.empty?(@pending_media_urls) do %>

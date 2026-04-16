@@ -1657,6 +1657,63 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert json_response(conn, 400) == %{"error" => "Invalid activity"}
     end
+
+    test "accepts signed activities when actor uses Mastodon profile URL form", %{
+      conn: conn,
+      user: user
+    } do
+      remote_actor = remote_actor_fixture("mastodonprofileform")
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Follow",
+        "actor" => "https://remote.example/@#{remote_actor.username}",
+        "object" => "https://localhost/users/#{user.username}"
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/users/#{user.username}/inbox", activity)
+
+      assert json_response(conn, 202) == %{}
+    end
+
+    test "accepts signed activities when cached signature actor uses canonical /ap/users id", %{
+      conn: conn,
+      user: user
+    } do
+      remote_actor = remote_actor_fixture("canonicalactor")
+
+      remote_actor =
+        remote_actor
+        |> Ecto.Changeset.change(
+          uri: "https://mastodon.social/ap/users/116313284892040418",
+          username: "Sea1Am",
+          domain: "mastodon.social"
+        )
+        |> Repo.update!()
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://mastodon.social/activities/#{System.unique_integer([:positive])}",
+        "type" => "Follow",
+        "actor" => "https://mastodon.social/users/Sea1Am",
+        "object" => "https://localhost/users/#{user.username}"
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/users/#{user.username}/inbox", activity)
+
+      assert json_response(conn, 202) == %{}
+    end
   end
 
   describe "POST /inbox (shared inbox)" do

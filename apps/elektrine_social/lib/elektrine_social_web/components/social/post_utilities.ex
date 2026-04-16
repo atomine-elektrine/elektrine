@@ -101,7 +101,12 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec detect_external_link(map()) :: String.t() | nil
   def detect_external_link(post) do
+    primary_url = Map.get(post, :primary_url)
+
     cond do
+      is_binary(primary_url) and String.trim(primary_url) != "" ->
+        String.trim(primary_url)
+
       # Check metadata first
       is_map(post.media_metadata) && post.media_metadata["external_link"] ->
         post.media_metadata["external_link"]

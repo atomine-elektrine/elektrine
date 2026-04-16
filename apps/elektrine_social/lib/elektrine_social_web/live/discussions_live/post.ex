@@ -506,10 +506,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     indent_class =
       case depth do
         0 -> ""
-        1 -> "ml-4"
-        2 -> "ml-8"
+        1 -> "ml-2 sm:ml-4"
+        2 -> "ml-4 sm:ml-8"
         # Don't indent further than 2 levels
-        _ -> "ml-8"
+        _ -> "ml-4 sm:ml-8"
       end
 
     border_color =
@@ -647,7 +647,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     profile_path = ~p"/#{escaped_username}"
 
     """
-    <div class="#{indent_class} relative">
+    <div class="#{indent_class} relative min-w-0">
       #{if depth > 0 do
       """
       <div class="absolute left-0 top-0 bottom-0 w-px #{line_color} opacity-30"></div>
@@ -656,8 +656,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       ""
     end}
       <div class="card bg-base-50 border border-base-200 shadow-sm border-l-4 #{border_color}">
-        <div class="card-body p-4">
-          <div class="flex gap-3">
+        <div class="card-body p-3 sm:p-4">
+          <div class="flex gap-2 sm:gap-3 min-w-0">
             <!-- Reply Voting -->
             <div class="flex flex-col items-center gap-1">
               #{voting_html}
@@ -666,12 +666,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
             <!-- Reply Content -->
             <div class="flex-1 min-w-0">
               <!-- Reply Header -->
-              <div class="flex items-center gap-2 mb-2">
+              <div class="flex items-start gap-2 mb-2 min-w-0">
                 <a href="#{profile_path}" class="w-6 h-6">
                   #{render_user_avatar(reply.sender)}
                 </a>
-                <div class="flex items-center gap-1 flex-wrap">
-                  <a href="#{profile_path}" class="inline-flex items-center font-medium text-sm hover:underline">
+                <div class="flex items-center gap-1 flex-wrap min-w-0">
+                  <a href="#{profile_path}" class="inline-flex items-center font-medium text-sm hover:underline break-words">
                     #{escaped_username}
                   </a>
                   #{flair_html}
@@ -683,7 +683,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       ""
     end}
                 </div>
-                <span class="text-xs opacity-70">
+                <span class="text-xs opacity-70 shrink-0">
                   · #{format_relative_time(reply.inserted_at)}
                 </span>
               </div>
@@ -696,7 +696,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
               </div>
 
               <!-- Reply Actions -->
-              <div class="flex items-center gap-3 text-xs opacity-70">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-70">
                 #{if Map.get(assigns, :current_user) do
       """
       <button
@@ -901,6 +901,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
   @impl true
   def handle_info({:load_replies, post_id, community_id}, socket) do
+    if is_map(socket.assigns[:post]) and socket.assigns.post.federated do
+      _ = Elektrine.ActivityPub.RepliesFetcher.fetch_full_thread_for_message(post_id)
+    end
+
     case get_post_with_replies_expanded(post_id, community_id, socket.assigns.expanded_threads) do
       {:ok, _post, replies} ->
         user_votes =

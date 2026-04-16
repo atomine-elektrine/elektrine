@@ -33,6 +33,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.LinkPreview
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
@@ -1902,12 +1903,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             </div>
             <%= if @post.link_preview.title do %>
               <h4 class="font-medium text-sm mb-1 break-words">
-                {String.slice(@post.link_preview.title, 0, 100)}
+                {preview_display_text(@post.link_preview.title, 100)}
               </h4>
             <% end %>
             <%= if @post.link_preview.description do %>
               <p class="text-xs text-base-content/70 break-words">
-                {String.slice(@post.link_preview.description, 0, 200)}
+                {preview_display_text(@post.link_preview.description, 200)}
               </p>
             <% end %>
           </div>
@@ -2383,16 +2384,29 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     score = (base_count || 0) + score_delta
 
-    # Filter to actual image URLs
+    # Prefer attached media, but fall back to link preview images for link submissions.
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
     has_image = !Enum.empty?(image_urls)
     image_url = if has_image, do: thumbnail_url(hd(image_urls), 96), else: nil
+
+    external_link = PostUtilities.detect_external_link(post)
+    resolved_link_preview = resolved_link_preview(post, external_link)
+
+    preview_image_url =
+      if link_preview_success?(resolved_link_preview) and
+           Elektrine.Strings.present?(resolved_link_preview.image_url) do
+        ensure_https(resolved_link_preview.image_url)
+      else
+        nil
+      end
+
+    thumbnail_image_url = image_url || preview_image_url
+    has_thumbnail_image = is_binary(thumbnail_image_url) and thumbnail_image_url != ""
 
     # Resolve title with stable fallbacks. Some federated community posts persist title on
     # the message while others only expose it via metadata.
     title = resolve_federated_title(post)
     community_uri = PostUtilities.community_actor_uri(post)
-    external_link = PostUtilities.detect_external_link(post)
 
     # Reply count
     local_reply_count = length(assigns.replies)
@@ -2439,11 +2453,15 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:has_image, has_image)
       |> assign(:image_url, image_url)
       |> assign(:image_urls, image_urls)
+      |> assign(:preview_image_url, preview_image_url)
+      |> assign(:thumbnail_image_url, thumbnail_image_url)
+      |> assign(:has_thumbnail_image, has_thumbnail_image)
       |> assign(:title, title)
       |> assign(:community_uri, community_uri)
       |> assign(:community_path, community_path(post, community_uri))
       |> assign(:community_label, PostUtilities.extract_community_name(community_uri))
       |> assign(:external_link, external_link)
+      |> assign(:resolved_link_preview, resolved_link_preview)
       |> assign(:reply_count, reply_count)
       |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
@@ -2558,21 +2576,41 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         </div>
         
     <!-- Thumbnail for image posts or link icon for link submissions -->
-        <%= if @has_image do %>
+        <%= if @has_thumbnail_image do %>
           <div class="w-20 h-20 flex-shrink-0 m-2">
-            <%= if @on_image_click do %>
-              <img
-                src={@image_url}
-                alt=""
-                class="w-full h-full object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                loading="lazy"
-                phx-click={@on_image_click}
-                phx-value-images={Jason.encode!(@image_urls)}
-                phx-value-index="0"
-                phx-value-post_id={@post.id}
-              />
-            <% else %>
-              <img src={@image_url} alt="" class="w-full h-full object-cover rounded" loading="lazy" />
+            <%= cond do %>
+              <% @has_image && @on_image_click -> %>
+                <img
+                  src={@thumbnail_image_url}
+                  alt=""
+                  class="w-full h-full object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
+                  loading="lazy"
+                  phx-click={@on_image_click}
+                  phx-value-images={Jason.encode!(@image_urls)}
+                  phx-value-index="0"
+                  phx-value-post_id={@post.id}
+                />
+              <% @external_link -> %>
+                <a
+                  href={@external_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="block w-full h-full"
+                >
+                  <img
+                    src={@thumbnail_image_url}
+                    alt=""
+                    class="w-full h-full object-cover rounded hover:opacity-80 transition-opacity"
+                    loading="lazy"
+                  />
+                </a>
+              <% true -> %>
+                <img
+                  src={@thumbnail_image_url}
+                  alt=""
+                  class="w-full h-full object-cover rounded"
+                  loading="lazy"
+                />
             <% end %>
           </div>
         <% else %>
@@ -2632,16 +2670,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               </a>
             </div>
           <% else %>
-            <%= if @post.link_preview && !@has_image do %>
+            <%= if @resolved_link_preview && !@has_image do %>
               <div class="text-xs text-primary truncate mb-1">
                 <a
-                  href={@post.link_preview.url}
+                  href={@resolved_link_preview.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   class="hover:underline flex items-center gap-1"
                 >
                   <.icon name="hero-link" class="w-3 h-3 flex-shrink-0" />
-                  <span class="truncate">{URI.parse(@post.link_preview.url).host}</span>
+                  <span class="truncate">{URI.parse(@resolved_link_preview.url).host}</span>
                 </a>
               </div>
             <% end %>
@@ -3171,9 +3209,35 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp trim_reply_identifier(_), do: nil
 
+  defp preview_display_text(text, max_len) when is_binary(text) and is_integer(max_len) do
+    text
+    |> decode_preview_entities()
+    |> String.slice(0, max_len)
+  end
+
+  defp preview_display_text(_, _), do: nil
+
+  defp decode_preview_entities(text), do: decode_preview_entities(text, 3)
+
+  defp decode_preview_entities(text, remaining) when is_binary(text) and remaining > 0 do
+    decoded = HtmlEntities.decode(text)
+    if decoded == text, do: decoded, else: decode_preview_entities(decoded, remaining - 1)
+  end
+
+  defp decode_preview_entities(text, _), do: text
+
   defp link_preview_success?(preview) do
     social_link_preview?(preview) and Map.get(preview, :status) == "success"
   end
+
+  defp resolved_link_preview(%{link_preview: preview}, _) when not is_nil(preview), do: preview
+
+  defp resolved_link_preview(_, external_link)
+       when is_binary(external_link) and external_link != "" do
+    Repo.get_by(LinkPreview, url: external_link)
+  end
+
+  defp resolved_link_preview(_, _), do: nil
 
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
   defp social_link_preview?(_), do: false

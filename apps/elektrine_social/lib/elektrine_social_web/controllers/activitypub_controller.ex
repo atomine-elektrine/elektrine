@@ -283,11 +283,18 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp validate_verified_signature_actor(conn, actor_uri) do
     case conn.assigns[:signature_actor] do
-      %{uri: sig_actor_uri} ->
-        if comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) do
+      %{uri: sig_actor_uri} = sig_actor ->
+        if signature_actor_matches?(sig_actor_uri, actor_uri, sig_actor) do
           :ok
         else
-          {:error, "signature actor mismatch"}
+          {:error,
+           {:signature_actor_mismatch,
+            %{
+              actor: actor_uri,
+              signature_actor: sig_actor_uri,
+              signature_actor_username: Map.get(sig_actor, :username),
+              key_id: signing_key_id(conn.assigns[:signing_key])
+            }}}
         end
 
       %Elektrine.Accounts.User{} = user ->
@@ -302,7 +309,13 @@ defmodule ElektrineSocialWeb.ActivityPubController do
             if comparable_uri(signing_key_actor_uri(key_id)) == comparable_uri(actor_uri) do
               :ok
             else
-              {:error, "signature actor mismatch"}
+              {:error,
+               {:signature_actor_mismatch,
+                %{
+                  actor: actor_uri,
+                  signature_actor: signing_key_actor_uri(key_id),
+                  key_id: key_id
+                }}}
             end
 
           _ ->
@@ -324,6 +337,9 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp signing_key_actor_uri(_), do: nil
 
+  defp signing_key_id(%Elektrine.ActivityPub.SigningKey{key_id: key_id}), do: key_id
+  defp signing_key_id(_), do: nil
+
   defp comparable_uri(uri) when is_binary(uri) do
     uri
     |> String.trim()
@@ -338,6 +354,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
             normalized_path =
               parsed.path
               |> Kernel.||("/")
+              |> normalize_activitypub_actor_path()
               |> case do
                 "/" -> "/"
                 path -> String.trim_trailing(path, "/")
@@ -357,6 +374,34 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   end
 
   defp comparable_uri(_), do: nil
+
+  defp signature_actor_matches?(sig_actor_uri, actor_uri, sig_actor) do
+    comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) ||
+      signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+  end
+
+  defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor) do
+    with %URI{host: sig_host} <- URI.parse(sig_actor_uri),
+         %URI{host: actor_host} <- URI.parse(actor_uri),
+         true <- is_binary(sig_host) and is_binary(actor_host),
+         true <- String.downcase(sig_host) == String.downcase(actor_host),
+         username when is_binary(username) and username != "" <- Map.get(sig_actor, :username),
+         actor_username when is_binary(actor_username) and actor_username != "" <-
+           Elektrine.ActivityPub.Helpers.extract_username_from_uri(actor_uri) do
+      String.downcase(username) == String.downcase(actor_username)
+    else
+      _ -> false
+    end
+  end
+
+  defp normalize_activitypub_actor_path(path) when is_binary(path) do
+    case Regex.run(~r|^/@([^/?#]+)$|, path) do
+      [_, username] -> "/users/#{username}"
+      _ -> path
+    end
+  end
+
+  defp normalize_activitypub_actor_path(_), do: "/"
 
   defp get_client_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)

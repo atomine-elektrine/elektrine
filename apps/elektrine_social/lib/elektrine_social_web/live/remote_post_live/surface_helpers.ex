@@ -183,6 +183,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
 
   def ancestor_interaction_target(_, _), do: nil
 
+  def local_vote_display_count(message) when is_map(message) do
+    max(Map.get(message, :like_count, 0) || 0, Map.get(message, :upvotes, 0) || 0)
+  end
+
+  def local_vote_display_count(_), do: 0
+
   def ancestor_like_count(parent_post, post_state) when is_map(parent_post) do
     base_count =
       if is_integer(map_get_value(parent_post, "_local_like_count")) do
@@ -371,7 +377,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
         "_local" => is_local_reply,
         "_local_user" => local_user,
         "_local_message_id" => msg.id,
-        "_local_like_count" => msg.like_count || 0,
+        "_local_like_count" => local_vote_display_count(msg),
         "_local_share_count" => msg.share_count || 0,
         "_local_reply_count" => msg.reply_count || 0
       }

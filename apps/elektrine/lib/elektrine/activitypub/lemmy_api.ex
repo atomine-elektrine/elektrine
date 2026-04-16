@@ -271,42 +271,21 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   def fetch_post_comments(post_url, limit) when is_binary(post_url) do
     case resolve_post_reference(post_url) do
       {:ok, domain, post_id} ->
-        api_url =
-          "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{limit}&max_depth=10"
-
         headers = [{"Accept", "application/json"}, {"User-Agent", "Elektrine/1.0"}]
 
-        case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
-          {:ok, %Finch.Response{status: 200, body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"comments" => comments}} when is_list(comments) ->
-                comment_id_to_ap =
-                  comments
-                  |> Enum.reduce(%{}, fn comment_view, acc ->
-                    comment = comment_view["comment"] || %{}
+        comment_api_urls(domain, post_id, limit)
+        |> Enum.find_value([], fn api_url ->
+          case safe_request_lemmy_api(:get, api_url, headers, nil, receive_timeout: 10_000) do
+            {:ok, %Finch.Response{status: 200, body: body}} ->
+              case decode_lemmy_comments(body, post_url) do
+                [] -> nil
+                comments -> comments
+              end
 
-                    case {comment["id"], comment["ap_id"]} do
-                      {id, ap_id} when is_integer(id) and is_binary(ap_id) ->
-                        Map.put(acc, Integer.to_string(id), ap_id)
-
-                      {id, ap_id} when is_binary(id) and is_binary(ap_id) ->
-                        Map.put(acc, id, ap_id)
-
-                      _ ->
-                        acc
-                    end
-                  end)
-
-                Enum.map(comments, &lemmy_comment_to_ap(&1, comment_id_to_ap, post_url))
-                |> Enum.reject(&is_nil/1)
-
-              _ ->
-                []
-            end
-
-          _ ->
-            []
-        end
+            _ ->
+              nil
+          end
+        end)
 
       :error ->
         []
@@ -314,6 +293,45 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   end
 
   def fetch_post_comments(_, _), do: []
+
+  defp comment_api_urls(domain, post_id, limit) do
+    [
+      "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{limit}&max_depth=10",
+      "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&limit=#{limit}&max_depth=10",
+      "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&sort=Hot&limit=#{limit}&max_depth=10",
+      "https://#{domain}/api/v3/comment/list?post_id=#{post_id}&type_=All&sort=Hot&limit=#{limit}&max_depth=10"
+    ]
+  end
+
+  defp decode_lemmy_comments(body, post_url) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, %{"comments" => comments}} when is_list(comments) ->
+        comment_id_to_ap =
+          comments
+          |> Enum.reduce(%{}, fn comment_view, acc ->
+            comment = comment_view["comment"] || %{}
+
+            case {comment["id"], comment["ap_id"]} do
+              {id, ap_id} when is_integer(id) and is_binary(ap_id) ->
+                Map.put(acc, Integer.to_string(id), ap_id)
+
+              {id, ap_id} when is_binary(id) and is_binary(ap_id) ->
+                Map.put(acc, id, ap_id)
+
+              _ ->
+                acc
+            end
+          end)
+
+        Enum.map(comments, &lemmy_comment_to_ap(&1, comment_id_to_ap, post_url))
+        |> Enum.reject(&is_nil/1)
+
+      _ ->
+        []
+    end
+  end
+
+  defp decode_lemmy_comments(_, _), do: []
 
   @doc """
   Fetch top comments for multiple Lemmy posts in parallel.

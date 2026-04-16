@@ -118,8 +118,15 @@ defmodule Elektrine.ActivityPub.Fetcher do
         end
 
       {:ok, %Finch.Response{status: status, body: _body}} when status in [404, 410] ->
-        Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
-        {:error, :not_found}
+        case mastodon_status_fallback(uri, opts) do
+          {:ok, object_data} ->
+            Logger.info("Recovered status document via Mastodon API fallback for #{uri}")
+            {:ok, object_data}
+
+          _ ->
+            Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
+            {:error, :not_found}
+        end
 
       {:ok, %Finch.Response{} = response} ->
         log_failed_fetch(uri, response)
@@ -258,6 +265,108 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp maybe_recover_object_from_html(_uri, _response, _reason, _opts),
     do: {:error, :invalid_json}
 
+  defp mastodon_status_fallback(uri, opts) when is_binary(uri) do
+    with {:ok, domain, username, status_id} <- extract_mastodon_status_info(uri),
+         {:ok, status} <- fetch_mastodon_status(domain, status_id, opts),
+         {:ok, object} <- normalize_mastodon_status(status, uri, username) do
+      {:ok, object}
+    else
+      _ -> {:error, :no_status_fallback}
+    end
+  end
+
+  defp mastodon_status_fallback(_, _), do: {:error, :no_status_fallback}
+
+  defp extract_mastodon_status_info(url) when is_binary(url) do
+    cond do
+      match = Regex.run(~r{https?://([^/]+)/users/([^/]+)/statuses/([a-zA-Z0-9_-]+)}, url) ->
+        [_, domain, username, status_id] = match
+        {:ok, domain, username, status_id}
+
+      match = Regex.run(~r{https?://([^/]+)/@([^/]+)/([a-zA-Z0-9_-]+)}, url) ->
+        [_, domain, username, status_id] = match
+        {:ok, domain, username, status_id}
+
+      true ->
+        {:error, :unsupported_status_url}
+    end
+  end
+
+  defp extract_mastodon_status_info(_), do: {:error, :unsupported_status_url}
+
+  defp fetch_mastodon_status(domain, status_id, opts) do
+    api_url = "https://#{domain}/api/v1/statuses/#{status_id}"
+
+    headers = [
+      {"accept", "application/json"},
+      {"user-agent", "Elektrine/1.0"}
+    ]
+
+    case request_with_backoff(api_url, headers, request_opts(opts)) do
+      {:ok, %Finch.Response{status: 200, body: body}} -> Jason.decode(body)
+      _ -> {:error, :status_fetch_failed}
+    end
+  end
+
+  defp normalize_mastodon_status(%{"account" => _account} = status, requested_uri, username) do
+    visibility = Map.get(status, "visibility")
+
+    if visibility in ["public", "unlisted", nil] do
+      actor_uri = mastodon_actor_uri(requested_uri, username)
+
+      {:ok,
+       %{
+         "id" => Map.get(status, "uri") || requested_uri,
+         "type" => "Note",
+         "content" => Map.get(status, "content") || "",
+         "published" => Map.get(status, "created_at"),
+         "url" => Map.get(status, "url") || requested_uri,
+         "attributedTo" => actor_uri,
+         "to" => mastodon_status_to_audience(visibility),
+         "cc" => mastodon_status_cc_audience(visibility, actor_uri),
+         "sensitive" => Map.get(status, "sensitive") || false,
+         "summary" => Map.get(status, "spoiler_text"),
+         "attachment" => normalize_mastodon_attachments(Map.get(status, "media_attachments", [])),
+         "tag" => []
+       }}
+    else
+      {:error, :unsupported_visibility}
+    end
+  end
+
+  defp normalize_mastodon_status(_, _, _), do: {:error, :invalid_status}
+
+  defp mastodon_actor_uri(requested_uri, username) do
+    case URI.parse(requested_uri) do
+      %URI{scheme: scheme, host: host} when is_binary(scheme) and is_binary(host) ->
+        "#{scheme}://#{host}/users/#{username}"
+
+      _ ->
+        requested_uri
+    end
+  end
+
+  defp mastodon_status_to_audience("unlisted"), do: []
+  defp mastodon_status_to_audience(_), do: ["https://www.w3.org/ns/activitystreams#Public"]
+
+  defp mastodon_status_cc_audience("unlisted", actor_uri), do: [actor_uri <> "/followers"]
+  defp mastodon_status_cc_audience(_, _), do: []
+
+  defp normalize_mastodon_attachments(attachments) when is_list(attachments) do
+    Enum.map(attachments, fn attachment ->
+      %{
+        "type" => "Document",
+        "mediaType" =>
+          attachment["mime_type"] || attachment["type"] || "application/octet-stream",
+        "url" => attachment["url"],
+        "name" => attachment["description"]
+      }
+    end)
+    |> Enum.filter(&(is_binary(&1["url"]) and &1["url"] != ""))
+  end
+
+  defp normalize_mastodon_attachments(_), do: []
+
   defp lemmy_object_fallback(uri, body, response_headers, opts) do
     if html_response?(body, response_headers) do
       with {:ok, resolve_url, type} <- lemmy_resolve_url(uri),
@@ -299,6 +408,15 @@ defmodule Elektrine.ActivityPub.Fetcher do
       %URI{scheme: scheme, host: host, path: "/c/" <> _rest}
       when scheme in ["http", "https"] and is_binary(host) ->
         {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}", :group}
+
+      %URI{scheme: scheme, host: host, path: "/comment/" <> comment_id}
+      when scheme in ["http", "https"] and is_binary(host) ->
+        if Regex.match?(~r{^\d+(?:$|/)}, comment_id) do
+          {:ok, "#{scheme}://#{host}/api/v4/resolve_object?q=#{URI.encode_www_form(uri)}",
+           :comment}
+        else
+          {:error, :unsupported_actor_path}
+        end
 
       %URI{scheme: scheme, host: host, path: path}
       when scheme in ["http", "https"] and is_binary(host) ->
@@ -472,6 +590,46 @@ defmodule Elektrine.ActivityPub.Fetcher do
     normalize_lemmy_resolved_actor(resolved_body, requested_uri, :group)
   end
 
+  defp normalize_lemmy_resolved_object(%{"comment" => comment_view}, requested_uri, :comment)
+       when is_map(comment_view) do
+    comment = comment_view["comment"] || %{}
+    creator = comment_view["creator"] || %{}
+    post = comment_view["post"] || %{}
+    community = comment_view["community"] || %{}
+    counts = comment_view["counts"] || %{}
+
+    object_id = comment["ap_id"] || requested_uri
+    post_url = post["ap_id"] || post["url"] || requested_uri
+    community_actor_id = community["actor_id"]
+
+    {:ok,
+     %{
+       "id" => object_id,
+       "type" => "Note",
+       "url" => object_id,
+       "content" => comment["content"] || "",
+       "published" => comment["published"],
+       "updated" => comment["updated"],
+       "attributedTo" => creator["actor_id"],
+       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+       "cc" => Enum.reject([community_actor_id], &is_nil/1),
+       "inReplyTo" => normalize_lemmy_comment_parent_ref(comment, post_url, requested_uri),
+       "likes" => %{"totalItems" => counts["upvotes"] || 0},
+       "replies" => %{"type" => "Collection", "totalItems" => counts["child_count"] || 0},
+       "shares" => %{"totalItems" => 0},
+       "sensitive" => false,
+       "_lemmy" => %{
+         "community_actor_id" => community_actor_id,
+         "creator_name" => creator["name"],
+         "creator_avatar" => creator["avatar"],
+         "score" => counts["score"] || 0,
+         "upvotes" => counts["upvotes"] || 0,
+         "downvotes" => counts["downvotes"] || 0,
+         "child_count" => counts["child_count"] || 0
+       }
+     }}
+  end
+
   defp normalize_lemmy_resolved_object(%{"post" => post_view}, requested_uri, :page)
        when is_map(post_view) do
     post = post_view["post"] || %{}
@@ -517,6 +675,36 @@ defmodule Elektrine.ActivityPub.Fetcher do
     do: url
 
   defp normalize_external_post_url(_, _), do: nil
+
+  defp normalize_lemmy_comment_parent_ref(comment, post_url, requested_uri)
+       when is_map(comment) do
+    case comment["path"] do
+      path when is_binary(path) ->
+        case String.split(path, ".") |> Enum.reverse() do
+          [_self, parent_id | _] when parent_id not in [nil, "", "0"] ->
+            build_lemmy_comment_uri(requested_uri, parent_id)
+
+          _ ->
+            post_url
+        end
+
+      _ ->
+        post_url
+    end
+  end
+
+  defp normalize_lemmy_comment_parent_ref(_, post_url, _requested_uri), do: post_url
+
+  defp build_lemmy_comment_uri(requested_uri, comment_id) do
+    case URI.parse(requested_uri) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and is_binary(comment_id) ->
+        "#{scheme}://#{host}/comment/#{comment_id}"
+
+      _ ->
+        requested_uri
+    end
+  end
 
   defp normalize_lemmy_post_attachment(url, name) when is_binary(url) do
     [

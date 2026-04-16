@@ -238,6 +238,7 @@ defmodule Elektrine.Social do
     post_type = Keyword.get(opts, :post_type, "post")
     category = Keyword.get(opts, :category)
     community_actor_uri = Keyword.get(opts, :community_actor_uri)
+    primary_url = Keyword.get(opts, :primary_url)
 
     # Security checks
     with :ok <-
@@ -269,7 +270,8 @@ defmodule Elektrine.Social do
           base_media_metadata: media_metadata,
           alt_texts: alt_texts,
           community_actor_uri: community_actor_uri,
-          category: category
+          category: category,
+          primary_url: primary_url
         })
 
       persist_timeline_post(attrs, user_id, validated_content, extracted_hashtags)
@@ -480,10 +482,11 @@ defmodule Elektrine.Social do
     pagination = pagination_opts(opts)
     user_id = Keyword.get(opts, :user_id)
     search_query = Keyword.get(opts, :search_query)
+    source_filter = Keyword.get(opts, :source_filter)
     preloads = MessagingMessages.timeline_feed_preloads()
     all_blocked_ids = blocked_user_ids(user_id)
 
-    query =
+    base_query =
       from m in Message,
         left_join: parent in Message,
         on: parent.id == m.reply_to_id,
@@ -499,6 +502,12 @@ defmodule Elektrine.Social do
         order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads
+
+    query =
+      case source_filter do
+        "federated" -> from [m, _parent, _c] in base_query, where: m.federated == true
+        _ -> base_query
+      end
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
     query = maybe_apply_timeline_search(query, search_query)
@@ -982,7 +991,8 @@ defmodule Elektrine.Social do
          base_media_metadata: base_media_metadata,
          alt_texts: alt_texts,
          community_actor_uri: community_actor_uri,
-         category: category
+         category: category,
+         primary_url: primary_url
        }) do
     final_title = validated_title || auto_title
     is_auto_title = is_nil(validated_title) and not is_nil(auto_title)
@@ -1007,6 +1017,7 @@ defmodule Elektrine.Social do
       share_type: Keyword.get(opts, :share_type),
       promoted_from_community_name: Keyword.get(opts, :promoted_from_community_name),
       promoted_from_community_hash: Keyword.get(opts, :promoted_from_community_hash),
+      primary_url: primary_url,
       title: final_title,
       auto_title: is_auto_title
     }

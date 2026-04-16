@@ -1599,20 +1599,16 @@ defmodule Elektrine.Messaging.Messages do
   Creates a message from a federated source (ActivityPub).
   """
   def create_federated_message(attrs) do
-    if Elektrine.Platform.Modules.compiled?(:social) do
-      %Message{}
-      |> Message.federated_changeset(attrs)
-      |> Repo.insert()
-      |> case do
-        {:ok, message} = result ->
-          invalidate_activitypub_ref_cache_for_message(message)
-          result
+    %Message{}
+    |> Message.federated_changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, message} = result ->
+        invalidate_activitypub_ref_cache_for_message(message)
+        result
 
-        error ->
-          error
-      end
-    else
-      {:error, :social_unavailable}
+      error ->
+        error
     end
   end
 

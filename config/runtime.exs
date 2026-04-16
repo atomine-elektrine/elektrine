@@ -978,7 +978,32 @@ if config_env() == :prod do
   profile_base_domains =
     parse_domain_list.(profile_domains_env, [primary_domain])
 
-  host = System.get_env("PHX_HOST") || primary_domain
+  public_base_url_env =
+    first_present_env.(["PUBLIC_BASE_URL", "APP_BASE_URL", "PHX_PUBLIC_URL", "NGROK_URL"])
+
+  public_base_uri =
+    case public_base_url_env do
+      value when is_binary(value) and value != "" -> URI.parse(String.trim(value))
+      _ -> nil
+    end
+
+  host =
+    (public_base_uri && public_base_uri.host) ||
+      System.get_env("PHX_HOST") ||
+      primary_domain
+
+  public_scheme =
+    case public_base_uri do
+      %URI{scheme: scheme} when is_binary(scheme) and scheme != "" -> scheme
+      _ -> "https"
+    end
+
+  public_port =
+    case public_base_uri do
+      %URI{port: port} when is_integer(port) -> port
+      _ -> 443
+    end
+
   host_domain = normalize_domain.(host)
 
   all_public_domains =
@@ -1143,7 +1168,7 @@ if config_env() == :prod do
     |> Enum.uniq()
 
   endpoint_config = [
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: public_port, scheme: public_scheme],
     http: endpoint_http,
     secret_key_base: secret_key_base,
     live_view: [signing_salt: session_signing_salt],

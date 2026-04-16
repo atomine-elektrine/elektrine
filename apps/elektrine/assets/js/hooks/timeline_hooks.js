@@ -419,6 +419,7 @@ export const InfiniteScroll = {
     this.handleScroll = () => {
       this.lastKnownScrollY = currentScrollY()
       this.cancelSettledRestore()
+      if (!this.pending && !this.disabled) this.requestCheck()
     }
     window.addEventListener('scroll', this.handleScroll, { passive: true })
   },
@@ -469,10 +470,22 @@ export const InfiniteScroll = {
   },
 
   checkViewportDistance() {
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+    const scrollBottom = currentScrollY() + viewportHeight
+    const documentHeight = Math.max(
+      document.body?.scrollHeight || 0,
+      document.documentElement?.scrollHeight || 0
+    )
+
+    if (documentHeight > 0 && documentHeight - scrollBottom <= this.offset) {
+      this.loadMore()
+      return
+    }
+
     if (!this.sentinel) return
 
     const sentinelTop = this.sentinel.getBoundingClientRect().top
-    const threshold = (window.innerHeight || document.documentElement.clientHeight) + this.offset
+    const threshold = viewportHeight + this.offset
 
     if (sentinelTop <= threshold) this.loadMore()
   },

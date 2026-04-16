@@ -238,7 +238,8 @@ defmodule Elektrine.Messaging.Message do
       :quote_count,
       :quoted_message_id,
       :content_warning,
-      :sensitive
+      :sensitive,
+      :primary_url
     ])
     |> normalize_federated_columns()
     |> normalize_activitypub_refs()

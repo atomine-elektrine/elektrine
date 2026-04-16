@@ -1290,7 +1290,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         Social.get_federated_replies(
           limit: 20,
           user_id: user && user.id,
-          search_query: search_query
+          search_query: search_query,
+          source_filter: filter
         )
 
       "friends" ->

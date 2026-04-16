@@ -4,6 +4,7 @@ defmodule Elektrine.Social.LinkPreview do
   import Ecto.Changeset
 
   @max_varchar_length 255
+  @max_url_length 2048
 
   schema "link_previews" do
     field :url, :string
@@ -35,8 +36,8 @@ defmodule Elektrine.Social.LinkPreview do
     ])
     |> truncate_field(:title, @max_varchar_length)
     |> truncate_field(:site_name, @max_varchar_length)
-    |> nilify_overlong_field(:image_url, @max_varchar_length)
-    |> nilify_overlong_field(:favicon_url, @max_varchar_length)
+    |> nilify_overlong_field(:image_url, @max_url_length)
+    |> nilify_overlong_field(:favicon_url, @max_url_length)
     |> validate_required([:url])
     |> validate_inclusion(:status, ["pending", "success", "failed"])
     |> validate_url(:url)
