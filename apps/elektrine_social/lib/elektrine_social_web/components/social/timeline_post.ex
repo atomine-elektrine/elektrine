@@ -32,8 +32,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
-  alias Elektrine.Repo
-  alias Elektrine.Social.LinkPreview
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
@@ -2390,7 +2388,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     image_url = if has_image, do: thumbnail_url(hd(image_urls), 96), else: nil
 
     external_link = PostUtilities.detect_external_link(post)
-    resolved_link_preview = resolved_link_preview(post, external_link)
+    resolved_link_preview = Map.get(post, :link_preview)
 
     preview_image_url =
       if link_preview_success?(resolved_link_preview) and
@@ -3229,15 +3227,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp link_preview_success?(preview) do
     social_link_preview?(preview) and Map.get(preview, :status) == "success"
   end
-
-  defp resolved_link_preview(%{link_preview: preview}, _) when not is_nil(preview), do: preview
-
-  defp resolved_link_preview(_, external_link)
-       when is_binary(external_link) and external_link != "" do
-    Repo.get_by(LinkPreview, url: external_link)
-  end
-
-  defp resolved_link_preview(_, _), do: nil
 
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
   defp social_link_preview?(_), do: false

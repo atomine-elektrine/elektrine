@@ -4,8 +4,12 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   Provides common functionality for TimelinePost, LemmyPost, and other post components.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
+  alias Elektrine.Social.LinkPreview
   alias Elektrine.Uploads
   alias ElektrineWeb.HtmlHelpers
 
@@ -144,6 +148,57 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   end
 
   def extract_url_from_content(_), do: nil
+
+  @doc """
+  Attaches cached link previews by external URL for posts that do not already have
+  a loaded `link_preview` association.
+  """
+  @spec attach_cached_link_previews(list(map())) :: list(map())
+  def attach_cached_link_previews(posts) when is_list(posts) do
+    urls =
+      posts
+      |> Enum.filter(&missing_loaded_link_preview?/1)
+      |> Enum.map(&detect_external_link/1)
+      |> Enum.filter(&(is_binary(&1) and &1 != ""))
+      |> Enum.uniq()
+
+    previews_by_url =
+      if urls == [] do
+        %{}
+      else
+        from(lp in LinkPreview, where: lp.url in ^urls)
+        |> Repo.all()
+        |> Map.new(&{&1.url, &1})
+      end
+
+    Enum.map(posts, &attach_cached_link_preview(&1, previews_by_url))
+  end
+
+  def attach_cached_link_previews(_), do: []
+
+  defp attach_cached_link_preview(post, previews_by_url) when is_map(post) do
+    if missing_loaded_link_preview?(post) do
+      case detect_external_link(post) do
+        url when is_binary(url) ->
+          case Map.get(previews_by_url, url) do
+            nil -> post
+            preview -> Map.put(post, :link_preview, preview)
+          end
+
+        _ ->
+          post
+      end
+    else
+      post
+    end
+  end
+
+  defp attach_cached_link_preview(post, _), do: post
+
+  defp missing_loaded_link_preview?(%{link_preview: %Ecto.Association.NotLoaded{}}), do: true
+  defp missing_loaded_link_preview?(%{link_preview: nil}), do: true
+  defp missing_loaded_link_preview?(%{link_preview: _preview}), do: false
+  defp missing_loaded_link_preview?(_), do: true
 
   @doc """
   Renders content preview with HTML stripped, length limited, and emoji decoding.

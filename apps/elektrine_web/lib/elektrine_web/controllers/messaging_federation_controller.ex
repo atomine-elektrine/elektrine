@@ -137,25 +137,23 @@ defmodule ElektrineWeb.MessagingFederationController do
   defp schema_name_from_params(%{"name" => name}) when is_binary(name), do: name
 
   defp local_discovery_document_for_request(conn, version \\ ArblargSDK.protocol_version()) do
-    try do
-      payload =
-        case custom_profile_origin_domain(conn) do
-          nil ->
-            Federation.local_discovery_document(version)
+    payload =
+      case custom_profile_origin_domain(conn) do
+        nil ->
+          Federation.local_discovery_document(version)
 
-          origin_domain ->
-            Protocol.local_discovery_document(version, custom_discovery_context(origin_domain))
-        end
+        origin_domain ->
+          Protocol.local_discovery_document(version, custom_discovery_context(origin_domain))
+      end
 
-      {:ok, payload}
-    rescue
-      error in ArgumentError ->
-        if missing_identity_config_error?(error) do
-          {:error, :identity_not_configured}
-        else
-          reraise error, __STACKTRACE__
-        end
-    end
+    {:ok, payload}
+  rescue
+    error in ArgumentError ->
+      if missing_identity_config_error?(error) do
+        {:error, :identity_not_configured}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp custom_discovery_context(origin_domain) when is_binary(origin_domain) do
