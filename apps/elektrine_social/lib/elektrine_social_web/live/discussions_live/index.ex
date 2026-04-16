@@ -1393,7 +1393,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     followed_remote_communities = results.followed_remote_communities
     discover_remote_communities = results.discover_remote_communities
     followed_community_feed_page = results.followed_community_feed_page
-    followed_community_posts = followed_community_feed_page.posts
+
+    followed_community_posts =
+      followed_community_feed_page.posts
+      |> ElektrineSocialWeb.Components.Social.PostUtilities.attach_cached_link_previews()
+
     recent_activity = results.recent_activity
     popular_communities = results.popular_communities
     my_community_posts = results.my_community_posts
@@ -1503,7 +1507,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         before_post: before_post
       )
 
-    more_posts = feed_page.posts
+    more_posts =
+      feed_page.posts
+      |> ElektrineSocialWeb.Components.Social.PostUtilities.attach_cached_link_previews()
 
     merged_posts = merge_loaded_feed_posts(current_posts, more_posts)
     {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, more_posts)

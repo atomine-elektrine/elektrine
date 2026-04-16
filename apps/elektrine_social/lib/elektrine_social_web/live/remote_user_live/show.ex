@@ -857,6 +857,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
           preload: ^preloads
         )
       )
+      |> PostUtilities.attach_cached_link_previews()
     else
       # For Person actors, query by remote_actor_id
       # Use left_join since federated posts might not have a conversation
@@ -874,6 +875,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
           preload: ^preloads
         )
       )
+      |> PostUtilities.attach_cached_link_previews()
     end
   end
 
