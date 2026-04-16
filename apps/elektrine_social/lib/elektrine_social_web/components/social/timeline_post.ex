@@ -32,6 +32,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Message
+  alias Elektrine.Repo
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
