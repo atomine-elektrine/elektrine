@@ -8,6 +8,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
   alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, Social}
   alias Elektrine.ActivityPub.Actor
+  alias ElektrineWeb.OverviewLive.Index
 
   defp log_in_user(conn, user) do
     token =
@@ -53,6 +54,10 @@ defmodule ElektrineWeb.OverviewLiveTest do
            )
 
     assert html =~ "0 posts"
+  end
+
+  test "loader log label formats tuple keys safely" do
+    assert Index.loader_log_label({:for_you_feed, "all"}) == "{:for_you_feed, \"all\"}"
   end
 
   test "shell includes a global composer menu", %{conn: conn} do

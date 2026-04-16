@@ -21,12 +21,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   Public discovery metadata for cross-domain bootstrap.
   """
   def well_known(conn, _params) do
-    payload = local_discovery_document_for_request(conn)
+    case local_discovery_document_for_request(conn) do
+      {:ok, payload} ->
+        conn
+        |> put_cache_headers(payload, @discovery_cache_control)
+        |> put_status(:ok)
+        |> json(payload)
 
-    conn
-    |> put_cache_headers(payload, @discovery_cache_control)
-    |> put_status(:ok)
-    |> json(payload)
+      {:error, :identity_not_configured} ->
+        discovery_unavailable(conn)
+    end
   end
 
   @doc """
@@ -35,12 +39,16 @@ defmodule ElektrineWeb.MessagingFederationController do
   """
   def well_known_versioned(conn, %{"version" => version}) do
     if version == ArblargSDK.protocol_version() do
-      payload = local_discovery_document_for_request(conn, version)
+      case local_discovery_document_for_request(conn, version) do
+        {:ok, payload} ->
+          conn
+          |> put_cache_headers(payload, @discovery_cache_control)
+          |> put_status(:ok)
+          |> json(payload)
 
-      conn
-      |> put_cache_headers(payload, @discovery_cache_control)
-      |> put_status(:ok)
-      |> json(payload)
+        {:error, :identity_not_configured} ->
+          discovery_unavailable(conn)
+      end
     else
       conn
       |> put_status(:not_found)
@@ -129,12 +137,24 @@ defmodule ElektrineWeb.MessagingFederationController do
   defp schema_name_from_params(%{"name" => name}) when is_binary(name), do: name
 
   defp local_discovery_document_for_request(conn, version \\ ArblargSDK.protocol_version()) do
-    case custom_profile_origin_domain(conn) do
-      nil ->
-        Federation.local_discovery_document(version)
+    try do
+      payload =
+        case custom_profile_origin_domain(conn) do
+          nil ->
+            Federation.local_discovery_document(version)
 
-      origin_domain ->
-        Protocol.local_discovery_document(version, custom_discovery_context(origin_domain))
+          origin_domain ->
+            Protocol.local_discovery_document(version, custom_discovery_context(origin_domain))
+        end
+
+      {:ok, payload}
+    rescue
+      error in ArgumentError ->
+        if missing_identity_config_error?(error) do
+          {:error, :identity_not_configured}
+        else
+          reraise error, __STACKTRACE__
+        end
     end
   end
 
@@ -191,6 +211,17 @@ defmodule ElektrineWeb.MessagingFederationController do
     conn
     |> put_resp_header("cache-control", cache_control)
     |> put_resp_header("etag", ~s(W/"#{etag}"))
+  end
+
+  defp discovery_unavailable(conn) do
+    conn
+    |> put_status(:not_found)
+    |> json(%{error: "Messaging federation discovery is unavailable"})
+  end
+
+  defp missing_identity_config_error?(%ArgumentError{} = error) do
+    Exception.message(error) ==
+      "messaging federation requires explicit identity keys in production; configure :identity_keys or :identity_shared_secret"
   end
 
   defp format_public_server(server) do

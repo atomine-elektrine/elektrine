@@ -1007,6 +1007,42 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
 
       assert response["compatibility_claims"] == []
     end
+
+    test "returns not found instead of raising when prod identity keys are missing", %{conn: conn} do
+      current_environment = Application.get_env(:elektrine, :environment)
+
+      Application.put_env(:elektrine, :environment, :prod)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :environment, current_environment)
+      end)
+
+      conn = get(conn, "/.well-known/_arblarg")
+      response = json_response(conn, 404)
+
+      assert response["error"] == "Messaging federation discovery is unavailable"
+
+      versioned_conn = build_conn() |> get("/.well-known/_arblarg/1.0")
+      versioned_response = json_response(versioned_conn, 404)
+
+      assert versioned_response["error"] == "Messaging federation discovery is unavailable"
+    end
+
+    test "still serves profiles when prod identity keys are missing", %{conn: conn} do
+      current_environment = Application.get_env(:elektrine, :environment)
+
+      Application.put_env(:elektrine, :environment, :prod)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :environment, current_environment)
+      end)
+
+      conn = get(conn, "/_arblarg/profiles")
+      response = json_response(conn, 200)
+
+      assert response["protocol_id"] == "arblarg"
+      assert response["profiles"] != []
+    end
   end
 
   defp signed_federation_headers(conn, method, path, opts \\ []) do
