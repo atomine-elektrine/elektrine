@@ -19,7 +19,7 @@ defmodule Elektrine.Messaging.Federation.PublicDiscovery do
   def refresh_peer_discovery(_domain), do: {:error, :invalid_domain}
 
   def local_discovery_document(version \\ ArblargSDK.protocol_version()) do
-    Protocol.local_discovery_document(version, protocol_context())
+    Protocol.local_discovery_document(version, signed_protocol_context())
   end
 
   def arblarg_profiles_document(version \\ ArblargSDK.protocol_version()) do
@@ -60,16 +60,20 @@ defmodule Elektrine.Messaging.Federation.PublicDiscovery do
   defp protocol_context do
     %{
       local_domain: Runtime.local_domain(),
-      identity: Runtime.local_identity_discovery_identity(),
       base_url: Runtime.local_base_url(),
       allow_insecure_transport: Runtime.allow_insecure_transport?(),
       limits: discovery_limits(),
       cache_ttl_seconds: Runtime.discovery_ttl_seconds(),
       official_relay_operator: Runtime.official_relay_operator(),
       official_relays: Runtime.discovery_official_relays(),
-      clock_skew_seconds: Runtime.clock_skew_seconds(),
-      sign_fun: &sign_discovery_document/1
+      clock_skew_seconds: Runtime.clock_skew_seconds()
     }
+  end
+
+  defp signed_protocol_context do
+    protocol_context()
+    |> Map.put(:identity, Runtime.local_identity_discovery_identity())
+    |> Map.put(:sign_fun, &sign_discovery_document/1)
   end
 
   defp discovery_context do

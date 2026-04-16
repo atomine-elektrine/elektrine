@@ -3026,6 +3026,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
     task = Task.async(loader)
+    formatted_key = loader_log_label(key)
 
     try do
       case Task.yield(task, timeout_ms) || Task.shutdown(task, :brutal_kill) do
@@ -3033,19 +3034,22 @@ defmodule ElektrineWeb.OverviewLive.Index do
           {:ok, result}
 
         {:exit, reason} ->
-          Logger.warning("Overview loader exited (#{key}): #{inspect(reason)}")
+          Logger.warning("Overview loader exited (#{formatted_key}): #{inspect(reason)}")
           {:error, reason}
 
         nil ->
-          Logger.warning("Overview loader timed out (#{key}) after #{timeout_ms}ms")
+          Logger.warning("Overview loader timed out (#{formatted_key}) after #{timeout_ms}ms")
           {:error, :timeout}
       end
     catch
       :exit, reason ->
-        Logger.warning("Overview loader crashed (#{key}): #{inspect(reason)}")
+        Logger.warning("Overview loader crashed (#{formatted_key}): #{inspect(reason)}")
         {:error, reason}
     end
   end
+
+  @doc false
+  def loader_log_label(key), do: inspect(key)
 
   defp get_platform_stats do
     import Ecto.Query

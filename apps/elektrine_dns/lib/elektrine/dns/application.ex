@@ -7,7 +7,6 @@ defmodule Elektrine.DNS.Application do
   def start(_type, _args) do
     children =
       [
-        Elektrine.DNS.ZoneCache,
         Elektrine.DNS.RecursiveCache,
         Elektrine.DNS.RequestGuard,
         {Task.Supervisor, name: Elektrine.DNS.TaskSupervisor}
@@ -18,7 +17,12 @@ defmodule Elektrine.DNS.Application do
 
   defp authority_children do
     if Elektrine.DNS.authority_enabled?() do
-      [Elektrine.DNS.Authority, Elektrine.DNS.UDPServer, Elektrine.DNS.TCPServer]
+      [
+        Elektrine.DNS.ZoneCache,
+        Elektrine.DNS.Authority,
+        Elektrine.DNS.UDPServer,
+        Elektrine.DNS.TCPServer
+      ]
     else
       []
     end
