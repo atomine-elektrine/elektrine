@@ -158,6 +158,24 @@ defmodule ElektrineWeb.OverviewLiveTest do
     refute html =~ ~s(phx-click="unlike_post")
   end
 
+  test "discussion feed is topped up with public community posts when personalized results are sparse" do
+    community_metadata = %{"community_actor_uri" => "https://lemmy.world/c/test"}
+
+    personalized_posts = [
+      %{id: 1, media_metadata: community_metadata}
+    ]
+
+    public_posts = [
+      %{id: 1, media_metadata: community_metadata},
+      %{id: 2, media_metadata: community_metadata},
+      %{id: 3, media_metadata: community_metadata}
+    ]
+
+    merged = Index.merge_discussion_feed_posts(personalized_posts, public_posts, 3)
+
+    assert Enum.map(merged, & &1.id) == [1, 2, 3]
+  end
+
   test "overview renders a taller loading shell before feed hydration", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 

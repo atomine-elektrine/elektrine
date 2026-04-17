@@ -827,7 +827,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           end
       end
 
-    merged_lemmy_counts = socket.assigns.lemmy_counts || %{}
+    merged_lemmy_counts =
+      Map.merge(
+        socket.assigns.lemmy_counts || %{},
+        Helpers.load_cached_lemmy_counts(more_posts, timeline_view)
+      )
+
     new_post_ids = Enum.map(more_posts, & &1.id)
 
     new_post_replies =

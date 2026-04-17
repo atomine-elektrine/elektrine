@@ -2515,11 +2515,17 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     community_posts = Enum.filter(recommended_posts, &PostUtilities.community_post?/1)
 
-    if community_posts == [] do
-      Integrations.overview_public_community_posts(user_id: user_id, limit: limit)
-    else
-      Enum.take(community_posts, limit)
-    end
+    public_posts =
+      if length(community_posts) < limit do
+        Integrations.overview_public_community_posts(
+          user_id: user_id,
+          limit: max(limit * 2, limit + 20)
+        )
+      else
+        []
+      end
+
+    merge_discussion_feed_posts(community_posts, public_posts, limit)
   end
 
   defp load_overview_feed_posts(user_id, _filter, limit, session_context) do
@@ -2558,6 +2564,27 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
   defp parse_non_negative_int(_, default) do
     default
+  end
+
+  @doc false
+  def merge_discussion_feed_posts(personalized_posts, public_posts, limit)
+      when is_list(personalized_posts) and is_list(public_posts) and is_integer(limit) and
+             limit > 0 do
+    personalized_posts = Enum.filter(personalized_posts, &PostUtilities.community_post?/1)
+
+    existing_ids = MapSet.new(Enum.map(personalized_posts, & &1.id))
+
+    public_posts =
+      public_posts
+      |> Enum.filter(&PostUtilities.community_post?/1)
+      |> Enum.reject(&MapSet.member?(existing_ids, &1.id))
+
+    Enum.take(personalized_posts ++ public_posts, limit)
+  end
+
+  def merge_discussion_feed_posts(personalized_posts, _public_posts, _limit)
+      when is_list(personalized_posts) do
+    personalized_posts
   end
 
   defp maybe_group_reply_chains(posts, socket) when is_list(posts) do

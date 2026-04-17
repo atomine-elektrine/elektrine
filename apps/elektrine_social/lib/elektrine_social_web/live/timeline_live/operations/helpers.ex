@@ -5,8 +5,29 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
 
   import Phoenix.Component
   import Phoenix.LiveView
+  alias Elektrine.ActivityPub.LemmyApi
+  alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias ElektrineSocialWeb.Components.Social.PostUtilities
+
+  def load_cached_lemmy_counts(posts, timeline_view)
+
+  def load_cached_lemmy_counts(posts, "communities") when is_list(posts) do
+    activitypub_ids =
+      posts
+      |> Enum.map(&Map.get(&1, :activitypub_id))
+      |> Enum.filter(&LemmyApi.community_post_url?/1)
+
+    if activitypub_ids == [] do
+      %{}
+    else
+      counts = LemmyCache.get_cached_counts(activitypub_ids)
+      _ = LemmyCache.schedule_refresh(activitypub_ids)
+      counts
+    end
+  end
+
+  def load_cached_lemmy_counts(_posts, _timeline_view), do: %{}
 
   # Apply timeline filter to socket
   def apply_timeline_filter(socket) do

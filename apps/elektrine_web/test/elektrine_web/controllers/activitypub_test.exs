@@ -1736,6 +1736,38 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       # Should reject unsigned request
       assert conn.status in [400, 401, 403]
     end
+
+    test "rejects signed requests with non-string actor payloads instead of raising", %{
+      conn: conn
+    } do
+      remote_actor = remote_actor_fixture("embeddedactorpayload")
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Create",
+        "actor" => %{
+          "id" => "https://discourse.ifin.network/ap/actor/5b80597338633c5ee499b1778e01dffc",
+          "type" => "Group",
+          "preferredUsername" => "threatintel",
+          "inbox" =>
+            "https://discourse.ifin.network/ap/actor/5b80597338633c5ee499b1778e01dffc/inbox"
+        },
+        "object" => %{
+          "type" => "Note",
+          "content" => "Hello"
+        }
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/inbox", activity)
+
+      assert json_response(conn, 401) == %{"error" => "Invalid or missing signature"}
+    end
   end
 
   describe "GET /tags/:name" do

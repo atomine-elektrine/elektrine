@@ -817,7 +817,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
         # If the current user read messages, also clear the unread divider
         socket =
           socket
-          |> assign(:message_read_status, read_status)
+          |> assign(:message, %{socket.assigns.message | read_status: read_status})
 
         if user_id == socket.assigns.current_user.id do
           assign(socket, :first_unread_message_id, nil)

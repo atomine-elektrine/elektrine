@@ -232,7 +232,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
                 _ = result
 
                 Events.federation(:inbox, :enqueue, :success, total_time, %{
-                  domain: URI.parse(actor_uri).host || "unknown"
+                  domain: actor_domain(actor_uri)
                 })
 
                 conn
@@ -252,7 +252,10 @@ defmodule ElektrineSocialWeb.ActivityPubController do
             end
 
           {:error, reason} ->
-            Logger.warning("Inbox rejected: #{format_error(reason)} from #{actor_uri}")
+            Logger.warning(
+              "Inbox rejected: #{format_error(reason)} from #{format_actor_ref(actor_uri)}"
+            )
+
             total_time = System.monotonic_time(:millisecond) - start_time
             Events.federation(:inbox, :signature, :failure, total_time, %{reason: reason})
 
@@ -329,6 +332,18 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   defp format_error(reason) when is_atom(reason), do: Atom.to_string(reason)
   defp format_error(reason), do: inspect(reason)
 
+  defp format_actor_ref(actor_uri) when is_binary(actor_uri), do: actor_uri
+  defp format_actor_ref(actor_uri), do: inspect(actor_uri)
+
+  defp actor_domain(actor_uri) when is_binary(actor_uri) do
+    case URI.parse(actor_uri) do
+      %URI{host: host} when is_binary(host) and host != "" -> host
+      _ -> "unknown"
+    end
+  end
+
+  defp actor_domain(_), do: "unknown"
+
   defp signing_key_actor_uri(key_id) when is_binary(key_id) do
     key_id
     |> String.split("#", parts: 2)
@@ -380,7 +395,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
       signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
   end
 
-  defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor) do
+  defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+       when is_binary(sig_actor_uri) and is_binary(actor_uri) do
     with %URI{host: sig_host} <- URI.parse(sig_actor_uri),
          %URI{host: actor_host} <- URI.parse(actor_uri),
          true <- is_binary(sig_host) and is_binary(actor_host),
@@ -393,6 +409,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
       _ -> false
     end
   end
+
+  defp signature_actor_username_alias_match?(_, _, _), do: false
 
   defp normalize_activitypub_actor_path(path) when is_binary(path) do
     case Regex.run(~r|^/@([^/?#]+)$|, path) do
@@ -1245,7 +1263,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
     if activity_type in ["Follow", "Accept", "Create", "Announce"] do
       Logger.info(
-        "Community inbox accepted #{activity_type} for #{community.name} from #{actor_uri} object=#{inspect(object)}"
+        "Community inbox accepted #{activity_type} for #{community.name} from #{format_actor_ref(actor_uri)} object=#{inspect(object)}"
       )
     end
   end
@@ -1256,7 +1274,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
         {:ok, validated_activity}
 
       {:error, reason} ->
-        Logger.warning("Invalid activity from #{actor_uri}: #{reason}")
+        Logger.warning("Invalid activity from #{format_actor_ref(actor_uri)}: #{reason}")
         {:error, :invalid_activity}
     end
   end

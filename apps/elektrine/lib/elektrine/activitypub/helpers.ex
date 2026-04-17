@@ -128,6 +128,23 @@ defmodule Elektrine.ActivityPub.Helpers do
   def extract_all_counts(_), do: {0, 0, 0}
 
   @doc """
+  Extracts vote totals commonly exposed by Lemmy/PieFed/Mbin style objects.
+
+  Returns a map with `:upvotes`, `:downvotes`, and `:score` integers.
+  """
+  def extract_vote_totals(object) when is_map(object) do
+    %{
+      upvotes:
+        parse_count(object["upvotes"] || object["likes_count"] || object["positive_votes"]),
+      downvotes:
+        parse_count(object["downvotes"] || object["dislikes_count"] || object["negative_votes"]),
+      score: parse_signed_count(object["score"] || object["net_score"])
+    }
+  end
+
+  def extract_vote_totals(_), do: %{upvotes: 0, downvotes: 0, score: 0}
+
+  @doc """
   Extracts follower count from actor metadata.
 
   Handles various ActivityPub formats:
@@ -530,6 +547,17 @@ defmodule Elektrine.ActivityPub.Helpers do
   end
 
   defp parse_count(_), do: 0
+
+  defp parse_signed_count(value) when is_integer(value), do: value
+
+  defp parse_signed_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_signed_count(_), do: 0
 
   defp fetch_single_post_data(activitypub_id) do
     case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do

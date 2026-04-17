@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
   alias Elektrine.Accounts.User
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Friends
   alias Elektrine.Messaging
@@ -125,6 +126,46 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     assert html =~ "Local timeline post"
     assert html =~ "Local community post"
+  end
+
+  test "communities view shows cached lemmy vote counts without opening post detail", %{
+    conn: conn
+  } do
+    viewer = AccountsFixtures.user_fixture()
+    actor = remote_actor_fixture(%{domain: "lemmy.world", uri: "https://lemmy.world/u/alice"})
+    activitypub_id = "https://lemmy.world/post/12345"
+
+    {:ok, _message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: actor.id,
+        content: "Cached Lemmy score post",
+        visibility: "public",
+        federated: true,
+        activitypub_id: activitypub_id,
+        activitypub_url: "https://example.com/story",
+        media_metadata: %{
+          "community_actor_uri" => "https://lemmy.world/c/nottheonion",
+          "type" => "Page"
+        }
+      })
+
+    Repo.insert!(%LemmyCache{
+      activitypub_id: activitypub_id,
+      upvotes: 12,
+      downvotes: 2,
+      score: 10,
+      comments: 4,
+      fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=communities")
+
+    html = render(view)
+    assert html =~ "Cached Lemmy score post"
+    assert html =~ ~s(aria-label="Score: 10")
   end
 
   test "composer character counter updates immediately while typing", %{conn: conn} do

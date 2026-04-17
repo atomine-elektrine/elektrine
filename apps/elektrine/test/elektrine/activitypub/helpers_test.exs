@@ -55,6 +55,20 @@ defmodule Elektrine.ActivityPub.HelpersTest do
     end
   end
 
+  describe "extract_vote_totals/1" do
+    test "extracts lemmy and piefed score fields" do
+      metadata = %{"upvotes" => "12", "downvotes" => 2, "score" => "10"}
+
+      assert Helpers.extract_vote_totals(metadata) == %{upvotes: 12, downvotes: 2, score: 10}
+    end
+
+    test "supports alternate positive and negative vote field names" do
+      metadata = %{"positive_votes" => 8, "negative_votes" => "3", "net_score" => 5}
+
+      assert Helpers.extract_vote_totals(metadata) == %{upvotes: 8, downvotes: 3, score: 5}
+    end
+  end
+
   describe "get_or_store_remote_post/1 and /2" do
     test "returns cached message for equivalent ActivityPub ref variants" do
       unique = System.unique_integer([:positive])

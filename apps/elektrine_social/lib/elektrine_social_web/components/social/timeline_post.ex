@@ -2341,7 +2341,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_vote_post && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
           (post.upvotes || 0) - (post.downvotes || 0)
 
-        is_vote_post && (is_integer(post.like_count) or is_integer(post.dislike_count)) ->
+        is_vote_post && ((post.like_count || 0) != 0 or (post.dislike_count || 0) != 0) ->
           (post.like_count || 0) - (post.dislike_count || 0)
 
         is_vote_post && is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
@@ -2351,23 +2351,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
-        is_vote_post && is_integer(post.like_count) ->
+        is_vote_post && is_integer(post.like_count) && post.like_count != 0 ->
           post.like_count
 
-        is_vote_post && is_integer(post.score) ->
+        is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
-        is_integer(post.like_count) ->
+        !is_vote_post && is_integer(post.like_count) ->
           post.like_count
 
-        is_integer(post.score) ->
+        !is_vote_post && is_integer(post.score) ->
           post.score
 
         is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) ->
           Map.get(lemmy_counts, :score)
 
         true ->
-          0
+          nil
       end
 
     score_delta =
@@ -2381,7 +2381,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         end
       end
 
-    score = (base_count || 0) + score_delta
+    score = if is_integer(base_count), do: base_count + score_delta, else: nil
+    score_available = is_integer(score)
 
     # Prefer attached media, but fall back to link preview images for link submissions.
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -2447,6 +2448,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_liked, is_liked)
       |> assign(:is_downvoted, is_downvoted)
       |> assign(:score, score)
+      |> assign(:score_available, score_available)
       |> assign(:is_vote_post, is_vote_post)
       |> assign(:like_only_mode, like_only_mode)
       |> assign(:has_image, has_image)
@@ -2542,8 +2544,15 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               />
             </div>
           <% end %>
-          <span class="text-sm sm:text-lg font-bold" aria-label={"Score: #{@score}"}>
-            {@score}
+          <span
+            class="text-sm sm:text-lg font-bold"
+            aria-label={if @score_available, do: "Score: #{@score}", else: "Score unavailable"}
+          >
+            <%= if @score_available do %>
+              {@score}
+            <% else %>
+              ...
+            <% end %>
           </span>
           <%= if !@like_only_mode and @current_user do %>
             <button
