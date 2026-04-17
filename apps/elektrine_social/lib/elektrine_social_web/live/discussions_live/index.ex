@@ -84,6 +84,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:pending_media_urls, [])
       |> assign(:pending_media_attachments, [])
       |> assign(:pending_media_alt_texts, %{})
+      |> assign(:show_image_modal, false)
+      |> assign(:modal_image_url, nil)
+      |> assign(:modal_images, [])
+      |> assign(:modal_image_index, 0)
+      |> assign(:modal_post, nil)
       |> assign(:loading_communities, true)
       |> assign(:has_community_data, Messaging.has_any_communities?())
 
@@ -225,6 +230,83 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   def handle_event("stop_propagation", _params, socket) do
     {:noreply, socket}
+  end
+
+  def handle_event(
+        "open_image_modal",
+        %{"images" => images_json, "index" => index} = params,
+        socket
+      ) do
+    with {:ok, decoded_images} <- Jason.decode(images_json),
+         true <- is_list(decoded_images) and decoded_images != [] do
+      images = Enum.filter(decoded_images, &is_binary/1)
+      index_int = parse_non_negative_int(index, 0) |> min(max(length(images) - 1, 0))
+      url = params["url"] || Enum.at(images, index_int, List.first(images))
+
+      modal_post =
+        case params["post_id"] do
+          nil ->
+            nil
+
+          post_id ->
+            case parse_positive_int(post_id) do
+              {:ok, id} -> find_feed_post_by_message_id(socket, id)
+              :error -> nil
+            end
+        end
+
+      {:noreply,
+       socket
+       |> assign(:show_image_modal, true)
+       |> assign(:modal_image_url, url)
+       |> assign(:modal_images, images)
+       |> assign(:modal_image_index, index_int)
+       |> assign(:modal_post, modal_post)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_image_modal", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:show_image_modal, false)
+     |> assign(:modal_image_url, nil)
+     |> assign(:modal_images, [])
+     |> assign(:modal_image_index, 0)
+     |> assign(:modal_post, nil)}
+  end
+
+  def handle_event("next_image", _params, socket) do
+    total = length(socket.assigns.modal_images)
+
+    if total > 0 do
+      new_index = rem(socket.assigns.modal_image_index + 1, total)
+      new_url = Enum.at(socket.assigns.modal_images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("prev_image", _params, socket) do
+    total = length(socket.assigns.modal_images)
+
+    if total > 0 do
+      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
+      new_url = Enum.at(socket.assigns.modal_images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("filter_by_category", %{"category" => category}, socket) do
@@ -3035,6 +3117,28 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp blank_to("", fallback), do: fallback
   defp blank_to(nil, fallback), do: fallback
   defp blank_to(value, _fallback), do: value
+
+  defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
+
+  defp parse_positive_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> :error
+    end
+  end
+
+  defp parse_positive_int(_), do: :error
+
+  defp parse_non_negative_int(value, _default) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed >= 0 -> parsed
+      _ -> default
+    end
+  end
+
+  defp parse_non_negative_int(_, default), do: default
 
   defp parse_and_fetch_remote_user(remote_handle) do
     handle =

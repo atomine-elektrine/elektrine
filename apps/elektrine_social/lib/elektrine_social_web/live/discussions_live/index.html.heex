@@ -1784,6 +1784,19 @@
       <div class="modal-backdrop" phx-click="close_image_upload"></div>
     </div>
   <% end %>
+
+  <.image_modal
+    show={@show_image_modal}
+    image_url={@modal_image_url}
+    images={@modal_images}
+    image_index={@modal_image_index}
+    post={@modal_post}
+    timezone={@timezone}
+    time_format={@time_format}
+    current_user={@current_user}
+    is_liked={@modal_post && Map.get(assigns[:user_likes] || %{}, @modal_post.id, false)}
+    like_count={(@modal_post && @modal_post.like_count) || 0}
+  />
   
 <!-- Scroll to Top Button -->
   <button

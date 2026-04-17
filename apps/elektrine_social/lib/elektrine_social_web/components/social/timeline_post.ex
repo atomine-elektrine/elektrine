@@ -2546,12 +2546,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <% end %>
           <span
             class="text-sm sm:text-lg font-bold"
-            aria-label={if @score_available, do: "Score: #{@score}", else: "Score unavailable"}
+            aria-label={if @score_available, do: "Score: #{@score}", else: "Score: 0"}
           >
             <%= if @score_available do %>
               {@score}
             <% else %>
-              ...
+              0
             <% end %>
           </span>
           <%= if !@like_only_mode and @current_user do %>

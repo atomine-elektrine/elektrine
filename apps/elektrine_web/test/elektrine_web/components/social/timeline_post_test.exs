@@ -59,7 +59,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ "hero-link w-8 h-8 text-primary"
   end
 
-  test "lemmy layout shows placeholder when vote score is unavailable" do
+  test "lemmy layout shows 0 when vote score is unavailable" do
     html =
       render_component(&TimelinePost.timeline_post/1,
         post: %{
@@ -101,8 +101,8 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
         replies: []
       )
 
-    assert html =~ "Score unavailable"
-    assert html =~ "..."
-    refute html =~ ~s(aria-label="Score: 0")
+    assert html =~ ~s(aria-label="Score: 0")
+    refute html =~ "Score unavailable"
+    refute html =~ ">...<"
   end
 end
