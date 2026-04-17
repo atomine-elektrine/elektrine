@@ -4,9 +4,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   """
 
   import Phoenix.Component
+  import Phoenix.LiveView
   import ElektrineWeb.Live.NotificationHelpers
 
   alias Elektrine.Messaging.Messages
+  alias Elektrine.Repo
   alias Elektrine.Social
 
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do
@@ -80,6 +82,36 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
 
         {:error, _} ->
           {:noreply, notify_error(socket, "Failed to vote")}
+      end
+    else
+      {:noreply, notify_error(socket, "You must be signed in to vote")}
+    end
+  end
+
+  def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
+    if socket.assigns.current_user do
+      poll_id = params["poll_id"]
+      message_id = String.to_integer(params["message_id"])
+
+      remote_actor =
+        message_id
+        |> Repo.get(Elektrine.Messaging.Message)
+        |> case do
+          nil -> nil
+          message -> Repo.preload(message, [:remote_actor]).remote_actor
+        end
+
+      if is_binary(poll_id) && remote_actor do
+        Elektrine.ActivityPub.Outbox.send_poll_vote(
+          socket.assigns.current_user,
+          poll_id,
+          option_name,
+          remote_actor
+        )
+
+        {:noreply, put_flash(socket, :info, "Vote sent to #{remote_actor.domain}")}
+      else
+        {:noreply, notify_error(socket, "Unable to send remote poll vote")}
       end
     else
       {:noreply, notify_error(socket, "You must be signed in to vote")}

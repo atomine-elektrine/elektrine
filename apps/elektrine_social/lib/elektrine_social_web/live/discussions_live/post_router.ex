@@ -46,6 +46,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostRouter do
       "vote_poll" ->
         VotingOperations.handle_event(event_name, params, socket)
 
+      "vote_remote_poll" ->
+        VotingOperations.handle_event(event_name, params, socket)
+
       "like_post" ->
         VotingOperations.handle_event(event_name, params, socket)
 

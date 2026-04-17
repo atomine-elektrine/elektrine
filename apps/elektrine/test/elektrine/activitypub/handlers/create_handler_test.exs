@@ -109,6 +109,23 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
       assert message.title == "Even the DNC base is controlled opposition"
     end
 
+    test "stores immediate vote totals from lemmy style objects" do
+      author = remote_actor_fixture("scored")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://lemmy.world/post/#{System.unique_integer([:positive])}",
+          "upvotes" => 12,
+          "downvotes" => 2,
+          "score" => 10
+        })
+
+      assert {:ok, message} = CreateHandler.create_note(object, author.uri)
+      assert message.upvotes == 12
+      assert message.downvotes == 2
+      assert message.score == 10
+    end
+
     test "treats markup-only object name as no title" do
       author = remote_actor_fixture("titleempty")
 

@@ -194,6 +194,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
       "vote_poll" ->
         VotingOperations.handle_event(event_name, params, socket)
 
+      "vote_remote_poll" ->
+        VotingOperations.handle_event(event_name, params, socket)
+
       "react_to_post" ->
         VotingOperations.handle_event(event_name, params, socket)
 

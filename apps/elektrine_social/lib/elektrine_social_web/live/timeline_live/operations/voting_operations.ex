@@ -645,6 +645,36 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
     end
   end
 
+  def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
+    if socket.assigns[:current_user] do
+      poll_id = params["poll_id"]
+      message_id = SafeConvert.to_integer!(params["message_id"], params["message_id"])
+
+      remote_actor =
+        socket.assigns.timeline_posts
+        |> Enum.find(&(&1.id == message_id))
+        |> case do
+          %{remote_actor: remote_actor} when is_map(remote_actor) -> remote_actor
+          _ -> nil
+        end
+
+      if is_binary(poll_id) && remote_actor do
+        Elektrine.ActivityPub.Outbox.send_poll_vote(
+          socket.assigns.current_user,
+          poll_id,
+          option_name,
+          remote_actor
+        )
+
+        {:noreply, put_flash(socket, :info, "Vote sent to #{remote_actor.domain}")}
+      else
+        {:noreply, put_flash(socket, :error, "Unable to send remote poll vote")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+    end
+  end
+
   def handle_event(
         "react_to_post",
         %{"message_id" => message_id, "emoji" => emoji} = params,

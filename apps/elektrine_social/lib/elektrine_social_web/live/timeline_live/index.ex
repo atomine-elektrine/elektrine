@@ -265,6 +265,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     posts_duration_ms = duration_ms(posts_started_at)
 
+    cached_lemmy_counts = TimelineHelpers.load_cached_lemmy_counts(posts, timeline_view)
+
     cached_post_replies =
       case cached_special_view do
         %{post_replies: cached_replies} when is_map(cached_replies) -> cached_replies
@@ -351,7 +353,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
      |> assign(:no_more_posts, false)
      |> assign(:recently_loaded_post_ids, [])
      |> assign(:recently_loaded_count, 0)
-     |> assign(:lemmy_counts, socket.assigns[:lemmy_counts] || %{})
+     |> assign(
+       :lemmy_counts,
+       Map.merge(socket.assigns[:lemmy_counts] || %{}, cached_lemmy_counts)
+     )
      |> assign(:remote_post_data, socket.assigns[:remote_post_data] || %{})
      |> assign(:remote_data_request_ref, nil)
      |> assign(:refresh_remote_counts_ref, nil)

@@ -181,30 +181,32 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     primary_url = extract_primary_url(object)
 
     %{
-      attrs: %{
-        content: content,
-        title: title,
-        visibility: determine_visibility(object),
-        activitypub_id: object["id"],
-        activitypub_url: object["url"] || object["id"],
-        primary_url: primary_url,
-        media_urls: media_urls,
-        media_metadata:
-          build_metadata_with_engagement(
-            alt_texts,
-            object,
-            Keyword.put_new(opts, :author_uri, actor_uri)
-          ),
-        reply_to_id: get_reply_to_message_id(object["inReplyTo"]),
-        quoted_message_id: get_quoted_message_id(object),
-        inserted_at: Helpers.parse_published_date(object["published"]),
-        extracted_hashtags: hashtags,
-        like_count: Helpers.extract_interaction_count(object, "likes"),
-        reply_count: Helpers.extract_interaction_count(object, "replies"),
-        share_count: Helpers.extract_interaction_count(object, "shares"),
-        sensitive: object["sensitive"] || false,
-        content_warning: object["summary"]
-      },
+      attrs:
+        %{
+          content: content,
+          title: title,
+          visibility: determine_visibility(object),
+          activitypub_id: object["id"],
+          activitypub_url: object["url"] || object["id"],
+          primary_url: primary_url,
+          media_urls: media_urls,
+          media_metadata:
+            build_metadata_with_engagement(
+              alt_texts,
+              object,
+              Keyword.put_new(opts, :author_uri, actor_uri)
+            ),
+          reply_to_id: get_reply_to_message_id(object["inReplyTo"]),
+          quoted_message_id: get_quoted_message_id(object),
+          inserted_at: Helpers.parse_published_date(object["published"]),
+          extracted_hashtags: hashtags,
+          like_count: Helpers.extract_interaction_count(object, "likes"),
+          reply_count: Helpers.extract_interaction_count(object, "replies"),
+          share_count: Helpers.extract_interaction_count(object, "shares"),
+          sensitive: object["sensitive"] || false,
+          content_warning: object["summary"]
+        }
+        |> Map.merge(Helpers.extract_vote_totals(object)),
       hashtags: hashtags,
       mentioned_local_users: extract_local_mentions(object)
     }
@@ -220,27 +222,29 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     options = extract_poll_options(object)
 
     %{
-      attrs: %{
-        content: content,
-        visibility: determine_visibility(object),
-        activitypub_id: object["id"],
-        activitypub_url: object["url"] || object["id"],
-        media_urls: media_urls,
-        media_metadata:
-          build_poll_metadata(
-            alt_texts,
-            object,
-            Keyword.put_new(opts, :author_uri, actor_uri)
-          ),
-        inserted_at: Helpers.parse_published_date(object["published"]),
-        extracted_hashtags: hashtags,
-        post_type: "poll",
-        like_count: Helpers.extract_interaction_count(object, "likes"),
-        reply_count: Helpers.extract_interaction_count(object, "replies"),
-        share_count: Helpers.extract_interaction_count(object, "shares"),
-        sensitive: object["sensitive"] || false,
-        content_warning: object["summary"]
-      },
+      attrs:
+        %{
+          content: content,
+          visibility: determine_visibility(object),
+          activitypub_id: object["id"],
+          activitypub_url: object["url"] || object["id"],
+          media_urls: media_urls,
+          media_metadata:
+            build_poll_metadata(
+              alt_texts,
+              object,
+              Keyword.put_new(opts, :author_uri, actor_uri)
+            ),
+          inserted_at: Helpers.parse_published_date(object["published"]),
+          extracted_hashtags: hashtags,
+          post_type: "poll",
+          like_count: Helpers.extract_interaction_count(object, "likes"),
+          reply_count: Helpers.extract_interaction_count(object, "replies"),
+          share_count: Helpers.extract_interaction_count(object, "shares"),
+          sensitive: object["sensitive"] || false,
+          content_warning: object["summary"]
+        }
+        |> Map.merge(Helpers.extract_vote_totals(object)),
       question: question,
       hashtags: hashtags,
       options: options
@@ -492,31 +496,34 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           {media_urls, alt_texts} = extract_media_with_alt_text(object)
 
           result =
-            Messaging.create_federated_message(%{
-              content: content,
-              title: title,
-              visibility: visibility,
-              activitypub_id: object["id"],
-              activitypub_url: object["url"] || object["id"],
-              federated: true,
-              remote_actor_id: remote_actor.id,
-              reply_to_id: reply_to_id,
-              quoted_message_id: quoted_message_id,
-              media_urls: media_urls,
-              media_metadata:
-                build_metadata_with_engagement(
-                  alt_texts,
-                  object,
-                  Keyword.put_new(opts, :author_uri, actor_uri)
-                ),
-              inserted_at: Helpers.parse_published_date(object["published"]),
-              extracted_hashtags: hashtags,
-              like_count: Helpers.extract_interaction_count(object, "likes"),
-              reply_count: Helpers.extract_interaction_count(object, "replies"),
-              share_count: Helpers.extract_interaction_count(object, "shares"),
-              sensitive: object["sensitive"] || false,
-              content_warning: object["summary"]
-            })
+            Messaging.create_federated_message(
+              %{
+                content: content,
+                title: title,
+                visibility: visibility,
+                activitypub_id: object["id"],
+                activitypub_url: object["url"] || object["id"],
+                federated: true,
+                remote_actor_id: remote_actor.id,
+                reply_to_id: reply_to_id,
+                quoted_message_id: quoted_message_id,
+                media_urls: media_urls,
+                media_metadata:
+                  build_metadata_with_engagement(
+                    alt_texts,
+                    object,
+                    Keyword.put_new(opts, :author_uri, actor_uri)
+                  ),
+                inserted_at: Helpers.parse_published_date(object["published"]),
+                extracted_hashtags: hashtags,
+                like_count: Helpers.extract_interaction_count(object, "likes"),
+                reply_count: Helpers.extract_interaction_count(object, "replies"),
+                share_count: Helpers.extract_interaction_count(object, "shares"),
+                sensitive: object["sensitive"] || false,
+                content_warning: object["summary"]
+              }
+              |> Map.merge(Helpers.extract_vote_totals(object))
+            )
 
           case result do
             {:ok, message} ->

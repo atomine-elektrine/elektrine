@@ -122,6 +122,36 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
     end
   end
 
+  def handle_event("vote_remote_poll", %{"option_name" => option_name} = params, socket) do
+    if socket.assigns.current_user do
+      poll_id = params["poll_id"]
+      message_id = String.to_integer(params["message_id"])
+
+      remote_actor =
+        socket.assigns.discussion_posts
+        |> Enum.find(&(&1.id == message_id))
+        |> case do
+          %{remote_actor: remote_actor} when is_map(remote_actor) -> remote_actor
+          _ -> nil
+        end
+
+      if is_binary(poll_id) && remote_actor do
+        Elektrine.ActivityPub.Outbox.send_poll_vote(
+          socket.assigns.current_user,
+          poll_id,
+          option_name,
+          remote_actor
+        )
+
+        {:noreply, put_flash(socket, :info, "Vote sent to #{remote_actor.domain}")}
+      else
+        {:noreply, notify_error(socket, "Unable to send remote poll vote")}
+      end
+    else
+      {:noreply, notify_error(socket, "You must be signed in to vote")}
+    end
+  end
+
   # Private helpers
 
   defp get_user_vote(socket, message_id) do

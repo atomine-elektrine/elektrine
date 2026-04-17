@@ -209,6 +209,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Router do
       "vote_poll" ->
         VotingOperations.handle_event(event_name, params, socket)
 
+      "vote_remote_poll" ->
+        VotingOperations.handle_event(event_name, params, socket)
+
       # Flair Operations
       "new_flair" ->
         FlairOperations.handle_event(event_name, params, socket)

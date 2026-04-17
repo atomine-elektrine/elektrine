@@ -113,11 +113,14 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           can_vote = @interactive && @is_open && @current_user %>
 
           <%= if can_vote do %>
+            <% remote_poll_vote = @message && @message.federated && is_binary(@message.activitypub_id) %>
             <button
               type="button"
-              phx-click="vote_poll"
-              phx-value-poll_id={@poll.id}
+              phx-click={if(remote_poll_vote, do: "vote_remote_poll", else: "vote_poll")}
+              phx-value-poll_id={if(remote_poll_vote, do: @message.activitypub_id, else: @poll.id)}
               phx-value-option_id={option.id}
+              phx-value-option_name={option.option_text}
+              phx-value-message_id={@message && @message.id}
               class={[
                 "relative overflow-hidden rounded-lg border transition-colors w-full text-left cursor-pointer hover:border-primary/50",
                 if(is_voted, do: "border-primary bg-primary/10", else: "border-base-300 bg-base-100")
