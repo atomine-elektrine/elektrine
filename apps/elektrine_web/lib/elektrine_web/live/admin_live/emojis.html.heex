@@ -33,17 +33,19 @@
     </div>
 
     <div class="flex gap-2">
-      <select class="select select-bordered" phx-change="filter" name="filter">
-        <option value="all" selected={@filter == "all"}>All</option>
+      <div class="select select-bordered">
+        <select phx-change="filter" name="filter">
+          <option value="all" selected={@filter == "all"}>All</option>
 
-        <option value="local" selected={@filter == "local"}>Local Only</option>
+          <option value="local" selected={@filter == "local"}>Local Only</option>
 
-        <option value="remote" selected={@filter == "remote"}>Remote Only</option>
+          <option value="remote" selected={@filter == "remote"}>Remote Only</option>
 
-        <option value="enabled" selected={@filter == "enabled"}>Enabled</option>
+          <option value="enabled" selected={@filter == "enabled"}>Enabled</option>
 
-        <option value="disabled" selected={@filter == "disabled"}>Disabled</option>
-      </select>
+          <option value="disabled" selected={@filter == "disabled"}>Disabled</option>
+        </select>
+      </div>
     </div>
   </div>
   <!-- Emoji Form Modal -->

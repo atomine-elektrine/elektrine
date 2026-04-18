@@ -155,15 +155,17 @@
                   Offline
                 </button>
                 <.form id="friend-sort-form" for={%{}} phx-change="set_friend_sort">
-                  <select name="sort" class="select select-bordered select-sm">
-                    <option value="activity" selected={@friend_sort == "activity"}>
-                      Activity
-                    </option>
+                  <div class="select select-bordered select-sm">
+                    <select name="sort">
+                      <option value="activity" selected={@friend_sort == "activity"}>
+                        Activity
+                      </option>
 
-                    <option value="recent" selected={@friend_sort == "recent"}>Recent</option>
+                      <option value="recent" selected={@friend_sort == "recent"}>Recent</option>
 
-                    <option value="name" selected={@friend_sort == "name"}>Name</option>
-                  </select>
+                      <option value="name" selected={@friend_sort == "name"}>Name</option>
+                    </select>
+                  </div>
                 </.form>
               </div>
             <% end %>

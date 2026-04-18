@@ -478,67 +478,68 @@
                   <label class="label">
                     <span class="label-text font-medium">Container Pattern</span>
                   </label>
-                  <select
-                    name="profile[container_pattern]"
-                    class="select select-bordered w-full"
-                    phx-change="update_effect"
-                  >
-                    <option
-                      value="none"
-                      selected={(@profile && @profile.container_pattern) == "none"}
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[container_pattern]"
+                      phx-change="update_effect"
                     >
-                      None
-                    </option>
+                      <option
+                        value="none"
+                        selected={(@profile && @profile.container_pattern) == "none"}
+                      >
+                        None
+                      </option>
 
-                    <option
-                      value="dots"
-                      selected={(@profile && @profile.container_pattern) == "dots"}
-                    >
-                      Dots
-                    </option>
+                      <option
+                        value="dots"
+                        selected={(@profile && @profile.container_pattern) == "dots"}
+                      >
+                        Dots
+                      </option>
 
-                    <option
-                      value="grid"
-                      selected={(@profile && @profile.container_pattern) == "grid"}
-                    >
-                      Grid
-                    </option>
+                      <option
+                        value="grid"
+                        selected={(@profile && @profile.container_pattern) == "grid"}
+                      >
+                        Grid
+                      </option>
 
-                    <option
-                      value="diagonal_lines"
-                      selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
-                    >
-                      Diagonal Lines
-                    </option>
+                      <option
+                        value="diagonal_lines"
+                        selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
+                      >
+                        Diagonal Lines
+                      </option>
 
-                    <option
-                      value="zigzag"
-                      selected={(@profile && @profile.container_pattern) == "zigzag"}
-                    >
-                      Zigzag
-                    </option>
+                      <option
+                        value="zigzag"
+                        selected={(@profile && @profile.container_pattern) == "zigzag"}
+                      >
+                        Zigzag
+                      </option>
 
-                    <option
-                      value="waves"
-                      selected={(@profile && @profile.container_pattern) == "waves"}
-                    >
-                      Waves
-                    </option>
+                      <option
+                        value="waves"
+                        selected={(@profile && @profile.container_pattern) == "waves"}
+                      >
+                        Waves
+                      </option>
 
-                    <option
-                      value="crosses"
-                      selected={(@profile && @profile.container_pattern) == "crosses"}
-                    >
-                      Crosses
-                    </option>
+                      <option
+                        value="crosses"
+                        selected={(@profile && @profile.container_pattern) == "crosses"}
+                      >
+                        Crosses
+                      </option>
 
-                    <option
-                      value="houndstooth"
-                      selected={(@profile && @profile.container_pattern) == "houndstooth"}
-                    >
-                      Houndstooth
-                    </option>
-                  </select>
+                      <option
+                        value="houndstooth"
+                        selected={(@profile && @profile.container_pattern) == "houndstooth"}
+                      >
+                        Houndstooth
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 <%= if @profile && @profile.container_pattern != "none" do %>
@@ -585,34 +586,33 @@
                       <label class="label">
                         <span class="label-text font-medium">Animation Speed</span>
                       </label>
-                      <select
-                        name="profile[pattern_animation_speed]"
-                        class="select select-bordered w-full"
-                      >
-                        <option
-                          value="slow"
-                          selected={(@profile && @profile.pattern_animation_speed) == "slow"}
-                        >
-                          Slow
-                        </option>
+                      <div class="select select-bordered w-full">
+                        <select name="profile[pattern_animation_speed]">
+                          <option
+                            value="slow"
+                            selected={(@profile && @profile.pattern_animation_speed) == "slow"}
+                          >
+                            Slow
+                          </option>
 
-                        <option
-                          value="normal"
-                          selected={
-                            (@profile && @profile.pattern_animation_speed) == "normal" ||
-                              !@profile.pattern_animation_speed
-                          }
-                        >
-                          Normal
-                        </option>
+                          <option
+                            value="normal"
+                            selected={
+                              (@profile && @profile.pattern_animation_speed) == "normal" ||
+                                !@profile.pattern_animation_speed
+                            }
+                          >
+                            Normal
+                          </option>
 
-                        <option
-                          value="fast"
-                          selected={(@profile && @profile.pattern_animation_speed) == "fast"}
-                        >
-                          Fast
-                        </option>
-                      </select>
+                          <option
+                            value="fast"
+                            selected={(@profile && @profile.pattern_animation_speed) == "fast"}
+                          >
+                            Fast
+                          </option>
+                        </select>
+                      </div>
                     </div>
                   <% end %>
                 <% end %>
@@ -621,39 +621,40 @@
                   <label class="label">
                     <span class="label-text font-medium">Background Style</span>
                   </label>
-                  <select
-                    name="profile[background_type]"
-                    class="select select-bordered w-full"
-                    phx-change="update_effect"
-                  >
-                    <option
-                      value="gradient"
-                      selected={(@profile && @profile.background_type) == "gradient"}
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[background_type]"
+                      phx-change="update_effect"
                     >
-                      Gradient
-                    </option>
+                      <option
+                        value="gradient"
+                        selected={(@profile && @profile.background_type) == "gradient"}
+                      >
+                        Gradient
+                      </option>
 
-                    <option
-                      value="solid"
-                      selected={(@profile && @profile.background_type) == "solid"}
-                    >
-                      Solid Color
-                    </option>
+                      <option
+                        value="solid"
+                        selected={(@profile && @profile.background_type) == "solid"}
+                      >
+                        Solid Color
+                      </option>
 
-                    <option
-                      value="image"
-                      selected={(@profile && @profile.background_type) == "image"}
-                    >
-                      Custom Image
-                    </option>
+                      <option
+                        value="image"
+                        selected={(@profile && @profile.background_type) == "image"}
+                      >
+                        Custom Image
+                      </option>
 
-                    <option
-                      value="video"
-                      selected={(@profile && @profile.background_type) == "video"}
-                    >
-                      Video (MP4/WebM)
-                    </option>
-                  </select>
+                      <option
+                        value="video"
+                        selected={(@profile && @profile.background_type) == "video"}
+                      >
+                        Video (MP4/WebM)
+                      </option>
+                    </select>
+                  </div>
                 </div>
                 <!-- Text Background Toggle -->
                 <div class="form-control">
@@ -951,31 +952,33 @@
                     <label class="label">
                       <span class="label-text font-medium">Typing Speed</span>
                     </label>
-                    <select name="profile[typewriter_speed]" class="select select-bordered w-full">
-                      <option
-                        value="slow"
-                        selected={(@profile && @profile.typewriter_speed) == "slow"}
-                      >
-                        Slow
-                      </option>
+                    <div class="select select-bordered w-full">
+                      <select name="profile[typewriter_speed]">
+                        <option
+                          value="slow"
+                          selected={(@profile && @profile.typewriter_speed) == "slow"}
+                        >
+                          Slow
+                        </option>
 
-                      <option
-                        value="normal"
-                        selected={
-                          (@profile && @profile.typewriter_speed) == "normal" ||
-                            !@profile.typewriter_speed
-                        }
-                      >
-                        Normal
-                      </option>
+                        <option
+                          value="normal"
+                          selected={
+                            (@profile && @profile.typewriter_speed) == "normal" ||
+                              !@profile.typewriter_speed
+                          }
+                        >
+                          Normal
+                        </option>
 
-                      <option
-                        value="fast"
-                        selected={(@profile && @profile.typewriter_speed) == "fast"}
-                      >
-                        Fast
-                      </option>
-                    </select>
+                        <option
+                          value="fast"
+                          selected={(@profile && @profile.typewriter_speed) == "fast"}
+                        >
+                          Fast
+                        </option>
+                      </select>
+                    </div>
                   </div>
                 <% end %>
 
@@ -1007,62 +1010,67 @@
                 <label class="label">
                   <span class="label-text font-medium">Choose Effect</span>
                 </label>
-                <select name="profile[avatar_effect]" class="select select-bordered w-full">
-                  <option value="none" selected={(@profile && @profile.avatar_effect) == "none"}>
-                    None
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="profile[avatar_effect]">
+                    <option value="none" selected={(@profile && @profile.avatar_effect) == "none"}>
+                      None
+                    </option>
 
-                  <option value="glow" selected={(@profile && @profile.avatar_effect) == "glow"}>
-                    Glow Pulse
-                  </option>
+                    <option value="glow" selected={(@profile && @profile.avatar_effect) == "glow"}>
+                      Glow Pulse
+                    </option>
 
-                  <option
-                    value="rainbow"
-                    selected={(@profile && @profile.avatar_effect) == "rainbow"}
-                  >
-                    Rainbow Border
-                  </option>
+                    <option
+                      value="rainbow"
+                      selected={(@profile && @profile.avatar_effect) == "rainbow"}
+                    >
+                      Rainbow Border
+                    </option>
 
-                  <option value="fire" selected={(@profile && @profile.avatar_effect) == "fire"}>
-                    Fire Ring
-                  </option>
+                    <option value="fire" selected={(@profile && @profile.avatar_effect) == "fire"}>
+                      Fire Ring
+                    </option>
 
-                  <option value="ice" selected={(@profile && @profile.avatar_effect) == "ice"}>
-                    Ice Shimmer
-                  </option>
+                    <option value="ice" selected={(@profile && @profile.avatar_effect) == "ice"}>
+                      Ice Shimmer
+                    </option>
 
-                  <option
-                    value="sparkle"
-                    selected={(@profile && @profile.avatar_effect) == "sparkle"}
-                  >
-                    Sparkle
-                  </option>
+                    <option
+                      value="sparkle"
+                      selected={(@profile && @profile.avatar_effect) == "sparkle"}
+                    >
+                      Sparkle
+                    </option>
 
-                  <option
-                    value="holographic"
-                    selected={(@profile && @profile.avatar_effect) == "holographic"}
-                  >
-                    Holographic
-                  </option>
+                    <option
+                      value="holographic"
+                      selected={(@profile && @profile.avatar_effect) == "holographic"}
+                    >
+                      Holographic
+                    </option>
 
-                  <option
-                    value="gold_frame"
-                    selected={(@profile && @profile.avatar_effect) == "gold_frame"}
-                  >
-                    Imperial Gold
-                  </option>
+                    <option
+                      value="gold_frame"
+                      selected={(@profile && @profile.avatar_effect) == "gold_frame"}
+                    >
+                      Imperial Gold
+                    </option>
 
-                  <option value="pulse" selected={(@profile && @profile.avatar_effect) == "pulse"}>
-                    Pulse
-                  </option>
+                    <option
+                      value="pulse"
+                      selected={(@profile && @profile.avatar_effect) == "pulse"}
+                    >
+                      Pulse
+                    </option>
 
-                  <option
-                    value="rotate_border"
-                    selected={(@profile && @profile.avatar_effect) == "rotate_border"}
-                  >
-                    Rotating Border
-                  </option>
-                </select>
+                    <option
+                      value="rotate_border"
+                      selected={(@profile && @profile.avatar_effect) == "rotate_border"}
+                    >
+                      Rotating Border
+                    </option>
+                  </select>
+                </div>
                 <p class="text-xs text-base-content/60 mt-2">
                   Effects will use your profile's accent color. Save to preview on your profile.
                 </p>
@@ -1092,101 +1100,114 @@
                 <label class="label">
                   <span class="label-text font-medium">Choose Effect</span>
                 </label>
-                <select
-                  name="profile[username_effect]"
-                  class="select select-bordered w-full"
-                  phx-change="update_username_effect"
-                >
-                  <option value="none" selected={(@profile && @profile.username_effect) == "none"}>
-                    None
-                  </option>
-
-                  <option value="glow" selected={(@profile && @profile.username_effect) == "glow"}>
-                    Glow
-                  </option>
-
-                  <option value="neon" selected={(@profile && @profile.username_effect) == "neon"}>
-                    Neon
-                  </option>
-
-                  <option
-                    value="rainbow"
-                    selected={(@profile && @profile.username_effect) == "rainbow"}
+                <div class="select select-bordered w-full">
+                  <select
+                    name="profile[username_effect]"
+                    phx-change="update_username_effect"
                   >
-                    Rainbow
-                  </option>
+                    <option
+                      value="none"
+                      selected={(@profile && @profile.username_effect) == "none"}
+                    >
+                      None
+                    </option>
 
-                  <option value="fire" selected={(@profile && @profile.username_effect) == "fire"}>
-                    Fire
-                  </option>
+                    <option
+                      value="glow"
+                      selected={(@profile && @profile.username_effect) == "glow"}
+                    >
+                      Glow
+                    </option>
 
-                  <option value="ice" selected={(@profile && @profile.username_effect) == "ice"}>
-                    Ice
-                  </option>
+                    <option
+                      value="neon"
+                      selected={(@profile && @profile.username_effect) == "neon"}
+                    >
+                      Neon
+                    </option>
 
-                  <option
-                    value="chrome"
-                    selected={(@profile && @profile.username_effect) == "chrome"}
-                  >
-                    Chrome
-                  </option>
+                    <option
+                      value="rainbow"
+                      selected={(@profile && @profile.username_effect) == "rainbow"}
+                    >
+                      Rainbow
+                    </option>
 
-                  <option
-                    value="holographic"
-                    selected={(@profile && @profile.username_effect) == "holographic"}
-                  >
-                    Holographic
-                  </option>
+                    <option
+                      value="fire"
+                      selected={(@profile && @profile.username_effect) == "fire"}
+                    >
+                      Fire
+                    </option>
 
-                  <option
-                    value="gradient"
-                    selected={(@profile && @profile.username_effect) == "gradient"}
-                  >
-                    Custom Gradient
-                  </option>
+                    <option value="ice" selected={(@profile && @profile.username_effect) == "ice"}>
+                      Ice
+                    </option>
 
-                  <option
-                    value="outline"
-                    selected={(@profile && @profile.username_effect) == "outline"}
-                  >
-                    Outline
-                  </option>
+                    <option
+                      value="chrome"
+                      selected={(@profile && @profile.username_effect) == "chrome"}
+                    >
+                      Chrome
+                    </option>
 
-                  <option
-                    value="shadow"
-                    selected={(@profile && @profile.username_effect) == "shadow"}
-                  >
-                    Drop Shadow
-                  </option>
+                    <option
+                      value="holographic"
+                      selected={(@profile && @profile.username_effect) == "holographic"}
+                    >
+                      Holographic
+                    </option>
 
-                  <option
-                    value="double"
-                    selected={(@profile && @profile.username_effect) == "double"}
-                  >
-                    Double Text
-                  </option>
+                    <option
+                      value="gradient"
+                      selected={(@profile && @profile.username_effect) == "gradient"}
+                    >
+                      Custom Gradient
+                    </option>
 
-                  <option
-                    value="retro"
-                    selected={(@profile && @profile.username_effect) == "retro"}
-                  >
-                    Retro VHS
-                  </option>
+                    <option
+                      value="outline"
+                      selected={(@profile && @profile.username_effect) == "outline"}
+                    >
+                      Outline
+                    </option>
 
-                  <option
-                    value="pixelated"
-                    selected={(@profile && @profile.username_effect) == "pixelated"}
-                  >
-                    Pixelated
-                  </option>
+                    <option
+                      value="shadow"
+                      selected={(@profile && @profile.username_effect) == "shadow"}
+                    >
+                      Drop Shadow
+                    </option>
 
-                  <option
-                    value="glitch"
-                    selected={(@profile && @profile.username_effect) == "glitch"}
-                  >
-                    Glitch
-                  </option>
-                </select>
+                    <option
+                      value="double"
+                      selected={(@profile && @profile.username_effect) == "double"}
+                    >
+                      Double Text
+                    </option>
+
+                    <option
+                      value="retro"
+                      selected={(@profile && @profile.username_effect) == "retro"}
+                    >
+                      Retro VHS
+                    </option>
+
+                    <option
+                      value="pixelated"
+                      selected={(@profile && @profile.username_effect) == "pixelated"}
+                    >
+                      Pixelated
+                    </option>
+
+                    <option
+                      value="glitch"
+                      selected={(@profile && @profile.username_effect) == "glitch"}
+                    >
+                      Glitch
+                    </option>
+                  </select>
+                </div>
               </div>
               <!-- Color Settings (for effects that support custom colors) -->
               <%= if @profile && @profile.username_effect in ["glow", "neon", "outline", "pixelated"] do %>
@@ -1310,34 +1331,33 @@
                   <label class="label">
                     <span class="label-text font-medium">Animation Speed</span>
                   </label>
-                  <select
-                    name="profile[username_animation_speed]"
-                    class="select select-bordered w-full"
-                  >
-                    <option
-                      value="slow"
-                      selected={(@profile && @profile.username_animation_speed) == "slow"}
-                    >
-                      Slow
-                    </option>
+                  <div class="select select-bordered w-full">
+                    <select name="profile[username_animation_speed]">
+                      <option
+                        value="slow"
+                        selected={(@profile && @profile.username_animation_speed) == "slow"}
+                      >
+                        Slow
+                      </option>
 
-                    <option
-                      value="normal"
-                      selected={
-                        (@profile && @profile.username_animation_speed) == "normal" ||
-                          !@profile.username_animation_speed
-                      }
-                    >
-                      Normal
-                    </option>
+                      <option
+                        value="normal"
+                        selected={
+                          (@profile && @profile.username_animation_speed) == "normal" ||
+                            !@profile.username_animation_speed
+                        }
+                      >
+                        Normal
+                      </option>
 
-                    <option
-                      value="fast"
-                      selected={(@profile && @profile.username_animation_speed) == "fast"}
-                    >
-                      Fast
-                    </option>
-                  </select>
+                      <option
+                        value="fast"
+                        selected={(@profile && @profile.username_animation_speed) == "fast"}
+                      >
+                        Fast
+                      </option>
+                    </select>
+                  </div>
                 </div>
               <% end %>
 
@@ -1369,25 +1389,26 @@
                   <label class="label">
                     <span class="label-text font-medium">Display Style</span>
                   </label>
-                  <select
-                    name="profile[link_display_style]"
-                    class="select select-bordered w-full"
-                    phx-change="update_link_style"
-                  >
-                    <option
-                      value="circular"
-                      selected={(@profile && @profile.link_display_style) == "circular"}
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[link_display_style]"
+                      phx-change="update_link_style"
                     >
-                      Circular Icons
-                    </option>
+                      <option
+                        value="circular"
+                        selected={(@profile && @profile.link_display_style) == "circular"}
+                      >
+                        Circular Icons
+                      </option>
 
-                    <option
-                      value="full_width"
-                      selected={(@profile && @profile.link_display_style) == "full_width"}
-                    >
-                      Full Width Buttons
-                    </option>
-                  </select>
+                      <option
+                        value="full_width"
+                        selected={(@profile && @profile.link_display_style) == "full_width"}
+                      >
+                        Full Width Buttons
+                      </option>
+                    </select>
+                  </div>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
                       <strong>Circular:</strong>
@@ -1401,46 +1422,47 @@
                   <label class="label">
                     <span class="label-text font-medium">Default Link Highlight Effect</span>
                   </label>
-                  <select
-                    name="profile[link_highlight_effect]"
-                    class="select select-bordered w-full"
-                    phx-change="update_link_effect"
-                  >
-                    <option
-                      value="none"
-                      selected={(@profile && @profile.link_highlight_effect) == "none"}
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[link_highlight_effect]"
+                      phx-change="update_link_effect"
                     >
-                      None
-                    </option>
+                      <option
+                        value="none"
+                        selected={(@profile && @profile.link_highlight_effect) == "none"}
+                      >
+                        None
+                      </option>
 
-                    <option
-                      value="glow"
-                      selected={(@profile && @profile.link_highlight_effect) == "glow"}
-                    >
-                      Glow
-                    </option>
+                      <option
+                        value="glow"
+                        selected={(@profile && @profile.link_highlight_effect) == "glow"}
+                      >
+                        Glow
+                      </option>
 
-                    <option
-                      value="pulse"
-                      selected={(@profile && @profile.link_highlight_effect) == "pulse"}
-                    >
-                      Pulse
-                    </option>
+                      <option
+                        value="pulse"
+                        selected={(@profile && @profile.link_highlight_effect) == "pulse"}
+                      >
+                        Pulse
+                      </option>
 
-                    <option
-                      value="border"
-                      selected={(@profile && @profile.link_highlight_effect) == "border"}
-                    >
-                      Border Highlight
-                    </option>
+                      <option
+                        value="border"
+                        selected={(@profile && @profile.link_highlight_effect) == "border"}
+                      >
+                        Border Highlight
+                      </option>
 
-                    <option
-                      value="shine"
-                      selected={(@profile && @profile.link_highlight_effect) == "shine"}
-                    >
-                      Shine Animation
-                    </option>
-                  </select>
+                      <option
+                        value="shine"
+                        selected={(@profile && @profile.link_highlight_effect) == "shine"}
+                      >
+                        Shine Animation
+                      </option>
+                    </select>
+                  </div>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
                       Default effect for all links (can be overridden per-link when editing individual links)
@@ -1572,13 +1594,15 @@
                     <label class="label">
                       <span class="label-text font-medium">Display Style</span>
                     </label>
-                    <select name="link[display_style]" class="select select-bordered w-full">
-                      <option value="">Use Profile Default</option>
+                    <div class="select select-bordered w-full">
+                      <select name="link[display_style]">
+                        <option value="">Use Profile Default</option>
 
-                      <option value="circular">Circular Icon</option>
+                        <option value="circular">Circular Icon</option>
 
-                      <option value="full_width">Full Width Button</option>
-                    </select>
+                        <option value="full_width">Full Width Button</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
@@ -1586,19 +1610,21 @@
                       <span class="label-text font-medium">Highlight Effect</span>
                       <span class="label-text-alt text-xs">Per-Link Override</span>
                     </label>
-                    <select name="link[highlight_effect]" class="select select-bordered w-full">
-                      <option value="">Use Profile Default</option>
+                    <div class="select select-bordered w-full">
+                      <select name="link[highlight_effect]">
+                        <option value="">Use Profile Default</option>
 
-                      <option value="none">None</option>
+                        <option value="none">None</option>
 
-                      <option value="glow">Glow</option>
+                        <option value="glow">Glow</option>
 
-                      <option value="pulse">Pulse</option>
+                        <option value="pulse">Pulse</option>
 
-                      <option value="border">Border</option>
+                        <option value="border">Border</option>
 
-                      <option value="shine">Shine</option>
-                    </select>
+                        <option value="shine">Shine</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 
@@ -1776,28 +1802,27 @@
                                   Display Style
                                 </span>
                               </label>
-                              <select
-                                name="link[display_style]"
-                                class="select select-bordered select-sm w-full"
-                              >
-                                <option value="" selected={!@editing_link_data["display_style"]}>
-                                  Use Profile Default
-                                </option>
+                              <div class="select select-bordered select-sm w-full">
+                                <select name="link[display_style]">
+                                  <option value="" selected={!@editing_link_data["display_style"]}>
+                                    Use Profile Default
+                                  </option>
 
-                                <option
-                                  value="circular"
-                                  selected={@editing_link_data["display_style"] == "circular"}
-                                >
-                                  Circular Icon
-                                </option>
+                                  <option
+                                    value="circular"
+                                    selected={@editing_link_data["display_style"] == "circular"}
+                                  >
+                                    Circular Icon
+                                  </option>
 
-                                <option
-                                  value="full_width"
-                                  selected={@editing_link_data["display_style"] == "full_width"}
-                                >
-                                  Full Width Button
-                                </option>
-                              </select>
+                                  <option
+                                    value="full_width"
+                                    selected={@editing_link_data["display_style"] == "full_width"}
+                                  >
+                                    Full Width Button
+                                  </option>
+                                </select>
+                              </div>
                             </div>
 
                             <div>
@@ -1805,52 +1830,51 @@
                                 <span class="label-text font-medium text-xs">Effect</span>
                                 <span class="label-text-alt text-xs opacity-70">Override</span>
                               </label>
-                              <select
-                                name="link[highlight_effect]"
-                                class="select select-bordered select-sm w-full"
-                              >
-                                <option
-                                  value=""
-                                  selected={!@editing_link_data["highlight_effect"]}
-                                >
-                                  Use Default
-                                </option>
+                              <div class="select select-bordered select-sm w-full">
+                                <select name="link[highlight_effect]">
+                                  <option
+                                    value=""
+                                    selected={!@editing_link_data["highlight_effect"]}
+                                  >
+                                    Use Default
+                                  </option>
 
-                                <option
-                                  value="none"
-                                  selected={@editing_link_data["highlight_effect"] == "none"}
-                                >
-                                  None
-                                </option>
+                                  <option
+                                    value="none"
+                                    selected={@editing_link_data["highlight_effect"] == "none"}
+                                  >
+                                    None
+                                  </option>
 
-                                <option
-                                  value="glow"
-                                  selected={@editing_link_data["highlight_effect"] == "glow"}
-                                >
-                                  Glow
-                                </option>
+                                  <option
+                                    value="glow"
+                                    selected={@editing_link_data["highlight_effect"] == "glow"}
+                                  >
+                                    Glow
+                                  </option>
 
-                                <option
-                                  value="pulse"
-                                  selected={@editing_link_data["highlight_effect"] == "pulse"}
-                                >
-                                  Pulse
-                                </option>
+                                  <option
+                                    value="pulse"
+                                    selected={@editing_link_data["highlight_effect"] == "pulse"}
+                                  >
+                                    Pulse
+                                  </option>
 
-                                <option
-                                  value="border"
-                                  selected={@editing_link_data["highlight_effect"] == "border"}
-                                >
-                                  Border
-                                </option>
+                                  <option
+                                    value="border"
+                                    selected={@editing_link_data["highlight_effect"] == "border"}
+                                  >
+                                    Border
+                                  </option>
 
-                                <option
-                                  value="shine"
-                                  selected={@editing_link_data["highlight_effect"] == "shine"}
-                                >
-                                  Shine
-                                </option>
-                              </select>
+                                  <option
+                                    value="shine"
+                                    selected={@editing_link_data["highlight_effect"] == "shine"}
+                                  >
+                                    Shine
+                                  </option>
+                                </select>
+                              </div>
                             </div>
                           </div>
 
@@ -2017,19 +2041,21 @@
                   <label class="label">
                     <span class="label-text font-medium">Widget Type</span>
                   </label>
-                  <select name="widget[widget_type]" class="select select-bordered w-full">
-                    <option value="text">Text Block</option>
+                  <div class="select select-bordered w-full">
+                    <select name="widget[widget_type]">
+                      <option value="text">Text Block</option>
 
-                    <option value="image">Image</option>
+                      <option value="image">Image</option>
 
-                    <option value="spotify">Spotify Embed</option>
+                      <option value="spotify">Spotify Embed</option>
 
-                    <option value="youtube">YouTube Video</option>
+                      <option value="youtube">YouTube Video</option>
 
-                    <option value="github_stats">GitHub Stats</option>
+                      <option value="github_stats">GitHub Stats</option>
 
-                    <option value="discord_status">Discord Status</option>
-                  </select>
+                      <option value="discord_status">Discord Status</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -2252,135 +2278,136 @@
                   <label class="label">
                     <span class="label-text font-medium">Font Family</span>
                   </label>
-                  <select
-                    name="profile[font_family]"
-                    class="select select-bordered w-full"
-                    phx-change="update_font"
-                  >
-                    <option value="" selected={is_nil(@profile && @profile.font_family)}>
-                      System Default
-                    </option>
-
-                    <option
-                      value="Inter"
-                      selected={(@profile && @profile.font_family) == "Inter"}
-                      style="font-family: 'Inter', sans-serif"
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[font_family]"
+                      phx-change="update_font"
                     >
-                      Inter
-                    </option>
+                      <option value="" selected={is_nil(@profile && @profile.font_family)}>
+                        System Default
+                      </option>
 
-                    <option
-                      value="Arial"
-                      selected={(@profile && @profile.font_family) == "Arial"}
-                      style="font-family: 'Arial', sans-serif"
-                    >
-                      Arial
-                    </option>
+                      <option
+                        value="Inter"
+                        selected={(@profile && @profile.font_family) == "Inter"}
+                        style="font-family: 'Inter', sans-serif"
+                      >
+                        Inter
+                      </option>
 
-                    <option
-                      value="Helvetica"
-                      selected={(@profile && @profile.font_family) == "Helvetica"}
-                      style="font-family: 'Helvetica', sans-serif"
-                    >
-                      Helvetica
-                    </option>
+                      <option
+                        value="Arial"
+                        selected={(@profile && @profile.font_family) == "Arial"}
+                        style="font-family: 'Arial', sans-serif"
+                      >
+                        Arial
+                      </option>
 
-                    <option
-                      value="Georgia"
-                      selected={(@profile && @profile.font_family) == "Georgia"}
-                      style="font-family: 'Georgia', serif"
-                    >
-                      Georgia
-                    </option>
+                      <option
+                        value="Helvetica"
+                        selected={(@profile && @profile.font_family) == "Helvetica"}
+                        style="font-family: 'Helvetica', sans-serif"
+                      >
+                        Helvetica
+                      </option>
 
-                    <option
-                      value="Times New Roman"
-                      selected={(@profile && @profile.font_family) == "Times New Roman"}
-                      style="font-family: 'Times New Roman', serif"
-                    >
-                      Times New Roman
-                    </option>
+                      <option
+                        value="Georgia"
+                        selected={(@profile && @profile.font_family) == "Georgia"}
+                        style="font-family: 'Georgia', serif"
+                      >
+                        Georgia
+                      </option>
 
-                    <option
-                      value="Courier New"
-                      selected={(@profile && @profile.font_family) == "Courier New"}
-                      style="font-family: 'Courier New', monospace"
-                    >
-                      Courier New
-                    </option>
+                      <option
+                        value="Times New Roman"
+                        selected={(@profile && @profile.font_family) == "Times New Roman"}
+                        style="font-family: 'Times New Roman', serif"
+                      >
+                        Times New Roman
+                      </option>
 
-                    <option
-                      value="Verdana"
-                      selected={(@profile && @profile.font_family) == "Verdana"}
-                      style="font-family: 'Verdana', sans-serif"
-                    >
-                      Verdana
-                    </option>
+                      <option
+                        value="Courier New"
+                        selected={(@profile && @profile.font_family) == "Courier New"}
+                        style="font-family: 'Courier New', monospace"
+                      >
+                        Courier New
+                      </option>
 
-                    <option
-                      value="Trebuchet MS"
-                      selected={(@profile && @profile.font_family) == "Trebuchet MS"}
-                      style="font-family: 'Trebuchet MS', sans-serif"
-                    >
-                      Trebuchet MS
-                    </option>
+                      <option
+                        value="Verdana"
+                        selected={(@profile && @profile.font_family) == "Verdana"}
+                        style="font-family: 'Verdana', sans-serif"
+                      >
+                        Verdana
+                      </option>
 
-                    <option
-                      value="Comic Sans MS"
-                      selected={(@profile && @profile.font_family) == "Comic Sans MS"}
-                      style="font-family: 'Comic Sans MS', cursive"
-                    >
-                      Comic Sans MS
-                    </option>
+                      <option
+                        value="Trebuchet MS"
+                        selected={(@profile && @profile.font_family) == "Trebuchet MS"}
+                        style="font-family: 'Trebuchet MS', sans-serif"
+                      >
+                        Trebuchet MS
+                      </option>
 
-                    <option
-                      value="Impact"
-                      selected={(@profile && @profile.font_family) == "Impact"}
-                      style="font-family: 'Impact', sans-serif"
-                    >
-                      Impact
-                    </option>
+                      <option
+                        value="Comic Sans MS"
+                        selected={(@profile && @profile.font_family) == "Comic Sans MS"}
+                        style="font-family: 'Comic Sans MS', cursive"
+                      >
+                        Comic Sans MS
+                      </option>
 
-                    <option
-                      value="Palatino"
-                      selected={(@profile && @profile.font_family) == "Palatino"}
-                      style="font-family: 'Palatino', serif"
-                    >
-                      Palatino
-                    </option>
+                      <option
+                        value="Impact"
+                        selected={(@profile && @profile.font_family) == "Impact"}
+                        style="font-family: 'Impact', sans-serif"
+                      >
+                        Impact
+                      </option>
 
-                    <option
-                      value="Garamond"
-                      selected={(@profile && @profile.font_family) == "Garamond"}
-                      style="font-family: 'Garamond', serif"
-                    >
-                      Garamond
-                    </option>
+                      <option
+                        value="Palatino"
+                        selected={(@profile && @profile.font_family) == "Palatino"}
+                        style="font-family: 'Palatino', serif"
+                      >
+                        Palatino
+                      </option>
 
-                    <option
-                      value="Bookman"
-                      selected={(@profile && @profile.font_family) == "Bookman"}
-                      style="font-family: 'Bookman', serif"
-                    >
-                      Bookman
-                    </option>
+                      <option
+                        value="Garamond"
+                        selected={(@profile && @profile.font_family) == "Garamond"}
+                        style="font-family: 'Garamond', serif"
+                      >
+                        Garamond
+                      </option>
 
-                    <option
-                      value="Consolas"
-                      selected={(@profile && @profile.font_family) == "Consolas"}
-                      style="font-family: 'Consolas', monospace"
-                    >
-                      Consolas
-                    </option>
+                      <option
+                        value="Bookman"
+                        selected={(@profile && @profile.font_family) == "Bookman"}
+                        style="font-family: 'Bookman', serif"
+                      >
+                        Bookman
+                      </option>
 
-                    <option
-                      value="Monaco"
-                      selected={(@profile && @profile.font_family) == "Monaco"}
-                      style="font-family: 'Monaco', monospace"
-                    >
-                      Monaco
-                    </option>
-                  </select>
+                      <option
+                        value="Consolas"
+                        selected={(@profile && @profile.font_family) == "Consolas"}
+                        style="font-family: 'Consolas', monospace"
+                      >
+                        Consolas
+                      </option>
+
+                      <option
+                        value="Monaco"
+                        selected={(@profile && @profile.font_family) == "Monaco"}
+                        style="font-family: 'Monaco', monospace"
+                      >
+                        Monaco
+                      </option>
+                    </select>
+                  </div>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
                       This font will be used across your profile page
@@ -2424,95 +2451,117 @@
                   <label class="label">
                     <span class="label-text font-medium">Cursor Style</span>
                   </label>
-                  <select
-                    name="profile[cursor_style]"
-                    class="select select-bordered w-full"
-                    phx-change="update_cursor"
-                  >
-                    <option
-                      value="default"
-                      selected={(@profile && @profile.cursor_style) == "default"}
+                  <div class="select select-bordered w-full">
+                    <select
+                      name="profile[cursor_style]"
+                      phx-change="update_cursor"
                     >
-                      Default
-                    </option>
+                      <option
+                        value="default"
+                        selected={(@profile && @profile.cursor_style) == "default"}
+                      >
+                        Default
+                      </option>
 
-                    <option
-                      value="pointer"
-                      selected={(@profile && @profile.cursor_style) == "pointer"}
-                    >
-                      Pointer
-                    </option>
+                      <option
+                        value="pointer"
+                        selected={(@profile && @profile.cursor_style) == "pointer"}
+                      >
+                        Pointer
+                      </option>
 
-                    <option
-                      value="crosshair"
-                      selected={(@profile && @profile.cursor_style) == "crosshair"}
-                    >
-                      Crosshair
-                    </option>
+                      <option
+                        value="crosshair"
+                        selected={(@profile && @profile.cursor_style) == "crosshair"}
+                      >
+                        Crosshair
+                      </option>
 
-                    <option value="help" selected={(@profile && @profile.cursor_style) == "help"}>
-                      Help
-                    </option>
+                      <option
+                        value="help"
+                        selected={(@profile && @profile.cursor_style) == "help"}
+                      >
+                        Help
+                      </option>
 
-                    <option value="wait" selected={(@profile && @profile.cursor_style) == "wait"}>
-                      Wait
-                    </option>
+                      <option
+                        value="wait"
+                        selected={(@profile && @profile.cursor_style) == "wait"}
+                      >
+                        Wait
+                      </option>
 
-                    <option value="grab" selected={(@profile && @profile.cursor_style) == "grab"}>
-                      Grab
-                    </option>
+                      <option
+                        value="grab"
+                        selected={(@profile && @profile.cursor_style) == "grab"}
+                      >
+                        Grab
+                      </option>
 
-                    <option value="text" selected={(@profile && @profile.cursor_style) == "text"}>
-                      Text
-                    </option>
+                      <option
+                        value="text"
+                        selected={(@profile && @profile.cursor_style) == "text"}
+                      >
+                        Text
+                      </option>
 
-                    <option value="move" selected={(@profile && @profile.cursor_style) == "move"}>
-                      Move
-                    </option>
+                      <option
+                        value="move"
+                        selected={(@profile && @profile.cursor_style) == "move"}
+                      >
+                        Move
+                      </option>
 
-                    <option
-                      value="not-allowed"
-                      selected={(@profile && @profile.cursor_style) == "not-allowed"}
-                    >
-                      Not Allowed
-                    </option>
+                      <option
+                        value="not-allowed"
+                        selected={(@profile && @profile.cursor_style) == "not-allowed"}
+                      >
+                        Not Allowed
+                      </option>
 
-                    <option value="cell" selected={(@profile && @profile.cursor_style) == "cell"}>
-                      Cell
-                    </option>
+                      <option
+                        value="cell"
+                        selected={(@profile && @profile.cursor_style) == "cell"}
+                      >
+                        Cell
+                      </option>
 
-                    <option
-                      value="context-menu"
-                      selected={(@profile && @profile.cursor_style) == "context-menu"}
-                    >
-                      Context Menu
-                    </option>
+                      <option
+                        value="context-menu"
+                        selected={(@profile && @profile.cursor_style) == "context-menu"}
+                      >
+                        Context Menu
+                      </option>
 
-                    <option
-                      value="vertical-text"
-                      selected={(@profile && @profile.cursor_style) == "vertical-text"}
-                    >
-                      Vertical Text
-                    </option>
+                      <option
+                        value="vertical-text"
+                        selected={(@profile && @profile.cursor_style) == "vertical-text"}
+                      >
+                        Vertical Text
+                      </option>
 
-                    <option
-                      value="alias"
-                      selected={(@profile && @profile.cursor_style) == "alias"}
-                    >
-                      Alias
-                    </option>
+                      <option
+                        value="alias"
+                        selected={(@profile && @profile.cursor_style) == "alias"}
+                      >
+                        Alias
+                      </option>
 
-                    <option value="copy" selected={(@profile && @profile.cursor_style) == "copy"}>
-                      Copy
-                    </option>
+                      <option
+                        value="copy"
+                        selected={(@profile && @profile.cursor_style) == "copy"}
+                      >
+                        Copy
+                      </option>
 
-                    <option
-                      value="no-drop"
-                      selected={(@profile && @profile.cursor_style) == "no-drop"}
-                    >
-                      No Drop
-                    </option>
-                  </select>
+                      <option
+                        value="no-drop"
+                        selected={(@profile && @profile.cursor_style) == "no-drop"}
+                      >
+                        No Drop
+                      </option>
+                    </select>
+                  </div>
                   <div class="label">
                     <span class="text-xs text-base-content/60">
                       Hover over this card to preview the cursor style

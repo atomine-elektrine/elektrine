@@ -149,10 +149,12 @@ defmodule ElektrineWeb.Components.UI.Form do
     ~H"""
     <div class="form-control w-full">
       <.label for={@id}>{@label}</.label>
-      <select id={@id} name={@name} class="select select-bordered w-full" multiple={@multiple} {@rest}>
-        <option :if={@prompt} value="">{@prompt}</option>
-        {Phoenix.HTML.Form.options_for_select(@options, @value)}
-      </select>
+      <div class="select select-bordered w-full">
+        <select id={@id} name={@name} multiple={@multiple} {@rest}>
+          <option :if={@prompt} value="">{@prompt}</option>
+          {Phoenix.HTML.Form.options_for_select(@options, @value)}
+        </select>
+      </div>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """

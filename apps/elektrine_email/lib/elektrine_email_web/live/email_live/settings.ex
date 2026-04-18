@@ -1101,10 +1101,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       
     <!-- Add Form -->
       <form phx-submit="block_sender" class="flex gap-2 mb-6">
-        <select name="type" class="select select-bordered">
-          <option value="email">Email Address</option>
-          <option value="domain">Domain</option>
-        </select>
+        <div class="select select-bordered">
+          <select name="type">
+            <option value="email">Email Address</option>
+            <option value="domain">Domain</option>
+          </select>
+        </div>
         <input
           type="text"
           name="value"
@@ -1158,10 +1160,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       
     <!-- Add Form -->
       <form phx-submit="add_safe_sender" class="flex gap-2 mb-6">
-        <select name="type" class="select select-bordered">
-          <option value="email">Email Address</option>
-          <option value="domain">Domain</option>
-        </select>
+        <div class="select select-bordered">
+          <select name="type">
+            <option value="email">Email Address</option>
+            <option value="domain">Domain</option>
+          </select>
+        </div>
         <input
           type="text"
           name="value"
@@ -1490,15 +1494,17 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           class="input input-bordered flex-1"
           required
         />
-        <select name="color" class="select select-bordered">
-          <option value="#3b82f6">Blue</option>
-          <option value="#22c55e">Green</option>
-          <option value="#ef4444">Red</option>
-          <option value="#f59e0b">Orange</option>
-          <option value="#8a7cc2">Plum</option>
-          <option value="#c7796b">Rose Clay</option>
-          <option value="#6b7280">Gray</option>
-        </select>
+        <div class="select select-bordered">
+          <select name="color">
+            <option value="#3b82f6">Blue</option>
+            <option value="#22c55e">Green</option>
+            <option value="#ef4444">Red</option>
+            <option value="#f59e0b">Orange</option>
+            <option value="#8a7cc2">Plum</option>
+            <option value="#c7796b">Rose Clay</option>
+            <option value="#6b7280">Gray</option>
+          </select>
+        </div>
         <button type="submit" class="btn btn-secondary">Create</button>
       </form>
       
@@ -1549,15 +1555,17 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           class="input input-bordered flex-1"
           required
         />
-        <select name="color" class="select select-bordered">
-          <option value="#3b82f6">Blue</option>
-          <option value="#22c55e">Green</option>
-          <option value="#ef4444">Red</option>
-          <option value="#f59e0b">Orange</option>
-          <option value="#8a7cc2">Plum</option>
-          <option value="#c7796b">Rose Clay</option>
-          <option value="#6b7280">Gray</option>
-        </select>
+        <div class="select select-bordered">
+          <select name="color">
+            <option value="#3b82f6">Blue</option>
+            <option value="#22c55e">Green</option>
+            <option value="#ef4444">Red</option>
+            <option value="#f59e0b">Orange</option>
+            <option value="#8a7cc2">Plum</option>
+            <option value="#c7796b">Rose Clay</option>
+            <option value="#6b7280">Gray</option>
+          </select>
+        </div>
         <button type="submit" class="btn btn-secondary">Create</button>
       </form>
       
@@ -1915,11 +1923,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
             />
             <div class="flex items-center gap-2">
               <span class="text-base-content/50 text-lg">@</span>
-              <select name="domain" class="select select-bordered text-lg">
-                <%= for domain <- @available_email_domains do %>
-                  <option value={domain}>{domain}</option>
-                <% end %>
-              </select>
+              <div class="select select-bordered text-lg">
+                <select name="domain">
+                  <%= for domain <- @available_email_domains do %>
+                    <option value={domain}>{domain}</option>
+                  <% end %>
+                </select>
+              </div>
             </div>
           </div>
           <div class="text-xs text-base-content/50 mt-1">
@@ -2095,14 +2105,16 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                   <label class="label pb-1">
                     <span class="label-text font-medium">Match Type</span>
                   </label>
-                  <select name="match_type" class="select select-bordered w-full">
-                    <option value="all" selected={@filter_form[:match_type].value == "all"}>
-                      All conditions must match
-                    </option>
-                    <option value="any" selected={@filter_form[:match_type].value == "any"}>
-                      Any condition can match
-                    </option>
-                  </select>
+                  <div class="select select-bordered w-full">
+                    <select name="match_type">
+                      <option value="all" selected={@filter_form[:match_type].value == "all"}>
+                        All conditions must match
+                      </option>
+                      <option value="any" selected={@filter_form[:match_type].value == "any"}>
+                        Any condition can match
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="form-control">
@@ -2110,49 +2122,59 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                     <span class="label-text font-medium">Condition</span>
                   </label>
                   <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <select name="rule_field" class="select select-bordered">
-                      <option value="from" selected={@filter_form[:rule_field].value == "from"}>
-                        From
-                      </option>
-                      <option value="to" selected={@filter_form[:rule_field].value == "to"}>
-                        To
-                      </option>
-                      <option value="subject" selected={@filter_form[:rule_field].value == "subject"}>
-                        Subject
-                      </option>
-                      <option value="body" selected={@filter_form[:rule_field].value == "body"}>
-                        Body
-                      </option>
-                    </select>
-                    <select name="rule_operator" class="select select-bordered">
-                      <option
-                        value="contains"
-                        selected={@filter_form[:rule_operator].value == "contains"}
-                      >
-                        contains
-                      </option>
-                      <option
-                        value="not_contains"
-                        selected={@filter_form[:rule_operator].value == "not_contains"}
-                      >
-                        doesn't contain
-                      </option>
-                      <option value="equals" selected={@filter_form[:rule_operator].value == "equals"}>
-                        equals
-                      </option>
-                      <option
-                        value="starts_with"
-                        selected={@filter_form[:rule_operator].value == "starts_with"}
-                      >
-                        starts with
-                      </option>
-                      <option
-                        value="ends_with"
-                        selected={@filter_form[:rule_operator].value == "ends_with"}
-                      >
-                        ends with
-                      </option>
-                    </select>
+                    <div class="select select-bordered">
+                      <select name="rule_field">
+                        <option value="from" selected={@filter_form[:rule_field].value == "from"}>
+                          From
+                        </option>
+                        <option value="to" selected={@filter_form[:rule_field].value == "to"}>
+                          To
+                        </option>
+                        <option
+                          value="subject"
+                          selected={@filter_form[:rule_field].value == "subject"}
+                        >
+                          Subject
+                        </option>
+                        <option value="body" selected={@filter_form[:rule_field].value == "body"}>
+                          Body
+                        </option>
+                      </select>
+                    </div>
+                    <div class="select select-bordered">
+                      <select name="rule_operator">
+                        <option
+                          value="contains"
+                          selected={@filter_form[:rule_operator].value == "contains"}
+                        >
+                          contains
+                        </option>
+                        <option
+                          value="not_contains"
+                          selected={@filter_form[:rule_operator].value == "not_contains"}
+                        >
+                          doesn't contain
+                        </option>
+                        <option
+                          value="equals"
+                          selected={@filter_form[:rule_operator].value == "equals"}
+                        >
+                          equals
+                        </option>
+                        <option
+                          value="starts_with"
+                          selected={@filter_form[:rule_operator].value == "starts_with"}
+                        >
+                          starts with
+                        </option>
+                        <option
+                          value="ends_with"
+                          selected={@filter_form[:rule_operator].value == "ends_with"}
+                        >
+                          ends with
+                        </option>
+                      </select>
+                    </div>
                     <input
                       type="text"
                       name="rule_value"
@@ -2221,21 +2243,23 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                   </label>
                   <div class="flex items-center gap-2 p-2">
                     <span class="text-sm text-base-content/70">Priority:</span>
-                    <select name="action_priority" class="select select-bordered select-sm flex-1">
-                      <option value="">None</option>
-                      <option value="high" selected={@filter_form[:action_priority].value == "high"}>
-                        High
-                      </option>
-                      <option
-                        value="normal"
-                        selected={@filter_form[:action_priority].value == "normal"}
-                      >
-                        Normal
-                      </option>
-                      <option value="low" selected={@filter_form[:action_priority].value == "low"}>
-                        Low
-                      </option>
-                    </select>
+                    <div class="select select-bordered select-sm flex-1">
+                      <select name="action_priority">
+                        <option value="">None</option>
+                        <option value="high" selected={@filter_form[:action_priority].value == "high"}>
+                          High
+                        </option>
+                        <option
+                          value="normal"
+                          selected={@filter_form[:action_priority].value == "normal"}
+                        >
+                          Normal
+                        </option>
+                        <option value="low" selected={@filter_form[:action_priority].value == "low"}>
+                          Low
+                        </option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -166,88 +166,96 @@
           <label class="label">
             <span>Locale</span> <span class="opacity-50">User interface language</span>
           </label>
-          <select name="user[locale]" class="select select-bordered w-full">
-            <option value="en" selected={(@user.locale || "en") == "en"}>English</option>
+          <div class="select select-bordered w-full">
+            <select name="user[locale]">
+              <option value="en" selected={(@user.locale || "en") == "en"}>English</option>
 
-            <option value="zh" selected={@user.locale == "zh"}>中文</option>
-          </select>
+              <option value="zh" selected={@user.locale == "zh"}>中文</option>
+            </select>
+          </div>
         </div>
 
         <div class="mt-4">
           <label class="label">
             <span>Timezone</span> <span class="opacity-50">Display times in user's timezone</span>
           </label>
-          <select name="user[timezone]" class="select select-bordered w-full">
-            <option value="" selected={is_nil(@user.timezone)}>Auto-detect</option>
+          <div class="select select-bordered w-full">
+            <select name="user[timezone]">
+              <option value="" selected={is_nil(@user.timezone)}>Auto-detect</option>
 
-            <optgroup label="US Timezones">
-              <option value="America/New_York" selected={@user.timezone == "America/New_York"}>
-                Eastern Time
-              </option>
+              <optgroup label="US Timezones">
+                <option value="America/New_York" selected={@user.timezone == "America/New_York"}>
+                  Eastern Time
+                </option>
 
-              <option value="America/Chicago" selected={@user.timezone == "America/Chicago"}>
-                Central Time
-              </option>
+                <option value="America/Chicago" selected={@user.timezone == "America/Chicago"}>
+                  Central Time
+                </option>
 
-              <option value="America/Denver" selected={@user.timezone == "America/Denver"}>
-                Mountain Time
-              </option>
+                <option value="America/Denver" selected={@user.timezone == "America/Denver"}>
+                  Mountain Time
+                </option>
 
-              <option
-                value="America/Los_Angeles"
-                selected={@user.timezone == "America/Los_Angeles"}
-              >
-                Pacific Time
-              </option>
-            </optgroup>
+                <option
+                  value="America/Los_Angeles"
+                  selected={@user.timezone == "America/Los_Angeles"}
+                >
+                  Pacific Time
+                </option>
+              </optgroup>
 
-            <optgroup label="Europe">
-              <option value="Europe/London" selected={@user.timezone == "Europe/London"}>
-                London
-              </option>
+              <optgroup label="Europe">
+                <option value="Europe/London" selected={@user.timezone == "Europe/London"}>
+                  London
+                </option>
 
-              <option value="Europe/Paris" selected={@user.timezone == "Europe/Paris"}>
-                Paris
-              </option>
+                <option value="Europe/Paris" selected={@user.timezone == "Europe/Paris"}>
+                  Paris
+                </option>
 
-              <option value="Europe/Berlin" selected={@user.timezone == "Europe/Berlin"}>
-                Berlin
-              </option>
-            </optgroup>
+                <option value="Europe/Berlin" selected={@user.timezone == "Europe/Berlin"}>
+                  Berlin
+                </option>
+              </optgroup>
 
-            <optgroup label="Asia">
-              <option value="Asia/Tokyo" selected={@user.timezone == "Asia/Tokyo"}>Tokyo</option>
+              <optgroup label="Asia">
+                <option value="Asia/Tokyo" selected={@user.timezone == "Asia/Tokyo"}>
+                  Tokyo
+                </option>
 
-              <option value="Asia/Shanghai" selected={@user.timezone == "Asia/Shanghai"}>
-                Shanghai
-              </option>
+                <option value="Asia/Shanghai" selected={@user.timezone == "Asia/Shanghai"}>
+                  Shanghai
+                </option>
 
-              <option value="Asia/Hong_Kong" selected={@user.timezone == "Asia/Hong_Kong"}>
-                Hong Kong
-              </option>
-            </optgroup>
+                <option value="Asia/Hong_Kong" selected={@user.timezone == "Asia/Hong_Kong"}>
+                  Hong Kong
+                </option>
+              </optgroup>
 
-            <optgroup label="Other">
-              <option value="Australia/Sydney" selected={@user.timezone == "Australia/Sydney"}>
-                Sydney
-              </option>
+              <optgroup label="Other">
+                <option value="Australia/Sydney" selected={@user.timezone == "Australia/Sydney"}>
+                  Sydney
+                </option>
 
-              <option value="Etc/UTC" selected={@user.timezone == "Etc/UTC"}>UTC</option>
-            </optgroup>
-          </select>
+                <option value="Etc/UTC" selected={@user.timezone == "Etc/UTC"}>UTC</option>
+              </optgroup>
+            </select>
+          </div>
         </div>
 
         <div class="mt-4">
           <label class="label">
             <span>Time Format</span> <span class="opacity-50">12-hour or 24-hour clock</span>
           </label>
-          <select name="user[time_format]" class="select select-bordered w-full">
-            <option value="12" selected={(@user.time_format || "12") == "12"}>
-              12-hour (3:45 PM)
-            </option>
+          <div class="select select-bordered w-full">
+            <select name="user[time_format]">
+              <option value="12" selected={(@user.time_format || "12") == "12"}>
+                12-hour (3:45 PM)
+              </option>
 
-            <option value="24" selected={@user.time_format == "24"}>24-hour (15:45)</option>
-          </select>
+              <option value="24" selected={@user.time_format == "24"}>24-hour (15:45)</option>
+            </select>
+          </div>
         </div>
 
         <div class="mt-4">
@@ -287,17 +295,19 @@
             <span class="label-text font-semibold">Trust Level</span>
             <span class="label-text-alt">Discourse-style reputation system</span>
           </label>
-          <select name="user[trust_level]" class="select select-bordered">
-            <option value="0" selected={@user.trust_level == 0}>TL0 - New (Default)</option>
+          <div class="select select-bordered">
+            <select name="user[trust_level]">
+              <option value="0" selected={@user.trust_level == 0}>TL0 - New (Default)</option>
 
-            <option value="1" selected={@user.trust_level == 1}>TL1 - Basic (Blue)</option>
+              <option value="1" selected={@user.trust_level == 1}>TL1 - Basic (Blue)</option>
 
-            <option value="2" selected={@user.trust_level == 2}>TL2 - Member (Green)</option>
+              <option value="2" selected={@user.trust_level == 2}>TL2 - Member (Green)</option>
 
-            <option value="3" selected={@user.trust_level == 3}>TL3 - Regular (Purple)</option>
+              <option value="3" selected={@user.trust_level == 3}>TL3 - Regular (Purple)</option>
 
-            <option value="4" selected={@user.trust_level == 4}>TL4 - Leader (Red)</option>
-          </select>
+              <option value="4" selected={@user.trust_level == 4}>TL4 - Leader (Red)</option>
+            </select>
+          </div>
         </div>
 
         <div class="form-control mt-4">

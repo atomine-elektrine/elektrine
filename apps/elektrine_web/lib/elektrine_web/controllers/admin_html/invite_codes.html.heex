@@ -122,13 +122,15 @@
                 Minimum Trust Level
               </span>
             </span>
-            <select name="min_trust_level" class="select select-bordered select-sm">
-              <%= for level <- 0..4 do %>
-                <option value={level} selected={@self_service_invite_min_trust_level == level}>
-                  TL{level}+
-                </option>
-              <% end %>
-            </select>
+            <div class="select select-bordered select-sm">
+              <select name="min_trust_level">
+                <%= for level <- 0..4 do %>
+                  <option value={level} selected={@self_service_invite_min_trust_level == level}>
+                    TL{level}+
+                  </option>
+                <% end %>
+              </select>
+            </div>
           </label>
           <button type="submit" class="btn btn-primary btn-sm">
             <.icon name="hero-check" class="h-4 w-4" /> <span>Save Access Rule</span>

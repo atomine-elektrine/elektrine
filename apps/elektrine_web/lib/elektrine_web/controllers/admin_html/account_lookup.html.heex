@@ -51,19 +51,21 @@
             <label class="label">
               <span class="label-text font-semibold">Search Type</span>
             </label>
-            <select name="search[type]" class="select select-bordered w-full">
-              <%= if @email_available do %>
-                <option value="email" selected={(@search_type || "email") == "email"}>
-                  Email Address
+            <div class="select select-bordered w-full">
+              <select name="search[type]">
+                <%= if @email_available do %>
+                  <option value="email" selected={(@search_type || "email") == "email"}>
+                    Email Address
+                  </option>
+                <% end %>
+                <option value="username" selected={@search_type == "username"}>
+                  Username
                 </option>
-              <% end %>
-              <option value="username" selected={@search_type == "username"}>
-                Username
-              </option>
-              <option value="ip" selected={@search_type == "ip"}>
-                IP Address
-              </option>
-            </select>
+                <option value="ip" selected={@search_type == "ip"}>
+                  IP Address
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 

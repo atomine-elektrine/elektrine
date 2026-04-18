@@ -1315,32 +1315,33 @@
 
               <%= if @show_quick_post do %>
                 <.form for={%{}} phx-submit="create_quick_discussion" class="space-y-2.5">
-                  <select
-                    name="community_id"
-                    class="select select-bordered select-sm w-full"
-                    required
-                  >
-                    <option value="">Select community...</option>
-                    <%= if !Enum.empty?(@communities) do %>
-                      <optgroup label="Local Communities">
-                        <%= for community <- @communities do %>
-                          <% slug =
-                            String.downcase(community.name)
-                            |> String.replace(~r/[^a-z0-9]+/, "-") %>
-                          <option value={"local:#{community.id}"}>!{slug}</option>
-                        <% end %>
-                      </optgroup>
-                    <% end %>
-                    <%= if !Enum.empty?(@followed_remote_communities) do %>
-                      <optgroup label="Remote Communities">
-                        <%= for actor <- @followed_remote_communities do %>
-                          <option value={"remote:#{actor.id}"}>
-                            !{actor.username}@{actor.domain}
-                          </option>
-                        <% end %>
-                      </optgroup>
-                    <% end %>
-                  </select>
+                  <div class="select select-bordered select-sm w-full">
+                    <select
+                      name="community_id"
+                      required
+                    >
+                      <option value="">Select community...</option>
+                      <%= if !Enum.empty?(@communities) do %>
+                        <optgroup label="Local Communities">
+                          <%= for community <- @communities do %>
+                            <% slug =
+                              String.downcase(community.name)
+                              |> String.replace(~r/[^a-z0-9]+/, "-") %>
+                            <option value={"local:#{community.id}"}>!{slug}</option>
+                          <% end %>
+                        </optgroup>
+                      <% end %>
+                      <%= if !Enum.empty?(@followed_remote_communities) do %>
+                        <optgroup label="Remote Communities">
+                          <%= for actor <- @followed_remote_communities do %>
+                            <option value={"remote:#{actor.id}"}>
+                              !{actor.username}@{actor.domain}
+                            </option>
+                          <% end %>
+                        </optgroup>
+                      <% end %>
+                    </select>
+                  </div>
 
                   <input
                     type="text"
@@ -1501,184 +1502,197 @@
               <label class="label">
                 <span class="label-text">Category</span>
               </label>
-              <select name="category" class="select select-bordered w-full h-80">
-                <optgroup label="Technology & Science">
-                  <option value="tech" selected={@new_community_category == "tech"}>
-                    Technology
-                  </option>
-                  <option value="programming" selected={@new_community_category == "programming"}>
-                    Programming
-                  </option>
-                  <option value="science" selected={@new_community_category == "science"}>
-                    Science
-                  </option>
-                  <option value="space" selected={@new_community_category == "space"}>
-                    Space & Astronomy
-                  </option>
-                  <option value="crypto" selected={@new_community_category == "crypto"}>
-                    Cryptocurrency
-                  </option>
-                </optgroup>
-                <optgroup label="Entertainment">
-                  <option value="gaming" selected={@new_community_category == "gaming"}>
-                    Gaming
-                  </option>
-                  <option value="movies" selected={@new_community_category == "movies"}>
-                    Movies
-                  </option>
-                  <option value="tv" selected={@new_community_category == "tv"}>TV Shows</option>
-                  <option value="anime" selected={@new_community_category == "anime"}>
-                    Anime & Manga
-                  </option>
-                  <option value="comics" selected={@new_community_category == "comics"}>
-                    Comics
-                  </option>
-                  <option value="music" selected={@new_community_category == "music"}>
-                    Music
-                  </option>
-                  <option value="books" selected={@new_community_category == "books"}>
-                    Books & Literature
-                  </option>
-                  <option value="comedy" selected={@new_community_category == "comedy"}>
-                    Comedy
-                  </option>
-                  <option value="memes" selected={@new_community_category == "memes"}>
-                    Memes
-                  </option>
-                </optgroup>
-                <optgroup label="Creative">
-                  <option value="art" selected={@new_community_category == "art"}>
-                    Art & Illustration
-                  </option>
-                  <option value="design" selected={@new_community_category == "design"}>
-                    Design
-                  </option>
-                  <option value="photography" selected={@new_community_category == "photography"}>
-                    Photography
-                  </option>
-                  <option value="writing" selected={@new_community_category == "writing"}>
-                    Writing
-                  </option>
-                  <option value="diy" selected={@new_community_category == "diy"}>
-                    DIY & How-To
-                  </option>
-                  <option value="crafts" selected={@new_community_category == "crafts"}>
-                    Crafts
-                  </option>
-                  <option value="fashion" selected={@new_community_category == "fashion"}>
-                    Fashion & Style
-                  </option>
-                </optgroup>
-                <optgroup label="Lifestyle">
-                  <option value="food" selected={@new_community_category == "food"}>
-                    Food & Cooking
-                  </option>
-                  <option value="fitness" selected={@new_community_category == "fitness"}>
-                    Fitness & Exercise
-                  </option>
-                  <option value="health" selected={@new_community_category == "health"}>
-                    Health & Wellness
-                  </option>
-                  <option value="travel" selected={@new_community_category == "travel"}>
-                    Travel
-                  </option>
-                  <option value="pets" selected={@new_community_category == "pets"}>
-                    Pets & Animals
-                  </option>
-                  <option value="nature" selected={@new_community_category == "nature"}>
-                    Nature & Outdoors
-                  </option>
-                  <option value="automotive" selected={@new_community_category == "automotive"}>
-                    Cars & Automotive
-                  </option>
-                  <option value="sports" selected={@new_community_category == "sports"}>
-                    Sports
-                  </option>
-                </optgroup>
-                <optgroup label="Learning">
-                  <option value="education" selected={@new_community_category == "education"}>
-                    Education
-                  </option>
-                  <option value="history" selected={@new_community_category == "history"}>
-                    History
-                  </option>
-                  <option value="philosophy" selected={@new_community_category == "philosophy"}>
-                    Philosophy
-                  </option>
-                  <option value="psychology" selected={@new_community_category == "psychology"}>
-                    Psychology
-                  </option>
-                  <option value="medicine" selected={@new_community_category == "medicine"}>
-                    Medicine
-                  </option>
-                  <option value="law" selected={@new_community_category == "law"}>
-                    Law & Legal
-                  </option>
-                </optgroup>
-                <optgroup label="Business & Finance">
-                  <option value="business" selected={@new_community_category == "business"}>
-                    Business
-                  </option>
-                  <option value="finance" selected={@new_community_category == "finance"}>
-                    Finance & Investment
-                  </option>
-                  <option value="stocks" selected={@new_community_category == "stocks"}>
-                    Stocks & Trading
-                  </option>
-                  <option value="realestate" selected={@new_community_category == "realestate"}>
-                    Real Estate
-                  </option>
-                  <option value="marketing" selected={@new_community_category == "marketing"}>
-                    Marketing
-                  </option>
-                  <option value="career" selected={@new_community_category == "career"}>
-                    Career & Jobs
-                  </option>
-                </optgroup>
-                <optgroup label="Society">
-                  <option value="news" selected={@new_community_category == "news"}>
-                    News & Current Events
-                  </option>
-                  <option value="politics" selected={@new_community_category == "politics"}>
-                    Politics
-                  </option>
-                  <option value="environment" selected={@new_community_category == "environment"}>
-                    Environment
-                  </option>
-                  <option value="energy" selected={@new_community_category == "energy"}>
-                    Energy & Sustainability
-                  </option>
-                  <option
-                    value="relationships"
-                    selected={@new_community_category == "relationships"}
-                  >
-                    Relationships
-                  </option>
-                  <option value="parenting" selected={@new_community_category == "parenting"}>
-                    Parenting & Family
-                  </option>
-                  <option value="religion" selected={@new_community_category == "religion"}>
-                    Religion
-                  </option>
-                  <option
-                    value="spirituality"
-                    selected={@new_community_category == "spirituality"}
-                  >
-                    Spirituality
-                  </option>
-                  <option value="conspiracy" selected={@new_community_category == "conspiracy"}>
-                    Conspiracy Theories
-                  </option>
-                  <option value="paranormal" selected={@new_community_category == "paranormal"}>
-                    Paranormal
-                  </option>
-                </optgroup>
-                <optgroup label="Other">
-                  <option value="general" selected={@new_community_category == "general"}>
-                    General Discussion
-                  </option>
-                </optgroup>
-              </select>
+              <div class="select select-bordered w-full h-80">
+                <select name="category">
+                  <optgroup label="Technology & Science">
+                    <option value="tech" selected={@new_community_category == "tech"}>
+                      Technology
+                    </option>
+                    <option
+                      value="programming"
+                      selected={@new_community_category == "programming"}
+                    >
+                      Programming
+                    </option>
+                    <option value="science" selected={@new_community_category == "science"}>
+                      Science
+                    </option>
+                    <option value="space" selected={@new_community_category == "space"}>
+                      Space & Astronomy
+                    </option>
+                    <option value="crypto" selected={@new_community_category == "crypto"}>
+                      Cryptocurrency
+                    </option>
+                  </optgroup>
+                  <optgroup label="Entertainment">
+                    <option value="gaming" selected={@new_community_category == "gaming"}>
+                      Gaming
+                    </option>
+                    <option value="movies" selected={@new_community_category == "movies"}>
+                      Movies
+                    </option>
+                    <option value="tv" selected={@new_community_category == "tv"}>
+                      TV Shows
+                    </option>
+                    <option value="anime" selected={@new_community_category == "anime"}>
+                      Anime & Manga
+                    </option>
+                    <option value="comics" selected={@new_community_category == "comics"}>
+                      Comics
+                    </option>
+                    <option value="music" selected={@new_community_category == "music"}>
+                      Music
+                    </option>
+                    <option value="books" selected={@new_community_category == "books"}>
+                      Books & Literature
+                    </option>
+                    <option value="comedy" selected={@new_community_category == "comedy"}>
+                      Comedy
+                    </option>
+                    <option value="memes" selected={@new_community_category == "memes"}>
+                      Memes
+                    </option>
+                  </optgroup>
+                  <optgroup label="Creative">
+                    <option value="art" selected={@new_community_category == "art"}>
+                      Art & Illustration
+                    </option>
+                    <option value="design" selected={@new_community_category == "design"}>
+                      Design
+                    </option>
+                    <option
+                      value="photography"
+                      selected={@new_community_category == "photography"}
+                    >
+                      Photography
+                    </option>
+                    <option value="writing" selected={@new_community_category == "writing"}>
+                      Writing
+                    </option>
+                    <option value="diy" selected={@new_community_category == "diy"}>
+                      DIY & How-To
+                    </option>
+                    <option value="crafts" selected={@new_community_category == "crafts"}>
+                      Crafts
+                    </option>
+                    <option value="fashion" selected={@new_community_category == "fashion"}>
+                      Fashion & Style
+                    </option>
+                  </optgroup>
+                  <optgroup label="Lifestyle">
+                    <option value="food" selected={@new_community_category == "food"}>
+                      Food & Cooking
+                    </option>
+                    <option value="fitness" selected={@new_community_category == "fitness"}>
+                      Fitness & Exercise
+                    </option>
+                    <option value="health" selected={@new_community_category == "health"}>
+                      Health & Wellness
+                    </option>
+                    <option value="travel" selected={@new_community_category == "travel"}>
+                      Travel
+                    </option>
+                    <option value="pets" selected={@new_community_category == "pets"}>
+                      Pets & Animals
+                    </option>
+                    <option value="nature" selected={@new_community_category == "nature"}>
+                      Nature & Outdoors
+                    </option>
+                    <option value="automotive" selected={@new_community_category == "automotive"}>
+                      Cars & Automotive
+                    </option>
+                    <option value="sports" selected={@new_community_category == "sports"}>
+                      Sports
+                    </option>
+                  </optgroup>
+                  <optgroup label="Learning">
+                    <option value="education" selected={@new_community_category == "education"}>
+                      Education
+                    </option>
+                    <option value="history" selected={@new_community_category == "history"}>
+                      History
+                    </option>
+                    <option value="philosophy" selected={@new_community_category == "philosophy"}>
+                      Philosophy
+                    </option>
+                    <option value="psychology" selected={@new_community_category == "psychology"}>
+                      Psychology
+                    </option>
+                    <option value="medicine" selected={@new_community_category == "medicine"}>
+                      Medicine
+                    </option>
+                    <option value="law" selected={@new_community_category == "law"}>
+                      Law & Legal
+                    </option>
+                  </optgroup>
+                  <optgroup label="Business & Finance">
+                    <option value="business" selected={@new_community_category == "business"}>
+                      Business
+                    </option>
+                    <option value="finance" selected={@new_community_category == "finance"}>
+                      Finance & Investment
+                    </option>
+                    <option value="stocks" selected={@new_community_category == "stocks"}>
+                      Stocks & Trading
+                    </option>
+                    <option value="realestate" selected={@new_community_category == "realestate"}>
+                      Real Estate
+                    </option>
+                    <option value="marketing" selected={@new_community_category == "marketing"}>
+                      Marketing
+                    </option>
+                    <option value="career" selected={@new_community_category == "career"}>
+                      Career & Jobs
+                    </option>
+                  </optgroup>
+                  <optgroup label="Society">
+                    <option value="news" selected={@new_community_category == "news"}>
+                      News & Current Events
+                    </option>
+                    <option value="politics" selected={@new_community_category == "politics"}>
+                      Politics
+                    </option>
+                    <option
+                      value="environment"
+                      selected={@new_community_category == "environment"}
+                    >
+                      Environment
+                    </option>
+                    <option value="energy" selected={@new_community_category == "energy"}>
+                      Energy & Sustainability
+                    </option>
+                    <option
+                      value="relationships"
+                      selected={@new_community_category == "relationships"}
+                    >
+                      Relationships
+                    </option>
+                    <option value="parenting" selected={@new_community_category == "parenting"}>
+                      Parenting & Family
+                    </option>
+                    <option value="religion" selected={@new_community_category == "religion"}>
+                      Religion
+                    </option>
+                    <option
+                      value="spirituality"
+                      selected={@new_community_category == "spirituality"}
+                    >
+                      Spirituality
+                    </option>
+                    <option value="conspiracy" selected={@new_community_category == "conspiracy"}>
+                      Conspiracy Theories
+                    </option>
+                    <option value="paranormal" selected={@new_community_category == "paranormal"}>
+                      Paranormal
+                    </option>
+                  </optgroup>
+                  <optgroup label="Other">
+                    <option value="general" selected={@new_community_category == "general"}>
+                      General Discussion
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
           </div>
 

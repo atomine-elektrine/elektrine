@@ -43,36 +43,37 @@ defmodule Elektrine.Components.ReportModal do
             <label class="label">
               <span class="label-text font-medium">Reason for Report</span>
             </label>
-            <select
-              name="reason"
-              value={@reason}
-              class="select select-bordered w-full"
-              required
-              disabled={@submitting}
-              phx-change="update_reason"
-              phx-target={@myself}
-            >
-              <option value="" disabled selected={@reason == ""}>Select a reason...</option>
-              <option value="spam" selected={@reason == "spam"}>Spam</option>
-              <option value="harassment" selected={@reason == "harassment"}>
-                Harassment or Bullying
-              </option>
-              <option value="inappropriate" selected={@reason == "inappropriate"}>
-                Inappropriate Content
-              </option>
-              <option value="violence" selected={@reason == "violence"}>Violence or Threats</option>
-              <option value="hate_speech" selected={@reason == "hate_speech"}>Hate Speech</option>
-              <option value="impersonation" selected={@reason == "impersonation"}>
-                Impersonation
-              </option>
-              <option value="self_harm" selected={@reason == "self_harm"}>
-                Self-Harm or Suicide
-              </option>
-              <option value="misinformation" selected={@reason == "misinformation"}>
-                Misinformation
-              </option>
-              <option value="other" selected={@reason == "other"}>Other</option>
-            </select>
+            <div class="select select-bordered w-full">
+              <select
+                name="reason"
+                value={@reason}
+                required
+                disabled={@submitting}
+                phx-change="update_reason"
+                phx-target={@myself}
+              >
+                <option value="" disabled selected={@reason == ""}>Select a reason...</option>
+                <option value="spam" selected={@reason == "spam"}>Spam</option>
+                <option value="harassment" selected={@reason == "harassment"}>
+                  Harassment or Bullying
+                </option>
+                <option value="inappropriate" selected={@reason == "inappropriate"}>
+                  Inappropriate Content
+                </option>
+                <option value="violence" selected={@reason == "violence"}>Violence or Threats</option>
+                <option value="hate_speech" selected={@reason == "hate_speech"}>Hate Speech</option>
+                <option value="impersonation" selected={@reason == "impersonation"}>
+                  Impersonation
+                </option>
+                <option value="self_harm" selected={@reason == "self_harm"}>
+                  Self-Harm or Suicide
+                </option>
+                <option value="misinformation" selected={@reason == "misinformation"}>
+                  Misinformation
+                </option>
+                <option value="other" selected={@reason == "other"}>Other</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-control w-full mb-6">

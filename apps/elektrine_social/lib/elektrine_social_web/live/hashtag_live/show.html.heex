@@ -287,17 +287,18 @@
 
         <div class="form-control mb-4">
           <label class="label"><span class="label-text">Visibility</span></label>
-          <select
-            name="visibility"
-            class="select select-bordered"
-            phx-change="update_post_visibility"
-          >
-            <option value="public" selected={@post_visibility == "public"}>Public</option>
+          <div class="select select-bordered">
+            <select
+              name="visibility"
+              phx-change="update_post_visibility"
+            >
+              <option value="public" selected={@post_visibility == "public"}>Public</option>
 
-            <option value="followers" selected={@post_visibility == "followers"}>
-              Followers Only
-            </option>
-          </select>
+              <option value="followers" selected={@post_visibility == "followers"}>
+                Followers Only
+              </option>
+            </select>
+          </div>
         </div>
 
         <div class="flex gap-2 justify-end">

@@ -128,11 +128,13 @@
             </label>
             <label class="form-control">
               <span class="sr-only">Sort items</span>
-              <select name="filters[sort]" class="select select-bordered h-9 min-h-9 w-full">
-                <%= for {label, value} <- @sort_options do %>
-                  <option value={value} selected={value == @sort_by}>{label}</option>
-                <% end %>
-              </select>
+              <div class="select select-bordered h-9 min-h-9 w-full">
+                <select name="filters[sort]">
+                  <%= for {label, value} <- @sort_options do %>
+                    <option value={value} selected={value == @sort_by}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
             </label>
           </form>
         </div>
@@ -896,16 +898,20 @@
 
           <form phx-submit="create_share" class="mt-4 grid gap-3 lg:grid-cols-2">
             <input type="hidden" name="share[file_id]" value={@active_file.id} />
-            <select name="share[access_level]" class="select select-bordered h-9 min-h-9 w-full">
-              <%= for {label, value} <- @share_access_options do %>
-                <option value={value} selected={value == "download"}>{label}</option>
-              <% end %>
-            </select>
-            <select name="share[expires_in]" class="select select-bordered h-9 min-h-9 w-full">
-              <%= for {label, value} <- @share_expiry_options do %>
-                <option value={value} selected={value == "7d"}>{label}</option>
-              <% end %>
-            </select>
+            <div class="select select-bordered h-9 min-h-9 w-full">
+              <select name="share[access_level]">
+                <%= for {label, value} <- @share_access_options do %>
+                  <option value={value} selected={value == "download"}>{label}</option>
+                <% end %>
+              </select>
+            </div>
+            <div class="select select-bordered h-9 min-h-9 w-full">
+              <select name="share[expires_in]">
+                <%= for {label, value} <- @share_expiry_options do %>
+                  <option value={value} selected={value == "7d"}>{label}</option>
+                <% end %>
+              </select>
+            </div>
             <input
               type="password"
               name="share[password]"
