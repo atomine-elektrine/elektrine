@@ -96,6 +96,21 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.TrackingOperations do
     {:noreply, assign(socket, :session_context, session_context)}
   end
 
+  def handle_event("restore_session_continuity", params, socket) do
+    last_timeline_visit_at = parse_unix_ms_datetime(params["last_timeline_visit_at"])
+
+    community_last_visited_at =
+      params["community_last_visited_at"]
+      |> normalize_community_last_visited_at()
+
+    updated_socket =
+      socket
+      |> assign(:last_timeline_visit_at, last_timeline_visit_at)
+      |> assign(:community_last_visited_at, community_last_visited_at)
+
+    {:noreply, ElektrineSocialWeb.TimelineLive.Index.assign_continuity_state(updated_socket)}
+  end
+
   # Marks a post as "not interested" - a strong negative signal.
   # This will reduce similar content in future recommendations.
   def handle_event("not_interested", params, socket) do
@@ -144,4 +159,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.TrackingOperations do
 
     {:noreply, updated_socket}
   end
+
+  defp normalize_community_last_visited_at(last_visited_at) when is_map(last_visited_at) do
+    Enum.reduce(last_visited_at, %{}, fn {community_id, timestamp}, acc ->
+      case parse_unix_ms_datetime(timestamp) do
+        %DateTime{} = visited_at -> Map.put(acc, to_string(community_id), visited_at)
+        _ -> acc
+      end
+    end)
+  end
+
+  defp normalize_community_last_visited_at(_last_visited_at), do: %{}
+
+  defp parse_unix_ms_datetime(value) when is_integer(value) do
+    DateTime.from_unix!(value, :millisecond)
+  rescue
+    _ -> nil
+  end
+
+  defp parse_unix_ms_datetime(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int_value, ""} -> parse_unix_ms_datetime(int_value)
+      _ -> nil
+    end
+  end
+
+  defp parse_unix_ms_datetime(_value), do: nil
 end

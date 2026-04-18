@@ -196,6 +196,17 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
             <div class="text-xs opacity-70 truncate">
               {if @actor.actor_type == "Group", do: "!", else: "@"}{@actor.username}@{@actor.domain}
             </div>
+            <div class="mt-1 flex flex-wrap gap-2 text-[11px] opacity-60">
+              <span>{if @actor.actor_type == "Group", do: "Community", else: "Person"}</span>
+              <%= if @actor.actor_type == "Group" do %>
+                <span>
+                  {get_in(@actor.metadata || %{}, ["followers", "totalItems"]) || 0} followers
+                </span>
+              <% end %>
+              <%= if @actor.last_fetched_at do %>
+                <span>Previewed recently</span>
+              <% end %>
+            </div>
             <%= if @actor.summary do %>
               <p class="text-xs mt-1 line-clamp-2 opacity-80">
                 {raw(PostUtilities.render_content_preview(@actor.summary, @actor.domain))}

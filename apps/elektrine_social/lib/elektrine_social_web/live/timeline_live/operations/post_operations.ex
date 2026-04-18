@@ -11,6 +11,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
   alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
 
+  @starter_pack_drafts [
+    {"Introduce yourself",
+     "A quick intro post: who you are, what you're into, and what kind of people you'd like to meet here."},
+    {"Share what you're building",
+     "Post a work-in-progress, side project, sketch, or idea you're exploring this week."},
+    {"Ask for recommendations",
+     "Ask the timeline for books, tools, communities, or feeds worth following in your interests."}
+  ]
+
   def handle_event("toggle_post_composer", _params, socket) do
     show_post_composer = !socket.assigns.show_post_composer
     current_user = socket.assigns[:current_user]
@@ -613,6 +622,52 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   def handle_event("hide_drafts", _params, socket) do
     {:noreply, assign(socket, :show_drafts_panel, false)}
+  end
+
+  def handle_event("seed_starter_pack", _params, socket) do
+    user = socket.assigns.current_user
+
+    cond do
+      is_nil(user) ->
+        {:noreply, put_flash(socket, :error, "You must be signed in to seed a starter pack")}
+
+      user.onboarding_completed ->
+        {:noreply, put_flash(socket, :info, "Starter packs are reserved for newer accounts")}
+
+      true ->
+        existing_titles =
+          socket.assigns.user_drafts
+          |> Kernel.||([])
+          |> MapSet.new(&(&1.title || ""))
+
+        new_drafts =
+          @starter_pack_drafts
+          |> Enum.reject(fn {title, _content} -> MapSet.member?(existing_titles, title) end)
+          |> Enum.map(fn {title, content} ->
+            Drafts.create_draft(user.id,
+              title: title,
+              content: content,
+              visibility: user.default_post_visibility || "public"
+            )
+          end)
+          |> Enum.flat_map(fn
+            {:ok, draft} -> [draft]
+            _ -> []
+          end)
+
+        if new_drafts == [] do
+          {:noreply,
+           socket
+           |> assign(:show_drafts_panel, true)
+           |> put_flash(:info, "Your starter pack is already waiting in drafts")}
+        else
+          {:noreply,
+           socket
+           |> assign(:user_drafts, new_drafts ++ (socket.assigns.user_drafts || []))
+           |> assign(:show_drafts_panel, true)
+           |> put_flash(:info, "Starter pack added to your drafts")}
+        end
+    end
   end
 
   def handle_load_more(socket) do

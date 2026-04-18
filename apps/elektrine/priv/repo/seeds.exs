@@ -1156,6 +1156,117 @@ if Mix.env() == :dev do
     end
   end
 
+  ensure_remote_actor = fn attrs ->
+    case Repo.get_by(Elektrine.ActivityPub.Actor, uri: attrs.uri) do
+      nil ->
+        %Elektrine.ActivityPub.Actor{}
+        |> Elektrine.ActivityPub.Actor.changeset(attrs)
+        |> Repo.insert!()
+
+      actor ->
+        actor
+        |> Elektrine.ActivityPub.Actor.changeset(attrs)
+        |> Repo.update!()
+    end
+  end
+
+  ensure_seed_poll_options = fn poll, option_specs ->
+    poll = Repo.preload(poll, :options, force: true)
+
+    if Enum.map(poll.options, & &1.option_text) != Enum.map(option_specs, &elem(&1, 0)) do
+      from(option in Social.PollOption, where: option.poll_id == ^poll.id) |> Repo.delete_all()
+
+      option_specs
+      |> Enum.with_index()
+      |> Enum.each(fn {{option_text, vote_count}, position} ->
+        %Social.PollOption{}
+        |> Social.PollOption.changeset(%{
+          poll_id: poll.id,
+          option_text: option_text,
+          position: position,
+          vote_count: vote_count
+        })
+        |> Repo.insert!()
+      end)
+    else
+      Enum.each(poll.options, fn option ->
+        vote_count = option_specs |> Enum.into(%{}) |> Map.fetch!(option.option_text)
+
+        option
+        |> Ecto.Changeset.change(vote_count: vote_count)
+        |> Repo.update!()
+      end)
+    end
+
+    Repo.preload(poll, :options, force: true)
+  end
+
+  ensure_federated_poll_post = fn remote_actor, attrs ->
+    message_attrs = %{
+      activitypub_id: attrs.activitypub_id,
+      activitypub_url: attrs.activitypub_url,
+      remote_actor_id: remote_actor.id,
+      post_type: "poll",
+      visibility: "public",
+      federated: true,
+      content: attrs.content,
+      inserted_at: attrs.inserted_at,
+      like_count: attrs.like_count,
+      reply_count: attrs.reply_count,
+      share_count: attrs.share_count,
+      media_metadata: %{}
+    }
+
+    message =
+      case Messaging.get_message_by_activitypub_ref(attrs.activitypub_id) do
+        nil ->
+          {:ok, created_message} = Messaging.create_federated_message(message_attrs)
+          created_message
+
+        existing_message ->
+          existing_message
+          |> Messaging.Message.federated_changeset(message_attrs)
+          |> Repo.update!()
+      end
+
+    poll =
+      case Repo.preload(message, poll: [options: []]).poll do
+        nil ->
+          {:ok, created_poll} =
+            Social.create_poll(
+              message.id,
+              attrs.question,
+              Enum.map(attrs.options, &elem(&1, 0)),
+              closes_at: attrs.closes_at,
+              allow_multiple: false,
+              hide_totals: false
+            )
+
+          created_poll
+
+        existing_poll ->
+          existing_poll
+          |> Social.Poll.changeset(%{
+            question: attrs.question,
+            closes_at: attrs.closes_at,
+            allow_multiple: false,
+            hide_totals: false,
+            total_votes: Enum.reduce(attrs.options, 0, fn {_text, votes}, acc -> acc + votes end)
+          })
+          |> Repo.update!()
+      end
+
+    poll =
+      poll
+      |> Ecto.Changeset.change(
+        total_votes: Enum.reduce(attrs.options, 0, fn {_text, votes}, acc -> acc + votes end)
+      )
+      |> Repo.update!()
+
+    ensure_seed_poll_options.(poll, attrs.options)
+    Repo.preload(message, [:remote_actor, poll: [options: []]], force: true)
+  end
+
   ensure_timeline_post = fn user_id, content, opts ->
     post_type = Keyword.get(opts, :post_type, "post")
     reply_to_id = Keyword.get(opts, :reply_to_id)
@@ -1714,6 +1825,37 @@ if Mix.env() == :dev do
       visibility: "public"
     )
 
+  seed_remote_actor =
+    ensure_remote_actor.(%{
+      uri: "https://mastodon.seed.local/users/pollbot",
+      username: "pollbot",
+      domain: "mastodon.seed.local",
+      display_name: "Poll Bot",
+      summary: "Development seed bot for federated timeline poll testing.",
+      avatar_url: "https://mastodon.seed.local/avatars/pollbot.png",
+      inbox_url: "https://mastodon.seed.local/users/pollbot/inbox",
+      outbox_url: "https://mastodon.seed.local/users/pollbot/outbox",
+      followers_url: "https://mastodon.seed.local/users/pollbot/followers",
+      following_url: "https://mastodon.seed.local/users/pollbot/following",
+      public_key: "seed-dev-public-key-pollbot",
+      actor_type: "Person"
+    })
+
+  _seed_remote_poll =
+    ensure_federated_poll_post.(seed_remote_actor, %{
+      activitypub_id: "https://mastodon.seed.local/users/pollbot/statuses/seed-timeline-poll-1",
+      activitypub_url: "https://mastodon.seed.local/@pollbot/seed-timeline-poll-1",
+      content: "",
+      question: "Timeline test poll: does the vote UI update immediately for you?",
+      options: [{"Yep, instant feedback", 5}, {"Not yet", 2}, {"I am testing now", 1}],
+      inserted_at: DateTime.add(DateTime.utc_now(), -900, :second) |> DateTime.truncate(:second),
+      closes_at:
+        DateTime.add(DateTime.utc_now(), 3 * 24 * 60 * 60, :second) |> DateTime.truncate(:second),
+      like_count: 3,
+      reply_count: 1,
+      share_count: 2
+    })
+
   _timeline_draft =
     ensure_timeline_draft.(
       test_user.id,
@@ -2174,7 +2316,7 @@ if Mix.env() == :dev do
 
   IO.puts("✓ Seeded broader app coverage")
   IO.puts("  - 4 demo users with profiles and mailboxes")
-  IO.puts("  - 7 timeline posts, 1 draft, and 1 public list")
+  IO.puts("  - 7 timeline posts, 1 federated poll, 1 draft, and 1 public list")
   IO.puts("  - 1 DM, 1 group conversation, 1 public server, and 3 server channels")
   IO.puts("  - 2 calendars with 4 events and 4 contacts across 2 groups")
   IO.puts("  - 2 folders, 2 labels, 2 templates, 2 filters, 1 alias, and 2 vault entries")

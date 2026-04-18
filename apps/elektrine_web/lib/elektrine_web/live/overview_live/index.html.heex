@@ -124,7 +124,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="posts"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View all posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Posts</p>
@@ -136,7 +136,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="timeline"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View timeline posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Timeline</p>
@@ -148,7 +148,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="gallery"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View gallery posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Gallery</p>
@@ -160,7 +160,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="discussions"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View discussion posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Discuss</p>
@@ -172,7 +172,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="likes"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View posts with likes"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Likes</p>
@@ -185,7 +185,7 @@
                 phx-click="inspect_activity"
                 phx-value-section="followers"
                 data-action="show-followers"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View your followers"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Followers</p>
@@ -198,7 +198,7 @@
                 phx-click="inspect_activity"
                 phx-value-section="following"
                 data-action="show-following"
-                class="rounded-lg border border-base-300 p-3 text-left transition-colors hover:bg-base-200/60"
+                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
                 title="View who you're following"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Following</p>
@@ -233,10 +233,8 @@
                 <button
                   phx-click="set_attention_filter"
                   phx-value-filter={filter}
-                  class={[
-                    "btn btn-xs",
-                    if(@attention_filter == filter, do: "btn-secondary", else: "btn-ghost")
-                  ]}
+                  class={attention_filter_pill_class(@attention_filter, filter)}
+                  aria-pressed={@attention_filter == filter}
                 >
                   {attention_filter_label(filter)}
                   <span class="opacity-70">
@@ -275,10 +273,10 @@
                 </div>
               <% else %>
                 <%= for item <- attention_items do %>
-                  <div class="rounded-lg border border-base-300 p-3 transition-colors hover:bg-base-200/55">
+                  <div class="rounded-lg border border-base-300 bg-base-100 p-3 transition-colors hover:bg-base-200">
                     <div class="flex items-start gap-3">
                       <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-2">
-                        <.icon name={item.icon} class="w-4 h-4 opacity-80" />
+                        <.icon name={item.icon} class="w-4 h-4 text-base-content/80" />
                       </div>
 
                       <div class="min-w-0 flex-1">
@@ -309,7 +307,7 @@
                         >
                           {item.title}
                         </.link>
-                        <p class="mt-1 text-xs opacity-70">{item.detail}</p>
+                        <p class="mt-1 text-xs text-base-content/75">{item.detail}</p>
 
                         <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                           <%= for action <- item.actions do %>
@@ -363,9 +361,9 @@
                   <%= for item <- @dashboard.recent_activity do %>
                     <.link
                       navigate={item.href}
-                      class="flex items-start gap-3 rounded-lg border border-base-300 p-3 hover:bg-base-200/60 transition-colors"
+                      class="flex items-start gap-3 rounded-lg border border-base-300 bg-base-100 p-3 hover:bg-base-200 transition-colors"
                     >
-                      <.icon name={item.icon} class="w-4 h-4 mt-0.5 opacity-80" />
+                      <.icon name={item.icon} class="w-4 h-4 mt-0.5 text-base-content/80" />
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-0.5">
                           <span class="badge badge-ghost badge-xs">{item.app}</span>
@@ -380,7 +378,7 @@
 
                         <p class="text-sm font-medium truncate">{item.title}</p>
 
-                        <p class="text-xs opacity-70 truncate">{item.detail}</p>
+                        <p class="text-xs text-base-content/75 truncate">{item.detail}</p>
                       </div>
                     </.link>
                   <% end %>
@@ -398,171 +396,178 @@
     <div class="flex-1 min-w-0">
       <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %> <% visible_posts =
         Enum.take(posts, @visible_post_limit) %>
-      <!-- Dynamic Header -->
-      <div class="mb-4">
-        <h2 class="text-2xl font-bold mb-1">
-          <%= case @filter do %>
-            <% "timeline" -> %>
-              Timeline
-            <% "gallery" -> %>
-              Gallery
-            <% "discussions" -> %>
+      <div class="card panel-card">
+        <div class="card-body p-4 sm:p-5">
+          <!-- Dynamic Header -->
+          <div class="mb-4">
+            <h2 class="text-2xl font-bold mb-1">
+              <%= case @filter do %>
+                <% "timeline" -> %>
+                  Timeline
+                <% "gallery" -> %>
+                  Gallery
+                <% "discussions" -> %>
+                  Communities
+                <% "my_posts" -> %>
+                  My Posts
+                <% _ -> %>
+                  For You
+              <% end %>
+            </h2>
+
+            <div class="text-sm opacity-70">{length(posts)} posts</div>
+          </div>
+          <!-- Filter Pills -->
+          <div class="flex gap-2 overflow-x-auto pt-1 pb-4">
+            <button
+              phx-click="set_filter"
+              phx-value-filter="all"
+              class={overview_filter_pill_class(@filter, "all")}
+              aria-pressed={@filter == "all"}
+            >
+              <.icon name="hero-sparkles" class="w-4 h-4 mr-1" /> For You
+            </button>
+            <button
+              phx-click="set_filter"
+              phx-value-filter="my_posts"
+              class={overview_filter_pill_class(@filter, "my_posts")}
+              aria-pressed={@filter == "my_posts"}
+            >
+              <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+            </button>
+            <button
+              phx-click="set_filter"
+              phx-value-filter="timeline"
+              class={overview_filter_pill_class(@filter, "timeline")}
+              aria-pressed={@filter == "timeline"}
+            >
+              <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Timeline
+            </button>
+            <button
+              phx-click="set_filter"
+              phx-value-filter="gallery"
+              class={overview_filter_pill_class(@filter, "gallery")}
+              aria-pressed={@filter == "gallery"}
+            >
+              <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Gallery
+            </button>
+            <button
+              phx-click="set_filter"
+              phx-value-filter="discussions"
+              class={overview_filter_pill_class(@filter, "discussions")}
+              aria-pressed={@filter == "discussions"}
+            >
+              <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" />
               Communities
-            <% "my_posts" -> %>
-              My Posts
-            <% _ -> %>
-              For You
-          <% end %>
-        </h2>
+            </button>
+          </div>
+          <!-- Unified Feed -->
+          <div
+            class="space-y-4"
+            phx-hook="InfiniteScroll"
+            id="overview-infinite-scroll"
+            data-offset="500"
+            data-no-more={@no_more_posts}
+            data-loading-more={@loading_more}
+          >
+            <%= if @loading_feed do %>
+              <!-- Loading skeleton for feed -->
+              <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
+                <%= for _i <- 1..5 do %>
+                  <div class="card panel-card animate-pulse">
+                    <div class="card-body">
+                      <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-full bg-base-300"></div>
 
-        <div class="text-sm opacity-70">{length(posts)} posts</div>
-      </div>
-      <!-- Filter Pills -->
-      <div class="flex gap-2 overflow-x-auto pt-1 pb-4">
-        <button
-          phx-click="set_filter"
-          phx-value-filter="all"
-          class={["btn btn-sm", if(@filter == "all", do: "btn-secondary", else: "btn-ghost")]}
-        >
-          <.icon name="hero-sparkles" class="w-4 h-4 mr-1" /> For You
-        </button>
-        <button
-          phx-click="set_filter"
-          phx-value-filter="my_posts"
-          class={["btn btn-sm", if(@filter == "my_posts", do: "btn-secondary", else: "btn-ghost")]}
-        >
-          <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
-        </button>
-        <button
-          phx-click="set_filter"
-          phx-value-filter="timeline"
-          class={["btn btn-sm", if(@filter == "timeline", do: "btn-secondary", else: "btn-ghost")]}
-        >
-          <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Timeline
-        </button>
-        <button
-          phx-click="set_filter"
-          phx-value-filter="gallery"
-          class={["btn btn-sm", if(@filter == "gallery", do: "btn-secondary", else: "btn-ghost")]}
-        >
-          <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Gallery
-        </button>
-        <button
-          phx-click="set_filter"
-          phx-value-filter="discussions"
-          class={[
-            "btn btn-sm",
-            if(@filter == "discussions", do: "btn-secondary", else: "btn-ghost")
-          ]}
-        >
-          <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" /> Communities
-        </button>
-      </div>
-      <!-- Unified Feed -->
-      <div
-        class="space-y-4"
-        phx-hook="InfiniteScroll"
-        id="overview-infinite-scroll"
-        data-offset="500"
-        data-no-more={@no_more_posts}
-        data-loading-more={@loading_more}
-      >
-        <%= if @loading_feed do %>
-          <!-- Loading skeleton for feed -->
-          <div class="space-y-4 min-h-[60vh]" data-feed-loading-skeleton>
-            <%= for _i <- 1..5 do %>
-              <div class="card panel-card animate-pulse">
-                <div class="card-body">
-                  <div class="flex items-start gap-3">
-                    <div class="w-10 h-10 rounded-full bg-base-300"></div>
+                        <div class="flex-1">
+                          <div class="h-4 bg-base-300 rounded w-1/4 mb-2"></div>
 
-                    <div class="flex-1">
-                      <div class="h-4 bg-base-300 rounded w-1/4 mb-2"></div>
+                          <div class="h-3 bg-base-300 rounded w-1/6 mb-4"></div>
 
-                      <div class="h-3 bg-base-300 rounded w-1/6 mb-4"></div>
+                          <div class="space-y-2">
+                            <div class="h-3 bg-base-300 rounded w-full"></div>
 
-                      <div class="space-y-2">
-                        <div class="h-3 bg-base-300 rounded w-full"></div>
+                            <div class="h-3 bg-base-300 rounded w-5/6"></div>
 
-                        <div class="h-3 bg-base-300 rounded w-5/6"></div>
-
-                        <div class="h-3 bg-base-300 rounded w-4/6"></div>
+                            <div class="h-3 bg-base-300 rounded w-4/6"></div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            <% end %>
-          </div>
-        <% else %>
-          <div id="overview-posts-list" class="space-y-4">
-            <%= for post <- visible_posts do %>
-              <div id={"overview-post-#{post.id}"} class="overview-post-entry">
-                <.live_component
-                  module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
-                  id={"overview-stream-post-#{post.id}"}
-                  post={post}
-                  current_user={@current_user}
-                  timezone={@timezone}
-                  time_format={@time_format}
-                  user_likes={@user_likes}
-                  user_boosts={@user_boosts}
-                  user_saves={@user_saves}
-                  user_follows={@user_follows}
-                  pending_follows={@pending_follows}
-                  remote_follow_overrides={@remote_follow_overrides}
-                  user_statuses={@user_statuses}
-                  user_downvotes={@user_downvotes}
-                  lemmy_counts={@lemmy_counts}
-                  post_interactions={@post_interactions}
-                  post_reactions={@post_reactions}
-                  post_replies={@post_replies}
-                  reply_to_post={nil}
-                  reply_to_post_recent_replies={[]}
-                  reply_content=""
-                  reply_to_reply_id={nil}
-                  loading_remote_replies={@loading_remote_replies}
-                  source="timeline"
-                  interaction_mode={if(@filter == "discussions", do: :like_only, else: :vote)}
-                />
-              </div>
-            <% end %>
-          </div>
-
-          <div
-            :if={!@no_more_posts}
-            class="flex justify-center py-2"
-            data-infinite-scroll-sentinel
-          >
-            <button
-              type="button"
-              phx-click="load-more"
-              class="btn btn-ghost btn-sm"
-              disabled={@loading_more}
-            >
-              <%= if @loading_more do %>
-                <.spinner size="sm" class="mr-2" /> Loading more
-              <% else %>
-                Load more
-              <% end %>
-            </button>
-          </div>
-
-          <%= if Enum.empty?(posts) do %>
-            <div class="card panel-card">
-              <div class="card-body text-center py-12">
-                <%= case @filter do %>
-                  <% "my_posts" -> %>
-                    <.icon name="hero-user-circle" class="w-16 h-16 mx-auto opacity-30 mb-4" />
-                    <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
-                  <% _ -> %>
-                    <.icon name="hero-sparkles" class="w-16 h-16 mx-auto opacity-30 mb-4" />
-                    <h3 class="text-lg font-semibold mb-2">No posts in this view</h3>
                 <% end %>
               </div>
-            </div>
-          <% end %>
-        <% end %>
+            <% else %>
+              <div id="overview-posts-list" class="space-y-4">
+                <%= for post <- visible_posts do %>
+                  <div id={"overview-post-#{post.id}"} class="overview-post-entry">
+                    <.live_component
+                      module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
+                      id={"overview-stream-post-#{post.id}"}
+                      post={post}
+                      current_user={@current_user}
+                      timezone={@timezone}
+                      time_format={@time_format}
+                      user_likes={@user_likes}
+                      user_boosts={@user_boosts}
+                      user_saves={@user_saves}
+                      user_follows={@user_follows}
+                      pending_follows={@pending_follows}
+                      remote_follow_overrides={@remote_follow_overrides}
+                      user_statuses={@user_statuses}
+                      user_downvotes={@user_downvotes}
+                      lemmy_counts={@lemmy_counts}
+                      post_interactions={@post_interactions}
+                      post_reactions={@post_reactions}
+                      post_replies={@post_replies}
+                      reply_to_post={nil}
+                      reply_to_post_recent_replies={[]}
+                      reply_content=""
+                      reply_to_reply_id={nil}
+                      loading_remote_replies={@loading_remote_replies}
+                      source="timeline"
+                      interaction_mode={if(@filter == "discussions", do: :like_only, else: :vote)}
+                    />
+                  </div>
+                <% end %>
+              </div>
+
+              <div
+                :if={!@no_more_posts}
+                class="flex justify-center py-2"
+                data-infinite-scroll-sentinel
+              >
+                <button
+                  type="button"
+                  phx-click="load-more"
+                  class="btn btn-sm border border-base-300 bg-base-200 hover:bg-base-300"
+                  disabled={@loading_more}
+                >
+                  <%= if @loading_more do %>
+                    <.spinner size="sm" class="mr-2" /> Loading more
+                  <% else %>
+                    Load more
+                  <% end %>
+                </button>
+              </div>
+
+              <%= if Enum.empty?(posts) do %>
+                <div class="card panel-card">
+                  <div class="card-body text-center py-12">
+                    <%= case @filter do %>
+                      <% "my_posts" -> %>
+                        <.icon name="hero-user-circle" class="w-16 h-16 mx-auto opacity-30 mb-4" />
+                        <h3 class="text-lg font-semibold mb-2">No posts yet</h3>
+                      <% _ -> %>
+                        <.icon name="hero-sparkles" class="w-16 h-16 mx-auto opacity-30 mb-4" />
+                        <h3 class="text-lg font-semibold mb-2">No posts in this view</h3>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -597,7 +602,7 @@
                 </div>
               </div>
 
-              <div class="border border-base-300 rounded-lg p-3 bg-base-200/50 space-y-2">
+              <div class="border border-base-300 rounded-lg p-3 bg-base-200 space-y-2">
                 <div class="text-sm font-medium">
                   <%= cond do %>
                     <% @quote_target_post.sender -> %>
@@ -661,7 +666,7 @@
 
           <div class="space-y-3 p-4 pt-0" data-role="activity-inspector">
             <.form for={%{}} phx-change="search_activity" class="mb-1">
-              <label class="input input-bordered flex items-center gap-2 bg-base-200/60">
+              <label class="input input-bordered flex items-center gap-2 bg-base-200">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                 <input
                   type="text"
@@ -683,7 +688,7 @@
             <% else %>
               <%= for entry <- @activity_inspector.entries do %>
                 <div
-                  class="flex items-start gap-3 rounded-lg border border-base-300 p-3 hover:bg-base-200/45"
+                  class="flex items-start gap-3 rounded-lg border border-base-300 bg-base-100 p-3 hover:bg-base-200"
                   data-role="activity-entry"
                 >
                   <%= if entry.preview_image_url do %>

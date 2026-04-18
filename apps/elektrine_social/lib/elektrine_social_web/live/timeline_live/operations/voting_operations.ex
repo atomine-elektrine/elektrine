@@ -649,6 +649,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
     if socket.assigns[:current_user] do
       poll_id = params["poll_id"]
       message_id = SafeConvert.to_integer!(params["message_id"], params["message_id"])
+      option_id = SafeConvert.to_integer!(params["option_id"], params["option_id"])
 
       remote_actor =
         socket.assigns.timeline_posts
@@ -666,7 +667,17 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
           remote_actor
         )
 
-        {:noreply, put_flash(socket, :info, "Vote sent to #{remote_actor.domain}")}
+        {:noreply,
+         socket
+         |> assign(
+           :pending_remote_poll_votes,
+           Map.put(socket.assigns.pending_remote_poll_votes, message_id, %{
+             option_id: option_id,
+             option_name: option_name,
+             domain: remote_actor.domain
+           })
+         )
+         |> put_flash(:info, "Vote sent to #{remote_actor.domain}")}
       else
         {:noreply, put_flash(socket, :error, "Unable to send remote poll vote")}
       end

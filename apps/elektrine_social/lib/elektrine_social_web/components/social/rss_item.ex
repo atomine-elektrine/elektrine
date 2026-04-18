@@ -161,17 +161,30 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
   defp format_time(nil, _timezone), do: ""
 
   defp format_time(datetime, _timezone) do
-    now = DateTime.utc_now()
-    diff = DateTime.diff(now, datetime, :second)
+    case normalize_datetime(datetime) do
+      %DateTime{} = normalized_datetime ->
+        now = DateTime.utc_now()
+        diff = DateTime.diff(now, normalized_datetime, :second)
 
-    cond do
-      diff < 60 -> "just now"
-      diff < 3600 -> "#{div(diff, 60)}m"
-      diff < 86_400 -> "#{div(diff, 3600)}h"
-      diff < 604_800 -> "#{div(diff, 86400)}d"
-      true -> Calendar.strftime(datetime, "%b %d")
+        cond do
+          diff < 60 -> "just now"
+          diff < 3600 -> "#{div(diff, 60)}m"
+          diff < 86_400 -> "#{div(diff, 3600)}h"
+          diff < 604_800 -> "#{div(diff, 86400)}d"
+          true -> Calendar.strftime(normalized_datetime, "%b %d")
+        end
+
+      _ ->
+        ""
     end
   end
+
+  defp normalize_datetime(%DateTime{} = datetime), do: datetime
+
+  defp normalize_datetime(%NaiveDateTime{} = datetime),
+    do: DateTime.from_naive!(datetime, "Etc/UTC")
+
+  defp normalize_datetime(_datetime), do: nil
 
   defp strip_html(nil), do: ""
 

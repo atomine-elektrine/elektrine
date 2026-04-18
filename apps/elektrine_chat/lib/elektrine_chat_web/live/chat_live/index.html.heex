@@ -16,7 +16,7 @@
     nil
   end %>
 <div
-  class="mx-auto flex h-[calc(100dvh-8.5rem)] min-h-0 w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content"
+  class="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content md:h-[calc(100dvh-8.5rem)] md:min-h-0"
   id="chat-container"
 >
   <!-- Z Platform Navigation -->
@@ -26,7 +26,7 @@
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
 
-  <div class="flex min-h-0 flex-1 flex-row gap-0 overflow-hidden sm:gap-2 xl:gap-6">
+  <div class="flex flex-1 flex-row gap-0 sm:min-h-0 sm:overflow-hidden sm:gap-2 xl:gap-6">
     <!-- Server Rail -->
     <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card panel-card border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
       <div class="flex flex-col items-center gap-1">
@@ -88,9 +88,9 @@
 <!-- Left Sidebar - Conversations List -->
     <div class={[
       if(@conversation.selected, do: "hidden sm:flex", else: "flex"),
-      "w-full sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
+      "w-full min-h-0 overflow-hidden sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
     ]}>
-      <div class="card panel-card border border-base-300 flex flex-col overflow-hidden">
+      <div class="card panel-card border border-base-300 flex flex-shrink-0 flex-col overflow-hidden">
         <!-- Header with Search -->
         <div class="flex-shrink-0 p-3 border-b border-base-300">
           <div class="flex items-center gap-2">
@@ -614,8 +614,8 @@
     ]}>
       <%= if @conversation.selected do %>
         <!-- Chat Header -->
-        <div class="flex-shrink-0 p-2.5 sm:p-3 bg-base-200 border-b border-base-300 overflow-visible">
-          <div class="flex items-center gap-2 sm:gap-3 overflow-visible">
+        <div class="flex-shrink-0 bg-base-200 border-b border-base-300 overflow-visible p-2.5 sm:p-3">
+          <div class="flex items-center gap-1.5 sm:gap-3 overflow-visible">
             <!-- Back Button (mobile only) -->
             <button
               phx-click="clear_selection"
@@ -632,7 +632,7 @@
               phx-value-conversation_type={@conversation.selected.type}
               title="View details"
             >
-              <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-full overflow-visible">
+              <div class="w-7 h-7 sm:w-10 sm:h-10 rounded-full overflow-visible">
                 <.conversation_avatar
                   conversation={@conversation.selected}
                   current_user_id={@current_user.id}
@@ -644,10 +644,13 @@
             </button>
 
             <div class="flex-1 min-w-0">
-              <h2 class="font-semibold text-sm sm:text-base truncate text-base-content">
+              <h2 class="font-semibold text-[15px] leading-tight sm:text-base truncate text-base-content">
                 {route_label(@conversation.selected, @current_user.id)}
               </h2>
-              <div class="flex flex-wrap items-center gap-1 mt-1">
+              <p class="mt-0.5 text-xs text-base-content/65 sm:hidden truncate">
+                {protocol_conversation_type(@conversation.selected.type)}
+              </p>
+              <div class="mt-1 hidden flex-wrap items-center gap-1 sm:flex">
                 <span class="badge badge-ghost badge-xs">
                   {protocol_conversation_type(@conversation.selected.type)}
                 </span>
@@ -1516,7 +1519,7 @@
         <% end %>
         
 <!-- Message Input -->
-        <div class="flex-shrink-0 py-3 px-2 sm:py-4 sm:px-4 xl:py-5 xl:px-5 bg-base-200 border-t border-base-300">
+        <div class="flex-shrink-0 bg-base-200 border-t border-base-300 px-2 py-2.5 sm:px-4 sm:py-4 xl:px-5 xl:py-5">
           <div class="mx-auto w-full max-w-5xl">
             <!-- Reply Context -->
             <%= if @message.reply_to && sender_loaded?(@message.reply_to.sender) do %>
@@ -1620,12 +1623,12 @@
                   </div>
                 <% end %>
 
-                <div class="flex gap-1 sm:gap-2 items-end">
+                <div class="flex items-end gap-1 sm:gap-2">
                   <%= if @can_send_messages do %>
                     <textarea
                       name="message"
-                      placeholder="Message... (/help)"
-                      class="flex-1 min-w-0 text-sm px-4 py-2.5 resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors"
+                      placeholder="Message..."
+                      class="flex-1 min-w-0 text-sm px-3 py-2 resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors sm:px-4 sm:py-2.5"
                       autocomplete="off"
                       phx-change="update_message"
                       phx-blur="stop_typing"

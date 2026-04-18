@@ -79,9 +79,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
       reply_like_count =
         cond do
-          is_integer(reply["_local_like_count"]) ->
-            max(reply["_local_like_count"] + score_delta, 0)
-
           is_integer(lemmy_data && lemmy_data["upvotes"]) ->
             max(lemmy_data["upvotes"] + score_delta, 0)
 
@@ -90,6 +87,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
           lemmy_comment_count ->
             max((lemmy_comment_count.upvotes || lemmy_comment_count.score || 0) + score_delta, 0)
+
+          is_integer(reply["_local_like_count"]) ->
+            max(reply["_local_like_count"] + score_delta, 0)
 
           true ->
             (get_collection_total_items(reply["likes"]) || 0) + score_delta
@@ -186,7 +186,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         class={[
           "timeline-thread-tree-node",
           if(depth == 0, do: "timeline-thread-reply-row"),
-          if(depth > 0, do: "timeline-thread-tree-node--nested")
+          if(depth > 0 and depth <= 4, do: "timeline-thread-tree-node--nested")
         ]}
         style={if depth > 0, do: "--thread-depth: #{tree_depth};", else: nil}
       >

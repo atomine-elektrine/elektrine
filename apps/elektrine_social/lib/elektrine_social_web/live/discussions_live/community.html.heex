@@ -1,4 +1,13 @@
-<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+<div
+  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2"
+  id="community-session-continuity"
+  phx-hook="SessionContinuity"
+  data-scope="community"
+  data-user-id={@current_user && @current_user.id}
+  data-community-id={@community.id}
+  data-current-view={@current_view}
+  data-sort-by={@sort_by}
+>
   <!-- Login Banner for Unauthenticated Users -->
   <%= if !@current_user do %>
     <div class="alert alert-info mb-6">

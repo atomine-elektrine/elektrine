@@ -24,6 +24,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
       user_downvotes: %{},
       remote_follow_overrides: %{},
       lemmy_counts: %{},
+      pending_remote_poll_votes: %{},
       post_interactions: %{},
       post_replies: %{},
       reply_to_post: nil,
@@ -68,6 +69,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           remote_follow_overrides={@remote_follow_overrides}
           user_statuses={@user_statuses}
           lemmy_counts={@lemmy_counts}
+          remote_poll_vote={Map.get(@pending_remote_poll_votes, @post.id)}
           post_interactions={@post_interactions}
           post_reactions_map={@post_reactions}
           reactions={Map.get(@post_reactions, @post.id, [])}
@@ -95,6 +97,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           remote_follow_overrides={@remote_follow_overrides}
           user_statuses={@user_statuses}
           lemmy_counts={@lemmy_counts}
+          remote_poll_vote={Map.get(@pending_remote_poll_votes, @post.id)}
           post_interactions={@post_interactions}
           post_reactions_map={@post_reactions}
           post_replies={@post_replies}

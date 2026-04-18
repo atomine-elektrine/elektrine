@@ -5,7 +5,7 @@ defmodule Elektrine.Calls do
 
   import Ecto.Query, warn: false
   alias Elektrine.Calls.Call
-  alias Elektrine.Messaging.{Conversation, ConversationMember}
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, ChatMessage}
   alias Elektrine.Repo
   @terminal_statuses ["ended", "rejected", "missed", "failed"]
   @allowed_previous_statuses %{
@@ -84,8 +84,8 @@ defmodule Elektrine.Calls do
   end
 
   defp valid_call_conversation?(conversation_id, caller_id, callee_id) do
-    from(cm in ConversationMember,
-      join: c in Conversation,
+    from(cm in ChatConversationMember,
+      join: c in ChatConversation,
       on: c.id == cm.conversation_id,
       where: cm.conversation_id == ^conversation_id and c.type == "dm" and is_nil(cm.left_at),
       where: cm.user_id in ^[caller_id, callee_id],
@@ -217,8 +217,8 @@ defmodule Elektrine.Calls do
     # Use the caller as sender because system messages require sender_id.
     sender_id = call.caller_id
 
-    %Elektrine.Messaging.Message{}
-    |> Elektrine.Messaging.Message.changeset(%{
+    %ChatMessage{}
+    |> ChatMessage.changeset(%{
       conversation_id: call.conversation_id,
       sender_id: sender_id,
       content: message_content,
@@ -238,14 +238,14 @@ defmodule Elektrine.Calls do
         # Update conversation's last message time
         import Ecto.Query
 
-        from(c in Elektrine.Messaging.Conversation, where: c.id == ^call.conversation_id)
+        from(c in ChatConversation, where: c.id == ^call.conversation_id)
         |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
 
         # Broadcast to conversation
         Phoenix.PubSub.broadcast(
           Elektrine.PubSub,
           "conversation:#{call.conversation_id}",
-          {:new_message, message}
+          {:new_chat_message, Repo.preload(message, [:sender])}
         )
 
         {:ok, message}

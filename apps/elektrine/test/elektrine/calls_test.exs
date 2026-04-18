@@ -6,9 +6,22 @@ defmodule Elektrine.CallsTest do
   alias Elektrine.Calls.Call
   alias Elektrine.Friends
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Messaging.ChatMessage
 
   describe "initiate_call/4" do
+    test "accepts the shared DM conversation between caller and callee" do
+      caller = AccountsFixtures.user_fixture()
+      callee = AccountsFixtures.user_fixture()
+
+      make_friends(caller.id, callee.id)
+      {:ok, conversation} = Messaging.create_dm_conversation(caller.id, callee.id)
+
+      assert {:ok, %Call{} = call} =
+               Calls.initiate_call(caller.id, callee.id, "audio", conversation.id)
+
+      assert call.conversation_id == conversation.id
+    end
+
     test "rejects conversation ids that are not a shared DM conversation" do
       caller = AccountsFixtures.user_fixture()
       callee = AccountsFixtures.user_fixture()
@@ -49,7 +62,7 @@ defmodule Elektrine.CallsTest do
       assert %Call{status: "rejected"} = Calls.get_call(call.id)
 
       call_logs =
-        from(m in Message,
+        from(m in ChatMessage,
           where: m.conversation_id == ^conversation.id and m.message_type == "system",
           where: fragment("?->>'call_id' = ?", m.media_metadata, ^to_string(call.id))
         )

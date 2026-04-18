@@ -2,6 +2,8 @@ defmodule ElektrineChatWeb.ChatLive.Components.MessageComposer do
   @moduledoc false
   use ElektrineChatWeb, :live_component
 
+  alias Elektrine.Messaging.{ChatMessage, Message}
+
   def render(assigns) do
     ~H"""
     <div class="p-4 bg-base-200 border-t border-base-300">
@@ -12,7 +14,7 @@ defmodule ElektrineChatWeb.ChatLive.Components.MessageComposer do
             <span class="opacity-75">Replying to</span>
             <strong>{@reply_to.sender.username}</strong>:
             <span class="opacity-75 truncate">
-              {Elektrine.Messaging.Message.display_content(@reply_to)}
+              {message_display_content(@reply_to)}
             </span>
           </div>
           <button
@@ -102,4 +104,7 @@ defmodule ElektrineChatWeb.ChatLive.Components.MessageComposer do
     # Handle file upload
     {:noreply, socket}
   end
+
+  defp message_display_content(%Message{} = message), do: Message.display_content(message)
+  defp message_display_content(%ChatMessage{} = message), do: ChatMessage.display_content(message)
 end

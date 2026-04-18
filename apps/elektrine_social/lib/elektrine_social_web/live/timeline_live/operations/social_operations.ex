@@ -7,8 +7,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
   require Logger
   alias Elektrine.ActivityPub
   alias Elektrine.Profiles
+  alias Elektrine.RSS
   alias Elektrine.Social
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
+
+  @starter_rss_feeds [
+    "https://hnrss.org/frontpage",
+    "https://www.theverge.com/rss/index.xml",
+    "https://feeds.arstechnica.com/arstechnica/index"
+  ]
 
   def handle_event("refresh_suggestions", _params, socket) do
     if socket.assigns[:current_user] do
@@ -78,6 +85,61 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
     end
   end
 
+  def handle_event("follow_suggested_people", _params, socket) do
+    if socket.assigns[:current_user] do
+      current_user_id = socket.assigns.current_user.id
+
+      suggestions =
+        socket.assigns.suggested_follows
+        |> Enum.reject(fn suggestion ->
+          Map.get(socket.assigns.user_follows, {:local, suggestion.id}, false)
+        end)
+        |> Enum.take(3)
+
+      case suggestions do
+        [] ->
+          {:noreply, put_flash(socket, :info, "No fresh people to follow right now")}
+
+        _ ->
+          {followed_ids, failed_ids} =
+            Enum.reduce(suggestions, {[], []}, fn suggestion, {followed, failed} ->
+              case Profiles.follow_user(current_user_id, suggestion.id) do
+                {:ok, _} -> {[suggestion.id | followed], failed}
+                _ -> {followed, [suggestion.id | failed]}
+              end
+            end)
+
+          updated_socket =
+            Enum.reduce(followed_ids, socket, fn user_id, acc ->
+              send(self(), {:load_followed_user_posts, user_id})
+
+              assign(
+                acc,
+                :user_follows,
+                Map.put(acc.assigns.user_follows, {:local, user_id}, true)
+              )
+            end)
+
+          updated_suggestions =
+            Enum.reject(updated_socket.assigns.suggested_follows, &(&1.id in followed_ids))
+
+          message =
+            cond do
+              followed_ids == [] -> "Couldn't follow suggestions right now"
+              failed_ids == [] -> "Following #{length(followed_ids)} suggested people"
+              true -> "Following #{length(followed_ids)} suggested people"
+            end
+
+          {:noreply,
+           updated_socket
+           |> assign(:suggested_follows, updated_suggestions)
+           |> put_flash(:info, message)}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
+    end
+  end
+
   def handle_event("preview_remote_user", %{"remote_handle" => remote_handle}, socket) do
     if Elektrine.Strings.present?(remote_handle) do
       socket = assign(socket, remote_user_loading: true, remote_user_preview: nil)
@@ -138,6 +200,54 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
       end
     else
       {:noreply, notify_error(socket, "Please search for a user or community first")}
+    end
+  end
+
+  def handle_event("import_starter_rss_feeds", _params, socket) do
+    if socket.assigns[:current_user] do
+      current_user_id = socket.assigns.current_user.id
+
+      {imported_count, existing_count} =
+        Enum.reduce(@starter_rss_feeds, {0, 0}, fn url, {imported, existing} ->
+          case RSS.subscribe(current_user_id, url) do
+            {:ok, subscription} ->
+              %{feed_id: subscription.feed_id}
+              |> Elektrine.RSS.FetchFeedWorker.new()
+              |> Elektrine.JobQueue.insert()
+
+              {imported + 1, existing}
+
+            {:error, changeset} ->
+              case changeset.errors[:feed_id] do
+                {_, constraint: :unique, constraint_name: _} -> {imported, existing + 1}
+                _ -> {imported, existing}
+              end
+          end
+        end)
+
+      message =
+        cond do
+          imported_count > 0 ->
+            "Imported #{imported_count} starter RSS feed#{if imported_count == 1, do: "", else: "s"}"
+
+          existing_count > 0 ->
+            "Starter RSS feeds are already in your subscriptions"
+
+          true ->
+            "Couldn't import starter RSS feeds right now"
+        end
+
+      updated_socket =
+        if imported_count > 0 do
+          send(self(), :load_timeline_data)
+          assign(socket, :loading_timeline, true)
+        else
+          socket
+        end
+
+      {:noreply, put_flash(updated_socket, :info, message)}
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to import RSS feeds")}
     end
   end
 

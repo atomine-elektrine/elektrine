@@ -466,8 +466,11 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp state_filter_button_class(current_filter, filter) do
     [
-      "btn btn-sm",
-      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+      "btn btn-sm border border-base-300",
+      if(current_filter == filter,
+        do: "btn-secondary border-secondary text-secondary-content shadow-sm",
+        else: "bg-base-200 text-base-content hover:bg-base-300"
+      )
     ]
   end
 
@@ -489,16 +492,19 @@ defmodule ElektrineWeb.NotificationsLive do
     [
       "rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
       if(group.unread_count > 0,
-        do: "border-l-4 border-l-primary hover:bg-base-200/55",
-        else: "hover:bg-base-200/20"
+        do: "border-l-4 border-l-primary bg-base-100 hover:bg-base-200",
+        else: "hover:bg-base-200"
       )
     ]
   end
 
   defp source_filter_button_class(current_filter, filter) do
     [
-      "btn btn-xs",
-      if(current_filter == filter, do: "btn-secondary", else: "btn-ghost")
+      "btn btn-xs border border-base-300",
+      if(current_filter == filter,
+        do: "btn-secondary border-secondary text-secondary-content shadow-sm",
+        else: "bg-base-200 text-base-content hover:bg-base-300"
+      )
     ]
   end
 
