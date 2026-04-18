@@ -285,116 +285,96 @@
             
 <!-- Filter buttons for inbox -->
             <%= if @current_tab == "inbox" do %>
-              <div class="top-[7rem] z-30 bg-base-300/60 -mx-6 px-6 py-3 border-b border-base-300 mb-4 rounded-lg">
-                <div class="flex flex-wrap gap-2">
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "inbox")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "inbox",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-inbox" class="h-4 w-4" />
-                    {gettext("Inbox")}
-                    <%= if assigns[:inbox_unread_count] && @inbox_unread_count > 0 do %>
-                      <div class="badge badge-secondary badge-xs ml-1">{@inbox_unread_count}</div>
-                    <% end %>
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "unread",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-envelope" class="h-4 w-4" />
-                    {gettext("Unread")}
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "read")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "read",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-check-circle" class="h-4 w-4" />
-                    {gettext("Read")}
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "digest")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "digest",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-queue-list" class="h-4 w-4" />
-                    {gettext("Digest")}
-                    <%= if assigns[:digest_count] && @digest_count > 0 do %>
-                      <div class="badge badge-secondary badge-xs ml-1">{@digest_count}</div>
-                    <% end %>
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "ledger")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "ledger",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-document-text" class="h-4 w-4" />
-                    {gettext("Ledger")}
-                    <%= if assigns[:ledger_count] && @ledger_count > 0 do %>
-                      <div class="badge badge-secondary badge-xs ml-1">{@ledger_count}</div>
-                    <% end %>
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "stack")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "stack",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-archive-box" class="h-4 w-4" />
-                    {gettext("Stack")}
-                    <%= if assigns[:stack_unread_count] && @stack_unread_count > 0 do %>
-                      <div class="badge badge-secondary badge-xs ml-1">{@stack_unread_count}</div>
-                    <% end %>
-                  </.link>
-                  <.link
-                    patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: "boomerang")}
-                    class={[
-                      "btn btn-sm rounded-full whitespace-nowrap",
-                      if(@current_filter == "boomerang",
-                        do: "btn-secondary font-semibold shadow-sm",
-                        else: "btn-ghost text-base-content/80 hover:text-secondary"
-                      )
-                    ]}
-                  >
-                    <.icon name="hero-arrow-uturn-left" class="h-4 w-4" />
-                    {gettext("Boomerang")}
-                    <%= if assigns[:boomerang_unread_count] && @boomerang_unread_count > 0 do %>
-                      <div class="badge badge-secondary badge-xs ml-1">
-                        {@boomerang_unread_count}
+              <% inbox_filters = [
+                %{
+                  id: "inbox",
+                  label: gettext("Inbox"),
+                  icon: "hero-inbox",
+                  count: assigns[:inbox_unread_count] || 0
+                },
+                %{id: "unread", label: gettext("Unread"), icon: "hero-envelope", count: 0},
+                %{id: "read", label: gettext("Read"), icon: "hero-check-circle", count: 0},
+                %{
+                  id: "digest",
+                  label: gettext("Digest"),
+                  icon: "hero-queue-list",
+                  count: assigns[:digest_count] || 0
+                },
+                %{
+                  id: "ledger",
+                  label: gettext("Ledger"),
+                  icon: "hero-document-text",
+                  count: assigns[:ledger_count] || 0
+                },
+                %{
+                  id: "stack",
+                  label: gettext("Stack"),
+                  icon: "hero-archive-box",
+                  count: assigns[:stack_unread_count] || 0
+                },
+                %{
+                  id: "boomerang",
+                  label: gettext("Boomerang"),
+                  icon: "hero-arrow-uturn-left",
+                  count: assigns[:boomerang_unread_count] || 0
+                }
+              ] %>
+              <div class="mb-4 border-b border-base-300 pb-4">
+                <div class="grid grid-cols-1 gap-2 sm:hidden">
+                  <%= for filter <- inbox_filters do %>
+                    <.link
+                      patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: filter.id)}
+                      class={[
+                        "rounded-lg border border-base-300 bg-base-100 px-3 py-3 transition-colors",
+                        if(@current_filter == filter.id,
+                          do: "border-secondary bg-secondary text-secondary-content shadow-sm",
+                          else: "text-base-content hover:bg-base-200"
+                        )
+                      ]}
+                    >
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="flex min-w-0 items-center gap-2.5">
+                          <div class={[
+                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                            if(@current_filter == filter.id,
+                              do: "bg-secondary text-secondary-content",
+                              else: "bg-base-200 text-base-content/80"
+                            )
+                          ]}>
+                            <.icon name={filter.icon} class="h-4 w-4" />
+                          </div>
+                          <span class="truncate text-sm font-semibold">{filter.label}</span>
+                        </div>
+                        <span
+                          :if={filter.count > 0}
+                          class="badge badge-secondary badge-sm shrink-0"
+                        >
+                          {filter.count}
+                        </span>
                       </div>
-                    <% end %>
-                  </.link>
+                    </.link>
+                  <% end %>
+                </div>
+
+                <div class="hidden flex-wrap gap-2 sm:flex">
+                  <%= for filter <- inbox_filters do %>
+                    <.link
+                      patch={Elektrine.Paths.email_index_path(tab: "inbox", filter: filter.id)}
+                      class={[
+                        "btn btn-sm rounded-full whitespace-nowrap border border-base-300",
+                        if(@current_filter == filter.id,
+                          do: "btn-secondary border-secondary font-semibold shadow-sm",
+                          else: "bg-base-200 text-base-content hover:bg-base-300"
+                        )
+                      ]}
+                    >
+                      <.icon name={filter.icon} class="h-4 w-4" />
+                      {filter.label}
+                      <div :if={filter.count > 0} class="badge badge-secondary badge-xs ml-1">
+                        {filter.count}
+                      </div>
+                    </.link>
+                  <% end %>
                 </div>
               </div>
             <% end %>

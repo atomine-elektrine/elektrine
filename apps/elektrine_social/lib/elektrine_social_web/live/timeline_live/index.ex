@@ -111,6 +111,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:recently_loaded_count, 0)
       |> assign(:lemmy_counts, %{})
       |> assign(:remote_poll_data, %{})
+      |> assign(:pending_remote_poll_votes, %{})
       |> assign(:remote_post_data, %{})
       |> assign(:rss_items, [])
       |> assign(:rss_saves, %{})
@@ -131,6 +132,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:editing_draft_id, nil)
       |> assign(:draft_auto_saved, false)
       |> assign(:draft_saving, false)
+      |> assign(:last_timeline_visit_at, nil)
+      |> assign(:new_posts_since_last_visit, 0)
+      |> assign(:recent_community_activity, [])
+      |> assign(:community_last_visited_at, %{})
+      |> assign(:unread_community_activity, [])
       |> assign(:loading_timeline, true)
       |> stream(:timeline_filtered_posts, [], reset: true)
 
@@ -616,6 +622,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
           []
         end
       )
+      |> assign_continuity_state()
 
     if user do
       send(self(), :load_secondary_data)
@@ -635,12 +642,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     suggested_follows = Social.get_suggested_follows(user.id, limit: 5)
     friends = Elektrine.Friends.list_friends(user.id)
     friend_ids = Enum.map(friends, & &1.id)
+    recent_community_activity = Social.get_recent_community_activity(user.id, limit: 24)
 
     {:noreply,
      socket
      |> assign(:suggested_follows, suggested_follows)
      |> assign(:friends, friends)
-     |> assign(:friend_ids, friend_ids)}
+     |> assign(:friend_ids, friend_ids)
+     |> assign(:recent_community_activity, recent_community_activity)
+     |> assign_continuity_state()}
   end
 
   @impl true
@@ -2363,4 +2373,111 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         []
     end
   end
+
+  def assign_continuity_state(socket) do
+    socket
+    |> assign(:new_posts_since_last_visit, count_new_posts_since_last_visit(socket))
+    |> assign(
+      :unread_community_activity,
+      build_unread_community_activity(
+        socket.assigns[:recent_community_activity] || [],
+        socket.assigns[:community_last_visited_at] || %{}
+      )
+    )
+  end
+
+  defp count_new_posts_since_last_visit(socket) do
+    case socket.assigns[:last_timeline_visit_at] do
+      %DateTime{} = last_visit_at ->
+        ((socket.assigns[:timeline_posts] || []) ++ (socket.assigns[:queued_posts] || []))
+        |> Enum.uniq_by(& &1.id)
+        |> Enum.count(&post_newer_than?(&1, last_visit_at))
+
+      _ ->
+        0
+    end
+  end
+
+  defp build_unread_community_activity(recent_activity, community_last_visited_at) do
+    recent_activity
+    |> Enum.group_by(&community_activity_group_key/1)
+    |> Enum.reduce([], fn
+      {nil, _posts}, acc ->
+        acc
+
+      {_community_id, posts}, acc ->
+        community = community_for_activity(posts)
+
+        unread_posts =
+          case community_last_visited_datetime(community, community_last_visited_at) do
+            %DateTime{} = last_visit_at ->
+              Enum.filter(posts, &post_newer_than?(&1, last_visit_at))
+
+            _ ->
+              []
+          end
+
+        case {community, unread_posts} do
+          {%{id: id, name: name}, [_ | _] = unread_posts} ->
+            latest_post_at =
+              unread_posts
+              |> Enum.map(&post_datetime/1)
+              |> Enum.reject(&is_nil/1)
+              |> case do
+                [] -> nil
+                timestamps -> Enum.max_by(timestamps, &DateTime.to_unix(&1, :millisecond))
+              end
+
+            if latest_post_at do
+              [
+                %{
+                  id: id,
+                  name: name,
+                  unread_count: length(unread_posts),
+                  latest_post_at: latest_post_at,
+                  latest_post: List.first(unread_posts)
+                }
+                | acc
+              ]
+            else
+              acc
+            end
+
+          _ ->
+            acc
+        end
+    end)
+    |> Enum.sort_by(&DateTime.to_unix(&1.latest_post_at, :millisecond), :desc)
+    |> Enum.take(5)
+  end
+
+  defp community_activity_group_key(%{conversation_id: conversation_id})
+       when not is_nil(conversation_id),
+       do: conversation_id
+
+  defp community_activity_group_key(%{conversation: %{id: conversation_id}}), do: conversation_id
+  defp community_activity_group_key(_activity), do: nil
+
+  defp community_for_activity([%{conversation: community} | _]), do: community
+  defp community_for_activity(_activities), do: nil
+
+  defp community_last_visited_datetime(%{id: community_id}, last_visited_at_map) do
+    Map.get(last_visited_at_map, to_string(community_id)) ||
+      Map.get(last_visited_at_map, community_id)
+  end
+
+  defp post_newer_than?(post, %DateTime{} = last_visit_at) do
+    case post_datetime(post) do
+      %DateTime{} = inserted_at -> DateTime.compare(inserted_at, last_visit_at) == :gt
+      _ -> false
+    end
+  end
+
+  defp post_datetime(%{inserted_at: %DateTime{} = inserted_at}), do: inserted_at
+
+  defp post_datetime(%{inserted_at: %NaiveDateTime{} = inserted_at}) do
+    DateTime.from_naive!(inserted_at, "Etc/UTC")
+  end
+
+  defp post_datetime(_post), do: nil
 end

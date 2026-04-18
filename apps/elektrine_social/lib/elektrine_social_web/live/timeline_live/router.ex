@@ -135,6 +135,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
       "hide_drafts" ->
         PostOperations.handle_event(event_name, params, socket)
 
+      "seed_starter_pack" ->
+        PostOperations.handle_event(event_name, params, socket)
+
       # Image Operations
       "cancel_upload" ->
         ImageOperations.handle_event(event_name, params, socket)
@@ -243,6 +246,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
       "toggle_follow_remote" ->
         SocialOperations.handle_event(event_name, params, socket)
 
+      "follow_suggested_people" ->
+        SocialOperations.handle_event(event_name, params, socket)
+
+      "import_starter_rss_feeds" ->
+        SocialOperations.handle_event(event_name, params, socket)
+
       "discuss_privately" ->
         SocialOperations.handle_event(event_name, params, socket)
 
@@ -301,6 +310,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
         TrackingOperations.handle_event(event_name, params, socket)
 
       "update_session_context" ->
+        TrackingOperations.handle_event(event_name, params, socket)
+
+      "restore_session_continuity" ->
         TrackingOperations.handle_event(event_name, params, socket)
 
       "not_interested" ->

@@ -34,7 +34,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
     <div
       class={[
         "timeline-thread-tree-node",
-        if(@depth > 0, do: "timeline-thread-tree-node--nested")
+        if(@depth > 0 and @depth <= 4, do: "timeline-thread-tree-node--nested")
       ]}
       style={if @depth > 0, do: "--thread-depth: #{@tree_depth};", else: nil}
     >

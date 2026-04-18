@@ -119,6 +119,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
             # "posts", "members", or "flairs"
             |> assign(:current_view, "posts")
             |> assign(:sort_by, "hot")
+            |> assign(:community_preferences_restored, false)
             |> assign(:posting_cadence, "No recent posts")
             |> assign(:show_new_post, false)
             # text, link, image, poll

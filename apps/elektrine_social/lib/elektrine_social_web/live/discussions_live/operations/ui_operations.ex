@@ -47,6 +47,32 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
     end
   end
 
+  def handle_event("restore_community_preferences", params, socket) do
+    restored_view = normalize_community_view(params["view"], socket.assigns.current_view)
+    restored_sort = SortHelpers.normalize_sort(params["sort"])
+
+    updated_socket =
+      socket
+      |> assign(:current_view, restored_view)
+      |> assign(:community_preferences_restored, true)
+
+    cond do
+      restored_sort == socket.assigns.sort_by ->
+        {:noreply, updated_socket}
+
+      socket.assigns.loading_community ->
+        {:noreply, assign(updated_socket, :sort_by, restored_sort)}
+
+      true ->
+        posts = SortHelpers.load_posts(socket.assigns.community.id, restored_sort, limit: 20)
+
+        {:noreply,
+         updated_socket
+         |> assign(:sort_by, restored_sort)
+         |> assign(:discussion_posts, posts)}
+    end
+  end
+
   def handle_event("report_discussion", %{"message_id" => message_id}, socket) do
     message_id = String.to_integer(message_id)
     post = Enum.find(socket.assigns.discussion_posts, &(&1.id == message_id))
@@ -287,4 +313,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
   defp notify_error(socket, message) do
     put_flash(socket, :error, message)
   end
+
+  defp normalize_community_view(view, fallback)
+
+  defp normalize_community_view(view, _fallback)
+       when view in ["posts", "members", "flairs", "queue", "bans", "log", "automod"],
+       do: view
+
+  defp normalize_community_view(_, fallback), do: fallback
 end

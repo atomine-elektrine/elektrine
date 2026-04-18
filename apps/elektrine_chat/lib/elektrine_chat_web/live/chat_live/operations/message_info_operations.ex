@@ -4,12 +4,6 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageInfoOperations do
   @doc false
   def route_info(info, socket) do
     case info do
-      {:message_edited, message} ->
-        {:handled, handle_message_edited(socket, message)}
-
-      {:message_deleted, message} ->
-        {:handled, handle_message_deleted(socket, message)}
-
       {:chat_message_updated, message} ->
         {:handled, handle_chat_message_updated(socket, message)}
 
@@ -54,30 +48,6 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageInfoOperations do
 
       _ ->
         :unhandled
-    end
-  end
-
-  def handle_message_edited(socket, message) do
-    if selected_conversation_matches?(socket, message.conversation_id) do
-      decrypted_message = Elektrine.Messaging.Message.decrypt_content(message)
-
-      messages =
-        Enum.map(socket.assigns.messages, fn msg ->
-          if msg.id == message.id, do: decrypted_message, else: msg
-        end)
-
-      {:noreply, Phoenix.Component.assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_message_deleted(socket, message) do
-    if selected_conversation_matches?(socket, message.conversation_id) do
-      messages = Enum.reject(socket.assigns.messages, fn msg -> msg.id == message.id end)
-      {:noreply, Phoenix.Component.assign(socket, :messages, messages)}
-    else
-      {:noreply, socket}
     end
   end
 

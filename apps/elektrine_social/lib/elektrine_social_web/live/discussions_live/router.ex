@@ -241,6 +241,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Router do
       "set_sort" ->
         UiOperations.handle_event(event_name, params, socket)
 
+      "restore_community_preferences" ->
+        UiOperations.handle_event(event_name, params, socket)
+
       "report_discussion" ->
         UiOperations.handle_event(event_name, params, socket)
 

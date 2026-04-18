@@ -110,6 +110,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :show_save_button, :boolean, default: true
   attr :show_thread_context, :boolean, default: true
   attr :interaction_mode, :atom, default: :vote
+  attr :remote_poll_vote, :map, default: nil
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -1666,6 +1667,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 message={@post}
                 current_user={@current_user}
                 user_votes={user_votes}
+                optimistic_vote={@remote_poll_vote}
               />
             </div>
           <% else %>

@@ -2340,6 +2340,26 @@ defmodule ElektrineWeb.OverviewLive.Index do
     @default_filter
   end
 
+  defp overview_filter_pill_class(current_filter, filter) do
+    [
+      "btn btn-sm rounded-full whitespace-nowrap border border-base-300",
+      if(current_filter == filter,
+        do: "btn-secondary text-secondary-content border-secondary shadow-sm",
+        else: "bg-base-200 text-base-content hover:bg-base-300"
+      )
+    ]
+  end
+
+  defp attention_filter_pill_class(current_filter, filter) do
+    [
+      "btn btn-xs rounded-full whitespace-nowrap border border-base-300",
+      if(current_filter == filter,
+        do: "btn-secondary text-secondary-content border-secondary shadow-sm",
+        else: "bg-base-200 text-base-content hover:bg-base-300"
+      )
+    ]
+  end
+
   defp base_posts_for_filter(_filter, %{all_posts: posts}) do
     posts
   end

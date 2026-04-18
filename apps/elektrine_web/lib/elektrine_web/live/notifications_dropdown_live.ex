@@ -19,7 +19,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
         <% end %>
         <button
           phx-click="toggle_dropdown"
-          class="btn btn-ghost btn-circle btn-sm"
+          class="btn btn-circle btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
           aria-label={gettext("Notifications")}
         >
           <%= if @unread_count > 0 do %>
@@ -39,7 +39,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                 <%= if @unread_count > 0 do %>
                   <button
                     phx-click="mark_all_as_read"
-                    class="btn btn-ghost btn-xs"
+                    class="btn btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
                     title={gettext("Mark all read")}
                   >
                     <.icon name="hero-check-circle" class="w-4 h-4 sm:mr-1" />
@@ -48,7 +48,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                 <% end %>
                 <button
                   phx-click="close_dropdown"
-                  class="btn btn-ghost btn-circle btn-xs"
+                  class="btn btn-circle btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
                 >
                   <.icon name="hero-x-mark" class="w-4 h-4" />
                 </button>
@@ -65,10 +65,10 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
             <% else %>
               <div class="divide-y divide-base-200">
                 <%= for notification <- @notifications do %>
-                  <div class={"p-2 sm:p-3 hover:bg-base-200/50 active:bg-base-300 transition-colors relative group #{if is_nil(notification.read_at), do: "bg-primary/5"}"}>
+                  <div class={"p-2 sm:p-3 hover:bg-base-200 active:bg-base-300 transition-colors relative group #{if is_nil(notification.read_at), do: "bg-base-200"}"}>
                     <div class="flex gap-2 sm:gap-3">
                       <div class="flex-shrink-0 mt-0.5 sm:mt-1">
-                        <div class={"w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center #{if notification.priority == "urgent", do: "bg-error/20", else: "bg-base-300"}"}>
+                        <div class={"w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center #{if notification.priority == "urgent", do: "bg-error/25", else: "bg-base-300"}"}>
                           <.icon
                             name={notification_icon(notification.type)}
                             class={"w-3.5 h-3.5 sm:w-4 sm:h-4 #{notification_color(notification.priority)}"}
@@ -112,7 +112,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                               <button
                                 phx-click="mark_as_read"
                                 phx-value-id={notification.id}
-                                class="btn btn-ghost btn-circle btn-xs min-h-0 h-7 w-7"
+                                class="btn btn-circle btn-xs min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
                                 title={gettext("Mark as read")}
                               >
                                 <.icon name="hero-check" class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -121,7 +121,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
                             <button
                               phx-click="dismiss"
                               phx-value-id={notification.id}
-                              class="btn btn-ghost btn-circle btn-xs min-h-0 h-7 w-7"
+                              class="btn btn-circle btn-xs min-h-0 h-7 w-7 border border-base-300 bg-base-100 hover:bg-base-200"
                               title={gettext("Dismiss")}
                             >
                               <.icon name="hero-x-mark" class="w-3 h-3 sm:w-3.5 sm:h-3.5" />
@@ -140,7 +140,7 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
             <div class="p-2 sm:p-3 border-t border-base-300 flex-shrink-0">
               <button
                 phx-click="view_all"
-                class="btn btn-ghost btn-sm btn-block text-xs sm:text-sm"
+                class="btn btn-sm btn-block text-xs sm:text-sm border border-base-300 bg-base-100 hover:bg-base-200"
               >
                 {gettext("View all notifications")}
               </button>

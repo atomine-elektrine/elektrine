@@ -98,13 +98,13 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/communities")
+      |> live(~p"/communities?view=communities")
 
     html = render_async(view)
 
-    assert has_element?(view, "h2", "Joined")
-    assert has_element?(view, "h2", "Discover")
-    assert has_element?(view, "h2", "Active Threads")
+    assert has_element?(view, "h2", "Your Communities")
+    assert has_element?(view, "h2", "Discover Local Communities")
+    assert has_element?(view, "h2", "Active Conversations")
     assert html =~ joined_community.name
     assert html =~ discover_community.name
     assert has_element?(view, "h4", "Trending thread #{unique}")
@@ -141,14 +141,14 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/communities")
+      |> live(~p"/communities?view=communities")
 
     html = render_async(view)
 
-    assert has_element?(view, "h2", "Active Threads")
+    assert has_element?(view, "h2", "Active Conversations")
     assert html =~ "Federated thread #{unique}"
     assert html =~ "!#{remote_actor.username}@#{remote_actor.domain}"
-    assert html =~ ~s(href="/remote/post/)
+    assert html =~ "/post/"
   end
 
   test "community search replaces the overview with matching results", %{conn: conn} do
@@ -189,7 +189,7 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/communities")
+      |> live(~p"/communities?view=communities")
 
     html =
       view
@@ -199,6 +199,112 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     assert html =~ "Search Results"
     assert html =~ matching_community.name
     assert html =~ matching_community.description
+  end
+
+  test "discovery search supports scopes and saves recent searches", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    owner = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+
+    {:ok, matching_community} =
+      Messaging.create_group_conversation(
+        owner.id,
+        %{
+          name: "ScopedHub#{unique}",
+          description: "Scoped search community",
+          type: "community",
+          community_category: "programming",
+          is_public: true,
+          allow_public_posts: true,
+          discussion_style: "forum"
+        },
+        []
+      )
+
+    SocialFixtures.discussion_post_fixture(%{
+      user: owner,
+      community: matching_community,
+      title: "Scoped thread #{unique}",
+      content: "Scoped search body #{unique}"
+    })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/communities?view=communities")
+
+    _ = render_async(view)
+
+    html =
+      view
+      |> form("#community-search-form", query: Integer.to_string(unique))
+      |> render_submit()
+
+    assert html =~ "Search Results"
+    assert html =~ matching_community.name
+
+    html =
+      view
+      |> element(~s(button[phx-click="set_search_scope"][phx-value-scope="posts"]))
+      |> render_click()
+
+    assert html =~ "Scoped thread #{unique}"
+
+    html =
+      view
+      |> element(~s(button[phx-click="clear_community_search"]))
+      |> render_click()
+
+    assert html =~ "Recent Searches"
+    assert html =~ Integer.to_string(unique)
+  end
+
+  test "overview renders follow-based suggestions and recent joins", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    owner = AccountsFixtures.user_fixture()
+    unique = System.unique_integer([:positive])
+
+    {:ok, joined_community} =
+      Messaging.create_group_conversation(
+        owner.id,
+        %{
+          name: "FollowedSeed#{unique}",
+          description: "Seed community",
+          type: "community",
+          community_category: "programming",
+          is_public: true,
+          allow_public_posts: true,
+          discussion_style: "forum"
+        },
+        [user.id]
+      )
+
+    {:ok, suggested_community} =
+      Messaging.create_group_conversation(
+        owner.id,
+        %{
+          name: "FollowedSuggestion#{unique}",
+          description: "Suggested community",
+          type: "community",
+          community_category: "programming",
+          is_public: true,
+          allow_public_posts: true,
+          discussion_style: "forum"
+        },
+        []
+      )
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/communities?view=communities")
+
+    html = render_async(view)
+
+    assert html =~ "Because You Follow..."
+    assert html =~ "Recent Joins"
+    assert html =~ joined_community.name
+    assert html =~ suggested_community.name
   end
 
   test "community action buttons are not nested inside links", %{conn: conn} do
@@ -256,7 +362,7 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/communities")
+      |> live(~p"/communities?view=communities")
 
     _ = render_async(view)
 

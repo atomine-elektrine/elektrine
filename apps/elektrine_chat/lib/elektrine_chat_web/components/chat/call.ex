@@ -42,7 +42,7 @@ defmodule ElektrineChatWeb.Components.Chat.Call do
         phx-value-call_type="video"
         phx-value-conversation_id={@conversation_id}
         phx-value-remote_handle={@remote_handle}
-        class="btn btn-ghost btn-circle btn-sm p-0 min-h-0 h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
+        class="btn btn-ghost btn-circle btn-sm p-0 min-h-0 h-8 w-8 sm:h-9 sm:w-9 hidden sm:flex flex-shrink-0"
         title="Video call"
       >
         <svg

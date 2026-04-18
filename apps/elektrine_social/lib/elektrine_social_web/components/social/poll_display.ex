@@ -16,6 +16,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   attr(:current_user, :map, default: nil)
   attr(:user_votes, :list, default: [])
   attr(:interactive, :boolean, default: true)
+  attr(:optimistic_vote, :map, default: nil)
   # Fresh remote poll data (from ActivityPub fetch) - overrides local poll data when present
   attr(:remote_poll_data, :map, default: nil)
 
@@ -41,6 +42,8 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   defp render_local_poll(assigns) do
     is_open = Integrations.social_poll_open?(assigns.poll)
     user_votes = effective_user_votes(assigns.poll, assigns.current_user, assigns.user_votes)
+    optimistic_option_id = optimistic_option_id(assigns.optimistic_vote)
+    pending_optimistic_vote? = pending_optimistic_vote?(user_votes, optimistic_option_id)
     show_results = should_show_poll_results?(assigns.poll)
 
     # If we have fresh remote poll data, use it to override local vote counts
@@ -69,13 +72,25 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           if stored_total > 0, do: stored_total, else: calculated_total
       end
 
+    total_votes =
+      if pending_optimistic_vote? do
+        total_votes + 1
+      else
+        total_votes
+      end
+
+    vote_registered? = user_votes != [] || pending_optimistic_vote?
+
     assigns =
       assigns
       |> assign(:is_open, is_open)
       |> assign(:user_votes, user_votes)
+      |> assign(:optimistic_option_id, optimistic_option_id)
+      |> assign(:pending_optimistic_vote?, pending_optimistic_vote?)
       |> assign(:show_results, show_results)
       |> assign(:remote_votes_map, remote_votes_map)
       |> assign(:total_votes, total_votes)
+      |> assign(:vote_registered?, vote_registered?)
 
     ~H"""
     <div class="border border-base-300 rounded-lg p-4 bg-base-50 dark:bg-base-200/50">
@@ -100,7 +115,9 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       <div class="space-y-2">
         <%= for option <- @poll.options do %>
           <% # Use remote vote count if available, otherwise use local
-          vote_count = Map.get(@remote_votes_map, option.option_text, option.vote_count || 0)
+          vote_count =
+            Map.get(@remote_votes_map, option.option_text, option.vote_count || 0) +
+              optimistic_vote_delta(option.id, @pending_optimistic_vote?, @optimistic_option_id)
 
           percentage =
             if @show_results && @total_votes > 0 do
@@ -109,8 +126,8 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
               0
             end
 
-          is_voted = option.id in @user_votes
-          can_vote = @interactive && @is_open && @current_user %>
+          is_voted = option.id in @user_votes || option.id == @optimistic_option_id
+          can_vote = @interactive && @is_open && @current_user && !@vote_registered? %>
 
           <%= if can_vote do %>
             <% remote_poll_vote = @message && @message.federated && is_binary(@message.activitypub_id) %>
@@ -196,6 +213,13 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
             do: @message.remote_actor.domain,
             else: "original instance"}
         </a>
+      <% end %>
+
+      <%= if @pending_optimistic_vote? do %>
+        <p class="text-xs text-success mt-3 flex items-center gap-2">
+          <.icon name="hero-check-circle" class="w-4 h-4 flex-shrink-0" />
+          Vote registered. Syncing with the original instance.
+        </p>
       <% end %>
 
       <%= if @interactive && !@current_user && @is_open do %>
@@ -448,6 +472,19 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   defp effective_user_votes(_, _, user_votes) when is_list(user_votes), do: user_votes
   defp effective_user_votes(_, _, _), do: []
+
+  defp optimistic_option_id(%{option_id: option_id}) when is_integer(option_id), do: option_id
+  defp optimistic_option_id(_), do: nil
+
+  defp pending_optimistic_vote?(user_votes, optimistic_option_id)
+       when is_list(user_votes) and is_integer(optimistic_option_id) do
+    user_votes == []
+  end
+
+  defp pending_optimistic_vote?(_, _), do: false
+
+  defp optimistic_vote_delta(option_id, true, option_id), do: 1
+  defp optimistic_vote_delta(_, _, _), do: 0
 
   defp should_show_poll_results?(%{hide_totals: true} = poll),
     do: Integrations.social_poll_closed?(poll)

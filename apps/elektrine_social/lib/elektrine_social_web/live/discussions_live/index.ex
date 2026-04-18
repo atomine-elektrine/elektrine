@@ -5,7 +5,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
-  alias Elektrine.{Messaging, Profiles, Repo, Social}
+  alias Elektrine.{AppCache, Messaging, Profiles, Repo, Social}
+  alias Elektrine.Reputation
   alias Elektrine.Social.Recommendations
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   import ElektrineSocialWeb.Components.Platform.ENav
@@ -66,8 +67,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> assign(:public_fallback_post_ids, MapSet.new())
       |> assign(:joined_community_ids, MapSet.new())
       |> assign(:search_query, "")
+      |> assign(:search_scope, "communities")
       |> assign(:search_results, [])
+      |> assign(:search_results_by_scope, default_search_results_by_scope())
       |> assign(:searching, false)
+      |> assign(:recent_searches, [])
+      |> assign(:recent_joins, [])
+      |> assign(:because_you_follow, [])
+      |> assign(:followed_remote_actor_ids, MapSet.new())
       |> assign(:post_interactions, %{})
       |> assign(:lemmy_counts, %{})
       |> assign(:post_replies, %{})
@@ -521,6 +528,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
              :filtered_communities,
              filter_communities_by_category(communities, socket.assigns.selected_category)
            )
+           |> assign_personalized_discovery_assigns(user_id)
            |> notify_info("Joined community successfully!")}
 
         {:error, _reason} ->
@@ -531,32 +539,83 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     end
   end
 
-  def handle_event("search_communities", %{"query" => query}, socket) do
-    query = String.trim(query)
+  def handle_event("join_trending_communities", _params, socket) do
+    if socket.assigns.current_user do
+      user_id = socket.assigns.current_user.id
 
-    if Elektrine.Strings.present?(query) do
-      results =
-        Messaging.CommunitySearch.search_communities(query,
-          user_id: socket.assigns[:current_user] && socket.assigns.current_user.id,
-          limit: 20
-        )
+      communities_to_join =
+        socket.assigns.filtered_popular_communities
+        |> Enum.reject(&MapSet.member?(socket.assigns.joined_community_ids, &1.id))
+        |> Enum.take(3)
 
-      {:noreply,
-       socket
-       |> assign(:search_query, query)
-       |> assign(:search_results, results)
-       |> assign(:searching, false)}
+      case communities_to_join do
+        [] ->
+          {:noreply, notify_info(socket, "No joinable communities in this category right now")}
+
+        _ ->
+          joined_count =
+            Enum.count(communities_to_join, fn community ->
+              match?({:ok, _}, Messaging.join_conversation(community.id, user_id))
+            end)
+
+          if joined_count > 0 do
+            send(self(), :load_communities_data)
+
+            {:noreply,
+             socket
+             |> assign(:loading_communities, true)
+             |> notify_info("Joined #{joined_count} trending communities")}
+          else
+            {:noreply, notify_error(socket, "Failed to join trending communities")}
+          end
+      end
     else
-      {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
+      {:noreply, notify_error(socket, "You must be signed in to join communities")}
     end
   end
 
+  def handle_event("search_communities", %{"query" => query}, socket) do
+    {:noreply, run_discovery_search(socket, query)}
+  end
+
   def handle_event("perform_search", params, socket) do
-    handle_event("search_communities", params, socket)
+    query = params["query"] || socket.assigns.search_query
+
+    {:noreply,
+     socket
+     |> run_discovery_search(query)
+     |> maybe_store_recent_search(query)}
   end
 
   def handle_event("clear_community_search", _params, socket) do
-    {:noreply, assign(socket, search_query: "", search_results: [], searching: false)}
+    {:noreply,
+     socket
+     |> assign(:search_query, "")
+     |> assign(:search_results, [])
+     |> assign(:search_results_by_scope, default_search_results_by_scope())
+     |> assign(:searching, false)}
+  end
+
+  def handle_event("set_search_scope", %{"scope" => scope}, socket) do
+    normalized_scope = normalize_search_scope(scope)
+
+    {:noreply,
+     socket
+     |> assign(:search_scope, normalized_scope)
+     |> assign(
+       :search_results,
+       Map.get(socket.assigns.search_results_by_scope || %{}, normalized_scope, [])
+     )}
+  end
+
+  def handle_event("run_recent_search", %{"query" => query} = params, socket) do
+    scope = normalize_search_scope(params["scope"] || socket.assigns.search_scope)
+
+    {:noreply,
+     socket
+     |> assign(:search_scope, scope)
+     |> run_discovery_search(query)
+     |> maybe_store_recent_search(query)}
   end
 
   def handle_event("follow_remote_group", %{"actor_id" => actor_id}, socket) do
@@ -576,6 +635,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
              filter_communities_by_category(communities, socket.assigns.selected_category)
            )
            |> refresh_remote_community_assigns(user_id)
+           |> assign_personalized_discovery_assigns(user_id)
            |> notify_info(
              "Followed federated community !#{remote_actor.username}@#{remote_actor.domain}"
            )}
@@ -591,6 +651,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
              filter_communities_by_category(communities, socket.assigns.selected_category)
            )
            |> refresh_remote_community_assigns(user_id)
+           |> assign_personalized_discovery_assigns(user_id)
            |> notify_info("Followed federated community")}
 
         {:error, reason} ->
@@ -633,6 +694,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
                socket.assigns.selected_category
              )
            )
+           |> assign_personalized_discovery_assigns(user_id)
            |> notify_info("Left community successfully")}
 
         {:error, _} ->
@@ -653,6 +715,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
           {:noreply,
            socket
            |> refresh_remote_community_assigns(user_id)
+           |> assign_personalized_discovery_assigns(user_id)
            |> notify_info("Unfollowed community")}
 
         {:error, _} ->
@@ -1531,6 +1594,33 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         MapSet.new()
       end
 
+    followed_remote_actor_ids = MapSet.new(followed_remote_communities, & &1.id)
+
+    recent_searches =
+      if user do
+        get_recent_discovery_searches(user.id)
+      else
+        []
+      end
+
+    recent_joins =
+      if user do
+        get_recent_joins(user.id)
+      else
+        []
+      end
+
+    because_you_follow =
+      build_follow_based_suggestions(
+        communities,
+        followed_remote_communities,
+        public_communities,
+        discover_remote_communities,
+        joined_community_ids,
+        followed_remote_actor_ids,
+        socket.assigns.selected_category
+      )
+
     filtered_followed_posts =
       followed_community_posts
       |> filter_community_posts_by_category(socket.assigns.selected_category)
@@ -1570,6 +1660,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:filtered_discover_remote_communities, discover_remote_communities)
      |> assign(:public_fallback_post_ids, followed_community_feed_page.public_fallback_ids)
      |> assign(:joined_community_ids, joined_community_ids)
+     |> assign(:followed_remote_actor_ids, followed_remote_actor_ids)
+     |> assign(:recent_searches, recent_searches)
+     |> assign(:recent_joins, recent_joins)
+     |> assign(:because_you_follow, because_you_follow)
      |> assign(:post_interactions, post_interactions)
      |> assign(:lemmy_counts, lemmy_counts)
      |> assign(:post_replies, post_replies)
@@ -1677,6 +1771,35 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     |> Repo.all()
   end
 
+  defp assign_personalized_discovery_assigns(socket, user_id) when is_integer(user_id) do
+    communities = socket.assigns[:communities] || []
+    followed_remote_communities = socket.assigns[:followed_remote_communities] || []
+    public_communities = socket.assigns[:public_communities] || []
+    discover_remote_communities = socket.assigns[:discover_remote_communities] || []
+    joined_community_ids = MapSet.new(communities, & &1.id)
+    followed_remote_actor_ids = MapSet.new(followed_remote_communities, & &1.id)
+
+    socket
+    |> assign(:joined_community_ids, joined_community_ids)
+    |> assign(:followed_remote_actor_ids, followed_remote_actor_ids)
+    |> assign(:recent_searches, get_recent_discovery_searches(user_id))
+    |> assign(:recent_joins, get_recent_joins(user_id))
+    |> assign(
+      :because_you_follow,
+      build_follow_based_suggestions(
+        communities,
+        followed_remote_communities,
+        public_communities,
+        discover_remote_communities,
+        joined_community_ids,
+        followed_remote_actor_ids,
+        socket.assigns.selected_category
+      )
+    )
+  end
+
+  defp assign_personalized_discovery_assigns(socket, _user_id), do: socket
+
   defp refresh_remote_community_assigns(socket, user_id) do
     followed_remote_communities = get_followed_remote_communities(user_id)
     discover_remote_communities = get_discover_remote_communities(user_id, limit: 8)
@@ -1723,6 +1846,327 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     |> Enum.uniq_by(& &1.id)
     |> Enum.take(limit)
   end
+
+  defp run_discovery_search(socket, query) do
+    query = query |> to_string() |> String.trim()
+    scope = normalize_search_scope(socket.assigns[:search_scope])
+
+    if Elektrine.Strings.present?(query) do
+      user = socket.assigns[:current_user]
+      user_id = user && user.id
+
+      results_by_scope = %{
+        "communities" =>
+          Messaging.CommunitySearch.search_communities(query,
+            user_id: user_id,
+            limit: 20
+          ),
+        "posts" => search_discovery_posts(query, user, limit: 12),
+        "people" => search_discovery_people(query, limit: 12)
+      }
+
+      socket
+      |> assign(:search_query, query)
+      |> assign(:search_results_by_scope, results_by_scope)
+      |> assign(:search_results, Map.get(results_by_scope, scope, []))
+      |> assign(:searching, false)
+    else
+      socket
+      |> assign(:search_query, "")
+      |> assign(:search_results, [])
+      |> assign(:search_results_by_scope, default_search_results_by_scope())
+      |> assign(:searching, false)
+    end
+  end
+
+  defp default_search_results_by_scope do
+    %{"communities" => [], "posts" => [], "people" => []}
+  end
+
+  defp normalize_search_scope(scope) when scope in ["communities", "posts", "people"], do: scope
+  defp normalize_search_scope(_), do: "communities"
+
+  defp maybe_store_recent_search(socket, query) do
+    user = socket.assigns[:current_user]
+    query = query |> to_string() |> String.trim()
+
+    cond do
+      !user ->
+        socket
+
+      !Elektrine.Strings.present?(query) ->
+        socket
+
+      true ->
+        recent_searches =
+          store_recent_discovery_search(user.id, query, socket.assigns.search_scope)
+
+        assign(socket, :recent_searches, recent_searches)
+    end
+  end
+
+  defp get_recent_discovery_searches(user_id) do
+    case AppCache.get_recent_searches(user_id, fn -> [] end) do
+      {:ok, searches} when is_list(searches) -> searches
+      _ -> []
+    end
+  end
+
+  defp store_recent_discovery_search(user_id, query, scope) do
+    entry = %{"query" => query, "scope" => normalize_search_scope(scope)}
+
+    recent_searches =
+      user_id
+      |> get_recent_discovery_searches()
+      |> Enum.reject(fn
+        %{"query" => existing_query, "scope" => existing_scope} ->
+          existing_query == query and existing_scope == entry["scope"]
+
+        _ ->
+          false
+      end)
+      |> then(&[entry | &1])
+      |> Enum.take(8)
+
+    case Cachex.put(:app_cache, {:recent_searches, user_id}, recent_searches,
+           ttl: :timer.hours(1)
+         ) do
+      {:ok, true} -> recent_searches
+      {:ok, _} -> recent_searches
+      _ -> recent_searches
+    end
+  end
+
+  defp search_discovery_people(query, opts) do
+    limit = Keyword.get(opts, :limit, 12)
+
+    Reputation.search_public_users(query, limit)
+    |> Enum.map(fn person ->
+      %{
+        id: person.id,
+        title: blank_to(person.display_name, "@#{person.username}"),
+        handle: person.handle || person.username,
+        username: person.username,
+        trust_level: person.trust_level,
+        avatar_url: person.avatar_url,
+        url: "/#{person.handle || person.username}"
+      }
+    end)
+  end
+
+  defp search_discovery_posts(query, user, opts) do
+    limit = Keyword.get(opts, :limit, 12)
+    query_term = "%#{Elektrine.TextHelpers.sanitize_search_term(query)}%"
+
+    local_posts =
+      query_term
+      |> local_post_search_query(user)
+      |> order_by([m], desc: m.inserted_at, desc: m.id)
+      |> limit(^limit)
+      |> preload([:conversation, :remote_actor])
+      |> Repo.all()
+      |> Enum.map(&map_local_post_search_result/1)
+
+    remote_posts =
+      from(m in Messaging.Message,
+        left_join: a in Actor,
+        on: a.id == m.remote_actor_id,
+        where:
+          m.federated == true and m.visibility in ["public", "unlisted"] and
+            is_nil(m.deleted_at) and is_nil(m.reply_to_id),
+        where:
+          ilike(fragment("COALESCE(?, '')", m.title), ^query_term) or
+            ilike(fragment("COALESCE(?, '')", m.content), ^query_term) or
+            ilike(fragment("COALESCE(?, '')", a.username), ^query_term) or
+            ilike(fragment("COALESCE(?, '')", a.display_name), ^query_term),
+        order_by: [desc: m.inserted_at, desc: m.id],
+        limit: ^limit,
+        preload: [remote_actor: []]
+      )
+      |> Repo.all()
+      |> Enum.map(&map_remote_post_search_result/1)
+
+    (local_posts ++ remote_posts)
+    |> Enum.uniq_by(& &1.url)
+    |> Enum.sort_by(&DateTime.to_unix(ensure_datetime(&1.inserted_at)), :desc)
+    |> Enum.take(limit)
+  end
+
+  defp local_post_search_query(query_term, nil) do
+    from(m in Messaging.Message,
+      join: c in Messaging.Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        c.type == "community" and c.is_public == true and is_nil(m.deleted_at) and
+          is_nil(m.reply_to_id),
+      where:
+        ilike(fragment("COALESCE(?, '')", m.title), ^query_term) or
+          ilike(fragment("COALESCE(?, '')", m.content), ^query_term) or
+          ilike(c.name, ^query_term)
+    )
+  end
+
+  defp local_post_search_query(query_term, user) do
+    from(m in Messaging.Message,
+      join: c in Messaging.Conversation,
+      on: c.id == m.conversation_id,
+      left_join: cm in Messaging.ConversationMember,
+      on: cm.conversation_id == c.id and cm.user_id == ^user.id,
+      where:
+        c.type == "community" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+          (c.is_public == true or (not is_nil(cm.id) and is_nil(cm.left_at))),
+      where:
+        ilike(fragment("COALESCE(?, '')", m.title), ^query_term) or
+          ilike(fragment("COALESCE(?, '')", m.content), ^query_term) or
+          ilike(c.name, ^query_term)
+    )
+  end
+
+  defp map_local_post_search_result(post) do
+    %{
+      id: "local-post-#{post.id}",
+      kind: :local,
+      title: discussion_title(post),
+      preview: PostUtilities.plain_text_preview(post.content, 160),
+      community_label: discussion_community_label(post),
+      url: discussion_route(post),
+      inserted_at: post.inserted_at,
+      metric: "#{post.reply_count || 0} replies"
+    }
+  end
+
+  defp map_remote_post_search_result(post) do
+    %{
+      id: "remote-post-#{post.id}",
+      kind: :remote,
+      title: discussion_title(post),
+      preview: PostUtilities.plain_text_preview(post.content, 160),
+      community_label: discussion_community_label(post),
+      url: Elektrine.Paths.post_path(post),
+      inserted_at: post.inserted_at,
+      metric: "#{post.reply_count || 0} replies"
+    }
+  end
+
+  defp get_recent_joins(user_id) do
+    local_joins =
+      from(cm in Messaging.ConversationMember,
+        join: c in Messaging.Conversation,
+        on: c.id == cm.conversation_id,
+        where:
+          cm.user_id == ^user_id and is_nil(cm.left_at) and c.type == "community" and
+            (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
+        order_by: [desc: cm.joined_at],
+        limit: 6,
+        select: %{joined_at: cm.joined_at, community: c}
+      )
+      |> Repo.all()
+      |> Enum.map(fn %{joined_at: joined_at, community: community} ->
+        %{joined_at: joined_at, community_id: community.id, community: community}
+      end)
+      |> preload_recent_join_communities()
+      |> Enum.map(fn %{joined_at: joined_at, community: community} ->
+        %{kind: :local, item: community, joined_at: joined_at}
+      end)
+
+    remote_joins =
+      from(f in Profiles.Follow,
+        join: a in Actor,
+        on: f.remote_actor_id == a.id,
+        where: f.follower_id == ^user_id and a.actor_type == "Group",
+        order_by: [desc: f.inserted_at],
+        limit: 6,
+        select: %{joined_at: f.inserted_at, actor: a}
+      )
+      |> Repo.all()
+      |> Enum.map(fn %{joined_at: joined_at, actor: actor} ->
+        %{kind: :remote, item: actor, joined_at: joined_at}
+      end)
+
+    (local_joins ++ remote_joins)
+    |> Enum.sort_by(&DateTime.to_unix(ensure_datetime(&1.joined_at)), :desc)
+    |> Enum.take(6)
+  end
+
+  defp preload_recent_join_communities(joins) do
+    community_ids = Enum.map(joins, & &1.community_id)
+
+    communities_by_id =
+      Messaging.Conversation
+      |> where([c], c.id in ^community_ids)
+      |> Repo.all()
+      |> Repo.preload([:creator, :remote_group_actor])
+      |> Map.new(&{&1.id, &1})
+
+    Enum.map(joins, fn join ->
+      Map.put(join, :community, Map.get(communities_by_id, join.community_id, join.community))
+    end)
+  end
+
+  defp build_follow_based_suggestions(
+         communities,
+         followed_remote_communities,
+         public_communities,
+         discover_remote_communities,
+         joined_community_ids,
+         followed_remote_actor_ids,
+         selected_category
+       ) do
+    ranked_categories =
+      top_followed_categories(communities, followed_remote_communities, selected_category)
+
+    local_suggestions =
+      public_communities
+      |> Enum.reject(&MapSet.member?(joined_community_ids, &1.id))
+      |> Enum.filter(&(community_category(&1) in ranked_categories))
+      |> Enum.map(fn community ->
+        %{kind: :local, item: community, reason: follow_reason_for(community_category(community))}
+      end)
+
+    remote_suggestions =
+      discover_remote_communities
+      |> Enum.reject(&MapSet.member?(followed_remote_actor_ids, &1.id))
+      |> Enum.filter(&(community_category(&1) in ranked_categories))
+      |> Enum.map(fn actor ->
+        %{kind: :remote, item: actor, reason: follow_reason_for(community_category(actor))}
+      end)
+
+    (local_suggestions ++ remote_suggestions)
+    |> Enum.uniq_by(fn suggestion -> {suggestion.kind, suggestion.item.id} end)
+    |> Enum.take(4)
+  end
+
+  defp top_followed_categories(communities, followed_remote_communities, selected_category) do
+    categories =
+      (communities ++ followed_remote_communities)
+      |> Enum.map(&community_category/1)
+      |> Enum.reject(&(&1 in [nil, "", "all"]))
+
+    ranked_categories =
+      categories
+      |> Enum.frequencies()
+      |> Enum.sort_by(fn {_category, count} -> -count end)
+      |> Enum.map(&elem(&1, 0))
+
+    case selected_category do
+      "all" -> ranked_categories
+      category -> Enum.filter(ranked_categories, &(&1 == category))
+    end
+  end
+
+  defp follow_reason_for(category) do
+    "Because you follow #{category |> to_string() |> String.replace("_", " ")} communities"
+  end
+
+  defp remote_community_followers(%Actor{} = actor) do
+    get_in(actor.metadata, ["followers", "totalItems"]) || 0
+  end
+
+  defp remote_community_followers(_), do: 0
+
+  defp ensure_datetime(%DateTime{} = value), do: value
+  defp ensure_datetime(%NaiveDateTime{} = value), do: DateTime.from_naive!(value, "Etc/UTC")
+  defp ensure_datetime(_), do: DateTime.utc_now()
 
   defp get_followed_community_posts(user_id, opts) do
     limit = Keyword.get(opts, :limit, 20)
