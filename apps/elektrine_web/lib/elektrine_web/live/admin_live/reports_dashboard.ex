@@ -169,36 +169,46 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
           <form phx-change="filter_change" class="grid grid-cols-1 gap-3 md:grid-cols-3">
             <label class="form-control">
               <span class="label-text mb-1 text-sm">Status</span>
-              <select name="status" class="select select-bordered">
-                <option value="all" selected={@filter_status == "all"}>All statuses</option>
-                <option value="pending" selected={@filter_status == "pending"}>Pending</option>
-                <option value="reviewing" selected={@filter_status == "reviewing"}>Reviewing</option>
-                <option value="resolved" selected={@filter_status == "resolved"}>Resolved</option>
-                <option value="dismissed" selected={@filter_status == "dismissed"}>Dismissed</option>
-              </select>
+              <div class="select select-bordered">
+                <select name="status">
+                  <option value="all" selected={@filter_status == "all"}>All statuses</option>
+                  <option value="pending" selected={@filter_status == "pending"}>Pending</option>
+                  <option value="reviewing" selected={@filter_status == "reviewing"}>
+                    Reviewing
+                  </option>
+                  <option value="resolved" selected={@filter_status == "resolved"}>Resolved</option>
+                  <option value="dismissed" selected={@filter_status == "dismissed"}>
+                    Dismissed
+                  </option>
+                </select>
+              </div>
             </label>
 
             <label class="form-control">
               <span class="label-text mb-1 text-sm">Content type</span>
-              <select name="type" class="select select-bordered">
-                <option value="all" selected={@filter_type == "all"}>All types</option>
-                <option value="user" selected={@filter_type == "user"}>User</option>
-                <option value="message" selected={@filter_type == "message"}>Message</option>
-                <option value="conversation" selected={@filter_type == "conversation"}>
-                  Conversation
-                </option>
-              </select>
+              <div class="select select-bordered">
+                <select name="type">
+                  <option value="all" selected={@filter_type == "all"}>All types</option>
+                  <option value="user" selected={@filter_type == "user"}>User</option>
+                  <option value="message" selected={@filter_type == "message"}>Message</option>
+                  <option value="conversation" selected={@filter_type == "conversation"}>
+                    Conversation
+                  </option>
+                </select>
+              </div>
             </label>
 
             <label class="form-control">
               <span class="label-text mb-1 text-sm">Priority</span>
-              <select name="priority" class="select select-bordered">
-                <option value="all" selected={@filter_priority == "all"}>All priorities</option>
-                <option value="critical" selected={@filter_priority == "critical"}>Critical</option>
-                <option value="high" selected={@filter_priority == "high"}>High</option>
-                <option value="normal" selected={@filter_priority == "normal"}>Normal</option>
-                <option value="low" selected={@filter_priority == "low"}>Low</option>
-              </select>
+              <div class="select select-bordered">
+                <select name="priority">
+                  <option value="all" selected={@filter_priority == "all"}>All priorities</option>
+                  <option value="critical" selected={@filter_priority == "critical"}>Critical</option>
+                  <option value="high" selected={@filter_priority == "high"}>High</option>
+                  <option value="normal" selected={@filter_priority == "normal"}>Normal</option>
+                  <option value="low" selected={@filter_priority == "low"}>Low</option>
+                </select>
+              </div>
             </label>
           </form>
 
@@ -621,74 +631,89 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
                       <label class="form-control">
                         <span class="label-text mb-1">Status</span>
-                        <select name="status" class="select select-bordered">
-                          <option value="reviewing" selected={@selected_report.status == "reviewing"}>
-                            Reviewing
-                          </option>
-                          <option value="resolved" selected={@selected_report.status == "resolved"}>
-                            Resolved
-                          </option>
-                          <option value="dismissed" selected={@selected_report.status == "dismissed"}>
-                            Dismissed
-                          </option>
-                        </select>
+                        <div class="select select-bordered">
+                          <select name="status">
+                            <option
+                              value="reviewing"
+                              selected={@selected_report.status == "reviewing"}
+                            >
+                              Reviewing
+                            </option>
+                            <option value="resolved" selected={@selected_report.status == "resolved"}>
+                              Resolved
+                            </option>
+                            <option
+                              value="dismissed"
+                              selected={@selected_report.status == "dismissed"}
+                            >
+                              Dismissed
+                            </option>
+                          </select>
+                        </div>
                       </label>
 
                       <label class="form-control">
                         <span class="label-text mb-1">Priority</span>
-                        <select name="priority" class="select select-bordered">
-                          <option value="low" selected={@selected_report.priority == "low"}>
-                            Low
-                          </option>
-                          <option value="normal" selected={@selected_report.priority == "normal"}>
-                            Normal
-                          </option>
-                          <option value="high" selected={@selected_report.priority == "high"}>
-                            High
-                          </option>
-                          <option value="critical" selected={@selected_report.priority == "critical"}>
-                            Critical
-                          </option>
-                        </select>
+                        <div class="select select-bordered">
+                          <select name="priority">
+                            <option value="low" selected={@selected_report.priority == "low"}>
+                              Low
+                            </option>
+                            <option value="normal" selected={@selected_report.priority == "normal"}>
+                              Normal
+                            </option>
+                            <option value="high" selected={@selected_report.priority == "high"}>
+                              High
+                            </option>
+                            <option
+                              value="critical"
+                              selected={@selected_report.priority == "critical"}
+                            >
+                              Critical
+                            </option>
+                          </select>
+                        </div>
                       </label>
 
                       <label class="form-control">
                         <span class="label-text mb-1">Action taken</span>
-                        <select name="action_taken" class="select select-bordered">
-                          <option value="" selected={@selected_report.action_taken in [nil, ""]}>
-                            No action yet
-                          </option>
-                          <option
-                            value="warned"
-                            selected={@selected_report.action_taken == "warned"}
-                          >
-                            User Warned
-                          </option>
-                          <option
-                            value="suspended"
-                            selected={@selected_report.action_taken == "suspended"}
-                          >
-                            User Suspended
-                          </option>
-                          <option
-                            value="banned"
-                            selected={@selected_report.action_taken == "banned"}
-                          >
-                            User Banned
-                          </option>
-                          <option
-                            value="content_removed"
-                            selected={@selected_report.action_taken == "content_removed"}
-                          >
-                            Content Removed
-                          </option>
-                          <option
-                            value="no_action"
-                            selected={@selected_report.action_taken == "no_action"}
-                          >
-                            No Action Needed
-                          </option>
-                        </select>
+                        <div class="select select-bordered">
+                          <select name="action_taken">
+                            <option value="" selected={@selected_report.action_taken in [nil, ""]}>
+                              No action yet
+                            </option>
+                            <option
+                              value="warned"
+                              selected={@selected_report.action_taken == "warned"}
+                            >
+                              User Warned
+                            </option>
+                            <option
+                              value="suspended"
+                              selected={@selected_report.action_taken == "suspended"}
+                            >
+                              User Suspended
+                            </option>
+                            <option
+                              value="banned"
+                              selected={@selected_report.action_taken == "banned"}
+                            >
+                              User Banned
+                            </option>
+                            <option
+                              value="content_removed"
+                              selected={@selected_report.action_taken == "content_removed"}
+                            >
+                              Content Removed
+                            </option>
+                            <option
+                              value="no_action"
+                              selected={@selected_report.action_taken == "no_action"}
+                            >
+                              No Action Needed
+                            </option>
+                          </select>
+                        </div>
                       </label>
                     </div>
 

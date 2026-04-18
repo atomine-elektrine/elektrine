@@ -1536,16 +1536,15 @@ defmodule ElektrineWeb.UserSettingsLive do
                 <label class="label">
                   <span class="label-text">{gettext("Integration Template")}</span>
                 </label>
-                <select
-                  name="token[preset]"
-                  class="select select-bordered w-full"
-                >
-                  <%= for preset <- token_presets() do %>
-                    <option value={preset.id} selected={preset.id == @token_form_params["preset"]}>
-                      {preset.name}
-                    </option>
-                  <% end %>
-                </select>
+                <div class="select select-bordered w-full">
+                  <select name="token[preset]">
+                    <%= for preset <- token_presets() do %>
+                      <option value={preset.id} selected={preset.id == @token_form_params["preset"]}>
+                        {preset.name}
+                      </option>
+                    <% end %>
+                  </select>
+                </div>
                 <%= if preset = selected_token_preset(@token_form_params) do %>
                   <label class="label">
                     <span class="label-text-alt text-base-content/60">{preset.description}</span>
@@ -1555,23 +1554,22 @@ defmodule ElektrineWeb.UserSettingsLive do
 
               <div class="form-control">
                 <label class="label"><span class="label-text">{gettext("Expiration")}</span></label>
-                <select
-                  name="token[expires_in]"
-                  class="select select-bordered w-full"
-                >
-                  <option value="" selected={@token_form_params["expires_in"] == ""}>
-                    {gettext("Never")}
-                  </option>
-                  <option value="30" selected={@token_form_params["expires_in"] == "30"}>
-                    {gettext("30 days")}
-                  </option>
-                  <option value="90" selected={@token_form_params["expires_in"] == "90"}>
-                    {gettext("90 days")}
-                  </option>
-                  <option value="365" selected={@token_form_params["expires_in"] == "365"}>
-                    {gettext("1 year")}
-                  </option>
-                </select>
+                <div class="select select-bordered w-full">
+                  <select name="token[expires_in]">
+                    <option value="" selected={@token_form_params["expires_in"] == ""}>
+                      {gettext("Never")}
+                    </option>
+                    <option value="30" selected={@token_form_params["expires_in"] == "30"}>
+                      {gettext("30 days")}
+                    </option>
+                    <option value="90" selected={@token_form_params["expires_in"] == "90"}>
+                      {gettext("90 days")}
+                    </option>
+                    <option value="365" selected={@token_form_params["expires_in"] == "365"}>
+                      {gettext("1 year")}
+                    </option>
+                  </select>
+                </div>
                 <label class="label">
                   <span class="label-text-alt text-base-content/60">
                     {gettext("90 days is the recommended default for personal integrations.")}

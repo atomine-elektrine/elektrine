@@ -78,16 +78,15 @@
                 <label class="label">
                   <span class="label-text font-semibold">{gettext("Template")}</span>
                 </label>
-                <select
-                  name="template_id"
-                  class="select select-bordered select-sm flex-1 max-w-xs"
-                >
-                  <option value="">{gettext("Select a template...")}</option>
+                <div class="select select-bordered select-sm flex-1 max-w-xs">
+                  <select name="template_id">
+                    <option value="">{gettext("Select a template...")}</option>
 
-                  <%= for template <- @templates do %>
-                    <option value={template.id}>{template.name}</option>
-                  <% end %>
-                </select>
+                    <%= for template <- @templates do %>
+                      <option value={template.id}>{template.name}</option>
+                    <% end %>
+                  </select>
+                </div>
               </.form>
             </div>
           <% end %>
@@ -192,10 +191,9 @@
               <label class="label"><span class="font-semibold">{gettext("From")}</span></label>
               <%= if length(@available_from_addresses) > 1 do %>
                 <.form :let={_f} for={%{}} phx-change="change_from_address" class="w-full">
-                  <div class="relative">
+                  <div class="select select-bordered w-full font-medium text-sm normal-case tracking-normal">
                     <select
                       name="from_address"
-                      class="select select-bordered w-full !block pr-10 font-medium text-sm normal-case tracking-normal appearance-auto"
                       value={@from_address}
                       autocomplete="off"
                       data-lpignore="true"
@@ -207,9 +205,6 @@
                         </option>
                       <% end %>
                     </select>
-                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-base-content/60">
-                      <.icon name="hero-chevron-down" class="h-4 w-4" />
-                    </span>
                   </div>
                 </.form>
               <% else %>
@@ -528,23 +523,24 @@
                     <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
                       {gettext("Mode")}
                     </span>
-                    <select
-                      name="email[encryption_mode]"
-                      class="select select-bordered select-sm"
-                      value={@encryption_mode}
-                    >
-                      <option value="off" selected={@encryption_mode == "off"}>
-                        {gettext("Standard delivery")}
-                      </option>
+                    <div class="select select-bordered select-sm">
+                      <select
+                        name="email[encryption_mode]"
+                        value={@encryption_mode}
+                      >
+                        <option value="off" selected={@encryption_mode == "off"}>
+                          {gettext("Standard delivery")}
+                        </option>
 
-                      <option value="auto" selected={@encryption_mode == "auto"}>
-                        {gettext("Encrypt when possible")}
-                      </option>
+                        <option value="auto" selected={@encryption_mode == "auto"}>
+                          {gettext("Encrypt when possible")}
+                        </option>
 
-                      <option value="require" selected={@encryption_mode == "require"}>
-                        {gettext("Require encryption")}
-                      </option>
-                    </select>
+                        <option value="require" selected={@encryption_mode == "require"}>
+                          {gettext("Require encryption")}
+                        </option>
+                      </select>
+                    </div>
                   </label>
                 </div>
 

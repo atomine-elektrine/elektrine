@@ -306,41 +306,53 @@
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Category</span>
             </label>
-            <select name="filter" class="select select-bordered w-full">
-              <option value="all" selected={@gallery_filter == "all"}>All Categories</option>
-              <option value="photography" selected={@gallery_filter == "photography"}>
-                Photography
-              </option>
-              <option value="art" selected={@gallery_filter == "art"}>Art</option>
-              <option value="design" selected={@gallery_filter == "design"}>Design</option>
-              <option value="anime" selected={@gallery_filter == "anime"}>Anime</option>
-              <option value="meme" selected={@gallery_filter == "meme"}>Memes</option>
-            </select>
+            <div class="select select-bordered w-full">
+              <select name="filter">
+                <option value="all" selected={@gallery_filter == "all"}>All Categories</option>
+                <option value="photography" selected={@gallery_filter == "photography"}>
+                  Photography
+                </option>
+                <option value="art" selected={@gallery_filter == "art"}>Art</option>
+                <option value="design" selected={@gallery_filter == "design"}>Design</option>
+                <option value="anime" selected={@gallery_filter == "anime"}>Anime</option>
+                <option value="meme" selected={@gallery_filter == "meme"}>Memes</option>
+              </select>
+            </div>
           </form>
 
           <form phx-change="set_software_filter">
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Source</span>
             </label>
-            <select name="software" class="select select-bordered w-full">
-              <option value="all" selected={@software_filter == "all"}>All Sources</option>
-              <option value="local" selected={@software_filter == "local"}>Local</option>
-              <option value="pixelfed" selected={@software_filter == "pixelfed"}>Pixelfed</option>
-              <option value="mastodon" selected={@software_filter == "mastodon"}>Mastodon</option>
-              <option value="pleroma" selected={@software_filter == "pleroma"}>Pleroma</option>
-              <option value="misskey" selected={@software_filter == "misskey"}>Misskey</option>
-            </select>
+            <div class="select select-bordered w-full">
+              <select name="software">
+                <option value="all" selected={@software_filter == "all"}>All Sources</option>
+                <option value="local" selected={@software_filter == "local"}>Local</option>
+                <option value="pixelfed" selected={@software_filter == "pixelfed"}>
+                  Pixelfed
+                </option>
+                <option value="mastodon" selected={@software_filter == "mastodon"}>
+                  Mastodon
+                </option>
+                <option value="pleroma" selected={@software_filter == "pleroma"}>Pleroma</option>
+                <option value="misskey" selected={@software_filter == "misskey"}>Misskey</option>
+              </select>
+            </div>
           </form>
 
           <form phx-change="set_gallery_sort">
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Sort</span>
             </label>
-            <select name="sort" class="select select-bordered w-full">
-              <option value="fresh" selected={@gallery_sort == "fresh"}>Fresh</option>
-              <option value="popular" selected={@gallery_sort == "popular"}>Popular</option>
-              <option value="discussed" selected={@gallery_sort == "discussed"}>Discussed</option>
-            </select>
+            <div class="select select-bordered w-full">
+              <select name="sort">
+                <option value="fresh" selected={@gallery_sort == "fresh"}>Fresh</option>
+                <option value="popular" selected={@gallery_sort == "popular"}>Popular</option>
+                <option value="discussed" selected={@gallery_sort == "discussed"}>
+                  Discussed
+                </option>
+              </select>
+            </div>
           </form>
         </div>
 
@@ -625,39 +637,41 @@
               <label class="label">
                 <span class="label-text">Category</span>
               </label>
-              <select
-                class="select select-bordered w-full"
-                phx-change="update_upload_category"
-                name="category"
-              >
-                <option value="photography" selected={@upload_category == "photography"}>
-                  Photography
-                </option>
-                <option value="art" selected={@upload_category == "art"}>Art</option>
-                <option value="design" selected={@upload_category == "design"}>Design</option>
-                <option value="anime" selected={@upload_category == "anime"}>Anime</option>
-                <option value="meme" selected={@upload_category == "meme"}>Meme</option>
-                <option value="other" selected={@upload_category == "other"}>Other</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select
+                  phx-change="update_upload_category"
+                  name="category"
+                >
+                  <option value="photography" selected={@upload_category == "photography"}>
+                    Photography
+                  </option>
+                  <option value="art" selected={@upload_category == "art"}>Art</option>
+                  <option value="design" selected={@upload_category == "design"}>Design</option>
+                  <option value="anime" selected={@upload_category == "anime"}>Anime</option>
+                  <option value="meme" selected={@upload_category == "meme"}>Meme</option>
+                  <option value="other" selected={@upload_category == "other"}>Other</option>
+                </select>
+              </div>
             </div>
 
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text">Visibility</span>
               </label>
-              <select
-                class="select select-bordered w-full"
-                phx-change="update_upload_visibility"
-                name="visibility"
-              >
-                <option value="public" selected={@upload_visibility == "public"}>Public</option>
-                <option value="followers" selected={@upload_visibility == "followers"}>
-                  Followers
-                </option>
-                <option value="friends" selected={@upload_visibility == "friends"}>
-                  Friends
-                </option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select
+                  phx-change="update_upload_visibility"
+                  name="visibility"
+                >
+                  <option value="public" selected={@upload_visibility == "public"}>Public</option>
+                  <option value="followers" selected={@upload_visibility == "followers"}>
+                    Followers
+                  </option>
+                  <option value="friends" selected={@upload_visibility == "friends"}>
+                    Friends
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
 

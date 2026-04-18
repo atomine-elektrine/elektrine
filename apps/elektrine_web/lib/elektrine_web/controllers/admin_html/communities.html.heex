@@ -47,36 +47,42 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label"><span class="label-text">Category</span></label>
-            <select name="category" class="select select-bordered" data-submit-on-change>
-              <option value="all" selected={@category_filter == "all"}>All Categories</option>
+            <div class="select select-bordered">
+              <select name="category" data-submit-on-change>
+                <option value="all" selected={@category_filter == "all"}>All Categories</option>
 
-              <option value="tech" selected={@category_filter == "tech"}>
-                Tech ({Map.get(@category_counts, "tech", 0)})
-              </option>
+                <option value="tech" selected={@category_filter == "tech"}>
+                  Tech ({Map.get(@category_counts, "tech", 0)})
+                </option>
 
-              <option value="gaming" selected={@category_filter == "gaming"}>
-                Gaming ({Map.get(@category_counts, "gaming", 0)})
-              </option>
+                <option value="gaming" selected={@category_filter == "gaming"}>
+                  Gaming ({Map.get(@category_counts, "gaming", 0)})
+                </option>
 
-              <option value="science" selected={@category_filter == "science"}>
-                Science ({Map.get(@category_counts, "science", 0)})
-              </option>
+                <option value="science" selected={@category_filter == "science"}>
+                  Science ({Map.get(@category_counts, "science", 0)})
+                </option>
 
-              <option value="general" selected={@category_filter == "general"}>
-                General ({Map.get(@category_counts, "general", 0)})
-              </option>
-            </select>
+                <option value="general" selected={@category_filter == "general"}>
+                  General ({Map.get(@category_counts, "general", 0)})
+                </option>
+              </select>
+            </div>
           </div>
 
           <div class="form-control">
             <label class="label"><span class="label-text">Status</span></label>
-            <select name="status" class="select select-bordered" data-submit-on-change>
-              <option value="all" selected={@status_filter == "all"}>All</option>
+            <div class="select select-bordered">
+              <select name="status" data-submit-on-change>
+                <option value="all" selected={@status_filter == "all"}>All</option>
 
-              <option value="public" selected={@status_filter == "public"}>Public Only</option>
+                <option value="public" selected={@status_filter == "public"}>Public Only</option>
 
-              <option value="private" selected={@status_filter == "private"}>Private Only</option>
-            </select>
+                <option value="private" selected={@status_filter == "private"}>
+                  Private Only
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 

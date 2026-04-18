@@ -485,14 +485,16 @@
                     <label class="label">
                       <span class="label-text">Poll Duration</span>
                     </label>
-                    <select name="poll_duration_days" class="select select-bordered select-sm">
-                      <option value="1">1 Day</option>
-                      <option value="3">3 Days</option>
-                      <option value="7" selected>7 Days</option>
-                      <option value="14">14 Days</option>
-                      <option value="30">30 Days</option>
-                      <option value="0">Never</option>
-                    </select>
+                    <div class="select select-bordered select-sm">
+                      <select name="poll_duration_days">
+                        <option value="1">1 Day</option>
+                        <option value="3">3 Days</option>
+                        <option value="7" selected>7 Days</option>
+                        <option value="14">14 Days</option>
+                        <option value="30">30 Days</option>
+                        <option value="0">Never</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div class="form-control">
@@ -521,16 +523,18 @@
               
 <!-- Flair Selection (common to all types) -->
               <%= if @flairs && length(@flairs) > 0 do %>
-                <select name="flair_id" class="select select-bordered w-full max-w-xs">
-                  <option value="">Select flair (optional)</option>
-                  <%= for flair <- @flairs do %>
-                    <%= if !flair.is_mod_only || @is_moderator do %>
-                      <option value={flair.id}>
-                        {flair.name}
-                      </option>
+                <div class="select select-bordered w-full max-w-xs">
+                  <select name="flair_id">
+                    <option value="">Select flair (optional)</option>
+                    <%= for flair <- @flairs do %>
+                      <%= if !flair.is_mod_only || @is_moderator do %>
+                        <option value={flair.id}>
+                          {flair.name}
+                        </option>
+                      <% end %>
                     <% end %>
-                  <% end %>
-                </select>
+                  </select>
+                </div>
               <% end %>
 
               <div class="flex gap-2 items-center justify-end">

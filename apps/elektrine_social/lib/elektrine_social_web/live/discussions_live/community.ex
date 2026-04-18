@@ -1200,16 +1200,18 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
               <label class="label">
                 <span class="label-text font-medium">Duration</span>
               </label>
-              <select name="duration_minutes" class="select select-bordered w-full">
-                <option value="5">5 Minutes</option>
-                <option value="30">30 Minutes</option>
-                <option value="60">1 Hour</option>
-                <option value="360">6 Hours</option>
-                <option value="720">12 Hours</option>
-                <option value="1440">1 Day</option>
-                <option value="4320">3 Days</option>
-                <option value="10080">7 Days</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="duration_minutes">
+                  <option value="5">5 Minutes</option>
+                  <option value="30">30 Minutes</option>
+                  <option value="60">1 Hour</option>
+                  <option value="360">6 Hours</option>
+                  <option value="720">12 Hours</option>
+                  <option value="1440">1 Day</option>
+                  <option value="4320">3 Days</option>
+                  <option value="10080">7 Days</option>
+                </select>
+              </div>
             </div>
 
             <div class="form-control w-full mb-6">
@@ -1274,11 +1276,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
               <label class="label">
                 <span class="label-text font-medium">Warning Severity</span>
               </label>
-              <select name="severity" class="select select-bordered w-full">
-                <option value="low" selected>Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="severity">
+                  <option value="low" selected>Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
             </div>
 
             <div class="form-control w-full mb-6">
@@ -1330,10 +1334,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
               <label class="label">
                 <span class="label-text font-medium">Rule Type</span>
               </label>
-              <select name="rule_type" class="select select-bordered w-full" required>
-                <option value="keyword">Keyword Match</option>
-                <option value="link_domain">Link Domain</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="rule_type" required>
+                  <option value="keyword">Keyword Match</option>
+                  <option value="link_domain">Link Domain</option>
+                </select>
+              </div>
             </div>
 
             <div class="form-control w-full mb-4">
@@ -1356,11 +1362,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
               <label class="label">
                 <span class="label-text font-medium">Action</span>
               </label>
-              <select name="action" class="select select-bordered w-full" required>
-                <option value="flag">Flag for Review</option>
-                <option value="hold_for_review">Hold for Approval</option>
-                <option value="remove">Auto-Remove</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="action" required>
+                  <option value="flag">Flag for Review</option>
+                  <option value="hold_for_review">Hold for Approval</option>
+                  <option value="remove">Auto-Remove</option>
+                </select>
+              </div>
             </div>
 
             <div class="modal-action justify-center gap-3">
@@ -1426,14 +1434,16 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
               <label class="label">
                 <span class="label-text font-medium">Ban Duration</span>
               </label>
-              <select name="duration_days" class="select select-bordered w-full">
-                <option value="1">1 Day</option>
-                <option value="3">3 Days</option>
-                <option value="7">7 Days</option>
-                <option value="14">14 Days</option>
-                <option value="30">30 Days</option>
-                <option value="0" selected>Permanent</option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="duration_days">
+                  <option value="1">1 Day</option>
+                  <option value="3">3 Days</option>
+                  <option value="7">7 Days</option>
+                  <option value="14">14 Days</option>
+                  <option value="30">30 Days</option>
+                  <option value="0" selected>Permanent</option>
+                </select>
+              </div>
             </div>
 
             <div class="modal-action justify-center gap-3">

@@ -93,15 +93,17 @@
           <!-- Status -->
           <div class="form-control">
             <label class="label"><span class="label-text font-semibold">Status</span></label>
-            <select name="config[status]" class="select select-bordered">
-              <option value="active" selected={@config.status == "active"}>Active</option>
+            <div class="select select-bordered">
+              <select name="config[status]">
+                <option value="active" selected={@config.status == "active"}>Active</option>
 
-              <option value="suspended" selected={@config.status == "suspended"}>
-                Suspended
-              </option>
+                <option value="suspended" selected={@config.status == "suspended"}>
+                  Suspended
+                </option>
 
-              <option value="revoked" selected={@config.status == "revoked"}>Revoked</option>
-            </select>
+                <option value="revoked" selected={@config.status == "revoked"}>Revoked</option>
+              </select>
+            </div>
           </div>
           <!-- Actions -->
           <div class="flex gap-2 justify-end">

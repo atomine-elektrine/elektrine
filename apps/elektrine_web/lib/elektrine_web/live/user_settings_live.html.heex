@@ -787,61 +787,65 @@
                     {gettext("Who can add you to groups/channels")}
                   </span>
                 </label>
-                <select name="user[allow_group_adds_from]" class="select select-bordered w-full">
-                  <option
-                    value="everyone"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "everyone"
-                    }
-                  >
-                    {gettext("Everyone")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[allow_group_adds_from]">
+                    <option
+                      value="everyone"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "everyone"
+                      }
+                    >
+                      {gettext("Everyone")}
+                    </option>
 
-                  <option
-                    value="friends"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "friends"
-                    }
-                  >
-                    {gettext("Friends only")}
-                  </option>
+                    <option
+                      value="friends"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "friends"
+                      }
+                    >
+                      {gettext("Friends only")}
+                    </option>
 
-                  <option
-                    value="following"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "following"
-                    }
-                  >
-                    {gettext("People I follow")}
-                  </option>
+                    <option
+                      value="following"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) ==
+                          "following"
+                      }
+                    >
+                      {gettext("People I follow")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "followers"
-                    }
-                  >
-                    {gettext("My followers")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) ==
+                          "followers"
+                      }
+                    >
+                      {gettext("My followers")}
+                    </option>
 
-                  <option
-                    value="mutual"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "mutual"
-                    }
-                  >
-                    {gettext("Mutual follows only")}
-                  </option>
+                    <option
+                      value="mutual"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "mutual"
+                      }
+                    >
+                      {gettext("Mutual follows only")}
+                    </option>
 
-                  <option
-                    value="nobody"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "nobody"
-                    }
-                  >
-                    {gettext("Nobody")}
-                  </option>
-                </select>
+                    <option
+                      value="nobody"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_group_adds_from) == "nobody"
+                      }
+                    >
+                      {gettext("Nobody")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can add you to group conversations and channels")}
@@ -855,70 +859,69 @@
                     {gettext("Who can send you direct messages")}
                   </span>
                 </label>
-                <select
-                  name="user[allow_direct_messages_from]"
-                  class="select select-bordered w-full"
-                >
-                  <option
-                    value="everyone"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "everyone"
-                    }
-                  >
-                    {gettext("Everyone")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[allow_direct_messages_from]">
+                    <option
+                      value="everyone"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "everyone"
+                      }
+                    >
+                      {gettext("Everyone")}
+                    </option>
 
-                  <option
-                    value="friends"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "friends"
-                    }
-                  >
-                    {gettext("Friends only")}
-                  </option>
+                    <option
+                      value="friends"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "friends"
+                      }
+                    >
+                      {gettext("Friends only")}
+                    </option>
 
-                  <option
-                    value="following"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "following"
-                    }
-                  >
-                    {gettext("People I follow")}
-                  </option>
+                    <option
+                      value="following"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "following"
+                      }
+                    >
+                      {gettext("People I follow")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "followers"
-                    }
-                  >
-                    {gettext("My followers")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "followers"
+                      }
+                    >
+                      {gettext("My followers")}
+                    </option>
 
-                  <option
-                    value="mutual"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "mutual"
-                    }
-                  >
-                    {gettext("Mutual follows only")}
-                  </option>
+                    <option
+                      value="mutual"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "mutual"
+                      }
+                    >
+                      {gettext("Mutual follows only")}
+                    </option>
 
-                  <option
-                    value="nobody"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
-                        "nobody"
-                    }
-                  >
-                    {gettext("Nobody")}
-                  </option>
-                </select>
+                    <option
+                      value="nobody"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_direct_messages_from) ==
+                          "nobody"
+                      }
+                    >
+                      {gettext("Nobody")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can start direct message conversations with you")}
@@ -930,32 +933,36 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Who can call you")}</span>
                 </label>
-                <select name="user[allow_calls_from]" class="select select-bordered w-full">
-                  <option
-                    value="everyone"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "everyone"
-                    }
-                  >
-                    {gettext("Everyone")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[allow_calls_from]">
+                    <option
+                      value="everyone"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "everyone"
+                      }
+                    >
+                      {gettext("Everyone")}
+                    </option>
 
-                  <option
-                    value="friends"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "friends"
-                    }
-                  >
-                    {gettext("Friends only")}
-                  </option>
+                    <option
+                      value="friends"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "friends"
+                      }
+                    >
+                      {gettext("Friends only")}
+                    </option>
 
-                  <option
-                    value="nobody"
-                    selected={Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "nobody"}
-                  >
-                    {gettext("Nobody")}
-                  </option>
-                </select>
+                    <option
+                      value="nobody"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_calls_from) == "nobody"
+                      }
+                    >
+                      {gettext("Nobody")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can initiate audio and video calls with you")}
@@ -969,40 +976,39 @@
                     {gettext("Who can send you friend requests")}
                   </span>
                 </label>
-                <select
-                  name="user[allow_friend_requests_from]"
-                  class="select select-bordered w-full"
-                >
-                  <option
-                    value="everyone"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
-                        "everyone"
-                    }
-                  >
-                    {gettext("Everyone")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[allow_friend_requests_from]">
+                    <option
+                      value="everyone"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                          "everyone"
+                      }
+                    >
+                      {gettext("Everyone")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
-                        "followers"
-                    }
-                  >
-                    {gettext("Followers only")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                          "followers"
+                      }
+                    >
+                      {gettext("Followers only")}
+                    </option>
 
-                  <option
-                    value="nobody"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
-                        "nobody"
-                    }
-                  >
-                    {gettext("Nobody")}
-                  </option>
-                </select>
+                    <option
+                      value="nobody"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_friend_requests_from) ==
+                          "nobody"
+                      }
+                    >
+                      {gettext("Nobody")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can send you friend requests")}
@@ -1014,61 +1020,63 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Who can mention you")}</span>
                 </label>
-                <select name="user[allow_mentions_from]" class="select select-bordered w-full">
-                  <option
-                    value="everyone"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "everyone"
-                    }
-                  >
-                    {gettext("Everyone")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[allow_mentions_from]">
+                    <option
+                      value="everyone"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "everyone"
+                      }
+                    >
+                      {gettext("Everyone")}
+                    </option>
 
-                  <option
-                    value="friends"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "friends"
-                    }
-                  >
-                    {gettext("Friends only")}
-                  </option>
+                    <option
+                      value="friends"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "friends"
+                      }
+                    >
+                      {gettext("Friends only")}
+                    </option>
 
-                  <option
-                    value="following"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "following"
-                    }
-                  >
-                    {gettext("People I follow")}
-                  </option>
+                    <option
+                      value="following"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "following"
+                      }
+                    >
+                      {gettext("People I follow")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "followers"
-                    }
-                  >
-                    {gettext("My followers")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "followers"
+                      }
+                    >
+                      {gettext("My followers")}
+                    </option>
 
-                  <option
-                    value="mutual"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "mutual"
-                    }
-                  >
-                    {gettext("Mutual follows only")}
-                  </option>
+                    <option
+                      value="mutual"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "mutual"
+                      }
+                    >
+                      {gettext("Mutual follows only")}
+                    </option>
 
-                  <option
-                    value="nobody"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "nobody"
-                    }
-                  >
-                    {gettext("Nobody")}
-                  </option>
-                </select>
+                    <option
+                      value="nobody"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :allow_mentions_from) == "nobody"
+                      }
+                    >
+                      {gettext("Nobody")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can @mention you in posts and messages")}
@@ -1080,44 +1088,48 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Default post visibility")}</span>
                 </label>
-                <select name="user[default_post_visibility]" class="select select-bordered w-full">
-                  <option
-                    value="public"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "public"
-                    }
-                  >
-                    {gettext("Public")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[default_post_visibility]">
+                    <option
+                      value="public"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "public"
+                      }
+                    >
+                      {gettext("Public")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) ==
-                        "followers"
-                    }
-                  >
-                    {gettext("Followers only")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :default_post_visibility) ==
+                          "followers"
+                      }
+                    >
+                      {gettext("Followers only")}
+                    </option>
 
-                  <option
-                    value="friends"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "friends"
-                    }
-                  >
-                    {gettext("Friends only")}
-                  </option>
+                    <option
+                      value="friends"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :default_post_visibility) ==
+                          "friends"
+                      }
+                    >
+                      {gettext("Friends only")}
+                    </option>
 
-                  <option
-                    value="private"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :default_post_visibility) == "private"
-                    }
-                  >
-                    {gettext("Private")}
-                  </option>
-                </select>
+                    <option
+                      value="private"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :default_post_visibility) ==
+                          "private"
+                      }
+                    >
+                      {gettext("Private")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext(
@@ -1131,34 +1143,36 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Profile visibility")}</span>
                 </label>
-                <select name="user[profile_visibility]" class="select select-bordered w-full">
-                  <option
-                    value="public"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "public"
-                    }
-                  >
-                    {gettext("Public")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[profile_visibility]">
+                    <option
+                      value="public"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :profile_visibility) == "public"
+                      }
+                    >
+                      {gettext("Public")}
+                    </option>
 
-                  <option
-                    value="followers"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "followers"
-                    }
-                  >
-                    {gettext("Followers only")}
-                  </option>
+                    <option
+                      value="followers"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :profile_visibility) == "followers"
+                      }
+                    >
+                      {gettext("Followers only")}
+                    </option>
 
-                  <option
-                    value="private"
-                    selected={
-                      Ecto.Changeset.get_field(@changeset, :profile_visibility) == "private"
-                    }
-                  >
-                    {gettext("Private")}
-                  </option>
-                </select>
+                    <option
+                      value="private"
+                      selected={
+                        Ecto.Changeset.get_field(@changeset, :profile_visibility) == "private"
+                      }
+                    >
+                      {gettext("Private")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Control who can view your profile page")}
@@ -1195,21 +1209,23 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Language")}</span>
                 </label>
-                <select name="user[locale]" class="select select-bordered w-full">
-                  <option
-                    value="en"
-                    selected={Ecto.Changeset.get_field(@changeset, :locale) == "en"}
-                  >
-                    English
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[locale]">
+                    <option
+                      value="en"
+                      selected={Ecto.Changeset.get_field(@changeset, :locale) == "en"}
+                    >
+                      English
+                    </option>
 
-                  <option
-                    value="zh"
-                    selected={Ecto.Changeset.get_field(@changeset, :locale) == "zh"}
-                  >
-                    中文 (Chinese)
-                  </option>
-                </select>
+                    <option
+                      value="zh"
+                      selected={Ecto.Changeset.get_field(@changeset, :locale) == "zh"}
+                    >
+                      中文 (Chinese)
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Choose your preferred language for the interface")}
@@ -1221,120 +1237,123 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Timezone")}</span>
                 </label>
-                <select
-                  name="user[timezone]"
+                <div
                   class="select select-bordered w-full"
                   phx-update="ignore"
                   id="timezone-select"
                 >
-                  <option value="">{gettext("Auto-detect (browser timezone)")}</option>
+                  <select name="user[timezone]">
+                    <option value="">{gettext("Auto-detect (browser timezone)")}</option>
 
-                  <optgroup label={gettext("Common Timezones")}>
-                    <option
-                      value="America/New_York"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/New_York"
-                      }
-                    >
-                      {gettext("Eastern Time (US & Canada)")}
-                    </option>
+                    <optgroup label={gettext("Common Timezones")}>
+                      <option
+                        value="America/New_York"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "America/New_York"
+                        }
+                      >
+                        {gettext("Eastern Time (US & Canada)")}
+                      </option>
 
-                    <option
-                      value="America/Chicago"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Chicago"
-                      }
-                    >
-                      {gettext("Central Time (US & Canada)")}
-                    </option>
+                      <option
+                        value="America/Chicago"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "America/Chicago"
+                        }
+                      >
+                        {gettext("Central Time (US & Canada)")}
+                      </option>
 
-                    <option
-                      value="America/Denver"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Denver"
-                      }
-                    >
-                      {gettext("Mountain Time (US & Canada)")}
-                    </option>
+                      <option
+                        value="America/Denver"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "America/Denver"
+                        }
+                      >
+                        {gettext("Mountain Time (US & Canada)")}
+                      </option>
 
-                    <option
-                      value="America/Los_Angeles"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "America/Los_Angeles"
-                      }
-                    >
-                      {gettext("Pacific Time (US & Canada)")}
-                    </option>
+                      <option
+                        value="America/Los_Angeles"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "America/Los_Angeles"
+                        }
+                      >
+                        {gettext("Pacific Time (US & Canada)")}
+                      </option>
 
-                    <option
-                      value="Europe/London"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/London"
-                      }
-                    >
-                      {gettext("London")}
-                    </option>
+                      <option
+                        value="Europe/London"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/London"
+                        }
+                      >
+                        {gettext("London")}
+                      </option>
 
-                    <option
-                      value="Europe/Paris"
-                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Paris"}
-                    >
-                      {gettext("Paris")}
-                    </option>
+                      <option
+                        value="Europe/Paris"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Paris"
+                        }
+                      >
+                        {gettext("Paris")}
+                      </option>
 
-                    <option
-                      value="Europe/Berlin"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Berlin"
-                      }
-                    >
-                      {gettext("Berlin")}
-                    </option>
+                      <option
+                        value="Europe/Berlin"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Europe/Berlin"
+                        }
+                      >
+                        {gettext("Berlin")}
+                      </option>
 
-                    <option
-                      value="Asia/Tokyo"
-                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Tokyo"}
-                    >
-                      {gettext("Tokyo")}
-                    </option>
+                      <option
+                        value="Asia/Tokyo"
+                        selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Tokyo"}
+                      >
+                        {gettext("Tokyo")}
+                      </option>
 
-                    <option
-                      value="Asia/Shanghai"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Shanghai"
-                      }
-                    >
-                      {gettext("Shanghai")}
-                    </option>
+                      <option
+                        value="Asia/Shanghai"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Shanghai"
+                        }
+                      >
+                        {gettext("Shanghai")}
+                      </option>
 
-                    <option
-                      value="Asia/Hong_Kong"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Hong_Kong"
-                      }
-                    >
-                      {gettext("Hong Kong")}
-                    </option>
+                      <option
+                        value="Asia/Hong_Kong"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Asia/Hong_Kong"
+                        }
+                      >
+                        {gettext("Hong Kong")}
+                      </option>
 
-                    <option
-                      value="Australia/Sydney"
-                      selected={
-                        Ecto.Changeset.get_field(@changeset, :timezone) == "Australia/Sydney"
-                      }
-                    >
-                      {gettext("Sydney")}
-                    </option>
-                  </optgroup>
+                      <option
+                        value="Australia/Sydney"
+                        selected={
+                          Ecto.Changeset.get_field(@changeset, :timezone) == "Australia/Sydney"
+                        }
+                      >
+                        {gettext("Sydney")}
+                      </option>
+                    </optgroup>
 
-                  <optgroup label="UTC">
-                    <option
-                      value="Etc/UTC"
-                      selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Etc/UTC"}
-                    >
-                      UTC
-                    </option>
-                  </optgroup>
-                </select>
+                    <optgroup label="UTC">
+                      <option
+                        value="Etc/UTC"
+                        selected={Ecto.Changeset.get_field(@changeset, :timezone) == "Etc/UTC"}
+                      >
+                        UTC
+                      </option>
+                    </optgroup>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("All times will be displayed in your selected timezone")}
@@ -1346,21 +1365,23 @@
                 <label class="label">
                   <span class="label-text font-medium">{gettext("Time Format")}</span>
                 </label>
-                <select name="user[time_format]" class="select select-bordered w-full">
-                  <option
-                    value="12"
-                    selected={Ecto.Changeset.get_field(@changeset, :time_format) == "12"}
-                  >
-                    {gettext("12-hour (3:45 PM)")}
-                  </option>
+                <div class="select select-bordered w-full">
+                  <select name="user[time_format]">
+                    <option
+                      value="12"
+                      selected={Ecto.Changeset.get_field(@changeset, :time_format) == "12"}
+                    >
+                      {gettext("12-hour (3:45 PM)")}
+                    </option>
 
-                  <option
-                    value="24"
-                    selected={Ecto.Changeset.get_field(@changeset, :time_format) == "24"}
-                  >
-                    {gettext("24-hour (15:45)")}
-                  </option>
-                </select>
+                    <option
+                      value="24"
+                      selected={Ecto.Changeset.get_field(@changeset, :time_format) == "24"}
+                    >
+                      {gettext("24-hour (15:45)")}
+                    </option>
+                  </select>
+                </div>
                 <div class="label">
                   <span class="text-xs text-base-content/60">
                     {gettext("Choose how times are displayed")}

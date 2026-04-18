@@ -709,21 +709,22 @@
 
               <div class="flex justify-between items-center">
                 <div class="flex items-center gap-2">
-                  <select
-                    name="visibility"
-                    value={@new_post_visibility}
-                    class="select select-bordered select-sm"
-                    phx-update="ignore"
-                    id="timeline-visibility-select"
-                  >
-                    <option value="public">Public</option>
+                  <div class="select select-bordered select-sm">
+                    <select
+                      name="visibility"
+                      value={@new_post_visibility}
+                      phx-update="ignore"
+                      id="timeline-visibility-select"
+                    >
+                      <option value="public">Public</option>
 
-                    <option value="followers">Followers</option>
+                      <option value="followers">Followers</option>
 
-                    <option value="friends">Friends Only</option>
+                      <option value="friends">Friends Only</option>
 
-                    <option value="private">Private</option>
-                  </select>
+                      <option value="private">Private</option>
+                    </select>
+                  </div>
                   <button
                     type="button"
                     phx-click="open_image_upload"

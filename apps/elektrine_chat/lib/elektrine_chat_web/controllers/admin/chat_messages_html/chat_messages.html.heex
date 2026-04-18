@@ -72,25 +72,31 @@
           <label class="label pt-0">
             <span>Conversation</span>
           </label>
-          <select name="conversation_type" class="select w-full">
-            <option value="all" selected={conversation_type_filter == "all"}>All</option>
-            <option value="dm" selected={conversation_type_filter == "dm"}>DM</option>
-            <option value="group" selected={conversation_type_filter == "group"}>Group</option>
-            <option value="channel" selected={conversation_type_filter == "channel"}>
-              Channel
-            </option>
-          </select>
+          <div class="select w-full">
+            <select name="conversation_type">
+              <option value="all" selected={conversation_type_filter == "all"}>All</option>
+              <option value="dm" selected={conversation_type_filter == "dm"}>DM</option>
+              <option value="group" selected={conversation_type_filter == "group"}>Group</option>
+              <option value="channel" selected={conversation_type_filter == "channel"}>
+                Channel
+              </option>
+            </select>
+          </div>
         </div>
         <div class="lg:col-span-3">
           <label class="label pt-0">
             <span>Protocol</span>
           </label>
-          <select name="protocol" class="select w-full">
-            <option value="all" selected={protocol_filter == "all"}>All</option>
-            <option value="local" selected={protocol_filter == "local"}>Local</option>
-            <option value="federated" selected={protocol_filter == "federated"}>Federated</option>
-            <option value="mirrored" selected={protocol_filter == "mirrored"}>Mirrored</option>
-          </select>
+          <div class="select w-full">
+            <select name="protocol">
+              <option value="all" selected={protocol_filter == "all"}>All</option>
+              <option value="local" selected={protocol_filter == "local"}>Local</option>
+              <option value="federated" selected={protocol_filter == "federated"}>
+                Federated
+              </option>
+              <option value="mirrored" selected={protocol_filter == "mirrored"}>Mirrored</option>
+            </select>
+          </div>
         </div>
         <div class="lg:col-span-12 flex gap-2">
           <button type="submit" class="btn btn-primary">

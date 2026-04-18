@@ -459,21 +459,23 @@
 
           <div class="form-control">
             <label class="label"><span class="label-text">{gettext("Group")}</span></label>
-            <select name="contact[group_id]" class="select select-bordered">
-              <option value="">{gettext("No group")}</option>
+            <div class="select select-bordered">
+              <select name="contact[group_id]">
+                <option value="">{gettext("No group")}</option>
 
-              <%= for group <- @groups do %>
-                <option
-                  value={group.id}
-                  selected={
-                    (@contact_changeset.changes[:group_id] ||
-                       (@editing_contact && @editing_contact.group_id)) == group.id
-                  }
-                >
-                  {group.name}
-                </option>
-              <% end %>
-            </select>
+                <%= for group <- @groups do %>
+                  <option
+                    value={group.id}
+                    selected={
+                      (@contact_changeset.changes[:group_id] ||
+                         (@editing_contact && @editing_contact.group_id)) == group.id
+                    }
+                  >
+                    {group.name}
+                  </option>
+                <% end %>
+              </select>
+            </div>
           </div>
 
           <div class="form-control">

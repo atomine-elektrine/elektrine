@@ -110,13 +110,15 @@
                   </div>
 
                   <.form for={%{}} phx-change="set_my_lists_sort">
-                    <select name="sort" class="select select-bordered w-full">
-                      <option value="name" selected={@my_lists_sort == "name"}>Name</option>
-                      <option value="fresh" selected={@my_lists_sort == "fresh"}>Newest</option>
-                      <option value="members" selected={@my_lists_sort == "members"}>
-                        Most members
-                      </option>
-                    </select>
+                    <div class="select select-bordered w-full">
+                      <select name="sort">
+                        <option value="name" selected={@my_lists_sort == "name"}>Name</option>
+                        <option value="fresh" selected={@my_lists_sort == "fresh"}>Newest</option>
+                        <option value="members" selected={@my_lists_sort == "members"}>
+                          Most members
+                        </option>
+                      </select>
+                    </div>
                   </.form>
                 </div>
 
@@ -156,13 +158,15 @@
                   </.form>
 
                   <.form for={%{}} phx-change="set_public_lists_sort">
-                    <select name="sort" class="select select-bordered w-full">
-                      <option value="fresh" selected={@discover_sort == "fresh"}>Newest</option>
-                      <option value="members" selected={@discover_sort == "members"}>
-                        Most members
-                      </option>
-                      <option value="name" selected={@discover_sort == "name"}>Name</option>
-                    </select>
+                    <div class="select select-bordered w-full">
+                      <select name="sort">
+                        <option value="fresh" selected={@discover_sort == "fresh"}>Newest</option>
+                        <option value="members" selected={@discover_sort == "members"}>
+                          Most members
+                        </option>
+                        <option value="name" selected={@discover_sort == "name"}>Name</option>
+                      </select>
+                    </div>
                   </.form>
                 </div>
 
@@ -400,14 +404,16 @@
               <label class="label">
                 <span class="label-text">Visibility</span>
               </label>
-              <select name="visibility" class="select select-bordered w-full">
-                <option value="private" selected={@new_list_visibility == "private"}>
-                  Private
-                </option>
-                <option value="public" selected={@new_list_visibility == "public"}>
-                  Public
-                </option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="visibility">
+                  <option value="private" selected={@new_list_visibility == "private"}>
+                    Private
+                  </option>
+                  <option value="public" selected={@new_list_visibility == "public"}>
+                    Public
+                  </option>
+                </select>
+              </div>
             </div>
 
             <button type="submit" class="btn btn-secondary w-full">

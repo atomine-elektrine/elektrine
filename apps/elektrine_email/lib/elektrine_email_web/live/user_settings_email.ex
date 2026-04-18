@@ -349,23 +349,22 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
             <label class="label">
               <span class="label-text font-medium">{gettext("Compose From")}</span>
             </label>
-            <select
-              name="user[preferred_email_domain]"
-              class="select select-bordered w-full"
-            >
-              <%= for domain <- Elektrine.Domains.available_email_domains_for_user(@user) do %>
-                <option
-                  value={domain}
-                  selected={
-                    (@user.preferred_email_domain ||
-                       Elektrine.Domains.default_user_handle_domain()) ==
-                      domain
-                  }
-                >
-                  {@user.username}@{domain}
-                </option>
-              <% end %>
-            </select>
+            <div class="select select-bordered w-full">
+              <select name="user[preferred_email_domain]">
+                <%= for domain <- Elektrine.Domains.available_email_domains_for_user(@user) do %>
+                  <option
+                    value={domain}
+                    selected={
+                      (@user.preferred_email_domain ||
+                         Elektrine.Domains.default_user_handle_domain()) ==
+                        domain
+                    }
+                  >
+                    {@user.username}@{domain}
+                  </option>
+                <% end %>
+              </select>
+            </div>
             <label class="label">
               <span class="label-text-alt">
                 {gettext("Default 'From' address when composing new emails")}
@@ -548,18 +547,19 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
                           {gettext("Unlock method")}
                         </span>
                       </label>
-                      <select
-                        name="private_mailbox[unlock_mode]"
-                        class="select select-bordered w-full"
-                        data-private-mailbox-setup-mode
-                      >
-                        <option value="account_password" selected>
-                          {gettext("Use account password")}
-                        </option>
-                        <option value="separate_passphrase">
-                          {gettext("Use separate mailbox passphrase")}
-                        </option>
-                      </select>
+                      <div class="select select-bordered w-full">
+                        <select
+                          name="private_mailbox[unlock_mode]"
+                          data-private-mailbox-setup-mode
+                        >
+                          <option value="account_password" selected>
+                            {gettext("Use account password")}
+                          </option>
+                          <option value="separate_passphrase">
+                            {gettext("Use separate mailbox passphrase")}
+                          </option>
+                        </select>
+                      </div>
                     </div>
 
                     <div class="space-y-3" data-private-mailbox-account-password-fields>

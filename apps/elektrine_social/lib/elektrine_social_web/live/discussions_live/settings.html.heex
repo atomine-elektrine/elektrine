@@ -101,47 +101,52 @@
               <label class="label">
                 <span class="label-text font-medium">Category</span>
               </label>
-              <select name="category" class="select select-bordered w-full">
-                <option value="general" selected={@community.community_category == "general"}>
-                  General
-                </option>
-                <option value="tech" selected={@community.community_category == "tech"}>
-                  Technology
-                </option>
-                <option value="gaming" selected={@community.community_category == "gaming"}>
-                  Gaming
-                </option>
-                <option value="art" selected={@community.community_category == "art"}>
-                  Art & Design
-                </option>
-                <option value="music" selected={@community.community_category == "music"}>
-                  Music
-                </option>
-                <option value="sports" selected={@community.community_category == "sports"}>
-                  Sports
-                </option>
-                <option value="education" selected={@community.community_category == "education"}>
-                  Education
-                </option>
-                <option
-                  value="entertainment"
-                  selected={@community.community_category == "entertainment"}
-                >
-                  Entertainment
-                </option>
-                <option value="science" selected={@community.community_category == "science"}>
-                  Science
-                </option>
-                <option value="politics" selected={@community.community_category == "politics"}>
-                  Politics
-                </option>
-                <option value="business" selected={@community.community_category == "business"}>
-                  Business
-                </option>
-                <option value="other" selected={@community.community_category == "other"}>
-                  Other
-                </option>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="category">
+                  <option value="general" selected={@community.community_category == "general"}>
+                    General
+                  </option>
+                  <option value="tech" selected={@community.community_category == "tech"}>
+                    Technology
+                  </option>
+                  <option value="gaming" selected={@community.community_category == "gaming"}>
+                    Gaming
+                  </option>
+                  <option value="art" selected={@community.community_category == "art"}>
+                    Art & Design
+                  </option>
+                  <option value="music" selected={@community.community_category == "music"}>
+                    Music
+                  </option>
+                  <option value="sports" selected={@community.community_category == "sports"}>
+                    Sports
+                  </option>
+                  <option
+                    value="education"
+                    selected={@community.community_category == "education"}
+                  >
+                    Education
+                  </option>
+                  <option
+                    value="entertainment"
+                    selected={@community.community_category == "entertainment"}
+                  >
+                    Entertainment
+                  </option>
+                  <option value="science" selected={@community.community_category == "science"}>
+                    Science
+                  </option>
+                  <option value="politics" selected={@community.community_category == "politics"}>
+                    Politics
+                  </option>
+                  <option value="business" selected={@community.community_category == "business"}>
+                    Business
+                  </option>
+                  <option value="other" selected={@community.community_category == "other"}>
+                    Other
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -209,12 +214,14 @@
               <label class="label">
                 <span class="label-text">Select Member</span>
               </label>
-              <select name="user_id" class="select select-bordered w-full" required>
-                <option value="">Choose a member...</option>
-                <%= for member <- @members, member.role == "member" do %>
-                  <option value={member.user_id}>{member.username}</option>
-                <% end %>
-              </select>
+              <div class="select select-bordered w-full">
+                <select name="user_id" required>
+                  <option value="">Choose a member...</option>
+                  <%= for member <- @members, member.role == "member" do %>
+                    <option value={member.user_id}>{member.username}</option>
+                  <% end %>
+                </select>
+              </div>
             </div>
 
             <button type="submit" class="btn btn-secondary w-full">

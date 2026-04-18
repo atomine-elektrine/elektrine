@@ -1438,20 +1438,22 @@
 
           <div class="form-control">
             <label class="label"><span class="label-text">{gettext("Calendar")}</span></label>
-            <select name="event[calendar_id]" class="select select-bordered">
-              <%= for calendar <- @calendars do %>
-                <option
-                  value={calendar.id}
-                  selected={
-                    (@event_changeset.changes[:calendar_id] ||
-                       (@editing_event && @editing_event.calendar_id) || @default_calendar.id) ==
-                      calendar.id
-                  }
-                >
-                  {calendar.name}
-                </option>
-              <% end %>
-            </select>
+            <div class="select select-bordered">
+              <select name="event[calendar_id]">
+                <%= for calendar <- @calendars do %>
+                  <option
+                    value={calendar.id}
+                    selected={
+                      (@event_changeset.changes[:calendar_id] ||
+                         (@editing_event && @editing_event.calendar_id) || @default_calendar.id) ==
+                        calendar.id
+                    }
+                  >
+                    {calendar.name}
+                  </option>
+                <% end %>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1780,20 +1782,22 @@
           <label class="label">
             <span class="label-text font-medium">Group (Optional)</span>
           </label>
-          <select name="group_id" class="select select-bordered w-full">
-            <option value="">No Group</option>
-            <%= for group <- assigns[:groups] || [] do %>
-              <option
-                value={group.id}
-                selected={
-                  assigns[:editing_contact] && @editing_contact &&
-                    @editing_contact.group_id == group.id
-                }
-              >
-                {group.name}
-              </option>
-            <% end %>
-          </select>
+          <div class="select select-bordered w-full">
+            <select name="group_id">
+              <option value="">No Group</option>
+              <%= for group <- assigns[:groups] || [] do %>
+                <option
+                  value={group.id}
+                  selected={
+                    assigns[:editing_contact] && @editing_contact &&
+                      @editing_contact.group_id == group.id
+                  }
+                >
+                  {group.name}
+                </option>
+              <% end %>
+            </select>
+          </div>
         </div>
         <div class="form-control w-full mb-6">
           <label class="label cursor-pointer justify-center gap-2">

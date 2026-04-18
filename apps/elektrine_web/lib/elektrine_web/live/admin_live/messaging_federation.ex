@@ -388,23 +388,24 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                           ]}>
                             {if peer.effective_allow_incoming, do: "allowed", else: "denied"}
                           </span>
-                          <select
-                            class="select select-bordered select-xs"
-                            name="mode"
-                            phx-change="set_direction"
-                            phx-value-domain={peer.domain}
-                            phx-value-direction="incoming"
-                          >
-                            <option value="inherit" selected={is_nil(peer.allow_incoming_override)}>
-                              inherit default
-                            </option>
-                            <option value="allow" selected={peer.allow_incoming_override == true}>
-                              allow
-                            </option>
-                            <option value="deny" selected={peer.allow_incoming_override == false}>
-                              deny
-                            </option>
-                          </select>
+                          <div class="select select-bordered select-xs">
+                            <select
+                              name="mode"
+                              phx-change="set_direction"
+                              phx-value-domain={peer.domain}
+                              phx-value-direction="incoming"
+                            >
+                              <option value="inherit" selected={is_nil(peer.allow_incoming_override)}>
+                                inherit default
+                              </option>
+                              <option value="allow" selected={peer.allow_incoming_override == true}>
+                                allow
+                              </option>
+                              <option value="deny" selected={peer.allow_incoming_override == false}>
+                                deny
+                              </option>
+                            </select>
+                          </div>
                         </div>
                       </td>
                       <td>
@@ -418,23 +419,24 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                           ]}>
                             {if peer.effective_allow_outgoing, do: "allowed", else: "denied"}
                           </span>
-                          <select
-                            class="select select-bordered select-xs"
-                            name="mode"
-                            phx-change="set_direction"
-                            phx-value-domain={peer.domain}
-                            phx-value-direction="outgoing"
-                          >
-                            <option value="inherit" selected={is_nil(peer.allow_outgoing_override)}>
-                              inherit default
-                            </option>
-                            <option value="allow" selected={peer.allow_outgoing_override == true}>
-                              allow
-                            </option>
-                            <option value="deny" selected={peer.allow_outgoing_override == false}>
-                              deny
-                            </option>
-                          </select>
+                          <div class="select select-bordered select-xs">
+                            <select
+                              name="mode"
+                              phx-change="set_direction"
+                              phx-value-domain={peer.domain}
+                              phx-value-direction="outgoing"
+                            >
+                              <option value="inherit" selected={is_nil(peer.allow_outgoing_override)}>
+                                inherit default
+                              </option>
+                              <option value="allow" selected={peer.allow_outgoing_override == true}>
+                                allow
+                              </option>
+                              <option value="deny" selected={peer.allow_outgoing_override == false}>
+                                deny
+                              </option>
+                            </select>
+                          </div>
                         </div>
                       </td>
                       <td class="hidden md:table-cell text-xs opacity-70 max-w-xs">
