@@ -7,13 +7,13 @@ defmodule Elektrine.DNS do
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts.User
-  alias Elektrine.Domains
   alias Elektrine.DNS.ManagedRecords
   alias Elektrine.DNS.QueryStat
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
   alias Elektrine.DNS.ZoneCache
   alias Elektrine.DNS.ZoneServiceConfig
+  alias Elektrine.Domains
   alias Elektrine.Repo
 
   @record_types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS MX NS SRV TLSA TXT)
@@ -768,18 +768,16 @@ defmodule Elektrine.DNS do
   defp format_nameserver_list(nameservers), do: Enum.join(nameservers, ", ")
 
   defp lookup_dns_values(domain, type, opts) when is_binary(domain) do
-    try do
-      domain
-      |> String.to_charlist()
-      |> dns_resolver().lookup(:in, type, opts)
-      |> Enum.map(&normalize_lookup_value(type, &1))
-      |> Enum.reject(&nil_or_blank?/1)
-      |> Enum.uniq()
-    rescue
-      _ -> []
-    catch
-      _, _ -> []
-    end
+    domain
+    |> String.to_charlist()
+    |> dns_resolver().lookup(:in, type, opts)
+    |> Enum.map(&normalize_lookup_value(type, &1))
+    |> Enum.reject(&nil_or_blank?/1)
+    |> Enum.uniq()
+  rescue
+    _ -> []
+  catch
+    _, _ -> []
   end
 
   defp normalize_lookup_value(:ns, value), do: normalize_hostname(value)
@@ -789,8 +787,7 @@ defmodule Elektrine.DNS do
   defp normalize_lookup_value(:aaaa, tuple) when is_tuple(tuple) and tuple_size(tuple) == 8 do
     tuple
     |> Tuple.to_list()
-    |> Enum.map(&Integer.to_string(&1, 16))
-    |> Enum.join(":")
+    |> Enum.map_join(":", &Integer.to_string(&1, 16))
   end
 
   defp normalize_lookup_value(:mx, {priority, host}),
@@ -1245,7 +1242,7 @@ defmodule Elektrine.DNS do
               :ok
 
             conflicts ->
-              names = conflicts |> Enum.map(&record_conflict_label/1) |> Enum.join(", ")
+              names = Enum.map_join(conflicts, ", ", &record_conflict_label/1)
 
               {:error,
                add_error(

@@ -2,11 +2,13 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   # Must be async: false for the plug to see test database data
   use ElektrineWeb.ConnCase, async: false
 
+  alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
   alias Elektrine.Domains
-  alias Elektrine.{Accounts, Profiles, StaticSites}
+  alias Elektrine.Profiles
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
+  alias Elektrine.StaticSites
   alias ElektrineWeb.Plugs.{ProfileCustomDomain, RuntimeSession}
 
   setup do
