@@ -1643,7 +1643,13 @@
                 </div>
 
                 <div class="text-sm line-clamp-4 opacity-80">
-                  {PostUtilities.plain_text_preview(@quote_target_post.content, 200)}
+                  {raw(
+                    PostUtilities.render_content_preview(
+                      @quote_target_post.content,
+                      PostUtilities.get_instance_domain(@quote_target_post),
+                      200
+                    )
+                  )}
                 </div>
 
                 <%= if @quote_target_post.media_urls && length(@quote_target_post.media_urls) > 0 do %>

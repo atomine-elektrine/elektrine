@@ -5,11 +5,36 @@
     class="mb-6 sm:mb-8"
   />
 
-  <div class="mb-6 sm:mb-8">
-    <h1 class="text-2xl font-bold text-base-content sm:text-3xl">Files</h1>
-    <p class="mt-2 text-base-content/70">
-      Private cloud storage with search, previews, share links, and WebDAV sync.
-    </p>
+  <div class="card panel-card mb-6 sm:mb-8">
+    <div class="card-body p-5 sm:p-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div class="space-y-2">
+          <%= if length(@breadcrumbs) > 1 do %>
+            <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+              <%= for crumb <- @breadcrumbs do %>
+                <span class="rounded-full bg-base-200/70 px-2.5 py-1 normal-case tracking-normal text-base-content/65">
+                  {crumb.name}
+                </span>
+              <% end %>
+            </div>
+          <% end %>
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
+              Files
+            </h1>
+            <p class="mt-2 text-sm text-base-content/65 sm:text-base">
+              Private cloud storage with search, previews, share links, and WebDAV sync.
+            </p>
+          </div>
+        </div>
+        <div class="text-sm text-base-content/60 lg:text-right">
+          <%= if @current_folder != "" do %>
+            <div>{current_folder_name(@current_folder)}</div>
+          <% end %>
+          <div class="mt-1">{@storage_info.used_formatted} used</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="space-y-6">
@@ -19,7 +44,7 @@
       id="file-explorer"
       phx-drop-target={@uploads.files.ref}
     >
-      <div class="border-b border-base-300/70 bg-base-100 px-4 py-4 sm:px-6">
+      <div class="border-b border-base-300/60 px-4 py-4 sm:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div class="space-y-1">
             <h3 class="text-2xl font-semibold tracking-tight sm:text-3xl">
@@ -51,7 +76,7 @@
         </div>
       </div>
 
-      <div class="border-b border-base-300/70 bg-base-100 px-4 py-4 sm:px-6">
+      <div class="border-b border-base-300/60 bg-base-200/20 px-4 py-4 sm:px-6">
         <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(18rem,28rem)] xl:items-center">
           <form id="file-explorer-upload-picker" phx-change="validate_upload" class="contents">
             <input
@@ -161,7 +186,7 @@
         <%= if @show_new_folder_form do %>
           <form
             phx-submit="create_folder"
-            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/60 p-3 sm:flex-row sm:items-center"
+            class="mt-4 flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -183,7 +208,7 @@
         <%= if @bulk_move_open do %>
           <form
             phx-submit="bulk_move"
-            class="mt-4 flex flex-col gap-2 rounded-2xl bg-base-200/60 p-3 sm:flex-row sm:items-center"
+            class="mt-4 flex flex-col gap-2 rounded-xl border border-base-300/60 bg-base-100/70 p-3 sm:flex-row sm:items-center"
           >
             <input
               type="text"
@@ -209,7 +234,7 @@
           <form
             phx-change="validate_upload"
             phx-submit="upload_files"
-            class="mt-4 rounded-3xl border border-base-300 bg-base-200/60 p-4"
+            class="mt-4 rounded-2xl border border-base-300/60 bg-base-100/70 p-4"
           >
             <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
@@ -238,7 +263,7 @@
 
             <div class="mt-4 space-y-2">
               <%= for entry <- @uploads.files.entries do %>
-                <div class="rounded-2xl bg-base-200/70 px-3 py-3 text-sm">
+                <div class="rounded-xl border border-base-300/50 bg-base-200/35 px-3 py-3 text-sm">
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0 flex-1">
                       <p class="truncate font-medium">{entry.client_name}</p>
@@ -274,7 +299,7 @@
 
       <div class="p-4 sm:p-5">
         <%= if MapSet.size(@selected_items) > 0 do %>
-          <div class="mb-5 rounded-2xl border border-primary/25 bg-primary/8 px-4 py-3">
+          <div class="mb-5 rounded-xl border border-primary/20 bg-primary/8 px-4 py-3">
             <p class="font-semibold">{MapSet.size(@selected_items)} item(s) selected</p>
           </div>
         <% end %>
@@ -285,10 +310,10 @@
           style="--files-tree-width: 20rem;"
         >
           <aside
-            class="relative min-w-0 overflow-hidden rounded-3xl border border-base-300/80 bg-base-100 shadow-sm"
+            class="relative min-w-0 overflow-hidden rounded-2xl border border-base-300/60 bg-base-100/80"
             data-tree-pane
           >
-            <div class="border-b border-base-300/70 bg-base-200/40 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <div class="border-b border-base-300/60 bg-base-200/30 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Folders
             </div>
 
@@ -355,7 +380,7 @@
                       data-tree-folder-drop-path={node.path}
                       data-tree-folder-label={node.name}
                       class={[
-                        "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-2xl border border-transparent px-3 py-3 text-left text-sm transition-all",
+                        "flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden rounded-xl border border-transparent px-3 py-2.5 text-left text-sm transition-all",
                         folder_tree_item_class(@current_folder, node.path)
                       ]}
                       data-row-ignore
@@ -373,7 +398,7 @@
           </aside>
 
           <div
-            class="min-w-0 overflow-visible rounded-3xl border border-base-300 bg-base-100/70"
+            class="min-w-0 overflow-visible rounded-2xl border border-base-300/60 bg-base-100/80"
             data-context-surface="content"
             data-context-kind="blank"
             data-context-path={@current_folder}
@@ -400,7 +425,7 @@
             <% else %>
               <div class="overflow-visible">
                 <div class="min-w-0 overflow-x-auto overscroll-x-contain">
-                  <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] gap-3 border-b border-base-300/70 bg-base-200/60 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
+                  <div class="hidden lg:grid grid-cols-[2.5rem_minmax(0,2.4fr)_minmax(0,1.2fr)_7.5rem_5.5rem_7rem] gap-3 border-b border-base-300/60 bg-base-200/30 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/50">
                     <div></div>
                     <div>Name</div>
                     <div>Location / Type</div>
@@ -409,11 +434,11 @@
                     <div class="text-right">Actions</div>
                   </div>
 
-                  <div class="divide-y divide-base-300/70 overflow-visible">
+                  <div class="divide-y divide-base-300/60 overflow-visible">
                     <%= for {folder, index} <- Enum.with_index(@folders) do %>
                       <article
                         class={[
-                          "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset",
+                          "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset hover:bg-base-200/20",
                           row_class(selected?(@selected_items, folder_token(folder.path)))
                         ]}
                         tabindex="-1"
@@ -441,7 +466,7 @@
 
                           <div class="min-w-0">
                             <div class="flex items-center gap-3">
-                              <div class="rounded-2xl bg-secondary/12 p-2.5 text-secondary">
+                              <div class="rounded-xl bg-secondary/12 p-2.5 text-secondary">
                                 <.icon name="hero-folder" class="h-5 w-5" />
                               </div>
 
@@ -512,7 +537,7 @@
                     <%= for {file, index} <- Enum.with_index(@files, length(@folders)) do %>
                       <article
                         class={[
-                          "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset",
+                          "group relative overflow-visible px-4 py-3 transition-colors cursor-default outline-none focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-inset hover:bg-base-200/20",
                           row_class(selected?(@selected_items, file_token(file.id)))
                         ]}
                         tabindex="-1"
@@ -545,10 +570,10 @@
                                 <img
                                   src={~p"/account/files/#{file.id}/preview"}
                                   alt={file_display_name(file)}
-                                  class="h-12 w-12 rounded-2xl object-cover ring-1 ring-base-300"
+                                  class="h-12 w-12 rounded-xl object-cover ring-1 ring-base-300"
                                 />
                               <% else %>
-                                <div class="rounded-2xl bg-primary/10 p-2.5 text-primary">
+                                <div class="rounded-xl bg-primary/10 p-2.5 text-primary">
                                   <.icon name={file_icon_name(file.content_type)} class="h-5 w-5" />
                                 </div>
                               <% end %>

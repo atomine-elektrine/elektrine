@@ -671,14 +671,16 @@
                     ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_content(
                       related_post.title
                     ) %>
+                  <% related_preview =
+                    ElektrineSocialWeb.Components.Social.PostUtilities.render_content_preview(
+                      related_post.content,
+                      ElektrineSocialWeb.Components.Social.PostUtilities.get_instance_domain(
+                        related_post
+                      ),
+                      50
+                    ) %>
                   <h4 class="font-medium text-sm group-hover:text-primary line-clamp-2">
-                    {if related_title != "",
-                      do: related_title,
-                      else:
-                        ElektrineSocialWeb.Components.Social.PostUtilities.plain_text_preview(
-                          related_post.content,
-                          50
-                        )}
+                    {if related_title != "", do: related_title, else: raw(related_preview)}
                   </h4>
                   <div class="flex items-center gap-2 mt-2 text-xs opacity-70">
                     <span>

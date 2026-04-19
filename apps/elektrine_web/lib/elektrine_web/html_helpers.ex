@@ -62,6 +62,21 @@ defmodule ElektrineWeb.HtmlHelpers do
               token
           end
 
+        String.match?(token, ~r/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}@(?:x\.com|twitter\.com)\b/i) ->
+          case Regex.run(
+                 ~r/^([A-Za-z0-9][A-Za-z0-9._-]{0,62})@((?:x\.com|twitter\.com))(.*)$/i,
+                 token
+               ) do
+            [_, username, domain, suffix] ->
+              profile_url = non_fediverse_profile_url(username, domain)
+
+              ~s(<a href="#{profile_url}" target="_blank" rel="noopener noreferrer" class="#{@mention_link_classes}">#{username}@#{domain}</a>) <>
+                suffix
+
+            _ ->
+              token
+          end
+
         String.match?(token, ~r/^https?:\/\//) ->
           clean_url = String.replace(token, ~r/[.!?,;:]$/, "")
 
@@ -205,7 +220,7 @@ defmodule ElektrineWeb.HtmlHelpers do
   @doc ~s|Converts @mentions in already-escaped HTML to clickable links.\nHandles both local mentions (@username) and fediverse mentions (@user@domain.com).\n\nIMPORTANT: Only call this on already-escaped content!\n|
   def linkify_local_mentions(escaped_html) when is_binary(escaped_html) do
     Regex.replace(
-      ~r/@(\w+)(?!@)/,
+      ~r/@(\w+)(?![A-Za-z0-9_@.])/,
       escaped_html,
       fn match, username ->
         if Regex.match?(~r/@#{username}@[\w.-]+/, escaped_html) do
@@ -831,17 +846,42 @@ defmodule ElektrineWeb.HtmlHelpers do
             "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
           end
         )
+        |> linkify_non_fediverse_handles()
         |> maybe_linkify_short_mentions(instance_domain, mention_domain_hints)
       end
     end)
     |> Enum.map_join("", & &1)
   end
 
+  defp linkify_non_fediverse_handles(segment) when is_binary(segment) do
+    Regex.replace(
+      ~r/(^|[^A-Za-z0-9._%+-@\/])([A-Za-z0-9][A-Za-z0-9._-]{0,62})@((?:x\.com|twitter\.com))(?![A-Za-z0-9._-])/i,
+      segment,
+      fn _full, prefix, username, domain ->
+        profile_url = non_fediverse_profile_url(username, domain)
+
+        "#{prefix}<a href=\"#{profile_url}\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"#{@mention_link_classes}\">#{username}@#{domain}</a>"
+      end
+    )
+  end
+
+  defp linkify_non_fediverse_handles(segment), do: segment
+
+  defp non_fediverse_profile_url(username, domain)
+       when is_binary(username) and is_binary(domain) do
+    normalized_domain = String.downcase(domain)
+
+    case normalized_domain do
+      "twitter.com" -> "https://x.com/#{username}"
+      "x.com" -> "https://x.com/#{username}"
+    end
+  end
+
   defp maybe_linkify_short_mentions(segment, instance_domain, mention_domain_hints)
        when is_binary(segment) and is_binary(instance_domain) and instance_domain != "" and
               is_map(mention_domain_hints) do
     Regex.replace(
-      ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@])/,
+      ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@.])/,
       segment,
       fn _full, prefix, username ->
         domain = Map.get(mention_domain_hints, String.downcase(username), instance_domain)

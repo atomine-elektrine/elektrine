@@ -189,8 +189,10 @@ defmodule Elektrine.DNS.ManagedRecords do
     |> ensure_dkim_material()
     |> put_default_setting("mail_target", MailSecurity.default_mail_target(zone))
     |> then(&Map.put(&1, "mail_target", normalize_mail_target(zone, &1)))
+    |> put_default_setting("caa_issue", MailSecurity.caa_issue(%{}))
     |> put_default_setting("mta_sts_mode", "enforce")
     |> put_default_setting("tls_rpt_rua", "mailto:postmaster@#{zone.domain}")
+    |> put_default_setting("tlsa_association_data", MailSecurity.default_tlsa_association_data())
   end
 
   defp prepare_settings(_zone, _service, settings), do: settings

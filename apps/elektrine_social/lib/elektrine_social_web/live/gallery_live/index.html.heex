@@ -474,7 +474,7 @@
                       </div>
                       <%= if gallery_content_preview(photo) != "" do %>
                         <p class="text-sm text-base-content/70 mt-3 line-clamp-2">
-                          {gallery_content_preview(photo)}
+                          {raw(gallery_content_preview(photo))}
                         </p>
                       <% end %>
                     </div>

@@ -67,8 +67,93 @@ defmodule Elektrine.DNS.Generators.Mail do
         required: false,
         metadata: %{"label" => "TLS-RPT reporting policy"}
       }
-    ] ++ mail_host_records(zone, mail_target) ++ aliases(domain, ttl, mail_target)
+    ] ++
+      caa_records(ttl, settings) ++
+      tlsa_records(ttl, domain, mail_target, settings) ++
+      mail_host_records(zone, mail_target) ++ aliases(domain, ttl, mail_target)
   end
+
+  defp caa_records(ttl, settings) do
+    flags = MailSecurity.caa_flags(settings)
+
+    [
+      %{
+        managed_key: "mail:caa:issue",
+        name: "@",
+        type: "CAA",
+        ttl: ttl,
+        content: MailSecurity.caa_issue(settings),
+        flags: flags,
+        tag: "issue",
+        required: false,
+        metadata: %{"label" => "CAA issue authorization"}
+      }
+    ] ++
+      optional_caa_record(
+        "mail:caa:issuewild",
+        ttl,
+        flags,
+        "issuewild",
+        MailSecurity.caa_issuewild(settings),
+        "CAA wildcard authorization"
+      ) ++
+      optional_caa_record(
+        "mail:caa:iodef",
+        ttl,
+        flags,
+        "iodef",
+        MailSecurity.caa_iodef(settings),
+        "CAA incident reporting"
+      )
+  end
+
+  defp optional_caa_record(_managed_key, _ttl, _flags, _tag, nil, _label), do: []
+
+  defp optional_caa_record(managed_key, ttl, flags, tag, content, label) do
+    [
+      %{
+        managed_key: managed_key,
+        name: "@",
+        type: "CAA",
+        ttl: ttl,
+        content: content,
+        flags: flags,
+        tag: tag,
+        required: false,
+        metadata: %{"label" => label}
+      }
+    ]
+  end
+
+  defp tlsa_records(ttl, domain, mail_target, settings) do
+    case {same_zone_relative_name(domain, mail_target),
+          MailSecurity.tlsa_association_data(settings)} do
+      {nil, _association_data} ->
+        []
+
+      {_relative_name, nil} ->
+        []
+
+      {relative_name, association_data} ->
+        [
+          %{
+            managed_key: "mail:tlsa",
+            name: tlsa_owner_name(relative_name),
+            type: "TLSA",
+            ttl: ttl,
+            content: association_data,
+            usage: MailSecurity.tlsa_usage(settings),
+            selector: MailSecurity.tlsa_selector(settings),
+            matching_type: MailSecurity.tlsa_matching_type(settings),
+            required: false,
+            metadata: %{"label" => "DANE TLSA for SMTP"}
+          }
+        ]
+    end
+  end
+
+  defp tlsa_owner_name("@"), do: "_25._tcp"
+  defp tlsa_owner_name(relative_name), do: "_25._tcp." <> relative_name
 
   defp mail_host_records(zone, mail_target) do
     case same_zone_relative_name(zone.domain, mail_target) do

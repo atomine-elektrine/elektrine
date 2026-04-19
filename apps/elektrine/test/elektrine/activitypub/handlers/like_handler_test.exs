@@ -85,6 +85,23 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       assert {:ok, :liked} = LikeHandler.handle(activity, liker.uri, nil)
     end
+
+    test "unwraps nested object wrappers when handling a like" do
+      liker = remote_actor_fixture("wrapped_liker")
+      message = remote_message_fixture("wrapped-like-post")
+
+      activity = %{
+        "type" => "Like",
+        "actor" => liker.uri,
+        "object" => %{
+          "type" => "Create",
+          "object" => %{"id" => message.activitypub_id, "type" => "Note"}
+        }
+      }
+
+      assert {:ok, :liked} = LikeHandler.handle(activity, liker.uri, nil)
+      assert Repo.get_by(FederatedLike, message_id: message.id, remote_actor_id: liker.id)
+    end
   end
 
   describe "handle_emoji_react/3" do
@@ -175,6 +192,26 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       assert {:ok, :emoji_reacted} = LikeHandler.handle_emoji_react(activity, reactor.uri, nil)
       assert %{visibility: "public"} = Messaging.get_message_by_activitypub_id(object_id)
+    end
+
+    test "falls back to contentMap when content is omitted" do
+      reactor = remote_actor_fixture("content_map_reactor")
+      message = remote_message_fixture("content-map-post")
+
+      activity = %{
+        "type" => "EmojiReact",
+        "actor" => reactor.uri,
+        "object" => message.activitypub_id,
+        "contentMap" => %{"en" => ":blobcat:"}
+      }
+
+      assert {:ok, :emoji_reacted} = LikeHandler.handle_emoji_react(activity, reactor.uri, nil)
+
+      assert Repo.get_by(MessageReaction,
+               message_id: message.id,
+               remote_actor_id: reactor.id,
+               emoji: ":blobcat:"
+             )
     end
   end
 

@@ -637,13 +637,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
 
   def extract_youtube_id(_), do: nil
 
-  # Delegate to centralized safe helper to prevent XSS
-  defp make_links_clickable(text) do
-    text
-    |> make_content_safe_with_links()
-    |> preserve_line_breaks()
-  end
-
   defp action_badge_color(action_type) do
     case action_type do
       "ban" -> "badge-error"

@@ -84,6 +84,14 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
     assert preview == "Hello 😊 world"
   end
 
+  test "render_content_preview/3 honors max length while preserving emoji decoding" do
+    content = "<p>:smile: wave</p>"
+
+    preview = PostUtilities.render_content_preview(content, "lemmy.world", 7)
+
+    assert preview == "😊"
+  end
+
   test "plain_text_content/1 strips malformed html fragments and decodes entities" do
     content =
       "<p>We&#39;re live now with No Agenda episode 1849 #@pocketnoagenda <a href=\"https://example.com/live\""

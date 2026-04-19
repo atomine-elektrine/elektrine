@@ -18,6 +18,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
+  @shared_feed_filters ~w(all my_posts timeline gallery)
   @default_attention_filter "all"
   @allowed_attention_filters ~w(all email chat requests social system)
   @feed_load_timeout_ms 12_000
@@ -79,6 +80,8 @@ defmodule ElektrineWeb.OverviewLive.Index do
        |> assign(:dashboard, default_dashboard())
        |> assign(:dashboard_last_refreshed_at, nil)
        |> assign(:data_loaded, false)
+       |> assign(:feed_posts_cache, %{})
+       |> assign(:feed_source, feed_source_key(@default_filter))
        |> assign(:visible_post_limit, @overview_feed_limit)
        |> assign(:loading_more, false)
        |> assign(:no_more_posts, false)
@@ -115,14 +118,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> assign(:attention_filter, attention_filter)
 
     socket =
-      if socket.assigns.data_loaded && filter != previous_filter do
-        socket
-        |> assign(:loading_feed, true)
-        |> assign(:loading_more, false)
-        |> load_feed_data(socket.assigns.visible_post_limit)
-      else
-        assign_overview_posts_for_current_filter(socket)
-      end
+      maybe_switch_overview_filter(socket, previous_filter, filter)
 
     {:noreply, socket}
   end
@@ -2340,6 +2336,47 @@ defmodule ElektrineWeb.OverviewLive.Index do
     @default_filter
   end
 
+  defp maybe_switch_overview_filter(socket, previous_filter, filter) do
+    cond do
+      not socket.assigns.data_loaded ->
+        assign_overview_posts_for_current_filter(socket)
+
+      filter == previous_filter ->
+        assign_overview_posts_for_current_filter(socket)
+
+      feed_source_key(filter) == socket.assigns[:feed_source] ->
+        assign_overview_posts_for_current_filter(socket)
+
+      cached_posts = get_cached_feed_posts(socket.assigns, filter) ->
+        socket
+        |> assign(:loading_feed, false)
+        |> assign(:loading_more, false)
+        |> assign_feed_data(%{
+          build_feed_state(cached_posts, socket.assigns.current_user.id)
+          | all_posts: cached_posts
+        })
+
+      true ->
+        socket
+        |> assign(:loading_feed, true)
+        |> assign(:loading_more, false)
+        |> load_feed_data(socket.assigns.visible_post_limit)
+    end
+  end
+
+  defp feed_source_key(filter) when filter in @shared_feed_filters, do: "shared"
+  defp feed_source_key("discussions"), do: "discussions"
+  defp feed_source_key(filter) when is_binary(filter), do: filter
+
+  defp get_cached_feed_posts(assigns, filter) do
+    assigns[:feed_posts_cache]
+    |> Map.get(feed_source_key(filter))
+  end
+
+  defp put_feed_posts_cache(socket, source_key, posts) do
+    update(socket, :feed_posts_cache, &Map.put(&1 || %{}, source_key, posts))
+  end
+
   defp overview_filter_pill_class(current_filter, filter) do
     [
       "btn btn-sm rounded-full whitespace-nowrap border border-base-300",
@@ -2404,13 +2441,16 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     fetched_post_count = length(fetched_posts)
     previous_count = socket.assigns[:last_fetched_post_count] || 0
+    source_key = feed_source_key(socket.assigns.filter)
 
     no_more_posts =
       fetched_post_count < socket.assigns.visible_post_limit or
         (previous_count > 0 and fetched_post_count <= previous_count)
 
     socket
+    |> put_feed_posts_cache(source_key, fetched_posts)
     |> assign(:all_posts, fetched_posts)
+    |> assign(:feed_source, source_key)
     |> assign(:user_likes, feed_data.user_likes)
     |> assign(:user_downvotes, feed_data.user_downvotes)
     |> assign(:user_boosts, feed_data.user_boosts)
@@ -2474,10 +2514,11 @@ defmodule ElektrineWeb.OverviewLive.Index do
     user = socket.assigns.current_user
     session_context = socket.assigns[:session_context] || %{}
     filter = socket.assigns.filter || @default_filter
+    source_key = feed_source_key(filter)
 
     personalized_result =
       load_with_timeout(
-        {:for_you_feed, filter},
+        {:for_you_feed, source_key},
         fn ->
           load_overview_feed_posts(user.id, filter, limit, session_context)
           |> build_feed_state(user.id)
@@ -3443,7 +3484,12 @@ defmodule ElektrineWeb.OverviewLive.Index do
       id: post.id,
       href: Elektrine.Paths.post_path(post.id),
       title: social_post_title(post),
-      preview: PostUtilities.plain_text_preview(post.content || "", 160),
+      preview:
+        PostUtilities.render_content_preview(
+          post.content || "",
+          PostUtilities.get_instance_domain(post),
+          160
+        ),
       meta: activity_post_type_label(post.post_type),
       at: post.inserted_at,
       count_label: nil,

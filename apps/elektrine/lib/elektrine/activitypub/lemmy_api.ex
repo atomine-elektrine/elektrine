@@ -224,6 +224,7 @@ defmodule Elektrine.ActivityPub.LemmyApi do
             case Jason.decode(body) do
               {:ok, %{"comments" => comments}} ->
                 comments
+                |> Enum.reject(&lemmy_comment_hidden?/1)
                 |> Enum.take(limit)
                 |> Enum.map(fn comment_view ->
                   comment = comment_view["comment"] || %{}
@@ -261,6 +262,13 @@ defmodule Elektrine.ActivityPub.LemmyApi do
   end
 
   def fetch_top_comments(_, _), do: []
+
+  defp lemmy_comment_hidden?(%{"comment" => comment}) when is_map(comment) do
+    comment["deleted"] == true or comment["removed"] == true or
+      not Elektrine.Strings.present?(comment["content"])
+  end
+
+  defp lemmy_comment_hidden?(_), do: true
 
   @doc """
   Fetch all available comments for a Lemmy post with content and parent refs.

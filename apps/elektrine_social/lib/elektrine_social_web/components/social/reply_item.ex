@@ -63,10 +63,11 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
       assigns
       |> assign(:normalized, normalized)
       |> assign(:container_class, container_class)
+      |> assign(:display_reply, display_reply?(normalized))
       |> assign(:reply_click, reply_click_target(assigns.reply, normalized))
 
     ~H"""
-    <%= if @normalized.has_author do %>
+    <%= if @display_reply do %>
       <div
         class={[
           @container_class,
@@ -513,4 +514,9 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   end
 
   defp render_reply_content_html(_), do: ""
+
+  defp display_reply?(%{has_author: true, content: content}) when is_binary(content),
+    do: Elektrine.Strings.present?(content)
+
+  defp display_reply?(_), do: false
 end

@@ -300,9 +300,17 @@
                                 {pinned_title}
                               </h3>
                             <% end %>
-                            <%= if plain_text_preview(post.content, 80) != "" do %>
+                            <% preview =
+                              ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                post.content,
+                                ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                  post
+                                ),
+                                80
+                              ) %>
+                            <%= if preview != "" do %>
                               <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
-                                {plain_text_preview(post.content, 80)}
+                                {raw(preview)}
                               </p>
                             <% end %>
                           </div>
@@ -327,7 +335,14 @@
                         # Get the actual content source - use shared_message for boosts
                         content_source = if is_boost, do: post.shared_message, else: post
 
-                        display_content = plain_text_preview(content_source.content, 140)
+                        display_content =
+                          ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                            content_source.content,
+                            ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                              content_source
+                            ),
+                            140
+                          )
 
                         # Check for media on the content source
                         has_media =
@@ -447,9 +462,17 @@
                                   />
                                   {quote_author}
                                 </div>
-                                <%= if plain_text_preview(quoted.content, 120) != "" do %>
+                                <% quoted_preview =
+                                  ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                    quoted.content,
+                                    ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                      quoted
+                                    ),
+                                    120
+                                  ) %>
+                                <%= if quoted_preview != "" do %>
                                   <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
-                                    {plain_text_preview(quoted.content, 120)}
+                                    {raw(quoted_preview)}
                                   </p>
                                 <% else %>
                                   <p class="text-xs text-[var(--profile-text)] opacity-60">
@@ -563,7 +586,15 @@
                               </p>
                             <% else %>
                               <p class="text-sm line-clamp-1 text-[var(--profile-text)] opacity-80">
-                                {plain_text_preview(post.content, 80)}
+                                {raw(
+                                  ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                    post.content,
+                                    ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                      post
+                                    ),
+                                    80
+                                  )
+                                )}
                               </p>
                             <% end %>
                           </div>
@@ -1620,9 +1651,17 @@
                             {pinned_title}
                           </h3>
                         <% end %>
-                        <%= if plain_text_preview(post.content, 80) != "" do %>
+                        <% preview =
+                          ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                            post.content,
+                            ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                              post
+                            ),
+                            80
+                          ) %>
+                        <%= if preview != "" do %>
                           <p class="text-sm line-clamp-2 mt-1 text-[var(--profile-text)] opacity-70">
-                            {plain_text_preview(post.content, 80)}
+                            {raw(preview)}
                           </p>
                         <% end %>
                       </div>
@@ -1644,7 +1683,14 @@
 
                   content_source = if is_boost, do: post.shared_message, else: post
 
-                  display_content = plain_text_preview(content_source.content, 140)
+                  display_content =
+                    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                      content_source.content,
+                      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                        content_source
+                      ),
+                      140
+                    )
 
                   has_media = content_source.media_urls && !Enum.empty?(content_source.media_urls)
 
@@ -1730,9 +1776,17 @@
                             />
                             {quote_author}
                           </div>
-                          <%= if plain_text_preview(quoted.content, 120) != "" do %>
+                          <% quoted_preview =
+                            ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                              quoted.content,
+                              ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                quoted
+                              ),
+                              120
+                            ) %>
+                          <%= if quoted_preview != "" do %>
                             <p class="text-xs line-clamp-2 text-[var(--profile-text)] opacity-80">
-                              {plain_text_preview(quoted.content, 120)}
+                              {raw(quoted_preview)}
                             </p>
                           <% else %>
                             <p class="text-xs text-[var(--profile-text)] opacity-60">

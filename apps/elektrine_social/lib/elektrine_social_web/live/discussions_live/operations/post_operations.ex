@@ -586,15 +586,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
             end
 
             # Process mentions in the reply
-            mentions =
-              Regex.scan(~r/@(\w+)/, content)
-              |> Enum.map(fn [_, username] -> username end)
-              |> Enum.uniq()
+            mentions = Elektrine.ActivityPub.Mentions.extract_local_mentions(content)
 
             sender = socket.assigns.current_user
 
-            Enum.each(mentions, fn username ->
-              case Elektrine.Accounts.get_user_by_username_or_handle(username) do
+            Enum.each(mentions, fn mention ->
+              case Elektrine.Accounts.get_user_by_username_or_handle(mention.username) do
                 nil ->
                   :ok
 
@@ -1062,15 +1059,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     end
 
     # Process mentions in the discussion post
-    mentions =
-      Regex.scan(~r/@(\w+)/, content || "")
-      |> Enum.map(fn [_, username] -> username end)
-      |> Enum.uniq()
+    mentions = Elektrine.ActivityPub.Mentions.extract_local_mentions(content || "")
 
     sender = socket.assigns.current_user
 
-    Enum.each(mentions, fn username ->
-      case Elektrine.Accounts.get_user_by_username_or_handle(username) do
+    Enum.each(mentions, fn mention ->
+      case Elektrine.Accounts.get_user_by_username_or_handle(mention.username) do
         nil ->
           :ok
 

@@ -3,6 +3,8 @@ defmodule Elektrine.Messaging.Message do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.ActivityPub.Mentions
+
   @varchar_limit 255
   @local_content_max 20_000
   @federated_content_max 20_000
@@ -820,7 +822,7 @@ defmodule Elektrine.Messaging.Message do
   defp validate_spam_patterns(changeset, content) do
     cond do
       # Too many mentions
-      length(Regex.scan(~r/@\w+/, content)) > 10 ->
+      Mentions.count_mentions(content) > 10 ->
         add_error(changeset, :content, "contains too many mentions")
 
       # Too many emojis

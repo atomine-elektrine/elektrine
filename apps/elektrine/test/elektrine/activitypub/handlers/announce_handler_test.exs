@@ -171,6 +171,23 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
 
       assert {:ok, :announced} = AnnounceHandler.handle(activity, booster.uri, nil)
     end
+
+    test "unwraps nested object wrappers when handling an announce" do
+      booster = remote_actor_fixture("wrapped_booster")
+      message = remote_message_fixture("wrapped-announce-post")
+
+      activity = %{
+        "type" => "Announce",
+        "actor" => booster.uri,
+        "object" => %{
+          "type" => "Create",
+          "object" => %{"id" => message.activitypub_id, "type" => "Note"}
+        }
+      }
+
+      assert {:ok, :announced} = AnnounceHandler.handle(activity, booster.uri, nil)
+      assert Repo.get_by(FederatedBoost, message_id: message.id, remote_actor_id: booster.id)
+    end
   end
 
   describe "handle_undo/2" do

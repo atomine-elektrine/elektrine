@@ -76,6 +76,28 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
     assert html =~ ">@alice</a>"
   end
 
+  test "render_remote_post_content does not partially link domain-style non-fedi handles" do
+    html = HtmlHelpers.render_remote_post_content("<p>Hello @x.com</p>", "mastodon.social")
+
+    assert html =~ "@x.com"
+    refute html =~ ~s(href="/remote/x@mastodon.social")
+    refute html =~ ~s(href="/x")
+  end
+
+  test "render_remote_post_content links alex at x to the x profile" do
+    html = HtmlHelpers.render_remote_post_content("<p>Hello alex@x.com</p>", "mastodon.social")
+
+    assert html =~ ~s(href="https://x.com/alex")
+    assert html =~ ">alex@x.com</a>"
+  end
+
+  test "make_content_safe_with_links links alex at x to the x profile" do
+    html = HtmlHelpers.make_content_safe_with_links("Hello alex@x.com")
+
+    assert html =~ ~s(href="https://x.com/alex")
+    assert html =~ ">alex@x.com</a>"
+  end
+
   test "render_post_content prefers reply-author domain for short mentions" do
     html =
       HtmlHelpers.render_post_content(%{

@@ -209,19 +209,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   3. Convert known shortcode aliases to Unicode
   4. Render custom emojis when shortcode patterns remain
   """
-  @spec render_content_preview(String.t() | nil, String.t() | nil) :: String.t()
-  def render_content_preview(content, instance_domain \\ nil)
-  def render_content_preview(nil, _instance_domain), do: ""
+  @spec render_content_preview(String.t() | nil, String.t() | nil, non_neg_integer()) ::
+          String.t()
+  def render_content_preview(content, instance_domain \\ nil, max_length \\ 200)
+  def render_content_preview(nil, _instance_domain, _max_length), do: ""
 
-  def render_content_preview(content, instance_domain) when is_binary(content) do
+  def render_content_preview(content, instance_domain, max_length)
+      when is_binary(content) and is_integer(max_length) and max_length >= 0 do
     content
-    |> plain_text_preview(200)
+    |> plain_text_preview(max_length)
     |> HtmlHelpers.escape_html()
     |> HtmlHelpers.convert_emoji_shortcodes()
     |> maybe_render_custom_emojis(instance_domain)
   end
 
-  def render_content_preview(_, _instance_domain), do: ""
+  def render_content_preview(_, _instance_domain, _max_length), do: ""
 
   @doc """
   Converts possibly-HTML content into normalized plain text.

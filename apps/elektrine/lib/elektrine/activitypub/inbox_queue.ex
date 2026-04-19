@@ -8,7 +8,6 @@ defmodule Elektrine.ActivityPub.InboxQueue do
   @max_batch_size 25
   @insert_chunk_size 5
   @max_queue_size 5000
-  @activity_drop_keys ["contentMap"]
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -266,27 +265,7 @@ defmodule Elektrine.ActivityPub.InboxQueue do
     false
   end
 
-  defp compact_activity(activity) do
-    drop_activity_keys(activity)
-  end
-
-  defp drop_activity_keys(value) when is_map(value) do
-    Enum.reduce(value, %{}, fn {key, nested}, acc ->
-      if key in @activity_drop_keys do
-        acc
-      else
-        Map.put(acc, key, drop_activity_keys(nested))
-      end
-    end)
-  end
-
-  defp drop_activity_keys(value) when is_list(value) do
-    Enum.map(value, &drop_activity_keys/1)
-  end
-
-  defp drop_activity_keys(value) do
-    value
-  end
+  defp compact_activity(activity), do: activity
 
   defp already_queued?(activity_id) do
     case :ets.lookup(:inbox_dedup, activity_id) do

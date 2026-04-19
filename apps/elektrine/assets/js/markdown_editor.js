@@ -1,7 +1,4 @@
-// Markdown editor functionality for profile descriptions
-
 export function initMarkdownEditor() {
-  // Set up tab click handlers
   document.addEventListener('click', (e) => {
     const tabButton = e.target.closest('[data-show-tab]');
     if (tabButton) {

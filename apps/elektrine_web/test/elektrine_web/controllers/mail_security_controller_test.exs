@@ -30,4 +30,22 @@ defmodule ElektrineWeb.MailSecurityControllerTest do
 
     assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
   end
+
+  test "serves fallback MTA-STS policy for supported built-in mail domains", %{conn: conn} do
+    primary_domain = Elektrine.Domains.primary_email_domain()
+
+    mail_target =
+      Application.get_env(:elektrine, :email, [])
+      |> Keyword.get(:custom_domain_mx_host, "mail.#{primary_domain}")
+
+    conn =
+      conn
+      |> Map.put(:host, "mta-sts.#{primary_domain}")
+      |> get("/.well-known/mta-sts.txt")
+
+    assert response(conn, 200) =~
+             "version: STSv1\nmode: enforce\nmx: #{mail_target}\nmax_age: 86400\n"
+
+    assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
+  end
 end
