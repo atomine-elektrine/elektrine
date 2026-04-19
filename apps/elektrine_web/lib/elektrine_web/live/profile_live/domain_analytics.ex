@@ -72,7 +72,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       |> Enum.map(& &1.domain)
 
     tracked_hosts = Profiles.get_tracked_site_hosts(user.id)
-    dns_zones = DNS.list_user_zones(user.id)
+    dns_zones = DNS.list_user_zones(user)
 
     site_domains =
       ([built_in_host] ++ custom_hosts ++ tracked_hosts)
@@ -110,7 +110,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   end
 
   defp profile_host_url(user) do
-    Domains.default_profile_url_for_handle(user.handle || user.username)
+    Domains.default_profile_url_for_user(user)
   end
 
   defp parse_host(url) when is_binary(url) do

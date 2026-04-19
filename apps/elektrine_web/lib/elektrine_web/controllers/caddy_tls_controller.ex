@@ -2,6 +2,7 @@ defmodule ElektrineWeb.CaddyTLSController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
@@ -95,7 +96,8 @@ defmodule ElektrineWeb.CaddyTLSController do
            handle when handle not in [nil, ""] <-
              host |> String.trim_trailing(suffix) |> String.trim(),
            false <- String.contains?(handle, "."),
-           %{} <- Accounts.get_user_by_handle(handle) do
+           %User{} = user <- Accounts.get_user_by_handle(handle),
+           true <- User.built_in_subdomain_hosted_by_platform?(user) do
         true
       else
         _ -> false

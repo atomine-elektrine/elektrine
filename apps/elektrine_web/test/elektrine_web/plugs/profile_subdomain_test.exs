@@ -10,6 +10,9 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   """
   use ElektrineWeb.ConnCase, async: true
 
+  import Elektrine.AccountsFixtures
+
+  alias Elektrine.Accounts
   alias ElektrineWeb.Plugs.ProfileSubdomain
 
   setup do
@@ -284,6 +287,21 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
         |> ProfileSubdomain.call([])
 
       assert conn.assigns[:subdomain_handle] == "user123"
+    end
+  end
+
+  describe "external dns handoff" do
+    test "does not assign subdomain handles for users who handed the host to dns" do
+      user = user_fixture(%{username: "handoffplug"})
+      {:ok, user} = Accounts.update_user_handle(user, "handoffplug")
+      {:ok, _user} = Accounts.update_user(user, %{built_in_subdomain_mode: "external_dns"})
+
+      conn =
+        build_conn_with_host("handoffplug.example.com", "/")
+        |> ProfileSubdomain.call([])
+
+      refute conn.assigns[:subdomain_handle]
+      assert conn.request_path == "/"
     end
   end
 

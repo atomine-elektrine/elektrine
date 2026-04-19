@@ -3,6 +3,7 @@ defmodule Elektrine.Domains do
   Centralized helpers for local app domains.
   """
 
+  alias Elektrine.Accounts.User
   alias Elektrine.RuntimeEnv
 
   @default_primary_domain "example.com"
@@ -91,6 +92,16 @@ defmodule Elektrine.Domains do
   end
 
   def default_profile_url_for_handle(_), do: nil
+
+  def default_profile_url_for_user(%{handle: handle, username: username} = user) do
+    if User.built_in_subdomain_hosted_by_platform?(user) do
+      default_profile_url_for_handle(handle || username)
+    else
+      nil
+    end
+  end
+
+  def default_profile_url_for_user(_), do: nil
 
   @doc """
   All built-in profile URLs for a handle across configured profile base domains.
@@ -451,6 +462,18 @@ defmodule Elektrine.Domains do
   end
 
   def profile_url_for_handle(_, _), do: nil
+
+  def profile_url_for_user(user, host \\ nil)
+
+  def profile_url_for_user(%{handle: handle, username: username} = user, host) do
+    if User.built_in_subdomain_hosted_by_platform?(user) do
+      profile_url_for_handle(handle || username, host)
+    else
+      nil
+    end
+  end
+
+  def profile_url_for_user(_, _), do: nil
 
   @doc """
   Returns the configured profile base domain for a host.

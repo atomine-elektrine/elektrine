@@ -4,7 +4,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Domains
-  alias Elektrine.{Profiles, StaticSites}
+   alias Elektrine.{Accounts, Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
   alias ElektrineWeb.Plugs.{ProfileCustomDomain, RuntimeSession}
@@ -233,6 +233,18 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       # The response won't be our static HTML
       refute conn.resp_body ==
                "<html><head><title>Test</title></head><body>Hello World</body></html>"
+    end
+
+    test "does not serve built-in subdomain static pages after dns handoff", %{user: user} do
+      {:ok, _user} = Accounts.update_user(user, %{built_in_subdomain_mode: "external_dns"})
+
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      refute conn.halted
+      assert conn.status == nil
     end
   end
 

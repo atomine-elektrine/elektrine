@@ -44,6 +44,8 @@ defmodule ElektrineWeb.ProfileController do
     StaticSites
   }
 
+  alias Elektrine.Accounts.User
+
   alias ElektrineWeb.Platform.Integrations
 
   # Reserved usernames that conflict with routes
@@ -290,8 +292,9 @@ defmodule ElektrineWeb.ProfileController do
     handle = conn.assigns[:subdomain_handle] || user.handle || user.username
 
     # Serve static site index.html
-    if Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
-         conn.assigns[:subdomain_handle] != handle do
+    if User.built_in_subdomain_hosted_by_platform?(user) and
+         Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
+          conn.assigns[:subdomain_handle] != handle do
       redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
     else
       case StaticSites.get_file(profile.user_id, "index.html") do

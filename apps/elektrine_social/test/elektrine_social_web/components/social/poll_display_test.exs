@@ -39,4 +39,30 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplayTest do
     assert html =~ "11 votes"
     assert html =~ ">(5)</span>"
   end
+
+  test "keeps local poll options clickable after a user has voted" do
+    poll = %Poll{
+      id: 63,
+      question: "Choose one",
+      closes_at: DateTime.add(DateTime.utc_now(), 3600, :second),
+      total_votes: 1,
+      options: [
+        %PollOption{id: 116, option_text: "Yes", vote_count: 1, position: 0},
+        %PollOption{id: 117, option_text: "No", vote_count: 0, position: 1}
+      ]
+    }
+
+    html =
+      render_component(&PollDisplay.poll_card/1,
+        poll: poll,
+        message: %{id: 124, federated: false},
+        current_user: %{id: 1},
+        user_votes: [116],
+        interactive: true
+      )
+
+    assert html =~ ~s(phx-click="vote_poll")
+    assert html =~ ~s(phx-value-option_id="116")
+    assert html =~ ~s(phx-value-option_id="117")
+  end
 end

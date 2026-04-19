@@ -153,6 +153,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     assigns =
       assigns
+      |> assign_new(:remote_poll_vote, fn -> nil end)
       |> assign(:is_reply, is_reply)
       |> assign(:is_gallery_post, is_gallery_post)
       |> assign(:reply_ancestors, reply_ancestors)
@@ -226,6 +227,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               current_user={@current_user}
               is_gallery_post={@is_gallery_post}
               on_image_click={@on_image_click}
+              remote_poll_vote={@remote_poll_vote}
             />
             
     <!-- Post Actions -->
@@ -1478,12 +1480,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :current_user, :map, default: nil
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
+  attr :remote_poll_vote, :map, default: nil
 
   defp post_content(assigns) do
     title = resolve_federated_title(assigns.post)
 
     assigns =
       assigns
+      |> assign_new(:remote_poll_vote, fn -> nil end)
       |> assign(:title, title)
       |> assign(:post_path, Elektrine.Paths.post_path(assigns.post))
 

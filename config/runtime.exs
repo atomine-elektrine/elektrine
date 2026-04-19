@@ -256,27 +256,6 @@ first_present_env = fn env_names ->
   end)
 end
 
-umami_enabled = parse_bool_env.("UMAMI_ENABLED", true)
-
-umami_script_url =
-  case System.get_env("UMAMI_SCRIPT_URL") do
-    nil -> "https://cloud.umami.is/script.js"
-    "" -> "https://cloud.umami.is/script.js"
-    value -> value
-  end
-
-umami_website_id =
-  case System.get_env("UMAMI_WEBSITE_ID") do
-    nil -> nil
-    "" -> nil
-    value -> value
-  end
-
-config :elektrine, :umami,
-  enabled: umami_enabled,
-  script_url: umami_script_url,
-  website_id: umami_website_id
-
 config :elektrine, :runtime_components,
   web: parse_bool_env.("ELEKTRINE_ENABLE_WEB", true),
   jobs: parse_bool_env.("ELEKTRINE_ENABLE_JOBS", true),

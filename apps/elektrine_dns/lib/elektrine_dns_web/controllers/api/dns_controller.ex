@@ -14,7 +14,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
   def index(conn, _params) do
     user = conn.assigns.current_user
 
-    Response.ok(conn, %{zones: Enum.map(DNS.list_user_zones(user.id), &format_zone/1)})
+    Response.ok(conn, %{zones: Enum.map(DNS.list_user_zones(user), &format_zone(&1, user: user))})
   end
 
   def show(conn, %{"id" => id}) do
@@ -22,7 +22,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
 
     with {:ok, zone_id} <- parse_id(id),
          %Zone{} = zone <- DNS.get_zone(zone_id, user.id) do
-      Response.ok(conn, %{zone: format_zone(zone, include_records: true)})
+      Response.ok(conn, %{zone: format_zone(zone, include_records: true, user: user)})
     else
       {:error, :bad_request} ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid zone id")
@@ -38,7 +38,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
 
     case DNS.create_zone(user, attrs) do
       {:ok, zone} ->
-        Response.created(conn, %{zone: format_zone(zone)})
+        Response.created(conn, %{zone: format_zone(zone, user: user)})
 
       {:error, changeset} ->
         Response.error(
@@ -58,7 +58,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
     with {:ok, zone_id} <- parse_id(id),
          %Zone{} = zone <- DNS.get_zone(zone_id, user.id),
          {:ok, zone} <- DNS.update_zone(zone, attrs) do
-      Response.ok(conn, %{zone: format_zone(zone)})
+      Response.ok(conn, %{zone: format_zone(zone, user: user)})
     else
       {:error, :bad_request} ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid zone id")
@@ -108,7 +108,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
     with {:ok, zone_id} <- parse_id(id),
          %Zone{} = zone <- DNS.get_zone(zone_id, user.id),
          {:ok, zone} <- DNS.verify_zone(zone) do
-      Response.ok(conn, %{zone: format_zone(zone, include_onboarding_records: true)})
+      Response.ok(conn, %{zone: format_zone(zone, include_onboarding_records: true, user: user)})
     else
       {:error, :bad_request} ->
         Response.error(conn, :bad_request, "invalid_id", "Invalid zone id")
@@ -270,13 +270,17 @@ defmodule ElektrineDNSWeb.API.DNSController do
 
   defp parse_id(_), do: {:error, :bad_request}
 
-  defp format_zone(zone, opts \\ []) do
+  defp format_zone(zone, opts) do
     include_records? = Keyword.get(opts, :include_records, false)
     include_onboarding? = Keyword.get(opts, :include_onboarding_records, false)
+    user = Keyword.get(opts, :user)
+    builtin? = if(is_map(user), do: DNS.builtin_user_zone?(zone, user), else: DNS.builtin_user_zone?(zone))
 
     %{
       id: zone.id,
       domain: zone.domain,
+      builtin: builtin?,
+      builtin_mode: if(builtin?, do: DNS.builtin_user_zone_mode(user || zone), else: nil),
       status: zone.status,
       kind: zone.kind,
       serial: zone.serial,
@@ -288,6 +292,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
       last_error: zone.last_error,
       service_configs: Enum.map(loaded_assoc(zone.service_configs), &format_service_config/1),
       service_health: DNS.zone_service_health(zone),
+      reserved_hint: DNS.builtin_user_zone_reserved_hint(zone),
       records:
         if(include_records?,
           do: Enum.map(loaded_assoc(zone.records), &format_record/1),

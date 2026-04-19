@@ -1381,9 +1381,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         |> Enum.filter(&LemmyApi.community_post_url?/1)
 
       {counts, comments} = LemmyCache.get_cached_data(activitypub_ids)
+      merged_counts = merge_seeded_lemmy_counts(posts, counts)
       LemmyCache.schedule_refresh(activitypub_ids)
       Process.send_after(self(), :refresh_lemmy_cache, 60_000)
-      {:noreply, socket |> assign(:lemmy_counts, counts) |> assign(:post_replies, comments)}
+
+      {:noreply,
+       socket
+       |> assign(:lemmy_counts, merged_counts)
+       |> assign(:post_replies, comments)}
     else
       {:noreply, socket}
     end
@@ -1547,7 +1552,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     popular_communities = results.popular_communities
     my_community_posts = results.my_community_posts
 
-    {lemmy_counts, post_replies} =
+    {cached_lemmy_counts, post_replies} =
       load_with_fallback(
         :lemmy_cache,
         fn ->
@@ -1572,6 +1577,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         end,
         {%{}, %{}}
       )
+
+    lemmy_counts = merge_seeded_lemmy_counts(followed_community_posts, cached_lemmy_counts)
 
     post_interactions =
       load_with_fallback(
@@ -2393,12 +2400,77 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
       Process.send_after(self(), :refresh_lemmy_cache, 60_000)
 
+      seeded_counts = merge_seeded_lemmy_counts(more_posts, counts)
+
       {
-        Map.merge(socket.assigns.lemmy_counts || %{}, counts),
+        Map.merge(socket.assigns.lemmy_counts || %{}, seeded_counts),
         Map.merge(socket.assigns.post_replies || %{}, comments)
       }
     end
   end
+
+  defp merge_seeded_lemmy_counts(posts, lemmy_counts) when is_list(posts) and is_map(lemmy_counts) do
+    Map.merge(seed_lemmy_counts(posts), lemmy_counts)
+  end
+
+  defp merge_seeded_lemmy_counts(posts, _lemmy_counts) when is_list(posts) do
+    seed_lemmy_counts(posts)
+  end
+
+  defp seed_lemmy_counts(posts) when is_list(posts) do
+    Enum.reduce(posts, %{}, fn post, acc ->
+      activitypub_id = Map.get(post, :activitypub_id)
+
+      if LemmyApi.community_post_url?(activitypub_id) do
+        Map.put(acc, activitypub_id, %{
+          upvotes: seeded_vote_count(post, :upvotes),
+          downvotes: seeded_vote_count(post, :downvotes),
+          score: seeded_score(post),
+          comments: seeded_comment_count(post)
+        })
+      else
+        acc
+      end
+    end)
+  end
+
+  defp seeded_vote_count(post, field) when is_map(post) do
+    case Map.get(post, field) do
+      value when is_integer(value) and value >= 0 -> value
+      _ -> 0
+    end
+  end
+
+  defp seeded_score(post) when is_map(post) do
+    cond do
+      is_integer(Map.get(post, :score)) -> post.score
+      is_integer(Map.get(post, :upvotes)) or is_integer(Map.get(post, :downvotes)) ->
+        (Map.get(post, :upvotes) || 0) - (Map.get(post, :downvotes) || 0)
+
+      is_integer(Map.get(post, :like_count)) -> post.like_count
+      true -> 0
+    end
+  end
+
+  defp seeded_comment_count(post) when is_map(post) do
+    metadata = Map.get(post, :media_metadata) || %{}
+
+    case Map.get(post, :reply_count) do
+      value when is_integer(value) and value >= 0 -> value
+      _ -> parse_seeded_count(metadata["original_reply_count"])
+    end
+  end
+
+  defp parse_seeded_count(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_seeded_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed >= 0 -> parsed
+      _ -> 0
+    end
+  end
+
+  defp parse_seeded_count(_), do: 0
 
   defp overview_no_more?(source, limit \\ nil) do
     limit = limit || source[:overview_card_limit] || @overview_page_size

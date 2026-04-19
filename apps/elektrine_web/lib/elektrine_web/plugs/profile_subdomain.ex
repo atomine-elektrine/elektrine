@@ -13,6 +13,9 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   import Plug.Conn
   import Phoenix.Controller
 
+  alias Elektrine.Accounts
+  alias Elektrine.Accounts.User
+
   @reserved_subdomains ~w(
     www
     admin
@@ -47,38 +50,42 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
         {:ok, handle, base_domain} ->
           path = conn.request_path || ""
 
-          cond do
-            # Redirect /handle to root (profile is at root on subdomain)
-            path == "/#{handle}" ->
-              conn
-              |> redirect(to: "/")
-              |> halt()
+          if subdomain_hosted_by_platform?(handle) do
+            cond do
+              # Redirect /handle to root (profile is at root on subdomain)
+              path == "/#{handle}" ->
+                conn
+                |> redirect(to: "/")
+                |> halt()
 
-            # Allow /profiles/* API calls for follow/followers/etc
-            String.starts_with?(path, "/profiles/") ->
-              conn
-              |> assign(:subdomain_handle, handle)
+              # Allow /profiles/* API calls for follow/followers/etc
+              String.starts_with?(path, "/profiles/") ->
+                conn
+                |> assign(:subdomain_handle, handle)
 
-            # Root path shows the profile
-            path == "/" ->
-              conn
-              |> maybe_rewrite_root_path(handle)
-              |> assign(:subdomain_handle, handle)
+              # Root path shows the profile
+              path == "/" ->
+                conn
+                |> maybe_rewrite_root_path(handle)
+                |> assign(:subdomain_handle, handle)
 
-            # Allow asset-like paths (e.g., /1.jpg, /app.js, /style.css) through so
-            # static-mode profiles can serve assets on profile subdomains.
-            #
-            # Non-static subdomains will typically fall through to 404, which is fine.
-            asset_like_path?(path) ->
-              conn
-              |> assign(:subdomain_handle, handle)
+              # Allow asset-like paths (e.g., /1.jpg, /app.js, /style.css) through so
+              # static-mode profiles can serve assets on profile subdomains.
+              #
+              # Non-static subdomains will typically fall through to 404, which is fine.
+              asset_like_path?(path) ->
+                conn
+                |> assign(:subdomain_handle, handle)
 
-            # Any other path redirects to main domain
-            # Subdomains are ONLY for viewing the profile, nothing else
-            true ->
-              conn
-              |> redirect(external: "https://#{base_domain}#{path}")
-              |> halt()
+              # Any other path redirects to main domain
+              # Subdomains are ONLY for viewing the profile, nothing else
+              true ->
+                conn
+                |> redirect(external: "https://#{base_domain}#{path}")
+                |> halt()
+            end
+          else
+            conn
           end
 
         {:reserved_subdomain, handle, base_domain} ->
@@ -183,6 +190,15 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
   defp asset_like_path?(path) when is_binary(path) do
     Path.extname(path) != ""
   end
+
+  defp subdomain_hosted_by_platform?(handle) when is_binary(handle) do
+    case Accounts.get_user_by_handle(handle) do
+      %User{} = user -> User.built_in_subdomain_hosted_by_platform?(user)
+      _ -> true
+    end
+  end
+
+  defp subdomain_hosted_by_platform?(_), do: true
 
   defp reserved_subdomain_path("pripyat"), do: "/pripyat"
   defp reserved_subdomain_path(_), do: "/"

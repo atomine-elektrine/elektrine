@@ -1127,6 +1127,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   attr :post_reactions, :map, default: %{}
   attr :current_user, :map, default: nil
   attr :replies_loaded, :boolean, default: false
+  attr :remote_poll_vote, :map, default: nil
 
   def standard_timeline_detail_post(assigns) do
     message =
@@ -1145,6 +1146,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     <.timeline_post
       post={@message}
       current_user={@current_user}
+      remote_poll_vote={@remote_poll_vote}
       user_likes={%{@message.id => @interaction_state.liked}}
       user_boosts={%{@message.id => @interaction_state.boosted}}
       user_saves={%{@message.id => @saved?}}
@@ -1523,6 +1525,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:trust_topic_tracked, false)
       |> assign(:local_message, nil)
       |> assign(:post, nil)
+      |> assign(:pending_remote_poll_vote, nil)
       |> assign(:remote_actor, nil)
       |> assign(:community_actor, nil)
       |> assign(:community_stats, %{members: 0, posts: 0})
@@ -5675,6 +5678,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       post = socket.assigns.post
       remote_actor = socket.assigns.remote_actor
       poll_id = params["poll_id"] || post["id"]
+      option_id =
+        case params["option_id"] do
+          value when is_binary(value) ->
+            case Integer.parse(value) do
+              {parsed, ""} -> parsed
+              _ -> nil
+            end
+
+          value when is_integer(value) -> value
+          _ -> nil
+        end
 
       # send_poll_vote already queues durable outbound delivery internally.
       Elektrine.ActivityPub.Outbox.send_poll_vote(
@@ -5684,7 +5698,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         remote_actor
       )
 
-      {:noreply, put_flash(socket, :info, "Vote sent to #{remote_actor.domain}")}
+      {:noreply,
+       socket
+       |> assign(:pending_remote_poll_vote, %{option_id: option_id, option_name: option_name, domain: remote_actor.domain})
+       |> put_flash(:info, "Vote sent to #{remote_actor.domain}")}
     end
   end
 
