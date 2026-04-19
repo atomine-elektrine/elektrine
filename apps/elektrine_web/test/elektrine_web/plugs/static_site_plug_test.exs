@@ -4,7 +4,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Domains
-   alias Elektrine.{Accounts, Profiles, StaticSites}
+  alias Elektrine.{Accounts, Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
   alias ElektrineWeb.Plugs.{ProfileCustomDomain, RuntimeSession}

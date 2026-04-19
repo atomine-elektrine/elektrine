@@ -15,7 +15,11 @@ defmodule ElektrineDNSWeb.API.DNSControllerTest do
 
       assert %{"data" => %{"zones" => zones}} = json_response(conn, 200)
       assert Enum.any?(zones, &(&1["id"] == zone.id))
-      assert Enum.any?(zones, &(&1["domain"] == DNS.builtin_user_zone_domain(user) and &1["builtin"] == true))
+
+      assert Enum.any?(
+               zones,
+               &(&1["domain"] == DNS.builtin_user_zone_domain(user) and &1["builtin"] == true)
+             )
     end
 
     test "creates and updates records with write:dns scope", %{conn: conn} do
@@ -57,7 +61,10 @@ defmodule ElektrineDNSWeb.API.DNSControllerTest do
 
       assert %{"error" => error} = json_response(conn, 422)
       assert error["code"] == "validation_failed"
-      assert error["details"]["name"] == ["the apex host is reserved for Elektrine profile routing; only TXT and CAA are allowed there"]
+
+      assert error["details"]["name"] == [
+               "the apex host is reserved for Elektrine profile routing; only TXT and CAA are allowed there"
+             ]
     end
 
     test "allows apex A records on the built-in user zone after dns handoff", %{conn: conn} do

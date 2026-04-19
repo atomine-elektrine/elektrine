@@ -2409,7 +2409,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     end
   end
 
-  defp merge_seeded_lemmy_counts(posts, lemmy_counts) when is_list(posts) and is_map(lemmy_counts) do
+  defp merge_seeded_lemmy_counts(posts, lemmy_counts)
+       when is_list(posts) and is_map(lemmy_counts) do
     Map.merge(seed_lemmy_counts(posts), lemmy_counts)
   end
 
@@ -2443,12 +2444,17 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp seeded_score(post) when is_map(post) do
     cond do
-      is_integer(Map.get(post, :score)) -> post.score
+      is_integer(Map.get(post, :score)) ->
+        post.score
+
       is_integer(Map.get(post, :upvotes)) or is_integer(Map.get(post, :downvotes)) ->
         (Map.get(post, :upvotes) || 0) - (Map.get(post, :downvotes) || 0)
 
-      is_integer(Map.get(post, :like_count)) -> post.like_count
-      true -> 0
+      is_integer(Map.get(post, :like_count)) ->
+        post.like_count
+
+      true ->
+        0
     end
   end
 

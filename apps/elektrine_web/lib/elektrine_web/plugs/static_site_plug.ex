@@ -123,7 +123,9 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   # sobelow_skip ["XSS.SendResp"]
   defp check_and_serve_static_profile(conn, handle) do
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
-         true <- User.built_in_subdomain_hosted_by_platform?(user) or is_binary(conn.assigns[:profile_custom_domain]),
+         true <-
+           User.built_in_subdomain_hosted_by_platform?(user) or
+             is_binary(conn.assigns[:profile_custom_domain]),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- StaticSites.get_file(user.id, "index.html"),
@@ -173,7 +175,9 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   # sobelow_skip ["XSS.SendResp", "XSS.ContentType"]
   defp serve_asset(conn, handle, asset_path) do
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
-         true <- User.built_in_subdomain_hosted_by_platform?(user) or is_binary(conn.assigns[:profile_custom_domain]),
+         true <-
+           User.built_in_subdomain_hosted_by_platform?(user) or
+             is_binary(conn.assigns[:profile_custom_domain]),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- resolve_static_site_file(user.id, asset_path),
@@ -279,6 +283,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   defp isolate_static_site_on_subdomain?(conn, user, handle) do
     host = String.downcase(conn.host || "")
+
     User.built_in_subdomain_hosted_by_platform?(user) and Elektrine.Domains.app_host?(host) and
       conn.assigns[:subdomain_handle] != handle
   end

@@ -530,7 +530,8 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
                 end
               end)
 
-            {:noreply, socket |> assign(:posts, updated_posts) |> put_flash(:info, "Vote recorded")}
+            {:noreply,
+             socket |> assign(:posts, updated_posts) |> put_flash(:info, "Vote recorded")}
 
           {:error, :poll_closed} ->
             {:noreply, put_flash(socket, :error, "This poll has closed")}
