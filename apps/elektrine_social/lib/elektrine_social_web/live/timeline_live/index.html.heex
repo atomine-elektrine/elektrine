@@ -341,23 +341,26 @@
         <label class="input input-bordered w-full flex items-center gap-2 min-h-[2.75rem] pr-10">
           <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
           <input
+            id="timeline-mobile-search-input"
             type="text"
             placeholder={gettext("Search posts...")}
             value={@search_query}
             phx-debounce="300"
             name="query"
+            data-search-input="true"
             class="grow bg-transparent"
             aria-label={gettext("Search posts")}
           />
         </label>
         <%= if @search_query != "" do %>
-          <button
-            type="button"
-            phx-click="clear_search"
-            data-search-clear="true"
-            class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
-            aria-label={gettext("Clear search")}
-          >
+            <button
+              type="button"
+              phx-click="clear_search"
+              data-search-clear="true"
+              data-search-clear-target="#timeline-mobile-search-input"
+              class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
+              aria-label={gettext("Clear search")}
+            >
             <.icon name="hero-x-mark" class="w-4 h-4" />
           </button>
         <% end %>
@@ -407,11 +410,13 @@
               <label class="input input-bordered input-sm w-full flex items-center gap-2 pr-8">
                 <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
                 <input
+                  id="timeline-left-sidebar-search-input"
                   type="text"
                   placeholder={gettext("Search posts...")}
                   value={@search_query}
                   phx-debounce="300"
                   name="query"
+                  data-search-input="true"
                   class="grow bg-transparent"
                   aria-label={gettext("Search posts")}
                 />
@@ -421,6 +426,7 @@
                   type="button"
                   phx-click="clear_search"
                   data-search-clear="true"
+                  data-search-clear-target="#timeline-left-sidebar-search-input"
                   class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs"
                   aria-label={gettext("Clear search")}
                 >
@@ -878,79 +884,71 @@
           <%= if @current_user &&
                 (length(@user_drafts || []) > 0 || @new_posts_since_last_visit > 0 ||
                    length(@unread_community_activity || []) > 0) do %>
-            <div class="mx-4 mb-4 rounded-2xl border border-secondary/20 bg-secondary/5 p-4">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div class="space-y-1">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-secondary/80">
-                    Session Continuity
-                  </p>
-                  <h3 class="text-sm font-semibold">Continue where you left off</h3>
-                  <p class="text-xs text-base-content/70">
-                    Drafts, fresh posts, and community activity stay in view across visits.
-                  </p>
-                </div>
+            <div class="mx-4 mb-6 border-b border-base-300 pb-4">
+              <div class="mb-2 flex items-center justify-between gap-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                  Since Last Visit
+                </p>
 
                 <%= if length(@user_drafts || []) > 0 do %>
-                  <button type="button" phx-click="show_drafts" class="btn btn-secondary btn-sm">
-                    Continue where you left off
+                  <button type="button" phx-click="show_drafts" class="btn btn-ghost btn-xs">
+                    Open drafts
                   </button>
                 <% end %>
               </div>
 
-              <div class="mt-4 grid gap-3 lg:grid-cols-3">
-                <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
-                  <div class="flex items-center gap-2 text-sm font-medium">
-                    <.icon name="hero-document-duplicate" class="h-4 w-4 text-secondary" /> Drafts
+              <div class="space-y-2 text-sm">
+                <%= if length(@user_drafts || []) > 0 do %>
+                  <div class="flex items-center justify-between gap-3 rounded-lg px-3 py-2 bg-base-200/60">
+                    <div class="flex min-w-0 items-center gap-2">
+                      <.icon name="hero-document-duplicate" class="h-4 w-4 text-base-content/60" />
+                      <span>
+                        {length(@user_drafts)} saved {if length(@user_drafts) == 1,
+                          do: "draft",
+                          else: "drafts"}
+                      </span>
+                    </div>
                   </div>
-                  <p class="mt-2 text-sm text-base-content/70">
-                    <%= if length(@user_drafts || []) > 0 do %>
-                      {length(@user_drafts)} saved {if length(@user_drafts) == 1,
-                        do: "draft",
-                        else: "drafts"} ready to pick back up.
-                    <% else %>
-                      No saved drafts right now.
+                <% end %>
+
+                <%= if @new_posts_since_last_visit > 0 do %>
+                  <div class="flex items-center justify-between gap-3 rounded-lg px-3 py-2 bg-base-200/60">
+                    <div class="flex min-w-0 items-center gap-2">
+                      <.icon name="hero-arrow-trending-up" class="h-4 w-4 text-base-content/60" />
+                      <span>
+                        {@new_posts_since_last_visit} new {if @new_posts_since_last_visit == 1,
+                          do: "post",
+                          else: "posts"}
+                      </span>
+                    </div>
+
+                    <%= if length(@queued_posts) > 0 do %>
+                      <button
+                        type="button"
+                        phx-click="load_queued_posts"
+                        class="btn btn-ghost btn-xs"
+                      >
+                        Show
+                      </button>
                     <% end %>
-                  </p>
-                </div>
-
-                <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
-                  <div class="flex items-center gap-2 text-sm font-medium">
-                    <.icon name="hero-arrow-trending-up" class="h-4 w-4 text-secondary" /> Updates
                   </div>
-                  <p class="mt-2 text-sm text-base-content/70">
-                    {@new_posts_since_last_visit} new {if @new_posts_since_last_visit == 1,
-                      do: "post",
-                      else: "posts"} since you last visited.
-                  </p>
-                  <%= if length(@queued_posts) > 0 do %>
-                    <button
-                      type="button"
-                      phx-click="load_queued_posts"
-                      class="btn btn-ghost btn-xs mt-2 px-0 hover:bg-transparent"
-                    >
-                      Show latest posts
-                    </button>
-                  <% end %>
-                </div>
+                <% end %>
 
-                <div class="rounded-xl border border-base-300 bg-base-100/80 p-3">
-                  <div class="flex items-center gap-2 text-sm font-medium">
-                    <.icon name="hero-users" class="h-4 w-4 text-secondary" />
-                    Communities with unread activity
-                  </div>
-                  <%= if Enum.empty?(@unread_community_activity || []) do %>
-                    <p class="mt-2 text-sm text-base-content/70">
-                      No unread community activity yet.
-                    </p>
-                  <% else %>
-                    <div class="mt-2 space-y-2">
+                <%= if not Enum.empty?(@unread_community_activity || []) do %>
+                  <div class="rounded-lg bg-base-200/60 px-3 py-2">
+                    <div class="mb-2 flex items-center gap-2 text-sm text-base-content/80">
+                      <.icon name="hero-users" class="h-4 w-4 text-base-content/60" />
+                      <span>Unread communities</span>
+                    </div>
+
+                    <div class="space-y-1">
                       <%= for activity <- @unread_community_activity do %>
                         <.link
                           navigate={~p"/communities/#{activity.name}"}
-                          class="flex items-center justify-between gap-3 rounded-lg border border-base-300 bg-base-200/50 px-3 py-2 text-sm hover:border-secondary/40 hover:bg-secondary/5"
+                          class="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-base-100"
                         >
                           <div class="min-w-0">
-                            <p class="truncate font-medium">{activity.name}</p>
+                            <p class="truncate">{activity.name}</p>
                             <p class="text-xs text-base-content/60">
                               {activity.unread_count} new {if activity.unread_count == 1,
                                 do: "post",
@@ -963,8 +961,8 @@
                         </.link>
                       <% end %>
                     </div>
-                  <% end %>
-                </div>
+                  </div>
+                <% end %>
               </div>
             </div>
           <% end %>

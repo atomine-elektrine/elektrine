@@ -79,8 +79,6 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
         total_votes
       end
 
-    vote_registered? = user_votes != [] || pending_optimistic_vote?
-
     assigns =
       assigns
       |> assign(:is_open, is_open)
@@ -90,7 +88,6 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       |> assign(:show_results, show_results)
       |> assign(:remote_votes_map, remote_votes_map)
       |> assign(:total_votes, total_votes)
-      |> assign(:vote_registered?, vote_registered?)
 
     ~H"""
     <div class="border border-base-300 rounded-lg p-4 bg-base-50 dark:bg-base-200/50">
@@ -127,14 +124,13 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
             end
 
           is_voted = option.id in @user_votes || option.id == @optimistic_option_id
-          can_vote = @interactive && @is_open && @current_user && !@vote_registered? %>
+          can_vote = @interactive && @is_open && @current_user && !@pending_optimistic_vote? %>
 
           <%= if can_vote do %>
-            <% remote_poll_vote = @message && @message.federated && is_binary(@message.activitypub_id) %>
             <button
               type="button"
-              phx-click={if(remote_poll_vote, do: "vote_remote_poll", else: "vote_poll")}
-              phx-value-poll_id={if(remote_poll_vote, do: @message.activitypub_id, else: @poll.id)}
+              phx-click="vote_poll"
+              phx-value-poll_id={@poll.id}
               phx-value-option_id={option.id}
               phx-value-option_name={option.option_text}
               phx-value-message_id={@message && @message.id}
@@ -248,11 +244,15 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   defp render_raw_remote_poll(assigns) do
     options = assigns.post["oneOf"] || assigns.post["anyOf"] || []
     allow_multiple = !is_nil(assigns.post["anyOf"])
+    optimistic_option_name = optimistic_option_name(assigns.optimistic_vote)
+    pending_optimistic_vote? = is_binary(optimistic_option_name)
 
     total_votes =
       Enum.reduce(options, 0, fn option, acc ->
         acc + extract_vote_count(option)
       end)
+
+    total_votes = if pending_optimistic_vote?, do: total_votes + 1, else: total_votes
 
     end_time = assigns.post["endTime"] || assigns.post["closed"]
     is_closed = poll_closed?(end_time)
@@ -276,6 +276,8 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       |> assign(:end_time, end_time)
       |> assign(:domain, domain)
       |> assign(:can_vote, can_vote)
+      |> assign(:optimistic_option_name, optimistic_option_name)
+      |> assign(:pending_optimistic_vote?, pending_optimistic_vote?)
 
     ~H"""
     <div class="border border-base-300 rounded-lg p-4 bg-base-50 dark:bg-base-200/50">
@@ -294,12 +296,16 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
     <!-- Poll Options -->
       <div class="space-y-2">
         <%= for {option, idx} <- Enum.with_index(@options) do %>
-          <% vote_count = extract_vote_count(option)
+          <% option_text = option["name"] || "Option"
+
+          vote_count =
+            extract_vote_count(option) +
+              optimistic_vote_name_delta(option_text, @pending_optimistic_vote?, @optimistic_option_name)
 
           percentage =
             if @total_votes > 0, do: Float.round(vote_count / @total_votes * 100, 1), else: 0
 
-          option_text = option["name"] || "Option" %>
+          is_voted = option_text == @optimistic_option_name %>
           <%= if @can_vote do %>
             <button
               type="button"
@@ -316,7 +322,11 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
               </div>
               <div class="relative px-4 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2 flex-1">
-                  <.icon name="hero-stop" class="w-4 h-4 opacity-40 flex-shrink-0" />
+                  <%= if is_voted do %>
+                    <.icon name="hero-check-circle" class="w-4 h-4 text-primary flex-shrink-0" />
+                  <% else %>
+                    <.icon name="hero-stop" class="w-4 h-4 opacity-40 flex-shrink-0" />
+                  <% end %>
                   <span class="font-medium">{option_text}</span>
                 </div>
                 <div class="flex items-center gap-2 text-sm">
@@ -328,7 +338,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           <% else %>
             <.poll_option_display
               percentage={percentage}
-              is_voted={false}
+              is_voted={is_voted}
               option_text={option_text}
               vote_count={vote_count}
             />
@@ -359,6 +369,12 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
           <.icon name="hero-globe-alt" class="w-3 h-3 inline" />
           Click an option to vote (sent to {@domain})
         </p>
+        <%= if @pending_optimistic_vote? do %>
+          <p class="text-xs text-success mt-3 flex items-center gap-2">
+            <.icon name="hero-check-circle" class="w-4 h-4 flex-shrink-0" />
+            Vote registered. Syncing with the original instance.
+          </p>
+        <% end %>
       <% else %>
         <%= if @interactive && !@is_closed && !@current_user do %>
           <p class="text-xs text-center opacity-70 mt-3">Sign in to vote on this poll</p>
@@ -476,6 +492,9 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   defp optimistic_option_id(%{option_id: option_id}) when is_integer(option_id), do: option_id
   defp optimistic_option_id(_), do: nil
 
+  defp optimistic_option_name(%{option_name: option_name}) when is_binary(option_name), do: option_name
+  defp optimistic_option_name(_), do: nil
+
   defp pending_optimistic_vote?(user_votes, optimistic_option_id)
        when is_list(user_votes) and is_integer(optimistic_option_id) do
     user_votes == []
@@ -485,6 +504,9 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
   defp optimistic_vote_delta(option_id, true, option_id), do: 1
   defp optimistic_vote_delta(_, _, _), do: 0
+
+  defp optimistic_vote_name_delta(option_name, true, option_name), do: 1
+  defp optimistic_vote_name_delta(_, _, _), do: 0
 
   defp should_show_poll_results?(%{hide_totals: true} = poll),
     do: Integrations.social_poll_closed?(poll)

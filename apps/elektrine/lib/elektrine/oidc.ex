@@ -223,7 +223,7 @@ defmodule Elektrine.OIDC do
     do: Domains.public_base_url() <> "/" <> String.trim_leading(path, "/")
 
   defp profile_url(user, issuer) do
-    case Domains.profile_url_for_handle(user.handle || user.username) do
+    case Domains.profile_url_for_user(user) do
       nil -> issuer <> "/" <> (user.handle || user.username)
       url -> url
     end

@@ -69,7 +69,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
       case Social.vote_on_poll(poll_id, option_id, socket.assigns.current_user.id) do
         {:ok, _vote} ->
           updated_post = Messages.get_discussion_post!(socket.assigns.post.id, force: true)
-          {:noreply, assign(socket, :post, updated_post)}
+          {:noreply, socket |> assign(:post, updated_post) |> put_flash(:info, "Vote recorded")}
 
         {:error, :poll_closed} ->
           {:noreply, notify_error(socket, "This poll has closed")}

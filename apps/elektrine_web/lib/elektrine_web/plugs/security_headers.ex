@@ -61,7 +61,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       "default-src 'self'",
       # Scripts: allow self, Cloudflare (Turnstile + Insights)
       # Note: 'unsafe-inline' needed for LiveView's inline event handlers
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloud.umami.is blob:",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
       # Images: allow self, data URIs, HTTPS (for R2/S3 storage, Giphy, avatars)
@@ -69,7 +69,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       # Fonts: allow self and data URIs
       "font-src 'self' data:",
       # Connect: allow self and the explicit third-party endpoints used by the app
-      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com https://static.cloudflareinsights.com https://cloud.umami.is https://api-gateway.umami.dev",
+      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com https://static.cloudflareinsights.com",
       # Media: allow self and HTTPS (for video backgrounds from R2/S3)
       "media-src 'self' https: blob:",
       # Frames: allow Cloudflare Turnstile and any HTTPS embeds (for emails/chat/profiles)

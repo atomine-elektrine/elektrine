@@ -34,16 +34,6 @@ defmodule ElektrineWeb.Layouts do
     _ -> []
   end
 
-  def umami_config do
-    config = Application.get_env(:elektrine, :umami, [])
-
-    %{
-      enabled: Keyword.get(config, :enabled, true),
-      script_url: Keyword.get(config, :script_url, "https://cloud.umami.is/script.js"),
-      website_id: Keyword.get(config, :website_id)
-    }
-  end
-
   def site_theme_style(assigns) do
     assigns
     |> current_user_theme_overrides()

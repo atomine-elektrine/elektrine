@@ -170,6 +170,24 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert response(conn, 200) == "allowed"
     end
 
+    test "rejects handed-off built-in profile subdomains", %{conn: conn, api_key: api_key} do
+      user = user_fixture(%{username: "caddyhandoff"})
+      {:ok, user} = Accounts.update_user_handle(user, "caddyhandoff")
+      {:ok, _user} = Accounts.update_user(user, %{built_in_subdomain_mode: "external_dns"})
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      conn = conn |> auth_conn(api_key) |> get(allow_path("caddyhandoff.example.com"))
+
+      assert conn.status == 403
+      assert response(conn, 403) == "forbidden"
+    end
+
     test "rejects nonexistent built-in profile subdomains", %{conn: conn, api_key: api_key} do
       previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
 

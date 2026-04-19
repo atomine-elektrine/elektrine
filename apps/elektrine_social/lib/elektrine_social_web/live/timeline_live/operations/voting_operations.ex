@@ -616,17 +616,26 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
             |> Elektrine.Repo.preload(MessagingMessages.timeline_post_preloads(), force: true)
             |> Elektrine.Messaging.Message.decrypt_content()
 
-          updated_timeline_posts =
-            Enum.map(socket.assigns.timeline_posts, fn post ->
-              if post.id == message_id do
-                updated_message
-              else
-                post
-              end
+          update_post = fn posts ->
+            Enum.map(posts || [], fn post ->
+              if post.id == message_id, do: updated_message, else: post
             end)
+          end
+
+          send_update(
+            ElektrineSocialWeb.Components.Social.TimelineStreamPost,
+            id: "timeline-stream-post-#{message_id}",
+            post: updated_message
+          )
 
           {:noreply,
-           assign(socket, :timeline_posts, Helpers.dedupe_posts(updated_timeline_posts))}
+           socket
+           |> assign(:timeline_posts, socket.assigns.timeline_posts |> update_post.() |> Helpers.dedupe_posts())
+           |> assign(
+             :base_timeline_posts,
+             socket.assigns.base_timeline_posts |> update_post.() |> Helpers.dedupe_posts()
+           )
+           |> put_flash(:info, "Vote recorded")}
 
         {:error, :poll_closed} ->
           {:noreply, put_flash(socket, :error, "This poll has closed")}
@@ -667,16 +676,22 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
           remote_actor
         )
 
+        updated_pending_votes =
+          Map.put(socket.assigns.pending_remote_poll_votes, message_id, %{
+            option_id: option_id,
+            option_name: option_name,
+            domain: remote_actor.domain
+          })
+
+        send_update(
+          ElektrineSocialWeb.Components.Social.TimelineStreamPost,
+          id: "timeline-stream-post-#{message_id}",
+          pending_remote_poll_votes: updated_pending_votes
+        )
+
         {:noreply,
          socket
-         |> assign(
-           :pending_remote_poll_votes,
-           Map.put(socket.assigns.pending_remote_poll_votes, message_id, %{
-             option_id: option_id,
-             option_name: option_name,
-             domain: remote_actor.domain
-           })
-         )
+         |> assign(:pending_remote_poll_votes, updated_pending_votes)
          |> put_flash(:info, "Vote sent to #{remote_actor.domain}")}
       else
         {:noreply, put_flash(socket, :error, "Unable to send remote poll vote")}

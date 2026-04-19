@@ -6,6 +6,8 @@ defmodule Elektrine.Accounts.User do
 
   alias Elektrine.Security.URLValidator
 
+  @built_in_subdomain_modes ~w(platform external_dns)
+
   schema "users" do
     # Authentication
     field :username, :string
@@ -54,6 +56,7 @@ defmodule Elektrine.Accounts.User do
     field :display_name, :string
     field :unique_id, :string
     field :handle_changed_at, :utc_datetime
+    field :built_in_subdomain_mode, :string, default: "platform"
 
     # Privacy Settings
     field :allow_group_adds_from, :string, default: "everyone"
@@ -334,6 +337,7 @@ defmodule Elektrine.Accounts.User do
       :onboarding_completed_at,
       :onboarding_step,
       :activitypub_manually_approve_followers,
+      :built_in_subdomain_mode,
       :bluesky_enabled,
       :bluesky_identifier,
       :bluesky_app_password,
@@ -373,6 +377,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_inclusion(:allow_friend_requests_from, ["everyone", "followers", "nobody"])
     |> validate_inclusion(:profile_visibility, ["public", "followers", "private"])
     |> validate_inclusion(:default_post_visibility, ["public", "followers", "friends", "private"])
+    |> validate_inclusion(:built_in_subdomain_mode, @built_in_subdomain_modes)
     |> validate_inclusion(:locale, ~w(en zh), message: "is not a supported locale")
     |> validate_inclusion(:time_format, ~w(12 24), message: "must be 12 or 24")
     |> Elektrine.Theme.validate_overrides(:theme_overrides)
@@ -452,6 +457,7 @@ defmodule Elektrine.Accounts.User do
       :locale,
       :timezone,
       :time_format,
+      :built_in_subdomain_mode,
       :verified,
       :banned,
       :banned_reason,
@@ -469,6 +475,7 @@ defmodule Elektrine.Accounts.User do
     |> validate_handle_immutable()
     |> validate_handle()
     |> validate_length(:display_name, max: 100)
+    |> validate_inclusion(:built_in_subdomain_mode, @built_in_subdomain_modes)
     |> validate_format(:recovery_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       message: "must be a valid email"
     )
@@ -1170,6 +1177,20 @@ defmodule Elektrine.Accounts.User do
       message: "unique ID collision"
     )
   end
+
+  def built_in_subdomain_modes, do: @built_in_subdomain_modes
+
+  def built_in_subdomain_mode(%__MODULE__{built_in_subdomain_mode: mode})
+      when mode in @built_in_subdomain_modes,
+      do: mode
+
+  def built_in_subdomain_mode(_), do: "platform"
+
+  def built_in_subdomain_hosted_by_platform?(%__MODULE__{} = user) do
+    built_in_subdomain_mode(user) == "platform"
+  end
+
+  def built_in_subdomain_hosted_by_platform?(_), do: true
 
   # Validate handle format: 1-20 chars, alphanumeric + underscore
   defp validate_handle(changeset) do

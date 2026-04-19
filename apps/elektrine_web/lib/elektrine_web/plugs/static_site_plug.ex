@@ -6,6 +6,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
+  alias Elektrine.Accounts.User
   alias Elektrine.{Accounts, Profiles, StaticSites}
 
   # Allowed content types for static sites (validated on upload, but double-check here)
@@ -122,11 +123,12 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   # sobelow_skip ["XSS.SendResp"]
   defp check_and_serve_static_profile(conn, handle) do
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
+         true <- User.built_in_subdomain_hosted_by_platform?(user) or is_binary(conn.assigns[:profile_custom_domain]),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- StaticSites.get_file(user.id, "index.html"),
          {:ok, content} <- StaticSites.get_file_content(file) do
-      if isolate_static_site_on_subdomain?(conn, handle) do
+      if isolate_static_site_on_subdomain?(conn, user, handle) do
         conn
         |> redirect(external: profile_subdomain_url(conn, handle, "/"))
         |> halt()
@@ -171,11 +173,12 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   # sobelow_skip ["XSS.SendResp", "XSS.ContentType"]
   defp serve_asset(conn, handle, asset_path) do
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
+         true <- User.built_in_subdomain_hosted_by_platform?(user) or is_binary(conn.assigns[:profile_custom_domain]),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- resolve_static_site_file(user.id, asset_path),
          {:ok, content} <- StaticSites.get_file_content(file) do
-      if isolate_static_site_on_subdomain?(conn, handle) do
+      if isolate_static_site_on_subdomain?(conn, user, handle) do
         conn
         |> redirect(external: profile_subdomain_url(conn, handle, "/#{asset_path}"))
         |> halt()
@@ -274,9 +277,10 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   defp static_site_lookup_candidates(_), do: []
 
-  defp isolate_static_site_on_subdomain?(conn, handle) do
+  defp isolate_static_site_on_subdomain?(conn, user, handle) do
     host = String.downcase(conn.host || "")
-    Elektrine.Domains.app_host?(host) and conn.assigns[:subdomain_handle] != handle
+    User.built_in_subdomain_hosted_by_platform?(user) and Elektrine.Domains.app_host?(host) and
+      conn.assigns[:subdomain_handle] != handle
   end
 
   defp profile_app_path?(conn, path) when is_binary(path) do

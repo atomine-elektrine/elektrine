@@ -186,6 +186,7 @@
                 user_saves={@user_saves}
                 post_reactions={@post_reactions}
                 current_user={@current_user}
+                remote_poll_vote={@pending_remote_poll_vote}
               />
             </div>
           <% else %>
@@ -277,6 +278,7 @@
                     message={@local_message}
                     current_user={@current_user}
                     user_votes={[]}
+                    optimistic_vote={@pending_remote_poll_vote}
                   />
                 </div>
               <% end %>
@@ -636,6 +638,7 @@
                     user_saves={@user_saves}
                     post_reactions={@post_reactions}
                     current_user={@current_user}
+                    remote_poll_vote={@pending_remote_poll_vote}
                   />
                 </div>
               <% else %>
@@ -951,6 +954,7 @@
                               post={@post}
                               remote_actor={@remote_actor}
                               current_user={@current_user}
+                              optimistic_vote={@pending_remote_poll_vote}
                             />
                           </div>
                         <% end %>

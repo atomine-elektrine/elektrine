@@ -207,6 +207,32 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert_patch(view, ~p"/timeline?filter=explore&view=all")
   end
 
+  test "search filters timeline posts", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    author = AccountsFixtures.user_fixture()
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "Phoenix release notes", visibility: "public")
+
+    {:ok, _post} =
+      Social.create_timeline_post(author.id, "Elixir weekly digest", visibility: "public")
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    view
+    |> element("#timeline-left-sidebar-search")
+    |> render_change(%{"query" => "phoenix"})
+
+    assert_patch(view, "/timeline?filter=explore&q=phoenix&view=all")
+
+    html = render(view)
+    assert html =~ "Phoenix release notes"
+    refute html =~ "Elixir weekly digest"
+  end
+
   test "quick reply character counter updates immediately while typing", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

@@ -103,7 +103,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
           {:noreply,
            socket
            |> assign(:discussion_posts, updated_discussion_posts)
-           |> assign(:pinned_posts, updated_pinned_posts)}
+           |> assign(:pinned_posts, updated_pinned_posts)
+           |> put_flash(:info, "Vote recorded")}
 
         {:error, :poll_closed} ->
           {:noreply, notify_error(socket, "This poll has closed")}

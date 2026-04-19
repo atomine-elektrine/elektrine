@@ -59,7 +59,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:page_title, "Customize Profile")
      |> assign(:user, user)
      |> assign(:profile, profile)
-     |> assign(:static_site_url, Domains.profile_url_for_handle(user.handle || user.username))
+     |> assign(:static_site_url, Domains.profile_url_for_user(user) || "/#{user.handle || user.username}")
      |> assign(:user_badges, user_badges)
      |> assign(:editing_link_id, nil)
      |> assign(:editing_link_data, %{})
