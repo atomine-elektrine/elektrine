@@ -11,10 +11,10 @@ defmodule ElektrineWeb.ProfileLive.Domains do
      socket
      |> assign(:page_title, "Profile Domains")
      |> assign(:user, user)
-      |> assign(
-        :default_profile_url,
-        Domains.default_profile_url_for_user(user)
-      )
+     |> assign(
+       :default_profile_url,
+       Domains.default_profile_url_for_user(user)
+     )
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))}
   end
 
@@ -106,13 +106,13 @@ defmodule ElektrineWeb.ProfileLive.Domains do
       current_user={@current_user}
     >
       <:sidebar>
-          <.profile_settings_sidebar
-            selected_page="profile-domains"
-            profile_url={
-              Elektrine.Domains.profile_url_for_user(@current_user) ||
-                "/#{@current_user.handle || @current_user.username}"
-            }
-          />
+        <.profile_settings_sidebar
+          selected_page="profile-domains"
+          profile_url={
+            Elektrine.Domains.profile_url_for_user(@current_user) ||
+              "/#{@current_user.handle || @current_user.username}"
+          }
+        />
       </:sidebar>
 
       <div class="space-y-6">

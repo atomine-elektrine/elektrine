@@ -156,10 +156,10 @@ defmodule ElektrineWeb.ProfileLive.Show do
          |> assign(:show_share_modal, false)
          |> assign(:profile_host_domain, Domains.primary_profile_domain())
          |> assign(:profile_navigation_domain, Domains.primary_profile_domain())
-          |> assign(
-            :profile_url,
-            Domains.profile_url_for_user(user) || "/#{user.handle || user.username}"
-          )
+         |> assign(
+           :profile_url,
+           Domains.profile_url_for_user(user) || "/#{user.handle || user.username}"
+         )
          |> assign(:base_url, "")
          |> assign(:show_timeline_drawer, false)
          |> assign(:show_image_modal, false)

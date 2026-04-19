@@ -353,14 +353,14 @@
           />
         </label>
         <%= if @search_query != "" do %>
-            <button
-              type="button"
-              phx-click="clear_search"
-              data-search-clear="true"
-              data-search-clear-target="#timeline-mobile-search-input"
-              class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
-              aria-label={gettext("Clear search")}
-            >
+          <button
+            type="button"
+            phx-click="clear_search"
+            data-search-clear="true"
+            data-search-clear-target="#timeline-mobile-search-input"
+            class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-sm"
+            aria-label={gettext("Clear search")}
+          >
             <.icon name="hero-x-mark" class="w-4 h-4" />
           </button>
         <% end %>

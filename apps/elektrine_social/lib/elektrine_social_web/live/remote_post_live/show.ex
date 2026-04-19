@@ -5678,6 +5678,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       post = socket.assigns.post
       remote_actor = socket.assigns.remote_actor
       poll_id = params["poll_id"] || post["id"]
+
       option_id =
         case params["option_id"] do
           value when is_binary(value) ->
@@ -5686,8 +5687,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               _ -> nil
             end
 
-          value when is_integer(value) -> value
-          _ -> nil
+          value when is_integer(value) ->
+            value
+
+          _ ->
+            nil
         end
 
       # send_poll_vote already queues durable outbound delivery internally.
@@ -5700,7 +5704,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
       {:noreply,
        socket
-       |> assign(:pending_remote_poll_vote, %{option_id: option_id, option_name: option_name, domain: remote_actor.domain})
+       |> assign(:pending_remote_poll_vote, %{
+         option_id: option_id,
+         option_name: option_name,
+         domain: remote_actor.domain
+       })
        |> put_flash(:info, "Vote sent to #{remote_actor.domain}")}
     end
   end

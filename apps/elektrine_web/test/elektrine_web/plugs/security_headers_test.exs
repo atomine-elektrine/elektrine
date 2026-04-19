@@ -21,7 +21,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeadersTest do
     assert String.contains?(
              csp,
              "connect-src 'self' ws://example.com wss://example.com https://challenges.cloudflare.com https://static.cloudflareinsights.com"
-            )
+           )
 
     refute String.contains?(
              csp,

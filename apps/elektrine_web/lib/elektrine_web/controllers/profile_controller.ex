@@ -294,7 +294,7 @@ defmodule ElektrineWeb.ProfileController do
     # Serve static site index.html
     if User.built_in_subdomain_hosted_by_platform?(user) and
          Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
-          conn.assigns[:subdomain_handle] != handle do
+         conn.assigns[:subdomain_handle] != handle do
       redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
     else
       case StaticSites.get_file(profile.user_id, "index.html") do

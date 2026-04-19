@@ -630,7 +630,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
 
           {:noreply,
            socket
-           |> assign(:timeline_posts, socket.assigns.timeline_posts |> update_post.() |> Helpers.dedupe_posts())
+           |> assign(
+             :timeline_posts,
+             socket.assigns.timeline_posts |> update_post.() |> Helpers.dedupe_posts()
+           )
            |> assign(
              :base_timeline_posts,
              socket.assigns.base_timeline_posts |> update_post.() |> Helpers.dedupe_posts()

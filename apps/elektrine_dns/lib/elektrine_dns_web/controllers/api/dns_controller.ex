@@ -274,7 +274,9 @@ defmodule ElektrineDNSWeb.API.DNSController do
     include_records? = Keyword.get(opts, :include_records, false)
     include_onboarding? = Keyword.get(opts, :include_onboarding_records, false)
     user = Keyword.get(opts, :user)
-    builtin? = if(is_map(user), do: DNS.builtin_user_zone?(zone, user), else: DNS.builtin_user_zone?(zone))
+
+    builtin? =
+      if(is_map(user), do: DNS.builtin_user_zone?(zone, user), else: DNS.builtin_user_zone?(zone))
 
     %{
       id: zone.id,

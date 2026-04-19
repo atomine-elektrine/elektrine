@@ -300,7 +300,11 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
 
           vote_count =
             extract_vote_count(option) +
-              optimistic_vote_name_delta(option_text, @pending_optimistic_vote?, @optimistic_option_name)
+              optimistic_vote_name_delta(
+                option_text,
+                @pending_optimistic_vote?,
+                @optimistic_option_name
+              )
 
           percentage =
             if @total_votes > 0, do: Float.round(vote_count / @total_votes * 100, 1), else: 0
@@ -492,7 +496,9 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
   defp optimistic_option_id(%{option_id: option_id}) when is_integer(option_id), do: option_id
   defp optimistic_option_id(_), do: nil
 
-  defp optimistic_option_name(%{option_name: option_name}) when is_binary(option_name), do: option_name
+  defp optimistic_option_name(%{option_name: option_name}) when is_binary(option_name),
+    do: option_name
+
   defp optimistic_option_name(_), do: nil
 
   defp pending_optimistic_vote?(user_votes, optimistic_option_id)
