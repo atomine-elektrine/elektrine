@@ -6,8 +6,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
-  alias Elektrine.Accounts.User
   alias Elektrine.{Accounts, Profiles, StaticSites}
+  alias Elektrine.Accounts.User
 
   # Allowed content types for static sites (validated on upload, but double-check here)
   @allowed_content_types ~w(
