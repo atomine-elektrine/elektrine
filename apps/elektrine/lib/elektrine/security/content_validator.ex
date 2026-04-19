@@ -4,6 +4,8 @@ defmodule Elektrine.Security.ContentValidator do
   Prevents spam, abuse, and malicious content across Chat, Timeline, and Discussions.
   """
 
+  alias Elektrine.ActivityPub.Mentions
+
   # Spam patterns
   @spam_patterns [
     # Excessive repeated characters
@@ -163,7 +165,7 @@ defmodule Elektrine.Security.ContentValidator do
   end
 
   defp count_mentions(content) do
-    Regex.scan(~r/@\w+/, content) |> length()
+    Mentions.count_mentions(content)
   end
 
   defp detect_duplicate_content?(_user_id, content) do

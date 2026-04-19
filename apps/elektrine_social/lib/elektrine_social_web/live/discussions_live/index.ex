@@ -2034,7 +2034,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       id: "local-post-#{post.id}",
       kind: :local,
       title: discussion_title(post),
-      preview: PostUtilities.plain_text_preview(post.content, 160),
+      preview:
+        PostUtilities.render_content_preview(
+          post.content,
+          PostUtilities.get_instance_domain(post),
+          160
+        ),
       community_label: discussion_community_label(post),
       url: discussion_route(post),
       inserted_at: post.inserted_at,
@@ -2047,7 +2052,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       id: "remote-post-#{post.id}",
       kind: :remote,
       title: discussion_title(post),
-      preview: PostUtilities.plain_text_preview(post.content, 160),
+      preview:
+        PostUtilities.render_content_preview(
+          post.content,
+          PostUtilities.get_instance_domain(post),
+          160
+        ),
       community_label: discussion_community_label(post),
       url: Elektrine.Paths.post_path(post),
       inserted_at: post.inserted_at,
@@ -2166,10 +2176,38 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp remote_community_followers(%Actor{} = actor) do
-    get_in(actor.metadata, ["followers", "totalItems"]) || 0
+    actor.metadata
+    |> follower_collection_total()
+    |> parse_remote_community_count()
   end
 
   defp remote_community_followers(_), do: 0
+
+  defp follower_collection_total(metadata) when is_map(metadata) do
+    followers = Map.get(metadata, "followers") || Map.get(metadata, :followers)
+
+    case followers do
+      %{} = collection ->
+        Map.get(collection, "totalItems") || Map.get(collection, :totalItems)
+
+      _ ->
+        Map.get(metadata, "followers_count") || Map.get(metadata, :followers_count) ||
+          Map.get(metadata, "subscriber_count") || Map.get(metadata, :subscriber_count)
+    end
+  end
+
+  defp follower_collection_total(_), do: nil
+
+  defp parse_remote_community_count(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_remote_community_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {count, ""} when count >= 0 -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_remote_community_count(_), do: 0
 
   defp ensure_datetime(%DateTime{} = value), do: value
   defp ensure_datetime(%NaiveDateTime{} = value), do: DateTime.from_naive!(value, "Etc/UTC")
@@ -2503,18 +2541,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     limit >= length(discover_cards) && limit >= length(active_cards) &&
       limit >= length(remote_communities)
   end
-
-  defp show_public_fallback_divider?(posts, fallback_ids, index)
-       when is_list(posts) and is_integer(index) do
-    fallback_ids = fallback_ids || MapSet.new()
-    post = Enum.at(posts, index)
-    previous_post = if index > 0, do: Enum.at(posts, index - 1), else: nil
-
-    is_map(post) and MapSet.member?(fallback_ids, post.id) and
-      (is_nil(previous_post) or not MapSet.member?(fallback_ids, previous_post.id))
-  end
-
-  defp show_public_fallback_divider?(_, _, _), do: false
 
   defp get_public_communities(limit) do
     from(c in Messaging.Conversation,

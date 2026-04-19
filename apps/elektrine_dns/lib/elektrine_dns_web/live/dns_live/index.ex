@@ -28,6 +28,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
        |> assign(:service_forms, service_forms(active_zone))
        |> assign(:zone_settings_form, zone_settings_form(active_zone))
        |> assign(:editing_record_id, nil)
+       |> assign(:selected_record_preset, nil)
        |> assign(:zone_form, to_form(DNS.new_zone_changeset(user.id), as: :zone))
        |> assign(:zone_scan, nil)
        |> assign(:record_form, record_form(active_zone))}
@@ -53,6 +54,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
      |> assign(:service_forms, service_forms(active_zone))
      |> assign(:zone_settings_form, zone_settings_form(active_zone))
      |> assign(:editing_record_id, nil)
+     |> assign(:selected_record_preset, nil)
      |> assign(:zone_scan, socket.assigns[:zone_scan])
      |> assign(:record_form, record_form(active_zone))}
   end
@@ -270,6 +272,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             {:noreply,
              socket
              |> assign(:editing_record_id, nil)
+             |> assign(:selected_record_preset, nil)
              |> put_flash(
                :info,
                if(socket.assigns.editing_record_id,
@@ -298,6 +301,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           {:noreply,
            socket
            |> assign(:editing_record_id, record.id)
+           |> assign(:selected_record_preset, nil)
            |> assign(:record_form, to_form(DNS.change_record(record), as: :record))}
         else
           _ -> {:noreply, put_flash(socket, :error, "Could not load record for editing")}
@@ -313,7 +317,38 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     {:noreply,
      socket
      |> assign(:editing_record_id, nil)
+     |> assign(:selected_record_preset, nil)
      |> assign(:record_form, record_form(socket.assigns.active_zone))}
+  end
+
+  @impl true
+  def handle_event("record_preset", %{"preset" => preset}, socket) do
+    case socket.assigns.active_zone do
+      %Zone{} = zone ->
+        {:noreply,
+         socket
+         |> assign(:editing_record_id, nil)
+         |> assign(:selected_record_preset, preset)
+         |> assign(:record_form, record_form(zone, record_preset_attrs(zone, preset)))}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("record_type_preset", %{"type" => type}, socket) do
+    case socket.assigns.active_zone do
+      %Zone{} = zone ->
+        {:noreply,
+         socket
+         |> assign(:editing_record_id, nil)
+         |> assign(:selected_record_preset, nil)
+         |> assign(:record_form, record_form(zone, record_type_preset_attrs(zone, type)))}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -424,9 +459,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div class="space-y-1">
               <h1 class="text-xl font-semibold tracking-tight">DNS</h1>
-              <p class="text-sm text-base-content/65">
-                Manage zones, records, delegation, and service templates.
-              </p>
             </div>
             <div class="text-xs font-mono text-base-content/55">
               {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
@@ -444,7 +476,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   Zones
                 </h2>
                 <p class="mt-1 text-sm text-base-content/65">
-                  Record names are relative to the selected zone.
+                  Pick a domain on the left, then add records like `www` or `mail` relative to it.
                 </p>
               </div>
 
@@ -485,7 +517,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     New zone
                   </h3>
                   <p class="mt-1 text-sm text-base-content/65">
-                    Create a delegated zone such as `example.com`.
+                    Start with the domain you own, like `example.com`. You can import its current public records first if you want.
                   </p>
                 </div>
 
@@ -503,7 +535,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       placeholder="example.com"
                       required
                     />
-                    <.input field={@zone_form[:default_ttl]} type="number" label="Default TTL" />
+                    <div class="space-y-2">
+                      <.input field={@zone_form[:default_ttl]} type="number" label="Default TTL" />
+                      <p class="text-xs text-base-content/55">
+                        TTL is how long other DNS servers cache answers. `3600` seconds (1 hour) is a safe default.
+                      </p>
+                    </div>
                   </div>
                   <div class="mt-4 space-y-2">
                     <.button
@@ -701,7 +738,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       phx-value-id={@active_zone.id}
                       class="btn btn-sm btn-primary"
                     >
-                      <.icon name="hero-check-badge" class="h-4 w-4" /> Verify
+                      <.icon name="hero-check-badge" class="h-4 w-4" /> Check setup
                     </button>
                     <button
                       type="button"
@@ -767,6 +804,44 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <%= if @active_zone.last_error do %>
                   <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm">
                     {@active_zone.last_error}
+                  </div>
+                <% end %>
+
+                <%= if not builtin_zone?(@active_zone, @current_user) do %>
+                  <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div class="space-y-1">
+                        <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                          Quick start
+                        </h3>
+                        <p class="text-sm text-base-content/65">
+                          Follow these steps to move this domain onto Elektrine DNS.
+                        </p>
+                      </div>
+                      <span class={zone_status_badge_class(@active_zone.status)}>
+                        {@active_zone.status}
+                      </span>
+                    </div>
+                    <div class="mt-4 grid gap-3 xl:grid-cols-3">
+                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                        <p class="font-semibold">1. Point your registrar here</p>
+                        <p class="mt-1 text-base-content/65">
+                          Replace your current nameservers with the Elektrine nameservers shown below.
+                        </p>
+                      </div>
+                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                        <p class="font-semibold">2. Wait for DNS to update</p>
+                        <p class="mt-1 text-base-content/65">
+                          Registrar changes can take a little while to spread. This is normal.
+                        </p>
+                      </div>
+                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                        <p class="font-semibold">3. Check setup here</p>
+                        <p class="mt-1 text-base-content/65">
+                          When the nameserver change is live, use the button above to verify the zone.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 <% end %>
 
@@ -837,12 +912,16 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                             placeholder="@ or www"
                             required
                           />
+                          <p class="text-xs text-base-content/55">
+                            {record_name_field_help(@active_zone, @current_user)}
+                          </p>
                           <.input
                             field={@record_form[:type]}
                             type="select"
                             label="Type"
                             options={Enum.map(@record_types, &{&1, &1})}
                           />
+                          <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
                           <% value_spec = record_value_spec(@record_form) %>
                           <.input
                             field={@record_form[:content]}
@@ -850,7 +929,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                             placeholder={value_spec.placeholder}
                             required
                           />
+                          <p class="text-xs text-base-content/55">
+                            {record_value_help(@record_form)}
+                          </p>
                           <.input field={@record_form[:ttl]} type="number" label="TTL" />
+                          <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
                           <%= for spec <- record_param_specs(@record_form) do %>
                             <.input
                               field={@record_form[spec.field]}
@@ -953,30 +1036,41 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     Delegation
                   </h3>
                   <p class="mt-1 text-sm text-base-content/65">
-                    Publish these records at your current DNS provider before verification.
+                    If your registrar or current DNS host asks where to point the domain, publish these values there before checking setup.
                   </p>
                 </div>
-                <div class="overflow-x-auto p-5">
-                  <table class="table table-sm rounded-2xl border border-base-content/10">
-                    <thead>
-                      <tr>
-                        <th>Type</th>
-                        <th>Host</th>
-                        <th>Value</th>
-                        <th>Priority</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <%= for record <- DNS.zone_onboarding_records(@active_zone) do %>
+                <div class="space-y-4 p-5">
+                  <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
+                    <p class="text-sm font-semibold">Elektrine nameservers</p>
+                    <p class="mt-1 text-sm text-base-content/65">
+                      Many registrars have a dedicated nameserver section. If they ask for nameservers, use these exactly:
+                    </p>
+                    <div class="mt-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 font-mono text-xs break-all text-base-content/80">
+                      {Enum.join(@nameservers, ", ")}
+                    </div>
+                  </div>
+                  <div class="overflow-x-auto">
+                    <table class="table table-sm rounded-2xl border border-base-content/10">
+                      <thead>
                         <tr>
-                          <td class="font-mono text-xs">{record.type}</td>
-                          <td class="font-mono text-xs">{record.host}</td>
-                          <td class="font-mono text-xs break-all">{record.value}</td>
-                          <td>{record.priority || "-"}</td>
+                          <th>Type</th>
+                          <th>Host</th>
+                          <th>Value</th>
+                          <th>Priority</th>
                         </tr>
-                      <% end %>
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        <%= for record <- DNS.zone_onboarding_records(@active_zone) do %>
+                          <tr>
+                            <td class="font-mono text-xs">{record.type}</td>
+                            <td class="font-mono text-xs">{record.host}</td>
+                            <td class="font-mono text-xs break-all">{record.value}</td>
+                            <td>{record.priority || "-"}</td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </section>
@@ -993,6 +1087,74 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 </p>
               </div>
               <div class="p-5">
+                <div class="mb-5">
+                  <p class="text-sm font-semibold">I want to...</p>
+                  <p class="mt-1 text-sm text-base-content/65">
+                    Start from a common task and we will prefill the DNS record for you.
+                  </p>
+                  <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <%= for preset <- record_preset_options(@active_zone) do %>
+                      <button
+                        type="button"
+                        phx-click="record_preset"
+                        phx-value-preset={preset.id}
+                        class={record_preset_button_class(@selected_record_preset, preset.id)}
+                      >
+                        <span class="font-semibold">{preset.label}</span>
+                        <span class="mt-1 block text-xs text-base-content/65">
+                          {preset.description}
+                        </span>
+                      </button>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="mb-5 grid gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+                  <button
+                    type="button"
+                    phx-click="record_type_preset"
+                    phx-value-type="A"
+                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                  >
+                    <p class="font-semibold">A / AAAA</p>
+                    <p class="mt-1 text-base-content/65">
+                      Point a name like `@` or `www` to an IP address.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="record_type_preset"
+                    phx-value-type="CNAME"
+                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                  >
+                    <p class="font-semibold">CNAME</p>
+                    <p class="mt-1 text-base-content/65">
+                      Make one name follow another hostname, like `www` to `example.com`.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="record_type_preset"
+                    phx-value-type="MX"
+                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                  >
+                    <p class="font-semibold">MX</p>
+                    <p class="mt-1 text-base-content/65">
+                      Tell other mail servers where email for this domain should go.
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="record_type_preset"
+                    phx-value-type="TXT"
+                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                  >
+                    <p class="font-semibold">TXT</p>
+                    <p class="mt-1 text-base-content/65">
+                      Store verification tokens, SPF rules, or other text-based settings.
+                    </p>
+                  </button>
+                </div>
                 <.simple_form
                   for={@record_form}
                   bare={true}
@@ -1006,12 +1168,16 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       placeholder={record_name_placeholder(@active_zone, @current_user)}
                       required
                     />
+                    <p class="text-xs text-base-content/55">
+                      {record_name_field_help(@active_zone, @current_user)}
+                    </p>
                     <.input
                       field={@record_form[:type]}
                       type="select"
                       label="Type"
                       options={Enum.map(@record_types, &{&1, &1})}
                     />
+                    <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
                     <% value_spec = record_value_spec(@record_form) %>
                     <.input
                       field={@record_form[:content]}
@@ -1019,7 +1185,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       placeholder={value_spec.placeholder}
                       required
                     />
+                    <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
                     <.input field={@record_form[:ttl]} type="number" label="TTL" />
+                    <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
                     <%= for spec <- record_param_specs(@record_form) do %>
                       <.input
                         field={@record_form[spec.field]}
@@ -1121,7 +1289,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   Service templates
                 </h3>
                 <p class="mt-1 text-sm text-base-content/65">
-                  Opinionated record bundles for common web and mail setups.
+                  Prebuilt setup recipes for common jobs like websites, email, and app hostnames.
                 </p>
               </div>
               <div class="space-y-3 p-5">
@@ -1131,12 +1299,15 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       <div class="min-w-0 xl:w-72">
                         <div class="flex items-center gap-2">
                           <p class="text-sm font-semibold uppercase tracking-wide text-base-content/70">
-                            {health.service}
+                            {service_label(health.service)}
                           </p>
                           <span class={service_badge_class(health.status)}>{health.status}</span>
                         </div>
                         <p class="mt-1 text-sm text-base-content/65">
                           {service_summary(health.service)}
+                        </p>
+                        <p class="mt-2 text-xs text-base-content/55">
+                          {service_hint(health.service)}
                         </p>
                         <div class="mt-3 flex flex-wrap gap-2 text-xs text-base-content/60">
                           <span>{length(health.managed_records)} record(s)</span>
@@ -1224,6 +1395,30 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               <.input
                                 field={Map.fetch!(@service_forms, health.service)[:turn_target]}
                                 label="TURN target"
+                                placeholder={@active_zone.domain}
+                              />
+                            </div>
+                          <% end %>
+                          <%= if health.service == "vpn" do %>
+                            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_host]}
+                                label="VPN host"
+                                placeholder="vpn"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_target]}
+                                label="VPN target"
+                                placeholder={@active_zone.domain}
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_host]}
+                                label="Admin/API host"
+                                placeholder="vpn-api"
+                              />
+                              <.input
+                                field={Map.fetch!(@service_forms, health.service)[:vpn_api_target]}
+                                label="Admin/API target"
                                 placeholder={@active_zone.domain}
                               />
                             </div>
@@ -1348,6 +1543,46 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp record_help_text(_, _), do: "Use `@` for the apex of the selected zone."
+
+  defp record_name_field_help(%Zone{} = zone, user) do
+    if builtin_zone?(zone, user) and builtin_zone_hosted_by_platform?(user) do
+      "`@` means the main domain. Use labels like `blog`, `mail`, or `_acme-challenge` for subdomains and verification records."
+    else
+      "`@` means the main domain itself. `www` becomes `www.#{zone.domain}` and `mail` becomes `mail.#{zone.domain}`."
+    end
+  end
+
+  defp record_name_field_help(_, _), do: "`@` means the main domain itself."
+
+  defp record_type_help(form) do
+    case record_form_type(form) do
+      "A" -> "Points a name to an IPv4 address, such as `198.51.100.42`."
+      "AAAA" -> "Points a name to an IPv6 address."
+      "CNAME" -> "Makes one hostname follow another hostname. Good for aliases like `www`."
+      "MX" -> "Sends email for this domain to a mail server. Lower priority numbers win first."
+      "TXT" -> "Stores text, often used for SPF, DKIM, DMARC, or ownership verification."
+      "NS" -> "Delegates a name to another nameserver. Usually only needed for advanced setups."
+      other -> "Creates a #{other} record for a more specialized DNS use case."
+    end
+  end
+
+  defp record_value_help(form) do
+    case record_form_type(form) do
+      "A" -> "Enter the destination IPv4 address."
+      "AAAA" -> "Enter the destination IPv6 address."
+      "CNAME" -> "Enter the hostname this should point to, not an IP address."
+      "MX" -> "Enter the mail server hostname here, then set its priority below."
+      "TXT" -> "Paste the full text exactly as given by your provider."
+      "NS" -> "Enter the authoritative nameserver hostname."
+      _ -> "Enter the value exactly as required by the service you are connecting."
+    end
+  end
+
+  defp ttl_help_text(%Zone{} = zone) do
+    "How long DNS caches this record. Leave it near the zone default (#{zone.default_ttl}) unless a provider tells you otherwise."
+  end
+
+  defp ttl_help_text(_), do: "How long DNS caches this record before checking again."
 
   defp zone_scan_for_params(params) when is_map(params) do
     case Map.get(params, "domain") do
@@ -1499,6 +1734,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp record_form(%Zone{id: zone_id}),
     do: to_form(DNS.new_record_changeset(zone_id), as: :record)
 
+  defp record_form(%Zone{id: zone_id}, attrs) when is_map(attrs),
+    do: to_form(DNS.change_record(%Record{}, Map.put(attrs, "zone_id", zone_id)), as: :record)
+
   defp zone_settings_form(nil), do: nil
 
   defp zone_settings_form(%Zone{} = zone),
@@ -1576,11 +1814,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp service_health(nil),
-    do: Enum.map(["mail", "web", "turn", "bluesky"], &blank_service_health/1)
+    do: Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &blank_service_health/1)
 
   defp service_health(%Zone{} = zone) do
     health = DNS.zone_service_health(zone)
-    Enum.map(["mail", "web", "turn", "bluesky"], &service_entry(health, &1))
+    Enum.map(["mail", "web", "turn", "vpn", "bluesky"], &service_entry(health, &1))
   end
 
   defp save_record(zone, nil, params), do: DNS.create_record(zone, params)
@@ -1868,16 +2106,148 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   end
 
   defp service_summary("mail"),
-    do: "MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT, and common mail aliases."
+    do: "Sets up the usual DNS records needed to receive and protect email on your domain."
 
-  defp service_summary("web"), do: "WWW alias and future web onboarding records."
-  defp service_summary("turn"), do: "TURN hostname alias for self-hosted WebRTC relay access."
+  defp service_summary("web"),
+    do: "Creates the common hostname records used for a website, including `www`."
+
+  defp service_summary("turn"),
+    do: "Creates a TURN hostname for voice, video, or WebRTC relay setups."
 
   defp service_summary("vpn"),
-    do: "VPN endpoint alias with an optional separate admin or API hostname."
+    do: "Creates a VPN hostname and optional admin/API hostname for remote access setups."
 
-  defp service_summary("bluesky"), do: "Bluesky PDS hostname alias for managed handles."
-  defp service_summary(_), do: "Managed DNS package."
+  defp service_summary("bluesky"),
+    do: "Creates the hostname Bluesky expects for a managed PDS or handle setup."
+
+  defp service_summary(_), do: "Managed DNS setup recipe."
+
+  defp service_label("mail"), do: "Email"
+  defp service_label("web"), do: "Website"
+  defp service_label("turn"), do: "TURN / Calls"
+  defp service_label("vpn"), do: "VPN"
+  defp service_label("bluesky"), do: "Bluesky"
+  defp service_label(service), do: String.capitalize(service)
+
+  defp service_hint("mail"),
+    do: "Good starting point when you want this domain to send and receive email."
+
+  defp service_hint("web"),
+    do: "Use this when you want `www` and related website hostnames pointed for you."
+
+  defp service_hint("turn"),
+    do: "Useful for chat, calling, or conferencing products that need a TURN relay hostname."
+
+  defp service_hint("vpn"),
+    do: "Useful when you run a VPN gateway and want a memorable hostname like `vpn.example.com`."
+
+  defp service_hint("bluesky"),
+    do: "Useful if you are hosting your own Bluesky PDS or related handle infrastructure."
+
+  defp service_hint(_), do: "Managed DNS recipe for a common setup."
+
+  defp record_preset_options(%Zone{} = zone) do
+    [
+      %{
+        id: "website",
+        label: "Point website",
+        description: "Point the main domain at a web server IP address.",
+        attrs: %{
+          "name" => "@",
+          "type" => "A",
+          "content" => "198.51.100.42",
+          "ttl" => zone.default_ttl
+        }
+      },
+      %{
+        id: "email",
+        label: "Set up email",
+        description: "Create an MX record so mail for this domain goes to your mail host.",
+        attrs: %{
+          "name" => "@",
+          "type" => "MX",
+          "content" => "mail.#{zone.domain}",
+          "priority" => 10,
+          "ttl" => zone.default_ttl
+        }
+      },
+      %{
+        id: "verification",
+        label: "Verify domain ownership",
+        description: "Add the TXT record many services use to prove you control the domain.",
+        attrs: %{
+          "name" => "@",
+          "type" => "TXT",
+          "content" => "paste-verification-token-here",
+          "ttl" => zone.default_ttl
+        }
+      },
+      %{
+        id: "subdomain",
+        label: "Add subdomain",
+        description: "Create a subdomain like `blog` or `app` and point it somewhere.",
+        attrs: %{
+          "name" => "blog",
+          "type" => "CNAME",
+          "content" => zone.domain,
+          "ttl" => zone.default_ttl
+        }
+      }
+    ]
+  end
+
+  defp record_preset_options(_), do: []
+
+  defp record_preset_attrs(%Zone{} = zone, preset) do
+    zone
+    |> record_preset_options()
+    |> Enum.find(%{}, &(&1.id == preset))
+    |> case do
+      %{attrs: attrs} -> attrs
+      _ -> %{}
+    end
+  end
+
+  defp record_preset_button_class(selected_preset, preset_id) do
+    [
+      "rounded-2xl border px-4 py-3 text-left text-sm transition",
+      if(selected_preset == preset_id,
+        do: "border-primary bg-primary/8",
+        else: "border-base-content/10 bg-base-200/20 hover:bg-base-200/35"
+      )
+    ]
+  end
+
+  defp record_type_preset_attrs(%Zone{} = zone, "A") do
+    %{"name" => "@", "type" => "A", "content" => "198.51.100.42", "ttl" => zone.default_ttl}
+  end
+
+  defp record_type_preset_attrs(%Zone{} = zone, "CNAME") do
+    %{"name" => "www", "type" => "CNAME", "content" => zone.domain, "ttl" => zone.default_ttl}
+  end
+
+  defp record_type_preset_attrs(%Zone{} = zone, "MX") do
+    %{
+      "name" => "@",
+      "type" => "MX",
+      "content" => "mail.#{zone.domain}",
+      "priority" => 10,
+      "ttl" => zone.default_ttl
+    }
+  end
+
+  defp record_type_preset_attrs(%Zone{} = zone, "TXT") do
+    %{
+      "name" => "@",
+      "type" => "TXT",
+      "content" => "paste-text-value-here",
+      "ttl" => zone.default_ttl
+    }
+  end
+
+  defp record_type_preset_attrs(%Zone{} = zone, _type) do
+    %{"name" => "@", "type" => "A", "content" => "198.51.100.42", "ttl" => zone.default_ttl}
+  end
 
   defp record_value_spec(form) do
     case record_form_type(form) do

@@ -820,12 +820,20 @@
 
                             <%= if post.shared_message_id && post.shared_message do %>
                               <!-- Cross-posted: Show comment + embedded post -->
-                              <%= if post.content && post.content != "" do %>
+                              <% preview =
+                                ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                  post.content,
+                                  ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                    post
+                                  ),
+                                  200
+                                ) %>
+                              <%= if preview != "" do %>
                                 <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
-                                  {raw(
-                                    make_links_clickable(plain_text_preview(post.content, 200))
-                                  )}{if String.length(plain_text_content(post.content)) > 200,
-                                    do: "..."}
+                                  {raw(preview)}{if String.length(
+                                                      plain_text_content(post.content)
+                                                    ) > 200,
+                                                    do: "..."}
                                 </div>
                               <% end %>
                               <.embedded_post
@@ -862,14 +870,20 @@
                                     preview={post.link_preview}
                                     wrapper_class="my-3"
                                   />
-                                  <%= if plain_text_preview(post.content, 200) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
+                                  <% preview =
+                                    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                      post.content,
+                                      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                        post
+                                      ),
+                                      200
+                                    ) %>
+                                  <%= if preview != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                     <div class="break-words text-sm sm:text-base post-content mt-2 line-clamp-3 overflow-hidden">
-                                      {raw(
-                                        make_links_clickable(
-                                          plain_text_preview(post.content, 200)
-                                        )
-                                      )}{if String.length(plain_text_content(post.content)) > 200,
-                                        do: "..."}
+                                      {raw(preview)}{if String.length(
+                                                          plain_text_content(post.content)
+                                                        ) > 200,
+                                                        do: "..."}
                                     </div>
                                   <% end %>
                                 <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
@@ -900,25 +914,35 @@
                                       </button>
                                     <% end %>
                                   </div>
-                                  <%= if plain_text_preview(post.content, 200) != "" do %>
+                                  <% preview =
+                                    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                      post.content,
+                                      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                        post
+                                      ),
+                                      200
+                                    ) %>
+                                  <%= if preview != "" do %>
                                     <div class="break-words text-sm post-content line-clamp-3 overflow-hidden">
-                                      {raw(
-                                        make_links_clickable(
-                                          plain_text_preview(post.content, 200)
-                                        )
-                                      )}
+                                      {raw(preview)}
                                     </div>
                                   <% end %>
                                 <% true -> %>
                                   <!-- Regular text post -->
-                                  <%= if plain_text_preview(post.content, 200) != "" do %>
+                                  <% preview =
+                                    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                      post.content,
+                                      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                        post
+                                      ),
+                                      200
+                                    ) %>
+                                  <%= if preview != "" do %>
                                     <p class="text-sm sm:text-base opacity-80 line-clamp-3">
-                                      {plain_text_preview(post.content, 200)}{if String.length(
-                                                                                   plain_text_content(
-                                                                                     post.content
-                                                                                   )
-                                                                                 ) > 200,
-                                                                                 do: "..."}
+                                      {raw(preview)}{if String.length(
+                                                          plain_text_content(post.content)
+                                                        ) > 200,
+                                                        do: "..."}
                                     </p>
                                   <% end %>
                               <% end %>
@@ -1364,16 +1388,19 @@
 
                           <%= if post.shared_message_id && post.shared_message do %>
                             <!-- Cross-posted: Show comment + embedded post -->
-                            <%= if plain_text_preview(post.content, 300) != "" do %>
+                            <% preview =
+                              ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                post.content,
+                                ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                  post
+                                ),
+                                300
+                              ) %>
+                            <%= if preview != "" do %>
                               <div class="break-words text-sm sm:text-base mb-3 post-content line-clamp-3 overflow-hidden">
-                                {raw(make_links_clickable(plain_text_preview(post.content, 300)))}{if String.length(
-                                                                                                        plain_text_content(
-                                                                                                          post.content
-                                                                                                        )
-                                                                                                      ) >
-                                                                                                        300,
-                                                                                                      do:
-                                                                                                        "..."}
+                                {raw(preview)}{if String.length(plain_text_content(post.content)) >
+                                                    300,
+                                                  do: "..."}
                               </div>
                             <% end %>
                             <.embedded_post
@@ -1390,11 +1417,17 @@
                                   preview={post.link_preview}
                                   wrapper_class="my-3"
                                 />
-                                <%= if plain_text_preview(post.content, 300) != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
+                                <% preview =
+                                  ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                    post.content,
+                                    ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                      post
+                                    ),
+                                    300
+                                  ) %>
+                                <%= if preview != "" && String.trim(plain_text_content(post.content)) != post.primary_url do %>
                                   <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
-                                    {raw(
-                                      make_links_clickable(plain_text_preview(post.content, 300))
-                                    )}
+                                    {raw(preview)}
                                   </div>
                                 <% end %>
                               <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
@@ -1425,11 +1458,17 @@
                                     </button>
                                   <% end %>
                                 </div>
-                                <%= if plain_text_preview(post.content, 300) != "" do %>
+                                <% preview =
+                                  ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                    post.content,
+                                    ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                      post
+                                    ),
+                                    300
+                                  ) %>
+                                <%= if preview != "" do %>
                                   <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
-                                    {raw(
-                                      make_links_clickable(plain_text_preview(post.content, 300))
-                                    )}
+                                    {raw(preview)}
                                   </div>
                                 <% end %>
                               <% post.post_type == "poll" -> %>
@@ -1443,14 +1482,17 @@
                                 <% content =
                                   Elektrine.Messaging.Message.display_content(post) || "" %>
                                 <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
-                                  {raw(make_links_clickable(plain_text_preview(content, 300)))}{if String.length(
-                                                                                                     plain_text_content(
-                                                                                                       content
-                                                                                                     )
-                                                                                                   ) >
-                                                                                                     300,
-                                                                                                   do:
-                                                                                                     "..."}
+                                  {raw(
+                                    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                                      content,
+                                      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                        post
+                                      ),
+                                      300
+                                    )
+                                  )}{if String.length(plain_text_content(content)) >
+                                          300,
+                                        do: "..."}
                                 </div>
                                 <%= if String.length(plain_text_content(content)) > 300 do %>
                                   <span class="text-primary text-sm mt-2 inline-block group-hover:underline">
@@ -1809,7 +1851,15 @@
                         </h4>
 
                         <div class="text-sm break-words line-clamp-4">
-                          {plain_text_preview(post.content, 280)}
+                          {raw(
+                            ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                              post.content,
+                              ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                                post
+                              ),
+                              280
+                            )
+                          )}
                         </div>
 
                         <div class="flex items-center gap-2 mt-3 text-xs opacity-70">

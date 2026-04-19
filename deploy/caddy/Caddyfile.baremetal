@@ -10,6 +10,8 @@
 }
 
 {$CADDY_MANAGED_SITE_1} {
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
 	@bluesky host bsky.elektrine.com
 	handle @bluesky {
 		reverse_proxy bluesky_pds:3000 {
@@ -25,6 +27,8 @@
 }
 
 {$CADDY_MANAGED_SITE_2} {
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
@@ -35,6 +39,8 @@ https:// {
 	tls {
 		on_demand
 	}
+
+	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}

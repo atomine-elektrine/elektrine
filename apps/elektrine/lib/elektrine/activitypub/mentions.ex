@@ -6,16 +6,20 @@ defmodule Elektrine.ActivityPub.Mentions do
   require Logger
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Fetcher
+  alias Elektrine.Domains
+
+  @remote_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9.-])/u
+  @local_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@.])/u
+  @non_fediverse_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9._-])/u
+  @non_fediverse_handle_regex ~r/(^|[^A-Za-z0-9._%+-@\/])([A-Za-z0-9][A-Za-z0-9._-]{0,62}@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9._-])/u
 
   @doc """
   Extracts remote mentions from text content.
   Matches @user@domain.com format.
   """
   def extract_mentions(content) when is_binary(content) do
-    # Regex for @username@domain.com
-    ~r/@([a-zA-Z0-9_]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
-    |> Regex.scan(content)
-    |> Enum.map(fn [_full, username, domain] ->
+    Regex.scan(@remote_mention_regex, content)
+    |> Enum.map(fn [_full, _prefix, username, domain] ->
       %{username: username, domain: domain, handle: "#{username}@#{domain}"}
     end)
     |> Enum.uniq_by(& &1.handle)
@@ -23,6 +27,61 @@ defmodule Elektrine.ActivityPub.Mentions do
 
   def extract_mentions(nil), do: []
   def extract_mentions(_), do: []
+
+  @doc """
+  Extracts local mentions from text content.
+  Supports both @user and @user@local-domain while ignoring non-federated
+  handles like @x.com.
+  """
+  def extract_local_mentions(content) when is_binary(content) do
+    short_mentions =
+      Regex.scan(@local_mention_regex, content)
+      |> Enum.map(fn [_full, _prefix, username] ->
+        %{username: username, handle: username}
+      end)
+
+    local_federated_mentions =
+      extract_mentions(content)
+      |> Enum.filter(fn mention -> Domains.local_activitypub_domain?(mention.domain) end)
+      |> Enum.map(fn mention -> %{username: mention.username, handle: mention.handle} end)
+
+    (short_mentions ++ local_federated_mentions)
+    |> Enum.uniq_by(&String.downcase(&1.username))
+  end
+
+  def extract_local_mentions(nil), do: []
+  def extract_local_mentions(_), do: []
+
+  @doc """
+  Extracts non-federated domain-style handles like @x.com.
+  """
+  def extract_non_fediverse_mentions(content) when is_binary(content) do
+    domain_only_mentions =
+      Regex.scan(@non_fediverse_mention_regex, content)
+      |> Enum.map(fn [_full, _prefix, handle] -> %{handle: handle} end)
+
+    bare_handle_mentions =
+      Regex.scan(@non_fediverse_handle_regex, content)
+      |> Enum.map(fn [_full, _prefix, handle] -> %{handle: handle} end)
+
+    (domain_only_mentions ++ bare_handle_mentions)
+    |> Enum.uniq_by(&String.downcase(&1.handle))
+  end
+
+  def extract_non_fediverse_mentions(nil), do: []
+  def extract_non_fediverse_mentions(_), do: []
+
+  @doc """
+  Counts mention-like tokens across local, federated, and non-federated handles.
+  """
+  def count_mentions(content) when is_binary(content) do
+    length(Regex.scan(@local_mention_regex, content)) +
+      length(Regex.scan(@remote_mention_regex, content)) +
+      length(Regex.scan(@non_fediverse_mention_regex, content)) +
+      length(Regex.scan(@non_fediverse_handle_regex, content))
+  end
+
+  def count_mentions(_), do: 0
 
   @doc """
   Resolves mentions to ActivityPub actor URIs.

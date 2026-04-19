@@ -7,6 +7,7 @@ defmodule Elektrine.Social do
   import Ecto.Query, warn: false
   alias Elektrine.Accounts
   alias Elektrine.Accounts.{BlockedUsersCache, User}
+  alias Elektrine.ActivityPub.Mentions
   alias Elektrine.ActivityPub.Outbox
   alias Elektrine.Async
   alias Elektrine.Friends
@@ -2150,17 +2151,13 @@ defmodule Elektrine.Social do
   Creates notifications for @mentions in posts.
   """
   def notify_mentions(content, sender_id, message_id) do
-    # Extract @mentions from content
-    mentions =
-      Regex.scan(~r/@(\w+)/, content)
-      |> Enum.map(fn [_, username] -> username end)
-      |> Enum.uniq()
+    mentions = Mentions.extract_local_mentions(content)
 
     # Get sender info
     sender = Accounts.get_user!(sender_id)
 
-    Enum.each(mentions, fn username ->
-      maybe_notify_mention(username, sender, sender_id, message_id)
+    Enum.each(mentions, fn mention ->
+      maybe_notify_mention(mention.username, sender, sender_id, message_id)
     end)
   end
 

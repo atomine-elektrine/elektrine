@@ -16,7 +16,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   """
   def handle(%{"object" => object_ref} = activity, actor_uri, _target_user) do
     activity_id = activity["id"]
-    object_uri = normalize_object_id(object_ref)
+    object_uri = extract_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, message} <- get_local_message_from_uri(object_uri),
@@ -55,7 +55,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   """
   def handle_dislike(%{"object" => object_ref} = activity, actor_uri, _target_user) do
     activity_id = activity["id"]
-    object_uri = normalize_object_id(object_ref)
+    object_uri = extract_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, message} <- get_local_message_from_uri(object_uri),
@@ -86,47 +86,48 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   Handles an incoming EmojiReact activity.
   Supports both standard Unicode emoji and custom emoji with URLs.
   """
-  def handle_emoji_react(
-        %{"object" => object_ref, "content" => emoji} = activity,
-        actor_uri,
-        _target_user
-      ) do
-    object_uri = normalize_object_id(object_ref)
-    # Extract custom emoji URL from tag if present (like Akkoma's format)
-    emoji_url = extract_emoji_url(activity, emoji)
+  def handle_emoji_react(%{"object" => object_ref} = activity, actor_uri, _target_user) do
+    object_uri = extract_target_object_uri(object_ref)
+    emoji = extract_emoji_content(activity)
 
-    with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
-         {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, message} <- get_or_fetch_message_from_uri(object_uri) do
-      case Elektrine.Messaging.Messages.create_federated_emoji_reaction(
-             message.id,
-             remote_actor.id,
-             emoji,
-             emoji_url
-           ) do
-        {:ok, _reaction} ->
-          Async.run(fn ->
-            Elektrine.Notifications.FederationNotifications.notify_remote_reaction(
-              message.id,
-              remote_actor.id,
-              emoji
-            )
-          end)
+    if is_binary(emoji) and emoji != "" do
+      emoji_url = extract_emoji_url(activity, emoji)
 
-          {:ok, :emoji_reacted}
+      with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
+           {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
+           {:ok, message} <- get_or_fetch_message_from_uri(object_uri) do
+        case Elektrine.Messaging.Messages.create_federated_emoji_reaction(
+               message.id,
+               remote_actor.id,
+               emoji,
+               emoji_url
+             ) do
+          {:ok, _reaction} ->
+            Async.run(fn ->
+              Elektrine.Notifications.FederationNotifications.notify_remote_reaction(
+                message.id,
+                remote_actor.id,
+                emoji
+              )
+            end)
 
-        {:error, reason} ->
-          Logger.error("Failed to create emoji reaction: #{inspect(reason)}")
-          {:error, :failed_to_react}
+            {:ok, :emoji_reacted}
+
+          {:error, reason} ->
+            Logger.error("Failed to create emoji reaction: #{inspect(reason)}")
+            {:error, :failed_to_react}
+        end
+      else
+        {:error, :message_not_found} ->
+          Logger.debug("EmojiReact for unknown message, ignoring")
+          {:error, :handle_emoji_react_failed}
+
+        error ->
+          Logger.warning("Failed to handle emoji react: #{inspect(error)}")
+          {:error, :handle_emoji_react_failed}
       end
     else
-      {:error, :message_not_found} ->
-        Logger.debug("EmojiReact for unknown message, ignoring")
-        {:error, :handle_emoji_react_failed}
-
-      error ->
-        Logger.warning("Failed to handle emoji react: #{inspect(error)}")
-        {:error, :handle_emoji_react_failed}
+      {:ok, :unhandled}
     end
   end
 
@@ -239,18 +240,35 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
 
   # Private functions
 
-  defp normalize_object_id(object) when is_binary(object), do: object
-  defp normalize_object_id(%{"id" => id}), do: id
-  defp normalize_object_id(_), do: nil
+  defp extract_target_object_uri(object) when is_binary(object), do: object
 
-  defp resolve_target_object_uri(object) when is_binary(object), do: object
+  defp extract_target_object_uri(%{"id" => id}) when is_binary(id), do: id
 
-  defp resolve_target_object_uri(%{"object" => object_ref}) do
-    resolve_target_object_uri(object_ref)
+  defp extract_target_object_uri(%{"object" => object_ref}) do
+    extract_target_object_uri(object_ref)
   end
 
-  defp resolve_target_object_uri(%{"id" => id}) when is_binary(id), do: id
-  defp resolve_target_object_uri(_), do: nil
+  defp extract_target_object_uri(_), do: nil
+
+  defp resolve_target_object_uri(object), do: extract_target_object_uri(object)
+
+  defp extract_emoji_content(%{"content" => emoji}) when is_binary(emoji) and emoji != "",
+    do: emoji
+
+  defp extract_emoji_content(%{"contentMap" => content_map}) when is_map(content_map) do
+    content_map
+    |> Map.values()
+    |> Enum.find(&(is_binary(&1) and &1 != ""))
+  end
+
+  defp extract_emoji_content(%{"tag" => tags}) when is_list(tags) do
+    Enum.find_value(tags, fn
+      %{"type" => "Emoji", "name" => name} when is_binary(name) and name != "" -> name
+      _ -> nil
+    end)
+  end
+
+  defp extract_emoji_content(_), do: nil
 
   defp get_local_message_from_uri(uri) do
     base_url = ActivityPub.instance_url()

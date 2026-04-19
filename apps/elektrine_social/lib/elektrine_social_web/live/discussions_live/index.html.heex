@@ -706,7 +706,7 @@
                                   </h3>
                                   <%= if result.preview != "" do %>
                                     <p class="mt-2 line-clamp-3 text-sm text-base-content/70 leading-6">
-                                      {result.preview}
+                                      {raw(result.preview)}
                                     </p>
                                   <% end %>
                                   <div class="mt-3 flex items-center justify-between gap-3 text-[11px] text-base-content/55">
@@ -1259,9 +1259,15 @@
                               <h4 class="line-clamp-2 text-sm font-semibold sm:text-base">
                                 {discussion_title(post)}
                               </h4>
-                              <%= if PostUtilities.plain_text_preview(post.content, 140) != "" do %>
+                              <% preview =
+                                PostUtilities.render_content_preview(
+                                  post.content,
+                                  PostUtilities.get_instance_domain(post),
+                                  140
+                                ) %>
+                              <%= if preview != "" do %>
                                 <p class="mt-1.5 line-clamp-2 text-xs text-base-content/70 sm:text-sm leading-5">
-                                  {PostUtilities.plain_text_preview(post.content, 140)}
+                                  {raw(preview)}
                                 </p>
                               <% end %>
                               <div class="mt-2.5 flex items-center justify-between gap-3 text-[11px] text-base-content/60 sm:text-xs">
@@ -1308,7 +1314,7 @@
                   data-loading-more={@loading_more}
                 >
                   <section class="border-b border-base-300 pb-5">
-                    <div class="w-full sm:max-w-lg sm:ml-auto">
+                    <div class="w-full sm:max-w-lg">
                       <div
                         class="grid grid-cols-2 sm:grid-cols-4 gap-2"
                         role="tablist"
@@ -1320,7 +1326,7 @@
                           role="tab"
                           aria-selected={@feed_sort == "hot"}
                           class={[
-                            "btn btn-sm min-h-10 w-full rounded-full border border-base-300",
+                            "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "hot",
                               do: "btn-secondary border-secondary",
                               else: "bg-base-200 text-base-content hover:bg-base-300"
@@ -1335,7 +1341,7 @@
                           role="tab"
                           aria-selected={@feed_sort == "new"}
                           class={[
-                            "btn btn-sm min-h-10 w-full rounded-full border border-base-300",
+                            "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "new",
                               do: "btn-secondary border-secondary",
                               else: "bg-base-200 text-base-content hover:bg-base-300"
@@ -1350,7 +1356,7 @@
                           role="tab"
                           aria-selected={@feed_sort == "top"}
                           class={[
-                            "btn btn-sm min-h-10 w-full rounded-full border border-base-300",
+                            "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "top",
                               do: "btn-secondary border-secondary",
                               else: "bg-base-200 text-base-content hover:bg-base-300"
@@ -1365,7 +1371,7 @@
                           role="tab"
                           aria-selected={@feed_sort == "comments"}
                           class={[
-                            "btn btn-sm min-h-10 w-full rounded-full border border-base-300",
+                            "btn btn-sm min-h-10 w-full items-center justify-center rounded-full border border-base-300 leading-none",
                             if(@feed_sort == "comments",
                               do: "btn-secondary border-secondary",
                               else: "bg-base-200 text-base-content hover:bg-base-300"
@@ -1407,15 +1413,6 @@
                       <%= if feed_post_count > 0 do %>
                         <div class="space-y-4">
                           <%= for {post, index} <- Enum.with_index(@filtered_community_posts) do %>
-                            <%= if show_public_fallback_divider?(
-                            @filtered_community_posts,
-                            @public_fallback_post_ids,
-                            index
-                          ) do %>
-                              <div class="rounded-2xl border border-dashed border-base-300/80 bg-base-200/40 px-4 py-3 text-sm text-base-content/70">
-                                More from public communities
-                              </div>
-                            <% end %>
                             <.timeline_post
                               post={post}
                               layout={:lemmy}
@@ -1571,9 +1568,15 @@
                                   </h4>
                                 </.link>
 
-                                <%= if PostUtilities.plain_text_preview(post.content, 140) != "" do %>
+                                <% preview =
+                                  PostUtilities.render_content_preview(
+                                    post.content,
+                                    PostUtilities.get_instance_domain(post),
+                                    140
+                                  ) %>
+                                <%= if preview != "" do %>
                                   <p class="text-sm opacity-70 line-clamp-2 mt-1">
-                                    {PostUtilities.plain_text_preview(post.content, 140)}
+                                    {raw(preview)}
                                   </p>
                                 <% end %>
 

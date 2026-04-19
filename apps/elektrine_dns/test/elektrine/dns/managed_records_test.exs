@@ -204,6 +204,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert is_binary(config.settings["dkim_public_key"])
     assert is_binary(config.settings["dkim_private_key"])
     assert String.contains?(config.settings["dkim_value"], "v=DKIM1")
+    assert config.settings["caa_issue"] == "letsencrypt.org"
     assert config.settings["mail_target"] == zone.domain
 
     zone = DNS.get_zone(zone.id, user.id)
@@ -223,6 +224,12 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert Enum.any?(zone.records, &(&1.service == "mail" and &1.managed_key == "mail:tls-rpt"))
 
     assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.managed_key == "mail:caa:issue" and
+               record.type == "CAA" and record.tag == "issue" and
+               record.content == "letsencrypt.org"
+           end)
+
+    assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.name == "_mta-sts" and
                String.starts_with?(record.content, "v=STSv1; id=")
            end)
@@ -230,6 +237,33 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.name == "_smtp._tls" and
                record.content == "v=TLSRPTv1; rua=mailto:postmaster@#{zone.domain}"
+           end)
+  end
+
+  test "managed mail service generates TLSA records when association data is configured" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{
+                 "tlsa_association_data" => "aabbccdd",
+                 "tlsa_usage" => "3",
+                 "tlsa_selector" => "0",
+                 "tlsa_matching_type" => "1"
+               }
+             })
+
+    assert config.status == "ok"
+    assert config.settings["tlsa_association_data"] == "aabbccdd"
+
+    zone = DNS.get_zone(zone.id, user.id)
+
+    assert Enum.any?(zone.records, fn record ->
+             record.service == "mail" and record.managed_key == "mail:tlsa" and
+               record.name == "_25._tcp" and record.type == "TLSA" and
+               record.content == "AABBCCDD" and record.usage == 3 and record.selector == 0 and
+               record.matching_type == 1
            end)
   end
 

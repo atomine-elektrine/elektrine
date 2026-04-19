@@ -72,7 +72,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       vote_delta = Map.get(reply_state, :vote_delta, 0)
       # Use embedded Lemmy counts if available, then try separate fetch, then fall back to ActivityPub
       lemmy_data = reply["_lemmy"]
-      lemmy_comment_count = Map.get(@lemmy_comment_counts || %{}, reply["id"])
+      lemmy_comment_count = Map.get(@lemmy_comment_counts || %{}, reply_surface_ref(reply))
 
       # For community posts, use vote_delta; for regular posts, use like_delta
       score_delta = if @is_lemmy_post, do: vote_delta, else: reply_like_delta
@@ -1182,7 +1182,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         <%= cond do %>
           <% @replies_loading && !@replies_loaded -> %>
             <div class="flex flex-col items-center gap-3" data-comments-loading-placeholder>
-              <span class="loading loading-spinner loading-md"></span>
+              <.spinner size="md" />
               <p>Loading comments...</p>
             </div>
           <% @hydration_state in ["syncing", "partial"] and @reported_reply_count > 0 -> %>
@@ -1194,7 +1194,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   Syncing comments from the remote thread...
                 <% end %>
               </p>
-              <button phx-click="refresh_comments" class="btn btn-ghost btn-sm">
+              <button type="button" phx-click="refresh_comments" class="btn btn-ghost btn-sm">
                 <.icon name="hero-arrow-path" class="w-4 h-4" /> Refresh comments
               </button>
             </div>
@@ -1203,14 +1203,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               <p>
                 Couldn&apos;t import comments yet. They may still be available on the original server.
               </p>
-              <button phx-click="refresh_comments" class="btn btn-ghost btn-sm">
+              <button type="button" phx-click="refresh_comments" class="btn btn-ghost btn-sm">
                 <.icon name="hero-arrow-path" class="w-4 h-4" /> Retry sync
               </button>
             </div>
           <% @replies_loaded -> %>
             <p>{@empty_message}</p>
           <% true -> %>
-            <button phx-click="load_comments" class="btn btn-primary btn-sm">
+            <button type="button" phx-click="load_comments" class="btn btn-primary btn-sm">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> {@load_label}
             </button>
         <% end %>
@@ -1406,7 +1406,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp reply_interaction_state(post_interactions, reply) when is_map(reply) do
-    [reply["_local_message_id"], reply["id"]]
+    [reply["_local_message_id"], reply_surface_ref(reply)]
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&PostInteractions.normalize_key/1)
     |> Enum.find_value(fn key -> Map.get(post_interactions, key) end)
@@ -5768,13 +5768,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp prepare_replies_for_render(_, replies), do: replies
 
+  defp reply_surface_ref(reply) when is_map(reply) do
+    reply["id"] || reply[:id] || reply["_local_activitypub_id"] || reply[:_local_activitypub_id]
+  end
+
+  defp reply_surface_ref(_), do: nil
+
   defp enrich_replies_with_lemmy_counts(replies, counts)
        when is_list(replies) and is_map(counts) do
     Enum.map(replies, fn
       reply when is_map(reply) ->
-        reply_id =
-          reply["id"] || reply[:id] || reply["_local_activitypub_id"] ||
-            reply[:_local_activitypub_id]
+        reply_id = reply_surface_ref(reply)
 
         count_data = if is_binary(reply_id), do: Map.get(counts, reply_id), else: nil
 

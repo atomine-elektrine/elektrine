@@ -838,7 +838,15 @@
                 <% end %>
               </div>
               <div class="text-sm line-clamp-4 opacity-80">
-                {plain_text_preview(@quote_target_post.content, 200)}
+                {raw(
+                  ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+                    @quote_target_post.content,
+                    ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(
+                      @quote_target_post
+                    ),
+                    200
+                  )
+                )}
               </div>
               <%= if @quote_target_post.media_urls && length(@quote_target_post.media_urls) > 0 do %>
                 <div class="mt-2 flex gap-1">

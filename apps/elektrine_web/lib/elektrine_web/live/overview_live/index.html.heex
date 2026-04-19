@@ -429,14 +429,6 @@
             </button>
             <button
               phx-click="set_filter"
-              phx-value-filter="my_posts"
-              class={overview_filter_pill_class(@filter, "my_posts")}
-              aria-pressed={@filter == "my_posts"}
-            >
-              <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
-            </button>
-            <button
-              phx-click="set_filter"
               phx-value-filter="timeline"
               class={overview_filter_pill_class(@filter, "timeline")}
               aria-pressed={@filter == "timeline"}
@@ -621,7 +613,13 @@
                 </div>
 
                 <div class="text-sm opacity-80">
-                  {PostUtilities.plain_text_preview(@quote_target_post.content || "", 200)}
+                  {raw(
+                    PostUtilities.render_content_preview(
+                      @quote_target_post.content || "",
+                      PostUtilities.get_instance_domain(@quote_target_post),
+                      200
+                    )
+                  )}
                 </div>
               </div>
 
@@ -726,7 +724,7 @@
                       </span>
                     </div>
                     <p :if={entry.preview != ""} class="mt-1 text-sm opacity-80 line-clamp-3">
-                      {entry.preview}
+                      {raw(entry.preview)}
                     </p>
                     <div class="mt-2 text-xs opacity-60">
                       <.local_time

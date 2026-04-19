@@ -1466,9 +1466,11 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   defp gallery_content_preview(post) do
-    post.content
-    |> gallery_plain_text()
-    |> String.slice(0, 140)
+    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
+      post.content,
+      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(post),
+      140
+    )
   end
 
   defp gallery_plain_text(nil), do: ""

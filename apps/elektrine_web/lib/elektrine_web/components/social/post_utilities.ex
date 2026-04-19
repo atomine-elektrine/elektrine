@@ -56,6 +56,16 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
         HtmlHelpers.plain_text_preview(content, 200)
       )
 
+  def render_content_preview(content, instance_domain, max_length),
+    do:
+      OptionalModule.call(
+        :social,
+        @component_module,
+        :render_content_preview,
+        [content, instance_domain, max_length],
+        HtmlHelpers.plain_text_preview(content, max_length)
+      )
+
   def plain_text_content(content),
     do:
       OptionalModule.call(

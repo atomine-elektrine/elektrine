@@ -66,7 +66,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   end
 
   def handle(%{"object" => object_ref}, actor_uri, target_user) when is_map(object_ref) do
-    case normalize_object_id(object_ref) do
+    case extract_target_object_uri(object_ref) do
       nil -> {:error, :invalid_object}
       object_uri -> handle(%{"object" => object_uri}, actor_uri, target_user)
     end
@@ -76,7 +76,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   Handles Undo Announce activity.
   """
   def handle_undo(%{"object" => object_ref}, actor_uri) do
-    object_uri = resolve_target_object_uri(object_ref)
+    object_uri = extract_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
@@ -309,18 +309,14 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
     end
   end
 
-  defp normalize_object_id(object) when is_binary(object), do: object
-  defp normalize_object_id(%{"id" => id}), do: id
-  defp normalize_object_id(_), do: nil
+  defp extract_target_object_uri(object) when is_binary(object), do: object
+  defp extract_target_object_uri(%{"id" => id}) when is_binary(id), do: id
 
-  defp resolve_target_object_uri(object) when is_binary(object), do: object
-
-  defp resolve_target_object_uri(%{"object" => object_ref}) do
-    resolve_target_object_uri(object_ref)
+  defp extract_target_object_uri(%{"object" => object_ref}) do
+    extract_target_object_uri(object_ref)
   end
 
-  defp resolve_target_object_uri(%{"id" => id}) when is_binary(id), do: id
-  defp resolve_target_object_uri(_), do: nil
+  defp extract_target_object_uri(_), do: nil
 
   # Check if actor is a distribution actor (relay or community group)
   # These actors relay/distribute content, not boost it

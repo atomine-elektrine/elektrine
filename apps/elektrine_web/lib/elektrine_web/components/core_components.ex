@@ -255,7 +255,10 @@ defmodule ElektrineWeb.CoreComponents do
     <div class="sticky top-24 self-start">
       <div class="card panel-card">
         <div class="card-body p-4">
-          <h3 class="font-semibold text-sm mb-4">Profile</h3>
+          <h3 class="mb-1 text-sm font-semibold">Profile</h3>
+          <p class="mb-4 text-xs text-base-content/60">
+            Manage your public profile and related pages.
+          </p>
 
           <ul class="menu menu-compact w-full p-0 space-y-1">
             <li>
@@ -267,13 +270,41 @@ defmodule ElektrineWeb.CoreComponents do
 
           <div class="divider my-4"></div>
 
+          <h4
+            :if={@sections != []}
+            class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/55"
+          >
+            {gettext("Edit Sections")}
+          </h4>
+
+          <ul :if={@sections != []} class="menu menu-compact w-full p-0 space-y-1">
+            <%= for {section_id, section_icon, section_label} <- @sections do %>
+              <li>
+                <button
+                  type="button"
+                  phx-click="change_tab"
+                  phx-value-tab={section_id}
+                  class={account_setting_secondary_link_class(@selected_section, section_id)}
+                >
+                  <.icon name={section_icon} class="w-4 h-4" /> {section_label}
+                </button>
+              </li>
+            <% end %>
+          </ul>
+
+          <div :if={@sections != []} class="divider my-4"></div>
+
+          <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/55">
+            {gettext("Profile Pages")}
+          </h4>
+
           <ul class="menu menu-compact w-full p-0 space-y-1">
             <li>
               <.link
                 navigate="/account/profile/edit"
                 class={account_setting_secondary_link_class(@selected_page, "profile")}
               >
-                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
+                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Edit Profile")}
               </.link>
             </li>
             <li>
@@ -307,7 +338,7 @@ defmodule ElektrineWeb.CoreComponents do
           <div :if={@profile_url} class="divider my-4"></div>
 
           <ul :if={@profile_url} class="menu menu-compact w-full p-0 space-y-1">
-            <li :if={@profile_url}>
+            <li>
               <.link
                 href={@profile_url}
                 target="_blank"
@@ -316,25 +347,6 @@ defmodule ElektrineWeb.CoreComponents do
                 <.icon name="hero-eye" class="w-4 h-4" /> {gettext("View Profile")}
               </.link>
             </li>
-          </ul>
-
-          <div :if={@sections != []} class="divider my-4"></div>
-
-          <h4 :if={@sections != []} class="font-semibold text-sm mb-4">Sections</h4>
-
-          <ul :if={@sections != []} class="menu menu-compact w-full p-0 space-y-1">
-            <%= for {section_id, section_icon, section_label} <- @sections do %>
-              <li>
-                <button
-                  type="button"
-                  phx-click="change_tab"
-                  phx-value-tab={section_id}
-                  class={account_setting_secondary_link_class(@selected_section, section_id)}
-                >
-                  <.icon name={section_icon} class="w-4 h-4" /> {section_label}
-                </button>
-              </li>
-            <% end %>
           </ul>
         </div>
       </div>

@@ -206,7 +206,13 @@
                     </div>
 
                     <div class="text-sm opacity-80">
-                      {PostUtilities.plain_text_preview(@quote_target_post.content || "", 200)}
+                      {raw(
+                        PostUtilities.render_content_preview(
+                          @quote_target_post.content || "",
+                          PostUtilities.get_instance_domain(@quote_target_post),
+                          200
+                        )
+                      )}
                     </div>
                   </div>
 
