@@ -325,7 +325,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     filtered_discussions =
       filter_discussions_by_category(socket.assigns.trending_discussions, category)
 
-    filtered_federated_discussions = socket.assigns.federated_discussions
+    filtered_federated_discussions =
+      filter_discussions_by_category(socket.assigns.federated_discussions, category)
 
     filtered_recent_activity =
       filter_activity_by_category(socket.assigns.recent_activity, category)
@@ -335,6 +336,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
     filtered_discover_remote_communities =
       filter_communities_by_category(socket.assigns.discover_remote_communities, category)
+
+    filtered_remote_communities =
+      filter_communities_by_category(socket.assigns.followed_remote_communities, category)
 
     filtered_community_posts =
       socket.assigns.followed_community_posts
@@ -352,6 +356,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       filtered_discussions: filtered_discussions,
       filtered_recent_activity: filtered_recent_activity,
       filtered_federated_discussions: filtered_federated_discussions,
+      filtered_remote_communities: filtered_remote_communities,
       filtered_discover_remote_communities: filtered_discover_remote_communities,
       overview_card_limit: socket.assigns.overview_card_limit
     }
@@ -365,6 +370,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:filtered_federated_discussions, filtered_federated_discussions)
      |> assign(:filtered_recent_activity, filtered_recent_activity)
      |> assign(:filtered_popular_communities, filtered_popular_communities)
+     |> assign(:filtered_remote_communities, filtered_remote_communities)
      |> assign(:filtered_discover_remote_communities, filtered_discover_remote_communities)
      |> assign(:filtered_community_posts, filtered_community_posts)
      |> assign(:overview_no_more, overview_no_more?(overview_data))}
@@ -1093,7 +1099,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
            socket
            |> assign(:remote_user_preview, nil)
            |> assign(:followed_remote_communities, followed_remote_communities)
-           |> assign(:filtered_remote_communities, followed_remote_communities)
+           |> assign(
+             :filtered_remote_communities,
+             filter_communities_by_category(
+               followed_remote_communities,
+               socket.assigns.selected_category
+             )
+           )
            |> notify_info(
              "Following #{actor_type} #{handle_prefix}#{actor.username}@#{actor.domain}!"
            )}
@@ -1633,14 +1645,48 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> filter_community_posts_by_category(socket.assigns.selected_category)
       |> sort_feed_posts(socket.assigns.feed_sort, lemmy_counts, socket.assigns.session_context)
 
+    filtered_communities =
+      filter_communities_by_category(communities, socket.assigns.selected_category)
+
+    filtered_public_communities =
+      filter_communities_by_category(public_communities, socket.assigns.selected_category)
+
+    filtered_discussions =
+      filter_discussions_by_category(trending_discussions, socket.assigns.selected_category)
+
+    filtered_federated_discussions =
+      filter_discussions_by_category(federated_discussions, socket.assigns.selected_category)
+
+    filtered_recent_activity =
+      filter_activity_by_category(recent_activity, socket.assigns.selected_category)
+
+    filtered_popular_communities =
+      filter_popular_communities_by_category(
+        popular_communities,
+        socket.assigns.selected_category
+      )
+
+    filtered_remote_communities =
+      filter_communities_by_category(
+        followed_remote_communities,
+        socket.assigns.selected_category
+      )
+
+    filtered_discover_remote_communities =
+      filter_communities_by_category(
+        discover_remote_communities,
+        socket.assigns.selected_category
+      )
+
     overview_data = %{
-      filtered_public_communities: public_communities,
+      filtered_public_communities: filtered_public_communities,
       joined_community_ids: joined_community_ids,
-      filtered_popular_communities: popular_communities,
-      filtered_discussions: trending_discussions,
-      filtered_recent_activity: recent_activity,
-      filtered_federated_discussions: federated_discussions,
-      filtered_discover_remote_communities: discover_remote_communities,
+      filtered_popular_communities: filtered_popular_communities,
+      filtered_discussions: filtered_discussions,
+      filtered_recent_activity: filtered_recent_activity,
+      filtered_federated_discussions: filtered_federated_discussions,
+      filtered_remote_communities: filtered_remote_communities,
+      filtered_discover_remote_communities: filtered_discover_remote_communities,
       overview_card_limit: socket.assigns.overview_card_limit
     }
 
@@ -1656,15 +1702,15 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:recent_activity, recent_activity)
      |> assign(:popular_communities, popular_communities)
      |> assign(:my_community_posts, my_community_posts)
-     |> assign(:filtered_communities, communities)
-     |> assign(:filtered_public_communities, public_communities)
-     |> assign(:filtered_discussions, trending_discussions)
-     |> assign(:filtered_federated_discussions, federated_discussions)
-     |> assign(:filtered_recent_activity, recent_activity)
-     |> assign(:filtered_popular_communities, popular_communities)
+     |> assign(:filtered_communities, filtered_communities)
+     |> assign(:filtered_public_communities, filtered_public_communities)
+     |> assign(:filtered_discussions, filtered_discussions)
+     |> assign(:filtered_federated_discussions, filtered_federated_discussions)
+     |> assign(:filtered_recent_activity, filtered_recent_activity)
+     |> assign(:filtered_popular_communities, filtered_popular_communities)
      |> assign(:filtered_community_posts, filtered_followed_posts)
-     |> assign(:filtered_remote_communities, followed_remote_communities)
-     |> assign(:filtered_discover_remote_communities, discover_remote_communities)
+     |> assign(:filtered_remote_communities, filtered_remote_communities)
+     |> assign(:filtered_discover_remote_communities, filtered_discover_remote_communities)
      |> assign(:public_fallback_post_ids, followed_community_feed_page.public_fallback_ids)
      |> assign(:joined_community_ids, joined_community_ids)
      |> assign(:followed_remote_actor_ids, followed_remote_actor_ids)
@@ -2570,9 +2616,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp filter_discussions_by_category(discussions, category) do
-    Enum.filter(discussions, fn discussion ->
-      discussion.conversation && discussion.conversation.community_category == category
-    end)
+    Enum.filter(discussions, fn discussion -> community_category(discussion) == category end)
   end
 
   defp filter_activity_by_category(activity, "all") do
@@ -2580,9 +2624,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp filter_activity_by_category(activity, category) do
-    Enum.filter(activity, fn item ->
-      item.conversation && item.conversation.community_category == category
-    end)
+    Enum.filter(activity, fn item -> community_category(item) == category end)
   end
 
   defp filter_popular_communities_by_category(communities, "all") do

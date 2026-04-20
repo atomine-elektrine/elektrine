@@ -156,9 +156,19 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   defp strip_html_without_parser(_), do: ""
 
+  defp decode_html_entities_repeatedly(text), do: decode_html_entities_repeatedly(text, 3)
+
+  defp decode_html_entities_repeatedly(text, remaining) when is_binary(text) and remaining > 0 do
+    decoded = text |> HtmlEntities.decode() |> Elektrine.TextHelpers.decode_html_entities()
+    if decoded == text, do: decoded, else: decode_html_entities_repeatedly(decoded, remaining - 1)
+  end
+
+  defp decode_html_entities_repeatedly(text, _remaining), do: text
+
   defp fallback_plain_html(content) when is_binary(content) do
     content
     |> strip_html_without_parser()
+    |> decode_html_entities_repeatedly()
     |> escape_html()
     |> convert_newlines_to_breaks()
   end
@@ -571,6 +581,7 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   def render_remote_bio(bio, instance_domain) when is_binary(bio) do
     bio
+    |> decode_html_entities_repeatedly()
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
     |> render_markdown_images()
     |> linkify_plain_text_urls()
@@ -601,6 +612,7 @@ defmodule ElektrineWeb.HtmlHelpers do
   def render_remote_post_content(content, instance_domain, mention_domain_hints)
       when is_binary(content) and is_map(mention_domain_hints) do
     content
+    |> decode_html_entities_repeatedly()
     |> normalize_remote_post_markup()
     |> HtmlSanitizeEx.Scrubber.scrub(ElektrineWeb.Scrubbers.RemoteContent)
     |> render_markdown_images()
@@ -613,7 +625,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
   rescue
-    _ -> fallback_plain_html(content)
+    _ -> fallback_remote_post_html(content, instance_domain, mention_domain_hints)
   end
 
   def render_remote_post_content(_, _instance_domain, _mention_domain_hints) do
@@ -811,7 +823,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         segment
       else
         Regex.replace(
-          ~r/(^|[^\w\/])#([\p{L}\p{N}_][\p{L}\p{N}_-]*)/u,
+          ~r/(^|[^\w\/&])#([\p{L}\p{N}_][\p{L}\p{N}_-]*)/u,
           segment,
           fn _full, prefix, hashtag ->
             href = "/hashtag/#{String.downcase(hashtag)}"
@@ -854,7 +866,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           fn _full, prefix, username, domain ->
             href = Paths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
 
-            "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}@#{domain}</a>"
+            "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\">@#{username}@#{domain}</a>"
           end
         )
         |> linkify_non_fediverse_handles()
@@ -901,7 +913,7 @@ defmodule ElektrineWeb.HtmlHelpers do
           Paths.profile_path(username, domain) ||
             "/remote/#{username}@#{domain}"
 
-        "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\" phx-click=\"stop_propagation\">@#{username}</a>"
+        "#{prefix}<a href=\"#{href}\" class=\"#{@mention_link_classes}\">@#{username}</a>"
       end
     )
   end
@@ -977,17 +989,10 @@ defmodule ElektrineWeb.HtmlHelpers do
         style_classes =
           "text-primary hover:text-accent hover:underline decoration-2 underline-offset-2 font-medium transition-all duration-200"
 
-        result =
-          if Regex.match?(~r/phx-click\s*=/i, attrs) do
-            full_match
-          else
-            String.replace(full_match, ~r/>$/, " phx-click=\"stop_propagation\">")
-          end
-
         if Regex.match?(~r/class\s*=\s*"/i, attrs) do
           Regex.replace(
             ~r/(class\s*=\s*")([^"]*)/i,
-            result,
+            full_match,
             fn _, prefix, existing ->
               new_classes =
                 String.split(existing)
@@ -999,7 +1004,7 @@ defmodule ElektrineWeb.HtmlHelpers do
             end
           )
         else
-          String.replace(result, ~r/<a\s+/i, ~s(<a class="#{style_classes}" ))
+          String.replace(full_match, ~r/<a\s+/i, ~s(<a class="#{style_classes}" ))
         end
       end
     )
@@ -1007,6 +1012,24 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   defp add_link_styles(content) do
     content
+  end
+
+  defp fallback_remote_post_html(content, instance_domain, mention_domain_hints)
+       when is_binary(content) and is_map(mention_domain_hints) do
+    content
+    |> strip_html_without_parser()
+    |> decode_html_entities_repeatedly()
+    |> escape_html()
+    |> rewrite_mention_links_to_local(instance_domain, mention_domain_hints)
+    |> linkify_plain_text_hashtags()
+    |> linkify_plain_text_urls()
+    |> add_link_styles()
+    |> render_custom_emojis(instance_domain)
+    |> convert_newlines_to_breaks()
+  end
+
+  defp fallback_remote_post_html(content, _instance_domain, _mention_domain_hints) do
+    fallback_plain_html(content)
   end
 
   @doc ~s|Transforms an image URL to request a smaller thumbnail version when possible.\nSupports common fediverse media patterns.\n|

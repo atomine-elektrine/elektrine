@@ -1263,14 +1263,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       <div class="card panel-card rounded-lg p-4 mb-6">
         <div class="space-y-3">
           <%= if @show_recent_replies_preview && length(@quick_reply_recent_replies) > 0 do %>
-            <div class="timeline-thread-preview-list space-y-2">
+            <div class="timeline-thread-preview-list timeline-thread-preview-list--flush space-y-2 text-left">
               <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
               <%= for reply <- @quick_reply_recent_replies do %>
                 <% author_preview = quick_reply_author_preview(reply) %>
                 <% reply_click = quick_reply_click_target(reply) %>
                 <div
                   class={[
-                    "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
+                    "timeline-thread-preview-item timeline-thread-preview-item--flush relative text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
                     reply_click &&
                       "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
                   ]}

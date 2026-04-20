@@ -126,6 +126,41 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert get_in(object, ["_lemmy", "upvotes"]) == 11
     end
 
+    test "recovers Lemmy comments from routeData html with undefined values" do
+      comment_uri = "https://adultswim.fan/comment/8755826"
+
+      request_fun = fn
+        ^comment_uri, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "text/html; charset=utf-8"}],
+             body: """
+             <!DOCTYPE html>
+             <html>
+             <head>
+             <script>
+             window.isoData = {"path":"/comment/8755826","routeData":{"postRes":{"data":{"post_view":{"post":{"ap_id":"https://lemmy.world/post/45711923","url":"https://example.com/story","name":"Example story"},"creator":{"actor_id":"https://lemmy.world/u/return2ozma","name":"return2ozma"},"community":{"actor_id":"https://lemmy.world/c/technology"},"counts":{"comments":21}}},"state":"success"},"commentsRes":{"data":{"comments":[{"comment":{"id":8755826,"content":"How does one 'learn AI'?","published":"2026-04-17T15:22:18.397007Z","ap_id":"https://lemmy.world/comment/23270371","path":"0.8755826"},"creator":{"actor_id":"https://lemmy.world/u/StaticFalconar","name":"StaticFalconar"},"post":{"ap_id":"https://lemmy.world/post/45711923"},"community":{"actor_id":"https://lemmy.world/c/technology"},"counts":{"comment_id":8755826,"score":47,"upvotes":48,"downvotes":1,"child_count":21}}]},"state":"success"}},"errorPageData":undefined};
+             </script>
+             </head>
+             <body></body>
+             </html>
+             """
+           }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(comment_uri, skip_cache: true, request_fun: request_fun)
+
+      assert object["id"] == "https://lemmy.world/comment/23270371"
+      assert object["type"] == "Note"
+      assert object["content"] == "How does one 'learn AI'?"
+      assert object["attributedTo"] == "https://lemmy.world/u/StaticFalconar"
+      assert object["inReplyTo"] == "https://lemmy.world/post/45711923"
+      assert get_in(object, ["replies", "totalItems"]) == 21
+      assert get_in(object, ["_lemmy", "upvotes"]) == 48
+    end
+
     test "recovers Mastodon status objects when the AP URL returns 404" do
       status_uri = "https://mastodon.world/users/alice/statuses/115379251737165990"
       api_url = "https://mastodon.world/api/v1/statuses/115379251737165990"

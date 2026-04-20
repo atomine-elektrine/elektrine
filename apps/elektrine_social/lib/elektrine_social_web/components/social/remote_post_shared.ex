@@ -111,7 +111,6 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
   attr :submit_disable_with, :string, default: "Posting..."
   attr :wrapper_class, :string, default: "mt-4 pt-4 border-t border-base-300"
   attr :form_class, :string, default: "space-y-2"
-  attr :click_stop, :boolean, default: false
   attr :textarea_debounce, :string, default: nil
   attr :textarea_hook, :string, default: nil
   attr :textarea_mounted, :any, default: nil
@@ -140,7 +139,7 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
       )
 
     ~H"""
-    <div class={@wrapper_class} phx-click={@click_stop && "stop_propagation"}>
+    <div class={@wrapper_class}>
       <.form for={%{}} phx-submit={@on_submit} class={@form_class}>
         <%= for {name, value} <- @hidden_fields do %>
           <input type="hidden" name={name} value={value} />

@@ -25,6 +25,7 @@ let navigationFlushInProgress = false;
 const activeDwellTrackers = new Set();
 let queuedPostsScrollSnapshot = null;
 let infiniteScrollRestoreSnapshot = null;
+let streamRestoreSnapshot = null;
 const TIMELINE_LAST_VISIT_KEY = "timeline-last-visit-at";
 const COMMUNITY_LAST_VISIT_KEY = "community-last-visit-at";
 const COMMUNITY_PREFERENCES_KEY = "community-view-preferences";
@@ -172,6 +173,22 @@ function safePushEvent(hook, event, payload) {
   return Promise.resolve(hook.pushEvent(event, payload)).catch(() => null);
 }
 
+function firstElementInEventPath(event) {
+  if (typeof event?.composedPath !== "function") return null;
+
+  return event
+    .composedPath()
+    .find((node) => node instanceof Element) || null;
+}
+
+function eventPathContainsSelector(event, selector) {
+  if (typeof event?.composedPath !== "function") return false;
+
+  return event.composedPath().some((node) => {
+    return node instanceof Element && node.matches(selector);
+  });
+}
+
 const REMOTE_FOLLOW_BUTTON_CLASSES = [
   "btn-ghost",
   "btn-secondary",
@@ -227,22 +244,33 @@ export const PostClick = {
     };
 
     this.handleClick = async (e) => {
+      const target =
+        e.target instanceof Element
+          ? e.target
+          : e.target?.parentElement || firstElementInEventPath(e);
+
       if (this.suppressNextClickFromPickerDismiss) {
         this.suppressNextClickFromPickerDismiss = false;
         return;
       }
 
+      if (!target) return;
+
       if (
-        e.target.closest(
-          "a, button, input, textarea, select, option, label, .dropdown, details",
+        eventPathContainsSelector(
+          e,
+          "a, button, input, textarea, select, option, label, form, .dropdown, details",
+        ) ||
+        target.closest(
+          "a, button, input, textarea, select, option, label, form, .dropdown, details",
         )
       )
         return;
 
-      const nestedPostClick = e.target.closest('[phx-hook="PostClick"]');
+      const nestedPostClick = target.closest('[phx-hook="PostClick"]');
       if (nestedPostClick && nestedPostClick !== this.el) return;
 
-      const closestPhxClick = e.target.closest("[phx-click]");
+      const closestPhxClick = target.closest("[phx-click]");
       if (closestPhxClick && closestPhxClick !== this.el) return;
 
       const selection = window.getSelection();
@@ -662,6 +690,7 @@ export const InfiniteScroll = {
 
   restoreAnchorPosition(anchorSnapshot, fallbackScrollY) {
     let restored = false;
+    const currentY = currentScrollY();
 
     if (anchorSnapshot?.postId) {
       const anchor = this.findPostById(anchorSnapshot.postId);
@@ -675,10 +704,16 @@ export const InfiniteScroll = {
       }
     }
 
-    if (!restored && Number.isFinite(fallbackScrollY)) {
+    const shouldUseFallbackScroll = (targetY) => {
+      if (!Number.isFinite(targetY) || targetY <= 0) return false;
+
+      return currentY === 0 || currentY + 120 < targetY;
+    };
+
+    if (!restored && shouldUseFallbackScroll(fallbackScrollY)) {
       window.scrollTo({ top: fallbackScrollY, behavior: "auto" });
       restored = true;
-    } else if (!restored && Number.isFinite(this.loadCycleStartY)) {
+    } else if (!restored && shouldUseFallbackScroll(this.loadCycleStartY)) {
       window.scrollTo({ top: this.loadCycleStartY, behavior: "auto" });
       restored = true;
     }
@@ -791,6 +826,8 @@ export const PreserveStreamAnchor = {
     this.restoreTimeouts = [];
     this.lastKnownScrollY = currentScrollY();
 
+    this.restoreFromGlobalSnapshotIfNeeded(true);
+
     this.handleScroll = () => {
       this.lastKnownScrollY = currentScrollY();
       this.cancelPendingRestore();
@@ -809,15 +846,19 @@ export const PreserveStreamAnchor = {
 
     this.prePatchAnchor = this.findVisiblePostAnchor();
     this.prePatchScrollY = stableScrollY;
+    this.storeGlobalRestoreSnapshot(this.prePatchAnchor, this.prePatchScrollY);
   },
 
   updated() {
-    if (!this.prePatchAnchor?.postId) return;
+    this.restoreFromGlobalSnapshotIfNeeded();
 
-    this.restoreAnchorPosition(this.prePatchAnchor);
-    this.schedulePendingRestore(this.prePatchAnchor);
+    if (!this.prePatchAnchor?.postId && !Number.isFinite(this.prePatchScrollY)) return;
+
+    this.restoreAnchorPosition(this.prePatchAnchor, this.prePatchScrollY);
+    this.schedulePendingRestore(this.prePatchAnchor, this.prePatchScrollY);
     this.prePatchAnchor = null;
     this.prePatchScrollY = null;
+    this.clearGlobalRestoreSnapshot();
   },
 
   findVisiblePostAnchor() {
@@ -857,14 +898,23 @@ export const PreserveStreamAnchor = {
     return this.el.querySelector(`[data-post-id="${escapedPostId}"]`);
   },
 
-  restoreAnchorPosition(anchorSnapshot) {
+  restoreAnchorPosition(anchorSnapshot, fallbackScrollY) {
     if (anchorSnapshot?.postId) {
       const anchor = this.findPostById(anchorSnapshot.postId);
 
       if (anchor) {
         const delta = anchor.getBoundingClientRect().top - anchorSnapshot.top;
         if (delta !== 0) window.scrollBy(0, delta);
+        return;
       }
+    }
+
+    if (
+      Number.isFinite(fallbackScrollY) &&
+      fallbackScrollY > 0 &&
+      currentScrollY() === 0
+    ) {
+      window.scrollTo({ top: fallbackScrollY, behavior: "auto" });
     }
   },
 
@@ -875,27 +925,74 @@ export const PreserveStreamAnchor = {
     this.restoreTimeouts = [];
   },
 
-  schedulePendingRestore(anchorSnapshot) {
+  schedulePendingRestore(anchorSnapshot, fallbackScrollY) {
     this.cancelPendingRestore();
 
     this.restoreRAF = requestAnimationFrame(() => {
       this.restoreRAF = null;
-      this.restoreAnchorPosition(anchorSnapshot);
+      this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY);
     });
     [120, 280, 520].forEach((delay) => {
       const timeoutId = setTimeout(() => {
         this.restoreTimeouts = this.restoreTimeouts.filter(
           (id) => id !== timeoutId,
         );
-        this.restoreAnchorPosition(anchorSnapshot);
+        this.restoreAnchorPosition(anchorSnapshot, fallbackScrollY);
       }, delay);
 
       this.restoreTimeouts.push(timeoutId);
     });
   },
 
+  storeGlobalRestoreSnapshot(anchorSnapshot, fallbackScrollY) {
+    streamRestoreSnapshot = {
+      rootId: this.el.id || null,
+      anchorSnapshot: anchorSnapshot || null,
+      fallbackScrollY,
+      capturedAt: Date.now(),
+    };
+  },
+
+  restoreFromGlobalSnapshotIfNeeded(fromMount = false) {
+    const snapshot = streamRestoreSnapshot;
+
+    if (!snapshot) return;
+    if (snapshot.rootId && this.el.id && snapshot.rootId !== this.el.id) return;
+    if (Date.now() - snapshot.capturedAt > 5000) {
+      this.clearGlobalRestoreSnapshot();
+      return;
+    }
+
+    const shouldRestore =
+      currentScrollY() === 0 &&
+      Number.isFinite(snapshot.fallbackScrollY) &&
+      snapshot.fallbackScrollY > 0;
+
+    if (!shouldRestore) return;
+
+    this.restoreAnchorPosition(snapshot.anchorSnapshot, snapshot.fallbackScrollY);
+
+    if (!fromMount) {
+      this.schedulePendingRestore(snapshot.anchorSnapshot, snapshot.fallbackScrollY);
+    }
+  },
+
+  clearGlobalRestoreSnapshot() {
+    if (!streamRestoreSnapshot) return;
+    if (
+      streamRestoreSnapshot.rootId &&
+      this.el.id &&
+      streamRestoreSnapshot.rootId !== this.el.id
+    ) {
+      return;
+    }
+
+    streamRestoreSnapshot = null;
+  },
+
   destroyed() {
     this.cancelPendingRestore();
+    this.clearGlobalRestoreSnapshot();
     if (this.handleScroll)
       window.removeEventListener("scroll", this.handleScroll);
   },
