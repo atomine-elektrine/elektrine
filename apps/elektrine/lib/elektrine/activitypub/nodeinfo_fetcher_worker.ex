@@ -134,7 +134,7 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
     else
       error ->
         Logger.debug(
-          "[NodeInfoFetcher] Failed to fetch nodeinfo for #{domain}: #{inspect(error)}"
+          "[NodeInfoFetcher] Failed to fetch nodeinfo for #{domain}: #{inspect(normalize_fetch_error(error))}"
         )
 
         nil
@@ -169,10 +169,28 @@ defmodule Elektrine.ActivityPub.NodeInfoFetcherWorker do
         Logger.debug("[NodeInfoFetcher] NodeInfo too large: #{byte_size(body)} bytes")
         {:error, :too_large}
 
+      {:ok, %Finch.Response{status: status, body: body}} ->
+        {:error, {:http_status, status, summarize_response_body(body)}}
+
       error ->
-        error
+        {:error, normalize_fetch_error(error)}
     end
   end
+
+  defp normalize_fetch_error({:ok, %Finch.Response{status: status, body: body}}) do
+    {:http_status, status, summarize_response_body(body)}
+  end
+
+  defp normalize_fetch_error({:error, reason}), do: reason
+  defp normalize_fetch_error(error), do: error
+
+  defp summarize_response_body(body) when is_binary(body) do
+    body
+    |> String.trim()
+    |> String.slice(0, 300)
+  end
+
+  defp summarize_response_body(_), do: nil
 
   defp fetch_favicon(domain) do
     # Try common favicon locations
