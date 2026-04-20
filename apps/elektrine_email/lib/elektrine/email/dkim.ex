@@ -388,8 +388,20 @@ defmodule Elektrine.Email.DKIM do
 
   defp normalize_error_body(body), do: inspect(body)
 
-  defp dmarc_rua_fragment(value) when is_binary(value),
-    do: if(Elektrine.Strings.present?(value), do: "rua=mailto:#{value}", else: nil)
+  defp dmarc_rua_fragment(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        nil
+
+      String.starts_with?(String.downcase(value), "mailto:") ->
+        "rua=#{value}"
+
+      true ->
+        "rua=mailto:#{value}"
+    end
+  end
 
   defp dmarc_rua_fragment(_), do: nil
 
