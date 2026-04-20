@@ -53,5 +53,4 @@ defmodule ElektrineWeb.Scrubbers.RemoteContent do
     "width",
     "height"
   ])
-
 end

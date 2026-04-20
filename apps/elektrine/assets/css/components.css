@@ -158,6 +158,9 @@ html[data-theme="dark"] .btn:focus-visible,
 } .timeline-thread-preview-list::before { content: ""; position: absolute; left: 0.75rem; top: 0.3rem; bottom: 0.25rem; width: 2px; border-radius: 9999px; background: linear-gradient(to bottom, oklch(var(--bc) / 0.14), oklch(var(--bc) / 0.08));
 } .timeline-thread-preview-item { position: relative; background: oklch(var(--b1));
 } .timeline-thread-preview-item::before { content: ""; position: absolute; left: -1rem; top: 0.9rem; width: 0.75rem; height: 2px; border-radius: 9999px; background: oklch(var(--bc) / 0.12);
+} .timeline-thread-preview-list--flush { padding-left: 0;
+} .timeline-thread-preview-list--flush::before { display: none;
+} .timeline-thread-preview-item--flush::before { display: none;
 } @media (max-width: 640px) {
   .timeline-thread-replies { margin-left: 0.25rem; padding-left: 1.3rem;
   } .timeline-thread-replies__rail { left: 0.35rem; top: -0.75rem; width: 2px;

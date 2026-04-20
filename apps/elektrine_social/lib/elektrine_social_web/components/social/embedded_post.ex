@@ -47,7 +47,6 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
     <div
       phx-click={if @is_federated_link, do: "open_external_link", else: "navigate_to_embedded_post"}
       phx-value-url={if @is_federated_link, do: @shared_message.activitypub_url, else: @post_url}
-      phx-capture-click="stop_event"
       class={[
         "card panel-card border transition-colors cursor-pointer",
         if(@is_federated_link,

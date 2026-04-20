@@ -682,7 +682,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp normalize_lemmy_html_object(body, requested_uri, type)
        when is_binary(body) and type in [:site, :person, :group, :comment, :page] do
     with {:ok, iso_data} <- extract_lemmy_iso_data(body),
-         {:ok, resolved_body} <- lemmy_iso_data_to_resolved_body(iso_data, type),
+         {:ok, resolved_body} <- lemmy_iso_data_to_resolved_body(iso_data, requested_uri, type),
          {:ok, object_data} <- normalize_lemmy_resolved_object(resolved_body, requested_uri, type) do
       {:ok, object_data}
     else
@@ -694,16 +694,22 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp extract_lemmy_iso_data(body) when is_binary(body) do
     case Regex.run(~r/window\.isoData\s*=\s*(\{.*?\});/s, body, capture: :all_but_first) do
-      [json] -> Jason.decode(json)
+      [json] -> json |> normalize_lemmy_iso_data_json() |> Jason.decode()
       _ -> {:error, :missing_iso_data}
     end
   end
 
-  defp lemmy_iso_data_to_resolved_body(%{"site_res" => site_res}, :site) when is_map(site_res),
-    do: {:ok, site_res}
+  defp normalize_lemmy_iso_data_json(json) when is_binary(json) do
+    Regex.replace(~r/:undefined(?=\s*[,}])/, json, ":null")
+  end
+
+  defp lemmy_iso_data_to_resolved_body(%{"site_res" => site_res}, _requested_uri, :site)
+       when is_map(site_res),
+       do: {:ok, site_res}
 
   defp lemmy_iso_data_to_resolved_body(
          %{"person_res" => %{"person_view" => person_view}},
+         _requested_uri,
          :person
        )
        when is_map(person_view),
@@ -711,6 +717,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp lemmy_iso_data_to_resolved_body(
          %{"community_res" => %{"community_view" => community_view}},
+         _requested_uri,
          :group
        )
        when is_map(community_view),
@@ -718,16 +725,69 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp lemmy_iso_data_to_resolved_body(
          %{"comment_res" => %{"comment_view" => comment_view}},
+         _requested_uri,
          :comment
        )
        when is_map(comment_view),
        do: {:ok, %{"comment" => comment_view}}
 
-  defp lemmy_iso_data_to_resolved_body(%{"post_res" => %{"post_view" => post_view}}, :page)
+  defp lemmy_iso_data_to_resolved_body(
+         %{"routeData" => %{"commentsRes" => %{"data" => %{"comments" => comments}}}},
+         requested_uri,
+         :comment
+       )
+       when is_list(comments) do
+    case find_lemmy_comment_view(comments, requested_uri) do
+      %{} = comment_view -> {:ok, %{"comment" => comment_view}}
+      nil -> {:error, :unsupported_iso_data}
+    end
+  end
+
+  defp lemmy_iso_data_to_resolved_body(
+         %{"post_res" => %{"post_view" => post_view}},
+         _requested_uri,
+         :page
+       )
        when is_map(post_view),
        do: {:ok, %{"post" => post_view}}
 
-  defp lemmy_iso_data_to_resolved_body(_, _), do: {:error, :unsupported_iso_data}
+  defp lemmy_iso_data_to_resolved_body(
+         %{"routeData" => %{"postRes" => %{"data" => %{"post_view" => post_view}}}},
+         _requested_uri,
+         :page
+       )
+       when is_map(post_view),
+       do: {:ok, %{"post" => post_view}}
+
+  defp lemmy_iso_data_to_resolved_body(_, _, _), do: {:error, :unsupported_iso_data}
+
+  defp find_lemmy_comment_view(comments, requested_uri) when is_list(comments) do
+    requested_comment_id = lemmy_comment_id_from_uri(requested_uri)
+
+    Enum.find(comments, fn comment_view ->
+      comment = comment_view["comment"] || %{}
+      counts = comment_view["counts"] || %{}
+
+      comment["ap_id"] == requested_uri ||
+        comment["id"] == requested_comment_id ||
+        counts["comment_id"] == requested_comment_id
+    end)
+  end
+
+  defp lemmy_comment_id_from_uri(requested_uri) when is_binary(requested_uri) do
+    case URI.parse(requested_uri) do
+      %URI{path: "/comment/" <> comment_id} ->
+        case Integer.parse(comment_id) do
+          {id, _} -> id
+          :error -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp lemmy_comment_id_from_uri(_), do: nil
 
   defp normalize_external_post_url(url, object_id) when is_binary(url) and url != object_id,
     do: url

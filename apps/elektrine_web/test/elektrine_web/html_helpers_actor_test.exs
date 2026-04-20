@@ -52,6 +52,7 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert html =~ ~s(href="/#{user.handle}")
     assert html =~ "@maxfield@#{ActivityPub.instance_domain()}"
+    refute html =~ ~s(phx-click="stop_propagation")
   end
 
   test "render_remote_post_content keeps remote fediverse handles on remote routes" do
@@ -74,6 +75,31 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert html =~ ~s(href="/remote/alice@mastodon.social")
     assert html =~ ">@alice</a>"
+    refute html =~ ~s(phx-click="stop_propagation")
+  end
+
+  test "render_remote_post_content links plain-text fediverse mentions in fallback output" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "@whitequark@social.treehouse.systems\n\nWhen I started using FreeBSD",
+        "infosec.exchange"
+      )
+
+    assert html =~ ~s(href="/remote/whitequark@social.treehouse.systems")
+    assert html =~ ">@whitequark@social.treehouse.systems</a>"
+    refute html =~ ~s(phx-click="stop_propagation")
+  end
+
+  test "render_remote_post_content decodes doubly-encoded apostrophes" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "As an American, I gotta ask if it&amp;#39;s possible to switch",
+        "beige.party"
+      )
+
+    assert html =~ "it&#39;s possible to switch"
+    refute html =~ "/hashtag/39"
+    refute html =~ "&amp;#39;"
   end
 
   test "render_remote_post_content does not partially link domain-style non-fedi handles" do

@@ -137,7 +137,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
 
                 <%= if length(@reply_to_post_recent_replies) > 0 &&
                       Map.get(@post_replies, @post.id, []) == [] do %>
-                  <div class="timeline-thread-preview-list mb-3 space-y-2">
+                  <div class="timeline-thread-preview-list timeline-thread-preview-list--flush mb-3 space-y-2 text-left">
                     <div class="text-xs font-semibold opacity-60 mb-2">Recent Replies:</div>
                     <%= for reply <- @reply_to_post_recent_replies do %>
                       <% has_sender = Map.get(reply, :sender) != nil
@@ -185,7 +185,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
                         end %>
                       <div
                         class={[
-                          "timeline-thread-preview-item text-sm rounded-lg px-2 py-1.5 transition-colors",
+                          "timeline-thread-preview-item timeline-thread-preview-item--flush text-left text-sm rounded-lg px-2 py-1.5 transition-colors",
                           reply_click && "cursor-pointer hover:bg-base-200/70"
                         ]}
                         phx-click={reply_click && reply_click.event}
