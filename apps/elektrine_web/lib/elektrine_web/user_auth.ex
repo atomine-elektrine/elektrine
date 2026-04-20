@@ -47,7 +47,6 @@ defmodule ElektrineWeb.UserAuth do
     |> renew_session()
     |> put_token_in_session(token)
     |> mark_recent_auth()
-    |> store_session_ip_for_admin(user, remote_ip)
     |> maybe_write_remember_me_cookie(token, user, params)
     |> maybe_put_session_values(opts[:session])
     |> maybe_initialize_admin_security_session(user, opts)
@@ -436,17 +435,7 @@ defmodule ElektrineWeb.UserAuth do
           |> Phoenix.Controller.render(:"404")
           |> halt()
         else
-          case verify_admin_session_ip(conn, user) do
-            {:ok, conn} ->
-              AdminSecurity.enforce_controller_security(conn, user)
-
-            {:error, reason, conn} ->
-              conn
-              |> ensure_flash_fetched()
-              |> put_flash(:error, AdminSecurity.error_message(reason))
-              |> redirect(to: AdminSecurity.elevation_redirect_path(conn.request_path))
-              |> halt()
-          end
+          AdminSecurity.enforce_controller_security(conn, user)
         end
 
       %{banned: true} ->
@@ -475,48 +464,6 @@ defmodule ElektrineWeb.UserAuth do
   # Helper function to get remote IP address
   defp get_remote_ip(conn) do
     ClientIP.client_ip(conn)
-  end
-
-  # Store IP address in session for admin users (IP binding for session hijacking detection)
-  defp store_session_ip_for_admin(conn, %{is_admin: true}, remote_ip) do
-    put_session(conn, :admin_session_ip, remote_ip)
-  end
-
-  defp store_session_ip_for_admin(conn, _user, _remote_ip) do
-    # Non-admin users don't need IP binding
-    conn
-  end
-
-  # Verify admin session IP hasn't changed (session hijacking detection)
-  defp verify_admin_session_ip(conn, user) do
-    session_ip = get_session(conn, :admin_session_ip)
-    current_ip = get_remote_ip(conn)
-
-    cond do
-      # No session IP stored - first request after login or old session, store current IP
-      is_nil(session_ip) ->
-        require Logger
-
-        Logger.info(
-          "Admin session IP binding: Initializing IP for user #{user.id} (#{user.username}) - IP: #{current_ip}"
-        )
-
-        {:ok, put_session(conn, :admin_session_ip, current_ip)}
-
-      # IP matches - allow access
-      AdminSecurity.ip_matches?(session_ip, current_ip) ->
-        {:ok, conn}
-
-      # IP changed - require the admin to re-elevate instead of silently rebinding.
-      true ->
-        require Logger
-
-        Logger.warning(
-          "SECURITY ALERT: Admin session IP mismatch detected for user #{user.id} (#{user.username}). Session IP: #{session_ip}, Current IP: #{current_ip}. Rejecting admin session."
-        )
-
-        {:error, :admin_ip_changed, conn}
-    end
   end
 
   defp remember_me_options(conn) do

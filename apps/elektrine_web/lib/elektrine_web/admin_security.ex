@@ -197,9 +197,6 @@ defmodule ElektrineWeb.AdminSecurity do
   def error_message(:device_binding_failed),
     do: "Device binding check failed. Re-elevate your admin session."
 
-  def error_message(:admin_ip_changed),
-    do: "Admin IP changed. Re-elevate your admin session."
-
   def error_message(:admin_access_expired),
     do: "Admin access expired. Re-elevate to continue."
 
@@ -230,28 +227,6 @@ defmodule ElektrineWeb.AdminSecurity do
   end
 
   def recent_admin_confirmation?(_session), do: false
-
-  def session_admin_ip(session) when is_map(session) do
-    session_value(session, :admin_session_ip)
-  end
-
-  def session_admin_ip(_session), do: nil
-
-  def ip_matches?(stored_ip, current_ip)
-
-  def ip_matches?(stored_ip, current_ip) when is_binary(stored_ip) and is_binary(current_ip) do
-    if stored_ip == current_ip do
-      true
-    else
-      normalized_stored = normalize_ip_value(stored_ip)
-      normalized_current = normalize_ip_value(current_ip)
-
-      normalized_stored == normalized_current ||
-        (loopback_ip?(normalized_stored) and loopback_ip?(normalized_current))
-    end
-  end
-
-  def ip_matches?(_, _), do: false
 
   defp ensure_passkey_enrolled(conn, user) do
     if passkey_required?() and not Passkeys.has_passkeys?(user) do
@@ -353,30 +328,6 @@ defmodule ElektrineWeb.AdminSecurity do
       end
     end
   end
-
-  defp normalize_ip_value(ip) when is_binary(ip) do
-    case :inet.parse_address(String.to_charlist(ip)) do
-      {:ok, parsed} -> normalize_ip_tuple(parsed)
-      _ -> ip
-    end
-  end
-
-  defp normalize_ip_value(ip), do: ip
-
-  defp normalize_ip_tuple({0, 0, 0, 0, 0, 65_535, high, low}) do
-    {
-      Bitwise.bsr(high, 8),
-      Bitwise.band(high, 255),
-      Bitwise.bsr(low, 8),
-      Bitwise.band(low, 255)
-    }
-  end
-
-  defp normalize_ip_tuple(ip), do: ip
-
-  defp loopback_ip?({127, _, _, _}), do: true
-  defp loopback_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
-  defp loopback_ip?(_), do: false
 
   defp ensure_live_elevation(session) do
     now = now_seconds()
