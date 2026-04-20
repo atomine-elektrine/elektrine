@@ -258,7 +258,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
     cond do
       is_nil(session_ip) -> :ok
       is_nil(current_ip) -> {:error, :admin_ip_changed}
-      session_ip == current_ip -> :ok
+      AdminSecurity.ip_matches?(session_ip, current_ip) -> :ok
       true -> {:error, :admin_ip_changed}
     end
   end
@@ -293,7 +293,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
           true
 
         {session_ip, peer_ip} when is_binary(session_ip) and is_binary(peer_ip) ->
-          session_ip == peer_ip
+          AdminSecurity.ip_matches?(session_ip, peer_ip)
 
         _ ->
           false

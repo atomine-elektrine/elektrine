@@ -204,11 +204,15 @@ defmodule ElektrineWeb.FilesLive do
 
     with {:ok, file_id} <- parse_id(id),
          %Files.StoredFile{} = file <- Enum.find(Files.list_files(user.id), &(&1.id == file_id)) do
-      {:noreply,
-       socket
-       |> assign(:active_file, file)
-       |> assign(:active_folder, nil)
-       |> assign(:context_menu, nil)}
+      if socket.assigns.active_file && socket.assigns.active_file.id == file.id do
+        {:noreply, assign(socket, :context_menu, nil)}
+      else
+        {:noreply,
+         socket
+         |> assign(:active_file, file)
+         |> assign(:active_folder, nil)
+         |> assign(:context_menu, nil)}
+      end
     else
       _ -> {:noreply, put_flash(socket, :error, "File not found")}
     end
@@ -660,6 +664,8 @@ defmodule ElektrineWeb.FilesLive do
     |> assign(:active_filter, folder_view.filter_by)
     |> assign(:sort_by, folder_view.sort_by)
     |> assign(:selected_items, MapSet.new())
+    |> assign(:active_file, nil)
+    |> assign(:active_folder, nil)
     |> assign(:rename_target, nil)
     |> assign(:move_target, nil)
     |> assign(:bulk_move_open, false)
@@ -807,6 +813,74 @@ defmodule ElektrineWeb.FilesLive do
   defp row_class(true), do: "bg-primary/8 ring-1 ring-primary/20"
 
   defp row_class(false), do: "hover:bg-base-200/45 focus-within:bg-base-200/45"
+
+  defp next_table_sort(sort_by, :name) do
+    case sort_by do
+      "name_asc" -> "name_desc"
+      _ -> "name_asc"
+    end
+  end
+
+  defp next_table_sort(sort_by, :location) do
+    case sort_by do
+      "path_asc" -> "path_desc"
+      _ -> "path_asc"
+    end
+  end
+
+  defp next_table_sort(sort_by, :modified) do
+    case sort_by do
+      "updated_desc" -> "updated_asc"
+      _ -> "updated_desc"
+    end
+  end
+
+  defp next_table_sort(sort_by, :size) do
+    case sort_by do
+      "size_desc" -> "size_asc"
+      _ -> "size_desc"
+    end
+  end
+
+  defp table_sort_icon(sort_by, :name) do
+    case sort_by do
+      "name_asc" -> "hero-chevron-up"
+      "name_desc" -> "hero-chevron-down"
+      _ -> nil
+    end
+  end
+
+  defp table_sort_icon(sort_by, :location) do
+    case sort_by do
+      "path_asc" -> "hero-chevron-up"
+      "path_desc" -> "hero-chevron-down"
+      _ -> nil
+    end
+  end
+
+  defp table_sort_icon(sort_by, :modified) do
+    case sort_by do
+      "updated_asc" -> "hero-chevron-up"
+      "updated_desc" -> "hero-chevron-down"
+      _ -> nil
+    end
+  end
+
+  defp table_sort_icon(sort_by, :size) do
+    case sort_by do
+      "size_asc" -> "hero-chevron-up"
+      "size_desc" -> "hero-chevron-down"
+      _ -> nil
+    end
+  end
+
+  defp table_sort_label(sort_by, column) do
+    case table_sort_icon(sort_by, column) do
+      nil -> "Not sorted"
+      "hero-chevron-up" -> "Sorted ascending"
+      "hero-chevron-down" -> "Sorted descending"
+    end
+  end
 
   defp current_folder_name(""), do: "All files"
 

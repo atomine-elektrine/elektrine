@@ -102,6 +102,13 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
     refute html =~ "&amp;#39;"
   end
 
+  test "render_remote_post_content trims accidental leading breaks" do
+    html = HtmlHelpers.render_remote_post_content("<br>First line<br>Second line", "wizard.casa")
+
+    refute html =~ ~r/^<br\s*\/?>/
+    assert html =~ "First line<br>Second line"
+  end
+
   test "render_remote_post_content does not partially link domain-style non-fedi handles" do
     html = HtmlHelpers.render_remote_post_content("<p>Hello @x.com</p>", "mastodon.social")
 

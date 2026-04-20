@@ -1059,7 +1059,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp timeline_path(socket, filter, view) do
-    params = %{"filter" => filter, "view" => view}
+    params = %{
+      "filter" => filter,
+      "view" => view,
+      "sort" => socket.assigns[:timeline_sort] || "new"
+    }
 
     params =
       case socket.assigns[:search_query] do

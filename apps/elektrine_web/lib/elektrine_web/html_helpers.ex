@@ -624,6 +624,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
+    |> trim_leading_post_spacing()
   rescue
     _ -> fallback_remote_post_html(content, instance_domain, mention_domain_hints)
   end
@@ -672,6 +673,16 @@ defmodule ElektrineWeb.HtmlHelpers do
   defp add_paragraph_spacing(content) do
     content
   end
+
+  defp trim_leading_post_spacing(html) when is_binary(html) do
+    String.replace(
+      html,
+      ~r/\A(?:\s|&nbsp;|<br\s*\/?>|<p(?:\s[^>]*)?>\s*(?:<br\s*\/?>|\s|&nbsp;)*<\/p>|<div(?:\s[^>]*)?>\s*(?:<br\s*\/?>|\s|&nbsp;)*<\/div>)+/i,
+      ""
+    )
+  end
+
+  defp trim_leading_post_spacing(content), do: content
 
   defp strip_mastodon_link_spans(html) when is_binary(html) do
     html
@@ -1026,6 +1037,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
     |> convert_newlines_to_breaks()
+    |> trim_leading_post_spacing()
   end
 
   defp fallback_remote_post_html(content, _instance_domain, _mention_domain_hints) do

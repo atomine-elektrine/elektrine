@@ -1420,6 +1420,7 @@ defmodule Elektrine.Social do
       case sort_by do
         "score" -> [desc: :score, desc: :inserted_at]
         "recent" -> [desc: :inserted_at]
+        "oldest" -> [asc: :inserted_at]
         "hot" -> [desc: :score, desc: :upvotes, desc: :inserted_at]
         _ -> [desc: :score, desc: :inserted_at]
       end

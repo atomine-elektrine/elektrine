@@ -54,6 +54,10 @@ body[data-grid="purple"], body.grid-purple { --theme-grid-color: color-mix(in sr
 } .admin-page { display: flex; flex-direction: column; gap: 1.5rem;
 } @media (min-width: 640px) { .admin-page { gap: 2rem; }
 } .admin-page > :first-child { margin-bottom: 0 !important;
+} .admin-page > :first-child:not(.card):not(.panel-card):not(.alert) { background: color-mix(in srgb, var(--color-base-200) 82%, transparent); border: 1px solid color-mix(in srgb, var(--color-base-300) 84%, var(--color-base-content) 16%); border-radius: 1.5rem; box-shadow: var(--surface-panel-shadow); padding: 1.25rem;
+} @media (min-width: 640px) { .admin-page > :first-child:not(.card):not(.panel-card):not(.alert) { padding: 1.5rem 1.75rem; }
+} .admin-page > :first-child:not(.card):not(.panel-card):not(.alert) h1 { letter-spacing: -0.02em;
+} .admin-page > :first-child:not(.card):not(.panel-card):not(.alert) p { color: color-mix(in srgb, var(--color-base-content) 70%, transparent);
 } .admin-page > .card.panel-card,
 .admin-page > section.card.panel-card { margin-top: 0 !important; margin-bottom: 0 !important;
 } .admin-layout .dropdown-content,

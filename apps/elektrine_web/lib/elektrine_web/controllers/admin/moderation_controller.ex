@@ -33,8 +33,8 @@ defmodule ElektrineWeb.Admin.ModerationController do
             where: is_nil(m.deleted_at)
 
         "chat" ->
-          from m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from m in Elektrine.Messaging.ChatMessage,
+            join: c in Elektrine.Messaging.ChatConversation,
             on: m.conversation_id == c.id,
             where: c.type in ["group", "dm", "channel"],
             where: is_nil(m.deleted_at)
@@ -52,14 +52,27 @@ defmodule ElektrineWeb.Admin.ModerationController do
       if search_query != "" do
         search_pattern = "%#{search_query}%"
 
-        from [m, c] in base_query,
-          join: u in Accounts.User,
-          on: m.sender_id == u.id,
-          where:
-            ilike(m.content, ^search_pattern) or
-              ilike(u.username, ^search_pattern) or
-              ilike(u.handle, ^search_pattern) or
-              ilike(c.name, ^search_pattern)
+        if content_type == "chat" do
+          from [m, c] in base_query,
+            left_join: u in Accounts.User,
+            on: m.sender_id == u.id,
+            where:
+              ilike(fragment("COALESCE(?, '')", m.content), ^search_pattern) or
+                ilike(fragment("COALESCE(?, '')", u.username), ^search_pattern) or
+                ilike(fragment("COALESCE(?, '')", u.handle), ^search_pattern) or
+                ilike(fragment("COALESCE(?, '')", c.name), ^search_pattern) or
+                ilike(fragment("COALESCE(?, '')", m.federated_source), ^search_pattern) or
+                ilike(fragment("COALESCE(?, '')", m.origin_domain), ^search_pattern)
+        else
+          from [m, c] in base_query,
+            join: u in Accounts.User,
+            on: m.sender_id == u.id,
+            where:
+              ilike(m.content, ^search_pattern) or
+                ilike(u.username, ^search_pattern) or
+                ilike(u.handle, ^search_pattern) or
+                ilike(c.name, ^search_pattern)
+        end
       else
         base_query
       end
@@ -72,7 +85,13 @@ defmodule ElektrineWeb.Admin.ModerationController do
       |> offset(^offset)
       |> preload([:sender, conversation: []])
       |> Repo.all()
-      |> Elektrine.Messaging.Message.decrypt_messages()
+      |> then(fn messages ->
+        if content_type == "chat" do
+          Elektrine.Messaging.ChatMessage.decrypt_messages(messages)
+        else
+          Elektrine.Messaging.Message.decrypt_messages(messages)
+        end
+      end)
 
     # Get counts for all types
     counts = %{
@@ -91,8 +110,8 @@ defmodule ElektrineWeb.Admin.ModerationController do
         )
         |> Repo.aggregate(:count),
       chat:
-        from(m in Elektrine.Messaging.Message,
-          join: c in Elektrine.Messaging.Conversation,
+        from(m in Elektrine.Messaging.ChatMessage,
+          join: c in Elektrine.Messaging.ChatConversation,
           on: m.conversation_id == c.id,
           where: c.type in ["group", "dm", "channel"] and is_nil(m.deleted_at)
         )
