@@ -122,7 +122,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
       end
     else
       {:error, :not_found} ->
-        if remote_object_uri?(object_uri) do
+        if remote_object_uri?(object_uri) || remote_activity_wrapper_uri?(object_uri) do
           {:ok, :ignored}
         else
           {:error, :announce_object_fetch_failed}

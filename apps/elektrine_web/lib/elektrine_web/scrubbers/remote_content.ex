@@ -54,6 +54,4 @@ defmodule ElektrineWeb.Scrubbers.RemoteContent do
     "height"
   ])
 
-  # Strip everything else
-  Meta.strip_everything_not_covered()
 end
