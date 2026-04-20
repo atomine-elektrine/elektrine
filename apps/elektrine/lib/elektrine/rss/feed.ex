@@ -43,6 +43,7 @@ defmodule Elektrine.RSS.Feed do
       :etag,
       :last_modified
     ])
+    |> update_change(:last_fetched_at, &Elektrine.Time.truncate/1)
     |> validate_required([:url])
     |> unique_constraint(:url)
     |> validate_inclusion(:status, ["pending", "active", "paused", "error"])

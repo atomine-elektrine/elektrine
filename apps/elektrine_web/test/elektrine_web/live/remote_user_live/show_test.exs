@@ -73,6 +73,37 @@ defmodule ElektrineSocialWeb.RemoteUserLive.ShowTest do
     assert inspect(updated_socket.redirected) =~ "/timeline/post/42"
   end
 
+  test "opens image modal when url is omitted from params" do
+    images = ["https://lemmy.world/pictrs/image/example.jpeg"]
+
+    socket =
+      %Phoenix.LiveView.Socket{
+        assigns: %{
+          __changed__: %{},
+          local_posts: [],
+          remote_actor: %{id: 123, username: "remote-user"}
+        }
+      }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_event(
+               "open_image_modal",
+               %{
+                 "images" => Jason.encode!(images),
+                 "index" => "0",
+                 "post_id" => "134329"
+               },
+               socket
+             )
+
+    assert updated_socket.assigns.show_image_modal
+    assert updated_socket.assigns.modal_image_url == hd(images)
+    assert updated_socket.assigns.modal_images == images
+    assert updated_socket.assigns.modal_image_index == 0
+    assert updated_socket.assigns.modal_post.activitypub_id == "134329"
+    assert updated_socket.assigns.modal_post.remote_actor == socket.assigns.remote_actor
+  end
+
   test "sort_posts normalizes remote collection totals for top and hot sorts" do
     low_score_post = %{
       "id" => "https://remote.example/posts/low",

@@ -209,6 +209,12 @@ defmodule ElektrineWeb.AdminHTML do
             platform_module: :email
           },
           %{
+            label: "Haraka",
+            path: "/pripyat/haraka",
+            icon: "hero-server-stack",
+            platform_module: :email
+          },
+          %{
             label: "Aliases",
             path: "/pripyat/aliases",
             icon: "hero-at-symbol",

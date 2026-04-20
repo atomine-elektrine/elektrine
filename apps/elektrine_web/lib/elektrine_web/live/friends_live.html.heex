@@ -104,11 +104,16 @@
               for={%{}}
               phx-change="search"
               phx-submit="search"
-              class="w-full max-w-xl"
+              class="relative w-full max-w-xl"
             >
               <label class="input input-bordered flex items-center gap-2">
                 <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-50" />
                 <input
+                  id={
+                    if @current_tab == "friends",
+                      do: "friends-search-input",
+                      else: "suggestions-search-input"
+                  }
                   type="text"
                   name="query"
                   value={@search_query}
@@ -117,17 +122,8 @@
                   }
                   autocomplete="off"
                   phx-debounce="250"
+                  class="grow pr-10"
                 />
-                <%= if @search_query != "" do %>
-                  <button
-                    type="button"
-                    phx-click="clear_search"
-                    data-search-clear="true"
-                    class="btn btn-ghost btn-xs"
-                  >
-                    Clear
-                  </button>
-                <% end %>
               </label>
             </.form>
 

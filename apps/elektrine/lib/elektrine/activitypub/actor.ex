@@ -55,6 +55,7 @@ defmodule Elektrine.ActivityPub.Actor do
       :moderators_url,
       :community_id
     ])
+    |> truncate_utc_datetimes([:last_fetched_at, :published_at])
     |> update_change(:metadata, &encrypt_metadata_private_key/1)
     |> validate_required([:uri, :username, :domain, :inbox_url])
     |> validate_inclusion(:actor_type, [
@@ -107,6 +108,12 @@ defmodule Elektrine.ActivityPub.Actor do
   end
 
   defp decrypt_metadata_private_key(_metadata), do: nil
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
+  end
 
   defp encrypt_private_key(private_key) do
     case EncryptedString.encrypt(private_key) do

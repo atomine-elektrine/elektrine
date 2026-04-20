@@ -34,6 +34,7 @@ defmodule Elektrine.Social.LinkPreview do
       :error_message,
       :fetched_at
     ])
+    |> update_change(:fetched_at, &Elektrine.Time.truncate/1)
     |> truncate_field(:title, @max_varchar_length)
     |> truncate_field(:site_name, @max_varchar_length)
     |> nilify_overlong_field(:image_url, @max_url_length)

@@ -325,12 +325,12 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          (post.downvotes || 0) != (counts.downvotes || 0) ||
          (post.score || 0) != (score || 0) do
       updated_counts = %{
-        like_count: max(score, post.like_count || 0),
-        reply_count: max(comments, post.reply_count || 0),
+        like_count: normalize_remote_count(score),
+        reply_count: normalize_remote_count(comments),
         share_count: post.share_count || 0,
-        upvotes: max(counts.upvotes || 0, post.upvotes || 0),
-        downvotes: max(counts.downvotes || 0, post.downvotes || 0),
-        score: max(score || 0, post.score || 0)
+        upvotes: normalize_remote_count(counts.upvotes),
+        downvotes: normalize_remote_count(counts.downvotes),
+        score: normalize_remote_count(score)
       }
 
       Repo.update_all(
@@ -370,9 +370,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        }) do
     if counts_changed?(post, fav, rep, reb) do
       updated_counts = %{
-        like_count: max(fav, post.like_count || 0),
-        reply_count: max(rep, post.reply_count || 0),
-        share_count: max(reb, post.share_count || 0)
+        like_count: normalize_remote_count(fav),
+        reply_count: normalize_remote_count(rep),
+        share_count: normalize_remote_count(reb)
       }
 
       Repo.update_all(
@@ -446,12 +446,12 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          (post.downvotes || 0) != downvotes ||
          (post.score || 0) != score do
       updated_counts = %{
-        like_count: max(likes, post.like_count || 0),
-        reply_count: max(replies, post.reply_count || 0),
-        share_count: max(shares, post.share_count || 0),
-        upvotes: max(upvotes, post.upvotes || 0),
-        downvotes: max(downvotes, post.downvotes || 0),
-        score: max(score, post.score || 0)
+        like_count: normalize_remote_count(likes),
+        reply_count: normalize_remote_count(replies),
+        share_count: normalize_remote_count(shares),
+        upvotes: normalize_remote_count(upvotes),
+        downvotes: normalize_remote_count(downvotes),
+        score: normalize_remote_count(score)
       }
 
       Repo.update_all(
@@ -530,6 +530,10 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         {:error, reason}
     end
   end
+
+  defp normalize_remote_count(value) when is_integer(value), do: max(value, 0)
+  defp normalize_remote_count(nil), do: 0
+  defp normalize_remote_count(_), do: 0
 
   defp lemmy_url?(url) when is_binary(url) do
     LemmyApi.community_post_url?(url) or Regex.match?(~r{/comment/\d+(?:$|[/?#])}, url)

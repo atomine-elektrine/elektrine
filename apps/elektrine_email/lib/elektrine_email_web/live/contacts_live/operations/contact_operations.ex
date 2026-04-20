@@ -18,6 +18,15 @@ defmodule ElektrineEmailWeb.ContactsLive.Operations.ContactOperations do
      |> assign(:filtered_contacts, filtered)}
   end
 
+  def handle_contact_event("clear_search", _params, socket) do
+    filtered = filter_contacts(socket.assigns.contacts, "", socket.assigns.selected_group)
+
+    {:noreply,
+     socket
+     |> assign(:search_query, "")
+     |> assign(:filtered_contacts, filtered)}
+  end
+
   def handle_contact_event("select_group", %{"group" => "all"}, socket) do
     filtered = filter_contacts(socket.assigns.contacts, socket.assigns.search_query, nil)
 

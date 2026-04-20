@@ -1437,6 +1437,7 @@ defmodule Elektrine.ActivityPub do
   """
   def fetch_remote_user_timeline(remote_actor_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
+    fetcher = Keyword.get(opts, :fetcher, Fetcher)
 
     case Repo.get(Actor, remote_actor_id) do
       nil ->
@@ -1446,9 +1447,9 @@ defmodule Elektrine.ActivityPub do
         {:error, :no_outbox_url}
 
       %Actor{outbox_url: outbox_url} ->
-        case Fetcher.fetch_object(outbox_url) do
+        case fetcher.fetch_object(outbox_url) do
           {:ok, outbox_data} ->
-            posts = extract_posts_from_outbox(outbox_data, limit)
+            posts = extract_posts_from_outbox(outbox_data, limit, fetcher)
             {:ok, posts}
 
           {:error, reason} ->
@@ -1457,38 +1458,9 @@ defmodule Elektrine.ActivityPub do
     end
   end
 
-  defp extract_posts_from_outbox(outbox_data, limit) do
-    # Handle both OrderedCollection and Collection
-    items =
-      case outbox_data do
-        %{"orderedItems" => items} when is_list(items) ->
-          items
-
-        %{"items" => items} when is_list(items) ->
-          items
-
-        # Handle first as a URL string
-        %{"first" => first_page_url} when is_binary(first_page_url) ->
-          fetch_collection_page_items(first_page_url)
-
-        # Handle first as an object with id
-        %{"first" => %{"id" => first_page_url}} when is_binary(first_page_url) ->
-          fetch_collection_page_items(first_page_url)
-
-        # Handle first as an object with items directly
-        %{"first" => %{"orderedItems" => items}} when is_list(items) ->
-          items
-
-        %{"first" => %{"items" => items}} when is_list(items) ->
-          items
-
-        _ ->
-          []
-      end
-
-    # Filter and extract posts
-    # Handle Create, Announce activities and unwrapped objects
-    items
+  defp extract_posts_from_outbox(outbox_data, limit, fetcher) do
+    outbox_data
+    |> collect_outbox_items(limit, fetcher)
     |> Enum.map(fn item ->
       case item do
         # Create activity wrapping an object
@@ -1511,7 +1483,7 @@ defmodule Elektrine.ActivityPub do
 
         # Announce activity where object is a URL
         %{"type" => "Announce", "object" => object_url} when is_binary(object_url) ->
-          case Fetcher.fetch_object(object_url) do
+          case fetcher.fetch_object(object_url) do
             {:ok, %{"type" => type} = object}
             when type in ["Note", "Article", "Question", "Page"] ->
               object
@@ -1530,7 +1502,7 @@ defmodule Elektrine.ActivityPub do
 
         # URL string - need to fetch the object
         url when is_binary(url) ->
-          case Fetcher.fetch_object(url) do
+          case fetcher.fetch_object(url) do
             {:ok, %{"type" => type} = object}
             when type in ["Note", "Article", "Question", "Page"] ->
               object
@@ -1562,17 +1534,76 @@ defmodule Elektrine.ActivityPub do
     |> Enum.take(limit)
   end
 
-  defp fetch_collection_page_items(url) do
-    case Fetcher.fetch_object(url) do
-      {:ok, page} ->
-        case page do
-          %{"orderedItems" => items} when is_list(items) -> items
-          %{"items" => items} when is_list(items) -> items
-          _ -> []
-        end
+  defp collect_outbox_items(outbox_data, limit, fetcher) do
+    {items, next_page_url} = extract_outbox_page(outbox_data)
+
+    if length(items) >= limit or is_nil(next_page_url) do
+      items
+    else
+      collect_next_outbox_items(items, next_page_url, limit, fetcher, MapSet.new())
+    end
+  end
+
+  defp collect_next_outbox_items(items, _next_page_url, limit, _fetcher, _visited_urls)
+       when length(items) >= limit,
+       do: items
+
+  defp collect_next_outbox_items(items, nil, _limit, _fetcher, _visited_urls), do: items
+
+  defp collect_next_outbox_items(items, next_page_url, limit, fetcher, visited_urls) do
+    if MapSet.member?(visited_urls, next_page_url) do
+      items
+    else
+      visited_urls = MapSet.put(visited_urls, next_page_url)
+
+      case fetcher.fetch_object(next_page_url) do
+        {:ok, page} ->
+          {page_items, following_page_url} = extract_outbox_page(page)
+          combined_items = items ++ page_items
+
+          if length(combined_items) >= limit or is_nil(following_page_url) do
+            combined_items
+          else
+            collect_next_outbox_items(
+              combined_items,
+              following_page_url,
+              limit,
+              fetcher,
+              visited_urls
+            )
+          end
+
+        _ ->
+          items
+      end
+    end
+  end
+
+  defp extract_outbox_page(outbox_data) do
+    case outbox_data do
+      %{"orderedItems" => items} when is_list(items) ->
+        {items, outbox_data["next"]}
+
+      %{"items" => items} when is_list(items) ->
+        {items, outbox_data["next"]}
+
+      # Handle first as a URL string
+      %{"first" => first_page_url} when is_binary(first_page_url) ->
+        {[], first_page_url}
+
+      # Handle first as an object with id
+      %{"first" => %{"id" => first_page_url}} when is_binary(first_page_url) ->
+        {[], first_page_url}
+
+      # Handle first as an object with items directly
+      %{"first" => %{"orderedItems" => items} = first} when is_list(items) ->
+        {items, first["next"]}
+
+      %{"first" => %{"items" => items} = first} when is_list(items) ->
+        {items, first["next"]}
 
       _ ->
-        []
+        {[], nil}
     end
   end
 

@@ -388,7 +388,7 @@ defmodule Elektrine.Messaging.Messages do
       {:ok, message} = result ->
         # Update conversation's last message time
         from(c in Conversation, where: c.id == ^conversation_id)
-        |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
+        |> Repo.update_all(set: [last_message_at: Elektrine.Time.utc_now()])
 
         # Broadcast to conversation
         Phoenix.PubSub.broadcast(
@@ -1249,7 +1249,7 @@ defmodule Elektrine.Messaging.Messages do
 
   defp update_conversation_timestamp(conversation_id) do
     from(c in Conversation, where: c.id == ^conversation_id)
-    |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [last_message_at: Elektrine.Time.utc_now()])
   end
 
   defp broadcast_message(message) do

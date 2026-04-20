@@ -212,13 +212,13 @@ defmodule Elektrine.Messaging.Federation.State do
         update_attrs = %{
           content: content,
           media_metadata: metadata,
-          edited_at: DateTime.utc_now()
+          edited_at: Elektrine.Time.utc_now()
         }
 
         case existing |> ChatMessage.changeset(update_attrs) |> Repo.update() do
           {:ok, message} ->
             from(c in ChatConversation, where: c.id == ^mirror_channel.id)
-            |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
+            |> Repo.update_all(set: [last_message_at: Elektrine.Time.utc_now()])
 
             call(context, :maybe_broadcast_mirror_message_updated, [message])
 

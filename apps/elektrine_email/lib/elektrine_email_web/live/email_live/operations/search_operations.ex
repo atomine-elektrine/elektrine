@@ -29,4 +29,13 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.SearchOperations do
        |> assign(:searching, false)}
     end
   end
+
+  def handle_event("clear_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:search_query, "")
+     |> assign(:search_results, %{messages: [], total_count: 0})
+     |> assign(:messages, [])
+     |> assign(:searching, false)}
+  end
 end

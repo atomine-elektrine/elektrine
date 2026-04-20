@@ -48,6 +48,7 @@ defmodule Elektrine.Notifications.Notification do
       :seen_at,
       :dismissed_at
     ])
+    |> truncate_utc_datetimes([:read_at, :seen_at, :dismissed_at])
     |> validate_required([:type, :title, :user_id])
     |> validate_inclusion(:type, [
       "new_message",
@@ -61,5 +62,11 @@ defmodule Elektrine.Notifications.Notification do
       "system"
     ])
     |> validate_inclusion(:priority, ["low", "normal", "high", "urgent"])
+  end
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
   end
 end

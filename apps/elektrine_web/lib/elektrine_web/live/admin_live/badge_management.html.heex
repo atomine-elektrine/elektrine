@@ -20,15 +20,29 @@
         </h2>
 
         <.form for={%{}} phx-submit="search_user" phx-change="search_user" class="space-y-4">
-          <div>
+          <div class="relative">
             <input
+              id="badge-management-search-input"
               type="text"
               name="query"
               value={@search_query}
               placeholder="Search by username or handle..."
-              class="input input-bordered w-full"
+              class="input input-bordered w-full pr-10"
               autocomplete="off"
             />
+
+            <button
+              type="button"
+              phx-click="clear_search"
+              data-search-clear="true"
+              aria-label="Clear search"
+              class={[
+                "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+                if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+              ]}
+            >
+              <.icon name="hero-x-mark" class="h-4 w-4" />
+            </button>
           </div>
         </.form>
 

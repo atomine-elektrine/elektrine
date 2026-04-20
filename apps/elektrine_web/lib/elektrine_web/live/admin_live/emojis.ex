@@ -90,6 +90,24 @@ defmodule ElektrineWeb.AdminLive.Emojis do
      |> assign(:page, 1)}
   end
 
+  def handle_event("clear_search", _params, socket) do
+    emojis =
+      Emojis.list_all_emojis(
+        limit: socket.assigns.per_page,
+        search: "",
+        filter: socket.assigns.filter
+      )
+
+    total = Emojis.count_emojis(search: "", filter: socket.assigns.filter)
+
+    {:noreply,
+     socket
+     |> assign(:emojis, emojis)
+     |> assign(:total_count, total)
+     |> assign(:search_query, "")
+     |> assign(:page, 1)}
+  end
+
   def handle_event("filter", %{"filter" => filter}, socket) do
     emojis =
       Emojis.list_all_emojis(

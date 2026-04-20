@@ -467,9 +467,9 @@ defmodule Elektrine.Email.Messages do
                 {:new_email, message}
               )
 
-              # Only create notifications for actual incoming mail, not self-addressed inbox copies.
+              # Only create notifications for actual incoming mail, not self-originated inbox copies.
               if threaded_attrs[:status] != "sent" && threaded_attrs["status"] != "sent" &&
-                   !self_email_attrs?(threaded_attrs) do
+                   !self_originated_email_attrs?(threaded_attrs, mailbox_user_id) do
                 # Create notification for new email if user has enabled it
                 user = Elektrine.Accounts.get_user!(mailbox_user_id)
 
@@ -675,6 +675,12 @@ defmodule Elektrine.Email.Messages do
     end
   end
 
+  defp self_originated_email_attrs?(attrs, mailbox_user_id) when is_map(attrs) do
+    self_email_attrs?(attrs) || sender_owned_by_mailbox_user?(attrs, mailbox_user_id)
+  end
+
+  defp self_originated_email_attrs?(_attrs, _mailbox_user_id), do: false
+
   defp self_email_attrs?(attrs) when is_map(attrs) do
     metadata = get_attr(attrs, :metadata)
 
@@ -686,6 +692,23 @@ defmodule Elektrine.Email.Messages do
         false
     end
   end
+
+  defp sender_owned_by_mailbox_user?(attrs, mailbox_user_id) when is_integer(mailbox_user_id) do
+    case get_attr(attrs, :from) do
+      from when is_binary(from) ->
+        sender_email = Elektrine.Email.extract_email_address(from)
+
+        case Elektrine.Email.verify_email_ownership(sender_email, mailbox_user_id) do
+          {:ok, _} -> true
+          _ -> false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp sender_owned_by_mailbox_user?(_attrs, _mailbox_user_id), do: false
 
   @doc """
   Updates message attachments (for storage management).

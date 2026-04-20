@@ -38,6 +38,7 @@ defmodule Elektrine.Email.EmailJob do
       :completed_at,
       :scheduled_for
     ])
+    |> truncate_utc_datetimes([:completed_at, :scheduled_for])
     |> validate_required([:user_id, :email_attrs])
     |> validate_inclusion(:status, @statuses)
     |> foreign_key_constraint(:user_id)
@@ -50,7 +51,7 @@ defmodule Elektrine.Email.EmailJob do
 
   def mark_completed_changeset(job) do
     job
-    |> change(%{status: "completed", completed_at: DateTime.utc_now(), error: nil})
+    |> change(%{status: "completed", completed_at: Elektrine.Time.utc_now(), error: nil})
   end
 
   def mark_failed_changeset(job, error) do
@@ -58,5 +59,11 @@ defmodule Elektrine.Email.EmailJob do
 
     job
     |> change(%{status: status, error: String.slice(to_string(error), 0, 255)})
+  end
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
   end
 end

@@ -8,6 +8,7 @@ defmodule Elektrine.EmailBasicFunctionsTest do
   alias Elektrine.Accounts
   alias Elektrine.Domains
   alias Elektrine.Email
+  alias Elektrine.Notifications
 
   describe "mailbox management" do
     setup do
@@ -456,6 +457,55 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       assert updated2.first_opened_at == updated1.first_opened_at
       # Times should be different (or at least greater/equal)
       assert DateTime.compare(updated2.opened_at, updated1.opened_at) != :lt
+    end
+  end
+
+  describe "email notification suppression" do
+    setup do
+      username = "notifself#{System.unique_integer([:positive])}"
+
+      {:ok, user} =
+        Accounts.create_user(%{
+          username: username,
+          password: "NotifSelf123!",
+          password_confirmation: "NotifSelf123!"
+        })
+
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      alias_email = "#{username}alias@#{Domains.primary_email_domain()}"
+
+      {:ok, _alias} =
+        Email.create_alias(%{
+          alias_email: alias_email,
+          target_email: mailbox.email,
+          user_id: user.id
+        })
+
+      %{user: user, mailbox: mailbox, alias_email: alias_email}
+    end
+
+    test "does not create notifications for received mail sent from an address owned by the mailbox user",
+         %{
+           user: user,
+           mailbox: mailbox,
+           alias_email: alias_email
+         } do
+      assert {:ok, _message} =
+               Email.create_message(%{
+                 message_id: "owned-sender-#{System.unique_integer([:positive])}",
+                 from: alias_email,
+                 to: mailbox.email,
+                 subject: "Owned sender copy",
+                 text_body: "hello",
+                 status: "received",
+                 mailbox_id: mailbox.id,
+                 read: false,
+                 spam: false,
+                 archived: false
+               })
+
+      assert Notifications.list_notifications(user.id) == []
     end
   end
 

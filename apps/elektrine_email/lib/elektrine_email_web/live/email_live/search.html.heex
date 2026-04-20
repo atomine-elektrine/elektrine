@@ -31,6 +31,7 @@
             <.form for={%{}} as={:search} phx-submit="search" class="flex gap-3">
               <div class="flex-1 relative">
                 <input
+                  id="email-search-input"
                   type="text"
                   name="search[query]"
                   value={@search_query}
@@ -42,16 +43,18 @@
                   name="hero-magnifying-glass"
                   class="h-5 w-5 absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/60"
                 />
-                <%= if @search_query != "" do %>
-                  <button
-                    type="button"
-                    phx-click="clear_search"
-                    data-search-clear="true"
-                    class="absolute right-4 top-1/2 transform -translate-y-1/2 text-base-content/60 hover:text-base-content"
-                  >
-                    <.icon name="hero-x-mark" class="h-5 w-5" />
-                  </button>
-                <% end %>
+                <button
+                  type="button"
+                  phx-click="clear_search"
+                  data-search-clear="true"
+                  aria-label={gettext("Clear search")}
+                  class={[
+                    "absolute right-4 top-1/2 transform -translate-y-1/2 text-base-content/60 hover:text-base-content",
+                    if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+                  ]}
+                >
+                  <.icon name="hero-x-mark" class="h-5 w-5" />
+                </button>
               </div>
 
               <button type="submit" class="btn btn-secondary" disabled={@searching}>

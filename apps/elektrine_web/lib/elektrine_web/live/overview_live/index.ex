@@ -231,6 +231,10 @@ defmodule ElektrineWeb.OverviewLive.Index do
     end
   end
 
+  def handle_event("clear_activity_search", _params, socket) do
+    handle_event("search_activity", %{"query" => ""}, socket)
+  end
+
   def handle_event("unfollow_remote", %{"remote-actor-id" => remote_actor_id}, socket) do
     current_user = socket.assigns.current_user
 

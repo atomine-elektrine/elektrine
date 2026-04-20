@@ -20,6 +20,7 @@ defmodule Elektrine.Social.Hashtag do
   def changeset(hashtag, attrs) do
     hashtag
     |> cast(attrs, [:name, :normalized_name, :use_count, :last_used_at])
+    |> update_change(:last_used_at, &Elektrine.Time.truncate/1)
     |> validate_required([:name, :normalized_name])
     |> validate_length(:name, min: 1, max: 50)
     |> validate_format(:name, ~r/^[a-zA-Z0-9_]+$/,
