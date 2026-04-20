@@ -550,9 +550,17 @@ defmodule Elektrine.ActivityPub do
 
   @doc """
   Gets an actor by their ActivityPub URI.
+
+   Returns the oldest actor if duplicates exist, so duplicate rows do not crash
+   callers while the bad data is being cleaned up.
   """
   def get_actor_by_uri(uri) do
-    Repo.get_by(Actor, uri: uri)
+    from(a in Actor,
+      where: a.uri == ^uri,
+      order_by: [asc: a.inserted_at, asc: a.id],
+      limit: 1
+    )
+    |> Repo.one()
   end
 
   @doc """

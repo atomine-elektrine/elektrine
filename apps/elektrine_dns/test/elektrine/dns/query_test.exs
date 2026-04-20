@@ -64,6 +64,28 @@ defmodule Elektrine.DNS.QueryTest do
           usage: 3,
           selector: 1,
           matching_type: 1
+        },
+        %Record{
+          name: "ssh",
+          type: "SSHFP",
+          content: "1234ABCD",
+          ttl: 300,
+          algorithm: 4,
+          digest_type: 2
+        },
+        %Record{
+          name: "@",
+          type: "HTTPS",
+          content: ". alpn=h2,h3 port=443 ipv4hint=192.0.2.10",
+          ttl: 300,
+          priority: 1
+        },
+        %Record{
+          name: "svc",
+          type: "SVCB",
+          content: "svc-target.example.com alpn=h2",
+          ttl: 300,
+          priority: 2
         }
       ]
     }
@@ -262,6 +284,34 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).ancount == 1
     assert header(response).rcode == 0
     assert response =~ <<3, 1, 1, 0xAA, 0xBB, 0xCC, 0xDD>>
+  end
+
+  test "answers SSHFP queries" do
+    response = Query.answer(build_query("ssh.example.com", 44))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<4, 2, 0x12, 0x34, 0xAB, 0xCD>>
+  end
+
+  test "answers HTTPS queries" do
+    response = Query.answer(build_query("example.com", 65))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<0, 1, 0, 0>>
+    assert response =~ <<0, 1, 0, 6, 2, "h2", 2, "h3">>
+    assert response =~ <<0, 3, 0, 2, 1, 0xBB>>
+    assert response =~ <<0, 4, 0, 4, 192, 0, 2, 10>>
+  end
+
+  test "answers SVCB queries" do
+    response = Query.answer(build_query("svc.example.com", 64))
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<0, 2, 10, "svc-target", 7, "example", 3, "com", 0>>
+    assert response =~ <<0, 1, 0, 3, 2, "h2">>
   end
 
   test "refuses ANY queries" do

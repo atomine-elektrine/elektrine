@@ -24,6 +24,7 @@ let batchTimeout = null;
 let navigationFlushInProgress = false;
 const activeDwellTrackers = new Set();
 let queuedPostsScrollSnapshot = null;
+let infiniteScrollRestoreSnapshot = null;
 const TIMELINE_LAST_VISIT_KEY = "timeline-last-visit-at";
 const COMMUNITY_LAST_VISIT_KEY = "community-last-visit-at";
 const COMMUNITY_PREFERENCES_KEY = "community-view-preferences";
@@ -213,7 +214,24 @@ const REMOTE_FOLLOW_BUTTON_VARIANTS = {
  */
 export const PostClick = {
   mounted() {
+    this.suppressNextClickFromPickerDismiss = false;
+
+    this.handlePointerDown = (e) => {
+      const openReactionPicker = this.el.querySelector(
+        "[data-reaction-picker-root]:focus-within",
+      );
+
+      if (openReactionPicker && !e.target.closest("[data-reaction-picker-root]")) {
+        this.suppressNextClickFromPickerDismiss = true;
+      }
+    };
+
     this.handleClick = async (e) => {
+      if (this.suppressNextClickFromPickerDismiss) {
+        this.suppressNextClickFromPickerDismiss = false;
+        return;
+      }
+
       if (
         e.target.closest(
           "a, button, input, textarea, select, option, label, .dropdown, details",
@@ -251,6 +269,7 @@ export const PostClick = {
       }
     };
 
+    this.el.addEventListener("pointerdown", this.handlePointerDown);
     this.el.addEventListener("click", this.handleClick);
 
     // Dwell time tracking
@@ -280,6 +299,8 @@ export const PostClick = {
   },
 
   destroyed() {
+    if (this.handlePointerDown)
+      this.el.removeEventListener("pointerdown", this.handlePointerDown);
     if (this.handleClick)
       this.el.removeEventListener("click", this.handleClick);
     if (this.observer) this.observer.disconnect();
@@ -454,6 +475,8 @@ export const InfiniteScroll = {
     this.loadCycleStartY = null;
     this.lastKnownScrollY = currentScrollY();
 
+    this.restoreFromGlobalSnapshotIfNeeded(true);
+
     this.setupObserver();
     this.requestCheck();
 
@@ -472,6 +495,7 @@ export const InfiniteScroll = {
     if (this.prePatchShouldPreserve) {
       this.prePatchScrollY = this.getStableScrollY();
       this.prePatchAnchor = this.findVisiblePostAnchor();
+      this.storeGlobalRestoreSnapshot(this.prePatchAnchor, this.prePatchScrollY);
     } else {
       this.prePatchScrollY = null;
       this.prePatchAnchor = null;
@@ -563,10 +587,13 @@ export const InfiniteScroll = {
     this.prePatchShouldPreserve = true;
     this.prePatchScrollY = this.lastKnownScrollY;
     this.prePatchAnchor = this.findVisiblePostAnchor();
+    this.storeGlobalRestoreSnapshot(this.prePatchAnchor, this.prePatchScrollY);
     if (this.observer) this.observer.disconnect();
   },
 
   updated() {
+    this.restoreFromGlobalSnapshotIfNeeded();
+
     this.loadingMore = this.el.dataset.loadingMore === "true";
 
     if (this.prePatchShouldPreserve) {
@@ -586,6 +613,7 @@ export const InfiniteScroll = {
     this.prePatchScrollY = null;
     this.prePatchAnchor = null;
     this.lastKnownScrollY = currentScrollY();
+    this.clearGlobalRestoreSnapshot();
     if (!this.loadingMore) this.loadCycleStartY = null;
     this.pending = false;
     this.disabled =
@@ -689,6 +717,56 @@ export const InfiniteScroll = {
         this.restoreTimeouts.push(timeoutId);
       });
     }
+  },
+
+  storeGlobalRestoreSnapshot(anchorSnapshot, fallbackScrollY) {
+    infiniteScrollRestoreSnapshot = {
+      rootId: this.el.id || null,
+      anchorSnapshot: anchorSnapshot || null,
+      fallbackScrollY,
+      capturedAt: Date.now(),
+    };
+  },
+
+  restoreFromGlobalSnapshotIfNeeded(fromMount = false) {
+    const snapshot = infiniteScrollRestoreSnapshot;
+
+    if (!snapshot) return;
+    if (snapshot.rootId && this.el.id && snapshot.rootId !== this.el.id) return;
+    if (Date.now() - snapshot.capturedAt > 5000) {
+      this.clearGlobalRestoreSnapshot();
+      return;
+    }
+
+    const shouldRestore =
+      currentScrollY() === 0 &&
+      Number.isFinite(snapshot.fallbackScrollY) &&
+      snapshot.fallbackScrollY > 0;
+
+    if (!shouldRestore) return;
+
+    this.restoreAnchorPosition(snapshot.anchorSnapshot, snapshot.fallbackScrollY);
+
+    if (!fromMount) {
+      this.scheduleSettledRestore(
+        snapshot.anchorSnapshot,
+        snapshot.fallbackScrollY,
+        true,
+      );
+    }
+  },
+
+  clearGlobalRestoreSnapshot() {
+    if (!infiniteScrollRestoreSnapshot) return;
+    if (
+      infiniteScrollRestoreSnapshot.rootId &&
+      this.el.id &&
+      infiniteScrollRestoreSnapshot.rootId !== this.el.id
+    ) {
+      return;
+    }
+
+    infiniteScrollRestoreSnapshot = null;
   },
 
   destroyed() {

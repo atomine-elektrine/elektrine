@@ -111,6 +111,44 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     refute html =~ ~s(/remote/louisa_@mas.to)
   end
 
+  test "renders malformed remote comment content without crashing sanitizer" do
+    comments = [
+      %{
+        reply: %{
+          "id" => "https://mastodon.social/users/evawolfangel/statuses/1",
+          "attributedTo" => "https://mastodon.social/users/evawolfangel",
+          "content" =>
+            "<html_sanitize_ex>@evawolfangel \n\nHaha, darauf habe ich gewartet, da der Link ja (wieder) fehlte. 🤔 ... Sicher bewusst, um Leute wie mich zu triggern. 😉\n\nKurze Frage: Wofür steht >> Drüko <<?</html_sanitize_ex>",
+          "published" => "2025-01-01T00:00:00Z",
+          "likes" => %{"totalItems" => 0}
+        },
+        depth: 0,
+        children: []
+      }
+    ]
+
+    assigns = %{
+      __changed__: %{},
+      community_actor: nil,
+      remote_actor: %{domain: "mastodon.social"},
+      post_interactions: %{},
+      lemmy_comment_counts: %{},
+      post: %{"id" => "https://mastodon.social/posts/1"},
+      current_user: nil,
+      replying_to_comment_id: nil,
+      comment_reply_content: ""
+    }
+
+    html =
+      assigns
+      |> Show.render_threaded_comments(comments)
+      |> rendered_to_string()
+
+    assert html =~ "@evawolfangel"
+    assert html =~ "Wofür steht &gt;&gt; Drüko &lt;&lt;?"
+    refute html =~ "html_sanitize_ex"
+  end
+
   test "renders nested timeline replies directly without continuation link" do
     comments = [
       %{

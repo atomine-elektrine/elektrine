@@ -12,12 +12,12 @@ defmodule ElektrineWeb.Endpoint do
 
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [
-      connect_info: [:peer_data, session: {__MODULE__, :session_options, []}],
+      connect_info: [:peer_data, :uri, session: {__MODULE__, :session_options, []}],
       timeout: Constants.websocket_timeout(),
       transport_log: false
     ],
     longpoll: [
-      connect_info: [:peer_data, session: {__MODULE__, :session_options, []}],
+      connect_info: [:peer_data, :uri, session: {__MODULE__, :session_options, []}],
       transport_log: false
     ]
 

@@ -1556,25 +1556,90 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp record_type_help(form) do
     case record_form_type(form) do
-      "A" -> "Points a name to an IPv4 address, such as `198.51.100.42`."
-      "AAAA" -> "Points a name to an IPv6 address."
-      "CNAME" -> "Makes one hostname follow another hostname. Good for aliases like `www`."
-      "MX" -> "Sends email for this domain to a mail server. Lower priority numbers win first."
-      "TXT" -> "Stores text, often used for SPF, DKIM, DMARC, or ownership verification."
-      "NS" -> "Delegates a name to another nameserver. Usually only needed for advanced setups."
-      other -> "Creates a #{other} record for a more specialized DNS use case."
+      "A" ->
+        "Points a name to an IPv4 address, such as `198.51.100.42`."
+
+      "AAAA" ->
+        "Points a name to an IPv6 address."
+
+      "ALIAS" ->
+        "Flattens an apex hostname to another hostname, similar to a root-safe CNAME."
+
+      "CAA" ->
+        "Limits which certificate authorities may issue TLS certificates for this name."
+
+      "CNAME" ->
+        "Makes one hostname follow another hostname. Good for aliases like `www`."
+
+      "HTTPS" ->
+        "Publishes HTTPS endpoint hints like ALPN, port, ECH, or address hints."
+
+      "MX" ->
+        "Sends email for this domain to a mail server. Lower priority numbers win first."
+
+      "TXT" ->
+        "Stores text, often used for SPF, DKIM, DMARC, or ownership verification."
+
+      "NS" ->
+        "Delegates a name to another nameserver. Usually only needed for advanced setups."
+
+      "SRV" ->
+        "Advertises a service target with priority, weight, and port information."
+
+      "SSHFP" ->
+        "Publishes SSH host key fingerprints for SSH clients that verify host keys with DNSSEC."
+
+      "SVCB" ->
+        "Publishes generic service binding information, often used for modern service discovery."
+
+      "TLSA" ->
+        "Publishes DANE certificate association data for a host and port."
+
+      other ->
+        "Creates a #{other} record for a more specialized DNS use case."
     end
   end
 
   defp record_value_help(form) do
     case record_form_type(form) do
-      "A" -> "Enter the destination IPv4 address."
-      "AAAA" -> "Enter the destination IPv6 address."
-      "CNAME" -> "Enter the hostname this should point to, not an IP address."
-      "MX" -> "Enter the mail server hostname here, then set its priority below."
-      "TXT" -> "Paste the full text exactly as given by your provider."
-      "NS" -> "Enter the authoritative nameserver hostname."
-      _ -> "Enter the value exactly as required by the service you are connecting."
+      "A" ->
+        "Enter the destination IPv4 address."
+
+      "AAAA" ->
+        "Enter the destination IPv6 address."
+
+      "ALIAS" ->
+        "Enter the hostname this apex record should flatten to."
+
+      "CAA" ->
+        "Enter the certificate authority value, such as `letsencrypt.org`."
+
+      "CNAME" ->
+        "Enter the hostname this should point to, not an IP address."
+
+      "HTTPS" ->
+        "Enter the target hostname followed by optional params like `alpn=h2,h3` or `port=443`."
+
+      "MX" ->
+        "Enter the mail server hostname here, then set its priority below."
+
+      "TXT" ->
+        "Paste the full text exactly as given by your provider."
+
+      "NS" ->
+        "Enter the authoritative nameserver hostname."
+
+      "SSHFP" ->
+        "Enter the SSH public host key fingerprint as hexadecimal data."
+
+      "SVCB" ->
+        "Enter the target hostname followed by optional service parameters."
+
+      "TLSA" ->
+        "Enter the certificate association data as hexadecimal."
+
+      _ ->
+        "Enter the value exactly as required by the service you are connecting."
     end
   end
 
@@ -2251,11 +2316,29 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp record_value_spec(form) do
     case record_form_type(form) do
-      "DNSKEY" -> %{label: "Public key", placeholder: "AwEAAc..."}
-      "DS" -> %{label: "Digest", placeholder: "2BB183AF5F22588179A53B0A98631FAD1A292118"}
-      "TLSA" -> %{label: "Certificate data", placeholder: "A1B2C3D4..."}
-      "TXT" -> %{label: "Text value", placeholder: "v=spf1 mx ~all"}
-      _ -> %{label: "Value", placeholder: "198.51.100.42"}
+      "DNSKEY" ->
+        %{label: "Public key", placeholder: "AwEAAc..."}
+
+      "DS" ->
+        %{label: "Digest", placeholder: "2BB183AF5F22588179A53B0A98631FAD1A292118"}
+
+      "HTTPS" ->
+        %{label: "Target and parameters", placeholder: ". alpn=h2,h3 port=443"}
+
+      "SSHFP" ->
+        %{label: "Fingerprint", placeholder: "1234567890ABCDEF1234567890ABCDEF"}
+
+      "SVCB" ->
+        %{label: "Target and parameters", placeholder: "svc.example.net alpn=h2 port=8443"}
+
+      "TLSA" ->
+        %{label: "Certificate data", placeholder: "A1B2C3D4..."}
+
+      "TXT" ->
+        %{label: "Text value", placeholder: "v=spf1 mx ~all"}
+
+      _ ->
+        %{label: "Value", placeholder: "198.51.100.42"}
     end
   end
 
@@ -2297,6 +2380,15 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           %{field: :selector, label: "Selector", placeholder: "1", type: "number"},
           %{field: :matching_type, label: "Matching type", placeholder: "1", type: "number"}
         ]
+
+      "SSHFP" ->
+        [
+          %{field: :algorithm, label: "Algorithm", placeholder: "4", type: "number"},
+          %{field: :digest_type, label: "Fingerprint type", placeholder: "2", type: "number"}
+        ]
+
+      type when type in ["HTTPS", "SVCB"] ->
+        [%{field: :priority, label: "Priority", placeholder: "1", type: "number"}]
 
       _ ->
         []
@@ -2353,6 +2445,18 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
          content: content
        }),
        do: "#{usage || 0} #{selector || 0} #{matching_type || 0} #{content}"
+
+  defp record_rdata(%{
+         type: "SSHFP",
+         algorithm: algorithm,
+         digest_type: digest_type,
+         content: content
+       }),
+       do: "#{algorithm || 0} #{digest_type || 0} #{content}"
+
+  defp record_rdata(%{type: type, priority: priority, content: content})
+       when type in ["HTTPS", "SVCB"],
+       do: "#{priority || 0} #{content}"
 
   defp record_rdata(record), do: record.content
 

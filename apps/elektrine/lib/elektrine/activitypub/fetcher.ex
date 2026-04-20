@@ -369,12 +369,20 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp lemmy_object_fallback(uri, body, response_headers, opts) do
     if html_response?(body, response_headers) do
-      with {:ok, resolve_url, type} <- lemmy_resolve_url(uri),
-           {:ok, resolved_body} <- fetch_lemmy_resolved_object(resolve_url, opts),
-           {:ok, object_data} <- normalize_lemmy_resolved_object(resolved_body, uri, type) do
-        {:ok, object_data, type}
-      else
-        _ -> {:error, :no_object_fallback}
+      with {:ok, _resolve_url, type} <- lemmy_resolve_url(uri) do
+        case normalize_lemmy_html_object(body, uri, type) do
+          {:ok, object_data} ->
+            {:ok, object_data, type}
+
+          _ ->
+            with {:ok, resolve_url, ^type} <- lemmy_resolve_url(uri),
+                 {:ok, resolved_body} <- fetch_lemmy_resolved_object(resolve_url, opts),
+                 {:ok, object_data} <- normalize_lemmy_resolved_object(resolved_body, uri, type) do
+              {:ok, object_data, type}
+            else
+              _ -> {:error, :no_object_fallback}
+            end
+        end
       end
     else
       {:error, :no_object_fallback}
@@ -670,6 +678,56 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp normalize_lemmy_resolved_object(_, _, _), do: {:error, :invalid_resolved_object}
+
+  defp normalize_lemmy_html_object(body, requested_uri, type)
+       when is_binary(body) and type in [:site, :person, :group, :comment, :page] do
+    with {:ok, iso_data} <- extract_lemmy_iso_data(body),
+         {:ok, resolved_body} <- lemmy_iso_data_to_resolved_body(iso_data, type),
+         {:ok, object_data} <- normalize_lemmy_resolved_object(resolved_body, requested_uri, type) do
+      {:ok, object_data}
+    else
+      _ -> {:error, :invalid_html_object}
+    end
+  end
+
+  defp normalize_lemmy_html_object(_, _, _), do: {:error, :invalid_html_object}
+
+  defp extract_lemmy_iso_data(body) when is_binary(body) do
+    case Regex.run(~r/window\.isoData\s*=\s*(\{.*?\});/s, body, capture: :all_but_first) do
+      [json] -> Jason.decode(json)
+      _ -> {:error, :missing_iso_data}
+    end
+  end
+
+  defp lemmy_iso_data_to_resolved_body(%{"site_res" => site_res}, :site) when is_map(site_res),
+    do: {:ok, site_res}
+
+  defp lemmy_iso_data_to_resolved_body(
+         %{"person_res" => %{"person_view" => person_view}},
+         :person
+       )
+       when is_map(person_view),
+       do: {:ok, %{"person" => person_view}}
+
+  defp lemmy_iso_data_to_resolved_body(
+         %{"community_res" => %{"community_view" => community_view}},
+         :group
+       )
+       when is_map(community_view),
+       do: {:ok, %{"community" => community_view}}
+
+  defp lemmy_iso_data_to_resolved_body(
+         %{"comment_res" => %{"comment_view" => comment_view}},
+         :comment
+       )
+       when is_map(comment_view),
+       do: {:ok, %{"comment" => comment_view}}
+
+  defp lemmy_iso_data_to_resolved_body(%{"post_res" => %{"post_view" => post_view}}, :page)
+       when is_map(post_view),
+       do: {:ok, %{"post" => post_view}}
+
+  defp lemmy_iso_data_to_resolved_body(_, _), do: {:error, :unsupported_iso_data}
 
   defp normalize_external_post_url(url, object_id) when is_binary(url) and url != object_id,
     do: url

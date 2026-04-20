@@ -623,12 +623,6 @@ defmodule ElektrineWeb.Router do
       :update_self_service_trust_level
     )
 
-    # Platform updates management
-    get("/updates", AdminUpdatesController, :index)
-    get("/updates/new", AdminUpdatesController, :new)
-    post("/updates", AdminUpdatesController, :create)
-    delete("/updates/:id", AdminUpdatesController, :delete)
-
     # Audit logs
     get("/audit-logs", AdminAuditLogsController, :index)
 

@@ -16,7 +16,7 @@ defmodule Elektrine.DNS do
   alias Elektrine.Domains
   alias Elektrine.Repo
 
-  @record_types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS MX NS SRV TLSA TXT)
+  @record_types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS HTTPS MX NS SRV SSHFP SVCB TLSA TXT)
   @builtin_user_zone_apex_managed_key "system:profile-apex"
   @builtin_user_zone_managed_service "system"
   @builtin_user_zone_forbidden_types ~w(ALIAS DNSKEY DS NS TLSA)
@@ -117,7 +117,7 @@ defmodule Elektrine.DNS do
   def update_builtin_user_zone_mode(_, _), do: {:error, :invalid_user}
 
   def builtin_user_zone?(%Zone{} = zone) do
-    case Repo.get(User, zone.user_id) do
+    case zone.user_id && Repo.get(User, zone.user_id) do
       %User{} = user -> builtin_user_zone?(zone, user)
       _ -> false
     end

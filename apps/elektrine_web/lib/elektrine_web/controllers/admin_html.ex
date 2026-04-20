@@ -275,11 +275,6 @@ defmodule ElektrineWeb.AdminHTML do
             icon: "hero-megaphone"
           },
           %{
-            label: "Platform Updates",
-            path: "/pripyat/updates",
-            icon: "hero-newspaper"
-          },
-          %{
             label: "Subscriptions",
             path: "/pripyat/subscriptions",
             icon: "hero-credit-card"

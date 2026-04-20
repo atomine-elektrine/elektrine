@@ -6,7 +6,9 @@ defmodule Elektrine.DNS.Record do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @types ~w(A AAAA ALIAS CNAME TXT MX NS SRV CAA DNSKEY DS TLSA)
+  alias Elektrine.DNS.ServiceBinding
+
+  @types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS HTTPS MX NS SRV SSHFP SVCB TLSA TXT)
 
   schema "dns_records" do
     field :name, :string
@@ -110,12 +112,18 @@ defmodule Elektrine.DNS.Record do
       {"ALIAS", content} when is_binary(content) ->
         put_change(changeset, :content, normalize_hostname(content))
 
-      {type, content} when type in ["DS", "TLSA"] and is_binary(content) ->
+      {type, content} when type in ["DS", "TLSA", "SSHFP"] and is_binary(content) ->
         normalized = content |> String.replace(~r/\s+/, "") |> String.upcase()
         put_change(changeset, :content, normalized)
 
       {"DNSKEY", content} when is_binary(content) ->
         put_change(changeset, :content, String.replace(content, ~r/\s+/, ""))
+
+      {type, content} when type in ["HTTPS", "SVCB"] and is_binary(content) ->
+        case ServiceBinding.normalize_content(content) do
+          {:ok, normalized} -> put_change(changeset, :content, normalized)
+          {:error, _reason} -> changeset
+        end
 
       _ ->
         changeset
@@ -167,6 +175,19 @@ defmodule Elektrine.DNS.Record do
           less_than_or_equal_to: 255
         )
         |> validate_hex_content()
+
+      "SSHFP" ->
+        changeset
+        |> validate_required([:algorithm, :digest_type])
+        |> validate_number(:algorithm, greater_than_or_equal_to: 0, less_than_or_equal_to: 255)
+        |> validate_number(:digest_type, greater_than_or_equal_to: 0, less_than_or_equal_to: 255)
+        |> validate_hex_content()
+
+      type when type in ["HTTPS", "SVCB"] ->
+        changeset
+        |> validate_required([:priority])
+        |> validate_number(:priority, greater_than_or_equal_to: 0, less_than_or_equal_to: 65_535)
+        |> validate_service_binding_content()
 
       _ ->
         changeset
@@ -221,6 +242,15 @@ defmodule Elektrine.DNS.Record do
       case decode_hex(value) do
         {:ok, _} -> []
         :error -> [content: "must be valid hexadecimal data"]
+      end
+    end)
+  end
+
+  defp validate_service_binding_content(changeset) do
+    validate_change(changeset, :content, fn :content, value ->
+      case ServiceBinding.parse_content(value) do
+        {:ok, _parsed} -> []
+        {:error, reason} -> [content: reason]
       end
     end)
   end

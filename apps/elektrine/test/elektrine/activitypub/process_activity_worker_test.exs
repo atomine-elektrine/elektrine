@@ -122,6 +122,26 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorkerTest do
     assert {:error, :announce_object_fetch_failed} = ProcessActivityWorker.perform(job)
   end
 
+  test "ignores Announce activities that point at inaccessible remote activity wrappers" do
+    unique_id = System.unique_integer([:positive])
+    actor_uri = "https://announce-wrapper-#{unique_id}.invalid/users/booster"
+
+    activity = %{
+      "id" => "https://announce-wrapper-#{unique_id}.invalid/activities/announce/1",
+      "type" => "Announce",
+      "actor" => actor_uri,
+      "object" => "https://remote.example/activities/like/#{unique_id}"
+    }
+
+    job = %Oban.Job{
+      args: %{"activity" => activity, "actor_uri" => actor_uri},
+      inserted_at: DateTime.utc_now(),
+      attempt: 1
+    }
+
+    assert :ok = ProcessActivityWorker.perform(job)
+  end
+
   test "retries Like activities when the remote actor cannot be fetched" do
     user = user_fixture()
 

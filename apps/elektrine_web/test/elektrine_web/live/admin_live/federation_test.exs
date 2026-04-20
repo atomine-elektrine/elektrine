@@ -114,6 +114,20 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     refute view |> element("input[phx-value-field=followers_only]") |> render() =~ ~s(checked)
   end
 
+  test "expired elevation redirects back to the requested live admin page", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})
+
+    assert {:error, {:redirect, %{to: redirect_to}}} =
+             conn
+             |> Map.put(:host, "example.com")
+             |> log_in_user(admin_user)
+             |> Plug.Conn.put_session(:admin_elevated_until, System.system_time(:second) - 1)
+             |> live(~p"/pripyat/federation")
+
+    assert redirect_to == "/pripyat/security/elevate?return_to=%2Fpripyat%2Ffederation"
+  end
+
   defp log_in_user(conn, user) do
     token =
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{

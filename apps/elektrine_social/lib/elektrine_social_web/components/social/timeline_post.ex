@@ -1685,25 +1685,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <% end %>
       <% end %>
       
-    <!-- Link to original post for federated posts -->
-      <%= if @post.federated && @post.activitypub_url && @post.post_type != "poll" do %>
-        <a
-          href={@post.activitypub_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-xs text-primary hover:underline flex items-center gap-1 mt-2"
-        >
-          <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-          <%= if PostUtilities.reply?(@post) do %>
-            View full thread on {if @post.remote_actor,
-              do: @post.remote_actor.domain,
-              else: "original instance"}
-          <% else %>
-            View on {if @post.remote_actor, do: @post.remote_actor.domain, else: "original instance"}
-          <% end %>
-        </a>
-      <% end %>
-      
     <!-- YouTube Embed -->
       <.youtube_embed post={@post} />
       

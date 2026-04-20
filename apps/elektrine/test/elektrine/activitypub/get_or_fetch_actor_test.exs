@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.GetOrFetchActorTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
@@ -47,6 +47,23 @@ defmodule Elektrine.ActivityPub.GetOrFetchActorTest do
     end
   end
 
+  describe "get_actor_by_uri/1" do
+    test "returns the oldest actor when duplicate uri rows exist" do
+      unique = System.unique_integer([:positive])
+      uri = "https://remote.example/users/duplicate-#{unique}"
+
+      Repo.query!("DROP INDEX activitypub_actors_uri_index")
+
+      older = insert_actor_with_uri(uri, unique, "older")
+      _newer = insert_actor_with_uri(uri, unique, "newer")
+
+      fetched_actor = ActivityPub.get_actor_by_uri(uri)
+
+      assert fetched_actor.id == older.id
+      assert fetched_actor.uri == uri
+    end
+  end
+
   defp remote_actor_fixture do
     unique = System.unique_integer([:positive])
 
@@ -57,6 +74,19 @@ defmodule Elektrine.ActivityPub.GetOrFetchActorTest do
       domain: "remote.example",
       inbox_url: "https://remote.example/inbox",
       public_key: "-----BEGIN PUBLIC KEY-----test-key-----END PUBLIC KEY-----",
+      last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.insert!()
+  end
+
+  defp insert_actor_with_uri(uri, unique, suffix) do
+    %Actor{}
+    |> Actor.changeset(%{
+      uri: uri,
+      username: "#{suffix}#{unique}",
+      domain: "remote.example",
+      inbox_url: "https://remote.example/inbox/#{suffix}",
+      public_key: "-----BEGIN PUBLIC KEY-----test-key-#{suffix}-----END PUBLIC KEY-----",
       last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })
     |> Repo.insert!()

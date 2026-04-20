@@ -4,6 +4,7 @@ defmodule Elektrine.DNS.Packet do
   import Bitwise
 
   alias Elektrine.DNS
+  alias Elektrine.DNS.ServiceBinding
 
   @type_map %{
     a: 1,
@@ -14,9 +15,12 @@ defmodule Elektrine.DNS.Packet do
     txt: 16,
     aaaa: 28,
     srv: 33,
+    sshfp: 44,
     ds: 43,
     dnskey: 48,
     tlsa: 52,
+    svcb: 64,
+    https: 65,
     caa: 257,
     any: 255
   }
@@ -295,6 +299,23 @@ defmodule Elektrine.DNS.Packet do
          matching_type: matching_type
        }) do
     <<usage || 0::8, selector || 0::8, matching_type || 0::8, decode_hex_data(content)::binary>>
+  end
+
+  defp encode_rdata(%{
+         type: :sshfp,
+         content: content,
+         algorithm: algorithm,
+         digest_type: digest_type
+       }) do
+    <<algorithm || 0::8, digest_type || 0::8, decode_hex_data(content)::binary>>
+  end
+
+  defp encode_rdata(%{type: type, priority: priority, content: content})
+       when type in [:svcb, :https] do
+    case ServiceBinding.encode_rdata(priority || 0, content, &encode_name/1) do
+      {:ok, rdata} -> rdata
+      {:error, reason} -> raise ArgumentError, "invalid service binding record: #{reason}"
+    end
   end
 
   defp encode_rdata(%{content: content}) when is_binary(content), do: content

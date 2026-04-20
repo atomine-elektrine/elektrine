@@ -3,7 +3,10 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   View module for rendering Mastodon API status (post) responses.
   """
 
+  alias Elektrine.Profiles
   alias Elektrine.Repo
+  alias Elektrine.Social
+  alias Elektrine.Uploads
 
   import Ecto.Query
 
@@ -12,18 +15,18 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   """
   def render_status(message, for_user) do
     base_url = ElektrineWeb.Endpoint.url()
-    user = message.sender || Repo.preload(message, :sender).sender
+    message = ensure_status_preloads(message)
 
     %{
       id: to_string(message.id),
       created_at: format_datetime(message.inserted_at),
       in_reply_to_id: message.reply_to_id && to_string(message.reply_to_id),
       in_reply_to_account_id: get_parent_account_id(message),
-      sensitive: false,
-      spoiler_text: "",
+      sensitive: Map.get(message, :sensitive, false),
+      spoiler_text: Map.get(message, :content_warning) || "",
       visibility: message.visibility || "public",
       language: "en",
-      uri: "#{base_url}/users/#{user.username}/statuses/#{message.id}",
+      uri: status_uri(base_url, message),
       url: "#{base_url}/timeline/post/#{message.id}",
       replies_count: message.reply_count || 0,
       reblogs_count: message.share_count || 0,
@@ -32,17 +35,17 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
       content: message.content || "",
       reblog: nil,
       application: nil,
-      account: render_account(user, for_user),
+      account: render_status_account(message, for_user),
       media_attachments: render_media_urls(message),
       mentions: [],
       tags: render_hashtags(message),
       emojis: [],
       card: nil,
-      poll: nil,
+      poll: render_poll(Map.get(message, :poll), for_user),
       favourited: liked_by_user?(message, for_user),
       reblogged: reposted_by_user?(message, for_user),
       muted: false,
-      bookmarked: false,
+      bookmarked: bookmarked_by_user?(message, for_user),
       pinned: false
     }
   end
@@ -54,9 +57,10 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
     Enum.map(posts, &render_status(&1, for_user))
   end
 
-  # Private functions
-
-  defp render_account(user, _for_user) do
+  @doc """
+  Renders an account in Mastodon API format.
+  """
+  def render_account(user, _for_user) do
     base_url = ElektrineWeb.Endpoint.url()
     header = account_header(user)
 
@@ -73,18 +77,50 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
       created_at: format_datetime(user.inserted_at),
       note: account_note(user),
       url: "#{base_url}/#{user.username}",
-      avatar: Elektrine.Uploads.avatar_url(user.avatar),
-      avatar_static: Elektrine.Uploads.avatar_url(user.avatar),
-      header: Elektrine.Uploads.background_url(header),
-      header_static: Elektrine.Uploads.background_url(header),
-      followers_count: 0,
-      following_count: 0,
-      statuses_count: 0,
+      avatar: Uploads.avatar_url(user.avatar),
+      avatar_static: Uploads.avatar_url(user.avatar),
+      header: Uploads.background_url(header),
+      header_static: Uploads.background_url(header),
+      followers_count: Profiles.get_follower_count(user.id),
+      following_count: Profiles.get_following_count(user.id),
+      statuses_count: Map.get(user, :message_count, 0),
       last_status_at: nil,
       emojis: [],
       fields: []
     }
   end
+
+  def render_accounts(users, for_user) do
+    Enum.map(users, &render_account(&1, for_user))
+  end
+
+  def render_poll(nil, _for_user), do: nil
+  def render_poll(%Ecto.Association.NotLoaded{}, _for_user), do: nil
+
+  def render_poll(poll, for_user) do
+    poll = Repo.preload(poll, [:options])
+    own_votes = if for_user, do: Social.get_user_poll_votes(poll.id, for_user.id), else: []
+
+    %{
+      id: to_string(poll.id),
+      expires_at: format_datetime(poll.closes_at),
+      expired: Elektrine.Social.Poll.closed?(poll),
+      multiple: poll.allow_multiple,
+      votes_count: poll.total_votes || 0,
+      voters_count: poll.voters_count || poll.total_votes || 0,
+      voted: own_votes != [],
+      own_votes: Enum.map(own_votes, &to_string/1),
+      options:
+        poll.options
+        |> Enum.sort_by(& &1.position)
+        |> Enum.map(fn option ->
+          %{title: option.option_text, votes_count: option.vote_count || 0}
+        end),
+      emojis: []
+    }
+  end
+
+  # Private functions
 
   defp render_media_urls(%{media_urls: urls, media_metadata: metadata})
        when is_list(urls) and urls != [] do
@@ -96,8 +132,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
       %{
         id: to_string(index),
         type: detect_media_type(meta["content_type"]),
-        url: url,
-        preview_url: meta["thumbnail"] || url,
+        url: Uploads.attachment_url(url),
+        preview_url: meta["thumbnail"] || Uploads.attachment_url(url),
         remote_url: nil,
         meta: %{},
         description: meta["alt_text"],
@@ -135,6 +171,53 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
 
   defp render_hashtags(_), do: []
 
+  defp ensure_status_preloads(message) do
+    Repo.preload(message, [:sender, :remote_actor, poll: [:options]])
+  end
+
+  defp render_status_account(%{sender: sender}, for_user) when not is_nil(sender),
+    do: render_account(sender, for_user)
+
+  defp render_status_account(%{remote_actor: actor}, _for_user) when not is_nil(actor),
+    do: render_remote_account(actor)
+
+  defp render_status_account(_message, _for_user), do: nil
+
+  defp render_remote_account(actor) do
+    %{
+      id: to_string(actor.id),
+      username: actor.username,
+      acct: "#{actor.username}@#{actor.domain}",
+      display_name: actor.display_name || actor.username,
+      locked: actor.manually_approves_followers || false,
+      bot: actor.actor_type in ["Service", "Application"],
+      discoverable: true,
+      group: actor.actor_type == "Group",
+      created_at: format_datetime(actor.published_at || actor.inserted_at),
+      note: actor.summary || "",
+      url: actor.uri,
+      avatar: actor.avatar_url,
+      avatar_static: actor.avatar_url,
+      header: actor.header_url,
+      header_static: actor.header_url,
+      followers_count: 0,
+      following_count: 0,
+      statuses_count: 0,
+      last_status_at: nil,
+      emojis: [],
+      fields: []
+    }
+  end
+
+  defp status_uri(base_url, %{sender: sender, id: id}) when not is_nil(sender),
+    do: "#{base_url}/users/#{sender.username}/statuses/#{id}"
+
+  defp status_uri(_base_url, %{activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "",
+       do: activitypub_id
+
+  defp status_uri(base_url, %{id: id}), do: "#{base_url}/timeline/post/#{id}"
+
   defp get_parent_account_id(%{reply_to_id: nil}), do: nil
 
   defp get_parent_account_id(%{reply_to_id: reply_to_id}) do
@@ -149,11 +232,7 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   defp liked_by_user?(_message, nil), do: false
 
   defp liked_by_user?(%{id: message_id}, %{id: user_id}) do
-    Repo.exists?(
-      from(r in "message_reactions",
-        where: r.message_id == ^message_id and r.user_id == ^user_id and r.emoji == "like"
-      )
-    )
+    Social.user_liked_post?(user_id, message_id)
   rescue
     _ -> false
   end
@@ -161,12 +240,15 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   defp reposted_by_user?(_message, nil), do: false
 
   defp reposted_by_user?(%{id: message_id}, %{id: user_id}) do
-    # Check if user has shared/boosted this message
-    Repo.exists?(
-      from(m in "messages",
-        where: m.shared_message_id == ^message_id and m.sender_id == ^user_id
-      )
-    )
+    Social.user_boosted?(user_id, message_id)
+  rescue
+    _ -> false
+  end
+
+  def bookmarked_by_user?(_message, nil), do: false
+
+  def bookmarked_by_user?(%{id: message_id}, %{id: user_id}) do
+    Social.post_saved?(user_id, message_id)
   rescue
     _ -> false
   end

@@ -125,9 +125,9 @@
                 phx-click="inspect_activity"
                 phx-value-section="posts"
                 class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
-                title="View all posts"
+                title="View all my posts"
               >
-                <p class="text-xs uppercase tracking-wide opacity-60">Posts</p>
+                <p class="text-xs uppercase tracking-wide opacity-60">My Posts</p>
                 <p class="mt-1 text-xl font-semibold">{@personal_stats.total_posts}</p>
                 <p class="mt-2 text-xs opacity-70">Click to inspect</p>
               </button>
@@ -663,10 +663,11 @@
           </div>
 
           <div class="space-y-3 p-4 pt-0" data-role="activity-inspector">
-            <.form for={%{}} phx-change="search_activity" class="mb-1">
-              <label class="input input-bordered flex items-center gap-2 bg-base-200">
+            <.form for={%{}} phx-change="search_activity" class="mb-4 w-full">
+              <label class="input input-bordered flex w-full items-center gap-2 bg-base-200">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                 <input
+                  class="grow w-full"
                   type="text"
                   name="query"
                   value={@activity_inspector.query}
@@ -718,7 +719,7 @@
                       <span>{entry.meta}</span>
                       <span
                         :if={entry.media_label}
-                        class="badge badge-outline badge-xs normal-case"
+                        class="badge badge-outline badge-sm normal-case whitespace-nowrap"
                       >
                         {entry.media_label}
                       </span>
