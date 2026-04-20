@@ -131,18 +131,20 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
   end
 
   defp build_standard_tree(replies, root_post_id, sort) do
+    normalized_root_post_id = normalize_in_reply_to_ref(root_post_id)
+
     children_map =
       Enum.group_by(replies, fn reply ->
-        reply["inReplyTo"]
+        normalize_in_reply_to_ref(reply["inReplyTo"])
       end)
 
     reply_ids =
       replies
-      |> Enum.map(& &1["id"])
+      |> Enum.map(&normalize_in_reply_to_ref(&1["id"]))
       |> Enum.filter(&is_binary/1)
       |> MapSet.new()
 
-    root_parent_ids = [root_post_id, nil, ""]
+    root_parent_ids = [normalized_root_post_id, nil]
 
     explicit_roots =
       root_parent_ids
@@ -151,12 +153,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
     orphan_roots =
       replies
       |> Enum.filter(fn reply ->
-        parent_id = reply["inReplyTo"]
+        parent_id = normalize_in_reply_to_ref(reply["inReplyTo"])
 
         parent_id not in root_parent_ids &&
-          (is_nil(parent_id) ||
-             (is_binary(parent_id) and not Elektrine.Strings.present?(parent_id)) ||
-             !MapSet.member?(reply_ids, parent_id))
+          (is_nil(parent_id) || !MapSet.member?(reply_ids, parent_id))
       end)
 
     root_replies =
@@ -168,7 +168,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
       %{
         reply: reply,
         depth: 0,
-        children: build_children(children_map, reply["id"], 1, sort)
+        children: build_children(children_map, normalize_in_reply_to_ref(reply["id"]), 1, sort)
       }
     end)
   end
@@ -241,11 +241,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
   end
 
   defp build_children(children_map, parent_id, depth, sort) do
-    children = Map.get(children_map, parent_id, [])
+    children = Map.get(children_map, normalize_in_reply_to_ref(parent_id), [])
     sorted_children = sort_replies(children, sort)
 
     Enum.map(sorted_children, fn reply ->
-      nested_children = build_children(children_map, reply["id"], depth + 1, sort)
+      nested_children =
+        build_children(children_map, normalize_in_reply_to_ref(reply["id"]), depth + 1, sort)
 
       %{
         reply: reply,
@@ -263,8 +264,15 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
 
   defp normalize_in_reply_to_ref(ref) when is_binary(ref) do
     trimmed = String.trim(ref)
-    Elektrine.Strings.present(trimmed)
+
+    if Elektrine.Strings.present?(trimmed) do
+      trimmed
+    else
+      nil
+    end
   end
+
+  defp normalize_in_reply_to_ref(ref) when is_integer(ref), do: Integer.to_string(ref)
 
   defp normalize_in_reply_to_ref(_), do: nil
 

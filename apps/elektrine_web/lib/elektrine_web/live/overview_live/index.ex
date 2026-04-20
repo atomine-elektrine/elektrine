@@ -3280,7 +3280,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp normalize_activity_section(section) when section in @activity_sections, do: section
   defp normalize_activity_section(_section), do: "posts"
 
-  defp activity_section_title("posts"), do: "Posts"
+  defp activity_section_title("posts"), do: "My Posts"
   defp activity_section_title("timeline"), do: "Timeline"
   defp activity_section_title("gallery"), do: "Gallery"
   defp activity_section_title("discussions"), do: "Discuss"

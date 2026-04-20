@@ -132,8 +132,16 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
         {:error, :announce_object_fetch_failed}
 
       {:error, reason} ->
-        Logger.warning("Failed to fetch announced object #{object_uri}: #{inspect(reason)}")
-        {:error, :announce_object_fetch_failed}
+        if ignorable_remote_activity_wrapper_fetch_failure?(object_uri, reason) do
+          Logger.debug(
+            "Ignoring remote Announce wrapper #{object_uri} after fetch failure: #{inspect(reason)}"
+          )
+
+          {:ok, :ignored}
+        else
+          Logger.warning("Failed to fetch announced object #{object_uri}: #{inspect(reason)}")
+          {:error, :announce_object_fetch_failed}
+        end
     end
   end
 
@@ -360,6 +368,27 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   end
 
   defp remote_object_uri?(_), do: false
+
+  defp ignorable_remote_activity_wrapper_fetch_failure?(uri, reason)
+       when reason in [:fetch_failed, :http_error, :backoff, :not_found, :unsafe_url] do
+    remote_activity_wrapper_uri?(uri)
+  end
+
+  defp ignorable_remote_activity_wrapper_fetch_failure?(_, _), do: false
+
+  defp remote_activity_wrapper_uri?(uri) when is_binary(uri) do
+    case URI.parse(uri) do
+      %URI{host: host, path: path}
+      when is_binary(host) and host != "" and is_binary(path) and path != "" ->
+        String.downcase(host) != String.downcase(ActivityPub.instance_domain()) &&
+          Regex.match?(~r{/(?:activity|activities)(?:/|$)}, String.downcase(path))
+
+      _ ->
+        false
+    end
+  end
+
+  defp remote_activity_wrapper_uri?(_), do: false
 
   defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do
     ["to", "cc", "audience", "published"]

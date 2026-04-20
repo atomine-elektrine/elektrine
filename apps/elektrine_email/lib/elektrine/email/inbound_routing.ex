@@ -105,10 +105,10 @@ defmodule Elektrine.Email.InboundRouting do
     to_clean = extract_clean_email(to) || ""
 
     sender_mailbox =
-      Email.get_mailbox_by_email(from_clean)
+      resolve_local_mailbox(from_clean)
 
     recipient_mailbox =
-      Email.get_mailbox_by_email(to_clean)
+      resolve_local_mailbox(to_clean)
 
     if sender_mailbox && recipient_mailbox do
       ten_minutes_ago = DateTime.utc_now() |> DateTime.add(-600, :second)
@@ -243,6 +243,21 @@ defmodule Elektrine.Email.InboundRouting do
       _ -> nil
     end
   end
+
+  defp resolve_local_mailbox(email_address) when is_binary(email_address) do
+    case Email.get_mailbox_by_email(email_address) do
+      %Mailbox{} = mailbox ->
+        mailbox
+
+      _ ->
+        case find_main_mailbox_for_alias(email_address) do
+          {:ok, %Mailbox{} = mailbox} -> mailbox
+          _ -> nil
+        end
+    end
+  end
+
+  defp resolve_local_mailbox(_), do: nil
 
   defp find_main_mailbox_for_alias(alias_email) do
     case Email.get_alias_by_email(alias_email) do

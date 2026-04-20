@@ -141,12 +141,6 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.Admin.InviteCodesController, :edit} ->
         "Edit Invite Code"
 
-      {ElektrineWeb.AdminUpdatesController, :index} ->
-        "Platform Updates"
-
-      {ElektrineWeb.AdminUpdatesController, :new} ->
-        "New Platform Update"
-
       {ElektrineWeb.AdminAuditLogsController, :index} ->
         "Audit Logs"
 

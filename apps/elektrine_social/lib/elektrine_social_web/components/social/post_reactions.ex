@@ -100,7 +100,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
         <% end %>
 
         <%= if @current_user && @show_picker do %>
-          <div class="dropdown dropdown-top">
+          <div class="dropdown dropdown-top" data-reaction-picker-root>
             <button
               type="button"
               tabindex="0"

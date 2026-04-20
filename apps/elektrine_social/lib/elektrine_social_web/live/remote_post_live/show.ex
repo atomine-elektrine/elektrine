@@ -86,7 +86,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             max(lemmy_data["score"] + score_delta, 0)
 
           lemmy_comment_count ->
-            max((lemmy_comment_count.upvotes || lemmy_comment_count.score || 0) + score_delta, 0)
+            max(
+              (Map.get(lemmy_comment_count, :upvotes) || Map.get(lemmy_comment_count, :score) || 0) +
+                score_delta,
+              0
+            )
 
           is_integer(reply["_local_like_count"]) ->
             max(reply["_local_like_count"] + score_delta, 0)
@@ -1128,6 +1132,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   attr :current_user, :map, default: nil
   attr :replies_loaded, :boolean, default: false
   attr :remote_poll_vote, :map, default: nil
+  attr :user_follows, :map, default: %{}
+  attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
 
   def standard_timeline_detail_post(assigns) do
     message =
@@ -1150,11 +1157,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       user_likes={%{@message.id => @interaction_state.liked}}
       user_boosts={%{@message.id => @interaction_state.boosted}}
       user_saves={%{@message.id => @saved?}}
+      user_follows={@user_follows}
+      pending_follows={@pending_follows}
+      remote_follow_overrides={@remote_follow_overrides}
       reactions={@reactions}
       clickable={false}
       source="timeline"
       id_prefix="remote-post-detail"
-      show_follow_button={false}
+      show_follow_button={true}
       show_admin_actions={false}
       show_post_dropdown={false}
       on_comment="toggle_reply_form"
@@ -1532,6 +1542,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:community_lookup_complete, false)
       |> assign(:is_following_community, false)
       |> assign(:is_pending_community, false)
+      |> assign(:is_following_author, false)
+      |> assign(:is_pending_author, false)
+      |> assign(:user_follows, %{})
+      |> assign(:pending_follows, %{})
+      |> assign(:remote_follow_overrides, %{})
       |> assign(:replies, [])
       |> assign(:threaded_replies, [])
       |> assign(:thread_reply_actors, %{})
@@ -2295,6 +2310,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     post_object = build_post_object_from_message(message)
     community_actor = local_message_community_actor(message)
 
+    {is_following_author, is_pending_author} =
+      remote_follow_state(socket.assigns[:current_user], message.remote_actor)
+
     {is_following_community, is_pending_community} =
       community_follow_state(socket.assigns[:current_user], community_actor)
 
@@ -2312,6 +2330,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> assign(:is_community_post, socket.assigns.is_community_post || cached_is_community)
     |> assign(:is_following_community, is_following_community)
     |> assign(:is_pending_community, is_pending_community)
+    |> assign(:is_following_author, is_following_author)
+    |> assign(:is_pending_author, is_pending_author)
+    |> assign_remote_author_follow_maps(
+      message.remote_actor,
+      is_following_author,
+      is_pending_author
+    )
     |> assign(:replies_loading, true)
     |> assign(:loading, false)
     |> assign(
@@ -3108,6 +3133,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     is_community_post = discussion_source == :lemmy
 
+    {is_following_author, is_pending_author} =
+      remote_follow_state(socket.assigns[:current_user], remote_actor)
+
     {is_following_community, is_pending_community} =
       if socket.assigns[:current_user] && community_actor do
         if Elektrine.Profiles.following_remote_actor?(
@@ -3155,6 +3183,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:is_community_post, is_community_post)
       |> assign(:is_following_community, is_following_community)
       |> assign(:is_pending_community, is_pending_community)
+      |> assign(:is_following_author, is_following_author)
+      |> assign(:is_pending_author, is_pending_author)
+      |> assign_remote_author_follow_maps(remote_actor, is_following_author, is_pending_author)
       |> assign(:awaiting_initial_comment_counts, discussion_source == :lemmy)
 
     _ = Elektrine.Messaging.SyncRemoteCountsWorker.enqueue(post_object)
@@ -5625,6 +5656,144 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
+  def handle_event("toggle_follow_author", _params, socket) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
+    else
+      remote_actor = socket.assigns[:remote_actor]
+
+      if remote_actor do
+        if socket.assigns.is_following_author || socket.assigns.is_pending_author do
+          case Elektrine.Profiles.unfollow_remote_actor(
+                 socket.assigns.current_user.id,
+                 remote_actor.id
+               ) do
+            {:ok, :unfollowed} ->
+              {:noreply,
+               socket
+               |> assign(:is_following_author, false)
+               |> assign(:is_pending_author, false)
+               |> put_flash(:info, "Unfollowed")}
+
+            {:error, _reason} ->
+              {:noreply,
+               socket
+               |> assign(:is_following_author, false)
+               |> assign(:is_pending_author, false)
+               |> put_flash(:error, "Failed to unfollow")}
+          end
+        else
+          case Elektrine.Profiles.follow_remote_actor(
+                 socket.assigns.current_user.id,
+                 remote_actor.id
+               ) do
+            {:ok, follow} ->
+              if follow.pending do
+                {:noreply,
+                 socket
+                 |> assign(:is_following_author, false)
+                 |> assign(:is_pending_author, true)
+                 |> put_flash(:info, "Follow request sent!")}
+              else
+                {:noreply,
+                 socket
+                 |> assign(:is_following_author, true)
+                 |> assign(:is_pending_author, false)
+                 |> put_flash(:info, "Following!")}
+              end
+
+            {:error, :already_following} ->
+              {:noreply,
+               socket
+               |> assign(:is_following_author, true)
+               |> assign(:is_pending_author, false)
+               |> put_flash(:info, "Already following")}
+
+            {:error, _reason} ->
+              {:noreply, put_flash(socket, :error, "Failed to follow")}
+          end
+        end
+      else
+        {:noreply, put_flash(socket, :error, "Author not found")}
+      end
+    end
+  end
+
+  def handle_event("toggle_follow_remote", %{"remote_actor_id" => remote_actor_id}, socket) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
+    else
+      case Integer.parse(to_string(remote_actor_id)) do
+        {actor_id, ""} ->
+          is_following = Map.get(socket.assigns.user_follows, {:remote, actor_id}, false)
+          is_pending = Map.get(socket.assigns.pending_follows, {:remote, actor_id}, false)
+
+          if is_following || is_pending do
+            case Elektrine.Profiles.unfollow_remote_actor(
+                   socket.assigns.current_user.id,
+                   actor_id
+                 ) do
+              {:ok, _} ->
+                {:noreply,
+                 socket
+                 |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, false))
+                 |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, false))
+                 |> update(:remote_follow_overrides, &Map.put(&1, actor_id, "none"))
+                 |> push_event("remote_follow_state_changed", %{
+                   remote_actor_id: actor_id,
+                   state: "none"
+                 })
+                 |> maybe_assign_author_follow_state(actor_id, false, false)
+                 |> put_flash(:info, "Unfollowed")}
+
+              {:error, _reason} ->
+                {:noreply, put_flash(socket, :error, "Failed to unfollow")}
+            end
+          else
+            case Elektrine.Profiles.follow_remote_actor(socket.assigns.current_user.id, actor_id) do
+              {:ok, follow} ->
+                following = !follow.pending
+                pending = follow.pending
+
+                {:noreply,
+                 socket
+                 |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, following))
+                 |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, pending))
+                 |> update(
+                   :remote_follow_overrides,
+                   &Map.put(&1, actor_id, if(pending, do: "pending", else: "following"))
+                 )
+                 |> push_event("remote_follow_state_changed", %{
+                   remote_actor_id: actor_id,
+                   state: if(pending, do: "pending", else: "following")
+                 })
+                 |> maybe_assign_author_follow_state(actor_id, following, pending)
+                 |> put_flash(:info, if(pending, do: "Follow request sent!", else: "Following!"))}
+
+              {:error, :already_following} ->
+                {:noreply,
+                 socket
+                 |> update(:user_follows, &Map.put(&1, {:remote, actor_id}, true))
+                 |> update(:pending_follows, &Map.put(&1, {:remote, actor_id}, false))
+                 |> update(:remote_follow_overrides, &Map.put(&1, actor_id, "following"))
+                 |> push_event("remote_follow_state_changed", %{
+                   remote_actor_id: actor_id,
+                   state: "following"
+                 })
+                 |> maybe_assign_author_follow_state(actor_id, true, false)
+                 |> put_flash(:info, "Already following")}
+
+              {:error, _reason} ->
+                {:noreply, put_flash(socket, :error, "Failed to follow")}
+            end
+          end
+
+        _ ->
+          {:noreply, socket}
+      end
+    end
+  end
+
   def handle_event("vote_poll", params, socket) do
     if current_user_missing?(socket) do
       {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
@@ -6120,6 +6289,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp community_follow_state(%{id: user_id}, %{id: actor_id}) do
+    remote_follow_state(%{id: user_id}, %{id: actor_id})
+  end
+
+  defp community_follow_state(_, _), do: {false, false}
+
+  defp remote_follow_state(%{id: user_id}, %{id: actor_id}) do
     if Elektrine.Profiles.following_remote_actor?(user_id, actor_id) do
       {true, false}
     else
@@ -6130,7 +6305,42 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  defp community_follow_state(_, _), do: {false, false}
+  defp remote_follow_state(_, _), do: {false, false}
+
+  defp assign_remote_author_follow_maps(socket, %{id: actor_id}, is_following, is_pending) do
+    socket
+    |> assign(
+      :user_follows,
+      Map.put(socket.assigns[:user_follows] || %{}, {:remote, actor_id}, is_following)
+    )
+    |> assign(
+      :pending_follows,
+      Map.put(socket.assigns[:pending_follows] || %{}, {:remote, actor_id}, is_pending)
+    )
+    |> assign(
+      :remote_follow_overrides,
+      Map.put(
+        socket.assigns[:remote_follow_overrides] || %{},
+        actor_id,
+        if(is_following, do: "following", else: if(is_pending, do: "pending", else: "none"))
+      )
+    )
+  end
+
+  defp assign_remote_author_follow_maps(socket, _remote_actor, _is_following, _is_pending),
+    do: socket
+
+  defp maybe_assign_author_follow_state(socket, actor_id, is_following, is_pending) do
+    case socket.assigns[:remote_actor] do
+      %{id: ^actor_id} ->
+        socket
+        |> assign(:is_following_author, is_following)
+        |> assign(:is_pending_author, is_pending)
+
+      _ ->
+        socket
+    end
+  end
 
   # Helper functions - delegating to shared APHelpers module
 

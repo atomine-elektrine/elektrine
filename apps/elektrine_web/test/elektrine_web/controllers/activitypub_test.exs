@@ -1714,6 +1714,43 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
 
       assert json_response(conn, 202) == %{}
     end
+
+    test "accepts signed activities when the signing actor moved to the claimed actor", %{
+      conn: conn,
+      user: user
+    } do
+      signature_actor = remote_actor_fixture("movedsignature")
+
+      moved_actor_uri = "https://mstdn.social/ap/users/#{System.unique_integer([:positive])}"
+
+      signature_actor =
+        signature_actor
+        |> Ecto.Changeset.change(
+          uri: "https://mastodon.online/users/octothorpe",
+          username: "octothorpe",
+          domain: "mastodon.online",
+          inbox_url: "https://mastodon.online/users/octothorpe/inbox",
+          metadata: %{"movedTo" => moved_actor_uri}
+        )
+        |> Repo.update!()
+
+      activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://mstdn.social/activities/#{System.unique_integer([:positive])}",
+        "type" => "Follow",
+        "actor" => moved_actor_uri,
+        "object" => "https://localhost/users/#{user.username}"
+      }
+
+      conn =
+        conn
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, signature_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post("/users/#{user.username}/inbox", activity)
+
+      assert json_response(conn, 202) == %{}
+    end
   end
 
   describe "POST /inbox (shared inbox)" do

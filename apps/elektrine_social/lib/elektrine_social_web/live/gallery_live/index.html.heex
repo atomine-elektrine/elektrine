@@ -413,8 +413,24 @@
                 class="card border border-base-300 bg-base-200/80 shadow-sm overflow-hidden"
                 data-post-id={photo.id}
               >
+                <%= if Elektrine.Strings.present?(photo.content_warning) do %>
+                  <div class="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                    <.icon
+                      name="hero-exclamation-triangle"
+                      class="w-4 h-4 text-warning flex-shrink-0"
+                    />
+                    <span class="font-medium text-sm">{photo.content_warning}</span>
+                    <span class="badge badge-sm badge-warning ml-auto">Sensitive</span>
+                  </div>
+                <% end %>
+
                 <div
-                  class="relative aspect-[4/5] cursor-pointer"
+                  class={[
+                    "relative aspect-[4/5] cursor-pointer",
+                    if(Elektrine.Strings.present?(photo.content_warning),
+                      do: "blur-sm hover:blur-none transition-all"
+                    )
+                  ]}
                   phx-click="open_image_modal"
                   phx-value-images={all_urls}
                   phx-value-index="0"
@@ -473,7 +489,12 @@
                         {gallery_creator_handle(photo)}
                       </div>
                       <%= if gallery_content_preview(photo) != "" do %>
-                        <p class="text-sm text-base-content/70 mt-3 line-clamp-2">
+                        <p class={[
+                          "text-sm text-base-content/70 mt-3 line-clamp-2",
+                          if(Elektrine.Strings.present?(photo.content_warning),
+                            do: "blur-sm hover:blur-none transition-all"
+                          )
+                        ]}>
                           {raw(gallery_content_preview(photo))}
                         </p>
                       <% end %>

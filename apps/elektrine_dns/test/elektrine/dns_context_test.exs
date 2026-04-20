@@ -226,6 +226,57 @@ defmodule Elektrine.DNSContextTest do
     assert record.content == "edge.elektrine.com"
   end
 
+  test "supported record types include https svcb and sshfp" do
+    assert "HTTPS" in DNS.supported_record_types()
+    assert "SVCB" in DNS.supported_record_types()
+    assert "SSHFP" in DNS.supported_record_types()
+  end
+
+  test "accepts sshfp records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "host",
+               "type" => "SSHFP",
+               "ttl" => 300,
+               "algorithm" => 4,
+               "digest_type" => 2,
+               "content" => "1234567890abcdef"
+             })
+
+    assert record.type == "SSHFP"
+    assert record.content == "1234567890ABCDEF"
+  end
+
+  test "accepts https and svcb records with service binding params" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, https_record} =
+             DNS.create_record(zone, %{
+               "name" => "@",
+               "type" => "HTTPS",
+               "ttl" => 300,
+               "priority" => 1,
+               "content" => "Svc.Example.net. alpn=h2,h3 port=443"
+             })
+
+    assert https_record.content == "svc.example.net alpn=h2,h3 port=443"
+
+    assert {:ok, svcb_record} =
+             DNS.create_record(zone, %{
+               "name" => "_svc",
+               "type" => "SVCB",
+               "ttl" => 300,
+               "priority" => 2,
+               "content" => ". no-default-alpn"
+             })
+
+    assert svcb_record.content == ". no-default-alpn"
+  end
+
   test "scan_existing_zone returns observed delegation and common records" do
     put_lookup("scanme.com", :ns, 5_000, [~c"ns1.cloudflare.com", ~c"ns2.cloudflare.com"])
     put_lookup("scanme.com", :a, 3_000, [{198, 51, 100, 10}])

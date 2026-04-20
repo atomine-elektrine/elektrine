@@ -211,24 +211,40 @@ defmodule Elektrine.Social.Recommendations do
   end
 
   defp build_user_profile(user_id, session_context) do
-    %{
-      liked_posts: get_user_liked_posts(user_id),
-      viewed_posts: get_user_viewed_posts(user_id),
-      followed_users: get_followed_user_ids(user_id),
-      followed_remote_actors: get_followed_remote_actor_ids(user_id),
-      favorite_hashtags: get_user_favorite_hashtags_with_decay(user_id),
-      favorite_categories: get_user_favorite_categories(user_id),
-      preferred_communities: get_user_communities(user_id),
-      favorite_domains: get_user_favorite_domains(user_id),
-      engagement_types: analyze_engagement_types(user_id),
-      viewed_creators: get_viewed_creator_ids(user_id),
-      liked_by_followed: get_posts_liked_by_followed(user_id),
-      creator_dwell_times: get_creator_avg_dwell_times(user_id),
-      high_engagement_hashtags: get_high_dwell_hashtags(user_id),
-      dismissed_posts: get_dismissed_post_ids(user_id),
-      creator_ignore_rates: get_creator_ignore_rates(user_id),
-      dismissed_hashtags: get_frequently_dismissed_hashtags(user_id),
-      creator_satisfaction: get_creator_satisfaction_scores(user_id),
+    followed_users = get_followed_user_ids(user_id)
+    followed_remote_actors = get_followed_remote_actor_ids(user_id)
+
+    profile_data =
+      [
+        {:liked_posts, fn -> get_user_liked_posts(user_id) end},
+        {:viewed_posts, fn -> get_user_viewed_posts(user_id) end},
+        {:favorite_hashtags, fn -> get_user_favorite_hashtags_with_decay(user_id) end},
+        {:favorite_categories, fn -> get_user_favorite_categories(user_id) end},
+        {:preferred_communities, fn -> get_user_communities(user_id) end},
+        {:favorite_domains, fn -> get_user_favorite_domains(user_id) end},
+        {:engagement_types, fn -> analyze_engagement_types(user_id) end},
+        {:viewed_creators, fn -> get_viewed_creator_ids(user_id) end},
+        {:liked_by_followed, fn -> get_posts_liked_by_followed(followed_users) end},
+        {:creator_dwell_times, fn -> get_creator_avg_dwell_times(user_id) end},
+        {:high_engagement_hashtags, fn -> get_high_dwell_hashtags(user_id) end},
+        {:dismissed_posts, fn -> get_dismissed_post_ids(user_id) end},
+        {:creator_ignore_rates, fn -> get_creator_ignore_rates(user_id) end},
+        {:dismissed_hashtags, fn -> get_frequently_dismissed_hashtags(user_id) end},
+        {:creator_satisfaction, fn -> get_creator_satisfaction_scores(user_id) end}
+      ]
+      |> Task.async_stream(fn {key, loader} -> {key, loader.()} end,
+        ordered: false,
+        timeout: 15_000,
+        max_concurrency: 8
+      )
+      |> Enum.reduce(%{}, fn
+        {:ok, {key, value}}, acc -> Map.put(acc, key, value)
+        {:exit, _reason}, acc -> acc
+      end)
+
+    Map.merge(profile_data, %{
+      followed_users: followed_users,
+      followed_remote_actors: followed_remote_actors,
       session_liked_hashtags: Map.get(session_context, :liked_hashtags, []),
       session_liked_creators: Map.get(session_context, :liked_creators, []),
       session_liked_local_creators:
@@ -241,7 +257,7 @@ defmodule Elektrine.Social.Recommendations do
       session_engagement_rate: Map.get(session_context, :engagement_rate, 0.0),
       session_viewed_posts: Map.get(session_context, :viewed_posts, []),
       session_dismissed_posts: Map.get(session_context, :dismissed_posts, [])
-    }
+    })
   end
 
   defp get_candidate_posts_fast(user_id, limit) do
@@ -441,8 +457,7 @@ defmodule Elektrine.Social.Recommendations do
         local_underexposed_query,
         local_recent_query
       ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.flat_map(&load_candidate_pool(&1, local_preloads))
+      |> load_candidate_pools(local_preloads)
 
     federated_posts =
       [
@@ -451,8 +466,7 @@ defmodule Elektrine.Social.Recommendations do
         federated_underexposed_query,
         federated_recent_query
       ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.flat_map(&load_candidate_pool(&1, federated_preloads))
+      |> load_candidate_pools(federated_preloads)
 
     (local_posts ++ federated_posts)
     |> Enum.uniq_by(& &1.id)
@@ -473,6 +487,20 @@ defmodule Elektrine.Social.Recommendations do
     query
     |> Repo.all()
     |> Repo.preload(preloads)
+  end
+
+  defp load_candidate_pools(queries, preloads) do
+    queries
+    |> Enum.reject(&is_nil/1)
+    |> Task.async_stream(&load_candidate_pool(&1, preloads),
+      ordered: false,
+      timeout: 15_000,
+      max_concurrency: 6
+    )
+    |> Enum.flat_map(fn
+      {:ok, posts} -> posts
+      {:exit, _reason} -> []
+    end)
   end
 
   defp candidate_pool_limit(limit, ratio, min_size) do
@@ -1166,9 +1194,7 @@ defmodule Elektrine.Social.Recommendations do
     |> Repo.all()
   end
 
-  defp get_posts_liked_by_followed(user_id) do
-    followed_ids = get_followed_user_ids(user_id)
-
+  defp get_posts_liked_by_followed(followed_ids) do
     if Enum.empty?(followed_ids) do
       []
     else

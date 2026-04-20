@@ -135,24 +135,35 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   def plain_text_content(content) when is_binary(content) do
     content
-    |> String.replace(~r/<br\s*\/?>/i, " ")
-    |> String.replace(~r/<\/p>/i, " ")
-    |> String.replace(~r/<p[^>]*>/i, " ")
-    |> String.replace(~r/<[^>]*>/, " ")
-    |> String.replace(~r/<\/?[A-Za-z][^>]*\z/, " ")
-    |> HtmlEntities.decode()
+    |> strip_html_without_parser()
     |> String.replace(~r/\s+/, " ")
     |> String.trim()
-  rescue
-    _ ->
-      content
-      |> HtmlSanitizeEx.strip_tags()
-      |> HtmlEntities.decode()
-      |> String.replace(~r/\s+/, " ")
-      |> String.trim()
   end
 
   def plain_text_content(_), do: ""
+
+  defp strip_html_without_parser(content) when is_binary(content) do
+    content
+    |> String.replace(~r/<br\s*\/?>/i, "\n")
+    |> String.replace(~r/<\/p>/i, "\n")
+    |> String.replace(~r/<p[^>]*>/i, "\n")
+    |> String.replace(~r/<\/?[A-Za-z][A-Za-z0-9:_-]*[^>]*>/, "")
+    |> String.replace(~r/<\/?[A-Za-z][A-Za-z0-9:_-]*[^>]*\z/, "")
+    |> HtmlEntities.decode()
+  rescue
+    _ -> content
+  end
+
+  defp strip_html_without_parser(_), do: ""
+
+  defp fallback_plain_html(content) when is_binary(content) do
+    content
+    |> strip_html_without_parser()
+    |> escape_html()
+    |> convert_newlines_to_breaks()
+  end
+
+  defp fallback_plain_html(_), do: ""
 
   @doc """
   Returns a truncated plain-text preview for possibly-HTML content.
@@ -542,7 +553,7 @@ defmodule ElektrineWeb.HtmlHelpers do
   def safe_basic_html(html) when is_binary(html) do
     HtmlSanitizeEx.basic_html(html)
   rescue
-    _ -> HtmlSanitizeEx.strip_tags(html)
+    _ -> fallback_plain_html(html)
   end
 
   def safe_basic_html(_) do
@@ -569,7 +580,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> add_paragraph_spacing()
     |> convert_newlines_to_breaks()
   rescue
-    _ -> HtmlSanitizeEx.strip_tags(bio)
+    _ -> fallback_plain_html(bio)
   end
 
   def render_remote_bio(_, _instance_domain) do
@@ -602,7 +613,7 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
   rescue
-    _ -> HtmlSanitizeEx.strip_tags(content)
+    _ -> fallback_plain_html(content)
   end
 
   def render_remote_post_content(_, _instance_domain, _mention_domain_hints) do

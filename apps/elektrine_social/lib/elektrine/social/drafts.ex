@@ -53,6 +53,7 @@ defmodule Elektrine.Social.Drafts do
     base_media_metadata = Keyword.get(opts, :media_metadata, %{})
     alt_texts = Keyword.get(opts, :alt_texts, %{})
     content_warning = Keyword.get(opts, :content_warning)
+    scheduled_at = Keyword.get(opts, :scheduled_at)
     category = Keyword.get(opts, :category)
     post_type = Keyword.get(opts, :post_type, "post")
     timeline_conversation = Social.get_or_create_user_timeline(user_id)
@@ -81,7 +82,8 @@ defmodule Elektrine.Social.Drafts do
       post_type: post_type,
       content_warning: content_warning,
       category: category,
-      is_draft: true
+      is_draft: true,
+      scheduled_at: scheduled_at
     }
 
     %Message{} |> Message.changeset(attrs) |> Repo.insert()
@@ -110,6 +112,7 @@ defmodule Elektrine.Social.Drafts do
           )
 
         content_warning = Keyword.get(opts, :content_warning, draft.content_warning)
+        scheduled_at = Keyword.get(opts, :scheduled_at, draft.scheduled_at)
         category = Keyword.get(opts, :category, draft.category)
 
         media_metadata =
@@ -132,7 +135,8 @@ defmodule Elektrine.Social.Drafts do
           media_metadata: media_metadata,
           visibility: visibility,
           content_warning: content_warning,
-          category: category
+          category: category,
+          scheduled_at: scheduled_at
         }
 
         draft |> Message.changeset(attrs) |> Repo.update()

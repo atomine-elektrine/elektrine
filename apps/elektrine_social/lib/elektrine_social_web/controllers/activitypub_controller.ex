@@ -392,7 +392,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp signature_actor_matches?(sig_actor_uri, actor_uri, sig_actor) do
     comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) ||
-      signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+      signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor) ||
+      signature_actor_move_alias_match?(sig_actor_uri, actor_uri, sig_actor)
   end
 
   defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
@@ -411,6 +412,49 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   end
 
   defp signature_actor_username_alias_match?(_, _, _), do: false
+
+  defp signature_actor_move_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+       when is_binary(sig_actor_uri) and is_binary(actor_uri) and is_map(sig_actor) do
+    normalized_actor_uri = comparable_uri(actor_uri)
+    normalized_sig_actor_uri = comparable_uri(sig_actor_uri)
+
+    moved_to_uris =
+      sig_actor
+      |> Map.get(:metadata, %{})
+      |> extract_uri_candidates("movedTo")
+      |> Enum.map(&comparable_uri/1)
+
+    also_known_as_uris =
+      sig_actor
+      |> Map.get(:metadata, %{})
+      |> extract_uri_candidates("alsoKnownAs")
+      |> Enum.map(&comparable_uri/1)
+
+    normalized_actor_uri in moved_to_uris || normalized_actor_uri in also_known_as_uris ||
+      normalized_sig_actor_uri in also_known_as_uris
+  end
+
+  defp signature_actor_move_alias_match?(_, _, _), do: false
+
+  defp extract_uri_candidates(metadata, field) when is_map(metadata) do
+    metadata
+    |> Map.get(field)
+    |> expand_uri_candidates()
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp extract_uri_candidates(_metadata, _field), do: []
+
+  defp expand_uri_candidates(value) when is_binary(value), do: [value]
+
+  defp expand_uri_candidates(values) when is_list(values),
+    do: Enum.flat_map(values, &expand_uri_candidates/1)
+
+  defp expand_uri_candidates(%{"id" => id}) when is_binary(id), do: [id]
+  defp expand_uri_candidates(%{"href" => href}) when is_binary(href), do: [href]
+  defp expand_uri_candidates(%{"url" => url}) when is_binary(url), do: [url]
+  defp expand_uri_candidates(_), do: []
 
   defp normalize_activitypub_actor_path(path) when is_binary(path) do
     case Regex.run(~r|^/@([^/?#]+)$|, path) do

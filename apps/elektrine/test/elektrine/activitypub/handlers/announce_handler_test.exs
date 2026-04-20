@@ -48,7 +48,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
       assert result == {:error, :announce_object_fetch_failed}
     end
 
-    test "retries activity wrapper URLs when the announced object cannot be fetched" do
+    test "ignores inaccessible remote activity wrapper URLs" do
       booster = remote_actor_fixture("wrapperbooster")
 
       activity = %{
@@ -58,7 +58,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
       }
 
       result = AnnounceHandler.handle(activity, booster.uri, nil)
-      assert result == {:error, :announce_object_fetch_failed}
+      assert result == {:ok, :ignored}
     end
 
     test "returns a retryable error when a nested Create wrapper cannot resolve its inner object" do
@@ -132,7 +132,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
       assert result == {:error, :invalid_object}
     end
 
-    test "returns a retryable error when an Announce object list only contains failures" do
+    test "ignores Announce object lists when only a remote wrapper and invalid object are present" do
       activity = %{
         "type" => "Announce",
         "actor" => "https://remote.server/users/booster",
@@ -143,7 +143,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandlerTest do
       }
 
       result = AnnounceHandler.handle(activity, "https://remote.server/users/booster", nil)
-      assert result == {:error, :announce_object_fetch_failed}
+      assert result == {:ok, :ignored}
     end
 
     test "matches a cached federated post by activitypub URL variant" do

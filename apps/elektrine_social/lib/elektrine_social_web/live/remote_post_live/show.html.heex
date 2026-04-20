@@ -638,6 +638,9 @@
                     user_saves={@user_saves}
                     post_reactions={@post_reactions}
                     current_user={@current_user}
+                    user_follows={@user_follows}
+                    pending_follows={@pending_follows}
+                    remote_follow_overrides={@remote_follow_overrides}
                     remote_poll_vote={@pending_remote_poll_vote}
                   />
                 </div>
@@ -655,11 +658,13 @@
                       base_score =
                         cond do
                           is_map(lemmy) and
-                              ((lemmy.upvotes || 0) != 0 or (lemmy.downvotes || 0) != 0) ->
-                            (lemmy.upvotes || 0) - (lemmy.downvotes || 0)
+                              ((Map.get(lemmy, :upvotes, 0) || 0) != 0 or
+                                 (Map.get(lemmy, :downvotes, 0) || 0) != 0) ->
+                            (Map.get(lemmy, :upvotes, 0) || 0) -
+                              (Map.get(lemmy, :downvotes, 0) || 0)
 
-                          is_map(lemmy) and is_integer(lemmy.score) ->
-                            lemmy.score
+                          is_map(lemmy) and is_integer(Map.get(lemmy, :score)) ->
+                            Map.get(lemmy, :score)
 
                           is_map(embedded_lemmy) and
                               ((embedded_lemmy["upvotes"] || 0) != 0 or
@@ -758,7 +763,7 @@
 <!-- Post Content Column -->
                     <div class="flex-1 min-w-0">
                       <!-- Post Header -->
-                      <div class="flex items-center gap-3 mb-4">
+                      <div class="flex items-start gap-3 mb-4">
                         <.link
                           navigate={"/remote/#{@remote_actor.username}@#{@remote_actor.domain}"}
                           class="flex-shrink-0 rounded-full"
@@ -829,6 +834,68 @@
                             <% end %>
                           </div>
                         </div>
+                        <%= if @current_user && @remote_actor do %>
+                          <% follow_state =
+                            cond do
+                              @is_following_author -> "following"
+                              @is_pending_author -> "pending"
+                              true -> "none"
+                            end %>
+                          <button
+                            id={"remote-post-follow-#{@remote_actor.id}"}
+                            type="button"
+                            phx-click="toggle_follow_remote"
+                            phx-value-remote_actor_id={@remote_actor.id}
+                            phx-hook="RemoteFollowButton"
+                            data-remote-actor-id={@remote_actor.id}
+                            data-follow-state={follow_state}
+                            data-follow-variant="timeline"
+                            class={[
+                              "btn btn-xs px-1.5 h-7 min-h-0 sm:px-2 sm:btn-sm flex-shrink-0 transition-all duration-150 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait phx-click-loading:opacity-70",
+                              if(@is_following_author || @is_pending_author,
+                                do: "btn-ghost",
+                                else:
+                                  "btn-secondary phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                              )
+                            ]}
+                          >
+                            <span class="inline-flex items-center">
+                              <span
+                                data-follow-display="following"
+                                class={if(follow_state != "following", do: "hidden")}
+                              >
+                                <span class="inline-flex items-center">
+                                  <.icon name="hero-user-minus" class="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                                    Unfollow
+                                  </span>
+                                </span>
+                              </span>
+                              <span
+                                data-follow-display="pending"
+                                class={if(follow_state != "pending", do: "hidden")}
+                              >
+                                <span class="inline-flex items-center">
+                                  <.icon name="hero-clock" class="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                                    Requested
+                                  </span>
+                                </span>
+                              </span>
+                              <span
+                                data-follow-display="none"
+                                class={if(follow_state != "none", do: "hidden")}
+                              >
+                                <span class="inline-flex items-center">
+                                  <.icon name="hero-user-plus" class="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <span class="text-[10px] sm:text-sm ml-0.5 sm:ml-1 hidden min-[320px]:inline">
+                                    Follow
+                                  </span>
+                                </span>
+                              </span>
+                            </span>
+                          </button>
+                        <% end %>
                       </div>
                       
 <!-- Content Warning -->
@@ -1184,8 +1251,8 @@
 
                       like_count =
                         cond do
-                          is_map(lemmy) and is_integer(lemmy.score) ->
-                            lemmy.score + like_delta
+                          is_map(lemmy) and is_integer(Map.get(lemmy, :score)) ->
+                            Map.get(lemmy, :score) + like_delta
 
                           is_map(embedded_lemmy) and is_integer(embedded_lemmy["score"]) ->
                             embedded_lemmy["score"] + like_delta

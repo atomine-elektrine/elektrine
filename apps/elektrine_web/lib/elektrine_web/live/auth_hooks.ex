@@ -184,7 +184,9 @@ defmodule ElektrineWeb.Live.AuthHooks do
               socket =
                 socket
                 |> notify_error(AdminSecurity.error_message(reason))
-                |> redirect(to: AdminSecurity.elevation_redirect_path("/pripyat"))
+                |> redirect(
+                  to: AdminSecurity.elevation_redirect_path(live_admin_return_to(socket))
+                )
 
               {:halt, socket}
           end
@@ -310,11 +312,30 @@ defmodule ElektrineWeb.Live.AuthHooks do
       socket =
         socket
         |> notify_error(AdminSecurity.error_message(reason))
-        |> push_navigate(to: AdminSecurity.elevation_redirect_path("/pripyat"))
+        |> push_navigate(to: AdminSecurity.elevation_redirect_path(live_admin_return_to(socket)))
 
       {:halt, socket}
     end
   end
+
+  defp live_admin_return_to(socket) do
+    case get_connect_info(socket, :uri) do
+      %URI{path: path, query: query} when is_binary(path) and path != "" ->
+        path
+        |> maybe_with_query(query)
+        |> AdminSecurity.normalize_return_to()
+
+      _ ->
+        "/pripyat"
+    end
+  rescue
+    _ -> "/pripyat"
+  end
+
+  defp maybe_with_query(path, query) when is_binary(query) and query != "",
+    do: path <> "?" <> query
+
+  defp maybe_with_query(path, _query), do: path
 
   defp requires_recent_admin_confirmation?(event) when is_binary(event) do
     not MapSet.member?(@admin_read_only_events, event)
