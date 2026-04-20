@@ -132,6 +132,64 @@
     </div>
   <% end %>
 
+  <section class="card panel-card">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+            Organization
+          </div>
+
+          <h2 class="mt-1 text-xl font-semibold tracking-tight">Admin Areas</h2>
+        </div>
+
+        <div class="text-sm text-base-content/55">Grouped by workflow</div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4 sm:px-6">
+      <%= for section <- Enum.reject(admin_nav_sections(), &(&1.label == "Main")) do %>
+        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                {section.label}
+              </div>
+
+              <p class="mt-2 text-sm leading-6 text-base-content/65">
+                {admin_section_description(section.label)}
+              </p>
+            </div>
+
+            <div class="badge badge-ghost badge-sm">{length(section.items)}</div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <%= for item <- section.items do %>
+              <%= if Map.get(item, :navigate, false) do %>
+                <.link
+                  navigate={item.path}
+                  class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100/70 px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
+                >
+                  <.icon name={item.icon} class="h-4 w-4" />
+                  <span>{item.label}</span>
+                </.link>
+              <% else %>
+                <.link
+                  href={item.path}
+                  class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100/70 px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
+                >
+                  <.icon name={item.icon} class="h-4 w-4" />
+                  <span>{item.label}</span>
+                </.link>
+              <% end %>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
   <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
     <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
       <div class="flex items-center justify-between">

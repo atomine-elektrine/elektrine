@@ -128,6 +128,18 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     assert redirect_to == "/pripyat/security/elevate?return_to=%2Fpripyat%2Ffederation"
   end
 
+  test "accepts equivalent loopback addresses for live admin elevation", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, admin_user} = Accounts.admin_update_user(user, %{is_admin: true})
+
+    assert {:ok, _view, _html} =
+             conn
+             |> Map.put(:host, "example.com")
+             |> Map.put(:remote_ip, {0, 0, 0, 0, 0, 0, 0, 1})
+             |> log_in_user(admin_user)
+             |> live(~p"/pripyat/federation")
+  end
+
   defp log_in_user(conn, user) do
     token =
       Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{

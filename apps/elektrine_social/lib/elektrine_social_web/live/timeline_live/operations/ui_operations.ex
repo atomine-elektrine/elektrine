@@ -70,7 +70,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.UIOperations do
   defp search_path(socket, query) do
     params = %{
       "filter" => socket.assigns.current_filter,
-      "view" => socket.assigns.timeline_filter
+      "view" => socket.assigns.timeline_filter,
+      "sort" => socket.assigns[:timeline_sort] || "new"
     }
 
     params =

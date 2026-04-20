@@ -304,6 +304,33 @@
               <% end %>
             </div>
           </div>
+          <div class="pt-2 border-t border-base-300">
+            <div class="text-xs font-medium opacity-60 mb-2">Sort</div>
+
+            <div class="flex flex-wrap gap-2">
+              <%= for {value, label, icon} <- [
+                {"new", "Newest", "hero-clock"},
+                {"old", "Oldest", "hero-arrow-uturn-left"},
+                {"likes", "Likes", "hero-heart"}
+              ] do %>
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, @timeline_filter, value, @search_query)
+                  }
+                  class={[
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all min-h-[2rem] inline-flex items-center gap-1.5",
+                    if(@timeline_sort == value,
+                      do: "bg-primary text-primary-content",
+                      else: "bg-base-100 text-base-content/70 hover:bg-base-200"
+                    )
+                  ]}
+                  aria-current={if @timeline_sort == value, do: "page", else: nil}
+                >
+                  <.icon name={icon} class="w-3.5 h-3.5" /> {label}
+                </.link>
+              <% end %>
+            </div>
+          </div>
           <!-- Platform filter -->
           <%= if @current_filter == "federated" do %>
             <div class="pt-2 border-t border-base-300">
@@ -1030,6 +1057,34 @@
                 >
                   <.icon name="hero-shield-check" class="w-4 h-4 mr-1" /> Trusted
                 </button>
+              <% end %>
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mr-1">
+                Sort
+              </p>
+
+              <%= for {value, label, icon} <- [
+                {"new", "Newest", "hero-clock"},
+                {"old", "Oldest", "hero-arrow-uturn-left"},
+                {"likes", "Likes", "hero-heart"}
+              ] do %>
+                <.link
+                  patch={
+                    timeline_sort_path(@current_filter, @timeline_filter, value, @search_query)
+                  }
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_sort == value,
+                      do: "btn-primary border-primary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                  aria-current={if @timeline_sort == value, do: "page", else: nil}
+                >
+                  <.icon name={icon} class="w-4 h-4 mr-1" /> {label}
+                </.link>
               <% end %>
             </div>
           </div>

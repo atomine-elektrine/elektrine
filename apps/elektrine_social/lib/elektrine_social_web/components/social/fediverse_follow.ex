@@ -199,9 +199,7 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
             <div class="mt-1 flex flex-wrap gap-2 text-[11px] opacity-60">
               <span>{if @actor.actor_type == "Group", do: "Community", else: "Person"}</span>
               <%= if @actor.actor_type == "Group" do %>
-                <span>
-                  {get_in(@actor.metadata || %{}, ["followers", "totalItems"]) || 0} followers
-                </span>
+                <span>{followers_count(@actor.metadata)} followers</span>
               <% end %>
               <%= if @actor.last_fetched_at do %>
                 <span>Previewed recently</span>
@@ -251,4 +249,13 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     </form>
     """
   end
+
+  defp followers_count(metadata) when is_map(metadata) do
+    case Map.get(metadata, "followers") do
+      %{} = followers -> Map.get(followers, "totalItems", 0) || 0
+      _ -> 0
+    end
+  end
+
+  defp followers_count(_), do: 0
 end

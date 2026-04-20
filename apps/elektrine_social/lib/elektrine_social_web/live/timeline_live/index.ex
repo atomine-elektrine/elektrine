@@ -75,6 +75,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:reply_content, "")
       |> assign(:reply_to_reply_id, nil)
       |> assign(:timeline_filter, "all")
+      |> assign(:timeline_sort, "new")
       |> assign(:filter_dropdown_open, false)
       |> assign(:filtered_posts, [])
       |> assign(:filtered_post_ids, [])
@@ -162,6 +163,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   def handle_params(params, _uri, socket) do
     filter = normalize_source_filter(params["filter"], socket.assigns[:current_user])
     timeline_view = normalize_timeline_view(params["view"] || socket.assigns.timeline_filter)
+
+    timeline_sort =
+      TimelineHelpers.normalize_timeline_sort(params["sort"] || socket.assigns.timeline_sort)
+
     search_query = normalize_search_query(params["q"] || socket.assigns.search_query)
     composer_intent = normalize_composer_intent(params["composer"])
 
@@ -172,26 +177,26 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         socket.assigns[:current_user]
       )
 
+    params_socket =
+      socket
+      |> assign(:search_query, search_query)
+      |> assign(:timeline_sort, timeline_sort)
+
     cond do
       socket.assigns.loading_timeline ->
         {:noreply,
-         socket
+         params_socket
          |> assign(:current_filter, filter)
          |> assign(:timeline_filter, timeline_view)
+         |> assign(:timeline_sort, timeline_sort)
          |> assign(:search_query, search_query)}
 
-      search_query != socket.assigns.search_query ->
-        {:noreply,
-         socket
-         |> assign(:search_query, search_query)
-         |> queue_timeline_reload(filter, timeline_view)}
-
       filter != socket.assigns.current_filter ->
-        {:noreply, queue_timeline_reload(socket, filter, timeline_view)}
+        {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
 
       timeline_view != socket.assigns.timeline_filter ->
         updated_socket =
-          socket
+          params_socket
           |> assign(:timeline_filter, timeline_view)
           |> prune_queued_posts_for_active_filters()
 
@@ -214,6 +219,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
             {:noreply,
              updated_socket |> assign(:loading_timeline, false) |> apply_timeline_filter()}
         end
+
+      search_query != socket.assigns.search_query ->
+        {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+
+      timeline_sort != socket.assigns.timeline_sort ->
+        {:noreply,
+         params_socket |> assign(:loading_timeline, false) |> apply_timeline_filter(true)}
 
       true ->
         {:noreply, socket}
@@ -1427,13 +1439,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     "Upload error"
   end
 
+  defp timeline_sort_path(filter, view, sort, query) do
+    params = %{"filter" => filter, "view" => view, "sort" => sort}
+
+    params =
+      if Elektrine.Strings.present?(query) do
+        Map.put(params, "q", query)
+      else
+        params
+      end
+
+    Elektrine.Paths.timeline_path(Enum.into(params, []))
+  end
+
   defp merge_and_sort_posts(existing_posts, new_posts) do
     (existing_posts ++ new_posts)
     |> Enum.uniq_by(& &1.id)
     |> Enum.sort_by(& &1.inserted_at, {:desc, NaiveDateTime})
   end
 
-  defp apply_timeline_filter(socket) do
+  defp apply_timeline_filter(socket), do: apply_timeline_filter(socket, false)
+
+  defp apply_timeline_filter(socket, force_reset?) do
     filtered_posts =
       case socket.assigns.timeline_filter do
         "posts" ->
@@ -1503,7 +1530,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
     filtered_posts = maybe_group_reply_chains(filtered_posts, socket)
-    TimelineHelpers.assign_filtered_posts(socket, filtered_posts)
+
+    filtered_posts =
+      TimelineHelpers.sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
+
+    TimelineHelpers.assign_filtered_posts(socket, filtered_posts, force_reset?)
   end
 
   defp maybe_group_reply_chains(posts, socket) when is_list(posts) do

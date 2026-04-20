@@ -237,6 +237,22 @@ defmodule ElektrineWeb.AdminSecurity do
 
   def session_admin_ip(_session), do: nil
 
+  def ip_matches?(stored_ip, current_ip)
+
+  def ip_matches?(stored_ip, current_ip) when is_binary(stored_ip) and is_binary(current_ip) do
+    if stored_ip == current_ip do
+      true
+    else
+      normalized_stored = normalize_ip_value(stored_ip)
+      normalized_current = normalize_ip_value(current_ip)
+
+      normalized_stored == normalized_current ||
+        (loopback_ip?(normalized_stored) and loopback_ip?(normalized_current))
+    end
+  end
+
+  def ip_matches?(_, _), do: false
+
   defp ensure_passkey_enrolled(conn, user) do
     if passkey_required?() and not Passkeys.has_passkeys?(user) do
       {:error, :passkey_required, conn}
@@ -337,6 +353,30 @@ defmodule ElektrineWeb.AdminSecurity do
       end
     end
   end
+
+  defp normalize_ip_value(ip) when is_binary(ip) do
+    case :inet.parse_address(String.to_charlist(ip)) do
+      {:ok, parsed} -> normalize_ip_tuple(parsed)
+      _ -> ip
+    end
+  end
+
+  defp normalize_ip_value(ip), do: ip
+
+  defp normalize_ip_tuple({0, 0, 0, 0, 0, 65_535, high, low}) do
+    {
+      Bitwise.bsr(high, 8),
+      Bitwise.band(high, 255),
+      Bitwise.bsr(low, 8),
+      Bitwise.band(low, 255)
+    }
+  end
+
+  defp normalize_ip_tuple(ip), do: ip
+
+  defp loopback_ip?({127, _, _, _}), do: true
+  defp loopback_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
+  defp loopback_ip?(_), do: false
 
   defp ensure_live_elevation(session) do
     now = now_seconds()

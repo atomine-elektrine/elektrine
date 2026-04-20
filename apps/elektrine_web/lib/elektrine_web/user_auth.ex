@@ -504,7 +504,7 @@ defmodule ElektrineWeb.UserAuth do
         {:ok, put_session(conn, :admin_session_ip, current_ip)}
 
       # IP matches - allow access
-      session_ip == current_ip ->
+      AdminSecurity.ip_matches?(session_ip, current_ip) ->
         {:ok, conn}
 
       # IP changed - require the admin to re-elevate instead of silently rebinding.

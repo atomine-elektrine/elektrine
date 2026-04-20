@@ -27,6 +27,8 @@ defmodule Elektrine.Files do
     {"Oldest", "updated_asc"},
     {"Name A-Z", "name_asc"},
     {"Name Z-A", "name_desc"},
+    {"Location A-Z", "path_asc"},
+    {"Location Z-A", "path_desc"},
     {"Largest", "size_desc"},
     {"Smallest", "size_asc"}
   ]
@@ -895,9 +897,18 @@ defmodule Elektrine.Files do
   defp sort_files(files, "updated_desc"),
     do: Enum.sort_by(files, & &1.updated_at, {:desc, DateTime})
 
+  defp sort_files(files, "path_asc"), do: Enum.sort_by(files, &String.downcase(&1.path), :asc)
+  defp sort_files(files, "path_desc"), do: Enum.sort_by(files, &String.downcase(&1.path), :desc)
+
   defp sort_files(files, "size_asc"), do: Enum.sort_by(files, &(&1.size || 0), :asc)
   defp sort_files(files, "size_desc"), do: Enum.sort_by(files, &(&1.size || 0), :desc)
   defp sort_files(files, _sort), do: files
+
+  defp sort_folders(folders, "path_asc"),
+    do: Enum.sort_by(folders, &String.downcase(&1.path), :asc)
+
+  defp sort_folders(folders, "path_desc"),
+    do: Enum.sort_by(folders, &String.downcase(&1.path), :desc)
 
   defp sort_folders(folders, "name_desc"),
     do: Enum.sort_by(folders, &String.downcase(&1.name), :desc)

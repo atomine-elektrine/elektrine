@@ -309,6 +309,22 @@ defmodule ElektrineWeb.AdminHTML do
     |> filter_nav_sections()
   end
 
+  def admin_section_description("Main"), do: "Landing page and top-level admin summary."
+
+  def admin_section_description("Users"),
+    do: "Account management, lookup, invites, and identity issues."
+
+  def admin_section_description("Email"),
+    do: "Mailbox operations, domains, aliases, and transport tooling."
+
+  def admin_section_description("Content"),
+    do: "Moderation queues, community controls, and deletion review."
+
+  def admin_section_description("System"),
+    do: "Audit, announcements, billing, and federation settings."
+
+  def admin_section_description(_), do: "Administrative tools and workflows."
+
   defp filter_nav_sections(sections) do
     sections
     |> Enum.map(fn section ->

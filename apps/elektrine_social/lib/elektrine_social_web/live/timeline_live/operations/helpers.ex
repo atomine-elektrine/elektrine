@@ -29,8 +29,21 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
 
   def load_cached_lemmy_counts(_posts, _timeline_view), do: %{}
 
+  def normalize_timeline_sort(sort) when is_binary(sort) do
+    case sort do
+      "likes" -> "likes"
+      "old" -> "old"
+      "new" -> "new"
+      _ -> "new"
+    end
+  end
+
+  def normalize_timeline_sort(_), do: "new"
+
   # Apply timeline filter to socket
-  def apply_timeline_filter(socket) do
+  def apply_timeline_filter(socket), do: apply_timeline_filter(socket, false)
+
+  def apply_timeline_filter(socket, force_reset?) do
     filtered_posts =
       case socket.assigns.timeline_filter do
         "posts" ->
@@ -104,10 +117,30 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     filtered_posts = filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
     filtered_posts = dedupe_posts(filtered_posts)
-    assign_filtered_posts(socket, filtered_posts)
+    filtered_posts = sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
+    assign_filtered_posts(socket, filtered_posts, force_reset?)
   end
 
-  def assign_filtered_posts(socket, filtered_posts) when is_list(filtered_posts) do
+  def sort_timeline_posts(posts, sort)
+
+  def sort_timeline_posts(posts, "likes") when is_list(posts) do
+    Enum.sort_by(posts, &timeline_likes_sort_key/1, :desc)
+  end
+
+  def sort_timeline_posts(posts, "old") when is_list(posts) do
+    Enum.sort_by(posts, &timeline_date_sort_key/1, :asc)
+  end
+
+  def sort_timeline_posts(posts, _sort) when is_list(posts) do
+    Enum.sort_by(posts, &timeline_date_sort_key/1, :desc)
+  end
+
+  def sort_timeline_posts(posts, _sort), do: posts
+
+  def assign_filtered_posts(socket, filtered_posts),
+    do: assign_filtered_posts(socket, filtered_posts, false)
+
+  def assign_filtered_posts(socket, filtered_posts, force_reset?) when is_list(filtered_posts) do
     previous_posts = socket.assigns[:filtered_posts] || []
     previous_ids = socket.assigns[:filtered_post_ids] || []
     previous_posts_by_id = Map.new(previous_posts, fn post -> {post.id, post} end)
@@ -129,6 +162,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       |> assign(:filtered_post_ids, current_ids)
 
     cond do
+      force_reset? ->
+        stream(socket, :timeline_filtered_posts, filtered_posts, reset: true)
+
       previous_ids == current_ids ->
         refresh_changed_filtered_posts(socket, changed_posts)
 
@@ -159,7 +195,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     end
   end
 
-  def assign_filtered_posts(socket, _), do: assign_filtered_posts(socket, [])
+  def assign_filtered_posts(socket, _, force_reset?),
+    do: assign_filtered_posts(socket, [], force_reset?)
 
   def refresh_filtered_posts_stream(socket) do
     stream(socket, :timeline_filtered_posts, socket.assigns[:filtered_posts] || [], reset: true)
@@ -281,6 +318,27 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     (direct_post_ids ++ reply_parent_ids ++ ancestor_container_ids)
     |> Enum.uniq()
   end
+
+  defp timeline_likes_sort_key(post) do
+    {Map.get(post, :like_count, 0), timeline_date_sort_key(post), Map.get(post, :id, 0)}
+  end
+
+  defp timeline_date_sort_key(post) do
+    {
+      post
+      |> Map.get(:inserted_at)
+      |> normalize_timeline_datetime(),
+      Map.get(post, :id, 0)
+    }
+  end
+
+  defp normalize_timeline_datetime(%DateTime{} = datetime),
+    do: DateTime.to_unix(datetime, :microsecond)
+
+  defp normalize_timeline_datetime(%NaiveDateTime{} = datetime),
+    do: DateTime.from_naive!(datetime, "Etc/UTC") |> DateTime.to_unix(:microsecond)
+
+  defp normalize_timeline_datetime(_), do: 0
 
   def update_cached_posts(socket, update_fn) when is_function(update_fn, 1) do
     updated_timeline_posts = update_fn.(socket.assigns[:timeline_posts] || [])

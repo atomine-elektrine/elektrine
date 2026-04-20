@@ -12,7 +12,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers do
   def normalize_sort(sort) when is_binary(sort) do
     case sort do
       "score" -> "top"
+      "likes" -> "likes"
       "recent" -> "new"
+      "oldest" -> "oldest"
       "hot" -> "hot"
       "new" -> "new"
       "top" -> "top"
@@ -42,7 +44,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers do
   end
 
   defp db_sort_for("top"), do: "score"
+  defp db_sort_for("likes"), do: "score"
   defp db_sort_for("new"), do: "recent"
+  defp db_sort_for("oldest"), do: "oldest"
   defp db_sort_for("unanswered"), do: "recent"
   defp db_sort_for("hot"), do: "hot"
   defp db_sort_for(_), do: "hot"

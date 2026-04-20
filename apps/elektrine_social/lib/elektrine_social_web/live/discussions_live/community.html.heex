@@ -610,7 +610,7 @@
               Browse by intent
             </div>
             <div
-              class="grid grid-cols-2 sm:grid-cols-4 gap-2"
+              class="grid grid-cols-2 sm:grid-cols-5 gap-2"
               role="tablist"
               aria-label="Sort posts"
             >
@@ -643,12 +643,24 @@
                 phx-value-sort="top"
                 class={[
                   "btn btn-sm min-h-10",
-                  if(@sort_by == "top", do: "btn-secondary", else: "btn-ghost")
+                  if(@sort_by in ["top", "likes"], do: "btn-secondary", else: "btn-ghost")
                 ]}
                 role="tab"
-                aria-selected={@sort_by == "top"}
+                aria-selected={@sort_by in ["top", "likes"]}
               >
-                Top
+                Likes
+              </button>
+              <button
+                phx-click="set_sort"
+                phx-value-sort="oldest"
+                class={[
+                  "btn btn-sm min-h-10",
+                  if(@sort_by == "oldest", do: "btn-secondary", else: "btn-ghost")
+                ]}
+                role="tab"
+                aria-selected={@sort_by == "oldest"}
+              >
+                Oldest
               </button>
               <button
                 phx-click="set_sort"

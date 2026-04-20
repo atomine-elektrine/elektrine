@@ -410,10 +410,10 @@
                             Communities you joined or followed most recently.
                           </p>
                         </div>
-                        <div class="space-y-2.5">
+                        <div class="grid gap-2.5 lg:grid-cols-2">
                           <%= for join <- @recent_joins do %>
                             <% item = join.item %>
-                            <div class="flex items-center justify-between gap-3 rounded-xl border border-base-300/60 bg-base-100/70 px-3 py-2.5">
+                            <div class="flex items-center justify-between gap-3 rounded-xl border border-base-300/60 bg-base-100/70 px-3 py-2.5 min-w-0">
                               <div class="min-w-0">
                                 <.link
                                   href={community_route(item)}

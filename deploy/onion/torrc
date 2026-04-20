@@ -1,5 +1,9 @@
 HiddenServiceDir /data/tor/elektrine/
 HiddenServicePort 80 127.0.0.1:8080
 HiddenServicePort 443 127.0.0.1:8443
+HiddenServicePort 143 127.0.0.1:2143
+HiddenServicePort 993 127.0.0.1:2993
+HiddenServicePort 110 127.0.0.1:2110
+HiddenServicePort 995 127.0.0.1:2995
 DataDirectory /data/tor/data
 Log notice stdout

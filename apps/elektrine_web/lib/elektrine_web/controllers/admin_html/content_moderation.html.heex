@@ -12,14 +12,14 @@
     case @content_type do
       "timeline" -> "Timeline"
       "discussions" -> "Discussions"
-      "chat" -> "Chat"
+      "chat" -> "Arblarg Chat"
       _ -> "Timeline"
     end %>
   <% search_placeholder =
     case @content_type do
       "timeline" -> "Search timeline posts by content, username, or @handle"
       "discussions" -> "Search discussions by content, username, @handle, or community"
-      "chat" -> "Search chat messages by content, username, @handle, or conversation"
+      "chat" -> "Search Arblarg messages by content, sender, conversation, source, or domain"
       _ -> "Search content"
     end %>
   <% base_path =
@@ -28,7 +28,7 @@
 
   <.section_header
     title="Content Moderation"
-    description="Review user-generated timeline posts, discussions, and chat messages."
+    description="Review user-generated timeline posts, discussions, and Arblarg chat messages."
     class="mb-6"
   >
     <:actions>
@@ -79,7 +79,8 @@
         href={~p"/pripyat/content-moderation?type=chat"}
         class={"tab gap-2 " <> if(@content_type == "chat", do: "tab-active", else: "")}
       >
-        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" /> Chat ({@counts.chat})
+        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
+        Arblarg ({@counts.chat})
       </a>
     </div>
   </div>

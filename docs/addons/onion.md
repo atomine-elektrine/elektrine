@@ -9,6 +9,12 @@ Relevant files:
 - `deploy/docker/docker-entrypoint.sh`
 - `scripts/onion/sync-onion-key-secrets.sh`
 
+Default onion exposure:
+
+- web: `80 -> 8080`, `443 -> 8443`
+- IMAP: `143 -> 2143`, `993 -> 2993`
+- POP3: `110 -> 2110`, `995 -> 2995`
+
 To enable it:
 
 1. Fill in the onion section already present in `.env.example` / `.env.production`.
