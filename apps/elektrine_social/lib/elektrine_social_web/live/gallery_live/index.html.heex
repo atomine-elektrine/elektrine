@@ -64,66 +64,94 @@
               <% end %>
             </div>
 
-            <%= if @current_user do %>
-              <%= if @user_gallery_stats do %>
-                <div class="grid grid-cols-2 gap-3 text-sm">
-                  <div class="rounded-lg border border-base-300 px-3 py-3">
-                    <div class="text-lg font-semibold">
-                      {format_gallery_count(@user_gallery_stats.photo_count)}
-                    </div>
-                    <div class="text-xs uppercase tracking-wide text-base-content/60">
-                      Uploads
-                    </div>
-                  </div>
-                  <div class="rounded-lg border border-base-300 px-3 py-3">
-                    <div class="text-lg font-semibold">
-                      {format_gallery_count(@user_gallery_stats.total_likes)}
-                    </div>
-                    <div class="text-xs uppercase tracking-wide text-base-content/60">Likes</div>
-                  </div>
-                  <div class="rounded-lg border border-base-300 px-3 py-3">
-                    <div class="text-lg font-semibold">
-                      {format_gallery_count(@user_gallery_stats.total_views)}
-                    </div>
-                    <div class="text-xs uppercase tracking-wide text-base-content/60">Views</div>
-                  </div>
-                  <div class="rounded-lg border border-base-300 px-3 py-3">
-                    <div class="text-lg font-semibold">
-                      {format_gallery_count(@user_gallery_stats.saved_count || 0)}
-                    </div>
-                    <div class="text-xs uppercase tracking-wide text-base-content/60">Saved</div>
-                  </div>
+            <%= if @loading_gallery_insights do %>
+              <div class="space-y-4" aria-hidden="true">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="h-6 w-20 rounded bg-base-300 animate-pulse"></div>
+                  <div class="h-6 w-24 rounded-full bg-base-300 animate-pulse"></div>
                 </div>
-
-                <div class="rounded-lg border border-base-300 px-4 py-3 text-sm">
-                  <div class="text-xs uppercase tracking-wide text-base-content/50">
-                    Top upload
-                  </div>
-                  <%= if @top_upload do %>
-                    <div class="mt-2 font-medium line-clamp-1">
-                      {gallery_display_title(@top_upload)}
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                  <%= for _i <- 1..4 do %>
+                    <div class="rounded-lg border border-base-300 px-3 py-3 space-y-2">
+                      <div class="h-6 w-12 rounded bg-base-300 animate-pulse"></div>
+                      <div class="h-3 w-16 rounded bg-base-300 animate-pulse"></div>
                     </div>
-                    <div class="mt-1 text-base-content/60">
-                      {format_gallery_count(@top_upload.like_count || 0)} likes · {Elektrine.Social.time_ago_in_words(
-                        @top_upload.inserted_at
-                      )}
-                    </div>
-                  <% else %>
-                    <div class="mt-2 text-base-content/60">No top upload yet.</div>
                   <% end %>
                 </div>
+                <div class="rounded-lg border border-base-300 px-4 py-3 space-y-2">
+                  <div class="h-3 w-20 rounded bg-base-300 animate-pulse"></div>
+                  <div class="h-4 w-28 rounded bg-base-300 animate-pulse"></div>
+                  <div class="h-3 w-24 rounded bg-base-300 animate-pulse"></div>
+                </div>
+              </div>
+            <% else %>
+              <%= if @current_user do %>
+                <%= if @user_gallery_stats do %>
+                  <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-lg border border-base-300 px-3 py-3">
+                      <div class="text-lg font-semibold">
+                        {format_gallery_count(@user_gallery_stats.photo_count)}
+                      </div>
+                      <div class="text-xs uppercase tracking-wide text-base-content/60">
+                        Uploads
+                      </div>
+                    </div>
+                    <div class="rounded-lg border border-base-300 px-3 py-3">
+                      <div class="text-lg font-semibold">
+                        {format_gallery_count(@user_gallery_stats.total_likes)}
+                      </div>
+                      <div class="text-xs uppercase tracking-wide text-base-content/60">
+                        Likes
+                      </div>
+                    </div>
+                    <div class="rounded-lg border border-base-300 px-3 py-3">
+                      <div class="text-lg font-semibold">
+                        {format_gallery_count(@user_gallery_stats.total_views)}
+                      </div>
+                      <div class="text-xs uppercase tracking-wide text-base-content/60">
+                        Views
+                      </div>
+                    </div>
+                    <div class="rounded-lg border border-base-300 px-3 py-3">
+                      <div class="text-lg font-semibold">
+                        {format_gallery_count(@user_gallery_stats.saved_count || 0)}
+                      </div>
+                      <div class="text-xs uppercase tracking-wide text-base-content/60">
+                        Saved
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="rounded-lg border border-base-300 px-4 py-3 text-sm">
+                    <div class="text-xs uppercase tracking-wide text-base-content/50">
+                      Top upload
+                    </div>
+                    <%= if @top_upload do %>
+                      <div class="mt-2 font-medium line-clamp-1">
+                        {gallery_display_title(@top_upload)}
+                      </div>
+                      <div class="mt-1 text-base-content/60">
+                        {format_gallery_count(@top_upload.like_count || 0)} likes · {Elektrine.Social.time_ago_in_words(
+                          @top_upload.inserted_at
+                        )}
+                      </div>
+                    <% else %>
+                      <div class="mt-2 text-base-content/60">No top upload yet.</div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
+                    <h3 class="font-medium">No uploads yet</h3>
+                  </div>
+                <% end %>
               <% else %>
                 <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
-                  <h3 class="font-medium">No uploads yet</h3>
+                  <h3 class="font-medium">Sign in to track your gallery</h3>
+                  <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm mt-4">
+                    Sign In
+                  </.link>
                 </div>
               <% end %>
-            <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
-                <h3 class="font-medium">Sign in to track your gallery</h3>
-                <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm mt-4">
-                  Sign In
-                </.link>
-              </div>
             <% end %>
           </div>
 
@@ -137,111 +165,151 @@
               <% end %>
             </div>
 
-            <%= if @current_user do %>
-              <%= if recent_uploads != [] do %>
-                <div class="space-y-3">
-                  <%= for upload <- recent_uploads do %>
-                    <div class="rounded-lg border border-base-300 px-4 py-3 text-sm">
-                      <div class="font-medium line-clamp-1">
-                        {gallery_display_title(upload)}
+            <%= if @loading_gallery_insights do %>
+              <div class="space-y-3" aria-hidden="true">
+                <%= for _i <- 1..3 do %>
+                  <div class="rounded-lg border border-base-300 px-4 py-3 space-y-2">
+                    <div class="h-4 w-32 rounded bg-base-300 animate-pulse"></div>
+                    <div class="h-3 w-16 rounded bg-base-300 animate-pulse"></div>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <%= if @current_user do %>
+                <%= if recent_uploads != [] do %>
+                  <div class="space-y-3">
+                    <%= for upload <- recent_uploads do %>
+                      <div class="rounded-lg border border-base-300 px-4 py-3 text-sm">
+                        <div class="font-medium line-clamp-1">
+                          {gallery_display_title(upload)}
+                        </div>
+                        <div class="mt-1 text-xs text-base-content/60">
+                          {Elektrine.Social.time_ago_in_words(upload.inserted_at)}
+                        </div>
                       </div>
-                      <div class="mt-1 text-xs text-base-content/60">
-                        {Elektrine.Social.time_ago_in_words(upload.inserted_at)}
-                      </div>
-                    </div>
-                  <% end %>
-                </div>
+                    <% end %>
+                  </div>
+                <% else %>
+                  <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
+                    <h3 class="font-medium">Nothing recent yet</h3>
+                    <p class="mt-1 text-sm text-base-content/60">
+                      Your uploads will show up here.
+                    </p>
+                  </div>
+                <% end %>
               <% else %>
                 <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
-                  <h3 class="font-medium">Nothing recent yet</h3>
+                  <h3 class="font-medium">Recent uploads are personal</h3>
                   <p class="mt-1 text-sm text-base-content/60">
-                    Your uploads will show up here.
+                    Sign in to track your latest uploads and saved work.
                   </p>
                 </div>
               <% end %>
-            <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5">
-                <h3 class="font-medium">Recent uploads are personal</h3>
-                <p class="mt-1 text-sm text-base-content/60">
-                  Sign in to track your latest uploads and saved work.
-                </p>
-              </div>
             <% end %>
           </div>
 
           <div class="space-y-4">
             <h2 class="font-semibold text-lg">Quick Actions</h2>
 
-            <div class="flex flex-wrap gap-2">
-              <%= for {value, label, icon} <- filter_options, value in ["following", "liked", "saved"] do %>
-                <button
-                  id={"gallery-quick-filter-#{value}"}
-                  phx-click="set_filter"
-                  phx-value-filter={value}
-                  class={[
-                    "btn btn-sm",
-                    if(@current_filter == value, do: "btn-secondary", else: "btn-ghost")
-                  ]}
-                >
-                  <.icon name={icon} class="w-4 h-4 mr-1" /> {label}
-                </button>
-              <% end %>
-            </div>
-
-            <%= if quick_tags != [] do %>
-              <div>
-                <div class="mb-2 text-xs uppercase tracking-wide text-base-content/60">
-                  Tag filters
-                </div>
+            <%= if @loading_gallery_insights do %>
+              <div class="space-y-4" aria-hidden="true">
                 <div class="flex flex-wrap gap-2">
-                  <%= for tag <- quick_tags do %>
-                    <button
-                      type="button"
-                      phx-click="apply_tag_search"
-                      phx-value-tag={tag.name}
-                      class="badge h-8 px-3 border border-base-300 bg-base-100"
-                    >
-                      #{tag.name}
-                    </button>
+                  <%= for width <- ["w-24", "w-20", "w-20"] do %>
+                    <div class={["h-8 rounded-full bg-base-300 animate-pulse", width]}></div>
                   <% end %>
                 </div>
-              </div>
-            <% end %>
-
-            <%= if @current_user && @suggested_photographers != [] do %>
-              <div>
-                <div class="mb-2 text-xs uppercase tracking-wide text-base-content/60">
-                  Suggested creators
+                <div>
+                  <div class="mb-2 h-3 w-24 rounded bg-base-300 animate-pulse"></div>
+                  <div class="flex flex-wrap gap-2">
+                    <%= for width <- ["w-16", "w-20", "w-14"] do %>
+                      <div class={["h-8 rounded-full bg-base-300 animate-pulse", width]}></div>
+                    <% end %>
+                  </div>
                 </div>
                 <div class="space-y-2">
-                  <%= for photographer <- Enum.take(@suggested_photographers, 2) do %>
+                  <%= for _i <- 1..2 do %>
                     <div class="flex items-center gap-3 rounded-lg border border-base-300 px-3 py-3">
-                      <div class="min-w-0 flex-1">
-                        <div class="font-medium truncate">
-                          {photographer.display_name || photographer.username}
-                        </div>
-                        <div class="text-xs text-base-content/60">
-                          @{photographer.handle || photographer.username}
-                        </div>
+                      <div class="min-w-0 flex-1 space-y-2">
+                        <div class="h-4 w-28 rounded bg-base-300 animate-pulse"></div>
+                        <div class="h-3 w-20 rounded bg-base-300 animate-pulse"></div>
                       </div>
-                      <button
-                        phx-click="follow_photographer"
-                        phx-value-user_id={photographer.id}
-                        class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
-                      >
-                        <span class="phx-click-loading:hidden">Follow</span>
-                        <span class="hidden items-center phx-click-loading:inline-flex">
-                          <.spinner size="sm" class="mr-1" /> Following...
-                        </span>
-                      </button>
+                      <div class="h-8 w-20 rounded-lg bg-base-300 animate-pulse"></div>
                     </div>
                   <% end %>
                 </div>
               </div>
             <% else %>
-              <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5 text-sm text-base-content/70">
-                Use the filters above to move between saved items, likes, and people you follow.
+              <div class="flex flex-wrap gap-2">
+                <%= for {value, label, icon} <- filter_options, value in ["following", "liked", "saved"] do %>
+                  <button
+                    id={"gallery-quick-filter-#{value}"}
+                    phx-click="set_filter"
+                    phx-value-filter={value}
+                    class={[
+                      "btn btn-sm",
+                      if(@current_filter == value, do: "btn-secondary", else: "btn-ghost")
+                    ]}
+                  >
+                    <.icon name={icon} class="w-4 h-4 mr-1" /> {label}
+                  </button>
+                <% end %>
               </div>
+
+              <%= if quick_tags != [] do %>
+                <div>
+                  <div class="mb-2 text-xs uppercase tracking-wide text-base-content/60">
+                    Tag filters
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <%= for tag <- quick_tags do %>
+                      <button
+                        type="button"
+                        phx-click="apply_tag_search"
+                        phx-value-tag={tag.name}
+                        class="badge badge-outline h-8 px-3"
+                      >
+                        #{tag.name}
+                      </button>
+                    <% end %>
+                  </div>
+                </div>
+              <% end %>
+
+              <%= if @current_user && @suggested_photographers != [] do %>
+                <div>
+                  <div class="mb-2 text-xs uppercase tracking-wide text-base-content/60">
+                    Suggested creators
+                  </div>
+                  <div class="space-y-2">
+                    <%= for photographer <- Enum.take(@suggested_photographers, 2) do %>
+                      <div class="flex items-center gap-3 rounded-lg border border-base-300 px-3 py-3">
+                        <div class="min-w-0 flex-1">
+                          <div class="font-medium truncate">
+                            {photographer.display_name || photographer.username}
+                          </div>
+                          <div class="text-xs text-base-content/60">
+                            @{photographer.handle || photographer.username}
+                          </div>
+                        </div>
+                        <button
+                          phx-click="follow_photographer"
+                          phx-value-user_id={photographer.id}
+                          class="btn btn-secondary btn-sm transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                        >
+                          <span class="phx-click-loading:hidden">Follow</span>
+                          <span class="hidden items-center phx-click-loading:inline-flex">
+                            <.spinner size="sm" class="mr-1" /> Following...
+                          </span>
+                        </button>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              <% else %>
+                <div class="rounded-lg border border-dashed border-base-300 bg-base-200/55 p-5 text-sm text-base-content/70">
+                  Use the filters above to move between saved items, likes, and people you follow.
+                </div>
+              <% end %>
             <% end %>
           </div>
         </div>
@@ -445,10 +513,10 @@
                   <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent">
                   </div>
                   <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
-                    <span class="badge badge-outline bg-base-200/70 backdrop-blur">
+                    <span class="badge badge-outline backdrop-blur-sm">
                       {gallery_source_label(photo)}
                     </span>
-                    <span class="badge badge-outline bg-base-200/70 backdrop-blur">
+                    <span class="badge badge-outline backdrop-blur-sm">
                       {String.capitalize(photo.category || "gallery")}
                     </span>
                   </div>

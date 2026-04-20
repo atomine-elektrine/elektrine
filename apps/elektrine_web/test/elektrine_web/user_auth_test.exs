@@ -27,7 +27,7 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "require_admin_access/2" do
-    test "redirects admin to elevation when session IP changes", %{conn: conn} do
+    test "allows admin access with a valid elevated session", %{conn: conn} do
       user = user_fixture()
       {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})
       now = System.system_time(:second)
@@ -36,7 +36,6 @@ defmodule ElektrineWeb.UserAuthTest do
         conn
         |> init_test_session(%{})
         |> put_session(:user_token, "test-token")
-        |> put_session(:admin_session_ip, "198.51.100.10")
         |> put_session(:admin_auth_method, "password")
         |> put_session(:admin_access_expires_at, now + 300)
         |> put_session(:admin_elevated_until, now + 120)
@@ -45,13 +44,8 @@ defmodule ElektrineWeb.UserAuthTest do
 
       conn = UserAuth.require_admin_access(conn, [])
 
-      assert conn.halted
+      refute conn.halted
       assert get_session(conn, :user_token) == "test-token"
-
-      assert String.starts_with?(
-               hd(get_resp_header(conn, "location")),
-               "/pripyat/security/elevate"
-             )
     end
 
     test "redirects admin to elevation when elevation expires", %{conn: conn} do
@@ -63,7 +57,6 @@ defmodule ElektrineWeb.UserAuthTest do
         conn
         |> init_test_session(%{})
         |> put_session(:user_token, "test-token")
-        |> put_session(:admin_session_ip, "198.51.100.10")
         |> put_session(:admin_auth_method, "password")
         |> put_session(:admin_access_expires_at, now + 300)
         |> put_session(:admin_elevated_until, now - 1)

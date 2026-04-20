@@ -374,7 +374,10 @@
                 </div>
 
                 <%= if !search_active? and @current_user && (@recent_searches != [] or @recent_joins != []) do %>
-                  <div class="grid gap-3 xl:grid-cols-2">
+                  <div class={[
+                    "grid gap-3",
+                    if(@recent_searches != [] and @recent_joins != [], do: "xl:grid-cols-2")
+                  ]}>
                     <%= if @recent_searches != [] do %>
                       <div class="rounded-2xl border border-base-300/70 bg-base-200/35 p-4 space-y-3">
                         <div>
@@ -689,7 +692,7 @@
                                   href={result.url}
                                   class="block rounded-2xl border border-base-300 bg-base-100 p-4 shadow-sm hover:border-secondary/40 transition-colors"
                                 >
-                                  <div class="flex items-center gap-2 text-[11px] text-base-content/55">
+                                  <div class="flex min-w-0 items-center gap-2 text-[11px] text-base-content/55">
                                     <span class={[
                                       "badge badge-sm",
                                       if(result.kind == :remote,
@@ -699,13 +702,13 @@
                                     ]}>
                                       {if result.kind == :remote, do: "Remote", else: "Local"}
                                     </span>
-                                    <span>{result.community_label}</span>
+                                    <span class="truncate">{result.community_label}</span>
                                   </div>
                                   <h3 class="mt-3 text-sm font-semibold leading-6 sm:text-base">
                                     {result.title}
                                   </h3>
                                   <%= if result.preview != "" do %>
-                                    <p class="mt-2 line-clamp-3 text-sm text-base-content/70 leading-6">
+                                    <p class="mt-2 line-clamp-3 break-all text-sm text-base-content/70 leading-6">
                                       {raw(result.preview)}
                                     </p>
                                   <% end %>

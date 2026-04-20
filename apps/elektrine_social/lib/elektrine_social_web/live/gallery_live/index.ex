@@ -57,6 +57,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       |> assign(:uploading, false)
       |> assign(:loading_more, false)
       |> assign(:loading_gallery, false)
+      |> assign(:loading_gallery_insights, true)
       |> assign(:end_of_feed, length(gallery_posts) < @gallery_page_size)
       |> assign(:show_image_modal, false)
       |> assign(:modal_image_url, nil)
@@ -792,6 +793,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
      |> assign(:suggested_photographers, suggested_photographers)
      |> assign(:trending_tags, trending_tags)
      |> assign(:loading_gallery, false)
+     |> assign(:loading_gallery_insights, false)
      |> assign(:end_of_feed, length(gallery_posts) < @gallery_page_size)
      |> apply_gallery_filter()}
   end

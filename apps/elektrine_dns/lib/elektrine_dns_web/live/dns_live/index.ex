@@ -1114,7 +1114,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     type="button"
                     phx-click="record_type_preset"
                     phx-value-type="A"
-                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                    class={record_type_preset_button_class(@record_form, "A")}
                   >
                     <p class="font-semibold">A / AAAA</p>
                     <p class="mt-1 text-base-content/65">
@@ -1125,7 +1125,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     type="button"
                     phx-click="record_type_preset"
                     phx-value-type="CNAME"
-                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                    class={record_type_preset_button_class(@record_form, "CNAME")}
                   >
                     <p class="font-semibold">CNAME</p>
                     <p class="mt-1 text-base-content/65">
@@ -1136,7 +1136,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     type="button"
                     phx-click="record_type_preset"
                     phx-value-type="MX"
-                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                    class={record_type_preset_button_class(@record_form, "MX")}
                   >
                     <p class="font-semibold">MX</p>
                     <p class="mt-1 text-base-content/65">
@@ -1147,7 +1147,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     type="button"
                     phx-click="record_type_preset"
                     phx-value-type="TXT"
-                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-3 text-left text-sm transition hover:bg-base-200/35"
+                    class={record_type_preset_button_class(@record_form, "TXT")}
                   >
                     <p class="font-semibold">TXT</p>
                     <p class="mt-1 text-base-content/65">
@@ -2277,6 +2277,24 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     [
       "rounded-2xl border px-4 py-3 text-left text-sm transition",
       if(selected_preset == preset_id,
+        do: "border-primary bg-primary/8",
+        else: "border-base-content/10 bg-base-200/20 hover:bg-base-200/35"
+      )
+    ]
+  end
+
+  defp record_type_preset_button_class(form, preset_type) do
+    selected_type = record_form_type(form)
+
+    active? =
+      case preset_type do
+        "A" -> selected_type in ["A", "AAAA"]
+        _ -> selected_type == preset_type
+      end
+
+    [
+      "rounded-2xl border px-4 py-3 text-left text-sm transition",
+      if(active?,
         do: "border-primary bg-primary/8",
         else: "border-base-content/10 bg-base-200/20 hover:bg-base-200/35"
       )

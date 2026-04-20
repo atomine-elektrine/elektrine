@@ -153,6 +153,5 @@ defmodule ElektrineWeb.AdminLive.FederationTest do
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
     |> AdminSecurity.initialize_admin_session(user, auth_method: :passkey)
-    |> Plug.Conn.put_session(:admin_session_ip, "127.0.0.1")
   end
 end
