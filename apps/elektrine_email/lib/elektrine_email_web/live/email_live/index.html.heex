@@ -117,14 +117,31 @@
 <!-- Search Form (moved after header) -->
             <div class="mb-6">
               <.form for={%{}} as={:search} phx-submit="search" class="flex gap-2">
-                <input
-                  type="text"
-                  name="search[query]"
-                  value={@search_query}
-                  placeholder={gettext("Search messages...")}
-                  class="input input-bordered flex-1"
-                  autocomplete="off"
-                />
+                <div class="relative flex-1">
+                  <input
+                    id="email-index-search-input"
+                    type="text"
+                    name="search[query]"
+                    value={@search_query}
+                    placeholder={gettext("Search messages...")}
+                    class="input input-bordered w-full pr-10"
+                    autocomplete="off"
+                  />
+
+                  <button
+                    type="button"
+                    phx-click="clear_search"
+                    data-search-clear="true"
+                    aria-label={gettext("Clear search")}
+                    class={[
+                      "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+                      if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+                    ]}
+                  >
+                    <.icon name="hero-x-mark" class="h-4 w-4" />
+                  </button>
+                </div>
+
                 <button type="submit" class="btn btn-secondary">
                   <.icon name="hero-magnifying-glass" class="h-5 w-5" />
                   {gettext("Search")}

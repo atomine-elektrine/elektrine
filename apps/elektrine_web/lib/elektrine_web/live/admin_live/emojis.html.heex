@@ -22,13 +22,27 @@
           class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40"
         />
         <input
+          id="emoji-search-input"
           type="text"
           name="query"
           value={@search_query}
           placeholder="Search by shortcode or category..."
-          class="input input-bordered w-full pl-10"
+          class="input input-bordered w-full pl-10 pr-10"
           phx-debounce="300"
         />
+
+        <button
+          type="button"
+          phx-click="clear_search"
+          data-search-clear="true"
+          aria-label="Clear search"
+          class={[
+            "btn btn-ghost btn-xs absolute right-2 top-1/2 -translate-y-1/2",
+            if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+          ]}
+        >
+          <.icon name="hero-x-mark" class="h-4 w-4" />
+        </button>
       </form>
     </div>
 

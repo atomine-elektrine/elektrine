@@ -120,7 +120,7 @@ defmodule Elektrine.Social.Boosts do
                   m.shared_message_id == ^message_id and
                   is_nil(m.deleted_at)
             )
-            |> Repo.update_all(set: [deleted_at: DateTime.utc_now()])
+            |> Repo.update_all(set: [deleted_at: Elektrine.Time.utc_now()])
 
             # Federate the unboost (Undo Announce)
             Elektrine.Async.run(fn ->

@@ -177,6 +177,14 @@ defmodule Elektrine.Messaging.Message do
       :is_draft,
       :scheduled_at
     ])
+    |> truncate_utc_datetimes([
+      :edited_at,
+      :deleted_at,
+      :pinned_at,
+      :locked_at,
+      :approved_at,
+      :scheduled_at
+    ])
     |> validate_required([:conversation_id, :sender_id])
     |> validate_category()
     |> validate_inclusion(:message_type, ["text", "image", "file", "system"])
@@ -243,6 +251,7 @@ defmodule Elektrine.Messaging.Message do
       :sensitive,
       :primary_url
     ])
+    |> truncate_utc_datetimes([:inserted_at])
     |> normalize_federated_columns()
     |> normalize_activitypub_refs()
     |> validate_required([:activitypub_id, :remote_actor_id])
@@ -459,7 +468,7 @@ defmodule Elektrine.Messaging.Message do
     attrs =
       %{
         content: new_content,
-        edited_at: DateTime.utc_now()
+        edited_at: Elektrine.Time.utc_now()
       }
       |> encrypt_content(message.sender_id, conversation_type)
 
@@ -473,8 +482,14 @@ defmodule Elektrine.Messaging.Message do
   def delete_changeset(message) do
     message
     |> changeset(%{
-      deleted_at: DateTime.utc_now()
+      deleted_at: Elektrine.Time.utc_now()
     })
+  end
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
   end
 
   @doc """

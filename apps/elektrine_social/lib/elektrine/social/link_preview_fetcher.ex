@@ -41,6 +41,8 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
 
   @doc "Fetches link preview metadata using WebFetch tool.\n"
   def fetch_preview_metadata(url) do
+    now = Elektrine.Time.utc_now()
+
     case fetch_url_metadata(url) do
       {:ok, metadata} ->
         %{
@@ -50,11 +52,11 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
           site_name: metadata["site_name"],
           favicon_url: metadata["favicon"],
           status: "success",
-          fetched_at: DateTime.utc_now()
+          fetched_at: now
         }
 
       {:error, reason} ->
-        %{status: "failed", error_message: to_string(reason), fetched_at: DateTime.utc_now()}
+        %{status: "failed", error_message: to_string(reason), fetched_at: now}
     end
   end
 

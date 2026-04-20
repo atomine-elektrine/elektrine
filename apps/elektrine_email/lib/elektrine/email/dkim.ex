@@ -106,6 +106,42 @@ defmodule Elektrine.Email.DKIM do
     end
   end
 
+  @spec fetch_domain(String.t()) ::
+          {:ok,
+           %{
+             selector: String.t(),
+             host: String.t(),
+             value: String.t() | nil,
+             public_key: String.t() | nil,
+             private_key_present: boolean(),
+             notes: [String.t()]
+           }}
+          | {:error, String.t()}
+  def fetch_domain(domain) when is_binary(domain) do
+    with {:ok, request_config} <- request_config(domain) do
+      case http_client().request(
+             :get,
+             request_config.url,
+             request_config.headers,
+             "",
+             receive_timeout: request_config.timeout
+           ) do
+        {:ok, %Finch.Response{status: status, body: response_body}} when status in 200..299 ->
+          decode_domain_config(response_body, domain)
+
+        {:ok, %Finch.Response{status: 404}} ->
+          {:error, "Haraka does not have DKIM data for #{domain}."}
+
+        {:ok, %Finch.Response{status: status, body: response_body}} ->
+          {:error,
+           "Haraka DKIM lookup failed with status #{status}: #{normalize_error_body(response_body)}"}
+
+        {:error, reason} ->
+          {:error, "Haraka DKIM lookup failed: #{inspect(reason)}"}
+      end
+    end
+  end
+
   @spec delete_custom_domain(CustomDomain.t()) :: :ok | {:error, String.t()}
   def delete_custom_domain(%CustomDomain{} = custom_domain) do
     with {:ok, request_config} <- request_config(custom_domain.domain) do
@@ -182,6 +218,10 @@ defmodule Elektrine.Email.DKIM do
     "v=DKIM1; k=rsa; p=#{public_key_dns_value(custom_domain.dkim_public_key)}"
   end
 
+  def dkim_value(%{dkim_public_key: public_key}) when is_binary(public_key) do
+    "v=DKIM1; k=rsa; p=#{public_key_dns_value(public_key)}"
+  end
+
   @spec mx_host() :: String.t()
   def mx_host do
     email_config()
@@ -246,6 +286,62 @@ defmodule Elektrine.Email.DKIM do
   end
 
   defp ensure_sync_ready(_), do: {:error, "DKIM key material is missing"}
+
+  defp decode_domain_config(body, domain) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, %{} = payload} ->
+        payload = unwrap_fetch_payload(payload)
+        selector = present_string(payload, ["selector", "dkim_selector"]) || configured_selector()
+        public_key = present_string(payload, ["public_key", "dkim_public_key"])
+        private_key = present_string(payload, ["private_key", "dkim_private_key"])
+
+        value =
+          present_string(payload, ["value", "dkim_value", "txt_value", "dns_value"]) ||
+            if(public_key, do: "v=DKIM1; k=rsa; p=#{public_key_dns_value(public_key)}")
+
+        notes =
+          [
+            if(is_nil(value) and public_key, do: "Computed TXT value from Haraka public key."),
+            if(is_nil(public_key) and value,
+              do: "Haraka returned a TXT value without a separate public key field."
+            )
+          ]
+          |> Enum.reject(&is_nil/1)
+
+        {:ok,
+         %{
+           selector: selector,
+           host: payload["host"] || "#{selector}._domainkey.#{domain}",
+           value: value,
+           public_key: public_key,
+           private_key_present: !is_nil(private_key),
+           notes: notes
+         }}
+
+      {:error, _reason} ->
+        {:error, "Haraka returned invalid JSON for #{domain}."}
+    end
+  end
+
+  defp decode_domain_config(_, domain),
+    do: {:error, "Haraka returned an empty DKIM response for #{domain}."}
+
+  defp unwrap_fetch_payload(%{"data" => %{} = payload}), do: payload
+  defp unwrap_fetch_payload(%{"domain" => %{} = payload}), do: payload
+  defp unwrap_fetch_payload(payload), do: payload
+
+  defp present_string(payload, keys) when is_map(payload) do
+    Enum.find_value(keys, fn key ->
+      case Map.get(payload, key) do
+        value when is_binary(value) ->
+          value = String.trim(value)
+          if value == "", do: nil, else: value
+
+        _ ->
+          nil
+      end
+    end)
+  end
 
   defp request_config(domain) do
     email_cfg = email_config()

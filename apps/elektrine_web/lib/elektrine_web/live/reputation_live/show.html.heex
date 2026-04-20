@@ -15,13 +15,27 @@
                 <label class="input input-bordered join-item flex-1 flex items-center gap-2">
                   <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
                   <input
+                    id="reputation-search-input"
                     type="text"
                     name="query"
                     value={@search_query}
                     placeholder="search public accounts"
-                    class="grow"
+                    class="grow pr-10"
                     autocomplete="off"
                   />
+
+                  <button
+                    type="button"
+                    phx-click="clear_search"
+                    data-search-clear="true"
+                    aria-label="Clear search"
+                    class={[
+                      "btn btn-ghost btn-xs",
+                      if(@search_query == "", do: "pointer-events-none invisible", else: nil)
+                    ]}
+                  >
+                    <.icon name="hero-x-mark" class="h-4 w-4" />
+                  </button>
                 </label>
                 <button type="submit" class="btn btn-neutral join-item">Search</button>
               </div>

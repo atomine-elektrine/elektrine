@@ -239,7 +239,7 @@ defmodule Elektrine.Calls do
         import Ecto.Query
 
         from(c in ChatConversation, where: c.id == ^call.conversation_id)
-        |> Repo.update_all(set: [last_message_at: DateTime.utc_now()])
+        |> Repo.update_all(set: [last_message_at: Elektrine.Time.utc_now()])
 
         # Broadcast to conversation
         Phoenix.PubSub.broadcast(

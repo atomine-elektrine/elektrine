@@ -667,6 +667,7 @@
               <label class="input input-bordered flex w-full items-center gap-2 bg-base-200">
                 <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
                 <input
+                  id="activity-inspector-search"
                   class="grow w-full"
                   type="text"
                   name="query"
@@ -675,6 +676,22 @@
                   phx-debounce="250"
                   autocomplete="off"
                 />
+
+                <button
+                  type="button"
+                  phx-click="clear_activity_search"
+                  data-search-clear="true"
+                  aria-label="Clear search"
+                  class={[
+                    "btn btn-ghost btn-xs",
+                    if(@activity_inspector.query == "",
+                      do: "pointer-events-none invisible",
+                      else: nil
+                    )
+                  ]}
+                >
+                  <.icon name="hero-x-mark" class="h-4 w-4" />
+                </button>
               </label>
             </.form>
 

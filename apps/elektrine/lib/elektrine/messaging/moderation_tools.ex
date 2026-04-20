@@ -306,7 +306,7 @@ defmodule Elektrine.Messaging.ModerationTools do
     warning = Repo.get!(UserWarning, warning_id)
 
     warning
-    |> Ecto.Changeset.change(%{acknowledged_at: DateTime.utc_now()})
+    |> Ecto.Changeset.change(%{acknowledged_at: Elektrine.Time.utc_now()})
     |> Repo.update()
   end
 

@@ -37,6 +37,10 @@ defmodule ElektrineWeb.ReputationLive.Show do
     end
   end
 
+  def handle_event("clear_search", _params, socket) do
+    {:noreply, push_patch(socket, to: ~p"/reputation")}
+  end
+
   defp assign_not_found(socket) do
     socket
     |> assign(:page_title, "Reputation Graph")

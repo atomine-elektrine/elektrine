@@ -125,7 +125,7 @@ defmodule Elektrine.Social do
     from(h in Hashtag, where: h.id == ^hashtag_id)
     |> Repo.update_all(
       inc: [use_count: 1],
-      set: [last_used_at: DateTime.utc_now()]
+      set: [last_used_at: Elektrine.Time.utc_now()]
     )
   end
 
@@ -138,7 +138,7 @@ defmodule Elektrine.Social do
         from(h in Hashtag, where: h.id == ^hashtag_id)
         |> Repo.update_all(
           inc: [use_count: -1],
-          set: [last_used_at: DateTime.utc_now()]
+          set: [last_used_at: Elektrine.Time.utc_now()]
         )
 
       _ ->

@@ -36,7 +36,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
 
       {:ok, %Finch.Response{status: 304}} ->
         # Not modified, just update last_fetched_at
-        RSS.update_feed(feed, %{last_fetched_at: DateTime.utc_now()})
+        RSS.update_feed(feed, %{last_fetched_at: Elektrine.Time.utc_now()})
         :ok
 
       {:ok, %Finch.Response{status: status, headers: redirect_headers}} when status in 301..308 ->
@@ -45,7 +45,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
           nil ->
             RSS.update_feed(feed, %{
               last_error: "Redirect without location header",
-              last_fetched_at: DateTime.utc_now()
+              last_fetched_at: Elektrine.Time.utc_now()
             })
 
             {:error, :redirect_without_location}
@@ -60,7 +60,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
               {:error, _reason} ->
                 RSS.update_feed(feed, %{
                   last_error: "Unsafe redirect target",
-                  last_fetched_at: DateTime.utc_now()
+                  last_fetched_at: Elektrine.Time.utc_now()
                 })
 
                 {:discard, :unsafe_redirect_target}

@@ -66,6 +66,7 @@ defmodule Elektrine.Messaging.ChatMessage do
       :audio_duration,
       :audio_mime_type
     ])
+    |> truncate_utc_datetimes([:edited_at, :deleted_at])
     |> validate_required([:conversation_id])
     |> validate_inclusion(:message_type, ["text", "image", "file", "voice", "system"])
     |> validate_length(:content, max: 4000)
@@ -160,7 +161,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     attrs =
       %{
         content: new_content,
-        edited_at: DateTime.utc_now()
+        edited_at: Elektrine.Time.utc_now()
       }
       |> maybe_encrypt(message.sender_id, encrypt?)
 
@@ -173,7 +174,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   """
   def delete_changeset(message) do
     message
-    |> changeset(%{deleted_at: DateTime.utc_now()})
+    |> changeset(%{deleted_at: Elektrine.Time.utc_now()})
   end
 
   @doc """
@@ -187,6 +188,12 @@ defmodule Elektrine.Messaging.ChatMessage do
   """
   def edited?(%__MODULE__{edited_at: nil}), do: false
   def edited?(%__MODULE__{}), do: true
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
+  end
 
   @doc """
   Returns the display content for the message.

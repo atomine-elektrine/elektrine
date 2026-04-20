@@ -409,14 +409,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_info({:community_stats_loaded, %{} = stats}, socket) do
-    current = socket.assigns[:community_stats] || %{members: 0, posts: 0}
-
-    merged_stats = %{
-      members: max(current[:members] || 0, stats[:members] || 0),
-      posts: max(current[:posts] || 0, stats[:posts] || 0)
-    }
-
-    {:noreply, assign(socket, :community_stats, merged_stats)}
+    {:noreply,
+     assign(
+       socket,
+       :community_stats,
+       merge_community_stats(socket.assigns[:community_stats] || %{members: 0, posts: 0}, stats)
+     )}
   end
 
   def handle_info(:refresh_remote_counts, socket) do
@@ -1811,10 +1809,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event(
         "open_image_modal",
-        %{"url" => url, "images" => images_json, "index" => index} = params,
+        %{"images" => images_json, "index" => index} = params,
         socket
       ) do
     images = Jason.decode!(images_json)
+    index_int = String.to_integer(index)
+    url = params["url"] || Enum.at(images, index_int, List.first(images))
     post_id = params["post_id"]
 
     # Find the post and attach remote_actor for the modal display
@@ -1847,7 +1847,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
      |> assign(:show_image_modal, true)
      |> assign(:modal_image_url, url)
      |> assign(:modal_images, images)
-     |> assign(:modal_image_index, String.to_integer(index))
+     |> assign(:modal_image_index, index_int)
      |> assign(:modal_post, modal_post)}
   end
 
@@ -2140,24 +2140,29 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp merge_community_stats(current_stats, incoming_stats) do
-    current = normalize_community_stats(current_stats)
-    incoming = normalize_community_stats(incoming_stats)
-
     %{
-      members: max(current.members, incoming.members),
-      posts: max(current.posts, incoming.posts)
+      members: merged_community_stat(current_stats, incoming_stats, :members),
+      posts: merged_community_stat(current_stats, incoming_stats, :posts)
     }
   end
 
-  defp normalize_community_stats(stats) when is_map(stats) do
-    %{
-      members:
-        normalize_community_stat_value(Map.get(stats, :members) || Map.get(stats, "members")),
-      posts: normalize_community_stat_value(Map.get(stats, :posts) || Map.get(stats, "posts"))
-    }
+  defp merged_community_stat(current_stats, incoming_stats, key) do
+    if community_stat_present?(incoming_stats, key) do
+      incoming_stats
+      |> Map.get(key, Map.get(incoming_stats, Atom.to_string(key)))
+      |> normalize_community_stat_value()
+    else
+      current_stats
+      |> Map.get(key, Map.get(current_stats, Atom.to_string(key)))
+      |> normalize_community_stat_value()
+    end
   end
 
-  defp normalize_community_stats(_), do: %{members: 0, posts: 0}
+  defp community_stat_present?(stats, key) when is_map(stats) do
+    Map.has_key?(stats, key) or Map.has_key?(stats, Atom.to_string(key))
+  end
+
+  defp community_stat_present?(_, _), do: false
 
   defp normalize_community_stat_value(value) when is_integer(value), do: max(value, 0)
 

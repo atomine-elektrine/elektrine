@@ -3917,14 +3917,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_info({:community_stats_loaded, %{} = stats}, socket) do
-    current = socket.assigns[:community_stats] || %{members: 0, posts: 0}
-
-    merged_stats = %{
-      members: max(current[:members] || 0, stats[:members] || 0),
-      posts: max(current[:posts] || 0, stats[:posts] || 0)
-    }
-
-    {:noreply, assign(socket, :community_stats, merged_stats)}
+    {:noreply,
+     assign(
+       socket,
+       :community_stats,
+       merge_community_stats(socket.assigns[:community_stats] || %{members: 0, posts: 0}, stats)
+     )}
   end
 
   def handle_info({:reload_remote_post_community_stats, actor_id, attempt}, socket) do
@@ -4983,6 +4981,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp sync_post_reply_counts(socket, local_replies) when is_list(local_replies) do
     reply_count = length(local_replies)
+    persist_loaded_reply_count(socket.assigns[:local_message], reply_count)
 
     local_message =
       case socket.assigns[:local_message] do
@@ -5003,6 +5002,36 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       apply_local_reply_count_to_post(socket.assigns[:post], effective_reply_count)
     )
   end
+
+  defp persist_loaded_reply_count(%{id: message_id} = local_message, reply_count)
+       when is_integer(message_id) and is_integer(reply_count) and reply_count > 0 do
+    current_reply_count = local_message.reply_count || 0
+
+    if reply_count > current_reply_count do
+      import Ecto.Query
+
+      {updated_rows, _} =
+        Elektrine.Repo.update_all(
+          from(m in Messaging.Message,
+            where: m.id == ^message_id and (is_nil(m.reply_count) or m.reply_count < ^reply_count)
+          ),
+          set: [
+            reply_count: reply_count,
+            updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
+          ]
+        )
+
+      if updated_rows > 0 do
+        Elektrine.Messaging.Messages.broadcast_post_counts_updated(message_id, %{
+          like_count: local_message.like_count || 0,
+          share_count: local_message.share_count || 0,
+          reply_count: reply_count
+        })
+      end
+    end
+  end
+
+  defp persist_loaded_reply_count(_, _), do: :ok
 
   defp apply_local_reply_count_to_post(post, reply_count) when is_map(post) do
     post
@@ -6240,24 +6269,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp merge_community_stats(current_stats, incoming_stats) do
-    current = normalize_community_stats(current_stats)
-    incoming = normalize_community_stats(incoming_stats)
-
     %{
-      members: max(current.members, incoming.members),
-      posts: max(current.posts, incoming.posts)
+      members: merged_community_stat(current_stats, incoming_stats, :members),
+      posts: merged_community_stat(current_stats, incoming_stats, :posts)
     }
   end
 
-  defp normalize_community_stats(stats) when is_map(stats) do
-    %{
-      members:
-        normalize_community_stat_value(Map.get(stats, :members) || Map.get(stats, "members")),
-      posts: normalize_community_stat_value(Map.get(stats, :posts) || Map.get(stats, "posts"))
-    }
+  defp merged_community_stat(current_stats, incoming_stats, key) do
+    if community_stat_present?(incoming_stats, key) do
+      incoming_stats
+      |> Map.get(key, Map.get(incoming_stats, Atom.to_string(key)))
+      |> normalize_community_stat_value()
+    else
+      current_stats
+      |> Map.get(key, Map.get(current_stats, Atom.to_string(key)))
+      |> normalize_community_stat_value()
+    end
   end
 
-  defp normalize_community_stats(_), do: %{members: 0, posts: 0}
+  defp community_stat_present?(stats, key) when is_map(stats) do
+    Map.has_key?(stats, key) or Map.has_key?(stats, Atom.to_string(key))
+  end
+
+  defp community_stat_present?(_, _), do: false
 
   defp normalize_community_stat_value(value) when is_integer(value), do: max(value, 0)
 

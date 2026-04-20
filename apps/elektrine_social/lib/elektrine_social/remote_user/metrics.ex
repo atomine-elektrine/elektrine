@@ -130,18 +130,18 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
         cond do
           counts = Map.get(lemmy_counts, ap_id) ->
             [
-              like_count: max(counts.score, post.like_count || 0),
-              reply_count: max(counts.comments, post.reply_count || 0),
-              upvotes: max(counts.upvotes || 0, post.upvotes || 0),
-              downvotes: max(counts.downvotes || 0, post.downvotes || 0),
-              score: max(counts.score || 0, post.score || 0)
+              like_count: normalize_count(counts.score),
+              reply_count: normalize_count(counts.comments),
+              upvotes: normalize_count(counts.upvotes),
+              downvotes: normalize_count(counts.downvotes),
+              score: normalize_count(counts.score)
             ]
 
           counts = Map.get(mastodon_counts, ap_id) ->
             [
-              like_count: max(counts.favourites_count, post.like_count || 0),
-              reply_count: max(counts.replies_count, post.reply_count || 0),
-              share_count: max(counts.reblogs_count, post.share_count || 0)
+              like_count: normalize_count(counts.favourites_count),
+              reply_count: normalize_count(counts.replies_count),
+              share_count: normalize_count(counts.reblogs_count)
             ]
 
           true ->
@@ -213,23 +213,29 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   defp community_stats_from_actor(_), do: %{members: 0, posts: 0}
 
   defp merge_community_stats(current, incoming) do
-    normalized_current = normalize_community_stats(current)
-    normalized_incoming = normalize_community_stats(incoming)
-
     %{
-      members: max(normalized_current.members, normalized_incoming.members),
-      posts: max(normalized_current.posts, normalized_incoming.posts)
+      members: merged_count(current, incoming, :members),
+      posts: merged_count(current, incoming, :posts)
     }
   end
 
-  defp normalize_community_stats(stats) when is_map(stats) do
-    %{
-      members: normalize_count(Map.get(stats, :members) || Map.get(stats, "members")),
-      posts: normalize_count(Map.get(stats, :posts) || Map.get(stats, "posts"))
-    }
+  defp merged_count(current, incoming, key) do
+    if has_count?(incoming, key) do
+      incoming
+      |> Map.get(key, Map.get(incoming, Atom.to_string(key)))
+      |> normalize_count()
+    else
+      current
+      |> Map.get(key, Map.get(current, Atom.to_string(key)))
+      |> normalize_count()
+    end
   end
 
-  defp normalize_community_stats(_), do: %{members: 0, posts: 0}
+  defp has_count?(stats, key) when is_map(stats) do
+    Map.has_key?(stats, key) or Map.has_key?(stats, Atom.to_string(key))
+  end
+
+  defp has_count?(_, _), do: false
 
   defp normalize_count(value) when is_integer(value), do: max(value, 0)
 

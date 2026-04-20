@@ -867,6 +867,77 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert ingested_reply.activitypub_id in reply_ids
   end
 
+  test "replies_loaded persists the discovered root reply count" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/persist#{unique}",
+        username: "persist#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/persist#{unique}/inbox",
+        public_key: "test-public-key-persist-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "root",
+        title: "Root post",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/persist-#{unique}",
+        activitypub_url: "https://remote.example/posts/persist-#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 0
+      })
+
+    {:ok, first_reply} =
+      Messaging.create_federated_message(%{
+        content: "first reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/persist-#{unique}-1",
+        activitypub_url: "https://remote.example/comments/persist-#{unique}-1",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    {:ok, _second_reply} =
+      Messaging.create_federated_message(%{
+        content: "second reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/persist-#{unique}-2",
+        activitypub_url: "https://remote.example/comments/persist-#{unique}-2",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: first_reply.id
+      })
+
+    root_message = Repo.preload(root_message, remote_actor: [])
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: root_message,
+        post: %{"id" => root_message.activitypub_id, "reply_count" => 0},
+        replies: [],
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{},
+        post_reactions: %{}
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:replies_loaded, [], root_message.activitypub_id}, socket)
+
+    assert updated_socket.assigns.local_message.reply_count == 2
+    assert updated_socket.assigns.post["reply_count"] == 2
+    assert Repo.get!(Message, root_message.id).reply_count == 2
+  end
+
   test "remote_post_loaded denies cached non-public federated posts to unauthorized viewers" do
     unique = System.unique_integer([:positive])
     activitypub_id = "https://remote.example/posts/private-#{unique}"

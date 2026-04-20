@@ -325,10 +325,12 @@ defmodule Elektrine.Notifications do
   Marks a notification as read.
   """
   def mark_as_read(notification_id, user_id) do
+    now = Elektrine.Time.utc_now()
+
     from(n in Notification,
       where: n.id == ^notification_id and n.user_id == ^user_id
     )
-    |> Repo.update_all(set: [read_at: DateTime.utc_now(), seen_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [read_at: now, seen_at: now])
 
     # Invalidate notification cache
     Elektrine.AppCache.invalidate_notification_cache(user_id)
@@ -356,6 +358,8 @@ defmodule Elektrine.Notifications do
   Useful for clearing email notifications when the email is read.
   """
   def mark_as_read_by_source(user_id, source_type, source_id) do
+    now = Elektrine.Time.utc_now()
+
     result =
       from(n in Notification,
         where:
@@ -364,7 +368,7 @@ defmodule Elektrine.Notifications do
             n.source_id == ^source_id and
             is_nil(n.read_at)
       )
-      |> Repo.update_all(set: [read_at: DateTime.utc_now(), seen_at: DateTime.utc_now()])
+      |> Repo.update_all(set: [read_at: now, seen_at: now])
 
     # Broadcast count update if any notifications were marked as read
     case result do
@@ -398,6 +402,8 @@ defmodule Elektrine.Notifications do
   Useful for clearing all message notifications in a conversation.
   """
   def mark_as_read_by_sources(user_id, source_type, source_ids) when is_list(source_ids) do
+    now = Elektrine.Time.utc_now()
+
     result =
       from(n in Notification,
         where:
@@ -406,7 +412,7 @@ defmodule Elektrine.Notifications do
             n.source_id in ^source_ids and
             is_nil(n.read_at)
       )
-      |> Repo.update_all(set: [read_at: DateTime.utc_now(), seen_at: DateTime.utc_now()])
+      |> Repo.update_all(set: [read_at: now, seen_at: now])
 
     # Broadcast count update if any notifications were marked as read
     case result do
@@ -439,10 +445,12 @@ defmodule Elektrine.Notifications do
   Marks all notifications as read for a user.
   """
   def mark_all_as_read(user_id) do
+    now = Elektrine.Time.utc_now()
+
     from(n in Notification,
       where: n.user_id == ^user_id and is_nil(n.read_at)
     )
-    |> Repo.update_all(set: [read_at: DateTime.utc_now(), seen_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [read_at: now, seen_at: now])
 
     # Invalidate notification cache
     Elektrine.AppCache.invalidate_notification_cache(user_id)
@@ -467,10 +475,12 @@ defmodule Elektrine.Notifications do
   Marks notifications as seen (but not necessarily read).
   """
   def mark_as_seen(notification_ids, user_id) when is_list(notification_ids) do
+    now = Elektrine.Time.utc_now()
+
     from(n in Notification,
       where: n.id in ^notification_ids and n.user_id == ^user_id and is_nil(n.seen_at)
     )
-    |> Repo.update_all(set: [seen_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [seen_at: now])
 
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,
@@ -485,6 +495,8 @@ defmodule Elektrine.Notifications do
   Dismisses a notification.
   """
   def dismiss_notification(notification_id, user_id) do
+    now = Elektrine.Time.utc_now()
+
     # Check if this notification was unread before dismissing
     was_unread =
       from(n in Notification,
@@ -497,7 +509,7 @@ defmodule Elektrine.Notifications do
     from(n in Notification,
       where: n.id == ^notification_id and n.user_id == ^user_id
     )
-    |> Repo.update_all(set: [dismissed_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [dismissed_at: now])
 
     Phoenix.PubSub.broadcast(
       Elektrine.PubSub,
@@ -524,10 +536,12 @@ defmodule Elektrine.Notifications do
   Dismisses all notifications for a user.
   """
   def dismiss_all_notifications(user_id) do
+    now = Elektrine.Time.utc_now()
+
     from(n in Notification,
       where: n.user_id == ^user_id and is_nil(n.dismissed_at)
     )
-    |> Repo.update_all(set: [dismissed_at: DateTime.utc_now()])
+    |> Repo.update_all(set: [dismissed_at: now])
 
     Elektrine.AppCache.invalidate_notification_cache(user_id)
 

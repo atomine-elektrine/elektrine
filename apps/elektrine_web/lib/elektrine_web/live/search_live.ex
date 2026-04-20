@@ -117,6 +117,19 @@ defmodule ElektrineWeb.SearchLive do
     {:noreply, assign(socket, :show_suggestions, false)}
   end
 
+  def handle_event("clear_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:query, "")
+     |> assign(:results, [])
+     |> assign(:filtered_results, [])
+     |> assign(:total_count, 0)
+     |> assign(:suggestions, [])
+     |> assign(:show_suggestions, false)
+     |> assign(:command_mode, false)
+     |> push_patch(to: ~p"/search")}
+  end
+
   def handle_event("filter_results", %{"type" => filter_type}, socket) do
     {:noreply,
      socket
@@ -225,15 +238,29 @@ defmodule ElektrineWeb.SearchLive do
                   <label class="input input-bordered join-item rounded-l-full rounded-r-none flex-1 flex items-center gap-2">
                     <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
                     <input
+                      id="global-search-input"
                       type="text"
                       name="query"
                       value={@query}
                       placeholder="Search... or use > for commands"
-                      class="grow"
+                      class="grow pr-10"
                       phx-keyup="suggest"
                       phx-debounce="350"
                       autocomplete="off"
                     />
+
+                    <button
+                      type="button"
+                      phx-click="clear_search"
+                      data-search-clear="true"
+                      aria-label="Clear search"
+                      class={[
+                        "btn btn-ghost btn-xs",
+                        if(@query == "", do: "pointer-events-none invisible", else: nil)
+                      ]}
+                    >
+                      <.icon name="hero-x-mark" class="h-4 w-4" />
+                    </button>
                   </label>
                   <button
                     type="submit"

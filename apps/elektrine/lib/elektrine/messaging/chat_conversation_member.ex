@@ -32,6 +32,7 @@ defmodule Elektrine.Messaging.ChatConversationMember do
       :notifications_enabled,
       :pinned
     ])
+    |> truncate_utc_datetimes([:joined_at, :left_at, :last_read_at])
     |> validate_required([:conversation_id, :user_id])
     |> validate_inclusion(:role, ["owner", "admin", "moderator", "member", "readonly"])
     |> foreign_key_constraint(:conversation_id)
@@ -47,24 +48,24 @@ defmodule Elektrine.Messaging.ChatConversationMember do
       conversation_id: conversation_id,
       user_id: user_id,
       role: role,
-      joined_at: DateTime.utc_now()
+      joined_at: Elektrine.Time.utc_now()
     })
   end
 
   def remove_member_changeset(member) do
     member
-    |> changeset(%{left_at: DateTime.utc_now()})
+    |> changeset(%{left_at: Elektrine.Time.utc_now()})
   end
 
   def mark_as_read_changeset(member) do
     member
-    |> changeset(%{last_read_at: DateTime.utc_now()})
+    |> changeset(%{last_read_at: Elektrine.Time.utc_now()})
   end
 
   def update_last_read_message_changeset(member, message_id) do
     member
     |> changeset(%{
-      last_read_at: DateTime.utc_now(),
+      last_read_at: Elektrine.Time.utc_now(),
       last_read_message_id: message_id
     })
   end
@@ -81,8 +82,14 @@ defmodule Elektrine.Messaging.ChatConversationMember do
 
   defp maybe_set_joined_at(changeset) do
     case get_field(changeset, :joined_at) do
-      nil -> put_change(changeset, :joined_at, DateTime.utc_now())
+      nil -> put_change(changeset, :joined_at, Elektrine.Time.utc_now())
       _ -> changeset
     end
+  end
+
+  defp truncate_utc_datetimes(changeset, fields) do
+    Enum.reduce(fields, changeset, fn field, changeset ->
+      update_change(changeset, field, &Elektrine.Time.truncate/1)
+    end)
   end
 end

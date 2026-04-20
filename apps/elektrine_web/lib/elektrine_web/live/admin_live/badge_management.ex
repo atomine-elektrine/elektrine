@@ -30,6 +30,13 @@ defmodule ElektrineWeb.AdminLive.BadgeManagement do
      |> assign(:search_results, results)}
   end
 
+  def handle_event("clear_search", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:search_query, "")
+     |> assign(:search_results, [])}
+  end
+
   def handle_event("select_user", %{"user_id" => user_id}, socket) do
     user_id = String.to_integer(user_id)
     user = Accounts.get_user!(user_id)
