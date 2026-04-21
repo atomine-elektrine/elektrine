@@ -50,6 +50,59 @@ defmodule Elektrine.VPNTest do
       assert config_file =~ "Endpoint = 198.51.100.11:51820"
       refute config_file =~ "MTU ="
     end
+
+    test "generates a Shadowsocks URI for shadowsocks servers" do
+      user = user_fixture()
+
+      {:ok, server} =
+        VPN.create_server(%{
+          name: "Tokyo SS",
+          protocol: "shadowsocks",
+          location: "Tokyo",
+          public_ip: "198.51.100.30",
+          endpoint_port: 8388,
+          metadata: %{
+            "cipher" => "chacha20-ietf-poly1305",
+            "port_range_start" => 8388,
+            "port_range_end" => 8398
+          }
+        })
+
+      {:ok, config} = VPN.create_user_config(user.id, server.id)
+
+      config_file = VPN.generate_config_file(config)
+
+      assert config_file =~ "ss://"
+      assert config_file =~ "@198.51.100.30:8388"
+      assert config_file =~ "#Tokyo+SS"
+      assert VPN.config_download_filename(config) =~ ".txt"
+    end
+
+    test "allocates distinct Shadowsocks ports per user config" do
+      user = user_fixture()
+      other_user = user_fixture()
+
+      {:ok, server} =
+        VPN.create_server(%{
+          name: "Singapore SS",
+          protocol: "shadowsocks",
+          location: "Singapore",
+          public_ip: "198.51.100.31",
+          endpoint_port: 9000,
+          metadata: %{
+            "cipher" => "chacha20-ietf-poly1305",
+            "port_range_start" => 9000,
+            "port_range_end" => 9005
+          }
+        })
+
+      {:ok, config_a} = VPN.create_user_config(user.id, server.id)
+      {:ok, config_b} = VPN.create_user_config(other_user.id, server.id)
+
+      assert VPN.shadowsocks_port(config_a) == 9000
+      assert VPN.shadowsocks_port(config_b) == 9001
+      assert VPN.generate_config_file(config_b) =~ "@198.51.100.31:9001"
+    end
   end
 
   describe "auto_register_server/1" do
@@ -64,6 +117,20 @@ defmodule Elektrine.VPNTest do
 
       assert server.endpoint_port == 51_820
       assert server.client_mtu == 1280
+    end
+
+    test "uses Shadowsocks defaults for shadowsocks protocol" do
+      {:ok, server} =
+        VPN.auto_register_server(%{
+          name: "Auto SS",
+          protocol: "shadowsocks",
+          location: "Taipei",
+          public_ip: "203.0.113.21"
+        })
+
+      assert server.endpoint_port == 8388
+      assert server.internal_ip_range == "0.0.0.0/32"
+      assert server.metadata["cipher"] == "chacha20-ietf-poly1305"
     end
   end
 
@@ -179,6 +246,50 @@ defmodule Elektrine.VPNTest do
         })
 
       assert server.endpoint_port == 443
+    end
+
+    test "creates a managed self-hosted shadowsocks server from env" do
+      {:ok, server} =
+        VPN.ensure_self_host_server(%{
+          "PRIMARY_DOMAIN" => "example.com",
+          "VPN_SELFHOST_PROTOCOL" => "shadowsocks",
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.53",
+          "VPN_SELFHOST_SS_LISTEN_PORT" => "8388",
+          "VPN_SELFHOST_SS_PORT_RANGE_START" => "8388",
+          "VPN_SELFHOST_SS_PORT_RANGE_END" => "8400"
+        })
+
+      assert server.protocol == "shadowsocks"
+      assert server.endpoint_port == 8388
+      assert server.public_key == "shadowsocks"
+      assert server.metadata["cipher"] == "chacha20-ietf-poly1305"
+      assert server.metadata["port_range_start"] == "8388"
+      assert server.metadata["port_range_end"] == "8400"
+    end
+
+    test "creates both wireguard and shadowsocks self-hosted servers on the same host" do
+      {:ok, servers} =
+        VPN.ensure_self_host_servers(%{
+          "PRIMARY_DOMAIN" => "example.com",
+          "VPN_SELFHOST_PROTOCOLS" => "wireguard,shadowsocks",
+          "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.54",
+          "VPN_SELFHOST_PUBLIC_KEY" => "self-host-public-key-dual",
+          "VPN_SELFHOST_LISTEN_PORT" => "51820",
+          "VPN_SELFHOST_SS_LISTEN_PORT" => "8388",
+          "VPN_SELFHOST_SS_PORT_RANGE_START" => "8388",
+          "VPN_SELFHOST_SS_PORT_RANGE_END" => "8400"
+        })
+
+      assert length(servers) == 2
+
+      wireguard = Enum.find(servers, &(&1.protocol == "wireguard"))
+      shadowsocks = Enum.find(servers, &(&1.protocol == "shadowsocks"))
+
+      assert wireguard.public_ip == "203.0.113.54"
+      assert wireguard.endpoint_port == 51_820
+      assert shadowsocks.public_ip == "203.0.113.54"
+      assert shadowsocks.endpoint_port == 8388
+      assert shadowsocks.public_key == "shadowsocks"
     end
   end
 

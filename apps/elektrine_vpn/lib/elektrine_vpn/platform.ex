@@ -10,7 +10,12 @@ defmodule ElektrineVPN.Platform do
     ]
 
     if self_host_vpn_node?() do
-      base_children ++ [Elektrine.VPN.SelfHostedServer, Elektrine.VPN.SelfHostedReconciler]
+      base_children ++
+        [
+          Elektrine.VPN.SelfHostedServer,
+          Elektrine.VPN.SelfHostedShadowsocksServer,
+          Elektrine.VPN.SelfHostedReconciler
+        ]
     else
       base_children
     end

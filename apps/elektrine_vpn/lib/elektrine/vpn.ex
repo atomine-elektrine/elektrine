@@ -1,6 +1,6 @@
 defmodule Elektrine.VPN do
   @moduledoc """
-  The VPN context - handles WireGuard VPN server and user configuration management.
+  The VPN context - handles VPN server and user configuration management.
   """
 
   import Ecto.Query, warn: false
@@ -12,6 +12,8 @@ defmodule Elektrine.VPN do
   @self_host_metadata_key "managed_by"
   @self_host_metadata_value "self_host_env"
   @hashed_api_key_prefix "sha256:"
+  @default_shadowsocks_cipher "chacha20-ietf-poly1305"
+  @default_shadowsocks_port_range_size 2000
 
   ## Server functions
 
@@ -27,6 +29,42 @@ defmodule Elektrine.VPN do
   end
 
   def self_host_server?(_server), do: false
+
+  def list_self_host_servers do
+    from(s in Server,
+      where:
+        fragment("?->>? = ?", s.metadata, ^@self_host_metadata_key, ^@self_host_metadata_value),
+      order_by: [asc: s.protocol, asc: s.id]
+    )
+    |> Repo.all()
+  end
+
+  def get_self_host_server(protocol \\ nil)
+
+  def get_self_host_server(nil) do
+    list_self_host_servers()
+    |> Enum.sort_by(fn server -> {server.protocol != "wireguard", server.id} end)
+    |> List.first()
+  end
+
+  def get_self_host_server(protocol) when is_binary(protocol) do
+    normalized_protocol = normalize_protocol(protocol)
+
+    from(s in Server,
+      where:
+        fragment("?->>? = ?", s.metadata, ^@self_host_metadata_key, ^@self_host_metadata_value) and
+          s.protocol == ^normalized_protocol,
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  def shadowsocks_port(%UserConfig{} = config) do
+    metadata = config.metadata || %{}
+    Map.get(metadata, "server_port") || Map.get(metadata, :server_port)
+  end
+
+  def shadowsocks_port(_config), do: nil
 
   @doc """
   Returns the list of active VPN servers.
@@ -61,18 +99,40 @@ defmodule Elektrine.VPN do
   end
 
   def ensure_self_host_server(env \\ System.get_env()) do
-    case self_host_server_attrs(env) do
-      nil ->
-        {:ok, get_self_host_server()}
+    case ensure_self_host_servers(env) do
+      {:ok, []} -> {:ok, get_self_host_server()}
+      {:ok, servers} -> {:ok, List.first(servers)}
+      error -> error
+    end
+  end
 
-      attrs ->
-        case get_self_host_server() || get_server_by_ip(attrs.public_ip) do
+  def ensure_self_host_servers(env \\ System.get_env()) do
+    attrs_list = self_host_server_attrs(env)
+
+    if Enum.empty?(attrs_list) do
+      {:ok, list_self_host_servers()}
+    else
+      attrs_list
+      |> Enum.reduce_while({:ok, []}, fn attrs, {:ok, servers} ->
+        case get_self_host_server(attrs.protocol) ||
+               get_server_by_ip_and_protocol(attrs.public_ip, attrs.protocol) do
           nil ->
-            create_self_host_server(attrs)
+            case create_self_host_server(attrs) do
+              {:ok, server} -> {:cont, {:ok, [server | servers]}}
+              {:error, _} = error -> {:halt, error}
+            end
 
           %Server{} = server ->
-            update_self_host_server(server, attrs)
+            case update_self_host_server(server, attrs) do
+              {:ok, updated} -> {:cont, {:ok, [updated | servers]}}
+              {:error, _} = error -> {:halt, error}
+            end
         end
+      end)
+      |> case do
+        {:ok, servers} -> {:ok, Enum.reverse(servers)}
+        error -> error
+      end
     end
   end
 
@@ -80,49 +140,7 @@ defmodule Elektrine.VPN do
     case Elektrine.VPN.PeerCache.get(server_id) do
       nil ->
         server = get_server!(server_id)
-
-        active_configs =
-          from(uc in UserConfig,
-            join: u in Elektrine.Accounts.User,
-            on: u.id == uc.user_id,
-            where:
-              uc.vpn_server_id == ^server_id and
-                uc.status == "active" and
-                u.banned == false and
-                u.suspended == false,
-            select: %{
-              public_key: uc.public_key,
-              allocated_ip: uc.allocated_ip,
-              allowed_ips: uc.allowed_ips,
-              persistent_keepalive: uc.persistent_keepalive,
-              rate_limit_mbps: uc.rate_limit_mbps
-            }
-          )
-          |> Repo.all()
-
-        peers_to_remove =
-          from(uc in UserConfig,
-            left_join: u in Elektrine.Accounts.User,
-            on: u.id == uc.user_id,
-            where:
-              uc.vpn_server_id == ^server_id and
-                (uc.status in ["suspended", "revoked"] or
-                   u.banned == true or
-                   u.suspended == true),
-            select: %{public_key: uc.public_key}
-          )
-          |> Repo.all()
-
-        response = %{
-          server: %{
-            id: server.id,
-            name: server.name,
-            internal_ip_range: server.internal_ip_range,
-            dns_servers: server.dns_servers
-          },
-          peers: active_configs,
-          remove_peers: peers_to_remove
-        }
+        response = build_sync_snapshot(server)
 
         Elektrine.VPN.PeerCache.put(server_id, response)
         response
@@ -203,21 +221,25 @@ defmodule Elektrine.VPN do
   Generates API key automatically and uses sensible defaults.
   """
   def auto_register_server(attrs) do
+    protocol = normalize_protocol(Map.get(attrs, :protocol) || Map.get(attrs, "protocol"))
+
     # Generate a unique API key
     api_key = :crypto.strong_rand_bytes(32) |> Base.encode64(padding: false)
 
     # Set defaults for auto-registered servers
     attrs =
       attrs
+      |> put_new_attr(:protocol, protocol)
       |> Map.put_new(:api_key, api_key)
       |> Map.put_new(:status, "active")
       |> Map.put_new(:max_users, 1000)
       |> Map.put_new(:current_users, 0)
       |> Map.put_new(:minimum_trust_level, 0)
-      |> Map.put_new(:endpoint_port, 51_820)
-      |> Map.put_new(:client_mtu, 1280)
+      |> Map.put_new(:endpoint_port, default_endpoint_port(protocol))
+      |> maybe_put_default_client_mtu(protocol)
       |> Map.put_new(:dns_servers, "1.1.1.1, 1.0.0.1")
-      |> Map.put_new(:internal_ip_range, "10.8.0.0/24")
+      |> Map.put_new(:internal_ip_range, default_internal_ip_range(protocol))
+      |> ensure_default_shadowsocks_metadata(protocol)
 
     case create_server(attrs) do
       {:ok, server} ->
@@ -238,12 +260,10 @@ defmodule Elektrine.VPN do
     |> Repo.one()
   end
 
-  def get_self_host_server do
-    from(s in Server,
-      where:
-        fragment("?->>? = ?", s.metadata, ^@self_host_metadata_key, ^@self_host_metadata_value),
-      limit: 1
-    )
+  def get_server_by_ip_and_protocol(public_ip, protocol) do
+    normalized_protocol = normalize_protocol(protocol)
+
+    from(s in Server, where: s.public_ip == ^public_ip and s.protocol == ^normalized_protocol)
     |> Repo.one()
   end
 
@@ -311,44 +331,12 @@ defmodule Elektrine.VPN do
   end
 
   @doc """
-  Creates a user config with automatically generated WireGuard keys and IP allocation.
+  Creates a user config for the server protocol.
   """
   def create_user_config(user_id, server_id) do
-    with {:ok, _server} <- get_available_server(user_id, server_id),
-         {:ok, keys} <- generate_wireguard_keypair(),
-         {:ok, allocated_ip} <- allocate_ip_for_user(server_id) do
-      # Encrypt private key before storing
-      encrypted_private_key = encrypt_private_key(keys.private_key)
-
-      attrs = %{
-        user_id: user_id,
-        vpn_server_id: server_id,
-        public_key: keys.public_key,
-        private_key: encrypted_private_key,
-        allocated_ip: allocated_ip,
-        status: "active"
-      }
-
-      result =
-        %UserConfig{}
-        |> UserConfig.changeset(attrs)
-        |> Repo.insert()
-
-      case result do
-        {:ok, config} ->
-          # Don't increment current_users - that's based on actual connections
-          # Invalidate peer cache for this server
-          Elektrine.VPN.PeerCache.invalidate(server_id)
-          SelfHostedReconciler.reconcile_now()
-
-          config = Repo.preload(config, [:vpn_server])
-          broadcast_vpn_event(user_id, {:vpn_config_created, config})
-
-          {:ok, config}
-
-        {:error, _} = error ->
-          error
-      end
+    with {:ok, server} <- get_available_server(user_id, server_id),
+         {:ok, attrs} <- build_user_config_attrs(user_id, server) do
+      create_user_config_record(server, user_id, attrs)
     end
   end
 
@@ -403,31 +391,44 @@ defmodule Elektrine.VPN do
   end
 
   @doc """
-  Generates a WireGuard configuration file for a user config.
+  Generates a client configuration payload for a user config.
   """
   def generate_config_file(%UserConfig{} = config) do
     config = Repo.preload(config, :vpn_server)
-    server = config.vpn_server
 
-    # Decrypt private key
-    private_key = decrypt_private_key(config.private_key)
-    endpoint_host = server_endpoint_host(server)
-    mtu_line = config_mtu_line(server)
-
-    """
-    [Interface]
-    PrivateKey = #{private_key}
-    Address = #{config.allocated_ip}
-    DNS = #{server.dns_servers}
-    #{mtu_line}
-
-    [Peer]
-    PublicKey = #{server.public_key}
-    Endpoint = #{endpoint_host}:#{server.endpoint_port}
-    AllowedIPs = #{config.allowed_ips}
-    PersistentKeepalive = #{config.persistent_keepalive}
-    """
+    case server_protocol(config.vpn_server) do
+      "shadowsocks" -> generate_shadowsocks_uri(config)
+      _ -> generate_wireguard_config(config)
+    end
   end
+
+  def config_download_filename(%UserConfig{} = config) do
+    config = Repo.preload(config, :vpn_server)
+
+    base_name =
+      config.vpn_server.name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9_-]/, "-")
+      |> String.replace(~r/-+/, "-")
+      |> String.trim("-")
+
+    case server_protocol(config.vpn_server) do
+      "shadowsocks" -> "#{base_name}.txt"
+      _ -> "#{base_name}.conf"
+    end
+  end
+
+  def server_protocol(%Server{} = server), do: normalize_protocol(server.protocol)
+  def server_protocol(_server), do: "wireguard"
+
+  def server_protocol_label(%Server{} = server) do
+    case server_protocol(server) do
+      "shadowsocks" -> "Shadowsocks"
+      _ -> "WireGuard"
+    end
+  end
+
+  def server_protocol_label(_server), do: "WireGuard"
 
   def valid_server_api_key?(%Server{api_key: stored_key}, api_key)
       when is_binary(stored_key) and is_binary(api_key) do
@@ -439,6 +440,15 @@ defmodule Elektrine.VPN do
   end
 
   def valid_server_api_key?(_server, _api_key), do: false
+
+  def server_sync_mode(%Server{} = server) do
+    case server_protocol(server) do
+      "shadowsocks" -> :clients
+      _ -> :peers
+    end
+  end
+
+  def server_sync_mode(_server), do: :peers
 
   ## Helper functions
 
@@ -461,6 +471,113 @@ defmodule Elektrine.VPN do
     end
   end
 
+  defp build_sync_snapshot(%Server{} = server) do
+    case server_sync_mode(server) do
+      :clients -> build_shadowsocks_sync_snapshot(server)
+      :peers -> build_wireguard_sync_snapshot(server)
+    end
+  end
+
+  defp build_wireguard_sync_snapshot(%Server{id: server_id} = server) do
+    active_configs =
+      from(uc in UserConfig,
+        join: u in Elektrine.Accounts.User,
+        on: u.id == uc.user_id,
+        where:
+          uc.vpn_server_id == ^server_id and
+            uc.status == "active" and
+            u.banned == false and
+            u.suspended == false,
+        select: %{
+          public_key: uc.public_key,
+          allocated_ip: uc.allocated_ip,
+          allowed_ips: uc.allowed_ips,
+          persistent_keepalive: uc.persistent_keepalive,
+          rate_limit_mbps: uc.rate_limit_mbps
+        }
+      )
+      |> Repo.all()
+
+    peers_to_remove =
+      from(uc in UserConfig,
+        left_join: u in Elektrine.Accounts.User,
+        on: u.id == uc.user_id,
+        where:
+          uc.vpn_server_id == ^server_id and
+            (uc.status in ["suspended", "revoked"] or
+               u.banned == true or
+               u.suspended == true),
+        select: %{public_key: uc.public_key}
+      )
+      |> Repo.all()
+
+    %{
+      protocol: server_protocol(server),
+      server: %{
+        id: server.id,
+        name: server.name,
+        protocol: server_protocol(server),
+        endpoint_port: server.endpoint_port,
+        internal_ip_range: server.internal_ip_range,
+        dns_servers: server.dns_servers
+      },
+      peers: active_configs,
+      remove_peers: peers_to_remove
+    }
+  end
+
+  defp build_shadowsocks_sync_snapshot(%Server{id: server_id} = server) do
+    active_configs =
+      from(uc in UserConfig,
+        join: u in Elektrine.Accounts.User,
+        on: u.id == uc.user_id,
+        where:
+          uc.vpn_server_id == ^server_id and
+            uc.status == "active" and
+            u.banned == false and
+            u.suspended == false
+      )
+      |> Repo.all()
+      |> Enum.map(fn config ->
+        %{
+          client_id: config.public_key,
+          password: decrypt_private_key(config.private_key),
+          cipher: shadowsocks_cipher(server, config),
+          port: shadowsocks_port(config),
+          rate_limit_mbps: config.rate_limit_mbps
+        }
+      end)
+
+    clients_to_remove =
+      from(uc in UserConfig,
+        left_join: u in Elektrine.Accounts.User,
+        on: u.id == uc.user_id,
+        where:
+          uc.vpn_server_id == ^server_id and
+            (uc.status in ["suspended", "revoked"] or
+               u.banned == true or
+               u.suspended == true),
+        select: %{client_id: uc.public_key}
+      )
+      |> Repo.all()
+
+    %{
+      protocol: server_protocol(server),
+      server: %{
+        id: server.id,
+        name: server.name,
+        protocol: server_protocol(server),
+        endpoint_port: server.endpoint_port,
+        cipher: shadowsocks_cipher(server),
+        port_range: shadowsocks_port_range(server)
+      },
+      clients: active_configs,
+      remove_clients: clients_to_remove,
+      peers: [],
+      remove_peers: []
+    }
+  end
+
   defp create_self_host_server(attrs) do
     attrs
     |> Map.put(:api_key, generate_api_key())
@@ -481,6 +598,7 @@ defmodule Elektrine.VPN do
       attrs
       |> Map.take([
         :name,
+        :protocol,
         :location,
         :country_code,
         :city,
@@ -501,26 +619,38 @@ defmodule Elektrine.VPN do
     public_ip = env_value(env, "VPN_SELFHOST_PUBLIC_IP")
     public_key = env_value(env, "VPN_SELFHOST_PUBLIC_KEY")
 
-    if present?(public_ip) and present?(public_key) do
-      %{
-        name:
-          env_value(env, "VPN_SELFHOST_NAME") || env_value(env, "PRIMARY_DOMAIN") || "WireGuard",
-        location: env_value(env, "VPN_SELFHOST_LOCATION") || "Self-hosted",
-        country_code: env_value(env, "VPN_SELFHOST_COUNTRY_CODE"),
-        city: env_value(env, "VPN_SELFHOST_CITY"),
-        public_ip: public_ip,
-        endpoint_host: env_value(env, "VPN_SELFHOST_ENDPOINT_HOST"),
-        public_key: public_key,
-        endpoint_port:
-          env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
-            env_value(env, "VPN_SELFHOST_LISTEN_PORT") || 51_820,
-        client_mtu: env_value(env, "VPN_SELFHOST_CLIENT_MTU") || 1280,
-        internal_ip_range: env_value(env, "VPN_SELFHOST_INTERNAL_IP_RANGE") || "10.8.0.0/24",
-        dns_servers: env_value(env, "VPN_SELFHOST_DNS_SERVERS") || "1.1.1.1, 1.0.0.1",
-        metadata: %{@self_host_metadata_key => @self_host_metadata_value}
-      }
-      |> Enum.reject(fn {_key, value} -> is_nil(value) end)
-      |> Map.new()
+    if present?(public_ip) do
+      env
+      |> self_host_protocols()
+      |> Enum.filter(fn protocol -> protocol == "shadowsocks" or present?(public_key) end)
+      |> Enum.map(fn protocol ->
+        %{
+          name:
+            env_value(env, "VPN_SELFHOST_NAME") || env_value(env, "PRIMARY_DOMAIN") ||
+              default_selfhost_name(protocol),
+          protocol: protocol,
+          location: env_value(env, "VPN_SELFHOST_LOCATION") || "Self-hosted",
+          country_code: env_value(env, "VPN_SELFHOST_COUNTRY_CODE"),
+          city: env_value(env, "VPN_SELFHOST_CITY"),
+          public_ip: public_ip,
+          endpoint_host: env_value(env, "VPN_SELFHOST_ENDPOINT_HOST"),
+          public_key: self_host_public_key(protocol, public_key),
+          endpoint_port:
+            env_value(env, "VPN_SELFHOST_ENDPOINT_PORT") ||
+              env_value(env, protocol_listen_port_env(protocol)) ||
+              default_endpoint_port(protocol),
+          client_mtu: env_value(env, "VPN_SELFHOST_CLIENT_MTU") || 1280,
+          internal_ip_range:
+            env_value(env, "VPN_SELFHOST_INTERNAL_IP_RANGE") ||
+              default_internal_ip_range(protocol),
+          dns_servers: env_value(env, "VPN_SELFHOST_DNS_SERVERS") || "1.1.1.1, 1.0.0.1",
+          metadata: self_host_metadata(env, protocol)
+        }
+        |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+        |> Map.new()
+      end)
+    else
+      []
     end
   end
 
@@ -529,6 +659,8 @@ defmodule Elektrine.VPN do
   end
 
   defp normalize_server_attrs(attrs) when is_map(attrs) do
+    attrs = ensure_protocol_placeholders(attrs)
+
     case Map.get(attrs, :api_key) || Map.get(attrs, "api_key") do
       value when is_binary(value) and value != "" ->
         put_api_key(attrs, normalize_api_key(value))
@@ -539,6 +671,71 @@ defmodule Elektrine.VPN do
   end
 
   defp normalize_server_attrs(attrs), do: attrs
+
+  defp put_new_attr(attrs, key, value) do
+    cond do
+      Map.has_key?(attrs, key) -> attrs
+      Map.has_key?(attrs, Atom.to_string(key)) -> attrs
+      true -> Map.put(attrs, key, value)
+    end
+  end
+
+  defp maybe_put_default_client_mtu(attrs, protocol) do
+    if protocol == "wireguard" do
+      Map.put_new(attrs, :client_mtu, 1280)
+    else
+      attrs
+    end
+  end
+
+  defp ensure_default_shadowsocks_metadata(attrs, protocol) do
+    if protocol == "shadowsocks" do
+      metadata = ensure_map(Map.get(attrs, :metadata) || Map.get(attrs, "metadata"))
+
+      endpoint_port =
+        Map.get(attrs, :endpoint_port) || Map.get(attrs, "endpoint_port") ||
+          default_endpoint_port(protocol)
+
+      merged_metadata =
+        metadata
+        |> Map.put_new("cipher", @default_shadowsocks_cipher)
+        |> Map.put_new("port_range_start", endpoint_port)
+        |> Map.put_new("port_range_end", endpoint_port + @default_shadowsocks_port_range_size - 1)
+
+      if Map.has_key?(attrs, "metadata") do
+        Map.put(attrs, "metadata", merged_metadata)
+      else
+        Map.put(attrs, :metadata, merged_metadata)
+      end
+    else
+      attrs
+    end
+  end
+
+  defp ensure_protocol_placeholders(attrs) when is_map(attrs) do
+    if normalize_protocol(Map.get(attrs, :protocol) || Map.get(attrs, "protocol")) ==
+         "shadowsocks" do
+      attrs
+      |> put_default_server_attr(:public_key, "shadowsocks")
+      |> put_default_server_attr(:internal_ip_range, "0.0.0.0/32")
+    else
+      attrs
+    end
+  end
+
+  defp put_default_server_attr(attrs, key, value) do
+    current = Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
+
+    if present?(current) do
+      attrs
+    else
+      if Map.has_key?(attrs, Atom.to_string(key)) do
+        Map.put(attrs, Atom.to_string(key), value)
+      else
+        Map.put(attrs, key, value)
+      end
+    end
+  end
 
   defp put_api_key(attrs, value) when is_map(attrs) do
     cond do
@@ -594,6 +791,233 @@ defmodule Elektrine.VPN do
 
   defp ensure_map(value) when is_map(value), do: value
   defp ensure_map(_value), do: %{}
+
+  defp normalize_protocol(value) when is_binary(value) do
+    case String.trim(String.downcase(value)) do
+      "shadowsocks" -> "shadowsocks"
+      _ -> "wireguard"
+    end
+  end
+
+  defp normalize_protocol(_value), do: "wireguard"
+
+  defp default_endpoint_port("shadowsocks"), do: 8388
+  defp default_endpoint_port(_protocol), do: 51_820
+
+  defp default_internal_ip_range("shadowsocks"), do: "0.0.0.0/32"
+  defp default_internal_ip_range(_protocol), do: "10.8.0.0/24"
+
+  defp default_selfhost_name("shadowsocks"), do: "Shadowsocks"
+  defp default_selfhost_name(_protocol), do: "WireGuard"
+
+  defp self_host_protocols(env) do
+    raw_protocols =
+      env_value(env, "VPN_SELFHOST_PROTOCOLS") || env_value(env, "VPN_SELFHOST_PROTOCOL") ||
+        "wireguard"
+
+    raw_protocols
+    |> to_string()
+    |> String.split([",", " "], trim: true)
+    |> Enum.map(&normalize_protocol/1)
+    |> Enum.uniq()
+  end
+
+  defp self_host_public_key("shadowsocks", _public_key), do: "shadowsocks"
+  defp self_host_public_key(_protocol, public_key), do: public_key
+
+  defp protocol_listen_port_env("shadowsocks"), do: "VPN_SELFHOST_SS_LISTEN_PORT"
+  defp protocol_listen_port_env(_protocol), do: "VPN_SELFHOST_LISTEN_PORT"
+
+  defp build_user_config_attrs(user_id, %Server{} = server) do
+    case server_protocol(server) do
+      "shadowsocks" -> build_shadowsocks_user_config_attrs(user_id, server)
+      _ -> build_wireguard_user_config_attrs(user_id, server)
+    end
+  end
+
+  defp build_wireguard_user_config_attrs(user_id, %Server{id: server_id}) do
+    with {:ok, keys} <- generate_wireguard_keypair(),
+         {:ok, allocated_ip} <- allocate_ip_for_user(server_id) do
+      {:ok,
+       %{
+         user_id: user_id,
+         vpn_server_id: server_id,
+         public_key: keys.public_key,
+         private_key: encrypt_private_key(keys.private_key),
+         allocated_ip: allocated_ip,
+         status: "active"
+       }}
+    end
+  end
+
+  defp build_shadowsocks_user_config_attrs(user_id, %Server{id: server_id} = server) do
+    password = generate_shadowsocks_password()
+    client_id = generate_client_identifier()
+    port = allocate_shadowsocks_port(server)
+
+    {:ok,
+     %{
+       user_id: user_id,
+       vpn_server_id: server_id,
+       public_key: client_id,
+       private_key: encrypt_private_key(password),
+       allocated_ip: shadowsocks_allocated_label(server, client_id),
+       status: "active",
+       metadata: %{"cipher" => shadowsocks_cipher(server), "server_port" => port}
+     }}
+  end
+
+  defp create_user_config_record(%Server{} = server, user_id, attrs) do
+    result =
+      %UserConfig{}
+      |> UserConfig.changeset(attrs)
+      |> Repo.insert()
+
+    case result do
+      {:ok, config} ->
+        Elektrine.VPN.PeerCache.invalidate(server.id)
+        SelfHostedReconciler.reconcile_now()
+
+        config = Repo.preload(config, [:vpn_server])
+        broadcast_vpn_event(user_id, {:vpn_config_created, config})
+        {:ok, config}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp generate_wireguard_config(%UserConfig{} = config) do
+    server = config.vpn_server
+    private_key = decrypt_private_key(config.private_key)
+    endpoint_host = server_endpoint_host(server)
+    mtu_line = config_mtu_line(server)
+
+    """
+    [Interface]
+    PrivateKey = #{private_key}
+    Address = #{config.allocated_ip}
+    DNS = #{server.dns_servers}
+    #{mtu_line}
+
+    [Peer]
+    PublicKey = #{server.public_key}
+    Endpoint = #{endpoint_host}:#{server.endpoint_port}
+    AllowedIPs = #{config.allowed_ips}
+    PersistentKeepalive = #{config.persistent_keepalive}
+    """
+  end
+
+  defp generate_shadowsocks_uri(%UserConfig{} = config) do
+    server = config.vpn_server
+    password = decrypt_private_key(config.private_key)
+    endpoint_host = server_endpoint_host(server)
+    cipher = shadowsocks_cipher(server, config)
+    endpoint_port = shadowsocks_port(config) || server.endpoint_port
+    userinfo = Base.url_encode64("#{cipher}:#{password}", padding: false)
+    tag = URI.encode_www_form(server.name)
+
+    "ss://#{userinfo}@#{endpoint_host}:#{endpoint_port}##{tag}"
+  end
+
+  defp shadowsocks_cipher(%Server{} = server, %UserConfig{} = config) do
+    metadata = config.metadata || %{}
+    Map.get(metadata, "cipher") || Map.get(metadata, :cipher) || shadowsocks_cipher(server)
+  end
+
+  defp shadowsocks_cipher(%Server{} = server) do
+    metadata = ensure_map(server.metadata)
+    Map.get(metadata, "cipher") || Map.get(metadata, :cipher) || @default_shadowsocks_cipher
+  end
+
+  defp shadowsocks_allocated_label(server, client_id) do
+    "#{server_protocol_label(server)} #{String.slice(client_id, 0, 12)}"
+  end
+
+  defp shadowsocks_port_range(%Server{} = server) do
+    start_port = shadowsocks_port_range_start(server)
+    end_port = shadowsocks_port_range_end(server)
+    %{"start" => start_port, "end" => end_port, "size" => end_port - start_port + 1}
+  end
+
+  defp shadowsocks_port_range_start(%Server{} = server) do
+    metadata = ensure_map(server.metadata)
+
+    Map.get(metadata, "port_range_start") || Map.get(metadata, :port_range_start) ||
+      server.endpoint_port
+  end
+
+  defp shadowsocks_port_range_end(%Server{} = server) do
+    metadata = ensure_map(server.metadata)
+
+    Map.get(metadata, "port_range_end") || Map.get(metadata, :port_range_end) ||
+      shadowsocks_port_range_start(server) + @default_shadowsocks_port_range_size - 1
+  end
+
+  defp allocate_shadowsocks_port(%Server{} = server) do
+    start_port = to_integer_or_default(shadowsocks_port_range_start(server), server.endpoint_port)
+    end_port = to_integer_or_default(shadowsocks_port_range_end(server), start_port)
+
+    used_ports =
+      from(uc in UserConfig,
+        where: uc.vpn_server_id == ^server.id,
+        select: fragment("COALESCE((?->>'server_port')::int, 0)", uc.metadata)
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    Enum.find(start_port..end_port, &(not MapSet.member?(used_ports, &1))) ||
+      raise "no Shadowsocks ports available in configured range"
+  end
+
+  defp generate_shadowsocks_password do
+    :crypto.strong_rand_bytes(24)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp generate_client_identifier do
+    :crypto.strong_rand_bytes(16)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp self_host_metadata(env, protocol) do
+    base = %{@self_host_metadata_key => @self_host_metadata_value}
+
+    if protocol == "shadowsocks" do
+      base
+      |> Map.put(
+        "cipher",
+        env_value(env, "VPN_SELFHOST_SS_CIPHER") || @default_shadowsocks_cipher
+      )
+      |> Map.put(
+        "port_range_start",
+        env_value(env, "VPN_SELFHOST_SS_PORT_RANGE_START") ||
+          env_value(env, "VPN_SELFHOST_SS_LISTEN_PORT") || default_endpoint_port(protocol)
+      )
+      |> Map.put(
+        "port_range_end",
+        env_value(env, "VPN_SELFHOST_SS_PORT_RANGE_END") ||
+          to_integer_or_default(
+            env_value(env, "VPN_SELFHOST_SS_PORT_RANGE_START") ||
+              env_value(env, "VPN_SELFHOST_SS_LISTEN_PORT") || default_endpoint_port(protocol),
+            default_endpoint_port(protocol)
+          ) + @default_shadowsocks_port_range_size - 1
+      )
+    else
+      base
+    end
+  end
+
+  defp to_integer_or_default(value, _default) when is_integer(value), do: value
+
+  defp to_integer_or_default(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, _} -> parsed
+      :error -> default
+    end
+  end
+
+  defp to_integer_or_default(_value, default), do: default
 
   defp generate_wireguard_keypair do
     # Generate proper WireGuard keypair using Curve25519 (X25519)

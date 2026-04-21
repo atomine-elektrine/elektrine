@@ -179,16 +179,16 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     {is_following, is_pending} =
       if socket.assigns[:current_user] do
         # Check for accepted follow first
-        if Elektrine.Profiles.following_remote_actor?(
+        if Elektrine.Profiles.following_remote_actor_by_identity?(
              socket.assigns.current_user.id,
-             remote_actor.id
+             remote_actor
            ) do
           {true, false}
         else
           # Check for pending follow
-          case Elektrine.Profiles.get_follow_to_remote_actor(
+          case Elektrine.Profiles.get_follow_to_remote_actor_by_identity(
                  socket.assigns.current_user.id,
-                 remote_actor.id
+                 remote_actor
                ) do
             %{pending: true} -> {false, true}
             _ -> {false, false}

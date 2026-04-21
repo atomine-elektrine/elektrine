@@ -253,6 +253,76 @@ function bindSensitiveForm(form) {
   })
 }
 
+function resolveLinkMethod(link) {
+  return (link.dataset.adminActionMethod || 'GET').toUpperCase()
+}
+
+function appendGrantToken(href, grantToken) {
+  const url = new URL(href, window.location.origin)
+  url.searchParams.set('_admin_action_grant', grantToken)
+
+  if (url.origin === window.location.origin) {
+    return `${url.pathname}${url.search}${url.hash}`
+  }
+
+  return url.toString()
+}
+
+async function signLinkAction(link) {
+  const method = resolveLinkMethod(link)
+  const path = parseActionPath(link.getAttribute('href') || link.href)
+
+  if (!path) {
+    throw new Error('Unable to resolve admin action path.')
+  }
+
+  const startData = await postJson('/pripyat/security/action/start', { method, path })
+  const assertion = await createPasskeyAssertion(startData)
+
+  const finishData = await postJson('/pripyat/security/action/finish', {
+    intent_token: startData.intent_token,
+    challenge: startData.challenge_b64,
+    assertion
+  })
+
+  if (!finishData.grant_token) {
+    throw new Error('Missing action grant token.')
+  }
+
+  return appendGrantToken(link.href, finishData.grant_token)
+}
+
+function bindSensitiveLink(link) {
+  if (!link || link.dataset.adminActionBound === 'true') return
+
+  const path = parseActionPath(link.getAttribute('href') || link.href)
+  if (!isSensitiveAdminPath(path)) return
+
+  link.dataset.adminActionBound = 'true'
+
+  link.addEventListener('click', async (event) => {
+    if (event.defaultPrevented || event.button !== 0) return
+
+    event.preventDefault()
+
+    const openInNewTab = link.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey
+    const popup = openInNewTab ? window.open('about:blank', '_blank', 'noopener') : null
+
+    try {
+      const signedHref = await signLinkAction(link)
+
+      if (popup) {
+        popup.location = signedHref
+      } else {
+        window.location.href = signedHref
+      }
+    } catch (error) {
+      if (popup) popup.close()
+      notifyAdminSecurityError(error.message || 'Passkey confirmation failed.')
+    }
+  })
+}
+
 function bindAdminElevation(root = document) {
   const container = root.querySelector('[data-admin-elevation="true"]')
   const button = root.querySelector('#admin-elevate-passkey')
@@ -284,6 +354,8 @@ function bindAdminElevation(root = document) {
 
 export function initAdminSecurity(root = document) {
   const forms = root.querySelectorAll ? root.querySelectorAll('form') : []
+  const links = root.querySelectorAll ? root.querySelectorAll('[data-admin-action-sign="true"]') : []
   forms.forEach(bindSensitiveForm)
+  links.forEach(bindSensitiveLink)
   bindAdminElevation(root)
 }

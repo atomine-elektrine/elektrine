@@ -16,11 +16,11 @@
               <h3 class="font-semibold text-sm">
                 <.icon name="hero-server" class="w-4 h-4 inline text-primary" />
                 {if length(@available_servers) == 1,
-                  do: gettext("Your WireGuard Server"),
+                  do: gettext("Your VPN Server"),
                   else: gettext("Available Servers")}
               </h3>
               <p class="mt-1 text-xs text-base-content/60">
-                {gettext("Pick a server, then create a WireGuard config.")}
+                {gettext("Pick a server, then create a VPN config.")}
               </p>
             </div>
             <div class="badge badge-outline badge-sm">{length(@available_servers)}</div>
@@ -44,6 +44,9 @@
                         {server.location}
                       </p>
                     </div>
+                    <span class="badge badge-outline badge-xs">
+                      {Elektrine.VPN.server_protocol_label(server)}
+                    </span>
                   </div>
                   
 <!-- Active Connections Bar -->
@@ -111,8 +114,8 @@
             <h2 class="font-bold text-base">{gettext("VPN Service")}</h2>
             <p class="text-xs text-base-content/70 mt-2">
               {if length(@available_servers) == 1,
-                do: gettext("Create a WireGuard config for your self-hosted server"),
-                else: gettext("Create configs for managed WireGuard servers")}
+                do: gettext("Create a VPN config for your self-hosted server"),
+                else: gettext("Create configs for managed VPN servers")}
             </p>
             <div class="mt-4">
               <.link
@@ -134,16 +137,9 @@
 
           <div class="grid gap-3 text-sm text-base-content/70 sm:grid-cols-3 lg:grid-cols-1">
             <div class="space-y-1.5">
-              <p class="font-medium text-base-content">{gettext("Install WireGuard")}</p>
-              <p class="text-xs">
-                <a
-                  href="https://www.wireguard.com/install/"
-                  target="_blank"
-                  class="link link-primary"
-                >
-                  wireguard.com/install
-                </a>
-              </p>
+              <p class="font-medium text-base-content">{gettext("Install a client")}</p>
+              <p class="text-xs">{gettext("WireGuard uses .conf files or QR import")}</p>
+              <p class="text-xs">{gettext("Shadowsocks uses ss:// links or QR import")}</p>
             </div>
 
             <div class="space-y-1.5">
@@ -154,7 +150,7 @@
 
             <div class="space-y-1.5">
               <p class="font-medium text-base-content">{gettext("Connect")}</p>
-              <p class="text-xs">{gettext("Activate the tunnel in WireGuard")}</p>
+              <p class="text-xs">{gettext("Enable the profile in your chosen client")}</p>
             </div>
           </div>
         </div>
@@ -180,12 +176,10 @@
                   {if length(@available_servers) == 1,
                     do:
                       gettext(
-                        "Create your WireGuard config, then download it or scan the QR code to connect"
+                        "Create your VPN config, then download it or scan the QR code to connect"
                       ),
                     else:
-                      gettext(
-                        "Create configs for any server, download or scan QR code to connect"
-                      )}
+                      gettext("Create configs for any server, then download or scan to connect")}
                 </p>
               </div>
             </div>
@@ -265,6 +259,9 @@
                         <h3 class="font-semibold text-base">
                           {config.vpn_server.name}
                         </h3>
+                        <span class="badge badge-outline badge-xs">
+                          {config_protocol_label(config)}
+                        </span>
                         <%= if config.last_handshake_at && DateTime.diff(DateTime.utc_now(), config.last_handshake_at, :minute) < 5 do %>
                           <span class="badge badge-sm badge-success">
                             {gettext("Connected")}
@@ -274,7 +271,19 @@
 
                       <div class="text-sm text-base-content/70 space-y-1">
                         <p>{config.vpn_server.location}</p>
-                        <p class="font-medium text-xs">{config.allocated_ip}</p>
+                        <%= if wireguard_config?(config) do %>
+                          <p class="font-medium text-xs">{config.allocated_ip}</p>
+                        <% else %>
+                          <p class="font-medium text-xs">
+                            {config.vpn_server.endpoint_host || config.vpn_server.public_ip}:{shadowsocks_port(
+                              config
+                            )}
+                          </p>
+                          <p class="text-xs text-base-content/60">
+                            Cipher: {(config.metadata || %{})["cipher"] ||
+                              (config.vpn_server.metadata || %{})["cipher"]}
+                          </p>
+                        <% end %>
                       </div>
 
                       <%= if config.last_handshake_at do %>
@@ -390,7 +399,7 @@
                 {if length(@available_servers) == 1,
                   do:
                     gettext(
-                      "Create your first WireGuard configuration from the server shown in the sidebar"
+                      "Create your first VPN configuration from the server shown in the sidebar"
                     ),
                   else: gettext("Select a server from the sidebar to create a configuration")}
               </p>
@@ -411,7 +420,7 @@
       </h3>
 
       <p class="text-sm text-base-content/70 mb-4">
-        {gettext("Scan this code with the WireGuard mobile app")}
+        {qr_help_text(@qr_config)}
       </p>
 
       <div class="flex justify-center bg-white p-6 rounded-lg mb-4">
@@ -421,9 +430,9 @@
       <div class="text-sm text-base-content/70">
         <p class="font-medium mb-1">{gettext("Instructions")}:</p>
         <ol class="list-decimal list-inside text-sm space-y-1">
-          <li>{gettext("Open WireGuard app")}</li>
-          <li>{gettext("Tap '+' and select 'Create from QR code'")}</li>
-          <li>{gettext("Scan this code")}</li>
+          <%= for step <- qr_steps(@qr_config) do %>
+            <li>{step}</li>
+          <% end %>
         </ol>
       </div>
 

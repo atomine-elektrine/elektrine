@@ -29,6 +29,8 @@ defmodule ElektrineVPNWeb.API.VPNController do
         Enum.map(servers, fn server ->
           %{
             id: server.id,
+            protocol: VPN.server_protocol(server),
+            protocol_label: VPN.server_protocol_label(server),
             name: server.name,
             location: server.location,
             country_code: server.country_code,
@@ -64,7 +66,7 @@ defmodule ElektrineVPNWeb.API.VPNController do
 
   @doc """
   GET /api/vpn/configs/:id
-  Gets a specific VPN configuration with WireGuard config file
+   Gets a specific VPN configuration with its client config payload
   """
   def show_config(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
@@ -78,7 +80,9 @@ defmodule ElektrineVPNWeb.API.VPNController do
         |> put_status(:ok)
         |> json(%{
           config: format_config(config),
-          wireguard_config: config_file
+          config_content: config_file,
+          wireguard_config:
+            if(VPN.server_protocol(config.vpn_server) == "wireguard", do: config_file, else: nil)
         })
 
       _ ->
@@ -107,7 +111,7 @@ defmodule ElektrineVPNWeb.API.VPNController do
         # Create new config
         case VPN.create_user_config(user.id, server_id) do
           {:ok, config} ->
-            # Generate WireGuard configuration file
+            # Generate a client configuration payload
             config_file = VPN.generate_config_file(config)
 
             conn
@@ -115,7 +119,12 @@ defmodule ElektrineVPNWeb.API.VPNController do
             |> json(%{
               message: "VPN configuration created successfully",
               config: format_config(config),
-              wireguard_config: config_file
+              config_content: config_file,
+              wireguard_config:
+                if(VPN.server_protocol(config.vpn_server) == "wireguard",
+                  do: config_file,
+                  else: nil
+                )
             })
 
           {:error, :server_not_found} ->
@@ -155,7 +164,12 @@ defmodule ElektrineVPNWeb.API.VPNController do
         |> json(%{
           message: "Configuration already exists",
           config: format_config(existing_config),
-          wireguard_config: config_file
+          config_content: config_file,
+          wireguard_config:
+            if(VPN.server_protocol(existing_config.vpn_server) == "wireguard",
+              do: config_file,
+              else: nil
+            )
         })
     end
   end
@@ -205,6 +219,8 @@ defmodule ElektrineVPNWeb.API.VPNController do
       id: config.id,
       server: %{
         id: config.vpn_server.id,
+        protocol: VPN.server_protocol(config.vpn_server),
+        protocol_label: VPN.server_protocol_label(config.vpn_server),
         name: config.vpn_server.name,
         location: config.vpn_server.location,
         country_code: config.vpn_server.country_code,
@@ -213,6 +229,7 @@ defmodule ElektrineVPNWeb.API.VPNController do
         endpoint_port: config.vpn_server.endpoint_port,
         client_mtu: config.vpn_server.client_mtu
       },
+      protocol: VPN.server_protocol(config.vpn_server),
       allocated_ip: config.allocated_ip,
       status: config.status,
       bandwidth_quota_bytes: config.bandwidth_quota_bytes,

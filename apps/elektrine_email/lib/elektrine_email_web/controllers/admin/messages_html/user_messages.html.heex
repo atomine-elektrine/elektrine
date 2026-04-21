@@ -96,6 +96,8 @@
                       href={~p"/pripyat/users/#{@user.id}/messages/#{message.id}"}
                       class="btn btn-sm btn-ghost"
                       title="View message"
+                      data-admin-action-sign="true"
+                      data-admin-action-method="GET"
                     >
                       <.icon name="hero-eye" class="w-4 h-4" />
                     </.link>
@@ -104,6 +106,8 @@
                       class="btn btn-sm btn-ghost"
                       target="_blank"
                       title="View raw email"
+                      data-admin-action-sign="true"
+                      data-admin-action-method="GET"
                     >
                       <.icon name="hero-code-bracket" class="w-4 h-4" />
                     </.link>
@@ -137,6 +141,8 @@
                   href={~p"/pripyat/users/#{@user.id}/messages/#{message.id}"}
                   class="btn btn-xs btn-ghost"
                   title="View message"
+                  data-admin-action-sign="true"
+                  data-admin-action-method="GET"
                 >
                   <.icon name="hero-eye" class="w-3 h-3" />
                 </.link>
@@ -145,6 +151,8 @@
                   class="btn btn-xs btn-ghost"
                   target="_blank"
                   title="View raw email"
+                  data-admin-action-sign="true"
+                  data-admin-action-method="GET"
                 >
                   <.icon name="hero-code-bracket" class="w-3 h-3" />
                 </.link>

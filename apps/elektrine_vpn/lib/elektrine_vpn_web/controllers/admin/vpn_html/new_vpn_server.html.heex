@@ -7,7 +7,7 @@
     <h1 class="mt-2 text-3xl font-bold">Create VPN Server</h1>
 
     <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-      Register an extra WireGuard server for multi-node or non-default setups.
+      Register an extra WireGuard or Shadowsocks server for multi-node or non-default setups.
     </p>
   </div>
 
@@ -21,7 +21,12 @@
         <p>
           For a single server, set `VPN_SELFHOST_PUBLIC_IP` and `VPN_SELFHOST_PUBLIC_KEY` in `.env.production`.
         </p>
-        <p>Use this page only when you want to add another managed WireGuard node manually.</p>
+        <p>
+          Use this page when you want to add another managed WireGuard node or a manual Shadowsocks endpoint.
+        </p>
+        <p>
+          WireGuard nodes sync peers and keys. Shadowsocks nodes sync client passwords and cipher settings.
+        </p>
       </div>
     </div>
   </div>
@@ -54,6 +59,26 @@
                 class="input input-bordered"
                 required
               />
+            </div>
+
+            <div class="form-control">
+              <label class="label"><span class="label-text">Protocol</span></label>
+              <div class="select select-bordered">
+                <select name="server[protocol]">
+                  <option
+                    value="wireguard"
+                    selected={Phoenix.HTML.Form.input_value(f, :protocol) != "shadowsocks"}
+                  >
+                    WireGuard
+                  </option>
+                  <option
+                    value="shadowsocks"
+                    selected={Phoenix.HTML.Form.input_value(f, :protocol) == "shadowsocks"}
+                  >
+                    Shadowsocks
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -130,7 +155,7 @@
               />
               <label class="label">
                 <span class="label-text-alt">
-                  UDP 443 is a safer default on restrictive networks
+                  Use your deployed listener port. `8388` is common for Shadowsocks.
                 </span>
               </label>
             </div>
@@ -143,8 +168,10 @@
                 value={Phoenix.HTML.Form.input_value(f, :internal_ip_range)}
                 placeholder="10.8.0.0/24"
                 class="input input-bordered font-medium"
-                required
               />
+              <label class="label">
+                <span class="label-text-alt">Required for WireGuard servers only</span>
+              </label>
             </div>
 
             <div class="form-control">
@@ -173,6 +200,11 @@
               placeholder="1.1.1.1, 1.0.0.1"
               class="input input-bordered font-medium"
             />
+            <label class="label">
+              <span class="label-text-alt">
+                Used in generated WireGuard configs. Shadowsocks clients usually ignore this.
+              </span>
+            </label>
           </div>
 
           <div class="form-control">
@@ -186,13 +218,80 @@
               value={Phoenix.HTML.Form.input_value(f, :public_key)}
               placeholder="AUTO"
               class="input input-bordered font-medium"
-              required
             />
             <label class="label">
               <span class="label-text-alt text-success">
-                Recommended: Enter "AUTO" and the VPN server will register its public key automatically
+                Required for WireGuard. Shadowsocks ignores this field.
               </span>
             </label>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Shadowsocks Cipher</span>
+              <span class="label-text-alt">Only used when protocol is Shadowsocks</span>
+            </label>
+            <input
+              type="text"
+              name="server[metadata][cipher]"
+              value={
+                (Phoenix.HTML.Form.input_value(f, :metadata) || %{})["cipher"] ||
+                  "chacha20-ietf-poly1305"
+              }
+              placeholder="chacha20-ietf-poly1305"
+              class="input input-bordered font-medium"
+            />
+            <label class="label">
+              <span class="label-text-alt">
+                Common choices: `chacha20-ietf-poly1305` or `aes-256-gcm`.
+              </span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Shadowsocks Port Range Start</span>
+                <span class="label-text-alt">First per-user port</span>
+              </label>
+              <input
+                type="number"
+                name="server[metadata][port_range_start]"
+                value={
+                  (Phoenix.HTML.Form.input_value(f, :metadata) || %{})["port_range_start"] ||
+                    Phoenix.HTML.Form.input_value(f, :endpoint_port) || 8388
+                }
+                placeholder="8388"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  Users are assigned unique Shadowsocks ports from this range.
+                </span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Shadowsocks Port Range End</span>
+                <span class="label-text-alt">Last per-user port</span>
+              </label>
+              <input
+                type="number"
+                name="server[metadata][port_range_end]"
+                value={
+                  (Phoenix.HTML.Form.input_value(f, :metadata) || %{})["port_range_end"] ||
+                    (Phoenix.HTML.Form.input_value(f, :endpoint_port) || 8388) + 999
+                }
+                placeholder="9387"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  Keep enough ports available for your expected concurrent user count.
+                </span>
+              </label>
+            </div>
           </div>
           <!-- Server Limits -->
           <div class="divider">Capacity & Status</div>

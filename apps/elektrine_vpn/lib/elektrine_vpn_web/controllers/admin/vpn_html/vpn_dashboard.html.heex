@@ -6,7 +6,7 @@
       </p>
       <h1 class="mt-2 text-3xl font-bold">VPN Servers</h1>
       <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-        Monitor WireGuard access, review usage trends, and manage your server inventory from one place.
+        Monitor VPN access, review usage trends, and manage your server inventory from one place.
       </p>
     </div>
     <a href={~p"/pripyat/vpn/servers/new"} class="btn btn-secondary">
@@ -154,6 +154,7 @@
               <tr>
                 <th>Name</th>
                 <th>Location</th>
+                <th>Protocol</th>
                 <th>IP Address</th>
                 <th>Port</th>
                 <th>Users</th>
@@ -166,13 +167,24 @@
                 <tr>
                   <td>
                     <div class="font-semibold">{server.name}</div>
-                    <div class="text-xs text-base-content/60">{server.internal_ip_range}</div>
+                    <div class="text-xs text-base-content/60">
+                      <%= if Elektrine.VPN.server_protocol(server) == "wireguard" do %>
+                        {server.internal_ip_range}
+                      <% else %>
+                        {"Cipher: #{(server.metadata || %{})["cipher"] || "n/a"} · Ports: #{(server.metadata || %{})["port_range_start"] || server.endpoint_port}-#{(server.metadata || %{})["port_range_end"] || server.endpoint_port}"}
+                      <% end %>
+                    </div>
                   </td>
                   <td>
                     <%= if server.country_code do %>
                       <span class="mr-1">{render_country_flag(server.country_code)}</span>
                     <% end %>
                     {server.location}
+                  </td>
+                  <td>
+                    <span class="badge badge-outline">
+                      {Elektrine.VPN.server_protocol_label(server)}
+                    </span>
                   </td>
                   <td class="font-medium text-sm">{server.public_ip}</td>
                   <td>{server.endpoint_port}</td>

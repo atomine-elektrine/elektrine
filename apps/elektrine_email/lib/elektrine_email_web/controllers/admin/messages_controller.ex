@@ -6,10 +6,14 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
   use ElektrineEmailWeb, :controller
 
   alias Elektrine.{Accounts, Email, Repo}
+  alias ElektrineWeb.AdminSecurity
   import Ecto.Query
 
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
   plug :assign_timezone_and_format
+
+  plug :require_message_read_grant
+       when action in [:view, :view_user_message, :view_raw, :view_user_message_raw, :iframe]
 
   defp assign_timezone_and_format(conn, _opts) do
     current_user = conn.assigns[:current_user]
@@ -86,7 +90,12 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
 
       log_admin_email_view(conn, message, mailbox, "html", "admin_messages")
 
-      render(conn, :view_message, message: decrypted_message, user: user)
+      render(conn, :view_message,
+        message: decrypted_message,
+        user: user,
+        raw_path: signed_message_read_path(conn, message.id, :raw),
+        iframe_path: signed_message_read_path(conn, message.id, :iframe)
+      )
     else
       conn
       |> put_flash(:error, "Message not found")
@@ -133,7 +142,12 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
 
       log_admin_email_view(conn, message, mailbox, "html", "user_scoped")
 
-      render(conn, :view_user_message, user: user, message: decrypted_message)
+      render(conn, :view_user_message,
+        user: user,
+        message: decrypted_message,
+        raw_path: signed_user_message_read_path(conn, user.id, message.id, :raw),
+        iframe_path: signed_message_read_path(conn, message.id, :iframe)
+      )
     else
       _ ->
         conn
@@ -256,6 +270,61 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
   end
 
   # Private helper functions
+
+  defp require_message_read_grant(conn, _opts) do
+    case AdminSecurity.verify_action_grant(conn, conn.assigns[:current_user]) do
+      {:ok, conn} ->
+        conn
+
+      {:error, reason, conn} ->
+        deny_message_read(conn, reason)
+    end
+  end
+
+  defp deny_message_read(conn, reason) do
+    case action_name(conn) do
+      action when action in [:view, :view_user_message] ->
+        conn
+        |> put_status(:forbidden)
+        |> Phoenix.Controller.put_view(ElektrineWeb.ErrorHTML)
+        |> put_flash(:error, AdminSecurity.error_message(reason))
+        |> Phoenix.Controller.render(:"403")
+        |> halt()
+
+      :iframe ->
+        conn
+        |> put_status(:forbidden)
+        |> put_resp_content_type("text/html")
+        |> send_resp(403, AdminSecurity.error_message(reason))
+        |> halt()
+
+      _ ->
+        conn
+        |> put_status(:forbidden)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(403, AdminSecurity.error_message(reason))
+        |> halt()
+    end
+  end
+
+  defp signed_message_read_path(conn, message_id, view) do
+    path =
+      case view do
+        :raw -> "/pripyat/messages/#{message_id}/raw"
+        :iframe -> "/pripyat/messages/#{message_id}/iframe"
+      end
+
+    sign_read_path(conn, path)
+  end
+
+  defp signed_user_message_read_path(conn, user_id, message_id, :raw) do
+    sign_read_path(conn, "/pripyat/users/#{user_id}/messages/#{message_id}/raw")
+  end
+
+  defp sign_read_path(conn, path) do
+    grant = AdminSecurity.issue_action_grant(conn, conn.assigns.current_user, "GET", path)
+    path <> "?" <> URI.encode_query(%{"_admin_action_grant" => grant})
+  end
 
   defp get_recent_messages_paginated(status_filter, page, per_page) do
     offset = (page - 1) * per_page

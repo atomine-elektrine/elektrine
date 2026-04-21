@@ -61,7 +61,11 @@ defmodule ElektrineVPNWeb.Admin.VPNController do
   end
 
   def new_server(conn, _params) do
-    changeset = Elektrine.VPN.change_server(%Elektrine.VPN.Server{})
+    changeset =
+      Elektrine.VPN.change_server(%Elektrine.VPN.Server{
+        metadata: %{"cipher" => "chacha20-ietf-poly1305"}
+      })
+
     render(conn, :new_vpn_server, changeset: changeset)
   end
 
@@ -71,9 +75,12 @@ defmodule ElektrineVPNWeb.Admin.VPNController do
     server_params = Map.put(server_params, "api_key", api_key)
 
     case Elektrine.VPN.create_server(server_params) do
-      {:ok, _server} ->
+      {:ok, server} ->
         conn
-        |> put_flash(:info, "VPN server created successfully! API Key: #{api_key}")
+        |> put_flash(
+          :info,
+          "#{Elektrine.VPN.server_protocol_label(server)} server created successfully! API Key: #{api_key}"
+        )
         |> redirect(to: ~p"/pripyat/vpn")
 
       {:error, changeset} ->
@@ -105,7 +112,10 @@ defmodule ElektrineVPNWeb.Admin.VPNController do
         Elektrine.VPN.PeerCache.invalidate(updated_server.id)
 
         conn
-        |> put_flash(:info, "VPN server updated successfully")
+        |> put_flash(
+          :info,
+          "#{Elektrine.VPN.server_protocol_label(updated_server)} server updated successfully"
+        )
         |> redirect(to: ~p"/pripyat/vpn")
 
       {:error, changeset} ->

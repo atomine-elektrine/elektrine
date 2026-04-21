@@ -182,6 +182,73 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
+  describe "remote follow identity helpers" do
+    test "resolve pending follow state from a remote actor struct" do
+      viewer = AccountsFixtures.user_fixture()
+
+      actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://mastodon.example/users/pending-remote",
+          username: "pending-remote",
+          domain: "mastodon.example",
+          inbox_url: "https://mastodon.example/users/pending-remote/inbox",
+          public_key: "test-public-key-pending-remote",
+          manually_approves_followers: true
+        })
+        |> Repo.insert!()
+
+      %Follow{}
+      |> Ecto.Changeset.change(%{
+        follower_id: viewer.id,
+        remote_actor_id: actor.id,
+        activitypub_id: "https://elektrine.test/follows/#{System.unique_integer([:positive])}",
+        pending: true
+      })
+      |> Repo.insert!()
+
+      assert %{pending: true} = Profiles.get_follow_to_remote_actor_by_identity(viewer.id, actor)
+      assert not Profiles.following_remote_actor_by_identity?(viewer.id, actor)
+    end
+
+    test "ignores nil uri when resolving remote actor identity" do
+      viewer = AccountsFixtures.user_fixture()
+
+      actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://mastodon.example/users/no-uri-lookup",
+          username: "no-uri-lookup",
+          domain: "mastodon.example",
+          inbox_url: "https://mastodon.example/users/no-uri-lookup/inbox",
+          public_key: "test-public-key-no-uri-lookup",
+          manually_approves_followers: true
+        })
+        |> Repo.insert!()
+
+      %Follow{}
+      |> Ecto.Changeset.change(%{
+        follower_id: viewer.id,
+        remote_actor_id: actor.id,
+        activitypub_id: "https://elektrine.test/follows/#{System.unique_integer([:positive])}",
+        pending: true
+      })
+      |> Repo.insert!()
+
+      actor_without_uri = %{
+        id: actor.id,
+        uri: nil,
+        username: actor.username,
+        domain: actor.domain
+      }
+
+      assert %{pending: true} =
+               Profiles.get_follow_to_remote_actor_by_identity(viewer.id, actor_without_uri)
+
+      assert not Profiles.following_remote_actor_by_identity?(viewer.id, actor_without_uri)
+    end
+  end
+
   describe "get_follower_count/1" do
     test "returns 0 for user with no followers" do
       user = AccountsFixtures.user_fixture()

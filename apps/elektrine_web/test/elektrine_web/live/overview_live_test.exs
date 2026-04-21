@@ -70,7 +70,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
     assert html =~ ~s(data-test="global-composer")
     assert html =~ "Quick Create"
-    assert html =~ "/timeline?composer=note"
+    assert html =~ "/account/notes?new=true"
     assert html =~ "/calendar?composer=task"
   end
 

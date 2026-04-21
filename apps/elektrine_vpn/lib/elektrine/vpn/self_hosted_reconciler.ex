@@ -5,6 +5,7 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
 
   alias Elektrine.PubSubTopics
   alias Elektrine.VPN
+  alias Elektrine.VPN.SelfHostedShadowsocksServer
   alias Elektrine.VPN.WireGuardAdapter
 
   require Logger
@@ -53,32 +54,20 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
   end
 
   defp reconcile_once do
-    case VPN.ensure_self_host_server() do
-      {:ok, nil} ->
+    case VPN.ensure_self_host_servers() do
+      {:ok, []} ->
         :ok
 
-      {:ok, server} ->
-        interface = System.get_env("VPN_SELFHOST_WG_INTERFACE") || "wg0"
-
-        active_window =
-          env_integer("VPN_SELFHOST_ACTIVE_WINDOW_SECONDS", @default_active_window_seconds)
-
-        with {:ok, current_peers} <- WireGuardAdapter.current_peer_keys(interface),
-             snapshot <- VPN.peer_sync_snapshot(server.id),
-             :ok <- reconcile_peers(interface, current_peers, snapshot),
-             {:ok, stats} <- WireGuardAdapter.peer_stats(interface) do
-          VPN.report_peer_stats(server.id, Enum.map(stats, &stringify_peer_stats/1))
-          VPN.report_server_heartbeat(server.id, active_users(stats, active_window), "active")
-        else
-          {:error, reason} ->
-            Logger.error("Self-hosted WireGuard reconcile failed: #{inspect(reason)}")
-            VPN.report_server_heartbeat(server.id, 0, "offline")
-        end
+      {:ok, servers} ->
+        Enum.each(servers, fn server ->
+          case VPN.server_protocol(server) do
+            "shadowsocks" -> reconcile_shadowsocks(server)
+            _ -> reconcile_wireguard(server)
+          end
+        end)
 
       {:error, changeset} ->
-        Logger.error(
-          "Failed to prepare self-hosted WireGuard server: #{inspect(changeset.errors)}"
-        )
+        Logger.error("Failed to prepare self-hosted VPN servers: #{inspect(changeset.errors)}")
     end
   end
 
@@ -94,6 +83,42 @@ defmodule Elektrine.VPN.SelfHostedReconciler do
     Enum.each(remove_keys, &ignore_missing_peer(WireGuardAdapter.remove_peer(interface, &1)))
     Enum.each(snapshot.peers, &sync_peer(interface, &1))
     :ok
+  end
+
+  defp reconcile_wireguard(server) do
+    interface = System.get_env("VPN_SELFHOST_WG_INTERFACE") || "wg0"
+
+    active_window =
+      env_integer("VPN_SELFHOST_ACTIVE_WINDOW_SECONDS", @default_active_window_seconds)
+
+    with {:ok, current_peers} <- WireGuardAdapter.current_peer_keys(interface),
+         snapshot <- VPN.peer_sync_snapshot(server.id),
+         :ok <- reconcile_peers(interface, current_peers, snapshot),
+         {:ok, stats} <- WireGuardAdapter.peer_stats(interface) do
+      VPN.report_peer_stats(server.id, Enum.map(stats, &stringify_peer_stats/1))
+      VPN.report_server_heartbeat(server.id, active_users(stats, active_window), "active")
+    else
+      {:error, reason} ->
+        Logger.error("Self-hosted WireGuard reconcile failed: #{inspect(reason)}")
+        VPN.report_server_heartbeat(server.id, 0, "offline")
+    end
+  end
+
+  defp reconcile_shadowsocks(server) do
+    snapshot = VPN.peer_sync_snapshot(server.id)
+
+    case SelfHostedShadowsocksServer.apply_snapshot(snapshot) do
+      :ok ->
+        VPN.report_server_heartbeat(server.id, length(snapshot.clients), "active")
+
+      {:error, reason} ->
+        Logger.error("Self-hosted Shadowsocks reconcile failed: #{inspect(reason)}")
+        VPN.report_server_heartbeat(server.id, 0, "offline")
+    end
+  rescue
+    error ->
+      Logger.error("Self-hosted Shadowsocks reconcile failed: #{inspect(error)}")
+      VPN.report_server_heartbeat(server.id, 0, "offline")
   end
 
   defp sync_peer(interface, peer) do

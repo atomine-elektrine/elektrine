@@ -314,7 +314,7 @@ defmodule ElektrineWeb.Layouts do
         id: "note",
         label: "Note",
         detail: "Keep a private note",
-        href: Elektrine.Paths.timeline_path(composer: "note"),
+        href: Elektrine.Paths.notes_path(new: true),
         platform_module: :social,
         icon: "hero-document-text"
       }

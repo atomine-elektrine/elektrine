@@ -1017,6 +1017,32 @@ defmodule Elektrine.Profiles do
     |> Repo.one()
   end
 
+  def get_follow_to_remote_actor_by_identity(follower_id, %{id: remote_actor_id} = remote_actor)
+      when is_integer(remote_actor_id) do
+    remote_actor_uri = Map.get(remote_actor, :uri)
+    remote_actor_username = Map.get(remote_actor, :username)
+    remote_actor_domain = Map.get(remote_actor, :domain)
+
+    Follow
+    |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+    |> where([f], f.follower_id == ^follower_id and is_nil(f.followed_id))
+    |> where(
+      ^remote_actor_identity_query(
+        remote_actor_id,
+        remote_actor_uri,
+        remote_actor_username,
+        remote_actor_domain
+      )
+    )
+    |> order_by([f, a], desc: f.inserted_at, desc: f.id, desc: a.id)
+    |> Repo.one()
+  end
+
+  def get_follow_to_remote_actor_by_identity(follower_id, remote_actor_id)
+      when is_integer(remote_actor_id) do
+    get_follow_to_remote_actor(follower_id, remote_actor_id)
+  end
+
   @doc """
   Checks if a LOCAL user is actively following a REMOTE actor.
   Treats legacy pending rows for auto-accepting remote actors as accepted.
@@ -1030,6 +1056,59 @@ defmodule Elektrine.Profiles do
         is_nil(f.followed_id) and (f.pending == false or a.manually_approves_followers == false)
     )
     |> Repo.exists?()
+  end
+
+  def following_remote_actor_by_identity?(follower_id, %{id: remote_actor_id} = remote_actor)
+      when is_integer(remote_actor_id) do
+    remote_actor_uri = Map.get(remote_actor, :uri)
+    remote_actor_username = Map.get(remote_actor, :username)
+    remote_actor_domain = Map.get(remote_actor, :domain)
+
+    Follow
+    |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+    |> where([f], f.follower_id == ^follower_id and is_nil(f.followed_id))
+    |> where(
+      ^remote_actor_identity_query(
+        remote_actor_id,
+        remote_actor_uri,
+        remote_actor_username,
+        remote_actor_domain
+      )
+    )
+    |> where([f, a], f.pending == false or a.manually_approves_followers == false)
+    |> Repo.exists?()
+  end
+
+  def following_remote_actor_by_identity?(follower_id, remote_actor_id)
+      when is_integer(remote_actor_id) do
+    following_remote_actor?(follower_id, remote_actor_id)
+  end
+
+  defp remote_actor_identity_query(
+         remote_actor_id,
+         remote_actor_uri,
+         remote_actor_username,
+         remote_actor_domain
+       ) do
+    base_query = dynamic([f, _a], f.remote_actor_id == ^remote_actor_id)
+
+    base_query =
+      if is_binary(remote_actor_uri) and remote_actor_uri != "" do
+        dynamic([f, a], ^base_query or a.uri == ^remote_actor_uri)
+      else
+        base_query
+      end
+
+    if is_binary(remote_actor_username) and remote_actor_username != "" and
+         is_binary(remote_actor_domain) and remote_actor_domain != "" do
+      dynamic(
+        [f, a],
+        ^base_query or
+          (a.username == ^remote_actor_username and a.domain == ^remote_actor_domain)
+      )
+    else
+      base_query
+    end
   end
 
   @doc """
