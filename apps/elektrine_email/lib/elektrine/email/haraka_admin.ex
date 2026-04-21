@@ -19,7 +19,7 @@ defmodule Elektrine.Email.HarakaAdmin do
     %{
       base_url: lookup_base_url(),
       send_base_url: EmailConfig.haraka_base_url(),
-      api_key_configured: present?(EmailConfig.haraka_api_key()),
+      api_key_configured: present?(lookup_api_key()),
       primary_domain: Domains.primary_email_domain(),
       supported_domains: domains,
       mx_host: DKIM.mx_host(),
@@ -180,7 +180,7 @@ defmodule Elektrine.Email.HarakaAdmin do
   end
 
   defp request_headers do
-    case EmailConfig.haraka_api_key() do
+    case lookup_api_key() do
       api_key when is_binary(api_key) and api_key != "" -> [{"x-api-key", api_key}]
       _ -> []
     end
@@ -236,5 +236,10 @@ defmodule Elektrine.Email.HarakaAdmin do
   defp lookup_base_url do
     RuntimeEnv.app_config(:email, [])
     |> Keyword.get(:custom_domain_haraka_base_url, EmailConfig.haraka_base_url())
+  end
+
+  defp lookup_api_key do
+    RuntimeEnv.app_config(:email, [])
+    |> Keyword.get(:custom_domain_haraka_api_key, EmailConfig.haraka_api_key())
   end
 end

@@ -1938,7 +1938,21 @@
 
 modal_interaction = @post_interactions[modal_post_id] || %{liked: false, like_delta: 0}
 modal_is_liked = Map.get(modal_interaction, :liked, false)
-modal_like_count = (@modal_post && Map.get(@modal_post, :like_count)) || 0 %>
+modal_like_delta = Map.get(modal_interaction, :like_delta, 0)
+
+modal_base_like_count =
+  cond do
+    @modal_post && is_integer(Map.get(@modal_post, :like_count)) ->
+      @modal_post.like_count
+
+    @modal_post && is_integer(Map.get(@modal_post, :score)) ->
+      @modal_post.score
+
+    true ->
+      0
+  end
+
+modal_like_count = modal_base_like_count + modal_like_delta %>
 <.image_modal
   show={@show_image_modal}
   image_url={@modal_image_url}

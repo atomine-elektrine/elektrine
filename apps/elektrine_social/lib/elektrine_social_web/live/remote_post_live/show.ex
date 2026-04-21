@@ -3041,6 +3041,66 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
+  defp build_modal_post(socket) do
+    cond do
+      socket.assigns.is_local_post && socket.assigns.local_message ->
+        socket.assigns.local_message
+
+      socket.assigns.remote_actor ->
+        inserted_at =
+          case socket.assigns.post && socket.assigns.post["published"] do
+            nil ->
+              DateTime.utc_now()
+
+            date_string ->
+              case DateTime.from_iso8601(date_string) do
+                {:ok, datetime, _} -> datetime
+                _ -> DateTime.utc_now()
+              end
+          end
+
+        %{
+          remote_actor: socket.assigns.remote_actor,
+          content: socket.assigns.post && socket.assigns.post["content"],
+          inserted_at: inserted_at,
+          activitypub_id: socket.assigns.post && socket.assigns.post["id"],
+          like_count: modal_base_like_count(socket)
+        }
+
+      true ->
+        nil
+    end
+  end
+
+  defp modal_base_like_count(socket) do
+    cond do
+      is_map(socket.assigns[:lemmy_counts]) and
+          not is_nil(Map.get(socket.assigns.lemmy_counts, :score)) ->
+        Map.get(socket.assigns.lemmy_counts, :score)
+
+      is_map(socket.assigns[:post]) and is_map(socket.assigns.post["_lemmy"]) and
+          not is_nil(socket.assigns.post["_lemmy"]["score"]) ->
+        socket.assigns.post["_lemmy"]["score"]
+
+      is_map(socket.assigns[:post]) and not is_nil(socket.assigns.post["like_count"]) ->
+        socket.assigns.post["like_count"]
+
+      is_map(socket.assigns[:local_message]) and
+          not is_nil(socket.assigns.local_message.like_count) ->
+        socket.assigns.local_message.like_count
+
+      is_map(socket.assigns[:post]) and is_map(socket.assigns.post["_mastodon"]) and
+          not is_nil(socket.assigns.post["_mastodon"]["favourites_count"]) ->
+        socket.assigns.post["_mastodon"]["favourites_count"]
+
+      is_map(socket.assigns[:post]) and not is_nil(socket.assigns.post["likes"]) ->
+        Elektrine.ActivityPub.Helpers.get_collection_total(socket.assigns.post["likes"]) || 0
+
+      true ->
+        0
+    end
+  end
+
   # Build OG description from post content (strip HTML, truncate)
   defp build_og_description(nil), do: nil
 
@@ -5499,38 +5559,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       ) do
     images = Jason.decode!(images_json)
 
-    # Construct modal_post with actor context for display in the image modal
-    modal_post =
-      cond do
-        # For local posts, use the local_message with its sender
-        socket.assigns.is_local_post && socket.assigns.local_message ->
-          socket.assigns.local_message
-
-        # For remote posts, create a pseudo-post with remote_actor context
-        socket.assigns.remote_actor ->
-          # Parse the published date if available
-          inserted_at =
-            case socket.assigns.post && socket.assigns.post["published"] do
-              nil ->
-                DateTime.utc_now()
-
-              date_string ->
-                case DateTime.from_iso8601(date_string) do
-                  {:ok, datetime, _} -> datetime
-                  _ -> DateTime.utc_now()
-                end
-            end
-
-          %{
-            remote_actor: socket.assigns.remote_actor,
-            content: socket.assigns.post && socket.assigns.post["content"],
-            inserted_at: inserted_at,
-            activitypub_id: socket.assigns.post && socket.assigns.post["id"]
-          }
-
-        true ->
-          nil
-      end
+    modal_post = build_modal_post(socket)
 
     {:noreply,
      socket

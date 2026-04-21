@@ -1091,32 +1091,34 @@
                   
 <!-- Uploaded Media/Files -->
                   <%= if message.message_type != "voice" && message.media_urls && message.media_urls != [] do %>
+                    <% uploaded_image_urls =
+                      message.media_urls
+                      |> Enum.filter(&String.match?(&1, ~r/\.(jpg|jpeg|png|gif|webp)$/i))
+                      |> Enum.map(&Uploads.attachment_url(&1, @conversation.selected)) %>
                     <div class="mt-2 space-y-2">
                       <%= for media_url <- message.media_urls do %>
                         <%= if String.match?(media_url, ~r/\.(jpg|jpeg|png|gif|webp)$/i) do %>
-                          <a
-                            href={
-                              Elektrine.Uploads.attachment_url(
-                                media_url,
-                                @conversation.selected
-                              )
+                          <% resolved_media_url =
+                            Uploads.attachment_url(media_url, @conversation.selected) %>
+                          <button
+                            type="button"
+                            phx-click="open_image_modal"
+                            phx-value-images={Jason.encode!(uploaded_image_urls)}
+                            phx-value-index={
+                              Enum.find_index(uploaded_image_urls, &(&1 == resolved_media_url)) ||
+                                0
                             }
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
+                            phx-value-url={resolved_media_url}
+                            phx-value-message_id={message.id}
+                            class="block border-0 bg-transparent p-0 text-left"
                           >
                             <img
-                              src={
-                                Elektrine.Uploads.attachment_url(
-                                  media_url,
-                                  @conversation.selected
-                                )
-                              }
+                              src={resolved_media_url}
                               alt="Uploaded image"
                               loading="eager"
                               class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
                             />
-                          </a>
+                          </button>
                         <% else %>
                           <a
                             href={
@@ -1145,12 +1147,14 @@
                     <% image_urls = Message.extract_image_urls(message.content) %>
                     <%= if image_urls != [] do %>
                       <div class="mt-2 space-y-2">
-                        <%= for image_url <- image_urls do %>
-                          <a
-                            href={image_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block"
+                        <%= for {image_url, index} <- Enum.with_index(image_urls) do %>
+                          <button
+                            type="button"
+                            phx-click="open_image_modal"
+                            phx-value-images={Jason.encode!(image_urls)}
+                            phx-value-index={index}
+                            phx-value-url={image_url}
+                            class="block border-0 bg-transparent p-0 text-left"
                           >
                             <img
                               id={"chat-message-image-#{:erlang.phash2(image_url)}"}
@@ -1160,7 +1164,7 @@
                               class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
                               phx-hook="ImageFallback"
                             />
-                          </a>
+                          </button>
                         <% end %>
                       </div>
                     <% end %>

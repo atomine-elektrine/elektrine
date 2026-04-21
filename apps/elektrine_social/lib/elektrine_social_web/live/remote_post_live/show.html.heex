@@ -1028,15 +1028,29 @@
                         
 <!-- Media Attachments -->
                         <%= if @post["attachment"] && is_list(@post["attachment"]) do %>
-                          <% all_media_urls =
+                          <% image_media_urls =
                             Enum.map(@post["attachment"], fn attachment ->
-                              cond do
-                                is_binary(attachment["url"]) -> attachment["url"]
-                                is_map(attachment["url"]) -> attachment["url"]["href"]
-                                true -> nil
-                              end
+                              url =
+                                cond do
+                                  is_binary(attachment["url"]) -> attachment["url"]
+                                  is_map(attachment["url"]) -> attachment["url"]["href"]
+                                  true -> nil
+                                end
+
+                              media_type = attachment["mediaType"] || ""
+                              attachment_type = attachment["type"] || ""
+
+                              is_image =
+                                String.starts_with?(media_type, "image/") ||
+                                  attachment_type == "Image" ||
+                                  String.match?(
+                                    url || "",
+                                    ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
+                                  )
+
+                              if is_image, do: url
                             end)
-                            |> Enum.filter(& &1) %>
+                            |> Enum.filter(&is_binary/1) %>
                           <div class="grid grid-cols-1 gap-3 mb-4">
                             <%= for {attachment, idx} <- Enum.with_index(@post["attachment"]) do %>
                               <% url =
@@ -1074,8 +1088,10 @@
                                       type="button"
                                       phx-click="open_image_modal"
                                       phx-value-url={url}
-                                      phx-value-images={Jason.encode!(all_media_urls)}
-                                      phx-value-index={idx}
+                                      phx-value-images={Jason.encode!(image_media_urls)}
+                                      phx-value-index={
+                                        Enum.find_index(image_media_urls, &(&1 == url)) || 0
+                                      }
                                       class="image-zoom-trigger w-full rounded-lg overflow-hidden"
                                     >
                                       <img
@@ -1889,34 +1905,23 @@
 
 <!-- Full-size Image Modal -->
 <% # Get like state for the post in the modal
-modal_post_id = @post && @post["id"]
+modal_post_id =
+  cond do
+    @modal_post && is_integer(Map.get(@modal_post, :id)) -> @modal_post.id
+    @modal_post && is_binary(Map.get(@modal_post, :activitypub_id)) -> @modal_post.activitypub_id
+    @post && @post["id"] -> @post["id"]
+    true -> nil
+  end
+
 modal_interaction = @post_interactions[modal_post_id] || %{liked: false, like_delta: 0}
 modal_is_liked = Map.get(modal_interaction, :liked, false)
 modal_like_delta = Map.get(modal_interaction, :like_delta, 0)
-# Get base like count from Lemmy or ActivityPub - use Map.get for struct access
+
 base_like_count =
   cond do
-    is_map(@lemmy_counts) and not is_nil(Map.get(@lemmy_counts, :score)) ->
-      Map.get(@lemmy_counts, :score)
-
-    is_map(@post) and is_map(@post["_lemmy"]) and not is_nil(@post["_lemmy"]["score"]) ->
-      @post["_lemmy"]["score"]
-
-    is_map(@post) and not is_nil(@post["like_count"]) ->
-      @post["like_count"]
-
-    is_map(@local_message) and not is_nil(@local_message.like_count) ->
-      @local_message.like_count
-
-    is_map(@post) and is_map(@post["_mastodon"]) and
-        not is_nil(@post["_mastodon"]["favourites_count"]) ->
-      @post["_mastodon"]["favourites_count"]
-
-    is_map(@post) and not is_nil(@post["likes"]) ->
-      Elektrine.ActivityPub.Helpers.get_collection_total(@post["likes"]) || 0
-
-    true ->
-      0
+    @modal_post && is_integer(Map.get(@modal_post, :like_count)) -> @modal_post.like_count
+    @modal_post && is_integer(Map.get(@modal_post, :score)) -> @modal_post.score
+    true -> 0
   end
 
 modal_like_count = base_like_count + modal_like_delta %>

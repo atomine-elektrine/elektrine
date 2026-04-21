@@ -148,6 +148,9 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       requests = Enum.reverse(MockHarakaHTTPClient.requests())
       assert Enum.map(requests, & &1.method) == [:get, :get, :get, :get]
 
+      assert Enum.at(requests, 0).headers == [{"x-api-key", "haraka-http-key"}]
+      assert Enum.at(requests, 1).headers == [{"x-api-key", "haraka-http-key"}]
+
       assert Enum.at(requests, 0).url ==
                "https://haraka.example.test/status"
 

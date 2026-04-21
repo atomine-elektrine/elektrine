@@ -2575,16 +2575,21 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <div class="w-20 h-20 flex-shrink-0 m-2">
             <%= cond do %>
               <% @has_image && @on_image_click -> %>
-                <img
-                  src={@thumbnail_image_url}
-                  alt=""
-                  class="w-full h-full object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                  loading="lazy"
+                <button
+                  type="button"
+                  class="image-zoom-trigger w-full h-full rounded overflow-hidden"
                   phx-click={@on_image_click}
                   phx-value-images={Jason.encode!(@image_urls)}
                   phx-value-index="0"
                   phx-value-post_id={@post.id}
-                />
+                >
+                  <img
+                    src={@thumbnail_image_url}
+                    alt=""
+                    class="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </button>
               <% @external_link -> %>
                 <a
                   href={@external_link}
