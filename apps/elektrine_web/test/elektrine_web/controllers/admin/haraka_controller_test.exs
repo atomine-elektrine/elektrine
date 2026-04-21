@@ -44,6 +44,7 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
         previous_email_config,
         domain: "elektrine.test",
         supported_domains: ["elektrine.test", "z.org"],
+        haraka_http_client: MockHarakaHTTPClient,
         custom_domain_http_client: MockHarakaHTTPClient,
         custom_domain_haraka_base_url: "https://haraka.example.test",
         custom_domain_haraka_api_key: "haraka-http-key",
@@ -69,6 +70,33 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       admin = AccountsFixtures.user_fixture() |> make_admin()
 
       MockHarakaHTTPClient.put_responses([
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "ok" => true,
+               "role" => "outbound-relay",
+               "started_at" => "2026-04-20T21:30:00Z"
+             })
+         }},
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body: """
+           # HELP elektrine_http_api_requests_total Total HTTP requests handled
+           elektrine_http_api_requests_total 42
+           elektrine_http_api_auth_failures_total 1
+           elektrine_http_api_rate_limited_total 3
+           elektrine_http_api_sent_ok_total 17
+           elektrine_http_api_sent_error_total 2
+           elektrine_http_api_dkim_sync_ok_total 8
+           elektrine_http_api_dkim_sync_error_total 1
+           elektrine_http_api_dkim_delete_ok_total 4
+           elektrine_http_api_dkim_delete_error_total 0
+           elektrine_http_api_uptime_seconds 3661
+           """
+         }},
         {:ok,
          %Finch.Response{
            status: 200,
@@ -105,6 +133,12 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       assert html =~ "elektrine.test"
       assert html =~ "z.org"
       assert html =~ "mail.elektrine.test"
+      assert html =~ "outbound-relay"
+      assert html =~ "2026-04-20T21:30:00Z"
+      assert html =~ "1h 1m 1s"
+      assert html =~ "42"
+      assert html =~ "17"
+      assert html =~ "8"
       assert html =~ "v=spf1 include:spf.elektrine.test ~all"
       assert html =~ "v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:dmarc@elektrine.test"
       assert html =~ "default._domainkey.elektrine.test"
@@ -112,18 +146,26 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       assert html =~ "v=DKIM1; k=rsa; p=XYZ987"
 
       requests = Enum.reverse(MockHarakaHTTPClient.requests())
-      assert Enum.map(requests, & &1.method) == [:get, :get]
+      assert Enum.map(requests, & &1.method) == [:get, :get, :get, :get]
 
       assert Enum.at(requests, 0).url ==
+               "https://haraka.example.test/status"
+
+      assert Enum.at(requests, 1).url ==
+               "https://haraka.example.test/metrics"
+
+      assert Enum.at(requests, 2).url ==
                "https://haraka.example.test/api/v1/dkim/domains/elektrine.test"
 
-      assert Enum.at(requests, 1).url == "https://haraka.example.test/api/v1/dkim/domains/z.org"
+      assert Enum.at(requests, 3).url == "https://haraka.example.test/api/v1/dkim/domains/z.org"
     end
 
     test "shows lookup errors when Haraka does not provide DKIM data", %{conn: conn} do
       admin = AccountsFixtures.user_fixture() |> make_admin()
 
       MockHarakaHTTPClient.put_responses([
+        {:ok, %Finch.Response{status: 503, body: Jason.encode!(%{"error" => "offline"})}},
+        {:ok, %Finch.Response{status: 403, body: Jason.encode!(%{"error" => "forbidden"})}},
         {:ok, %Finch.Response{status: 404, body: ""}},
         {:ok, %Finch.Response{status: 503, body: Jason.encode!(%{"error" => "unavailable"})}}
       ])
@@ -138,6 +180,8 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
 
       assert html =~ "Haraka does not have DKIM data for elektrine.test."
       assert html =~ "Haraka DKIM lookup failed with status 503: unavailable"
+      assert html =~ "Status error: Haraka endpoint /status failed with status 503: offline"
+      assert html =~ "Metrics error: Haraka endpoint /metrics failed with status 403: forbidden"
     end
   end
 

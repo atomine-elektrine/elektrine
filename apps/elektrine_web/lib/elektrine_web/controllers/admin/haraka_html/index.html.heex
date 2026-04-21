@@ -69,6 +69,145 @@
 
   <section class="card panel-card">
     <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <h2 class="text-lg font-semibold">Runtime Status</h2>
+      <p class="mt-2 text-sm text-base-content/70">
+        Live status and counters fetched from Haraka's internal HTTP API.
+      </p>
+    </div>
+
+    <div class="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-3">
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Role
+        </div>
+        <div class="mt-3 text-lg font-semibold text-base-content/85">
+          {@overview.status_details.role || "Unknown"}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Started At
+        </div>
+        <div class="mt-3 font-mono text-xs text-base-content/75 break-all">
+          {@overview.status_details.started_at || "Unavailable"}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Uptime
+        </div>
+        <div class="mt-3 text-lg font-semibold text-base-content/85">
+          {format_uptime(@overview.metrics.uptime_seconds)}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-3 px-5 pb-5 sm:px-6 md:grid-cols-2 xl:grid-cols-5">
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Requests
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-info">
+          {format_metric(@overview.metrics.request_total)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Sent OK
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-success">
+          {format_metric(@overview.metrics.sent_ok)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Sent Error
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-warning">
+          {format_metric(@overview.metrics.sent_error)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Auth Failures
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-warning">
+          {format_metric(@overview.metrics.auth_failures)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          Rate Limited
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-warning">
+          {format_metric(@overview.metrics.rate_limited)}
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-3 px-5 pb-5 sm:px-6 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          DKIM Sync OK
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-success">
+          {format_metric(@overview.metrics.dkim_sync_ok)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          DKIM Sync Error
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-warning">
+          {format_metric(@overview.metrics.dkim_sync_error)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          DKIM Delete OK
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-success">
+          {format_metric(@overview.metrics.dkim_delete_ok)}
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-content/10 bg-base-200/30 p-4">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
+          DKIM Delete Error
+        </div>
+        <div class="mt-2 text-2xl font-semibold text-warning">
+          {format_metric(@overview.metrics.dkim_delete_error)}
+        </div>
+      </div>
+    </div>
+
+    <%= if @overview.status_details.error || @overview.metrics.error do %>
+      <div class="space-y-3 px-5 pb-5 sm:px-6">
+        <%= if @overview.status_details.error do %>
+          <div class="rounded-box border border-warning/20 bg-warning/5 px-4 py-3 text-sm text-base-content/75">
+            Status error: {@overview.status_details.error}
+          </div>
+        <% end %>
+
+        <%= if @overview.metrics.error do %>
+          <div class="rounded-box border border-warning/20 bg-warning/5 px-4 py-3 text-sm text-base-content/75">
+            Metrics error: {@overview.metrics.error}
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+
+  <section class="card panel-card">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
       <h2 class="text-lg font-semibold">Expected Mail DNS</h2>
       <p class="mt-2 text-sm text-base-content/70">
         These values come from Elektrine runtime config and should exist in Cloudflare for your built-in mail domains.
