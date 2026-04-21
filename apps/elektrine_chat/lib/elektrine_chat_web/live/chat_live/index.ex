@@ -2442,19 +2442,17 @@ defmodule ElektrineChatWeb.ChatLive.Index do
       />
     <% end %>
     <!-- Image Modal -->
-    <% modal_is_liked = @modal_post && Map.get(assigns[:user_likes] || %{}, @modal_post.id, false)
-    modal_like_count = (@modal_post && @modal_post.like_count) || 0 %>
     <.image_modal
       show={@show_image_modal}
       image_url={@modal_image_url}
       images={@modal_images}
       image_index={@modal_image_index}
-      post={@modal_post}
+      post={nil}
       timezone={@timezone}
       time_format={@time_format}
-      current_user={@current_user}
-      is_liked={modal_is_liked}
-      like_count={modal_like_count}
+      current_user={nil}
+      is_liked={false}
+      like_count={nil}
     />
     """
   end

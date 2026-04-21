@@ -70,11 +70,9 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
 
           can_like_in_modal = @can_like && not is_nil(post_id_for_like)
 
-          # Check if sender is actually loaded (not Ecto.Association.NotLoaded)
-          sender_loaded = @post && Map.get(@post, :sender) && Ecto.assoc_loaded?(@post.sender)
+          sender_loaded = loaded_assoc?(if(@post, do: Map.get(@post, :sender)))
 
-          remote_actor_loaded =
-            @post && Map.get(@post, :remote_actor) && Ecto.assoc_loaded?(@post.remote_actor) %>
+          remote_actor_loaded = loaded_assoc?(if(@post, do: Map.get(@post, :remote_actor))) %>
           
     <!-- User Info Header -->
           <%= if sender_loaded || remote_actor_loaded do %>
@@ -184,21 +182,11 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
                   </audio>
                 </div>
               <% true -> %>
-                <%= if @current_user && can_like_in_modal do %>
-                  <img
-                    src={@image_url}
-                    alt="Full size image"
-                    class="w-full h-auto max-h-[80vh] object-contain cursor-pointer"
-                    phx-click="toggle_modal_like"
-                    phx-value-post_id={post_id_for_like}
-                  />
-                <% else %>
-                  <img
-                    src={@image_url}
-                    alt="Full size image"
-                    class="w-full h-auto max-h-[80vh] object-contain"
-                  />
-                <% end %>
+                <img
+                  src={@image_url}
+                  alt="Full size image"
+                  class="w-full h-auto max-h-[80vh] object-contain"
+                />
             <% end %>
           </div>
           
@@ -358,4 +346,10 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
   end
 
   defp url_like_display_name?(_), do: false
+
+  defp loaded_assoc?(%Ecto.Association.NotLoaded{}), do: false
+  defp loaded_assoc?(nil), do: false
+  defp loaded_assoc?(value) when is_map(value), do: map_size(value) > 0
+  defp loaded_assoc?(value) when is_list(value), do: true
+  defp loaded_assoc?(_), do: false
 end

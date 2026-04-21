@@ -1823,7 +1823,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         # Try to find in local_posts first
         local_post =
           Enum.find(socket.assigns.local_posts, fn p ->
-            (p.activitypub_id || to_string(p.id)) == post_id
+            p.activitypub_id == post_id || to_string(p.id) == post_id
           end)
 
         if local_post do
