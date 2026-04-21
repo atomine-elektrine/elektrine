@@ -169,6 +169,12 @@ defmodule Elektrine.Paths do
 
   def calendar_path, do: "/calendar"
   def calendar_path(params) when is_list(params), do: with_query(calendar_path(), params)
+  def notes_path, do: "/account/notes"
+  def notes_path(params) when is_list(params), do: with_query(notes_path(), params)
+
+  def note_share_path(token) when is_binary(token),
+    do: "/notes/share/#{URI.encode_www_form(token)}"
+
   def discussions_path, do: "/discussions"
   def vpn_path, do: "/vpn"
   def vpn_policy_path, do: "/vpn/policy"

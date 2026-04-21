@@ -69,7 +69,7 @@ defmodule ElektrineWeb.Routes.Social do
       scope "/relay", alias: false do
         pipe_through(:activitypub)
         get("/", ElektrineSocialWeb.ActivityPubController, :relay_actor)
-        post("/inbox", ElektrineSocialWeb.ActivityPubController, :inbox)
+        post("/inbox", ElektrineSocialWeb.ActivityPubController, :inbox, log: false)
       end
 
       scope "/", alias: false do

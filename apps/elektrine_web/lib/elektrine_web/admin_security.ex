@@ -26,6 +26,7 @@ defmodule ElektrineWeb.AdminSecurity do
   @default_replay_ttl_seconds 10 * 60
 
   @mutating_methods ~w(POST PUT PATCH DELETE)
+  @grantable_methods ["GET" | @mutating_methods]
   @admin_root_path "/pripyat"
   @admin_security_path "/pripyat/security"
 
@@ -137,6 +138,16 @@ defmodule ElektrineWeb.AdminSecurity do
     }
 
     Phoenix.Token.sign(Endpoint, @action_grant_salt, payload)
+  end
+
+  def verify_action_grant(conn, user) do
+    case action_grant_token(conn) do
+      nil ->
+        {:error, :action_grant_required, conn}
+
+      token ->
+        do_verify_action_grant(conn, user, token)
+    end
   end
 
   def refresh_after_passkey(conn, credential_id) do
@@ -347,19 +358,13 @@ defmodule ElektrineWeb.AdminSecurity do
 
   defp ensure_action_grant(conn, user) do
     if requires_action_grant?(conn) do
-      case action_grant_token(conn) do
-        nil ->
-          {:error, :action_grant_required, conn}
-
-        token ->
-          verify_action_grant(conn, user, token)
-      end
+      verify_action_grant(conn, user)
     else
       {:ok, conn}
     end
   end
 
-  defp verify_action_grant(conn, user, token) do
+  defp do_verify_action_grant(conn, user, token) do
     with {:ok, payload} <-
            Phoenix.Token.verify(Endpoint, @action_grant_salt, token,
              max_age: action_grant_ttl_seconds()
@@ -472,7 +477,10 @@ defmodule ElektrineWeb.AdminSecurity do
 
   defp normalize_http_method(method) when is_binary(method) do
     normalized = method |> String.trim() |> String.upcase()
-    if normalized in @mutating_methods, do: {:ok, normalized}, else: {:error, :invalid_method}
+
+    if normalized in @grantable_methods,
+      do: {:ok, normalized},
+      else: {:error, :invalid_method}
   end
 
   defp normalize_http_method(_), do: {:error, :invalid_method}

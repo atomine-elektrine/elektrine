@@ -8,6 +8,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.FollowButtonTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging.Conversation
   alias Elektrine.Messaging.Message
+  alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
 
   defp log_in_user(conn, user) do
@@ -84,6 +85,35 @@ defmodule ElektrineSocialWeb.RemoteUserLive.FollowButtonTest do
       |> live("/remote/@#{actor.username}@#{actor.domain}")
 
     assert html =~ "@#{actor.username}@#{actor.domain}"
+  end
+
+  test "pending remote follows render pending state on remote profiles", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    actor =
+      remote_actor_fixture(%{
+        uri: "https://mastodon.social/users/pending-person",
+        username: "pending-person",
+        domain: "mastodon.social",
+        display_name: "Pending Person",
+        inbox_url: "https://mastodon.social/inbox"
+      })
+
+    %Follow{}
+    |> Ecto.Changeset.change(%{
+      follower_id: viewer.id,
+      remote_actor_id: actor.id,
+      activitypub_id: "https://elektrine.test/follows/#{System.unique_integer([:positive])}",
+      pending: true
+    })
+    |> Repo.insert!()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/#{actor.username}@#{actor.domain}")
+
+    assert html =~ "Pending"
   end
 
   test "community join buttons render as non-submit buttons", %{conn: conn} do

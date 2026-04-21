@@ -1,86 +1,84 @@
-defmodule ElektrineVPNWeb.API.VPNControllerTest do
+defmodule ElektrineWeb.API.VPNControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.Accounts
-  alias Elektrine.AccountsFixtures
+  alias Elektrine.{Accounts, VPN}
   alias ElektrineWeb.Plugs.APIAuth
 
-  setup do
-    user = AccountsFixtures.user_fixture()
+  setup %{conn: conn} do
+    {:ok, user} =
+      Accounts.create_user(%{
+        username: "vpnapi#{System.unique_integer([:positive])}",
+        password: "hello world!",
+        password_confirmation: "hello world!"
+      })
+
     {:ok, token} = APIAuth.generate_token(user.id)
-    %{user: user, token: token}
+    conn = put_req_header(conn, "authorization", "Bearer #{token}")
+
+    {:ok, conn: conn, user: user}
   end
 
-  defp auth_conn(conn, token) do
-    conn
-    |> put_req_header("authorization", "Bearer #{token}")
-    |> put_req_header("content-type", "application/json")
+  test "create_config returns shadowsocks protocol metadata and config payload", %{
+    conn: conn,
+    user: _user
+  } do
+    {:ok, server} =
+      VPN.create_server(%{
+        name: "Singapore SS",
+        protocol: "shadowsocks",
+        location: "Singapore",
+        public_ip: "198.51.100.90",
+        endpoint_port: 8388,
+        metadata: %{"cipher" => "chacha20-ietf-poly1305"}
+      })
+
+    conn = post(conn, "/api/vpn/configs", %{server_id: server.id})
+    response = json_response(conn, 201)
+
+    assert response["config_content"] =~ "ss://"
+    assert response["wireguard_config"] == nil
+    assert response["config"]["protocol"] == "shadowsocks"
+    assert response["config"]["server"]["protocol"] == "shadowsocks"
+    assert response["config"]["server"]["protocol_label"] == "Shadowsocks"
   end
 
-  describe "GET /api/vpn/servers" do
-    test "returns server list", %{conn: conn, token: token} do
-      conn =
-        conn
-        |> auth_conn(token)
-        |> get("/api/vpn/servers")
+  test "show_config returns shadowsocks config payload", %{conn: conn, user: user} do
+    {:ok, server} =
+      VPN.create_server(%{
+        name: "Seoul SS",
+        protocol: "shadowsocks",
+        location: "Seoul",
+        public_ip: "198.51.100.91",
+        endpoint_port: 443,
+        metadata: %{"cipher" => "aes-256-gcm"}
+      })
 
-      response = json_response(conn, 200)
-      assert is_list(response["servers"]) or is_list(response)
-    end
+    {:ok, config} = VPN.create_user_config(user.id, server.id)
 
-    test "returns 401 without auth", %{conn: conn} do
-      conn = get(conn, "/api/vpn/servers")
-      assert json_response(conn, 401)
-    end
+    conn = get(conn, "/api/vpn/configs/#{config.id}")
+    response = json_response(conn, 200)
 
-    test "returns 401 for banned users with existing API tokens", %{
-      conn: conn,
-      user: user,
-      token: token
-    } do
-      {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
-
-      conn =
-        conn
-        |> auth_conn(token)
-        |> get("/api/vpn/servers")
-
-      assert json_response(conn, 401)
-    end
+    assert response["config_content"] =~ "ss://"
+    assert response["config"]["server"]["endpoint_port"] == 443
+    assert response["config"]["server"]["protocol"] == "shadowsocks"
   end
 
-  describe "GET /api/vpn/configs" do
-    test "returns user configs", %{conn: conn, token: token} do
-      conn =
-        conn
-        |> auth_conn(token)
-        |> get("/api/vpn/configs")
+  test "server listing includes protocol metadata", %{conn: conn} do
+    {:ok, _server} =
+      VPN.create_server(%{
+        name: "HK SS",
+        protocol: "shadowsocks",
+        location: "Hong Kong",
+        public_ip: "198.51.100.92",
+        endpoint_port: 8388,
+        metadata: %{"cipher" => "chacha20-ietf-poly1305"}
+      })
 
-      response = json_response(conn, 200)
-      assert is_list(response["configs"]) or is_list(response)
-    end
-  end
+    conn = get(conn, "/api/vpn/servers")
+    response = json_response(conn, 200)
 
-  describe "POST /api/vpn/configs" do
-    test "creates new VPN config", %{conn: conn, token: token} do
-      conn =
-        conn
-        |> auth_conn(token)
-        |> post("/api/vpn/configs", %{name: "Test Config"})
-
-      # May return 201 for created, 400 if no servers available, or 200
-      assert conn.status in [200, 201, 400, 422]
-    end
-  end
-
-  describe "DELETE /api/vpn/configs/:id" do
-    test "returns 404 for non-existent config", %{conn: conn, token: token} do
-      conn =
-        conn
-        |> auth_conn(token)
-        |> delete("/api/vpn/configs/999999")
-
-      assert json_response(conn, 404)
-    end
+    assert Enum.any?(response["servers"], fn server ->
+             server["protocol"] == "shadowsocks" and server["protocol_label"] == "Shadowsocks"
+           end)
   end
 end

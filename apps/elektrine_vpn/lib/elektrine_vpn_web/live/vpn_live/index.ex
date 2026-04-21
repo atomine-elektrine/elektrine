@@ -30,6 +30,7 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
        |> assign(:available_servers, available_servers)
        |> assign(:show_qr_modal, false)
        |> assign(:qr_code_svg, nil)
+       |> assign(:qr_config, nil)
        |> assign(:qr_config_name, nil)
        |> assign(:timezone, timezone)
        |> assign(:time_format, time_format)}
@@ -116,18 +117,10 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
     if config.user_id == socket.assigns.current_user.id do
       config_content = VPN.generate_config_file(config)
 
-      # Sanitize filename: only alphanumeric, hyphens, underscores
-      safe_name =
-        config.vpn_server.name
-        |> String.downcase()
-        |> String.replace(~r/[^a-z0-9_-]/, "-")
-        |> String.replace(~r/-+/, "-")
-        |> String.trim("-")
-
       {:noreply,
        socket
        |> push_event("download_config", %{
-         filename: "#{safe_name}.conf",
+         filename: VPN.config_download_filename(config),
          content: config_content
        })}
     else
@@ -155,6 +148,7 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
        socket
        |> assign(:show_qr_modal, true)
        |> assign(:qr_code_svg, qr_code)
+       |> assign(:qr_config, config)
        |> assign(:qr_config_name, config.vpn_server.name)}
     else
       {:noreply,
@@ -168,6 +162,7 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
      socket
      |> assign(:show_qr_modal, false)
      |> assign(:qr_code_svg, nil)
+     |> assign(:qr_config, nil)
      |> assign(:qr_config_name, nil)}
   end
 
@@ -193,5 +188,35 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
     |> String.to_charlist()
     |> Enum.map(fn char -> char + 127_397 end)
     |> List.to_string()
+  end
+
+  defp config_protocol_label(config), do: VPN.server_protocol_label(config.vpn_server)
+
+  defp wireguard_config?(config), do: VPN.server_protocol(config.vpn_server) == "wireguard"
+
+  defp shadowsocks_port(config), do: VPN.shadowsocks_port(config)
+
+  defp qr_help_text(config) do
+    if is_nil(config) or wireguard_config?(config) do
+      gettext("Scan this code with the WireGuard mobile app")
+    else
+      gettext("Scan this code with your Shadowsocks client")
+    end
+  end
+
+  defp qr_steps(config) do
+    if is_nil(config) or wireguard_config?(config) do
+      [
+        gettext("Open WireGuard app"),
+        gettext("Tap '+' and select 'Create from QR code'"),
+        gettext("Scan this code")
+      ]
+    else
+      [
+        gettext("Open your Shadowsocks client"),
+        gettext("Choose the QR code or scan import option"),
+        gettext("Scan this code")
+      ]
+    end
   end
 end

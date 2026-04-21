@@ -1,0 +1,218 @@
+<div class="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+  <.e_nav active_tab="notes" current_user={@current_user} class="mb-6 sm:mb-8" />
+
+  <div class="card panel-card mb-6 sm:mb-8">
+    <div class="card-body p-5 sm:p-6">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
+            Notes
+          </h1>
+          <p class="mt-2 text-sm text-base-content/65 sm:text-base">
+            Private notes with quick capture, search, and pinning.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          phx-click="new_note"
+          class="btn btn-primary btn-sm h-9 min-h-9 sm:btn-md"
+        >
+          <.icon name="hero-document-plus" class="h-4 w-4" /> New Note
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
+    <section class="card panel-card overflow-hidden">
+      <div class="border-b border-base-300/60 px-4 py-4 sm:px-5">
+        <form phx-change="filter">
+          <label class="form-control">
+            <span class="sr-only">Search notes</span>
+            <input
+              type="text"
+              name="filters[q]"
+              value={@search_query}
+              placeholder="Search notes"
+              phx-debounce="250"
+              class="input input-bordered h-10 min-h-10 w-full"
+            />
+          </label>
+        </form>
+      </div>
+
+      <div class="max-h-[70vh] overflow-y-auto">
+        <%= if @notes == [] do %>
+          <div class="px-5 py-8 text-center text-sm text-base-content/60">
+            No notes match your search yet.
+          </div>
+        <% else %>
+          <div class="divide-y divide-base-300/60">
+            <%= for note <- @notes do %>
+              <.link
+                patch={Elektrine.Paths.notes_path(q: @search_query, note: note.id)}
+                class={[
+                  "block px-4 py-4 transition-colors sm:px-5",
+                  if(selected_note?(note, @selected_note),
+                    do: "bg-primary/10",
+                    else: "hover:bg-base-200/50"
+                  )
+                ]}
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate text-sm font-semibold text-base-content">
+                      {note_title(note)}
+                    </div>
+                    <p class="mt-1 line-clamp-2 text-sm text-base-content/60">
+                      {note_preview(note)}
+                    </p>
+                    <p class="mt-2 text-xs uppercase tracking-[0.18em] text-base-content/40">
+                      {last_updated_label(note)}
+                    </p>
+                  </div>
+
+                  <%= if note.pinned do %>
+                    <span class="badge badge-outline badge-sm">Pinned</span>
+                  <% end %>
+                </div>
+              </.link>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="card panel-card overflow-hidden">
+      <div class="border-b border-base-300/60 px-5 py-5 sm:px-6 sm:py-6">
+        <h2 class="text-xl font-semibold tracking-tight text-base-content">
+          {empty_state_title(@selected_note)}
+        </h2>
+        <p class="mt-1 text-sm text-base-content/60">
+          <%= if @note_form_mode == :edit do %>
+            Edit your note and save changes in place.
+          <% else %>
+            Start a new private note.
+          <% end %>
+        </p>
+      </div>
+
+      <%= if @selected_note do %>
+        <div class="border-b border-base-300/60 bg-base-200/20 px-5 py-4 sm:px-6">
+          <div class="space-y-4">
+            <%= if @selected_note_share_url do %>
+              <div class="space-y-2">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Share Link
+                </div>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    type="text"
+                    readonly
+                    value={@selected_note_share_url}
+                    class="input input-bordered h-10 min-h-10 w-full text-sm"
+                  />
+                  <a
+                    href={@selected_note_share_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-ghost btn-sm h-10 min-h-10"
+                  >
+                    <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" /> Open
+                  </a>
+                </div>
+              </div>
+            <% end %>
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                phx-click="create_share"
+                phx-value-id={@selected_note.id}
+                class="btn btn-outline btn-sm h-9 min-h-9"
+              >
+                <.icon name="hero-link" class="h-4 w-4" /> {share_button_label(
+                  @selected_note_share
+                )}
+              </button>
+              <%= if @selected_note_share do %>
+                <button
+                  type="button"
+                  phx-click="revoke_share"
+                  phx-value-id={@selected_note.id}
+                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                >
+                  Revoke link
+                </button>
+              <% end %>
+              <button
+                type="button"
+                phx-click="toggle_pin"
+                phx-value-id={@selected_note.id}
+                class="btn btn-outline btn-sm h-9 min-h-9"
+              >
+                <.icon name="hero-bookmark" class="h-4 w-4" /> {pin_label(@selected_note)}
+              </button>
+              <button
+                type="button"
+                phx-click="delete_note"
+                phx-value-id={@selected_note.id}
+                data-confirm="Delete this note?"
+                class="btn btn-error btn-outline btn-sm h-9 min-h-9"
+              >
+                <.icon name="hero-trash" class="h-4 w-4" /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
+      <div class="p-5 sm:p-6">
+        <.form for={@form} phx-change="validate" phx-submit="save_note" class="space-y-6">
+          <label class="form-control space-y-3">
+            <span class="label-text text-sm font-medium">Title</span>
+            <input
+              type="text"
+              name={@form[:title].name}
+              value={@form[:title].value}
+              placeholder="Untitled note"
+              class="input input-bordered w-full"
+            />
+          </label>
+
+          <label class="form-control space-y-3">
+            <span class="label-text text-sm font-medium">Body</span>
+            <textarea
+              name={@form[:body].name}
+              placeholder="Write in Markdown or plain text"
+              class="textarea textarea-bordered min-h-[24rem] w-full resize-y leading-relaxed"
+            ><%= @form[:body].value %></textarea>
+            <%= if Phoenix.Component.used_input?(@form[:body]) do %>
+              <%= for error <- @form[:body].errors do %>
+                <span class="mt-2 text-sm text-error">{translate_error(error)}</span>
+              <% end %>
+            <% end %>
+          </label>
+
+          <div class="border-t border-base-300/60 pt-4 sm:pt-5">
+            <div class="flex flex-wrap items-center justify-end gap-2">
+              <%= if @note_form_mode == :edit do %>
+                <button
+                  type="button"
+                  phx-click="new_note"
+                  class="btn btn-ghost btn-sm h-9 min-h-9"
+                >
+                  New instead
+                </button>
+              <% end %>
+              <button type="submit" class="btn btn-primary btn-sm h-9 min-h-9 sm:btn-md">
+                <.icon name="hero-check" class="h-4 w-4" /> {primary_action_label(@note_form_mode)}
+              </button>
+            </div>
+          </div>
+        </.form>
+      </div>
+    </section>
+  </div>
+</div>

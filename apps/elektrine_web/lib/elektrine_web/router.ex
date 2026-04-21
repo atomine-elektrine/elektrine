@@ -423,6 +423,7 @@ defmodule ElektrineWeb.Router do
     # Public file shares
     get("/files/share/:token", FileShareController, :show)
     post("/files/share/:token", FileShareController, :authorize)
+    get("/notes/share/:token", NoteShareController, :show)
   end
 
   # Routes that are specifically for unauthenticated users
@@ -1116,6 +1117,7 @@ defmodule ElektrineWeb.Router do
       live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
       live("/account/storage", StorageLive)
       live("/account/files", FilesLive)
+      live("/account/notes", NotesLive)
 
       live("/friends", FriendsLive, :index)
 

@@ -6,16 +6,22 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
   alias Elektrine.{Accounts, AuditLog, Repo}
   alias Elektrine.AccountsFixtures
   alias Elektrine.EmailFixtures
+  alias ElektrineWeb.AdminSecurity
 
   describe "admin email view logging" do
     test "logs standard admin message view", %{conn: conn} do
       %{admin: admin, owner: owner, message: message} = admin_message_fixture()
+      request_path = "/pripyat/messages/#{message.id}/view"
 
       conn =
         conn
         |> with_elektrine_host()
         |> log_in_as(admin)
-        |> get("/pripyat/messages/#{message.id}/view")
+
+      conn =
+        get(conn, request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
 
       assert html_response(conn, 200) =~ "Message Details"
 
@@ -28,12 +34,17 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
 
     test "logs user-scoped message view", %{conn: conn} do
       %{admin: admin, owner: owner, message: message} = admin_message_fixture()
+      request_path = "/pripyat/users/#{owner.id}/messages/#{message.id}"
 
       conn =
         conn
         |> with_elektrine_host()
         |> log_in_as(admin)
-        |> get("/pripyat/users/#{owner.id}/messages/#{message.id}")
+
+      conn =
+        get(conn, request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
 
       assert html_response(conn, 200) =~ "Message Details"
 
@@ -46,12 +57,17 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
 
     test "logs raw admin message view", %{conn: conn} do
       %{admin: admin, owner: owner, message: message} = admin_message_fixture()
+      request_path = "/pripyat/messages/#{message.id}/raw"
 
       conn =
         conn
         |> with_elektrine_host()
         |> log_in_as(admin)
-        |> get("/pripyat/messages/#{message.id}/raw")
+
+      conn =
+        get(conn, request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
 
       assert response(conn, 200) =~ "EMAIL CONTENT"
 
@@ -64,12 +80,17 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
 
     test "logs user-scoped raw message view", %{conn: conn} do
       %{admin: admin, owner: owner, message: message} = admin_message_fixture()
+      request_path = "/pripyat/users/#{owner.id}/messages/#{message.id}/raw"
 
       conn =
         conn
         |> with_elektrine_host()
         |> log_in_as(admin)
-        |> get("/pripyat/users/#{owner.id}/messages/#{message.id}/raw")
+
+      conn =
+        get(conn, request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
 
       assert response(conn, 200) =~ "EMAIL CONTENT"
 
@@ -82,12 +103,17 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
 
     test "logs iframe message view", %{conn: conn} do
       %{admin: admin, owner: owner, message: message} = admin_message_fixture()
+      request_path = "/pripyat/messages/#{message.id}/iframe"
 
       conn =
         conn
         |> with_elektrine_host()
         |> log_in_as(admin)
-        |> get("/pripyat/messages/#{message.id}/iframe")
+
+      conn =
+        get(conn, request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
 
       assert response(conn, 200) =~ "<p>Test body content</p>"
 
@@ -96,6 +122,18 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
       assert log.target_user_id == owner.id
       assert log.details["view_format"] == "iframe"
       assert log.details["route_context"] == "admin_messages"
+    end
+
+    test "blocks message view without a read grant", %{conn: conn} do
+      %{admin: admin, message: message} = admin_message_fixture()
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> get("/pripyat/messages/#{message.id}/view")
+
+      assert html_response(conn, 403) =~ "403"
     end
   end
 
@@ -140,13 +178,13 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
         "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
       })
 
-    now = System.system_time(:second)
-
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
-    |> Plug.Conn.put_session(:admin_auth_method, "password")
-    |> Plug.Conn.put_session(:admin_access_expires_at, now + 900)
-    |> Plug.Conn.put_session(:admin_elevated_until, now + 300)
+    |> AdminSecurity.initialize_admin_session(user, auth_method: :passkey)
+  end
+
+  defp grant_read_access(conn, admin, request_path) do
+    AdminSecurity.issue_action_grant(conn, admin, "GET", request_path)
   end
 end

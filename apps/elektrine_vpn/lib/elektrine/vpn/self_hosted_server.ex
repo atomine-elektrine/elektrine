@@ -17,17 +17,19 @@ defmodule Elektrine.VPN.SelfHostedServer do
 
   @impl true
   def handle_info(:ensure_server, state) do
-    case Elektrine.VPN.ensure_self_host_server() do
-      {:ok, nil} ->
+    case Elektrine.VPN.ensure_self_host_servers() do
+      {:ok, []} ->
         :ok
 
-      {:ok, server} ->
-        Logger.info("Self-hosted WireGuard server ready: #{server.name} (ID: #{server.id})")
+      {:ok, servers} ->
+        Enum.each(servers, fn server ->
+          Logger.info(
+            "Self-hosted #{Elektrine.VPN.server_protocol_label(server)} server ready: #{server.name} (ID: #{server.id})"
+          )
+        end)
 
       {:error, changeset} ->
-        Logger.error(
-          "Failed to bootstrap self-hosted WireGuard server: #{inspect(changeset.errors)}"
-        )
+        Logger.error("Failed to bootstrap self-hosted VPN server: #{inspect(changeset.errors)}")
     end
 
     {:noreply, state}

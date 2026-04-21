@@ -2155,7 +2155,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
               id: "vpn-#{config.id}",
               app: "VPN",
               title: "VPN profile ready",
-              detail: trim_or(config.vpn_server && config.vpn_server.name, "WireGuard config"),
+              detail: trim_or(config.vpn_server && config.vpn_server.name, "VPN config"),
               href: Elektrine.Paths.vpn_path(),
               icon: "hero-shield-check",
               at: config.updated_at || config.inserted_at

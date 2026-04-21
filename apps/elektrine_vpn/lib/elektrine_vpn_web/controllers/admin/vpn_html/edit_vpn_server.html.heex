@@ -7,7 +7,10 @@
     <h1 class="mt-2 text-3xl font-bold">Edit VPN Server</h1>
 
     <p class="mt-2 text-sm text-base-content/70 sm:text-base">
-      Update WireGuard server settings, capacity limits, and connection details used by managed clients.
+      Update WireGuard or Shadowsocks server settings, capacity limits, and client connection details.
+    </p>
+    <p class="mt-2 text-xs text-base-content/55">
+      WireGuard uses public keys and IP allocation. Shadowsocks uses per-user passwords plus a shared cipher.
     </p>
   </div>
 
@@ -42,6 +45,20 @@
                 class="input input-bordered"
                 required
               />
+            </div>
+
+            <div class="form-control">
+              <label class="label"><span class="label-text">Protocol</span></label>
+              <div class="select select-bordered">
+                <select name="server[protocol]">
+                  <option value="wireguard" selected={@server.protocol != "shadowsocks"}>
+                    WireGuard
+                  </option>
+                  <option value="shadowsocks" selected={@server.protocol == "shadowsocks"}>
+                    Shadowsocks
+                  </option>
+                </select>
+              </div>
             </div>
           </div>
           <!-- Network Configuration -->
@@ -93,7 +110,7 @@
               />
               <label class="label">
                 <span class="label-text-alt">
-                  UDP 443 is a safer default on restrictive networks
+                  Use your deployed listener port. `8388` is common for Shadowsocks.
                 </span>
               </label>
             </div>
@@ -106,8 +123,10 @@
                 value={Phoenix.HTML.Form.input_value(f, :internal_ip_range)}
                 placeholder="10.8.0.0/24"
                 class="input input-bordered font-medium"
-                required
               />
+              <label class="label">
+                <span class="label-text-alt">Required for WireGuard servers only</span>
+              </label>
             </div>
           </div>
 
@@ -137,6 +156,11 @@
                 placeholder="1.1.1.1, 1.0.0.1"
                 class="input input-bordered font-medium"
               />
+              <label class="label">
+                <span class="label-text-alt">
+                  Used in generated WireGuard configs. Shadowsocks clients usually ignore this.
+                </span>
+              </label>
             </div>
           </div>
 
@@ -151,13 +175,85 @@
               value={Phoenix.HTML.Form.input_value(f, :public_key)}
               placeholder="Base64-encoded WireGuard public key"
               class="input input-bordered font-medium"
-              required
             />
             <label class="label">
               <span class="label-text-alt text-info">
-                Run: docker-compose logs vpn | grep "PUBLIC KEY"
+                Required for WireGuard. Shadowsocks ignores this field.
               </span>
             </label>
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Shadowsocks Cipher</span>
+              <span class="label-text-alt">Only used when protocol is Shadowsocks</span>
+            </label>
+            <input
+              type="text"
+              name="server[metadata][cipher]"
+              value={
+                (Phoenix.HTML.Form.input_value(f, :metadata) || @server.metadata || %{})["cipher"] ||
+                  "chacha20-ietf-poly1305"
+              }
+              placeholder="chacha20-ietf-poly1305"
+              class="input input-bordered font-medium"
+            />
+            <label class="label">
+              <span class="label-text-alt">
+                Common choices: `chacha20-ietf-poly1305` or `aes-256-gcm`.
+              </span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Shadowsocks Port Range Start</span>
+                <span class="label-text-alt">First per-user port</span>
+              </label>
+              <input
+                type="number"
+                name="server[metadata][port_range_start]"
+                value={
+                  (Phoenix.HTML.Form.input_value(f, :metadata) || @server.metadata || %{})[
+                    "port_range_start"
+                  ] ||
+                    Phoenix.HTML.Form.input_value(f, :endpoint_port)
+                }
+                placeholder="8388"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  Users are assigned unique Shadowsocks ports from this range.
+                </span>
+              </label>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Shadowsocks Port Range End</span>
+                <span class="label-text-alt">Last per-user port</span>
+              </label>
+              <input
+                type="number"
+                name="server[metadata][port_range_end]"
+                value={
+                  (Phoenix.HTML.Form.input_value(f, :metadata) || @server.metadata || %{})[
+                    "port_range_end"
+                  ] ||
+                    (Phoenix.HTML.Form.input_value(f, :endpoint_port) || @server.endpoint_port ||
+                       8388) + 999
+                }
+                placeholder="9387"
+                class="input input-bordered font-medium"
+              />
+              <label class="label">
+                <span class="label-text-alt">
+                  Keep enough ports available for your expected concurrent user count.
+                </span>
+              </label>
+            </div>
           </div>
           <!-- Capacity & Status -->
           <div class="divider">Capacity & Status</div>

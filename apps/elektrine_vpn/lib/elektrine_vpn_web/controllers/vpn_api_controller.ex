@@ -1,8 +1,8 @@
 defmodule ElektrineVPNWeb.VPNAPIController do
   @moduledoc """
-  API endpoints for VPN servers and self-hosted WireGuard integrations.
-  These endpoints are used by external/fleet-managed nodes; the one-box default path
-  now reconciles directly in-app.
+  API endpoints for VPN servers and self-hosted VPN integrations.
+  These endpoints are used by external or fleet-managed nodes; the one-box default path
+  now reconciles directly in-app for WireGuard.
 
   ## Active Enforcement of Banned/Suspended Users
 
@@ -10,14 +10,14 @@ defmodule ElektrineVPNWeb.VPNAPIController do
 
   1. **Periodic Sync (Recommended every 60 seconds)**:
      - Call `GET /vpn/:server_id/peers`
-     - Response includes `peers` (allowed) and `remove_peers` (to remove)
-     - Use `wg set wg0 peer <public_key> remove` for each peer in `remove_peers`
-     - Then sync all allowed peers from `peers` array
+      - WireGuard responses include `peers` and `remove_peers`
+      - Shadowsocks responses include `clients` and `remove_clients`
+      - Apply the returned active and revoked credentials on the managed node
 
   2. **Real-time Check (Optional, on connection attempt)**:
-     - Call `POST /vpn/:server_id/check-peer` with `public_key`
+      - Call `POST /vpn/:server_id/check-peer` with `public_key` or `client_id`
      - Returns `{allowed: false, reason: "user_banned"}` if should be blocked
-     - Use WireGuard's authentication hooks to deny connection
+      - Use your server's auth hooks to deny connection
 
   3. **Stats Updates (Already implemented)**:
      - When calling `POST /vpn/:server_id/stats`, banned users are auto-revoked
@@ -35,9 +35,9 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   plug :verify_api_key when action not in [:auto_register]
 
   @doc """
-  Get peer configurations for a specific VPN server.
-  Returns all active user configs for the server and peers to remove.
-  Uses cache to reduce DB load.
+   Get managed client configurations for a specific VPN server.
+   Returns all active credentials for the server and any credentials to remove.
+   Uses cache to reduce DB load.
   """
   def get_peers(conn, %{"server_id" => server_id}) do
     server_id = String.to_integer(server_id)
@@ -46,19 +46,27 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   end
 
   @doc """
-  Update connection statistics for users.
-  Called periodically by the VPN server to report handshakes and bandwidth.
-  Uses StatsAggregator for fast in-memory updates.
+   Update connection statistics for users.
+   Called periodically by the managed VPN server to report activity and bandwidth.
+   Uses StatsAggregator for fast in-memory updates.
   """
-  def update_stats(conn, %{"server_id" => server_id, "peers" => peers}) do
+  def update_stats(conn, %{"server_id" => server_id} = params) do
     require Logger
     server_id = String.to_integer(server_id)
+    server = VPN.get_server!(server_id)
+    entries = normalize_stats_entries(server, params)
 
-    Logger.debug("VPN Stats received for server #{server_id}: #{length(peers)} peers")
+    if stats_entries_provided?(params) do
+      Logger.debug("VPN Stats received for server #{server_id}: #{length(entries)} entries")
 
-    :ok = VPN.report_peer_stats(server_id, peers)
+      :ok = VPN.report_peer_stats(server_id, entries)
 
-    json(conn, %{status: "ok", updated: length(peers)})
+      json(conn, %{status: "ok", updated: length(entries), protocol: VPN.server_protocol(server)})
+    else
+      conn
+      |> put_status(:bad_request)
+      |> json(%{error: "peers or clients are required"})
+    end
   end
 
   @doc """
@@ -78,21 +86,27 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   end
 
   @doc """
-  Register or update the server's public key.
-  Useful for RAM-only servers where keys may be ephemeral or regenerated.
+   Register or update the server's public key.
+   Useful for RAM-only WireGuard servers where keys may be ephemeral or regenerated.
   """
   def register_key(conn, %{"server_id" => server_id, "public_key" => public_key}) do
     server_id = String.to_integer(server_id)
     server = VPN.get_server!(server_id)
 
-    case VPN.update_server(server, %{public_key: public_key}) do
-      {:ok, _updated_server} ->
-        json(conn, %{status: "ok", message: "Public key registered successfully"})
+    if VPN.server_protocol(server) == "shadowsocks" do
+      conn
+      |> put_status(:unprocessable_entity)
+      |> json(%{error: "Public key registration is only supported for WireGuard servers"})
+    else
+      case VPN.update_server(server, %{public_key: public_key}) do
+        {:ok, _updated_server} ->
+          json(conn, %{status: "ok", message: "Public key registered successfully"})
 
-      {:error, changeset} ->
-        conn
-        |> put_status(400)
-        |> json(%{error: "Failed to register public key", details: changeset})
+        {:error, changeset} ->
+          conn
+          |> put_status(400)
+          |> json(%{error: "Failed to register public key", details: changeset})
+      end
     end
   end
 
@@ -101,6 +115,10 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   Returns whether the peer should be allowed based on user status.
   """
   def check_peer(conn, %{"server_id" => server_id, "public_key" => public_key}) do
+    check_peer(conn, %{"server_id" => server_id, "client_id" => public_key})
+  end
+
+  def check_peer(conn, %{"server_id" => server_id, "client_id" => client_id}) do
     server_id = String.to_integer(server_id)
 
     # Find the user config
@@ -108,7 +126,7 @@ defmodule ElektrineVPNWeb.VPNAPIController do
       from(uc in Elektrine.VPN.UserConfig,
         join: u in Elektrine.Accounts.User,
         on: u.id == uc.user_id,
-        where: uc.vpn_server_id == ^server_id and uc.public_key == ^public_key,
+        where: uc.vpn_server_id == ^server_id and uc.public_key == ^client_id,
         preload: [user: []]
       )
       |> Elektrine.Repo.one()
@@ -157,10 +175,11 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   - name: Server name (e.g., hostname)
   - location: Geographic location description
   - public_ip: Public IP address of the server
-  - public_key: WireGuard public key
+   - protocol: wireguard or shadowsocks (defaults to wireguard)
+   - public_key: WireGuard public key when protocol is wireguard
 
   Optional params:
-  - country_code, city, endpoint_host, endpoint_port, client_mtu, internal_ip_range, dns_servers
+   - country_code, city, endpoint_host, endpoint_port, client_mtu, internal_ip_range, dns_servers, metadata
 
   Returns server_id and api_key for future authentication.
   """
@@ -178,6 +197,7 @@ defmodule ElektrineVPNWeb.VPNAPIController do
         attrs =
           %{
             name: params["name"],
+            protocol: params["protocol"],
             location: params["location"],
             public_ip: public_ip,
             endpoint_host: params["endpoint_host"],
@@ -187,7 +207,8 @@ defmodule ElektrineVPNWeb.VPNAPIController do
             endpoint_port: params["endpoint_port"],
             client_mtu: params["client_mtu"],
             internal_ip_range: params["internal_ip_range"],
-            dns_servers: params["dns_servers"]
+            dns_servers: params["dns_servers"],
+            metadata: params["metadata"]
           }
           |> Enum.reject(fn {_k, v} -> is_nil(v) end)
           |> Map.new()
@@ -236,9 +257,10 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   def log_connection(conn, params) do
     %{
       "server_id" => server_id,
-      "public_key" => public_key,
       "event" => event
     } = params
+
+    public_key = params["public_key"] || params["client_id"]
 
     server_id = String.to_integer(server_id)
 
@@ -356,4 +378,27 @@ defmodule ElektrineVPNWeb.VPNAPIController do
   end
 
   defp secure_compare(_left, _right), do: false
+
+  defp normalize_stats_entries(server, params) do
+    entries =
+      case VPN.server_sync_mode(server) do
+        :clients -> Map.get(params, "clients", [])
+        :peers -> Map.get(params, "peers", [])
+      end
+
+    Enum.map(entries, fn entry ->
+      public_key = entry["public_key"] || entry["client_id"]
+
+      %{
+        "public_key" => public_key,
+        "bytes_sent" => entry["bytes_sent"] || entry["uploaded_bytes"] || 0,
+        "bytes_received" => entry["bytes_received"] || entry["downloaded_bytes"] || 0,
+        "last_handshake" => entry["last_handshake"] || entry["last_seen_at"]
+      }
+    end)
+  end
+
+  defp stats_entries_provided?(params) do
+    Map.has_key?(params, "peers") or Map.has_key?(params, "clients")
+  end
 end

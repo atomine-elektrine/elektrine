@@ -461,6 +461,24 @@
                 </button>
               <% end %>
             </form>
+
+            <%= if length(@queued_posts) > 0 do %>
+              <button
+                id="load-queued-posts-button-sidebar"
+                type="button"
+                phx-hook="PreserveQueuedPostsButtonScroll"
+                phx-click="load_queued_posts"
+                data-load-queued-posts
+                class="hidden sm:flex btn btn-secondary w-full gap-2 animate-bounce-subtle"
+              >
+                <.icon name="hero-arrow-up" class="w-4 h-4" />
+                <span>
+                  Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
+                    do: "post",
+                    else: "posts"}
+                </span>
+              </button>
+            <% end %>
           </div>
         </div>
       </div>
@@ -1090,7 +1108,7 @@
           </div>
           <!-- New Posts Button -->
           <%= if length(@queued_posts) > 0 do %>
-            <div class="mx-4 mb-2 flex justify-center">
+            <div class="mx-4 mb-2 flex justify-center sm:hidden">
               <button
                 id="load-queued-posts-button"
                 type="button"

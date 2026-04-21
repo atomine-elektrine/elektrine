@@ -6357,11 +6357,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp community_follow_state(_, _), do: {false, false}
 
-  defp remote_follow_state(%{id: user_id}, %{id: actor_id}) do
-    if Elektrine.Profiles.following_remote_actor?(user_id, actor_id) do
+  defp remote_follow_state(%{id: user_id}, %{} = remote_actor) do
+    if Elektrine.Profiles.following_remote_actor_by_identity?(user_id, remote_actor) do
       {true, false}
     else
-      case Elektrine.Profiles.get_follow_to_remote_actor(user_id, actor_id) do
+      case Elektrine.Profiles.get_follow_to_remote_actor_by_identity(user_id, remote_actor) do
         %{pending: true} -> {false, true}
         _ -> {false, false}
       end

@@ -18,6 +18,12 @@ is_truthy() {
   esac
 }
 
+selfhost_protocols() {
+  local raw_protocols="${VPN_SELFHOST_PROTOCOLS:-${VPN_SELFHOST_PROTOCOL:-wireguard}}"
+  raw_protocols="${raw_protocols//,/ }"
+  printf '%s\n' "$raw_protocols" | xargs -n1 | awk '!seen[$0]++'
+}
+
 configure_role() {
   local role="$1"
   local web_default="true"
@@ -161,6 +167,16 @@ configure_wireguard_interface() {
   fi
 }
 
+configure_shadowsocks_backend() {
+  mkdir -p "$VPN_DATA_DIR"
+  chmod 700 "$VPN_DATA_DIR"
+  export VPN_SELFHOST_PUBLIC_KEY="${VPN_SELFHOST_PUBLIC_KEY:-shadowsocks}"
+
+  if [ -z "${VPN_SELFHOST_PUBLIC_IP:-}" ] && [ -z "${VPN_SELFHOST_ENDPOINT_HOST:-}" ]; then
+    detect_vpn_public_ip
+  fi
+}
+
 base64_no_wrap() {
   local file_path="$1"
 
@@ -245,10 +261,18 @@ write_onion_tls_cert() {
 configure_role "$ROLE"
 
 if [ "$ROLE" = "vpn" ]; then
-  ensure_vpn_private_key
-  derive_vpn_public_key
-  detect_vpn_public_ip
-  configure_wireguard_interface
+  while IFS= read -r protocol; do
+    [ -z "$protocol" ] && continue
+
+    if [ "$protocol" = "shadowsocks" ]; then
+      configure_shadowsocks_backend
+    else
+      ensure_vpn_private_key
+      derive_vpn_public_key
+      detect_vpn_public_ip
+      configure_wireguard_interface
+    fi
+  done < <(selfhost_protocols)
 fi
 
 if is_truthy "$ELEKTRINE_ENABLE_TOR"; then
