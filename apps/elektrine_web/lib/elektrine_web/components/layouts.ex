@@ -259,6 +259,11 @@ defmodule ElektrineWeb.Layouts do
       "email service, free email, VPN, social network, ActivityPub, Mastodon, fediverse, private messaging, encrypted chat, community forums, Elixir, Phoenix LiveView, privacy-focused, ad-free social media, federated social network"
   end
 
+  @doc ~s|Builds the robots meta tag value.\n|
+  def build_meta_robots(assigns) do
+    assigns[:meta_robots] || "index, follow"
+  end
+
   @doc ~s|Returns the global composer menu entries used by the app shell.\n|
   def global_composer_items do
     [

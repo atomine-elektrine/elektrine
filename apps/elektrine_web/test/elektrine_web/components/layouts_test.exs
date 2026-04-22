@@ -56,4 +56,15 @@ defmodule ElektrineWeb.LayoutsTest do
     assert html =~ "data-timezone-detector"
     refute html =~ ~s(phx-hook="TimezoneDetector")
   end
+
+  test "root layout respects assign-driven robots meta values" do
+    html =
+      render_component(&Layouts.root/1,
+        inner_content: "",
+        page_title: "Test",
+        meta_robots: "noindex, nofollow"
+      )
+
+    assert html =~ ~s(<meta name="robots" content="noindex, nofollow")
+  end
 end

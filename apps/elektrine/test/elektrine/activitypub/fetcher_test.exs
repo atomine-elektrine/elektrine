@@ -70,6 +70,26 @@ defmodule Elektrine.ActivityPub.FetcherTest do
              ]
     end
 
+    test "does not recover Lemmy posts when recovery is disabled" do
+      post_uri = "https://startrek.website/post/37631588"
+
+      request_fun = fn ^post_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           headers: [{"content-type", "text/html; charset=utf-8"}],
+           body: "<!DOCTYPE html><html><body>post page</body></html>"
+         }}
+      end
+
+      assert {:error, :invalid_json} =
+               Fetcher.fetch_object(post_uri,
+                 skip_cache: true,
+                 allow_recovery: false,
+                 request_fun: request_fun
+               )
+    end
+
     test "recovers Lemmy comments when the comment URL returns HTML" do
       comment_uri = "https://startrek.website/comment/22443688"
 
@@ -322,6 +342,25 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert actor.uri == actor_uri
       assert actor.username == "TribblesBestFriend"
       assert actor.inbox_url == "https://startrek.website/u/TribblesBestFriend/inbox"
+    end
+
+    test "does not recover Lemmy actors when recovery is disabled" do
+      actor_uri = "https://startrek.website/u/TribblesBestFriend"
+
+      request_fun = fn ^actor_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           headers: [{"content-type", "text/html; charset=utf-8"}],
+           body: "<!DOCTYPE html><html><body>profile page</body></html>"
+         }}
+      end
+
+      assert {:error, :invalid_json} =
+               ActivityPub.fetch_and_cache_actor(actor_uri,
+                 request_fun: request_fun,
+                 allow_recovery: false
+               )
     end
 
     test "recovers Lemmy site actors when the actor URL is the instance root" do

@@ -318,7 +318,7 @@
                 />
               <% end %>
 
-              <% submitted_url = current_submitted_url(@socket) %>
+              <% submitted_url = current_submitted_url(assigns) %>
               <% link_preview =
                 effective_link_preview(
                   @local_message,
@@ -638,6 +638,7 @@
                     user_saves={@user_saves}
                     post_reactions={@post_reactions}
                     current_user={@current_user}
+                    lemmy_counts={@lemmy_counts}
                     user_follows={@user_follows}
                     pending_follows={@pending_follows}
                     remote_follow_overrides={@remote_follow_overrides}
@@ -651,7 +652,10 @@
                     <%= if @is_community_post do %>
                       <% lemmy = @lemmy_counts
                       embedded_lemmy = @post["_lemmy"]
-                      vote_state = Map.get(@post_interactions, @post["id"], %{})
+
+                      vote_state =
+                        main_post_interaction_state(@post_interactions, @post, @local_message)
+
                       user_vote = Map.get(vote_state, :vote, nil)
                       vote_delta = Map.get(vote_state, :vote_delta, 0)
 
@@ -1244,12 +1248,7 @@
                       
 <!-- Post Actions -->
                       <% post_state =
-                        Map.get(@post_interactions, @post["id"], %{
-                          liked: false,
-                          boosted: false,
-                          like_delta: 0,
-                          boost_delta: 0
-                        })
+                        main_post_interaction_state(@post_interactions, @post, @local_message)
 
                       is_liked = Map.get(post_state, :liked, false)
                       is_boosted = Map.get(post_state, :boosted, false)
@@ -1267,6 +1266,11 @@
 
                       like_count =
                         cond do
+                          # Prefer the local cached message count for interactive surfaces so
+                          # remote API refreshes don't overwrite recent local likes/unlikes.
+                          @local_message ->
+                            (@local_message.like_count || 0) + like_delta
+
                           is_map(lemmy) and is_integer(Map.get(lemmy, :score)) ->
                             Map.get(lemmy, :score) + like_delta
 
@@ -1283,10 +1287,6 @@
                           is_integer(@post["like_count"]) ->
                             @post["like_count"] + like_delta
 
-                          # Use local message count directly (no delta - it's already up to date from database)
-                          @local_message ->
-                            @local_message.like_count || 0
-
                           true ->
                             max(
                               get_collection_total_items(@post["likes"]),
@@ -1296,16 +1296,17 @@
 
                       boost_count =
                         cond do
+                          # Prefer the local cached message count for interactive surfaces so
+                          # remote API refreshes don't overwrite recent local boosts/unboosts.
+                          @local_message ->
+                            (@local_message.share_count || 0) + boost_delta
+
                           # Fresh Mastodon API counts (most accurate)
                           is_map(mastodon_api) and is_integer(mastodon_api[:reblogs_count]) ->
                             mastodon_api[:reblogs_count] + boost_delta
 
                           is_map(mastodon) and is_integer(mastodon["reblogs_count"]) ->
                             mastodon["reblogs_count"] + boost_delta
-
-                          # Use local message count directly (no delta - it's already up to date from database)
-                          @local_message ->
-                            @local_message.share_count || 0
 
                           true ->
                             max(
@@ -1357,7 +1358,10 @@
                           else: Map.get(@user_saves, @post["id"], false) %>
                       <div class="flex flex-wrap items-center gap-2 pt-3 border-t border-base-300">
                         <.post_actions
-                          post_id={@post["id"]}
+                          post_id={if @local_message, do: @local_message.id, else: @post["id"]}
+                          save_post_id={@local_message && @local_message.id}
+                          value_name={if @local_message, do: "message_id", else: "post_id"}
+                          save_value_name={if @local_message, do: "message_id", else: "post_id"}
                           current_user={@current_user}
                           is_liked={is_liked}
                           is_boosted={is_boosted}

@@ -31,8 +31,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       xml = response(conn, 200)
 
       assert xml =~ "<domain>#{domain}</domain>"
-      assert xml =~ "<hostname>imap.#{domain}</hostname>"
-      assert xml =~ "<hostname>smtp.#{domain}</hostname>"
+      assert xml =~ "<hostname>mail.#{domain}</hostname>"
       assert xml =~ "<port>32143</port>"
       assert xml =~ "<port>32587</port>"
       assert xml =~ "<socketType>plain</socketType>"
@@ -59,8 +58,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
 
       xml = response(conn, 200)
 
-      assert xml =~ "<Server>imap.#{domain}</Server>"
-      assert xml =~ "<Server>smtp.#{domain}</Server>"
+      assert xml =~ "<Server>mail.#{domain}</Server>"
       assert xml =~ "<Port>32143</Port>"
       assert xml =~ "<Port>32587</Port>"
       assert xml =~ "<SSL>off</SSL>"
@@ -70,8 +68,8 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
 
   describe "explicit mail host overrides" do
     test "uses configured IMAP and SMTP hosts", %{conn: conn} do
-      System.put_env("IMAP_HOST", "mail.elektrine.com")
-      System.put_env("SMTP_HOST", "mail.elektrine.com")
+      System.put_env("IMAP_HOST", "edge-mail.elektrine.com")
+      System.put_env("SMTP_HOST", "edge-mail.elektrine.com")
 
       domain = Domains.primary_email_domain()
 
@@ -82,9 +80,8 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
 
       xml = response(conn, 200)
 
-      assert xml =~ "<hostname>mail.elektrine.com</hostname>"
-      refute xml =~ "<hostname>imap.#{domain}</hostname>"
-      refute xml =~ "<hostname>smtp.#{domain}</hostname>"
+      assert xml =~ "<hostname>edge-mail.elektrine.com</hostname>"
+      refute xml =~ "<hostname>mail.#{domain}</hostname>"
     end
   end
 

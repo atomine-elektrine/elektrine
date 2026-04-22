@@ -30,13 +30,17 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
         ~H""
 
       msg ->
-        is_federated = Map.get(msg, :federated, false) && Map.get(msg, :activitypub_url)
+        post_url = get_post_url(msg)
+
+        is_federated_external_link =
+          Map.get(msg, :federated, false) && Map.get(msg, :activitypub_url) &&
+            !is_binary(post_url)
 
         assigns =
           assigns
           |> assign(:shared_message, msg)
-          |> assign(:post_url, get_post_url(msg))
-          |> assign(:is_federated_link, is_federated)
+          |> assign(:post_url, post_url)
+          |> assign(:is_federated_link, is_federated_external_link)
 
         render_embedded_post(assigns)
     end
@@ -65,7 +69,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
           </span>
           <span class="text-xs opacity-40">·</span>
           <span class="text-sm font-medium hover:underline">
-            <%= if @is_federated_link && Ecto.assoc_loaded?(@shared_message.remote_actor) && @shared_message.remote_actor do %>
+            <%= if Ecto.assoc_loaded?(@shared_message.remote_actor) && @shared_message.remote_actor do %>
               @{@shared_message.remote_actor.username}@{@shared_message.remote_actor.domain}
             <% else %>
               <%= if Ecto.assoc_loaded?(@shared_message.sender) && @shared_message.sender do %>
@@ -244,6 +248,20 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   defp format_platform_name(%{conversation: %{type: "community", name: name}}), do: name
   defp format_platform_name(%{conversation: %{type: "chat"}}), do: "Chat"
   defp format_platform_name(_), do: "Post"
+
+  defp get_post_url(%{
+         federated: true,
+         id: message_id
+       })
+       when is_integer(message_id),
+       do: Elektrine.Paths.remote_post_path(message_id)
+
+  defp get_post_url(%{
+         activitypub_id: activitypub_id,
+         id: message_id
+       })
+       when is_integer(message_id) and is_binary(activitypub_id) and activitypub_id != "",
+       do: Elektrine.Paths.remote_post_path(message_id)
 
   defp get_post_url(%{
          id: message_id,

@@ -434,12 +434,15 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
 
         case ActivityPub.Fetcher.webfinger_lookup(acct) do
           {:ok, actor_uri} ->
-            ActivityPub.get_or_fetch_actor(actor_uri)
+            ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 
           {:error, _} ->
             case ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
-              {:ok, actor_uri} -> ActivityPub.get_or_fetch_actor(actor_uri)
-              error -> error
+              {:ok, actor_uri} ->
+                ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
+
+              error ->
+                error
             end
         end
 

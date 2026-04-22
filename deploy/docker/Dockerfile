@@ -38,10 +38,18 @@ SHELL ["/bin/bash", "-c"]
 
 # install build dependencies with retry
 RUN for i in 1 2 3 4 5; do \
-      apt-get update -y && \
-      apt-get install -y build-essential git libvips-dev && \
-      apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if apt-get update -y && \
+           apt-get install -y build-essential git libvips-dev; then \
+        apt-get clean; \
+        rm -rf /var/lib/apt/lists/*; \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 
 # prepare build dir
@@ -49,9 +57,16 @@ WORKDIR /app
 
 # install hex + rebar with retry
 RUN for i in 1 2 3 4 5; do \
-      mix local.hex --force && \
-      mix local.rebar --force && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if mix local.hex --force && \
+           mix local.rebar --force; then \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 
 # set build ENV
@@ -79,8 +94,15 @@ COPY apps/elektrine_vpn/mix.exs apps/elektrine_vpn/mix.exs
 COPY config/config.exs config/prod.exs config/
 WORKDIR /app/release_builder
 RUN for i in 1 2 3 4 5; do \
-      mix deps.get --only $MIX_ENV && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if mix deps.get --only $MIX_ENV; then \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 RUN mix deps.compile
 WORKDIR /app
@@ -93,27 +115,49 @@ COPY scripts/lib scripts/lib
 
 # Install Node.js 20.x (required for Tailwind v4)
 RUN for i in 1 2 3 4 5; do \
-      apt-get update -y && \
-      apt-get install -y ca-certificates curl gnupg && \
-      mkdir -p /etc/apt/keyrings && \
-      curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-      echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
-      apt-get update -y && \
-      apt-get install -y nodejs && \
-      apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if apt-get update -y && \
+           apt-get install -y ca-certificates curl gnupg && \
+           mkdir -p /etc/apt/keyrings && \
+           curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
+           echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+           apt-get update -y && \
+           apt-get install -y nodejs; then \
+        apt-get clean; \
+        rm -rf /var/lib/apt/lists/*; \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 
 # Install npm dependencies for assets with retry (includes tailwindcss)
 RUN for i in 1 2 3 4 5; do \
-      cd apps/elektrine/assets && npm install && cd /app && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if (cd apps/elektrine/assets && npm install); then \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 
 # Install esbuild with retry (tailwind is now installed via npm)
 RUN for i in 1 2 3 4 5; do \
-      cd release_builder && mix esbuild.install && cd /app && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if (cd release_builder && mix esbuild.install); then \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
 
 # Build the selected hoster release through release_builder/
@@ -129,11 +173,21 @@ ARG ELEKTRINE_RELEASE_MODULES
 SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
-      apt-get update -y && \
-      apt-get install -y libstdc++6 openssl libncurses5 ca-certificates libvips42 tor gnupg wireguard-tools iproute2 shadowsocks-libev && \
-      apt-get clean && rm -f /var/lib/apt/lists/*_* && break || \
-      echo "Retry $i failed, waiting..." && sleep 5; \
+      if apt-get update -y && \
+           apt-get install -y libstdc++6 openssl libncurses6 ca-certificates libvips42 tor gpg gnupg2 dirmngr wireguard-tools iproute2 shadowsocks-libev; then \
+        apt-get clean; \
+        rm -rf /var/lib/apt/lists/*; \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
     done
+
+RUN which gpg && gpg --version
 
 # Setup data directories (will be mounted as volume in production)
 RUN mkdir -p /data/tor/elektrine /data/tor/data /data/certs && \

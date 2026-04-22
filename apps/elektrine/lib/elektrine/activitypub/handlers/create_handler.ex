@@ -9,17 +9,13 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Helpers
+  alias Elektrine.ActivityPub.Visibility
   alias Elektrine.Async
   alias Elektrine.Emojis
   alias Elektrine.Messaging
   alias Elektrine.Social
   alias Elektrine.Social.Poll
 
-  @public_audience_uris MapSet.new([
-                          "Public",
-                          "as:Public",
-                          "https://www.w3.org/ns/activitystreams#Public"
-                        ])
   @user_actor_path_markers [
     "/users/",
     "/user/",
@@ -823,7 +819,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp normalize_uri(_), do: nil
 
   defp public_audience_uri?(uri) when is_binary(uri),
-    do: MapSet.member?(@public_audience_uris, uri)
+    do: Visibility.public_audience?(uri)
 
   defp public_audience_uri?(_), do: false
 
@@ -1541,14 +1537,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   defp mention_handle?(_), do: false
 
   defp determine_visibility(object) do
-    to = List.wrap(object["to"])
-    cc = List.wrap(object["cc"])
-
-    cond do
-      Enum.any?(to, &MapSet.member?(@public_audience_uris, &1)) -> "public"
-      Enum.any?(cc, &MapSet.member?(@public_audience_uris, &1)) -> "unlisted"
-      true -> "followers"
-    end
+    Visibility.visibility(object)
   end
 
   defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do

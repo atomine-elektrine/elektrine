@@ -986,6 +986,63 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert inspect(updated_socket.redirected) =~ "/"
   end
 
+  test "remote_post_loaded denies deleted federated posts even when the fetched object is public" do
+    unique = System.unique_integer([:positive])
+    activitypub_id = "https://remote.example/posts/deleted-#{unique}"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/deleted#{unique}",
+        username: "deleted#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/deleted#{unique}/inbox",
+        public_key: "test-public-key-deleted-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "deleted federated post",
+        title: "Deleted remote post",
+        visibility: "public",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: remote_actor.id
+      })
+
+    {:ok, message} =
+      message
+      |> Ecto.Changeset.change(%{deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)})
+      |> Repo.update()
+
+    assert message.deleted_at
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{__changed__: %{}, current_user: nil, remote_post_load_ref: 11}
+    }
+
+    post_object = %{
+      "id" => activitypub_id,
+      "url" => activitypub_id,
+      "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+      "cc" => [],
+      "name" => "Deleted remote post",
+      "content" => "This should not be shown"
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info(
+               {:remote_post_loaded, 11,
+                {:ok, %{post: post_object, actor: remote_actor, community: nil}}},
+               socket
+             )
+
+    assert updated_socket.assigns.load_error == "Post not found"
+    assert inspect(updated_socket.redirected) =~ "/"
+  end
+
   test "remote_post_loaded renders before remote cache hydration finishes" do
     unique = System.unique_integer([:positive])
 

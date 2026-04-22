@@ -7,7 +7,7 @@ defmodule Elektrine.Social do
   import Ecto.Query, warn: false
   alias Elektrine.Accounts
   alias Elektrine.Accounts.{BlockedUsersCache, User}
-  alias Elektrine.ActivityPub.Mentions
+  alias Elektrine.ActivityPub.{Instance, Mentions}
   alias Elektrine.ActivityPub.Outbox
   alias Elektrine.Async
   alias Elektrine.Friends
@@ -361,6 +361,7 @@ defmodule Elektrine.Social do
 
     query = from(m in query, where: ^timeline_scope_filter)
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+    query = maybe_exclude_blocked_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -428,6 +429,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = maybe_exclude_blocked_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -466,6 +468,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+    query = maybe_exclude_blocked_instances(query)
     query = maybe_before_id(query, pagination.before_id)
 
     Repo.all(query)
@@ -511,6 +514,7 @@ defmodule Elektrine.Social do
       end
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = maybe_exclude_blocked_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -549,6 +553,7 @@ defmodule Elektrine.Social do
           preload: ^preloads
 
       query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+      query = maybe_exclude_blocked_instances(query)
       query = maybe_apply_timeline_search(query, search_query)
       query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -588,6 +593,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+    query = maybe_exclude_blocked_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -637,7 +643,9 @@ defmodule Elektrine.Social do
         query
       end
 
-    Repo.all(query)
+    query
+    |> maybe_exclude_blocked_instances()
+    |> Repo.all()
   end
 
   @doc """
@@ -1147,6 +1155,24 @@ defmodule Elektrine.Social do
 
   defp maybe_exclude_blocked_senders_or_nil(query, blocked_ids) do
     from(m in query, where: m.sender_id not in ^blocked_ids or is_nil(m.sender_id))
+  end
+
+  defp maybe_exclude_blocked_instances(query) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_instance in Instance,
+      on:
+        blocked_instance.blocked == true and
+          (fragment("lower(?)", blocked_instance.domain) ==
+             fragment("lower(?)", remote_actor.domain) or
+             fragment(
+               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+               blocked_instance.domain,
+               remote_actor.domain,
+               blocked_instance.domain
+             )),
+      where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
+    )
   end
 
   defp visibility_levels_for_viewer(user_id, viewer_id) do
@@ -2564,6 +2590,7 @@ defmodule Elektrine.Social do
       _ ->
         remote_actor_ids
         |> federated_timeline_query(limit, preloads)
+        |> maybe_exclude_blocked_instances()
         |> apply_id_pagination(pagination)
         |> apply_id_order(pagination.order)
         |> Repo.all()
@@ -2594,6 +2621,7 @@ defmodule Elektrine.Social do
       |> maybe_apply_timeline_search(search_query)
 
     query = combined_feed_query(local_query, federated_query, limit, preloads)
+    query = maybe_exclude_blocked_instances(query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
@@ -2721,6 +2749,7 @@ defmodule Elektrine.Social do
 
     query =
       query
+      |> maybe_exclude_blocked_instances()
       |> maybe_apply_timeline_search(search_query)
       |> apply_id_pagination(pagination)
       |> apply_id_order(pagination.order)
@@ -2751,6 +2780,7 @@ defmodule Elektrine.Social do
               (m.approval_status == "approved" or is_nil(m.approval_status))
 
       base_query = maybe_exclude_blocked_senders_or_nil(base_query, all_blocked_ids)
+      base_query = maybe_exclude_blocked_instances(base_query)
 
       # Keep only the first N replies per parent in SQL instead of loading all replies.
       ranked_ids_query =

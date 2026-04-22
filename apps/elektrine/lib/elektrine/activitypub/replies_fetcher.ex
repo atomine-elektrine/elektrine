@@ -11,15 +11,19 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Actor, CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
+
+  alias Elektrine.ActivityPub.{
+    Actor,
+    CollectionFetcher,
+    Fetcher,
+    Helpers,
+    LemmyApi,
+    MastodonApi,
+    Visibility
+  }
+
   alias Elektrine.Messaging
   alias Elektrine.Repo
-
-  @public_audience_uris MapSet.new([
-                          "Public",
-                          "as:Public",
-                          "https://www.w3.org/ns/activitystreams#Public"
-                        ])
 
   @max_replies 100
   @max_depth 3
@@ -685,15 +689,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   defp determine_visibility(object) do
-    to = List.wrap(object["to"])
-    cc = List.wrap(object["cc"])
-
-    cond do
-      Enum.any?(to, &MapSet.member?(@public_audience_uris, &1)) -> "public"
-      Enum.any?(cc, &MapSet.member?(@public_audience_uris, &1)) -> "unlisted"
-      (to == [] and cc == []) && is_binary(object["inReplyTo"]) -> "public"
-      true -> "followers"
-    end
+    Visibility.visibility(object, assume_public_reply_without_audience: true)
   end
 
   defp extract_media_with_alt_text(object) do

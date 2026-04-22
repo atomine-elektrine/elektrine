@@ -47,12 +47,7 @@ defmodule Elektrine.Social.Boosts do
         |> Repo.insert()
         |> case do
           {:ok, boost} ->
-            # Increment boost count (using share_count field)
-            from(m in Message,
-              where: m.id == ^message_id,
-              update: [inc: [share_count: 1]]
-            )
-            |> Repo.update_all([])
+            reconcile_share_count(original, 1)
 
             safe_broadcast_share_count_update(message_id)
 
@@ -97,6 +92,8 @@ defmodule Elektrine.Social.Boosts do
   Removes the boost and deletes the timeline entry.
   """
   def unboost_post(user_id, message_id) do
+    original = Repo.get!(Message, message_id)
+
     case Repo.get_by(PostBoost, user_id: user_id, message_id: message_id) do
       nil ->
         {:error, :not_boosted}
@@ -104,12 +101,7 @@ defmodule Elektrine.Social.Boosts do
       boost ->
         case Repo.delete(boost) do
           {:ok, deleted_boost} ->
-            # Decrement boost count
-            from(m in Message,
-              where: m.id == ^message_id and m.share_count > 0,
-              update: [inc: [share_count: -1]]
-            )
-            |> Repo.update_all([])
+            reconcile_share_count(original, -1)
 
             safe_broadcast_share_count_update(message_id)
 
@@ -258,6 +250,48 @@ defmodule Elektrine.Social.Boosts do
 
       :ok
   end
+
+  defp reconcile_share_count(%Message{} = message, delta) when delta in [-1, 1] do
+    current_local_boost_count =
+      from(b in PostBoost,
+        where: b.message_id == ^message.id,
+        select: count(b.id)
+      )
+      |> Repo.one()
+
+    previous_local_boost_count = max(current_local_boost_count - delta, 0)
+
+    remote_baseline =
+      message
+      |> remote_share_count_baseline()
+      |> max(max((message.share_count || 0) - previous_local_boost_count, 0))
+
+    share_count = remote_baseline + current_local_boost_count
+
+    from(m in Message,
+      where: m.id == ^message.id,
+      update: [set: [share_count: ^share_count]]
+    )
+    |> Repo.update_all([])
+  end
+
+  defp remote_share_count_baseline(%Message{} = message) do
+    message
+    |> Map.get(:media_metadata, %{})
+    |> Map.get("original_share_count")
+    |> parse_non_negative_integer()
+  end
+
+  defp parse_non_negative_integer(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_integer(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} when count >= 0 -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_non_negative_integer(_), do: 0
 
   defp broadcast_share_count_update(message_id) do
     message = Repo.get!(Message, message_id)

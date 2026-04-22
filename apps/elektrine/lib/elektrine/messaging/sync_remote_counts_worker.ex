@@ -14,7 +14,7 @@ defmodule Elektrine.Messaging.SyncRemoteCountsWorker do
   def enqueue(post_object) when is_map(post_object) do
     activitypub_id = post_object["id"] || post_object["url"]
 
-    %{"post_object" => post_object, "activitypub_id" => activitypub_id}
+    %{"activitypub_id" => activitypub_id}
     |> new()
     |> Elektrine.JobQueue.insert()
   end
@@ -22,8 +22,15 @@ defmodule Elektrine.Messaging.SyncRemoteCountsWorker do
   def enqueue(_post_object), do: {:error, :invalid_post_object}
 
   @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"activitypub_id" => activitypub_id}})
+      when is_binary(activitypub_id) do
+    Messages.sync_remote_counts(%{"id" => activitypub_id})
+    :ok
+  end
+
   def perform(%Oban.Job{args: %{"post_object" => post_object}}) when is_map(post_object) do
-    Messages.sync_remote_counts(post_object)
+    sanitized_post_object = %{"id" => post_object["id"] || post_object["url"]}
+    Messages.sync_remote_counts(sanitized_post_object)
     :ok
   end
 end

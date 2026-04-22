@@ -38,9 +38,10 @@ defmodule Elektrine.MailClientSettings do
 
   def host(protocol, domain \\ Domains.primary_email_domain())
       when protocol in [:imap, :pop3, :smtp] do
-    env_host(protocol) || present_env("MAIL_SERVICE_HOST") ||
-      "#{protocol}.#{String.downcase(domain)}"
+    env_host(protocol) || present_env("MAIL_SERVICE_HOST") || default_host(domain)
   end
+
+  defp default_host(domain), do: "mail.#{String.downcase(domain)}"
 
   defp build(protocol, domain) do
     default_settings = Keyword.fetch!(@default_settings, protocol)
