@@ -2,7 +2,7 @@
   <% @search_mode -> %>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
       <div class="space-y-4">
-        <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card panel-card">
           <div class="card-body gap-4">
             <div>
               <div class="badge badge-ghost mb-2">Public Reputation</div>
@@ -45,26 +45,26 @@
 
         <%= cond do %>
           <% @search_query == "" -> %>
-            <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
+            <div class="surface-subtle rounded-lg p-8 text-center">
               <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
               <p class="font-medium">Search public accounts</p>
               <p class="text-sm opacity-70">Enter at least 2 characters.</p>
             </div>
           <% @search_results == [] -> %>
-            <div class="rounded-lg border border-base-300 bg-base-100 p-8 text-center">
+            <div class="surface-subtle rounded-lg p-8 text-center">
               <.icon name="hero-magnifying-glass" class="h-10 w-10 mx-auto opacity-30 mb-3" />
               <p class="font-medium">No matches</p>
               <p class="text-sm opacity-70">Nothing public matched "{@search_query}".</p>
             </div>
           <% true -> %>
-            <div class="card bg-base-100 shadow-sm border border-base-300">
+            <div class="card panel-card">
               <div class="card-body gap-3">
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="card-title text-lg">Results</h2>
                   <span class="badge badge-ghost">{length(@search_results)} shown</span>
                 </div>
 
-                <div class="rounded-lg border border-base-300 bg-base-100 divide-y divide-base-200">
+                <div class="surface-subtle rounded-lg divide-y divide-base-200">
                   <%= for result <- @search_results do %>
                     <% handle = result.handle || result.username
                     display_name = result.display_name || handle
@@ -103,7 +103,7 @@
     </div>
   <% @not_found -> %>
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
-      <div class="card bg-base-100 shadow-sm border border-base-300">
+      <div class="card panel-card">
         <div class="card-body text-center gap-4">
           <div class="mx-auto badge badge-ghost">Public Reputation</div>
           <h1 class="text-2xl font-bold">Graph unavailable</h1>
@@ -117,7 +117,7 @@
     </div>
   <% @private_graph -> %>
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12">
-      <div class="card bg-base-100 shadow-sm border border-base-300">
+      <div class="card panel-card">
         <div class="card-body text-center gap-4">
           <div class="mx-auto badge badge-ghost">Public Reputation</div>
           <h1 class="text-2xl font-bold">This account is not public</h1>
@@ -135,7 +135,7 @@
     avatar_initial = String.first(subject.display_name || subject.handle || "?") || "?" %>
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
       <div class="space-y-4">
-        <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card panel-card">
           <div class="card-body gap-4">
             <div class="flex items-start justify-between gap-4 flex-wrap">
               <div class="min-w-0">
@@ -149,7 +149,7 @@
                 </p>
               </div>
 
-              <div class="rounded-lg border border-base-300 bg-base-200/60 p-4 min-w-[240px]">
+              <div class="surface-muted rounded-lg p-4 min-w-[240px]">
                 <div class="flex items-center gap-4">
                   <%= if avatar_url do %>
                     <img
@@ -209,7 +209,7 @@
               "--rep-shadow: color-mix(in srgb, var(--color-base-100) 16%, transparent);"
             }
           >
-            <div class="card bg-base-100 shadow-sm border border-base-300">
+            <div class="card panel-card">
               <div class="card-body gap-4">
                 <div class="flex items-center justify-between gap-3 flex-wrap">
                   <div>
@@ -230,7 +230,7 @@
                       radial-gradient(circle at 54% 78%, color-mix(in srgb, var(--color-warning) 12%, transparent), transparent 28%),
                       linear-gradient(180deg, color-mix(in srgb, var(--color-base-100) 96%, transparent), color-mix(in srgb, var(--color-base-100) 98%, transparent));
                   "
-                  class="relative h-[540px] rounded-lg border border-base-300 bg-base-100 overflow-hidden sm:h-[620px]"
+                  class="surface-subtle relative h-[540px] rounded-lg overflow-hidden sm:h-[620px]"
                 >
                   <div
                     id="reputation-graph-canvas"
@@ -241,7 +241,7 @@
                   </div>
                   <div
                     data-role="graph-tooltip"
-                    class="pointer-events-none absolute z-20 hidden max-w-[220px] rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-xs shadow-lg"
+                    class="surface-subtle pointer-events-none absolute z-20 hidden max-w-[220px] rounded-lg px-3 py-2 text-xs shadow-lg"
                   >
                   </div>
                 </div>
@@ -250,7 +250,7 @@
           </div>
 
           <div class="space-y-4">
-            <div class="card bg-base-100 shadow-sm border border-base-300">
+            <div class="card panel-card">
               <div class="card-body gap-3">
                 <div class="flex items-center justify-between gap-3">
                   <h2 class="card-title text-lg">Summary</h2>
@@ -258,7 +258,7 @@
                 </div>
                 <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                   <%= for stat <- @reputation_graph.stats do %>
-                    <div class="rounded-lg border border-base-300 bg-base-200/55 px-4 py-3">
+                    <div class="surface-muted rounded-lg px-4 py-3">
                       <p class="text-xs uppercase tracking-wide opacity-60">{stat.label}</p>
                       <p class="text-2xl font-bold">{stat.value}</p>
                       <%= if stat.note do %>

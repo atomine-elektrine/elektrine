@@ -67,7 +67,6 @@
 
 .mark-glow-effect {
   will-change: filter;
-  transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-font-smoothing: subpixel-antialiased;
   animation: markGlow 4s ease-in-out infinite;
@@ -129,7 +128,6 @@
   background-color: transparent !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  transform: translateZ(0);
   -webkit-font-smoothing: subpixel-antialiased;
   will-change: transform;
   max-width: none;

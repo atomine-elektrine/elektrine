@@ -2534,6 +2534,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:reply_count, reply_count)
       |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
+      |> assign(
+        :show_body_content,
+        Elektrine.Strings.present?(post.content) && (!assigns.clickable || is_nil(title))
+      )
       |> assign(:unique_id, "lemmy-post-#{post.id}")
 
     ~H"""
@@ -2725,16 +2729,22 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <% end %>
           <% end %>
           
-    <!-- Content preview (only if no title) -->
-          <%= if @post.content && !@title do %>
-            <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
-              {raw(
-                PostUtilities.render_content_preview(
-                  @post.content,
-                  PostUtilities.get_instance_domain(@post)
-                )
-              )}
-            </div>
+    <!-- Community body: full content on detail pages, compact preview on list cards -->
+          <%= if @show_body_content do %>
+            <%= if @clickable && !@title do %>
+              <div class="text-sm line-clamp-2 mb-1 break-words opacity-80">
+                {raw(
+                  PostUtilities.render_content_preview(
+                    @post.content,
+                    PostUtilities.get_instance_domain(@post)
+                  )
+                )}
+              </div>
+            <% else %>
+              <div class="text-sm mb-2 break-words post-content opacity-90">
+                {raw(render_post_content(@post))}
+              </div>
+            <% end %>
           <% end %>
           
     <!-- External link domain -->

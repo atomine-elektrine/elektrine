@@ -112,7 +112,7 @@
           <%= if @loading_stats do %>
             <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-7 animate-pulse">
               <%= for _i <- 1..7 do %>
-                <div class="rounded-lg border border-base-300 p-3">
+                <div class="surface-subtle rounded-lg p-3">
                   <div class="h-3 w-16 rounded bg-base-300"></div>
                   <div class="mt-2 h-6 w-10 rounded bg-base-300"></div>
                 </div>
@@ -124,7 +124,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="posts"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View all my posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">My Posts</p>
@@ -136,7 +136,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="timeline"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View timeline posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Timeline</p>
@@ -148,7 +148,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="gallery"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View gallery posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Gallery</p>
@@ -160,7 +160,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="discussions"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View discussion posts"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Discuss</p>
@@ -172,7 +172,7 @@
                 type="button"
                 phx-click="inspect_activity"
                 phx-value-section="likes"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View posts with likes"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Likes</p>
@@ -185,7 +185,7 @@
                 phx-click="inspect_activity"
                 phx-value-section="followers"
                 data-action="show-followers"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View your followers"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Followers</p>
@@ -198,7 +198,7 @@
                 phx-click="inspect_activity"
                 phx-value-section="following"
                 data-action="show-following"
-                class="rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200"
+                class="surface-interactive rounded-lg p-3 text-left"
                 title="View who you're following"
               >
                 <p class="text-xs uppercase tracking-wide opacity-60">Following</p>
@@ -273,9 +273,9 @@
                 </div>
               <% else %>
                 <%= for item <- attention_items do %>
-                  <div class="rounded-lg border border-base-300 bg-base-100 p-3 transition-colors hover:bg-base-200">
+                  <div class="surface-interactive rounded-lg p-3">
                     <div class="flex items-start gap-3">
-                      <div class="mt-0.5 rounded-lg border border-base-300 bg-base-200 p-2">
+                      <div class="surface-subtle mt-0.5 rounded-lg p-2">
                         <.icon name={item.icon} class="w-4 h-4 text-base-content/80" />
                       </div>
 
@@ -361,7 +361,7 @@
                   <%= for item <- @dashboard.recent_activity do %>
                     <.link
                       navigate={item.href}
-                      class="flex items-start gap-3 rounded-lg border border-base-300 bg-base-100 p-3 hover:bg-base-200 transition-colors"
+                      class="surface-interactive flex items-start gap-3 rounded-lg p-3"
                     >
                       <.icon name={item.icon} class="w-4 h-4 mt-0.5 text-base-content/80" />
                       <div class="flex-1 min-w-0">

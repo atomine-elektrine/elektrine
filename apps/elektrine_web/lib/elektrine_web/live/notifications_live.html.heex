@@ -20,25 +20,25 @@
           <div class="flex flex-wrap gap-2">
             <.link
               navigate={~p"/overview"}
-              class="btn btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
+              class={nav_action_button_class()}
             >
               <.icon name="hero-squares-2x2" class="mr-2 h-4 w-4" /> Overview
             </.link>
             <.link
               navigate={Elektrine.Paths.chat_root_path()}
-              class="btn btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
+              class={nav_action_button_class()}
             >
               <.icon name="hero-chat-bubble-left-right" class="mr-2 h-4 w-4" /> Chat
             </.link>
             <.link
               navigate={Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")}
-              class="btn btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
+              class={nav_action_button_class()}
             >
               <.icon name="hero-envelope" class="mr-2 h-4 w-4" /> Email
             </.link>
             <.link
               navigate={Elektrine.Paths.friends_path(tab: "requests")}
-              class="btn btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
+              class={nav_action_button_class()}
             >
               <.icon name="hero-user-group" class="mr-2 h-4 w-4" /> Requests
             </.link>
@@ -50,7 +50,7 @@
             <%= if @notification_stats.total_groups > 0 do %>
               <button
                 phx-click="dismiss_all"
-                class="btn btn-sm border border-base-300 bg-base-100 hover:bg-base-200"
+                class={nav_action_button_class()}
                 data-confirm="Clear every notification from this queue?"
               >
                 <.icon name="hero-trash" class="mr-2 h-4 w-4" /> Clear queue
@@ -60,15 +60,15 @@
         </div>
 
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <div class="rounded-lg border border-base-300 p-3">
+          <div class="surface-subtle rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Unread</p>
             <p class="mt-1 text-xl font-semibold">{@unread_count}</p>
           </div>
-          <div class="rounded-lg border border-base-300 p-3">
+          <div class="surface-subtle rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Waiting Groups</p>
             <p class="mt-1 text-xl font-semibold">{@notification_stats.waiting_groups}</p>
           </div>
-          <div class="rounded-lg border border-base-300 p-3">
+          <div class="surface-subtle rounded-lg p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Visible Groups</p>
             <p class="mt-1 text-xl font-semibold">{length(@filtered_notifications)}</p>
           </div>
@@ -128,7 +128,7 @@
       <%= if @loading_notifications do %>
         <div class="space-y-3">
           <%= for _i <- 1..4 do %>
-            <div class="rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm animate-pulse">
+            <div class="surface-subtle rounded-lg p-4 shadow-sm animate-pulse">
               <div class="flex gap-3">
                 <div class="h-10 w-10 rounded-lg bg-base-300"></div>
                 <div class="flex-1 space-y-2">
@@ -142,7 +142,7 @@
         </div>
       <% else %>
         <%= if Enum.empty?(@filtered_notifications) do %>
-          <div class="rounded-lg border border-dashed border-base-300 bg-base-100 p-8 text-center shadow-sm">
+          <div class="surface-subtle rounded-lg border-dashed p-8 text-center shadow-sm">
             <.icon name="hero-bell-slash" class="mx-auto mb-3 h-10 w-10 opacity-50" />
             <p class="text-sm font-medium">
               <%= cond do %>
@@ -246,8 +246,8 @@
                           phx-value-id={notif.id}
                           phx-value-url={notif.url}
                           class={[
-                            "flex w-full items-start gap-3 rounded-lg border border-base-300 bg-base-100 p-3 text-left transition-colors hover:bg-base-200",
-                            is_nil(notif.read_at) && "bg-base-200"
+                            "panel-card flex w-full items-start gap-3 rounded-lg p-3 text-left transition-colors hover:border-base-content/15",
+                            is_nil(notif.read_at) && "border-l-4 border-l-primary"
                           ]}
                         >
                           <%= if notif.actor do %>
@@ -288,7 +288,7 @@
                     phx-click="view_notification"
                     phx-value-id={group.latest_notification.id}
                     phx-value-url={group.destination}
-                    class="btn btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
+                    class={notification_action_button_class()}
                   >
                     Open
                   </button>
@@ -300,7 +300,7 @@
                       }
                       phx-value-id={if group.type == :single, do: group.notification.id}
                       phx-value-group_key={if group.type != :single, do: group.group_key}
-                      class="btn btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
+                      class={notification_action_button_class()}
                     >
                       Read
                     </button>
@@ -310,7 +310,7 @@
                     <button
                       phx-click="toggle_group"
                       phx-value-group_key={group.group_key}
-                      class="btn btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
+                      class={notification_action_button_class()}
                     >
                       <%= if is_expanded do %>
                         Collapse
@@ -324,7 +324,7 @@
                     <button
                       phx-click="dismiss"
                       phx-value-id={group.notification.id}
-                      class="btn btn-xs border border-base-300 bg-base-100 hover:bg-base-200"
+                      class={notification_action_button_class()}
                     >
                       Clear
                     </button>
