@@ -745,13 +745,13 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <div class="surface-soft rounded-2xl p-4">
               <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Type</p>
               <p class="mt-2 text-base font-medium text-base-content/80">
                 {file_kind_label(@active_file.content_type)}
               </p>
             </div>
-            <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <div class="surface-soft rounded-2xl p-4">
               <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Size</p>
               <p class="mt-2 text-base font-medium text-base-content/80">
                 {Storage.format_bytes(@active_file.size || 0)}
@@ -807,7 +807,7 @@
           <%= if @rename_target && @rename_target.type == "file" && @rename_target.id == to_string(@active_file.id) do %>
             <form
               phx-submit="rename_file"
-              class="space-y-3 rounded-2xl border border-base-300/70 bg-base-100/50 p-4"
+              class="surface-soft space-y-3 rounded-2xl p-4"
             >
               <input type="hidden" name="rename[id]" value={@active_file.id} />
               <input
@@ -833,7 +833,7 @@
           <%= if @move_target && @move_target.type == "file" && @move_target.id == to_string(@active_file.id) do %>
             <form
               phx-submit="move_file"
-              class="space-y-3 rounded-2xl border border-base-300/70 bg-base-100/50 p-4"
+              class="surface-soft space-y-3 rounded-2xl p-4"
             >
               <input type="hidden" name="move[id]" value={@active_file.id} />
               <input
@@ -856,7 +856,7 @@
             </form>
           <% end %>
 
-          <div class="rounded-2xl border border-base-300/70 bg-base-100/60 p-4">
+          <div class="surface-soft rounded-2xl p-4">
             <div>
               <p class="text-sm font-semibold">Create share link</p>
               <p class="mt-1 text-sm text-base-content/60">
@@ -897,7 +897,7 @@
           <% else %>
             <div class="space-y-3 border-t border-base-300/70 pt-4">
               <%= for share <- @active_file.shares do %>
-                <div class="rounded-2xl border border-base-300 bg-base-100/65 p-4">
+                <div class="surface-soft rounded-2xl p-4">
                   <div class="space-y-4">
                     <div class="min-w-0 flex-1">
                       <div class="flex flex-wrap items-center gap-2">
@@ -1006,13 +1006,13 @@
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
-            <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <div class="surface-soft rounded-2xl p-4">
               <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
                 Contained Files
               </p>
               <p class="mt-2 text-2xl font-semibold">{@active_folder.file_count}</p>
             </div>
-            <div class="rounded-2xl border border-base-300 bg-base-100/60 p-4">
+            <div class="surface-soft rounded-2xl p-4">
               <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">Last Updated</p>
               <p class="mt-2 text-base font-medium text-base-content/75">
                 <%= if @active_folder.updated_at do %>

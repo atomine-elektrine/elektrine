@@ -160,7 +160,7 @@
                       <%= if avatar_entry do %>
                         <div
                           id="avatar-upload-status"
-                          class="rounded-xl border border-base-300 bg-base-200/80 p-3 space-y-2"
+                          class="surface-muted rounded-xl p-3 space-y-2"
                         >
                           <div class="flex items-start gap-3">
                             <div class="min-w-0 flex-1">
@@ -365,7 +365,7 @@
               </div>
 
               <div class="grid grid-cols-3 gap-3">
-                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                <div class="surface-muted rounded-box px-3 py-3">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Total
                   </div>
@@ -375,7 +375,7 @@
                   </div>
                 </div>
 
-                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                <div class="surface-muted rounded-box px-3 py-3">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Active
                   </div>
@@ -385,7 +385,7 @@
                   </div>
                 </div>
 
-                <div class="rounded-box border border-base-300 bg-base-200/50 px-3 py-3">
+                <div class="surface-muted rounded-box px-3 py-3">
                   <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
                     Used
                   </div>
@@ -417,7 +417,7 @@
                     id="invite-code-form"
                     as={:invite}
                     phx-submit="create_invite_code"
-                    class="rounded-box border border-base-300 bg-base-200/55 p-4"
+                    class="surface-muted rounded-box p-4"
                   >
                     <div class="space-y-3">
                       <div>
@@ -460,7 +460,7 @@
               <% else %>
                 <div class="space-y-3">
                   <%= for invite_code <- @user_invite_codes do %>
-                    <div class="rounded-box border border-base-300 bg-base-200/55 p-4">
+                    <div class="surface-muted rounded-box p-4">
                       <div class="space-y-4">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                           <div class="min-w-0 flex-1">
@@ -1645,7 +1645,7 @@
               <div class="divider my-4">{gettext("Bluesky Bridge")}</div>
               <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %> <% bluesky_profile_url =
                 bluesky_profile_url(@user) %>
-              <div class="rounded-xl border border-base-300 bg-base-200/50 p-4 sm:p-5 space-y-4">
+              <div class="surface-muted rounded-xl p-4 sm:p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
                     <.icon name="hero-link" class="w-4 h-4" /> {gettext("Managed Bluesky")}

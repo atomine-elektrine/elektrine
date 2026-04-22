@@ -14,7 +14,7 @@
   </div>
 
   <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+    <div class="surface-muted rounded-box px-4 py-3">
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Total
       </div>
@@ -22,7 +22,7 @@
       <div class="mt-2 text-2xl font-semibold text-base-content">{@stats.total}</div>
     </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+    <div class="surface-muted rounded-box px-4 py-3">
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Usable
       </div>
@@ -30,7 +30,7 @@
       <div class="mt-2 text-2xl font-semibold text-success">{@stats.active}</div>
     </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+    <div class="surface-muted rounded-box px-4 py-3">
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Expired
       </div>
@@ -38,7 +38,7 @@
       <div class="mt-2 text-2xl font-semibold text-warning">{@stats.expired}</div>
     </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+    <div class="surface-muted rounded-box px-4 py-3">
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Exhausted
       </div>
@@ -46,7 +46,7 @@
       <div class="mt-2 text-2xl font-semibold text-error">{@stats.exhausted}</div>
     </div>
 
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-3">
+    <div class="surface-muted rounded-box px-4 py-3">
       <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
         Mode
       </div>
@@ -76,7 +76,7 @@
         <form
           method="post"
           action={~p"/pripyat/invite-codes/toggle-system"}
-          class="flex items-center gap-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-3"
+          class="surface-muted flex items-center gap-3 rounded-box px-4 py-3"
         >
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <input type="hidden" name="enabled" value="" id="enabled-value" />
@@ -113,7 +113,7 @@
         <form
           method="post"
           action={~p"/pripyat/invite-codes/self-service-trust-level"}
-          class="flex flex-col gap-3 rounded-box border border-base-300 bg-base-200/60 px-4 py-3 sm:flex-row sm:items-end"
+          class="surface-muted flex flex-col gap-3 rounded-box px-4 py-3 sm:flex-row sm:items-end"
         >
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
           <label class="form-control min-w-[12rem]">

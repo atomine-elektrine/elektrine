@@ -11,6 +11,9 @@
 } .btn-outline { --btn-color: var(--theme-btn-outline-border); --btn-fg: var(--color-base-content);
 } .btn-soft,
 .btn-neutral { --btn-color: var(--theme-btn-neutral-bg); --btn-fg: var(--color-base-content);
+} .btn-surface { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; color: var(--color-base-content);
+} .btn-surface:hover,
+.btn-surface:focus-visible { border-color: color-mix(in srgb, var(--color-base-content) 15%, var(--surface-panel-border) 85%); background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 82%, var(--color-base-300) 18%) !important;
 } html[data-theme="dark"] .btn,
 :root[data-theme="dark"] .btn,
 [data-theme="dark"] .btn,
@@ -71,14 +74,20 @@ html[data-theme="dark"] .btn:focus-visible,
 .panel-card,
 .social-page-card { border: 1px solid transparent; border-color: var(--surface-panel-border); background-color: var(--color-base-200) !important; background-image: none !important; box-shadow: var(--surface-panel-shadow);
 } /* -------------------------------------------------------------------------- CARDS -------------------------------------------------------------------------- */ .card { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-} .panel-card { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; position: relative; isolation: isolate; transform: translateZ(0);
+} .panel-card { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; position: relative;
 } .panel-card.sticky { contain: none; transform: none;
 } .timeline-sidebar-sticky { align-self: flex-start;
 } .timeline-sidebar-sticky, .timeline-sidebar-sticky .panel-card, .timeline-sidebar-scroll { contain: none; transform: none;
 } .timeline-sidebar-scroll { max-height: calc(100vh - 11rem); overflow-y: auto; scrollbar-gutter: stable;
-} .panel-card > .card-body { position: relative; z-index: 1;
+} .panel-card > .card-body { position: relative;
 } .card-interactive:focus-visible,
 [data-post-id]:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(var(--p));
+} .surface-subtle { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 78%, var(--color-base-100) 22%); box-shadow: none;
+} .surface-muted { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--color-base-200) 84%, transparent); box-shadow: none;
+} .surface-soft { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--color-base-100) 65%, var(--surface-panel-bg-fallback) 35%); box-shadow: none;
+} .surface-interactive { border: 1px solid var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; box-shadow: var(--surface-panel-shadow); transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+} .surface-interactive:hover,
+.surface-interactive:focus-visible { background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 82%, var(--color-base-300) 18%) !important; border-color: color-mix(in srgb, var(--color-base-content) 15%, var(--surface-panel-border) 85%);
 } /* -------------------------------------------------------------------------- ALERTS & FLASH MESSAGES -------------------------------------------------------------------------- */ #flash-group { perspective: 1000px;
 } .alert.app-flash { position: relative; align-items: flex-start; gap: 0.75rem; transform-origin: top right; animation: flash-slide-in 0.2s ease-out;
 } .app-flash__dismiss { margin-left: auto; align-self: flex-start;
@@ -92,7 +101,12 @@ html[data-theme="dark"] .btn:focus-visible,
 } .alert-success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-success) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-success) 34%, var(--color-base-content) 66%);
 } .alert-warning { border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-base-300) 74%); background-color: color-mix(in srgb, var(--color-warning) 11%, var(--color-base-200) 89%); color: color-mix(in srgb, var(--color-warning) 38%, var(--color-base-content) 62%);
 } .alert-error { border-color: color-mix(in srgb, var(--color-error) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-error) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-error) 36%, var(--color-base-content) 64%);
-} /* -------------------------------------------------------------------------- NAVBAR -------------------------------------------------------------------------- */ .navbar { background-color: var(--theme-navbar-bg) !important; border-bottom: 1px solid var(--theme-navbar-border) !important; box-shadow: var(--theme-navbar-shadow);
+} /* -------------------------------------------------------------------------- NAVBAR -------------------------------------------------------------------------- */ .navbar { background-color: var(--surface-panel-bg-fallback) !important; background-image: none !important; border-bottom: 1px solid var(--theme-navbar-border) !important; box-shadow: var(--theme-navbar-shadow);
+} .app-navbar.navbar { background-color: var(--color-base-200) !important; background-image: none !important;
+} .navbar .navbar-start,
+.navbar .navbar-center,
+.navbar .navbar-end,
+.navbar .dropdown { overflow: visible;
 } .e-nav .e-nav-link,
 .e-nav .e-nav-link:hover,
 .e-nav .e-nav-link:focus,
@@ -111,14 +125,14 @@ html[data-theme="dark"] .btn:focus-visible,
 .floating-menu,
 .dropdown-content { border: 1px solid transparent; border-color: var(--surface-floating-border); background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-floating-shadow);
 } .floating-panel { position: relative; isolation: isolate;
-} .dropdown-content { z-index: 50;
+} .dropdown-content { z-index: 100;
 } .dropdown { position: relative;
 } .dropdown .dropdown-content { position: absolute; visibility: hidden; opacity: 0; transform: translateY(-4px) scale(0.98); transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+} .navbar .dropdown-content,
+.navbar .menu.dropdown-content { z-index: 200;
 } .dropdown:focus-within .dropdown-content,
 .dropdown:focus .dropdown-content,
 .dropdown-open .dropdown-content { visibility: visible; opacity: 1; transform: translateY(0) scale(1);
-} /* Ensure dropdowns escape panel-card overflow */
-.panel-card .dropdown-content { z-index: 100;
 } /* Timeline cards need higher stacking when menus are open */
 .timeline-post-card { position: relative; overflow: visible !important; z-index: 1; isolation: isolate; contain: none; transform: none !important;
 } .timeline-post-card:hover,

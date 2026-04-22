@@ -13,20 +13,20 @@
         </p>
 
         <div class="mt-5 flex flex-wrap gap-2">
-          <div class="rounded-box border border-base-300 bg-base-200/60 px-3 py-2 text-sm text-base-content/70">
+          <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
             24h active:
             <span class="font-semibold text-base-content">
               {@stats.active_users.last_24_hours}
             </span>
           </div>
 
-          <div class="rounded-box border border-base-300 bg-base-200/60 px-3 py-2 text-sm text-base-content/70">
+          <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
             Pending reports:
             <span class="font-semibold text-base-content">{@stats.pending_reports}</span>
           </div>
 
           <%= if @email_available do %>
-            <div class="rounded-box border border-base-300 bg-base-200/60 px-3 py-2 text-sm text-base-content/70">
+            <div class="surface-muted rounded-box px-3 py-2 text-sm text-base-content/70">
               Verified custom domains:
               <span class="font-semibold text-base-content">
                 {@stats.custom_domains.verified}
@@ -53,7 +53,7 @@
         <%= if @email_available do %>
           <.link
             href={~p"/pripyat/custom-domains"}
-            class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-info/30"
+            class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-info/30"
           >
             <div class="flex items-center justify-between">
               <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
@@ -74,7 +74,7 @@
 
         <.link
           navigate={~p"/pripyat/reports"}
-          class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-warning/30"
+          class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-warning/30"
         >
           <div class="flex items-center justify-between">
             <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
@@ -91,7 +91,7 @@
         </.link>
         <.link
           href={~p"/pripyat/users"}
-          class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30"
+          class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-primary/30"
         >
           <div class="flex items-center justify-between">
             <span class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
@@ -108,7 +108,7 @@
         </.link>
         <.link
           href={~p"/pripyat?refresh=1"}
-          class="group rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-secondary/30"
+          class="surface-interactive group rounded-box px-4 py-4 hover:-translate-y-0.5 hover:border-secondary/30"
           title="Refresh dashboard stats"
         >
           <div class="flex items-center justify-between">
@@ -149,7 +149,7 @@
 
     <div class="grid gap-4 px-5 py-5 md:grid-cols-2 xl:grid-cols-4 sm:px-6">
       <%= for section <- Enum.reject(admin_nav_sections(), &(&1.label == "Main")) do %>
-        <div class="rounded-2xl border border-base-content/10 bg-base-200/35 p-4">
+        <div class="surface-subtle rounded-2xl p-4">
           <div class="flex items-start justify-between gap-3">
             <div>
               <div class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
@@ -169,7 +169,7 @@
               <%= if Map.get(item, :navigate, false) do %>
                 <.link
                   navigate={item.path}
-                  class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100/70 px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
+                  class="surface-soft inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
                 >
                   <.icon name={item.icon} class="h-4 w-4" />
                   <span>{item.label}</span>
@@ -177,7 +177,7 @@
               <% else %>
                 <.link
                   href={item.path}
-                  class="inline-flex items-center gap-2 rounded-full border border-base-content/10 bg-base-100/70 px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
+                  class="surface-soft inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-base-content/75 transition hover:border-primary/25 hover:text-base-content"
                 >
                   <.icon name={item.icon} class="h-4 w-4" />
                   <span>{item.label}</span>
@@ -191,7 +191,7 @@
   </section>
 
   <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-    <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
       <div class="flex items-center justify-between">
         <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
           Users
@@ -205,7 +205,7 @@
     </div>
 
     <%= if @email_available do %>
-      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Mailboxes
@@ -218,7 +218,7 @@
         <div class="mt-2 text-sm text-base-content/55">Primary mailboxes.</div>
       </div>
 
-      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Messages
@@ -233,7 +233,7 @@
         </div>
       </div>
 
-      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Aliases
@@ -246,7 +246,7 @@
         <div class="mt-2 text-sm text-base-content/55">Alias addresses.</div>
       </div>
 
-      <div class="rounded-box border border-base-300 bg-base-200/60 px-4 py-4 shadow-sm">
+      <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
         <div class="flex items-center justify-between">
           <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
             Custom Domains
@@ -281,7 +281,7 @@
         <form
           method="get"
           action={~p"/pripyat/users"}
-          class="rounded-box border border-base-300 bg-base-200/60 p-4"
+          class="surface-muted rounded-box p-4"
         >
           <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
             Users
@@ -303,7 +303,7 @@
           <form
             method="get"
             action={~p"/pripyat/mailboxes"}
-            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+            class="surface-muted rounded-box p-4"
           >
             <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Mailboxes
@@ -324,7 +324,7 @@
           <form
             method="get"
             action={~p"/pripyat/messages"}
-            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+            class="surface-muted rounded-box p-4"
           >
             <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Messages
@@ -345,7 +345,7 @@
           <form
             method="get"
             action={~p"/pripyat/custom-domains"}
-            class="rounded-box border border-base-300 bg-base-200/60 p-4"
+            class="surface-muted rounded-box p-4"
           >
             <label class="text-[11px] font-semibold uppercase tracking-[0.18em] text-base-content/45">
               Custom Domains

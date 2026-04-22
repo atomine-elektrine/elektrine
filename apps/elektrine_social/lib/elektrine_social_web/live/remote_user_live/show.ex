@@ -97,11 +97,23 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         socket
       end
 
-    if connected?(socket) do
-      send(self(), {:fetch_actor, params})
-    end
+    case cached_remote_actor_from_params(params) do
+      {:ok, remote_actor} ->
+        socket = prime_cached_remote_profile(socket, remote_actor)
 
-    {:ok, socket}
+        if connected?(socket) do
+          send(self(), :load_timeline)
+        end
+
+        {:ok, socket}
+
+      :error ->
+        if connected?(socket) do
+          send(self(), {:fetch_actor, params})
+        end
+
+        {:ok, socket}
+    end
   end
 
   defp local_profile_redirect_path(%{"handle" => handle}) when is_binary(handle) do
@@ -201,6 +213,70 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     end
   end
 
+  defp cached_remote_actor_from_params(%{"handle" => handle}) when is_binary(handle) do
+    with {:ok, %{username: username, domain: domain}} <- parse_remote_handle(handle),
+         %{} = actor <- ActivityPub.get_actor_by_username_and_domain(username, domain) do
+      {:ok, actor}
+    else
+      _ -> :error
+    end
+  end
+
+  defp cached_remote_actor_from_params(_), do: :error
+
+  defp resolve_remote_actor(username, domain, acct)
+       when is_binary(username) and is_binary(domain) and is_binary(acct) do
+    case ActivityPub.get_actor_by_username_and_domain(username, domain) do
+      %{} = actor ->
+        {:ok, actor}
+
+      nil ->
+        case ActivityPub.Fetcher.webfinger_lookup(acct) do
+          {:ok, actor_uri} ->
+            case ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false) do
+              {:ok, actor} -> {:ok, actor}
+              error -> error
+            end
+
+          error ->
+            error
+        end
+    end
+  end
+
+  defp prime_cached_remote_profile(socket, remote_actor) do
+    local_posts = get_local_posts_from_remote_actor(remote_actor)
+
+    post_interactions =
+      if socket.assigns[:current_user] && local_posts != [] do
+        all_posts_for_interactions =
+          Enum.map(local_posts, fn post ->
+            %{"id" => post.activitypub_id}
+          end)
+
+        load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
+      else
+        socket.assigns.post_interactions
+      end
+
+    user_saves =
+      if socket.assigns[:current_user] && local_posts != [] do
+        load_user_saves_for_posts(local_posts, socket.assigns.current_user.id)
+      else
+        socket.assigns.user_saves
+      end
+
+    post_reactions = normalize_post_reaction_keys(get_post_reactions(local_posts))
+
+    socket
+    |> setup_actor_socket(remote_actor)
+    |> assign(:local_posts, local_posts)
+    |> assign(:post_interactions, post_interactions)
+    |> assign(:user_saves, user_saves)
+    |> assign(:post_reactions, post_reactions)
+    |> assign(:loading, false)
+  end
+
   @impl true
   def handle_info({:fetch_actor, params}, socket) do
     # Fetch actor in a Task to avoid blocking
@@ -209,17 +285,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         case params do
           %{"handle" => handle} ->
             case parse_remote_handle(handle) do
-              {:ok, %{acct: acct}} ->
-                case ActivityPub.Fetcher.webfinger_lookup(acct) do
-                  {:ok, actor_uri} ->
-                    case ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false) do
-                      {:ok, actor} -> {:ok, actor}
-                      error -> error
-                    end
-
-                  error ->
-                    error
-                end
+              {:ok, %{username: username, domain: domain, acct: acct}} ->
+                resolve_remote_actor(username, domain, acct)
 
               {:error, _reason} ->
                 {:error, :invalid_handle}

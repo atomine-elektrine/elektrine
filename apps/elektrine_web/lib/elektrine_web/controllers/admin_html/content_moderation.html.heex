@@ -42,19 +42,19 @@
   </.section_header>
 
   <div class="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="surface-muted rounded-xl p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">{content_label} Queue</div>
       <div class="mt-1 text-xl font-semibold sm:text-2xl">{active_type_total}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="surface-muted rounded-xl p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Results</div>
       <div class="mt-1 text-xl font-semibold text-info sm:text-2xl">{@total_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="surface-muted rounded-xl p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">{current_page_count}</div>
     </div>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+    <div class="surface-muted rounded-xl p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">Mode</div>
       <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">{content_label}</div>
     </div>
@@ -130,7 +130,7 @@
   </div>
 
   <%= if Enum.empty?(@content) do %>
-    <div class="rounded-xl border border-base-300 bg-base-200/60 p-8 text-center">
+    <div class="surface-muted rounded-xl p-8 text-center">
       <.icon name="hero-shield-exclamation" class="mx-auto mb-3 h-10 w-10 text-base-content/30" />
       <h3 class="text-lg font-medium">No {String.downcase(content_label)} content found</h3>
       <p class="mt-1 text-sm opacity-70">
@@ -151,7 +151,7 @@
         <% conversation_name = if(item.conversation, do: item.conversation.name, else: nil) %>
         <% conversation_type = if(item.conversation, do: item.conversation.type, else: nil) %>
         <% media_count = if(is_list(item.media_urls), do: length(item.media_urls), else: 0) %>
-        <article class="rounded-box border border-base-300 bg-base-100/70 p-4 shadow-sm">
+        <article class="surface-soft rounded-box p-4 shadow-sm">
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
             <div class="min-w-0 flex-1">
               <div class="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">

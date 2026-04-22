@@ -466,12 +466,16 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp state_filter_button_class(current_filter, filter) do
     [
-      "btn btn-sm border border-base-300",
+      "btn btn-sm btn-surface",
       if(current_filter == filter,
         do: "btn-secondary border-secondary text-secondary-content shadow-sm",
-        else: "bg-base-200 text-base-content hover:bg-base-300"
+        else: "text-base-content"
       )
     ]
+  end
+
+  defp nav_action_button_class do
+    "btn btn-sm btn-surface"
   end
 
   defp notification_source_badge_class("chat"), do: "badge badge-primary badge-xs"
@@ -490,22 +494,26 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp group_card_class(group) do
     [
-      "rounded-lg border border-base-300 bg-base-100 p-4 shadow-sm transition-colors",
+      "panel-card rounded-lg p-4 shadow-sm transition-colors",
       if(group.unread_count > 0,
-        do: "border-l-4 border-l-primary bg-base-100 hover:bg-base-200",
-        else: "hover:bg-base-200"
+        do: "border-l-4 border-l-primary hover:border-primary/40",
+        else: "hover:border-base-content/15"
       )
     ]
   end
 
   defp source_filter_button_class(current_filter, filter) do
     [
-      "btn btn-xs border border-base-300",
+      "btn btn-xs btn-surface",
       if(current_filter == filter,
         do: "btn-secondary border-secondary text-secondary-content shadow-sm",
-        else: "bg-base-200 text-base-content hover:bg-base-300"
+        else: "text-base-content"
       )
     ]
+  end
+
+  defp notification_action_button_class do
+    "btn btn-xs btn-surface"
   end
 
   defp single_notification_title(%{type: "follow"} = notification) do

@@ -27,13 +27,3 @@
 @import "./email.css";
 @import "./effects.css";
 @import "./utilities.css";
-
-/* Temporarily disable sticky positioning app-wide. */
-[class~="sticky"],
-[class*=":sticky"] {
-  position: static !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: auto !important;
-}

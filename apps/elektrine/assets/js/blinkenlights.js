@@ -26,14 +26,17 @@ export function initBlinkenlights() {
     return
   }
 
-  if (container) return
   if (!window.matchMedia('(pointer: fine)').matches) return
 
-  document.body.classList.add('has-blinkenlights')
+  const nextContainer = document.getElementById('blinkenlights-container')
+  if (!nextContainer) return
 
-  container = document.createElement('div')
-  container.id = 'blinkenlights-container'
-  document.body.insertBefore(container, document.body.firstChild)
+  if (container === nextContainer && resizeHandler) return
+
+  container = nextContainer
+
+  document.body.classList.add('has-blinkenlights')
+  container.hidden = false
 
   createLights()
 
@@ -186,10 +189,11 @@ export function destroyBlinkenlights() {
   window.removeEventListener('phx:site-activity', handleSiteActivity)
   window.removeEventListener('site:activity', handleSiteActivity)
 
-  if (container && container.parentNode) {
-    container.parentNode.removeChild(container)
-    container = null
+  if (container) {
+    container.innerHTML = ''
+    container.hidden = true
     lights = []
+    container = null
   }
   document.body.classList.remove('has-blinkenlights')
 }

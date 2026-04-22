@@ -161,13 +161,20 @@ function handleWindowFocus() {
 }
 
 export function initCursorGlow() {
-  if (!window.matchMedia('(pointer: fine)').matches || initialized) return
+  if (!window.matchMedia('(pointer: fine)').matches) return
 
-  overlay = document.getElementById('cursor-glow-overlay')
-  if (!overlay) {
-    overlay = document.createElement('div')
-    overlay.id = 'cursor-glow-overlay'
-    document.body.insertBefore(overlay, document.body.firstChild)
+  const nextOverlay = document.getElementById('cursor-glow-overlay')
+  if (!nextOverlay) {
+    destroyCursorGlow()
+    return
+  }
+
+  overlay = nextOverlay
+
+  if (initialized) {
+    resetState()
+    applyOverlayState()
+    return
   }
 
   resetState()
@@ -191,10 +198,7 @@ export function destroyCursorGlow() {
   window.removeEventListener('blur', handleWindowBlur)
   window.removeEventListener('focus', handleWindowFocus)
 
-  if (overlay && overlay.parentNode) {
-    overlay.parentNode.removeChild(overlay)
-    overlay = null
-  }
+  overlay = null
   if (rafId) {
     cancelAnimationFrame(rafId)
     rafId = null

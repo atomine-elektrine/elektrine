@@ -1418,8 +1418,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     """
   end
 
-  defp use_standard_timeline_detail?(message, _is_community_post) do
+  defp use_standard_timeline_detail?(message, is_community_post) do
     is_map(message) &&
+      !Map.get(message, :federated, false) &&
+      !is_community_post &&
       (loaded_assoc?(Map.get(message, :sender)) || loaded_assoc?(Map.get(message, :remote_actor)))
   end
 
@@ -1789,6 +1791,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     }
     |> Map.merge(poll_fields)
   end
+
+  defp maybe_enrich_cached_federated_post(post_object, msg)
+       when is_map(post_object) and is_map(msg) do
+    needs_origin_body = !Elektrine.Strings.present?(map_get_value(post_object, "content"))
+
+    remote_ref =
+      [msg.activitypub_id, msg.activitypub_url]
+      |> Enum.find(&(is_binary(&1) && String.trim(&1) != ""))
+
+    if needs_origin_body && is_binary(remote_ref) do
+      case strict_fetch_remote_object(remote_ref) do
+        {:ok, remote_post} when is_map(remote_post) ->
+          maybe_preserve_cached_post_fields(post_object, remote_post)
+
+        _ ->
+          post_object
+      end
+    else
+      post_object
+    end
+  end
+
+  defp maybe_enrich_cached_federated_post(post_object, _), do: post_object
 
   defp build_cached_post_audience(nil), do: nil
 
@@ -3444,6 +3469,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     if message && can_view_local_post?(message, socket.assigns[:current_user]) do
       if message.federated && is_binary(message.activitypub_id) do
         post_object = build_post_object_from_message(message)
+        post_object = maybe_enrich_cached_federated_post(post_object, message)
 
         {:noreply,
          socket
