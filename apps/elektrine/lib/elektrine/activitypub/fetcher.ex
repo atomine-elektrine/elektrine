@@ -74,6 +74,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
     # Check if we should sign the request
     sign_fetches = Keyword.get(opts, :sign, signed_fetches_enabled?())
+    allow_recovery = Keyword.get(opts, :allow_recovery, true)
 
     headers =
       if sign_fetches do
@@ -98,7 +99,11 @@ defmodule Elektrine.ActivityPub.Fetcher do
             {:ok, data}
 
           {:error, reason} ->
-            maybe_recover_object_from_html(uri, response, reason, opts)
+            if allow_recovery do
+              maybe_recover_object_from_html(uri, response, reason, opts)
+            else
+              {:error, :invalid_json}
+            end
         end
 
       {:ok, %Finch.Response{} = response}
@@ -118,14 +123,19 @@ defmodule Elektrine.ActivityPub.Fetcher do
         end
 
       {:ok, %Finch.Response{status: status, body: _body}} when status in [404, 410] ->
-        case mastodon_status_fallback(uri, opts) do
-          {:ok, object_data} ->
-            Logger.info("Recovered status document via Mastodon API fallback for #{uri}")
-            {:ok, object_data}
+        if allow_recovery do
+          case mastodon_status_fallback(uri, opts) do
+            {:ok, object_data} ->
+              Logger.info("Recovered status document via Mastodon API fallback for #{uri}")
+              {:ok, object_data}
 
-          _ ->
-            Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
-            {:error, :not_found}
+            _ ->
+              Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
+              {:error, :not_found}
+          end
+        else
+          Logger.debug("Object not found or deleted: #{uri}, status: #{status}")
+          {:error, :not_found}
         end
 
       {:ok, %Finch.Response{} = response} ->

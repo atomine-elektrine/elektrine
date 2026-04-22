@@ -234,7 +234,10 @@ defmodule Elektrine.ActivityPub.Outbox do
     if message && message.activitypub_id && user.activitypub_enabled do
       like_activity =
         latest_local_activity_data(user.id, "Like", message.activitypub_id) ||
-          Builder.build_like_activity(user, message.activitypub_id)
+          maybe_add_remote_author_audience(
+            message,
+            Builder.build_like_activity(user, message.activitypub_id)
+          )
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, like_activity)
@@ -258,7 +261,11 @@ defmodule Elektrine.ActivityPub.Outbox do
 
     if message && message.activitypub_id && user.activitypub_enabled do
       # Build Like activity
-      like_activity = Builder.build_like_activity(user, message.activitypub_id)
+      like_activity =
+        maybe_add_remote_author_audience(
+          message,
+          Builder.build_like_activity(user, message.activitypub_id)
+        )
 
       inbox_urls = target_inboxes_for_message(message)
 
@@ -279,7 +286,11 @@ defmodule Elektrine.ActivityPub.Outbox do
 
     if message && message.activitypub_id && user.activitypub_enabled do
       # Build Dislike activity
-      dislike_activity = Builder.build_dislike_activity(user, message.activitypub_id)
+      dislike_activity =
+        maybe_add_remote_author_audience(
+          message,
+          Builder.build_dislike_activity(user, message.activitypub_id)
+        )
 
       inbox_urls = target_inboxes_for_message(message)
 
@@ -301,7 +312,10 @@ defmodule Elektrine.ActivityPub.Outbox do
     if message && message.activitypub_id && user.activitypub_enabled do
       dislike_activity =
         latest_local_activity_data(user.id, "Dislike", message.activitypub_id) ||
-          Builder.build_dislike_activity(user, message.activitypub_id)
+          maybe_add_remote_author_audience(
+            message,
+            Builder.build_dislike_activity(user, message.activitypub_id)
+          )
 
       # Build Undo activity
       undo_activity = Builder.build_undo_activity(user, dislike_activity)
@@ -934,6 +948,22 @@ defmodule Elektrine.ActivityPub.Outbox do
       _ -> nil
     end
   end
+
+  defp maybe_add_remote_author_audience(
+         %Message{federated: true, remote_actor_id: remote_actor_id},
+         activity
+       )
+       when is_map(activity) and not is_nil(remote_actor_id) do
+    case Elektrine.Repo.get(ActivityPub.Actor, remote_actor_id) do
+      %ActivityPub.Actor{uri: actor_uri} when is_binary(actor_uri) and actor_uri != "" ->
+        Map.put_new(activity, "to", [actor_uri])
+
+      _ ->
+        activity
+    end
+  end
+
+  defp maybe_add_remote_author_audience(_, activity), do: activity
 
   # Get the instance inbox from an actor URI
   defp get_instance_inbox_from_uri(actor_uri) when is_binary(actor_uri) do

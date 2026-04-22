@@ -77,10 +77,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :is_saved, :boolean, default: false
   attr :quote_count, :integer, default: 0
   attr :value_name, :string, default: "post_id"
+  attr :save_post_id, :any, default: nil
+  attr :save_value_name, :string, default: nil
   attr :comment_value_name, :string, default: nil
   attr :comment_path, :string, default: nil
   attr :size, :atom, default: :sm
   attr :style, :atom, default: :default
+  attr :dom_id_prefix, :string, default: nil
 
   def post_actions(assigns) do
     {icon_size, btn_class, text_class} =
@@ -105,8 +108,10 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
            "text-[10px] sm:text-sm tabular-nums"}
       end
 
-    # Use comment_value_name if set, otherwise fall back to value_name
+    # Use per-action value overrides when set, otherwise fall back to value_name.
     actual_comment_value_name = assigns.comment_value_name || assigns.value_name
+    actual_save_value_name = assigns.save_value_name || assigns.value_name
+    actual_save_post_id = assigns.save_post_id || assigns.post_id
 
     assigns =
       assigns
@@ -114,6 +119,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       |> assign(:btn_class, btn_class)
       |> assign(:text_class, text_class)
       |> assign(:actual_comment_value_name, actual_comment_value_name)
+      |> assign(:actual_save_value_name, actual_save_value_name)
+      |> assign(:actual_save_post_id, actual_save_post_id)
+      |> assign(:dom_id_prefix, assigns.dom_id_prefix || default_dom_id_prefix(assigns))
 
     if assigns.style == :minimal do
       render_minimal(assigns)
@@ -130,12 +138,14 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <button
             phx-click={if @is_liked, do: @on_unlike, else: @on_like}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            id={action_button_id(@dom_id_prefix, "like")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_liked &&
                 "bg-secondary/10 text-secondary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
-              !@is_liked && "phx-click-loading:bg-secondary/10 phx-click-loading:text-secondary"
+              !@is_liked &&
+                "text-base-content hover:text-secondary phx-click-loading:bg-secondary/10 phx-click-loading:text-secondary"
             ]}
             type="button"
           >
@@ -195,6 +205,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <button
             phx-click={if @is_boosted, do: @on_unboost, else: @on_boost}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            id={action_button_id(@dom_id_prefix, "boost")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
@@ -248,7 +259,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         <%= if @current_user do %>
           <button
             phx-click={if @is_saved, do: @on_unsave, else: @on_save}
-            {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            {[{"phx-value-#{@actual_save_value_name}", @actual_save_post_id}]}
+            id={action_button_id(@dom_id_prefix, "save")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
@@ -284,11 +296,12 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <button
             phx-click={if @is_liked, do: @on_unlike, else: @on_like}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            id={action_button_id(@dom_id_prefix, "like")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_liked,
                 do: "text-secondary phx-click-loading:text-base-content/60",
-                else: "text-base-content/60 hover:text-secondary phx-click-loading:text-secondary"
+                else: "text-base-content hover:text-secondary phx-click-loading:text-secondary"
               )
             ]}
             type="button"
@@ -344,6 +357,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <button
             phx-click={if @is_boosted, do: @on_unboost, else: @on_boost}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            id={action_button_id(@dom_id_prefix, "boost")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_boosted,
@@ -373,7 +387,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         <%= if @current_user do %>
           <button
             phx-click={if @is_saved, do: @on_unsave, else: @on_save}
-            {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            {[{"phx-value-#{@actual_save_value_name}", @actual_save_post_id}]}
+            id={action_button_id(@dom_id_prefix, "save")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_saved,
@@ -422,7 +437,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
         "flex items-center gap-1.5 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
         if(@is_liked,
           do: "text-secondary phx-click-loading:text-base-content/60",
-          else: "text-base-content/60 hover:text-secondary phx-click-loading:text-secondary"
+          else: "text-base-content hover:text-secondary phx-click-loading:text-secondary"
         )
       ]}
       type="button"
@@ -679,6 +694,25 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       </span>
     </button>
     """
+  end
+
+  defp action_button_id(nil, action), do: "post-action-#{action}"
+  defp action_button_id(prefix, action), do: "#{prefix}-#{action}"
+
+  defp default_dom_id_prefix(assigns) do
+    digest =
+      :erlang.phash2({
+        assigns.post_id,
+        assigns.value_name,
+        assigns.size,
+        assigns.style,
+        assigns.comment_path,
+        assigns.on_like,
+        assigns.on_boost,
+        assigns.on_save
+      })
+
+    "post-actions-#{digest}"
   end
 
   defp normalize_interaction_count(count) when is_integer(count), do: max(count, 0)

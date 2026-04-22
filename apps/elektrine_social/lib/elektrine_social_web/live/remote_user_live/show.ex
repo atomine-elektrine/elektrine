@@ -45,6 +45,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     socket =
       socket
       |> assign(:page_title, "Loading profile...")
+      |> assign(:meta_robots, "noindex, nofollow")
       |> assign(:remote_actor, nil)
       |> assign(:is_following, false)
       |> assign(:is_pending, false)
@@ -96,57 +97,11 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         socket
       end
 
-    # Try to get cached actor first (fast path)
-    remote_actor = get_cached_actor(params)
-
-    if remote_actor do
-      # Actor was cached, set up socket and show local posts immediately
-      socket = setup_actor_socket(socket, remote_actor)
-
-      # Load local posts synchronously to prevent flicker (fast DB query)
-      local_posts = get_local_posts_from_remote_actor(remote_actor)
-      socket = assign(socket, :local_posts, local_posts)
-
-      socket =
-        assign(
-          socket,
-          :post_reactions,
-          normalize_post_reaction_keys(get_post_reactions(local_posts))
-        )
-
-      socket = assign(socket, :loading, Enum.empty?(local_posts))
-
-      # Load interactions for local posts
-      socket =
-        if socket.assigns[:current_user] && local_posts != [] do
-          all_posts_for_interactions =
-            Enum.map(local_posts, fn post ->
-              %{"id" => post.activitypub_id}
-            end)
-
-          post_interactions =
-            load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
-
-          user_saves = load_user_saves_for_posts(local_posts, socket.assigns.current_user.id)
-
-          socket
-          |> assign(:post_interactions, post_interactions)
-          |> assign(:user_saves, user_saves)
-        else
-          socket
-        end
-
-      # Fetch remote posts in background after connection
-      if connected?(socket), do: send(self(), :load_timeline)
-      {:ok, socket}
-    else
-      # Need to fetch actor - defer to handle_info
-      if connected?(socket) do
-        send(self(), {:fetch_actor, params})
-      end
-
-      {:ok, socket}
+    if connected?(socket) do
+      send(self(), {:fetch_actor, params})
     end
+
+    {:ok, socket}
   end
 
   defp local_profile_redirect_path(%{"handle" => handle}) when is_binary(handle) do
@@ -154,26 +109,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp local_profile_redirect_path(_), do: nil
-
-  # Fast path: check if actor is already cached locally
-  defp get_cached_actor(params) do
-    case params do
-      %{"handle" => handle} ->
-        case parse_remote_handle(handle) do
-          {:ok, %{username: username, domain: domain}} ->
-            ActivityPub.get_actor_by_username_and_domain(username, domain)
-
-          {:error, _reason} ->
-            nil
-        end
-
-      %{"id" => remote_actor_id} ->
-        Repo.get(Elektrine.ActivityPub.Actor, String.to_integer(remote_actor_id))
-
-      _ ->
-        nil
-    end
-  end
 
   defp setup_actor_socket(socket, remote_actor) do
     {is_following, is_pending} =
@@ -277,7 +212,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
               {:ok, %{acct: acct}} ->
                 case ActivityPub.Fetcher.webfinger_lookup(acct) do
                   {:ok, actor_uri} ->
-                    case ActivityPub.get_or_fetch_actor(actor_uri) do
+                    case ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false) do
                       {:ok, actor} -> {:ok, actor}
                       error -> error
                     end
@@ -1192,11 +1127,94 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "like_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to like posts")}
+        else
+          state = local_visible_post_state(socket, local_id)
+          currently_liked = Map.get(state, :liked, false)
+          currently_downvoted = Map.get(state, :downvoted, false)
+          is_vote_post = local_visible_vote_post?(socket, local_id)
+
+          if currently_liked do
+            handle_event("unlike_post", %{"message_id" => local_id}, socket)
+          else
+            updated_socket =
+              socket
+              |> update_local_visible_interaction(local_id, fn current ->
+                current
+                |> Map.put(:liked, true)
+                |> Map.put(:downvoted, false)
+                |> Map.put(:like_delta, 0)
+              end)
+              |> adjust_local_visible_post_count(local_id, :like_count, 1)
+              |> adjust_local_visible_post_count(
+                local_id,
+                :upvotes,
+                if(is_vote_post, do: 1, else: 0)
+              )
+              |> adjust_local_visible_post_count(
+                local_id,
+                :dislike_count,
+                if(currently_downvoted, do: -1, else: 0)
+              )
+              |> adjust_local_visible_post_count(
+                local_id,
+                :downvotes,
+                if(currently_downvoted, do: -1, else: 0)
+              )
+              |> adjust_local_visible_post_count(
+                local_id,
+                :score,
+                if(is_vote_post, do: if(currently_downvoted, do: 2, else: 1), else: 0)
+              )
+
+            case Elektrine.Social.like_post(socket.assigns.current_user.id, local_id) do
+              {:ok, _} ->
+                {:noreply, updated_socket}
+
+              {:error, _} ->
+                {:noreply,
+                 updated_socket
+                 |> update_local_visible_interaction(local_id, fn current ->
+                   current
+                   |> Map.put(:liked, false)
+                   |> Map.put(:downvoted, currently_downvoted)
+                 end)
+                 |> adjust_local_visible_post_count(local_id, :like_count, -1)
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :upvotes,
+                   if(is_vote_post, do: -1, else: 0)
+                 )
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :dislike_count,
+                   if(currently_downvoted, do: 1, else: 0)
+                 )
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :downvotes,
+                   if(currently_downvoted, do: 1, else: 0)
+                 )
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :score,
+                   if(is_vote_post, do: if(currently_downvoted, do: -2, else: -1), else: 0)
+                 )
+                 |> put_flash(:error, "Failed to like post")}
+            end
+          end
+        end
+
+      :error ->
+        handle_event(
+          "like_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("like_post", %{"id" => id}, socket) do
@@ -1241,11 +1259,66 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "unlike_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, socket}
+        else
+          state = local_visible_post_state(socket, local_id)
+          is_vote_post = local_visible_vote_post?(socket, local_id)
+
+          updated_socket =
+            socket
+            |> update_local_visible_interaction(local_id, fn current ->
+              current
+              |> Map.put(:liked, false)
+              |> Map.put(:like_delta, 0)
+            end)
+            |> adjust_local_visible_post_count(local_id, :like_count, -1)
+            |> adjust_local_visible_post_count(
+              local_id,
+              :upvotes,
+              if(is_vote_post, do: -1, else: 0)
+            )
+            |> adjust_local_visible_post_count(
+              local_id,
+              :score,
+              if(is_vote_post, do: -1, else: 0)
+            )
+
+          case Elektrine.Social.unlike_post(socket.assigns.current_user.id, local_id) do
+            {:ok, _} ->
+              {:noreply, updated_socket}
+
+            {:error, _} ->
+              {:noreply,
+               updated_socket
+               |> update_local_visible_interaction(local_id, fn current ->
+                 current
+                 |> Map.put(:liked, true)
+                 |> Map.put(:downvoted, Map.get(state, :downvoted, false))
+               end)
+               |> adjust_local_visible_post_count(local_id, :like_count, 1)
+               |> adjust_local_visible_post_count(
+                 local_id,
+                 :upvotes,
+                 if(is_vote_post, do: 1, else: 0)
+               )
+               |> adjust_local_visible_post_count(
+                 local_id,
+                 :score,
+                 if(is_vote_post, do: 1, else: 0)
+               )}
+          end
+        end
+
+      :error ->
+        handle_event(
+          "unlike_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("unlike_post", %{"id" => id}, socket) do
@@ -1257,11 +1330,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("upvote_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "upvote_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    handle_event("like_post", %{"message_id" => message_id}, socket)
   end
 
   def handle_event("upvote_post", %{"id" => id}, socket) do
@@ -1273,11 +1342,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("unupvote_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "unupvote_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    handle_event("unlike_post", %{"message_id" => message_id}, socket)
   end
 
   def handle_event("unupvote_post", %{"id" => id}, socket) do
@@ -1289,11 +1354,85 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("downvote_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "downvote_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+        else
+          state = local_visible_post_state(socket, local_id)
+          currently_liked = Map.get(state, :liked, false)
+          currently_downvoted = Map.get(state, :downvoted, false)
+
+          if currently_downvoted do
+            handle_event("undownvote_post", %{"message_id" => local_id}, socket)
+          else
+            updated_socket =
+              socket
+              |> update_local_visible_interaction(local_id, fn current ->
+                current
+                |> Map.put(:liked, false)
+                |> Map.put(:downvoted, true)
+                |> Map.put(:like_delta, 0)
+              end)
+              |> adjust_local_visible_post_count(
+                local_id,
+                :score,
+                if(currently_liked, do: -2, else: -1)
+              )
+              |> adjust_local_visible_post_count(
+                local_id,
+                :like_count,
+                if(currently_liked, do: -1, else: 0)
+              )
+              |> adjust_local_visible_post_count(
+                local_id,
+                :upvotes,
+                if(currently_liked, do: -1, else: 0)
+              )
+              |> adjust_local_visible_post_count(local_id, :dislike_count, 1)
+              |> adjust_local_visible_post_count(local_id, :downvotes, 1)
+
+            case Votes.vote_on_message(socket.assigns.current_user.id, local_id, "down") do
+              {:ok, _} ->
+                {:noreply, updated_socket}
+
+              {:error, _} ->
+                {:noreply,
+                 updated_socket
+                 |> update_local_visible_interaction(local_id, fn current ->
+                   current
+                   |> Map.put(:liked, currently_liked)
+                   |> Map.put(:downvoted, false)
+                 end)
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :score,
+                   if(currently_liked, do: 2, else: 1)
+                 )
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :like_count,
+                   if(currently_liked, do: 1, else: 0)
+                 )
+                 |> adjust_local_visible_post_count(
+                   local_id,
+                   :upvotes,
+                   if(currently_liked, do: 1, else: 0)
+                 )
+                 |> adjust_local_visible_post_count(local_id, :dislike_count, -1)
+                 |> adjust_local_visible_post_count(local_id, :downvotes, -1)
+                 |> put_flash(:error, "Failed to vote")}
+            end
+          end
+        end
+
+      :error ->
+        handle_event(
+          "downvote_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("downvote_post", %{"id" => id}, socket) do
@@ -1305,11 +1444,35 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("undownvote_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "undownvote_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+        else
+          updated_socket =
+            socket
+            |> update_local_visible_interaction(local_id, fn current ->
+              current
+              |> Map.put(:downvoted, false)
+              |> Map.put(:like_delta, 0)
+            end)
+            |> adjust_local_visible_post_count(local_id, :score, 1)
+            |> adjust_local_visible_post_count(local_id, :dislike_count, -1)
+            |> adjust_local_visible_post_count(local_id, :downvotes, -1)
+
+          Social.vote_on_message(socket.assigns.current_user.id, local_id, "up")
+          Social.unlike_post(socket.assigns.current_user.id, local_id)
+
+          {:noreply, updated_socket}
+        end
+
+      :error ->
+        handle_event(
+          "undownvote_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("undownvote_post", %{"id" => id}, socket) do
@@ -1388,11 +1551,59 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "boost_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
+        else
+          currently_boosted = Map.get(local_visible_post_state(socket, local_id), :boosted, false)
+
+          if currently_boosted do
+            handle_event("unboost_post", %{"message_id" => local_id}, socket)
+          else
+            updated_socket =
+              socket
+              |> update_local_visible_interaction(local_id, fn current ->
+                current
+                |> Map.put(:boosted, true)
+                |> Map.put(:boost_delta, 0)
+              end)
+              |> adjust_local_visible_post_count(local_id, :share_count, 1)
+
+            case Elektrine.Social.boost_post(socket.assigns.current_user.id, local_id) do
+              {:ok, _} ->
+                {:noreply, put_flash(updated_socket, :info, "Boosted!")}
+
+              {:error, :already_boosted} ->
+                {:noreply, put_flash(updated_socket, :info, "Already boosted")}
+
+              {:error, :empty_post} ->
+                {:noreply, put_flash(socket, :error, "Cannot boost empty posts")}
+
+              {:error, :rate_limited} ->
+                {:noreply, put_flash(socket, :error, "Slow down! You're boosting too fast")}
+
+              {:error, _} ->
+                {:noreply,
+                 updated_socket
+                 |> update_local_visible_interaction(local_id, fn current ->
+                   current
+                   |> Map.put(:boosted, false)
+                   |> Map.put(:boost_delta, 0)
+                 end)
+                 |> adjust_local_visible_post_count(local_id, :share_count, -1)
+                 |> put_flash(:error, "Failed to boost")}
+            end
+          end
+        end
+
+      :error ->
+        handle_event(
+          "boost_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("boost_post", %{"id" => id}, socket) do
@@ -1437,11 +1648,44 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
-    handle_event(
-      "unboost_post",
-      %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
-      socket
-    )
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, socket}
+        else
+          updated_socket =
+            socket
+            |> update_local_visible_interaction(local_id, fn current ->
+              current
+              |> Map.put(:boosted, false)
+              |> Map.put(:boost_delta, 0)
+            end)
+            |> adjust_local_visible_post_count(local_id, :share_count, -1)
+
+          case Elektrine.Social.unboost_post(socket.assigns.current_user.id, local_id) do
+            {:ok, _} ->
+              {:noreply, updated_socket}
+
+            {:error, _} ->
+              {:noreply,
+               updated_socket
+               |> update_local_visible_interaction(local_id, fn current ->
+                 current
+                 |> Map.put(:boosted, true)
+                 |> Map.put(:boost_delta, 0)
+               end)
+               |> adjust_local_visible_post_count(local_id, :share_count, 1)
+               |> put_flash(:error, "Failed to unboost")}
+          end
+        end
+
+      :error ->
+        handle_event(
+          "unboost_post",
+          %{"post_id" => normalize_post_id_for_reply(socket, message_id)},
+          socket
+        )
+    end
   end
 
   def handle_event("unboost_post", %{"id" => id}, socket) do
@@ -1704,36 +1948,51 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
-    if current_user_missing?(socket) do
-      {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
-    else
-      case PostInteractions.resolve_message_for_interaction(message_id,
-             actor_uri: socket.assigns.remote_actor.uri
-           ) do
-        {:ok, message} ->
-          case Social.save_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _} ->
-              user_saves = Map.get(socket.assigns, :user_saves, %{})
-              key = PostInteractions.interaction_key(message_id, message)
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
+        else
+          updated_socket = update_local_visible_save(socket, local_id, true)
 
-              {:noreply,
-               socket
-               |> assign(:user_saves, Map.put(user_saves, key, true))
-               |> put_flash(:info, "Saved")}
+          case Social.save_post(socket.assigns.current_user.id, local_id) do
+            {:ok, _} -> {:noreply, put_flash(updated_socket, :info, "Saved")}
+            {:error, _} -> {:noreply, put_flash(updated_socket, :info, "Already saved")}
+          end
+        end
+
+      :error ->
+        if current_user_missing?(socket) do
+          {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
+        else
+          case PostInteractions.resolve_message_for_interaction(message_id,
+                 actor_uri: socket.assigns.remote_actor.uri
+               ) do
+            {:ok, message} ->
+              case Social.save_post(socket.assigns.current_user.id, message.id) do
+                {:ok, _} ->
+                  user_saves = Map.get(socket.assigns, :user_saves, %{})
+                  key = PostInteractions.interaction_key(message_id, message)
+
+                  {:noreply,
+                   socket
+                   |> assign(:user_saves, Map.put(user_saves, key, true))
+                   |> put_flash(:info, "Saved")}
+
+                {:error, _} ->
+                  user_saves = Map.get(socket.assigns, :user_saves, %{})
+                  key = PostInteractions.interaction_key(message_id, message)
+
+                  {:noreply,
+                   socket
+                   |> assign(:user_saves, Map.put(user_saves, key, true))
+                   |> put_flash(:info, "Already saved")}
+              end
 
             {:error, _} ->
-              user_saves = Map.get(socket.assigns, :user_saves, %{})
-              key = PostInteractions.interaction_key(message_id, message)
-
-              {:noreply,
-               socket
-               |> assign(:user_saves, Map.put(user_saves, key, true))
-               |> put_flash(:info, "Already saved")}
+              {:noreply, put_flash(socket, :error, "Failed to save post")}
           end
-
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to save post")}
-      end
+        end
     end
   end
 
@@ -1742,30 +2001,51 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
-    if current_user_missing?(socket) do
-      {:noreply, socket}
-    else
-      case PostInteractions.resolve_message_for_interaction(message_id,
-             actor_uri: socket.assigns.remote_actor.uri
-           ) do
-        {:ok, message} ->
-          case Social.unsave_post(socket.assigns.current_user.id, message.id) do
-            {:ok, _} ->
-              user_saves = Map.get(socket.assigns, :user_saves, %{})
-              key = PostInteractions.interaction_key(message_id, message)
+    case local_visible_message_id(socket, message_id) do
+      {:ok, local_id} ->
+        if current_user_missing?(socket) do
+          {:noreply, socket}
+        else
+          updated_socket = update_local_visible_save(socket, local_id, false)
 
-              {:noreply,
-               socket
-               |> assign(:user_saves, Map.put(user_saves, key, false))
-               |> put_flash(:info, "Removed from saved")}
+          case Social.unsave_post(socket.assigns.current_user.id, local_id) do
+            {:ok, _} ->
+              {:noreply, put_flash(updated_socket, :info, "Removed from saved")}
 
             {:error, _} ->
-              {:noreply, put_flash(socket, :error, "Failed to unsave")}
+              {:noreply,
+               updated_socket
+               |> update_local_visible_save(local_id, true)
+               |> put_flash(:error, "Failed to unsave")}
           end
+        end
 
-        {:error, _} ->
+      :error ->
+        if current_user_missing?(socket) do
           {:noreply, socket}
-      end
+        else
+          case PostInteractions.resolve_message_for_interaction(message_id,
+                 actor_uri: socket.assigns.remote_actor.uri
+               ) do
+            {:ok, message} ->
+              case Social.unsave_post(socket.assigns.current_user.id, message.id) do
+                {:ok, _} ->
+                  user_saves = Map.get(socket.assigns, :user_saves, %{})
+                  key = PostInteractions.interaction_key(message_id, message)
+
+                  {:noreply,
+                   socket
+                   |> assign(:user_saves, Map.put(user_saves, key, false))
+                   |> put_flash(:info, "Removed from saved")}
+
+                {:error, _} ->
+                  {:noreply, put_flash(socket, :error, "Failed to unsave")}
+              end
+
+            {:error, _} ->
+              {:noreply, socket}
+          end
+        end
     end
   end
 
@@ -2697,6 +2977,98 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     Enum.find_value(key_candidates, PostInteractions.default_interaction_state(), fn key ->
       Map.get(post_interactions || %{}, key)
     end) || PostInteractions.default_interaction_state()
+  end
+
+  defp local_visible_message_id(socket, raw_message_id) do
+    with {:ok, message_id} <- parse_local_message_id(raw_message_id),
+         true <- Enum.any?(socket.assigns.local_posts || [], &(&1.id == message_id)) do
+      {:ok, message_id}
+    else
+      _ -> :error
+    end
+  end
+
+  defp local_visible_post(socket, message_id) when is_integer(message_id) do
+    Enum.find(socket.assigns.local_posts || [], &(&1.id == message_id))
+  end
+
+  defp local_visible_post_state(socket, message_id) when is_integer(message_id) do
+    case local_visible_post(socket, message_id) do
+      nil -> PostInteractions.default_interaction_state()
+      post -> interaction_state_for_local_post(post, socket.assigns.post_interactions)
+    end
+  end
+
+  defp local_visible_vote_post?(socket, message_id) when is_integer(message_id) do
+    case local_visible_post(socket, message_id) do
+      nil -> false
+      post -> PostUtilities.lemmy_vote_post?(post)
+    end
+  end
+
+  defp update_local_visible_post(socket, message_id, updater) when is_function(updater, 1) do
+    socket
+    |> update(:local_posts, fn posts ->
+      Enum.map(posts || [], fn post ->
+        if post.id == message_id, do: updater.(post), else: post
+      end)
+    end)
+    |> update(:modal_post, fn
+      %{id: ^message_id} = post -> updater.(post)
+      post -> post
+    end)
+  end
+
+  defp adjust_local_visible_post_count(socket, message_id, field, delta)
+       when field in [:like_count, :dislike_count, :share_count, :score, :upvotes, :downvotes] and
+              is_integer(delta) do
+    allow_negative = field in [:score]
+
+    update_local_visible_post(socket, message_id, fn post ->
+      current = Map.get(post, field, 0) || 0
+      updated = current + delta
+      Map.put(post, field, if(allow_negative, do: updated, else: max(updated, 0)))
+    end)
+  end
+
+  defp update_local_visible_interaction(socket, message_id, updater)
+       when is_function(updater, 1) do
+    case local_visible_post(socket, message_id) do
+      nil ->
+        socket
+
+      post ->
+        keys =
+          [post.activitypub_id, Integer.to_string(post.id), post.id] |> Enum.reject(&is_nil/1)
+
+        current = interaction_state_for_local_post(post, socket.assigns.post_interactions)
+        updated = updater.(current)
+
+        updated_map =
+          Enum.reduce(keys, socket.assigns.post_interactions || %{}, fn key, acc ->
+            Map.put(acc, key, updated)
+          end)
+
+        assign(socket, :post_interactions, updated_map)
+    end
+  end
+
+  defp update_local_visible_save(socket, message_id, saved) when is_boolean(saved) do
+    case local_visible_post(socket, message_id) do
+      nil ->
+        socket
+
+      post ->
+        keys =
+          [post.activitypub_id, Integer.to_string(post.id), post.id] |> Enum.reject(&is_nil/1)
+
+        updated_map =
+          Enum.reduce(keys, socket.assigns.user_saves || %{}, fn key, acc ->
+            Map.put(acc, key, saved)
+          end)
+
+        assign(socket, :user_saves, updated_map)
+    end
   end
 
   defp post_saved?(post, user_saves) do

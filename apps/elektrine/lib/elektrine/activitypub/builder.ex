@@ -931,7 +931,8 @@ defmodule Elektrine.ActivityPub.Builder do
       "actor" => ActivityPub.actor_uri(user, base_url),
       "object" => object_uri,
       "to" => ["https://www.w3.org/ns/activitystreams#Public"],
-      "cc" => [ActivityPub.user_collection_uri(user, "followers", base_url)]
+      "cc" => [ActivityPub.user_collection_uri(user, "followers", base_url)],
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
 
@@ -947,7 +948,8 @@ defmodule Elektrine.ActivityPub.Builder do
       "id" => activity_id,
       "type" => "Like",
       "actor" => ActivityPub.actor_uri(user, base_url),
-      "object" => object_uri
+      "object" => object_uri,
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
 
@@ -963,7 +965,8 @@ defmodule Elektrine.ActivityPub.Builder do
       "id" => activity_id,
       "type" => "Dislike",
       "actor" => ActivityPub.actor_uri(user, base_url),
-      "object" => object_uri
+      "object" => object_uri,
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
 
@@ -1012,9 +1015,23 @@ defmodule Elektrine.ActivityPub.Builder do
       "id" => activity_id,
       "type" => "Undo",
       "actor" => ActivityPub.actor_uri(user, base_url),
-      "object" => original_activity
+      "object" => original_activity,
+      "published" => DateTime.utc_now() |> DateTime.to_iso8601()
     }
+    |> maybe_copy_routing_from_original(original_activity)
   end
+
+  defp maybe_copy_routing_from_original(activity, original_activity)
+       when is_map(original_activity) do
+    Enum.reduce(["to", "cc", "audience", "context"], activity, fn field, acc ->
+      case Map.get(original_activity, field) do
+        nil -> acc
+        value -> Map.put(acc, field, value)
+      end
+    end)
+  end
+
+  defp maybe_copy_routing_from_original(activity, _), do: activity
 
   @doc """
   Builds a Delete activity with a Tombstone object.

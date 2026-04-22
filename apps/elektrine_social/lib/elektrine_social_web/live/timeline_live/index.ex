@@ -1869,7 +1869,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   defp resolve_lemmy_comment_actor(actor_uri) when is_binary(actor_uri) and actor_uri != "" do
     case Elektrine.ActivityPub.get_actor_by_uri(actor_uri) do
       nil ->
-        case Elektrine.ActivityPub.get_or_fetch_actor(actor_uri) do
+        case Elektrine.ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false) do
           {:ok, actor} -> actor
           _ -> nil
         end

@@ -274,7 +274,7 @@
           <% end %>
           
 <!-- Sort Controls -->
-          <%= if !@loading && (!Enum.empty?(@timeline_posts) || !Enum.empty?(@local_posts)) do %>
+          <%= if !@loading && !Enum.empty?(@local_posts) do %>
             <div class="social-page-card flex items-center gap-2 mb-4 bg-base-200 border border-base-300 rounded-lg p-2">
               <span class="text-sm font-medium opacity-70 px-2">Sort:</span>
               <div class="flex gap-1 flex-wrap">
@@ -323,9 +323,9 @@
           <% end %>
           
 <!-- Posts Feed -->
-          <% # Combine and sort all posts
-          all_posts = @local_posts ++ @timeline_posts
-          sorted_posts = ElektrineSocialWeb.RemoteUserLive.Show.sort_posts(all_posts, @sort_by)
+          <% sorted_posts =
+            ElektrineSocialWeb.RemoteUserLive.Show.sort_posts(@local_posts, @sort_by)
+
           remote_community_feed? = @remote_actor && @remote_actor.actor_type == "Group"
           local_likes = likes_by_local_id(@local_posts, @post_interactions)
           local_boosts = boosts_by_local_id(@local_posts, @post_interactions)
@@ -380,8 +380,8 @@
                   show_post_dropdown={false}
                   resolve_reply_refs={true}
                   show_ancestor_actions={true}
-                  on_like={if remote_community_feed?, do: "upvote_post", else: "like_post"}
-                  on_unlike={if remote_community_feed?, do: "unupvote_post", else: "unlike_post"}
+                  on_like="like_post"
+                  on_unlike="unlike_post"
                   on_downvote="downvote_post"
                   on_undownvote="undownvote_post"
                   source="remote_profile"
@@ -1047,9 +1047,9 @@
       </div>
     <% else %>
       <!-- PERSON VIEW (Original Profile Style) -->
-      <% # Collect all media from posts for the sidebar
+      <% # Collect all media from cached local posts for the sidebar
       all_media =
-        (@local_posts ++ @timeline_posts)
+        @local_posts
         |> Enum.flat_map(fn post ->
           cond do
             # Local post (Ecto struct) - check for struct first
@@ -1316,7 +1316,7 @@
               </div>
             <% end %>
 
-            <%= if !@loading && Enum.empty?(@timeline_posts) && Enum.empty?(@local_posts) && !@error do %>
+            <%= if !@loading && Enum.empty?(@local_posts) && !@error do %>
               <div class="text-center py-12 px-4">
                 <.icon name="hero-inbox" class="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p class="opacity-70">No public posts available</p>
@@ -1598,12 +1598,16 @@
                   reaction_surface =
                     post_reaction_surface(post["id"], @local_posts, @post_reactions) %>
                   <div class="flex items-center gap-6 mt-3 text-sm">
+                    <% local_message_id = post["_local_message_id"] || post[:_local_message_id] %>
                     <.post_actions
-                      post_id={post["id"]}
+                      post_id={local_message_id || post["id"]}
+                      value_name={if local_message_id, do: "message_id", else: "post_id"}
+                      save_post_id={local_message_id}
+                      save_value_name={if local_message_id, do: "message_id", else: "post_id"}
                       current_user={@current_user}
                       is_liked={is_liked}
                       is_boosted={is_boosted}
-                      is_saved={Map.get(@user_saves, post["id"], false)}
+                      is_saved={post_saved?(post, @user_saves)}
                       like_count={like_count}
                       comment_count={display_reply_count}
                       boost_count={boost_count}

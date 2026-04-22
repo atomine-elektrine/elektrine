@@ -394,91 +394,93 @@
       </form>
     </div>
 
-    <div class="flex flex-col sm:flex-row gap-4 lg:gap-6">
+    <div class="flex flex-col sm:flex-row items-start gap-4 lg:gap-6">
       <!-- Left Sidebar - Post composer and search (Hidden on mobile) -->
-      <div class="hidden sm:block w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
-        <div id="timeline-left-sidebar" class="card panel-card rounded-lg">
-          <div class="card-body p-4 space-y-4">
-            <%= if @current_user do %>
-              <div class="flex gap-2">
-                <button
-                  phx-click="toggle_post_composer"
-                  class="btn btn-secondary flex-1"
-                  aria-label={gettext("Create new post")}
-                >
-                  <.icon name="hero-pencil-square" class="w-5 h-5 mr-2" /> {gettext("New Post")}
-                </button>
-                <button
-                  phx-click="show_drafts"
-                  class={["btn btn-outline", length(@user_drafts || []) > 0 && "indicator"]}
-                  title={gettext("View drafts")}
-                >
-                  <%= if length(@user_drafts || []) > 0 do %>
-                    <span class="indicator-item badge badge-secondary badge-xs">
-                      {length(@user_drafts)}
-                    </span>
-                  <% end %>
+      <div class="timeline-sidebar-sticky hidden sm:block w-64 xl:w-72 flex-shrink-0 self-start z-20 pr-1">
+        <div class="timeline-sidebar-scroll">
+          <div id="timeline-left-sidebar" class="card panel-card rounded-lg">
+            <div class="card-body p-4 space-y-4">
+              <%= if @current_user do %>
+                <div class="flex gap-2">
+                  <button
+                    phx-click="toggle_post_composer"
+                    class="btn btn-secondary flex-1"
+                    aria-label={gettext("Create new post")}
+                  >
+                    <.icon name="hero-pencil-square" class="w-5 h-5 mr-2" /> {gettext("New Post")}
+                  </button>
+                  <button
+                    phx-click="show_drafts"
+                    class={["btn btn-outline", length(@user_drafts || []) > 0 && "indicator"]}
+                    title={gettext("View drafts")}
+                  >
+                    <%= if length(@user_drafts || []) > 0 do %>
+                      <span class="indicator-item badge badge-secondary badge-xs">
+                        {length(@user_drafts)}
+                      </span>
+                    <% end %>
 
-                  <%= if @draft_saving do %>
-                    <.spinner size="xs" />
-                  <% else %>
-                    <.icon name="hero-document-duplicate" class="w-5 h-5" />
-                  <% end %>
-                </button>
-              </div>
-            <% end %>
+                    <%= if @draft_saving do %>
+                      <.spinner size="xs" />
+                    <% else %>
+                      <.icon name="hero-document-duplicate" class="w-5 h-5" />
+                    <% end %>
+                  </button>
+                </div>
+              <% end %>
 
-            <form
-              id="timeline-left-sidebar-search"
-              phx-change="search_timeline"
-              phx-submit="search_timeline"
-              class="relative"
-            >
-              <label class="input input-bordered input-sm w-full flex items-center gap-2 pr-8">
-                <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
-                <input
-                  id="timeline-left-sidebar-search-input"
-                  type="text"
-                  placeholder={gettext("Search posts...")}
-                  value={@search_query}
-                  phx-debounce="300"
-                  name="query"
-                  data-search-input="true"
-                  class="grow bg-transparent"
-                  aria-label={gettext("Search posts")}
-                />
-              </label>
-              <%= if @search_query != "" do %>
+              <form
+                id="timeline-left-sidebar-search"
+                phx-change="search_timeline"
+                phx-submit="search_timeline"
+                class="relative"
+              >
+                <label class="input input-bordered input-sm w-full flex items-center gap-2 pr-8">
+                  <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
+                  <input
+                    id="timeline-left-sidebar-search-input"
+                    type="text"
+                    placeholder={gettext("Search posts...")}
+                    value={@search_query}
+                    phx-debounce="300"
+                    name="query"
+                    data-search-input="true"
+                    class="grow bg-transparent"
+                    aria-label={gettext("Search posts")}
+                  />
+                </label>
+                <%= if @search_query != "" do %>
+                  <button
+                    type="button"
+                    phx-click="clear_search"
+                    data-search-clear="true"
+                    data-search-clear-target="#timeline-left-sidebar-search-input"
+                    class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs"
+                    aria-label={gettext("Clear search")}
+                  >
+                    <.icon name="hero-x-mark" class="w-3 h-3" />
+                  </button>
+                <% end %>
+              </form>
+
+              <%= if length(@queued_posts) > 0 do %>
                 <button
+                  id="load-queued-posts-button-sidebar"
                   type="button"
-                  phx-click="clear_search"
-                  data-search-clear="true"
-                  data-search-clear-target="#timeline-left-sidebar-search-input"
-                  class="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-circle btn-xs"
-                  aria-label={gettext("Clear search")}
+                  phx-hook="PreserveQueuedPostsButtonScroll"
+                  phx-click="load_queued_posts"
+                  data-load-queued-posts
+                  class="hidden sm:flex btn btn-secondary w-full gap-2 animate-bounce-subtle"
                 >
-                  <.icon name="hero-x-mark" class="w-3 h-3" />
+                  <.icon name="hero-arrow-up" class="w-4 h-4" />
+                  <span>
+                    Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
+                      do: "post",
+                      else: "posts"}
+                  </span>
                 </button>
               <% end %>
-            </form>
-
-            <%= if length(@queued_posts) > 0 do %>
-              <button
-                id="load-queued-posts-button-sidebar"
-                type="button"
-                phx-hook="PreserveQueuedPostsButtonScroll"
-                phx-click="load_queued_posts"
-                data-load-queued-posts
-                class="hidden sm:flex btn btn-secondary w-full gap-2 animate-bounce-subtle"
-              >
-                <.icon name="hero-arrow-up" class="w-4 h-4" />
-                <span>
-                  Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
-                    do: "post",
-                    else: "posts"}
-                </span>
-              </button>
-            <% end %>
+            </div>
           </div>
         </div>
       </div>
@@ -1447,67 +1449,69 @@
       </div>
       <!-- Right Sidebar - Suggestions (Hidden on mobile and for unauthenticated users) -->
       <%= if @current_user do %>
-        <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
-          <div id="timeline-right-sidebar" class="space-y-6">
-            <!-- Follow Remote User/Community Section -->
-            <.fediverse_follow loading={@remote_user_loading} preview={@remote_user_preview} />
-            <div class="card panel-card rounded-lg">
-              <div class="card-body p-4 space-y-4">
-                <h3 class="font-semibold">Suggested Follows</h3>
+        <div class="timeline-sidebar-sticky hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col self-start pr-1">
+          <div class="timeline-sidebar-scroll">
+            <div id="timeline-right-sidebar" class="space-y-6">
+              <!-- Follow Remote User/Community Section -->
+              <.fediverse_follow loading={@remote_user_loading} preview={@remote_user_preview} />
+              <div class="card panel-card rounded-lg">
+                <div class="card-body p-4 space-y-4">
+                  <h3 class="font-semibold">Suggested Follows</h3>
 
-                <div
-                  class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
-                  style="scrollbar-gutter: stable"
-                >
-                  <%= if @suggested_follows && length(@suggested_follows) > 0 do %>
-                    <%= for suggestion <- @suggested_follows do %>
-                      <div class="flex items-center gap-3 rounded-lg bg-base-50/80 p-3 transition-colors hover:bg-base-200/80">
-                        <.link
-                          href={~p"/#{suggestion.handle || suggestion.username}"}
-                          class="w-10 h-10 flex-shrink-0 overflow-visible block"
-                        >
-                          <.user_avatar
-                            user={
-                              %{
-                                username: suggestion.handle || suggestion.username,
-                                avatar: suggestion.avatar,
-                                id: suggestion.id
-                              }
-                            }
-                            size="sm"
-                            user_statuses={@user_statuses}
-                          />
-                        </.link>
-                        <div class="flex-1 min-w-0 space-y-1">
+                  <div
+                    class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
+                    style="scrollbar-gutter: stable"
+                  >
+                    <%= if @suggested_follows && length(@suggested_follows) > 0 do %>
+                      <%= for suggestion <- @suggested_follows do %>
+                        <div class="flex items-center gap-3 rounded-lg bg-base-50/80 p-3 transition-colors hover:bg-base-200/80">
                           <.link
                             href={~p"/#{suggestion.handle || suggestion.username}"}
-                            class="font-medium text-sm hover:underline block truncate"
+                            class="w-10 h-10 flex-shrink-0 overflow-visible block"
                           >
-                            {suggestion.display_name || suggestion.handle || suggestion.username}
+                            <.user_avatar
+                              user={
+                                %{
+                                  username: suggestion.handle || suggestion.username,
+                                  avatar: suggestion.avatar,
+                                  id: suggestion.id
+                                }
+                              }
+                              size="sm"
+                              user_statuses={@user_statuses}
+                            />
                           </.link>
-                          <p class="text-xs opacity-70 truncate">
-                            @{suggestion.handle || suggestion.username}
-                          </p>
+                          <div class="flex-1 min-w-0 space-y-1">
+                            <.link
+                              href={~p"/#{suggestion.handle || suggestion.username}"}
+                              class="font-medium text-sm hover:underline block truncate"
+                            >
+                              {suggestion.display_name || suggestion.handle || suggestion.username}
+                            </.link>
+                            <p class="text-xs opacity-70 truncate">
+                              @{suggestion.handle || suggestion.username}
+                            </p>
 
-                          <p class="text-xs text-error">{suggestion.reason}</p>
+                            <p class="text-xs text-error">{suggestion.reason}</p>
+                          </div>
+
+                          <ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button
+                            id={"suggested-follow-#{suggestion.id}"}
+                            user_id={suggestion.id}
+                            user_follows={@user_follows}
+                            class="flex-shrink-0"
+                          />
                         </div>
+                      <% end %>
+                    <% else %>
+                      <div class="text-center text-sm opacity-70 py-8">
+                        <.icon name="hero-users" class="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p>No suggestions available</p>
 
-                        <ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button
-                          id={"suggested-follow-#{suggestion.id}"}
-                          user_id={suggestion.id}
-                          user_follows={@user_follows}
-                          class="flex-shrink-0"
-                        />
+                        <p class="text-xs mt-1">Follow some users to get better suggestions</p>
                       </div>
                     <% end %>
-                  <% else %>
-                    <div class="text-center text-sm opacity-70 py-8">
-                      <.icon name="hero-users" class="w-8 h-8 mx-auto mb-2 opacity-40" />
-                      <p>No suggestions available</p>
-
-                      <p class="text-xs mt-1">Follow some users to get better suggestions</p>
-                    </div>
-                  <% end %>
+                  </div>
                 </div>
               </div>
             </div>

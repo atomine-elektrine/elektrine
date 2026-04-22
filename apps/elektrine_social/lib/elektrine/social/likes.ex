@@ -29,6 +29,8 @@ defmodule Elektrine.Social.Likes do
   Returns `{:ok, like}` on success, or `{:error, changeset}` if already liked.
   """
   def like_post(user_id, message_id) do
+    message = Repo.get!(Message, message_id)
+
     %PostLike{}
     |> PostLike.changeset(%{
       user_id: user_id,
@@ -38,8 +40,7 @@ defmodule Elektrine.Social.Likes do
     |> Repo.insert()
     |> case do
       {:ok, like} ->
-        # Increment like count
-        increment_like_count(message_id)
+        reconcile_like_count(message, 1)
 
         # Broadcast engagement updates synchronously so rapid toggles stay ordered for the UI.
         safe_broadcast_like_event(:liked, like)
@@ -72,6 +73,8 @@ defmodule Elektrine.Social.Likes do
   Returns `{:ok, deleted_like}` on success, or `{:error, :not_liked}` if not liked.
   """
   def unlike_post(user_id, message_id) do
+    message = Repo.get!(Message, message_id)
+
     case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
       nil ->
         {:error, :not_liked}
@@ -79,8 +82,7 @@ defmodule Elektrine.Social.Likes do
       like ->
         case Repo.delete(like) do
           {:ok, deleted_like} ->
-            # Decrement like count
-            decrement_like_count(message_id)
+            reconcile_like_count(message, -1)
 
             # Broadcast engagement updates synchronously so rapid toggles stay ordered for the UI.
             safe_broadcast_like_event(:unliked, deleted_like)
@@ -126,15 +128,47 @@ defmodule Elektrine.Social.Likes do
 
   # Private functions
 
-  defp increment_like_count(message_id) do
-    from(m in Message, where: m.id == ^message_id)
-    |> Repo.update_all(inc: [like_count: 1])
+  defp reconcile_like_count(%Message{} = message, delta) when delta in [-1, 1] do
+    current_local_like_count =
+      from(l in PostLike,
+        where: l.message_id == ^message.id,
+        select: count(l.id)
+      )
+      |> Repo.one()
+
+    previous_local_like_count = max(current_local_like_count - delta, 0)
+
+    remote_baseline =
+      message
+      |> remote_like_count_baseline()
+      |> max(max((message.like_count || 0) - previous_local_like_count, 0))
+
+    like_count = remote_baseline + current_local_like_count
+
+    from(m in Message,
+      where: m.id == ^message.id,
+      update: [set: [like_count: ^like_count]]
+    )
+    |> Repo.update_all([])
   end
 
-  defp decrement_like_count(message_id) do
-    from(m in Message, where: m.id == ^message_id)
-    |> Repo.update_all(inc: [like_count: -1])
+  defp remote_like_count_baseline(%Message{} = message) do
+    message
+    |> Map.get(:media_metadata, %{})
+    |> Map.get("original_like_count")
+    |> parse_non_negative_integer()
   end
+
+  defp parse_non_negative_integer(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_non_negative_integer(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, ""} when count >= 0 -> count
+      _ -> 0
+    end
+  end
+
+  defp parse_non_negative_integer(_), do: 0
 
   defp safe_broadcast_like_event(event_type, like) do
     broadcast_like_event(event_type, like)

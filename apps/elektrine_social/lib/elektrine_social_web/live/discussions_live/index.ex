@@ -2,7 +2,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   use ElektrineSocialWeb, :live_view
   require Logger
   import Ecto.Query, warn: false
-  alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.{Actor, Instance}
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{AppCache, Messaging, Profiles, Repo, Social}
@@ -2431,6 +2431,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       )
 
     query = maybe_apply_feed_cursor(query, before_post)
+    query = exclude_blocked_instances(query)
 
     query =
       if exclude_ids == [] do
@@ -2649,7 +2650,26 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       limit: ^limit,
       preload: [remote_actor: [], hashtags: [], link_preview: []]
     )
+    |> exclude_blocked_instances()
     |> Elektrine.Repo.all()
+  end
+
+  defp exclude_blocked_instances(query) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_instance in Instance,
+      on:
+        blocked_instance.blocked == true and
+          (fragment("lower(?)", blocked_instance.domain) ==
+             fragment("lower(?)", remote_actor.domain) or
+             fragment(
+               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+               blocked_instance.domain,
+               remote_actor.domain,
+               blocked_instance.domain
+             )),
+      where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
+    )
   end
 
   defp infer_community_category(community_uri) when is_binary(community_uri) do
@@ -3740,12 +3760,15 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         case Elektrine.ActivityPub.Fetcher.webfinger_lookup(acct) do
           {:ok, actor_uri} ->
-            Elektrine.ActivityPub.get_or_fetch_actor(actor_uri)
+            Elektrine.ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 
           {:error, _} ->
             case Elektrine.ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
-              {:ok, actor_uri} -> Elektrine.ActivityPub.get_or_fetch_actor(actor_uri)
-              error -> error
+              {:ok, actor_uri} ->
+                Elektrine.ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
+
+              error ->
+                error
             end
         end
 

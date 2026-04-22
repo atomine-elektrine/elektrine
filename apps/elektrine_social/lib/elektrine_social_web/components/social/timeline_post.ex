@@ -111,6 +111,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :show_thread_context, :boolean, default: true
   attr :interaction_mode, :atom, default: :vote
   attr :remote_poll_vote, :map, default: nil
+  attr :action_post_id, :any, default: nil
+  attr :action_value_name, :string, default: "message_id"
+  attr :save_action_post_id, :any, default: nil
+  attr :save_action_value_name, :string, default: nil
+  attr :saved_override, :any, default: nil
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -143,13 +148,21 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         []
       end
 
-    # Calculate display counts and apply optimistic like state for live button updates.
+    # Calculate display counts and apply optimistic interaction state for live button updates.
     {base_like_count, display_comment_count} =
       PostUtilities.get_display_counts(post, assigns.lemmy_counts, assigns.post_replies)
 
-    interaction_key = if post.activitypub_id, do: post.activitypub_id, else: to_string(post.id)
-    post_state = Map.get(assigns.post_interactions, interaction_key, %{like_delta: 0})
+    post_state = current_post_interaction_state(assigns.post_interactions, post)
+
     display_like_count = max((base_like_count || 0) + Map.get(post_state, :like_delta, 0), 0)
+    display_boost_count = max(base_share_count(post) + Map.get(post_state, :boost_delta, 0), 0)
+    is_liked = Map.get(post_state, :liked, current_post_flag(assigns.user_likes, post))
+    is_boosted = Map.get(post_state, :boosted, current_post_flag(assigns.user_boosts, post))
+
+    is_saved =
+      if is_nil(assigns.saved_override),
+        do: current_post_flag(assigns.user_saves, post),
+        else: assigns.saved_override
 
     assigns =
       assigns
@@ -160,7 +173,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:direct_reply_target, List.last(reply_ancestors))
       |> assign(:has_thread_context, assigns.show_thread_context && reply_ancestors != [])
       |> assign(:display_like_count, display_like_count)
+      |> assign(:display_boost_count, display_boost_count)
       |> assign(:display_comment_count, display_comment_count)
+      |> assign(:is_liked, is_liked)
+      |> assign(:is_boosted, is_boosted)
+      |> assign(:is_saved, is_saved)
 
     ~H"""
     <div
@@ -241,12 +258,21 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               pending_follows={@pending_follows}
               remote_follow_overrides={@remote_follow_overrides}
               display_like_count={@display_like_count}
+              display_boost_count={@display_boost_count}
               display_comment_count={@display_comment_count}
               show_follow_button={@show_follow_button}
               show_view_button={@show_view_button}
+              id_prefix={@id_prefix}
+              is_liked={@is_liked}
+              is_boosted={@is_boosted}
+              is_saved={@is_saved}
               on_comment={@on_comment}
               show_quote_button={@show_quote_button}
               show_save_button={@show_save_button}
+              action_post_id={@action_post_id}
+              action_value_name={@action_value_name}
+              save_action_post_id={@save_action_post_id}
+              save_action_value_name={@save_action_value_name}
             />
             
     <!-- Emoji Reactions -->
@@ -2051,31 +2077,43 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :pending_follows, :map, default: %{}
   attr :remote_follow_overrides, :map, default: %{}
   attr :display_like_count, :integer, default: 0
+  attr :display_boost_count, :integer, default: 0
   attr :display_comment_count, :integer, default: 0
   attr :show_follow_button, :boolean, default: true
   attr :show_view_button, :boolean, default: false
+  attr :is_liked, :boolean, default: false
+  attr :is_boosted, :boolean, default: false
+  attr :is_saved, :boolean, default: false
   attr :on_comment, :string, default: "show_reply_form"
   attr :show_quote_button, :boolean, default: true
   attr :show_save_button, :boolean, default: true
+  attr :action_post_id, :any, default: nil
+  attr :action_value_name, :string, default: "message_id"
+  attr :save_action_post_id, :any, default: nil
+  attr :save_action_value_name, :string, default: nil
+  attr :id_prefix, :string, default: "post"
 
   defp post_footer(assigns) do
     ~H"""
     <div class="flex flex-wrap items-center justify-between gap-y-2 gap-x-1 pt-2 border-t border-base-300">
       <div class="flex items-center gap-1 flex-shrink-0">
         <.post_actions
-          post_id={@post.id}
+          post_id={@action_post_id || @post.id}
           current_user={@current_user}
-          is_liked={Map.get(@user_likes, @post.id, false)}
-          is_boosted={Map.get(@user_boosts, @post.id, false)}
-          is_saved={Map.get(@user_saves, @post.id, false)}
+          is_liked={@is_liked}
+          is_boosted={@is_boosted}
+          is_saved={@is_saved}
           like_count={@display_like_count}
           comment_count={@display_comment_count}
-          boost_count={@post.share_count || 0}
+          boost_count={@display_boost_count}
           quote_count={@post.quote_count || 0}
           on_comment={@on_comment}
           show_quote={@show_quote_button}
           show_save={@show_save_button}
-          value_name="message_id"
+          value_name={@action_value_name}
+          save_post_id={@save_action_post_id || @post.id}
+          save_value_name={@save_action_value_name || "message_id"}
+          dom_id_prefix={"#{@id_prefix}-actions-#{@post.id}"}
           size={:xs}
         />
         
@@ -2244,6 +2282,49 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp remote_follow_override_state(_, _), do: nil
+
+  defp current_post_interaction_state(post_interactions, post) do
+    interaction_keys(post)
+    |> Enum.find_value(%{like_delta: 0, boost_delta: 0}, fn key ->
+      Map.get(post_interactions, key)
+    end)
+  end
+
+  defp current_post_flag(flag_map, post) when is_map(flag_map) do
+    interaction_keys(post)
+    |> Enum.any?(&Map.get(flag_map, &1, false))
+  end
+
+  defp current_post_flag(_, _), do: false
+
+  defp interaction_keys(post) do
+    [post.activitypub_id, Integer.to_string(post.id), post.id]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp base_share_count(post) when is_map(post) do
+    cond do
+      is_integer(Map.get(post, :share_count)) ->
+        Map.get(post, :share_count)
+
+      is_integer(Map.get(post, "share_count")) ->
+        Map.get(post, "share_count")
+
+      is_map(Map.get(post, "shares")) ->
+        Map.get(Map.get(post, "shares"), "totalItems", 0)
+
+      is_map(Map.get(post, "sharesCount")) ->
+        Map.get(Map.get(post, "sharesCount"), "totalItems", 0)
+
+      is_integer(Map.get(post, "announcesCount")) ->
+        Map.get(post, "announcesCount")
+
+      true ->
+        0
+    end
+  end
+
+  defp base_share_count(_), do: 0
 
   # Lemmy/Reddit style layout with vote column
   defp render_lemmy_layout(assigns) do

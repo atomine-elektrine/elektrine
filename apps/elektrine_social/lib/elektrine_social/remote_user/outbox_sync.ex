@@ -3,6 +3,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.Visibility
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Repo
@@ -21,7 +22,9 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
       {:ok, outbox_posts} ->
         stored_posts = store_outbox_posts(outbox_posts, remote_actor)
 
-        Enum.each(outbox_posts, &Elektrine.Messaging.SyncRemoteCountsWorker.enqueue/1)
+        outbox_posts
+        |> Enum.filter(&public_outbox_post?/1)
+        |> Enum.each(&Elektrine.Messaging.SyncRemoteCountsWorker.enqueue/1)
 
         stored_posts
         |> Enum.filter(&((&1.reply_count || 0) > 0))
@@ -55,17 +58,90 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
 
   defp create_outbox_post(post, remote_actor) do
     author_uri = post["attributedTo"] || remote_actor.uri
+    visibility = determine_visibility(post)
 
-    author_actor =
-      case ActivityPub.get_or_fetch_actor(author_uri) do
-        {:ok, actor} -> actor
-        _ -> nil
+    if visibility == "public" do
+      author_actor =
+        case ActivityPub.fetch_and_cache_actor(author_uri, allow_recovery: false) do
+          {:ok, actor} -> actor
+          _ -> nil
+        end
+
+      if author_actor do
+        title = normalize_remote_post_title(post)
+        content = post["content"] || title || ""
+        {media_urls, alt_texts} = extract_media_from_post(post)
+        like_count = extract_count_from_collection(post["likes"])
+
+        reply_count =
+          [
+            extract_count_from_collection(post["replies"]),
+            extract_count_from_collection(post["comments"]),
+            parse_non_negative_count(post["repliesCount"])
+          ]
+          |> Enum.max(fn -> 0 end)
+
+        share_count = extract_count_from_collection(post["shares"])
+        metadata = build_outbox_metadata(post, alt_texts, remote_actor)
+
+        inserted_at =
+          case post["published"] do
+            date when is_binary(date) ->
+              case DateTime.from_iso8601(date) do
+                {:ok, dt, _} -> DateTime.to_naive(dt)
+                _ -> NaiveDateTime.utc_now()
+              end
+
+            _ ->
+              NaiveDateTime.utc_now()
+          end
+
+        case Messaging.create_federated_message(%{
+               content: content,
+               title: title,
+               visibility: visibility,
+               activitypub_id: post["id"],
+               activitypub_url: post["url"] || post["id"],
+               federated: true,
+               remote_actor_id: author_actor.id,
+               media_urls: media_urls,
+               media_metadata: metadata,
+               inserted_at: inserted_at,
+               like_count: like_count,
+               reply_count: reply_count,
+               share_count: share_count
+             }) do
+          {:ok, message} ->
+            _ = Elektrine.ActivityPub.CollectionCountSyncWorker.enqueue(message.id, post)
+            Repo.preload(message, MessagingMessages.timeline_post_preloads())
+
+          {:error, _} ->
+            nil
+        end
       end
+    end
+  end
 
-    if author_actor do
+  defp refresh_existing_outbox_post(existing, post, remote_actor) do
+    visibility = determine_visibility(post)
+
+    if visibility != "public" do
+      if existing.visibility != visibility do
+        case existing
+             |> Elektrine.Messaging.Message.federated_changeset(%{visibility: visibility})
+             |> Repo.update() do
+          {:ok, _message} -> nil
+          {:error, _} -> nil
+        end
+      end
+    else
       title = normalize_remote_post_title(post)
       content = post["content"] || title || ""
       {media_urls, alt_texts} = extract_media_from_post(post)
+
+      metadata =
+        build_outbox_metadata(post, alt_texts, remote_actor, existing.media_metadata || %{})
+
       like_count = extract_count_from_collection(post["likes"])
 
       reply_count =
@@ -77,85 +153,46 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
         |> Enum.max(fn -> 0 end)
 
       share_count = extract_count_from_collection(post["shares"])
-      metadata = build_outbox_metadata(post, alt_texts, remote_actor)
 
-      inserted_at =
-        case post["published"] do
-          date when is_binary(date) ->
-            case DateTime.from_iso8601(date) do
-              {:ok, dt, _} -> DateTime.to_naive(dt)
-              _ -> NaiveDateTime.utc_now()
+      updates =
+        %{}
+        |> maybe_put_if_changed(:visibility, existing.visibility, visibility)
+        |> maybe_put_if_blank(:title, existing.title, title)
+        |> maybe_put_if_blank(:content, existing.content, content)
+        |> maybe_put_if_empty_list(:media_urls, existing.media_urls || [], media_urls)
+        |> maybe_put_if_blank(
+          :activitypub_url,
+          existing.activitypub_url,
+          post["url"] || post["id"]
+        )
+        |> maybe_put_if_changed(:media_metadata, existing.media_metadata || %{}, metadata)
+        |> maybe_put_if_greater(:like_count, existing.like_count || 0, like_count)
+        |> maybe_put_if_greater(:reply_count, existing.reply_count || 0, reply_count)
+        |> maybe_put_if_greater(:share_count, existing.share_count || 0, share_count)
+
+      if map_size(updates) > 0 do
+        case existing
+             |> Elektrine.Messaging.Message.federated_changeset(updates)
+             |> Repo.update() do
+          {:ok, message} ->
+            if message.visibility == "public" do
+              Repo.preload(message, MessagingMessages.timeline_post_preloads())
             end
 
-          _ ->
-            NaiveDateTime.utc_now()
+          {:error, _} ->
+            nil
         end
-
-      case Messaging.create_federated_message(%{
-             content: content,
-             title: title,
-             visibility: "public",
-             activitypub_id: post["id"],
-             activitypub_url: post["url"] || post["id"],
-             federated: true,
-             remote_actor_id: author_actor.id,
-             media_urls: media_urls,
-             media_metadata: metadata,
-             inserted_at: inserted_at,
-             like_count: like_count,
-             reply_count: reply_count,
-             share_count: share_count
-           }) do
-        {:ok, message} ->
-          _ = Elektrine.ActivityPub.CollectionCountSyncWorker.enqueue(message.id, post)
-          Repo.preload(message, MessagingMessages.timeline_post_preloads())
-
-        {:error, _} ->
-          nil
+      else
+        if existing.visibility == "public" do
+          Repo.preload(existing, MessagingMessages.timeline_post_preloads())
+        end
       end
     end
   end
 
-  defp refresh_existing_outbox_post(existing, post, remote_actor) do
-    title = normalize_remote_post_title(post)
-    content = post["content"] || title || ""
-    {media_urls, alt_texts} = extract_media_from_post(post)
+  defp public_outbox_post?(post), do: Visibility.public?(post)
 
-    metadata =
-      build_outbox_metadata(post, alt_texts, remote_actor, existing.media_metadata || %{})
-
-    like_count = extract_count_from_collection(post["likes"])
-
-    reply_count =
-      [
-        extract_count_from_collection(post["replies"]),
-        extract_count_from_collection(post["comments"]),
-        parse_non_negative_count(post["repliesCount"])
-      ]
-      |> Enum.max(fn -> 0 end)
-
-    share_count = extract_count_from_collection(post["shares"])
-
-    updates =
-      %{}
-      |> maybe_put_if_blank(:title, existing.title, title)
-      |> maybe_put_if_blank(:content, existing.content, content)
-      |> maybe_put_if_empty_list(:media_urls, existing.media_urls || [], media_urls)
-      |> maybe_put_if_blank(:activitypub_url, existing.activitypub_url, post["url"] || post["id"])
-      |> maybe_put_if_changed(:media_metadata, existing.media_metadata || %{}, metadata)
-      |> maybe_put_if_greater(:like_count, existing.like_count || 0, like_count)
-      |> maybe_put_if_greater(:reply_count, existing.reply_count || 0, reply_count)
-      |> maybe_put_if_greater(:share_count, existing.share_count || 0, share_count)
-
-    if map_size(updates) > 0 do
-      case existing
-           |> Elektrine.Messaging.Message.federated_changeset(updates)
-           |> Repo.update() do
-        {:ok, message} -> Repo.preload(message, MessagingMessages.timeline_post_preloads())
-        {:error, _} -> nil
-      end
-    end
-  end
+  defp determine_visibility(post), do: Visibility.visibility(post)
 
   defp normalize_remote_post_title(post) when is_map(post) do
     [post["name"], post["title"]]

@@ -9,7 +9,7 @@
     <meta name="description" content={build_meta_description(assigns)} />
     <meta name="keywords" content={build_meta_keywords(assigns)} />
     <meta name="author" content="Elektrine" />
-    <meta name="robots" content="index, follow" />
+    <meta name="robots" content={build_meta_robots(assigns)} />
     
 <!-- Canonical URL -->
     <%= if current_url(assigns) do %>
