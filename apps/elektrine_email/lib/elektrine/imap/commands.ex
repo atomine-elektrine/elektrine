@@ -447,14 +447,13 @@ defmodule Elektrine.IMAP.Commands do
       Helpers.send_response(state.socket, "#{tag} OK [READ-WRITE] SELECT completed")
 
       {:continue,
-       %{
-         state
-         | selected_folder: canonical_folder,
-           messages: messages,
-           recent_message_ids: recent_message_ids,
-           folder_key: folder_key,
-           state: :selected
-       }}
+       Map.merge(state, %{
+         selected_folder: canonical_folder,
+         messages: messages,
+         recent_message_ids: recent_message_ids,
+         folder_key: folder_key,
+         state: :selected
+       })}
     else
       {:error, :missing_mailbox_name} ->
         Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
@@ -498,14 +497,13 @@ defmodule Elektrine.IMAP.Commands do
       Helpers.send_response(state.socket, "#{tag} OK [READ-ONLY] EXAMINE completed")
 
       {:continue,
-       %{
-         state
-         | selected_folder: canonical_folder,
-           messages: messages,
-           recent_message_ids: recent_message_ids,
-           folder_key: folder_key,
-           state: :selected
-       }}
+       Map.merge(state, %{
+         selected_folder: canonical_folder,
+         messages: messages,
+         recent_message_ids: recent_message_ids,
+         folder_key: folder_key,
+         state: :selected
+       })}
     else
       {:error, :missing_mailbox_name} ->
         Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
@@ -1173,7 +1171,10 @@ defmodule Elektrine.IMAP.Commands do
                       "* #{count_recent_messages(fresh_messages, recent_message_ids)} RECENT"
                     )
 
-                    %{state | messages: fresh_messages, recent_message_ids: recent_message_ids}
+                    Map.merge(state, %{
+                      messages: fresh_messages,
+                      recent_message_ids: recent_message_ids
+                    })
                   else
                     state
                   end
@@ -1481,12 +1482,14 @@ defmodule Elektrine.IMAP.Commands do
         refreshed_state_messages = apply_message_updates(state.messages, updated_messages_by_id)
 
         {:continue,
-         %{
-           state
-           | messages: refreshed_state_messages,
-             recent_message_ids:
-               trim_recent_message_ids(refreshed_state_messages, state.recent_message_ids)
-         }}
+         Map.merge(state, %{
+           messages: refreshed_state_messages,
+           recent_message_ids:
+             trim_recent_message_ids(
+               refreshed_state_messages,
+               Map.get(state, :recent_message_ids, MapSet.new())
+             )
+         })}
 
       {:error, _} ->
         Helpers.send_response(state.socket, "#{tag} BAD Invalid STORE arguments")
@@ -1505,11 +1508,14 @@ defmodule Elektrine.IMAP.Commands do
     Helpers.send_response(state.socket, "#{tag} OK EXPUNGE completed")
 
     {:continue,
-     %{
-       state
-       | messages: remaining_messages,
-         recent_message_ids: trim_recent_message_ids(remaining_messages, state.recent_message_ids)
-     }}
+     Map.merge(state, %{
+       messages: remaining_messages,
+       recent_message_ids:
+         trim_recent_message_ids(
+           remaining_messages,
+           Map.get(state, :recent_message_ids, MapSet.new())
+         )
+     })}
   end
 
   defp handle_check(tag, state) do
@@ -1707,12 +1713,14 @@ defmodule Elektrine.IMAP.Commands do
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
 
           {:continue,
-           %{
-             state
-             | messages: fresh_messages,
-               recent_message_ids:
-                 trim_recent_message_ids(fresh_messages, state.recent_message_ids)
-           }}
+           Map.merge(state, %{
+             messages: fresh_messages,
+             recent_message_ids:
+               trim_recent_message_ids(
+                 fresh_messages,
+                 Map.get(state, :recent_message_ids, MapSet.new())
+               )
+           })}
         else
           Helpers.send_response(
             state.socket,
@@ -1748,11 +1756,14 @@ defmodule Elektrine.IMAP.Commands do
     Helpers.send_response(state.socket, "#{tag} OK UID EXPUNGE completed")
 
     {:continue,
-     %{
-       state
-       | messages: remaining_messages,
-         recent_message_ids: trim_recent_message_ids(remaining_messages, state.recent_message_ids)
-     }}
+     Map.merge(state, %{
+       messages: remaining_messages,
+       recent_message_ids:
+         trim_recent_message_ids(
+           remaining_messages,
+           Map.get(state, :recent_message_ids, MapSet.new())
+         )
+     })}
   end
 
   defp handle_uid_store(tag, args, state) do
@@ -1797,22 +1808,26 @@ defmodule Elektrine.IMAP.Commands do
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
 
           {:continue,
-           %{
-             state
-             | messages: fresh_messages,
-               recent_message_ids:
-                 trim_recent_message_ids(fresh_messages, state.recent_message_ids)
-           }}
+           Map.merge(state, %{
+             messages: fresh_messages,
+             recent_message_ids:
+               trim_recent_message_ids(
+                 fresh_messages,
+                 Map.get(state, :recent_message_ids, MapSet.new())
+               )
+           })}
         else
           refreshed_state_messages = apply_message_updates(state.messages, updated_messages_by_id)
 
           {:continue,
-           %{
-             state
-             | messages: refreshed_state_messages,
-               recent_message_ids:
-                 trim_recent_message_ids(refreshed_state_messages, state.recent_message_ids)
-           }}
+           Map.merge(state, %{
+             messages: refreshed_state_messages,
+             recent_message_ids:
+               trim_recent_message_ids(
+                 refreshed_state_messages,
+                 Map.get(state, :recent_message_ids, MapSet.new())
+               )
+           })}
         end
 
       {:error, _} ->
@@ -1842,17 +1857,16 @@ defmodule Elektrine.IMAP.Commands do
             )
 
             {:continue,
-             %{
-               state
-               | authenticated: true,
-                 user: user,
-                 username: username,
-                 mailbox: mailbox,
-                 uid_validity: mailbox.id,
-                 recent_message_ids: MapSet.new(),
-                 folder_key: nil,
-                 state: :authenticated
-             }}
+             Map.merge(state, %{
+               authenticated: true,
+               user: user,
+               username: username,
+               mailbox: mailbox,
+               uid_validity: mailbox.id,
+               recent_message_ids: MapSet.new(),
+               folder_key: nil,
+               state: :authenticated
+             })}
 
           {:error, reason} ->
             Elektrine.IMAP.RateLimiter.record_failure(ip_string)
@@ -2262,13 +2276,13 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp store_append_message(mailbox, folder, data) do
-    {headers, body} =
+    {headers, body, message} =
       try do
         parse_email_data(data)
       rescue
         e ->
           Logger.error("IMAP APPEND: Email parsing failed: #{inspect(e)}")
-          {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, ""}
+          {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, "", nil}
       end
 
     raw_subject = Map.get(headers, "subject", "(No Subject)")
@@ -2294,6 +2308,12 @@ defmodule Elektrine.IMAP.Commands do
           true ->
             nil
         end
+
+      text_body =
+        extract_text_body(body, headers, message) || extract_text_body_internal(body, headers)
+
+      html_body =
+        extract_html_body(body, headers, message) || extract_html_body_internal(body, headers)
 
       if folder_lower not in ["inbox", "sent", "drafts", "trash", "spam"] &&
            is_nil(custom_folder_id) do
@@ -2326,7 +2346,7 @@ defmodule Elektrine.IMAP.Commands do
           subject: subject,
           in_reply_to: Map.get(headers, "in-reply-to"),
           references: Map.get(headers, "references"),
-          text_body: extract_text_body_internal(body, headers),
+          text_body: text_body,
           status: status,
           category: category,
           mailbox_id: mailbox.id,
@@ -2351,7 +2371,7 @@ defmodule Elektrine.IMAP.Commands do
           end
 
         message_attrs =
-          if html = extract_html_body_internal(body, headers) do
+          if html = html_body do
             Map.put(message_attrs, :html_body, html)
           else
             message_attrs
@@ -2363,7 +2383,7 @@ defmodule Elektrine.IMAP.Commands do
           {:ok, existing}
         else
           message_attrs =
-            case extract_attachments_internal(body, headers) do
+            case extract_attachments(body, headers, message) do
               attachments when map_size(attachments) > 0 ->
                 validated_attachments = validate_extracted_attachments(attachments)
 
@@ -2406,13 +2426,13 @@ defmodule Elektrine.IMAP.Commands do
       |> Enum.into(%{}, fn {k, v} -> {to_string(k), stringify_header_value(v)} end)
 
     body = message.body || ""
-    {headers, body}
+    {headers, body, message}
   rescue
     e in MatchError ->
       data_preview = String.slice(data, 0, 200)
       Logger.error("Failed to parse email data. Preview: #{inspect(data_preview)}")
       Logger.error("Parse error: #{inspect(e)}")
-      {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data}
+      {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data, nil}
   end
 
   defp stringify_header_value(value) when is_binary(value) do
@@ -2594,180 +2614,6 @@ defmodule Elektrine.IMAP.Commands do
       |> String.trim()
     else
       nil
-    end
-  end
-
-  defp extract_attachments_internal(body, headers) do
-    content_type = Map.get(headers, "content-type", "")
-
-    case Regex.run(~r/boundary[=:]?\s*"?([^"\s;]+)"?/i, content_type) do
-      [_, boundary] ->
-        parts = String.split(body, "--#{boundary}")
-
-        {attachments, _idx} =
-          parts
-          |> Enum.reduce({%{}, 0}, fn part, {acc, counter} ->
-            extract_attachments_from_part(part, acc, counter)
-          end)
-
-        attachments
-
-      _ ->
-        %{}
-    end
-  end
-
-  defp extract_attachments_from_part(part, acc, counter) do
-    case parse_mime_part(part) do
-      {:attachment, filename, content_type, data, encoding, cid} ->
-        attachment_map = %{
-          "filename" => filename,
-          "content_type" => content_type,
-          "data" => data,
-          "size" => byte_size(data)
-        }
-
-        attachment_map =
-          if encoding do
-            Map.put(attachment_map, "encoding", encoding)
-          else
-            attachment_map
-          end
-
-        attachment_map =
-          if cid do
-            Map.put(attachment_map, "content_id", cid)
-          else
-            attachment_map
-          end
-
-        {Map.put(acc, "#{counter}_#{filename}", attachment_map), counter + 1}
-
-      {:multipart, nested_boundary, nested_content} ->
-        nested_parts = String.split(nested_content, "--#{nested_boundary}")
-
-        Enum.reduce(nested_parts, {acc, counter}, fn nested_part, {inner_acc, inner_counter} ->
-          extract_attachments_from_part(nested_part, inner_acc, inner_counter)
-        end)
-
-      _ ->
-        {acc, counter}
-    end
-  end
-
-  defp parse_mime_part(part) do
-    case String.split(part, ~r/\r?\n\r?\n/, parts: 2) do
-      [part_headers_str, content] ->
-        part_headers = parse_part_headers(part_headers_str)
-        content_disposition = Map.get(part_headers, "content-disposition", "")
-        content_type = Map.get(part_headers, "content-type", "")
-        content_id = Map.get(part_headers, "content-id", "")
-        is_multipart = String.contains?(content_type, "multipart/")
-
-        if is_multipart do
-          case Regex.run(~r/boundary[=:]?\s*"?([^"\s;]+)"?/i, content_type) do
-            [_, nested_boundary] -> {:multipart, nested_boundary, content}
-            _ -> :not_attachment
-          end
-        else
-          is_text_part =
-            String.contains?(content_type, "text/plain") or
-              String.contains?(content_type, "text/html")
-
-          is_attachment =
-            String.contains?(content_disposition, "attachment") or
-              String.contains?(content_disposition, "inline") or
-              (content_id != "" and String.contains?(content_type, "image"))
-
-          if !is_text_part and is_attachment and Elektrine.Strings.present?(content) do
-            filename =
-              extract_filename(content_disposition, content_type) ||
-                "attachment_#{:rand.uniform(10_000)}"
-
-            is_base64 = String.contains?(part_headers_str, "base64")
-
-            clean_content =
-              if is_base64 do
-                String.replace(content, ~r/\s/, "")
-              else
-                String.trim(content)
-              end
-
-            encoding =
-              if is_base64 do
-                "base64"
-              else
-                nil
-              end
-
-            cid =
-              if content_id != "" do
-                content_id |> String.trim_leading("<") |> String.trim_trailing(">")
-              else
-                nil
-              end
-
-            {:attachment, filename, content_type, clean_content, encoding, cid}
-          else
-            :not_attachment
-          end
-        end
-
-      _ ->
-        :not_attachment
-    end
-  end
-
-  defp parse_part_headers(headers_str) do
-    headers_str
-    |> String.split(~r/\r?\n/)
-    |> Enum.reduce({%{}, nil}, fn line, {acc, current_header} ->
-      cond do
-        String.match?(line, ~r/^[A-Za-z-]+:/) ->
-          case String.split(line, ":", parts: 2) do
-            [name, value] ->
-              key = String.downcase(String.trim(name))
-              val = String.trim(value)
-              {Map.put(acc, key, val), key}
-
-            _ ->
-              {acc, current_header}
-          end
-
-        String.match?(line, ~r/^\s/) and current_header != nil ->
-          current_value = Map.get(acc, current_header, "")
-          new_value = current_value <> " " <> String.trim(line)
-          {Map.put(acc, current_header, new_value), current_header}
-
-        true ->
-          {acc, current_header}
-      end
-    end)
-    |> elem(0)
-  end
-
-  defp extract_filename(content_disposition, content_type) do
-    case Regex.run(~r/filename\s*=\s*"([^"]+)"/i, content_disposition) do
-      [_, filename] ->
-        filename
-
-      _ ->
-        case Regex.run(~r/filename\s*=\s*([^\s;]+)/i, content_disposition) do
-          [_, filename] ->
-            filename
-
-          _ ->
-            case Regex.run(~r/name\s*=\s*"([^"]+)"/i, content_type) do
-              [_, filename] ->
-                filename
-
-              _ ->
-                case Regex.run(~r/name\s*=\s*([^\s;]+)/i, content_type) do
-                  [_, filename] -> filename
-                  _ -> nil
-                end
-            end
-        end
     end
   end
 
@@ -3028,11 +2874,12 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp auth_allowed?(state) do
-    secure_transport?(state) or Map.get(state, :allow_insecure_auth, false)
+    secure_transport?(state) or Map.get(state, :allow_insecure_auth, true)
   end
 
   defp secure_transport?(state) do
-    Map.get(state, :transport) == :ssl or match?({:sslsocket, _, _}, state.socket)
+    socket = Map.get(state, :socket)
+    Map.get(state, :transport) == :ssl or match?({:sslsocket, _, _}, socket)
   end
 
   defp message_matches_search?(msg, criteria, state, sequence_number, max_sequence) do
@@ -3040,13 +2887,13 @@ defmodule Elektrine.IMAP.Commands do
 
     cond do
       criteria_upper == "RECENT" ->
-        MapSet.member?(state.recent_message_ids, msg.id)
+        MapSet.member?(Map.get(state, :recent_message_ids, MapSet.new()), msg.id)
 
       criteria_upper == "NEW" ->
-        MapSet.member?(state.recent_message_ids, msg.id) and not msg.read
+        MapSet.member?(Map.get(state, :recent_message_ids, MapSet.new()), msg.id) and not msg.read
 
       criteria_upper == "OLD" ->
-        not MapSet.member?(state.recent_message_ids, msg.id)
+        not MapSet.member?(Map.get(state, :recent_message_ids, MapSet.new()), msg.id)
 
       true ->
         Helpers.matches_search_criteria?(msg, criteria, sequence_number, max_sequence)
@@ -3054,8 +2901,13 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp merge_recent_message_ids(state, fresh_messages) do
-    state.recent_message_ids
-    |> MapSet.union(claim_recent_message_ids(state.mailbox, state.folder_key, fresh_messages))
+    recent_message_ids = Map.get(state, :recent_message_ids, MapSet.new())
+
+    folder_key =
+      Map.get(state, :folder_key) || folder_key_for_mailbox(state.mailbox, state.selected_folder)
+
+    recent_message_ids
+    |> MapSet.union(claim_recent_message_ids(state.mailbox, folder_key, fresh_messages))
     |> trim_recent_message_ids(fresh_messages)
   end
 
@@ -3079,7 +2931,7 @@ defmodule Elektrine.IMAP.Commands do
   defp status_recent_count(messages, state, folder) do
     if state.state == :selected and
          state.selected_folder == Helpers.canonical_system_folder_name(folder) do
-      count_recent_messages(messages, state.recent_message_ids)
+      count_recent_messages(messages, Map.get(state, :recent_message_ids, MapSet.new()))
     else
       count_global_recent_messages(state.mailbox, folder, messages)
     end

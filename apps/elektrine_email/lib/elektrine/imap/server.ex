@@ -232,7 +232,7 @@ defmodule Elektrine.IMAP.Server do
     # Send greeting with CAPABILITY to help clients detect features early
     Helpers.send_response(
       socket,
-      "* OK [CAPABILITY #{Commands.capability_string(%{state: :not_authenticated, socket: socket, transport: socket_transport(), tls_opts: tls_opts})}] Elektrine IMAP4rev1 server ready"
+      "* OK [CAPABILITY #{Commands.capability_string(%{state: :not_authenticated, socket: socket, transport: socket_transport(), tls_opts: tls_opts, allow_insecure_auth: allow_insecure_auth})}] Elektrine IMAP4rev1 server ready"
     )
 
     # Normalize IPv6 subnet if needed
