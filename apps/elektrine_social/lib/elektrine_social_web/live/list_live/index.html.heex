@@ -9,43 +9,30 @@
       <div class="card panel-card overflow-hidden">
         <div class="border-b border-base-300 p-4 sm:p-5">
           <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 class="text-xl sm:text-2xl font-bold">Lists</h1>
-                <p class="text-sm opacity-70">
-                  <%= if @view_mode == "my_lists" do %>
-                    {@list_stats.my_lists} lists, {@list_stats.public_lists} public, {@list_stats.total_members} tracked members.
-                  <% else %>
-                    {length(@filtered_public_lists)} public lists in view.
-                  <% end %>
-                </p>
-              </div>
-
-              <div class="flex flex-wrap gap-2">
-                <a href="#create-list-panel" class="btn btn-secondary btn-sm lg:hidden">
-                  <.icon name="hero-plus" class="w-4 h-4 mr-2" /> New List
-                </a>
-                <button
-                  phx-click="set_view_mode"
-                  phx-value-mode="my_lists"
-                  class={[
-                    "btn btn-sm",
-                    if(@view_mode == "my_lists", do: "btn-secondary", else: "btn-ghost")
-                  ]}
-                >
-                  <.icon name="hero-user" class="w-4 h-4 mr-2" /> My Lists
-                </button>
-                <button
-                  phx-click="set_view_mode"
-                  phx-value-mode="discover"
-                  class={[
-                    "btn btn-sm",
-                    if(@view_mode == "discover", do: "btn-secondary", else: "btn-ghost")
-                  ]}
-                >
-                  <.icon name="hero-globe-alt" class="w-4 h-4 mr-2" /> Discover
-                </button>
-              </div>
+            <div class="flex flex-wrap gap-2 sm:justify-end">
+              <a href="#create-list-panel" class="btn btn-secondary btn-sm lg:hidden">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> New List
+              </a>
+              <button
+                phx-click="set_view_mode"
+                phx-value-mode="my_lists"
+                class={[
+                  "btn btn-sm",
+                  if(@view_mode == "my_lists", do: "btn-secondary", else: "btn-ghost")
+                ]}
+              >
+                <.icon name="hero-user" class="w-4 h-4 mr-2" /> My Lists
+              </button>
+              <button
+                phx-click="set_view_mode"
+                phx-value-mode="discover"
+                class={[
+                  "btn btn-sm",
+                  if(@view_mode == "discover", do: "btn-secondary", else: "btn-ghost")
+                ]}
+              >
+                <.icon name="hero-globe-alt" class="w-4 h-4 mr-2" /> Discover
+              </button>
             </div>
 
             <%= if @view_mode == "my_lists" do %>

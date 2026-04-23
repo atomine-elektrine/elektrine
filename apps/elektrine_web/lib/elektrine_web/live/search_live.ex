@@ -222,16 +222,6 @@ defmodule ElektrineWeb.SearchLive do
       <div class="space-y-6">
         <div class="card bg-base-100 shadow-sm border border-base-300">
           <div class="card-body gap-4">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <h1 class="text-2xl font-bold">Command Palette</h1>
-                <p class="text-sm opacity-70">
-                  Search people, messages, emails, communities, files, settings, and actions.
-                </p>
-              </div>
-              <span class="badge badge-ghost">Type `>` for actions</span>
-            </div>
-
             <div class="relative" phx-click-away="clear_suggestions">
               <form phx-submit="search" class="w-full">
                 <div class="join flex w-full">

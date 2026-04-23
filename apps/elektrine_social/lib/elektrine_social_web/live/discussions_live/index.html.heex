@@ -34,8 +34,6 @@
 
   discover_remote_communities = @filtered_discover_remote_communities || []
   sidebar_federated_suggestions = Enum.take(@filtered_discover_remote_communities || [], 3)
-  followed_federated_count = length(@filtered_remote_communities || [])
-  followed_local_count = length(@filtered_communities || [])
   feed_post_count = length(@filtered_community_posts || [])
 
   spotlight_communities = @filtered_popular_communities || []
@@ -50,25 +48,6 @@
     build_active_thread_cards(trending_threads, recent_threads, federated_threads)
 
   visible_active_thread_cards = Enum.take(active_thread_cards, @overview_card_limit || 6)
-
-  current_view_title =
-    case @current_view do
-      "communities" -> "Joined Communities"
-      "feed" -> "Feed"
-      _ -> "My Activity"
-    end
-
-  current_view_status =
-    case @current_view do
-      "communities" ->
-        "#{joined_count} joined · #{followed_local_count} local · #{followed_federated_count} federated"
-
-      "feed" ->
-        "#{length(@filtered_community_posts || [])} posts · #{String.capitalize(@feed_sort || "new")} first"
-
-      _ ->
-        "#{length(@my_community_posts || [])} posts from you"
-    end
 
   joinable_trending_communities =
     (@filtered_popular_communities || [])
@@ -305,13 +284,6 @@
       <div class="card panel-card overflow-hidden">
         <div class="p-5 sm:p-6 border-b border-base-300">
           <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              <div class="max-w-3xl">
-                <h1 class="text-xl sm:text-2xl font-bold">{current_view_title}</h1>
-                <p class="text-sm opacity-70">{current_view_status}</p>
-              </div>
-            </div>
-
             <%= if @current_view == "communities" do %>
               <div class="space-y-3">
                 <.form

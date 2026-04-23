@@ -15,11 +15,6 @@
 
   image_posts = Enum.filter(@filtered_posts, &gallery_image?/1)
 
-  current_filter_label =
-    Enum.find_value(filter_options, fn {value, label, _icon} ->
-      if value == @current_filter, do: label
-    end) || "All Work"
-
   recent_uploads = Enum.take(@recent_uploads || [], 3)
   quick_tags = Enum.take(@trending_tags || [], 5)
 
@@ -29,28 +24,16 @@
   <div class="space-y-6">
     <section class="card panel-card">
       <div class="card-body p-4 sm:p-5 gap-5">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 class="text-xl sm:text-2xl font-bold">Gallery</h1>
-            <p class="text-sm opacity-70">
-              {length(image_posts)} items in view · {current_filter_label}
-              <%= if @gallery_search != "" do %>
-                · "{@gallery_search}"
-              <% end %>
-            </p>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <%= if @current_user do %>
-              <button phx-click="toggle_upload_modal" class="btn btn-secondary btn-sm">
-                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload
-              </button>
-            <% else %>
-              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm">
-                <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In
-              </.link>
-            <% end %>
-          </div>
+        <div class="flex flex-wrap justify-end gap-2">
+          <%= if @current_user do %>
+            <button phx-click="toggle_upload_modal" class="btn btn-secondary btn-sm">
+              <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload
+            </button>
+          <% else %>
+            <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm">
+              <.icon name="hero-arrow-right-on-rectangle" class="w-4 h-4 mr-2" /> Sign In
+            </.link>
+          <% end %>
         </div>
 
         <div class="grid gap-5 xl:grid-cols-3">

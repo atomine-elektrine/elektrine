@@ -5,38 +5,6 @@
     class="mb-6 sm:mb-8"
   />
 
-  <div class="card panel-card mb-6 sm:mb-8">
-    <div class="card-body p-5 sm:p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div class="space-y-2">
-          <%= if length(@breadcrumbs) > 1 do %>
-            <div class="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-              <%= for crumb <- @breadcrumbs do %>
-                <span class="rounded-full bg-base-200/70 px-2.5 py-1 normal-case tracking-normal text-base-content/65">
-                  {crumb.name}
-                </span>
-              <% end %>
-            </div>
-          <% end %>
-          <div>
-            <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
-              Drive
-            </h1>
-            <p class="mt-2 text-sm text-base-content/65 sm:text-base">
-              Private cloud storage with search, previews, share links, and WebDAV sync.
-            </p>
-          </div>
-        </div>
-        <div class="text-sm text-base-content/60 lg:text-right">
-          <%= if @current_folder != "" do %>
-            <div>{current_folder_name(@current_folder)}</div>
-          <% end %>
-          <div class="mt-1">{@storage_info.used_formatted} used</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="space-y-6">
     <div
       class="card panel-card overflow-visible"
@@ -45,6 +13,16 @@
       phx-drop-target={@uploads.files.ref}
     >
       <div class="border-b border-base-300/60 px-4 py-4 sm:px-6">
+        <%= if length(@breadcrumbs) > 1 do %>
+          <div class="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+            <%= for crumb <- @breadcrumbs do %>
+              <span class="rounded-full bg-base-200/70 px-2.5 py-1 normal-case tracking-normal text-base-content/65">
+                {crumb.name}
+              </span>
+            <% end %>
+          </div>
+        <% end %>
+
         <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div class="space-y-1">
             <h3 class="text-2xl font-semibold tracking-tight sm:text-3xl">

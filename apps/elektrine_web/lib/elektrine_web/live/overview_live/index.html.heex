@@ -8,24 +8,6 @@
   <div class="mb-6 space-y-6">
     <div class="card panel-card">
       <div class="card-body p-4 sm:p-5 gap-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 class="text-xl sm:text-2xl font-bold">Overview</h1>
-          </div>
-
-          <%= if @dashboard_last_refreshed_at do %>
-            <div class="text-xs opacity-60">
-              Updated
-              <.local_time
-                datetime={@dashboard_last_refreshed_at}
-                format="relative"
-                timezone={@timezone}
-                time_format={@time_format}
-              />
-            </div>
-          <% end %>
-        </div>
-
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div class="rounded-lg border border-base-300 p-3">
             <p class="text-xs uppercase tracking-wide opacity-60">Unread Email</p>
