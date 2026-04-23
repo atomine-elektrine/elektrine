@@ -508,7 +508,18 @@ defmodule Elektrine.Email.Messages do
           CacheHooks.with_cache_invalidation({:ok, decrypted_message})
         else
           {:error, reason} ->
-            {:error, reason}
+            case maybe_resolve_duplicate_message_insert(
+                   reason,
+                   threaded_attrs,
+                   mailbox_id,
+                   mailbox_user_id
+                 ) do
+              {:ok, message} ->
+                CacheHooks.with_cache_invalidation({:ok, message})
+
+              :error ->
+                {:error, reason}
+            end
 
           error ->
             error
@@ -668,6 +679,53 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp prepare_storage_attrs(attrs, _mailbox, _mailbox_user_id), do: {:ok, attrs}
+
+  defp maybe_resolve_duplicate_message_insert(
+         %Ecto.Changeset{} = changeset,
+         attrs,
+         mailbox_id,
+         mailbox_user_id
+       )
+       when is_integer(mailbox_id) do
+    if duplicate_message_id_conflict?(changeset) do
+      case get_attr(attrs, :message_id) do
+        message_id when is_binary(message_id) ->
+          case get_message_by_id(message_id, mailbox_id) do
+            %Message{} = message ->
+              resolved_message =
+                if mailbox_user_id do
+                  Message.decrypt_content(message, mailbox_user_id)
+                else
+                  message
+                end
+
+              {:ok, resolved_message}
+
+            _ ->
+              :error
+          end
+
+        _ ->
+          :error
+      end
+    else
+      :error
+    end
+  end
+
+  defp maybe_resolve_duplicate_message_insert(_reason, _attrs, _mailbox_id, _mailbox_user_id),
+    do: :error
+
+  defp duplicate_message_id_conflict?(%Ecto.Changeset{errors: errors}) do
+    Enum.any?(errors, fn
+      {:message_id, {_message, opts}} ->
+        opts[:constraint] == :unique and
+          opts[:constraint_name] == "email_messages_message_id_mailbox_id_index"
+
+      _ ->
+        false
+    end)
+  end
 
   defp notification_subject(%Mailbox{} = mailbox, attrs) do
     if MailboxEncryption.enabled?(mailbox) do
