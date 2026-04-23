@@ -9,7 +9,7 @@ defmodule Elektrine.MailClientSettings do
   @default_settings [
     imap: [port: 993, security: :ssl],
     pop3: [port: 995, security: :ssl],
-    smtp: [port: 465, security: :ssl]
+    smtp: [port: 587, security: :starttls]
   ]
 
   def imap(domain \\ Domains.primary_email_domain()), do: build(:imap, domain)
@@ -90,7 +90,7 @@ defmodule Elektrine.MailClientSettings do
   end
 
   defp listener_settings(:smtp) do
-    [port: Application.get_env(:elektrine, :smtp_port, 2587), security: :plain]
+    [port: Application.get_env(:elektrine, :smtp_port, 2587), security: :starttls]
   end
 
   defp env_host(:imap), do: present_env("IMAP_HOST")

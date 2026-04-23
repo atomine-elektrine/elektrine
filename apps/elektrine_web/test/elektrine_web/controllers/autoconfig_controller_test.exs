@@ -34,7 +34,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       assert xml =~ "<hostname>mail.#{domain}</hostname>"
       assert xml =~ "<port>32143</port>"
       assert xml =~ "<port>32587</port>"
-      assert xml =~ "<socketType>plain</socketType>"
+      assert xml =~ "<socketType>STARTTLS</socketType>"
     end
   end
 
@@ -62,7 +62,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       assert xml =~ "<Port>32143</Port>"
       assert xml =~ "<Port>32587</Port>"
       assert xml =~ "<SSL>off</SSL>"
-      refute xml =~ "<Encryption>"
+      assert xml =~ "<Encryption>TLS</Encryption>"
     end
   end
 
@@ -90,7 +90,7 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       Application.put_env(:elektrine, :mail_client_settings,
         imap: [port: 993, security: :ssl],
         pop3: [port: 995, security: :ssl],
-        smtp: [port: 465, security: :ssl]
+        smtp: [port: 587, security: :starttls]
       )
 
       domain = Domains.primary_email_domain()
@@ -103,8 +103,8 @@ defmodule ElektrineWeb.AutoconfigControllerTest do
       xml = response(conn, 200)
 
       assert xml =~ "<port>993</port>"
-      assert xml =~ "<port>465</port>"
-      assert xml =~ "<socketType>SSL</socketType>"
+      assert xml =~ "<port>587</port>"
+      assert xml =~ "<socketType>STARTTLS</socketType>"
     end
   end
 

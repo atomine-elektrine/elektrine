@@ -13,24 +13,34 @@ defmodule Elektrine.SMTP.Supervisor do
   def init(_init_arg) do
     port = smtp_port()
     enabled = smtp_enabled?()
+    tls_port = smtps_port()
+    tls_enabled = smtps_enabled?()
     tls_opts = smtp_tls_opts()
 
     require Logger
-    Logger.info("Startup: smtp supervisor configured (enabled=#{enabled}, port=#{port})")
+
+    Logger.info(
+      "Startup: smtp supervisor configured (enabled=#{enabled}, port=#{port}, tls_enabled=#{tls_enabled}, tls_port=#{tls_port})"
+    )
 
     children =
-      if enabled do
-        [
-          # Rate limiter for auth attempts
-          Elektrine.SMTP.RateLimiter,
-          # Rate limiter for sends per IP (anti-bot)
-          Elektrine.SMTP.SendRateLimiter,
-          # SMTP Server
-          {Elektrine.SMTP.Server, [port: port, tls_opts: tls_opts]}
-        ]
-      else
-        []
-      end
+      [Elektrine.SMTP.RateLimiter, Elektrine.SMTP.SendRateLimiter] ++
+        if(enabled, do: [{Elektrine.SMTP.Server, [port: port, tls_opts: tls_opts]}], else: []) ++
+        if(tls_enabled,
+          do: [
+            Supervisor.child_spec(
+              {Elektrine.SMTP.Server,
+               [
+                 name: Elektrine.SMTP.TLSServer,
+                 port: tls_port,
+                 transport: :ssl,
+                 tls_opts: tls_opts
+               ]},
+              id: Elektrine.SMTP.TLSServer
+            )
+          ],
+          else: []
+        )
 
     Supervisor.init(children, strategy: :one_for_one)
   end
@@ -40,9 +50,16 @@ defmodule Elektrine.SMTP.Supervisor do
   end
 
   defp smtp_port do
-    # Use port 2587 by default (non-privileged port)
-    # Can be overridden with SMTP_PORT env var
+    # Internal listener uses a non-privileged port; deploys can publish it as 587 externally.
     Application.get_env(:elektrine, :smtp_port, 2587)
+  end
+
+  defp smtps_enabled? do
+    Application.get_env(:elektrine, :smtps_enabled, false)
+  end
+
+  defp smtps_port do
+    Application.get_env(:elektrine, :smtps_port, 2465)
   end
 
   defp smtp_tls_opts do

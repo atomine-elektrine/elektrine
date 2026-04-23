@@ -179,6 +179,8 @@ services:
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
       ELEKTRINE_ENABLE_MAIL: ${ELEKTRINE_ENABLE_MAIL:-true}
       ELEKTRINE_ENABLE_TOR: "false"
+      SMTP_PORT: ${SMTP_PORT:-2587}
+      SMTPS_PORT: ${SMTPS_PORT:-2465}
       IMAPS_PORT: 2993
       POP3S_PORT: 2995
     volumes:
@@ -188,6 +190,8 @@ services:
     networks:
       - elektrine_network
     ports:
+      - "${SMTP_BIND:-587:2587}"
+      - "${SMTPS_BIND:-465:2465}"
       - "${IMAP_BIND:-143:2143}"
       - "${POP3_BIND:-110:2110}"
       - "${IMAP_TLS_BIND:-993:2993}"

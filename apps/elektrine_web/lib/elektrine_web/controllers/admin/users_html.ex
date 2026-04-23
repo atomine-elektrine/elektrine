@@ -10,6 +10,5 @@ defmodule ElektrineWeb.Admin.UsersHTML do
   defdelegate new(assigns), to: ElektrineWeb.AdminHTML
   defdelegate edit(assigns), to: ElektrineWeb.AdminHTML
   defdelegate ban(assigns), to: ElektrineWeb.AdminHTML
-  defdelegate multi_accounts(assigns), to: ElektrineWeb.AdminHTML
   defdelegate account_lookup(assigns), to: ElektrineWeb.AdminHTML
 end

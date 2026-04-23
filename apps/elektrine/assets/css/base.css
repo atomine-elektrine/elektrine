@@ -46,8 +46,8 @@ body[data-grid="purple"], body.grid-purple { --theme-grid-color: color-mix(in sr
 } body[data-grid="red"], body.grid-red { --theme-grid-color: color-mix(in srgb, var(--color-error, #ef4444) 8%, transparent); --theme-grid-x-color: color-mix(in srgb, var(--color-error, #ef4444) 6%, transparent); --theme-grid-glow-color: color-mix(in srgb, var(--color-error, #ef4444) 15%, transparent); --theme-grid-glow-x-color: color-mix(in srgb, var(--color-error, #ef4444) 9%, transparent);
 } body[data-grid="green"], body.grid-green { --theme-grid-color: color-mix(in srgb, var(--color-success, #22c55e) 8%, transparent); --theme-grid-x-color: color-mix(in srgb, var(--color-success, #22c55e) 6%, transparent); --theme-grid-glow-color: color-mix(in srgb, var(--color-success, #22c55e) 15%, transparent); --theme-grid-glow-x-color: color-mix(in srgb, var(--color-success, #22c55e) 9%, transparent);
 } body[data-grid="orange"], body.grid-orange { --theme-grid-color: color-mix(in srgb, var(--color-warning, #f59e0b) 8%, transparent); --theme-grid-x-color: color-mix(in srgb, var(--color-warning, #f59e0b) 6%, transparent); --theme-grid-glow-color: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent); --theme-grid-glow-x-color: color-mix(in srgb, var(--color-warning, #f59e0b) 9%, transparent);
-} .admin-layout { color: var(--color-base-content);
-} .admin-layout > main { position: relative;
+} .admin-layout { color: var(--color-base-content); background-color: var(--color-base-100); background-image: none !important; min-height: 100vh;
+} .admin-layout > main { position: relative; background-image: none !important;
 } .admin-page { display: flex; flex-direction: column; gap: 1.5rem;
 } @media (min-width: 640px) { .admin-page { gap: 2rem; }
 } .admin-page > :first-child { margin-bottom: 0 !important;

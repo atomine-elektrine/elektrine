@@ -10,7 +10,6 @@ defmodule Elektrine.Accounts do
   - `Elektrine.Accounts.Blocking` - User blocking functionality
   - `Elektrine.Accounts.Muting` - User muting functionality
   - `Elektrine.Accounts.Moderation` - Admin moderation operations
-  - `Elektrine.Accounts.MultiAccount` - Multi-account detection
   - `Elektrine.Accounts.Tracking` - User activity tracking
   """
 
@@ -28,7 +27,6 @@ defmodule Elektrine.Accounts do
   alias Elektrine.Accounts.Authentication
   alias Elektrine.Accounts.Blocking
   alias Elektrine.Accounts.Moderation
-  alias Elektrine.Accounts.MultiAccount
   alias Elektrine.Accounts.Muting
   alias Elektrine.Accounts.Tracking
   alias Elektrine.Subscriptions.RegistrationCheckout
@@ -418,15 +416,6 @@ defmodule Elektrine.Accounts do
   defdelegate list_deletion_requests(), to: Moderation
   defdelegate get_deletion_request!(id), to: Moderation
   defdelegate review_deletion_request(request, admin, status, attrs \\ %{}), to: Moderation
-
-  ## Multi-Account Functions - Delegated to MultiAccount module
-
-  defdelegate find_users_by_registration_ip(ip_address), to: MultiAccount
-  defdelegate detect_multi_accounts(), to: MultiAccount
-  defdelegate detect_multi_accounts_paginated(page, per_page), to: MultiAccount
-  defdelegate search_multi_accounts_paginated(search_query, page, per_page), to: MultiAccount
-  defdelegate search_multi_accounts(search_query), to: MultiAccount
-  defdelegate get_user_with_ip_info!(id), to: MultiAccount
 
   ## Tracking Functions - Delegated to Tracking module
 

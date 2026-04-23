@@ -7,7 +7,7 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
 
   @max_preview_bytes 1_000_000
   @doc "Extracts URLs from text content.\n"
-  def extract_urls(content) do
+  def extract_urls(content) when is_binary(content) do
     url_regex = ~r/https?:\/\/[^\s<>"{}|\\^`\[\]]+/i
 
     Regex.scan(url_regex, content)
@@ -16,6 +16,8 @@ defmodule Elektrine.Social.LinkPreviewFetcher do
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
   end
+
+  def extract_urls(_), do: []
 
   defp trim_trailing_url_punctuation(url) when is_binary(url) do
     trimmed = String.trim(url)

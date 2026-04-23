@@ -402,6 +402,23 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(socket)
   end
 
+  test "SMTPS supports implicit TLS submission on the dedicated TLS port" do
+    {user, password, _mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:smtp, user.username)
+
+    {:ok, socket} = connect_ssl(smtps_port())
+    assert String.starts_with?(recv_line!(socket), "220 ")
+
+    ehlo_lines = smtp_multiline_command(socket, "EHLO localhost")
+    refute "250-STARTTLS" in ehlo_lines
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+
+    plain_cred = Base.encode64("\0#{user.username}\0#{password}")
+    assert String.starts_with?(smtp_command(socket, "AUTH plain #{plain_cred}"), "235 ")
+    assert String.starts_with?(smtp_command(socket, "QUIT"), "221 ")
+    :ok = close_socket(socket)
+  end
+
   test "SMTP without TLS and without insecure auth omits AUTH capability" do
     port = unused_tcp_port()
 
@@ -498,9 +515,19 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
   defp imap_port, do: Application.get_env(:elektrine, :imap_port, 2143)
   defp pop3_port, do: Application.get_env(:elektrine, :pop3_port, 2110)
   defp smtp_port, do: Application.get_env(:elektrine, :smtp_port, 2587)
+  defp smtps_port, do: Application.get_env(:elektrine, :smtps_port, 2465)
 
   defp connect_tcp(port) do
     :gen_tcp.connect(@localhost, port, [:binary, active: false, packet: :line], 2_000)
+  end
+
+  defp connect_ssl(port) do
+    :ssl.connect(
+      @localhost,
+      port,
+      [active: false, packet: :line, mode: :binary, verify: :verify_none],
+      5_000
+    )
   end
 
   defp recv_line!(socket, timeout \\ 4_000) do

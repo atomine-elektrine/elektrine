@@ -79,31 +79,6 @@ defmodule ElektrineWeb.Admin.UsersController do
     )
   end
 
-  def multi_accounts(conn, params) do
-    search_query = Map.get(params, "search", "")
-    page = SafeConvert.parse_page(params)
-    per_page = 20
-
-    {multi_account_data, total_count} =
-      if search_query != "" do
-        Accounts.search_multi_accounts_paginated(search_query, page, per_page)
-      else
-        Accounts.detect_multi_accounts_paginated(page, per_page)
-      end
-
-    total_pages = ceil(total_count / per_page)
-    page_range = pagination_range(page, total_pages)
-
-    render(conn, :multi_accounts,
-      multi_account_data: multi_account_data,
-      search_query: search_query,
-      current_page: page,
-      total_pages: total_pages,
-      total_count: total_count,
-      page_range: page_range
-    )
-  end
-
   def lookup_ip(conn, %{"ip" => ip}) do
     case Elektrine.IpLookup.lookup(ip) do
       {:ok, data} ->
@@ -145,21 +120,20 @@ defmodule ElektrineWeb.Admin.UsersController do
   end
 
   def edit(conn, %{"id" => id}) do
-    user_data = Accounts.get_user_with_ip_info!(id)
-    changeset = Accounts.change_user_admin(user_data.user)
-    aliases = Integrations.email_aliases(user_data.user.id)
+    user = Accounts.get_user!(id)
+    changeset = Accounts.change_user_admin(user)
+    aliases = Integrations.email_aliases(user.id)
 
     render(conn, :edit,
-      user: user_data.user,
+      user: user,
       changeset: changeset,
-      related_by_registration: user_data.related_by_registration,
       aliases: aliases,
       email_available: Integrations.email_available?()
     )
   end
 
   def update(conn, %{"id" => id, "user" => user_params}) do
-    user_data = Accounts.get_user_with_ip_info!(id)
+    user = Accounts.get_user!(id)
 
     # Convert checkbox values from "on"/"off" to boolean
     normalized_params =
@@ -186,11 +160,11 @@ defmodule ElektrineWeb.Admin.UsersController do
       end)
 
     # Track if trust level was manually changed
-    old_level = user_data.user.trust_level
+    old_level = user.trust_level
     new_level = normalized_params["trust_level"]
     trust_level_changed = new_level && new_level != old_level
 
-    case Accounts.admin_update_user(user_data.user, normalized_params) do
+    case Accounts.admin_update_user(user, normalized_params) do
       {:ok, updated_user} ->
         # Log trust level change if it occurred
         if trust_level_changed do
@@ -215,10 +189,9 @@ defmodule ElektrineWeb.Admin.UsersController do
 
       {:error, changeset} ->
         render(conn, :edit,
-          user: user_data.user,
+          user: user,
           changeset: changeset,
-          related_by_registration: user_data.related_by_registration,
-          aliases: Integrations.email_aliases(user_data.user.id),
+          aliases: Integrations.email_aliases(user.id),
           email_available: Integrations.email_available?()
         )
     end

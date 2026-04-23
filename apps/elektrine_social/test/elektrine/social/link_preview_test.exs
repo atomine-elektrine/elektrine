@@ -69,6 +69,10 @@ defmodule Elektrine.Social.LinkPreviewTest do
   end
 
   describe "extract_urls/1" do
+    test "returns an empty list for nil content" do
+      assert LinkPreviewFetcher.extract_urls(nil) == []
+    end
+
     test "trims trailing punctuation from extracted URLs" do
       content =
         "See https://lemmy.zip/api/v3/image_proxy?url=https%3A%2F%2Flemmy.world%2Fpictrs%2Fimage%2Fabc.jpeg) and https://xkcd.com/1534/)."

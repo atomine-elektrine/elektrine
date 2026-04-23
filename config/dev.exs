@@ -67,7 +67,7 @@ config :elektrine,
 config :elektrine, :mail_client_settings,
   imap: [port: 2143, security: :plain],
   pop3: [port: 2110, security: :plain],
-  smtp: [port: 2587, security: :plain]
+  smtp: [port: 2587, security: :starttls]
 
 config :elektrine, :email,
   domain: dev_public_host,
