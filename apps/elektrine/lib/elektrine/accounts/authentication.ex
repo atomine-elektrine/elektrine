@@ -432,6 +432,16 @@ defmodule Elektrine.Accounts.Authentication do
     end
   end
 
+  @doc "Returns a stable mail-auth subject for username or mailbox email identifiers."
+  def mail_auth_subject(identifier) do
+    normalized_identifier = normalize_mail_auth_identifier(identifier)
+
+    case get_user_by_username_or_email(normalized_identifier) do
+      {:ok, %User{id: user_id}} -> "user:#{user_id}"
+      {:error, _} -> fallback_mail_auth_subject(normalized_identifier)
+    end
+  end
+
   @doc ~s|Verifies an app password token for a user.\nUpdates last used timestamp if valid.\n|
   def verify_app_password(user_id, token, ip_address \\ nil) do
     token_hash = AppPassword.hash_token(token)
@@ -479,7 +489,7 @@ defmodule Elektrine.Accounts.Authentication do
   end
 
   defp get_user_by_username_or_email(identifier) do
-    normalized_identifier = String.trim(identifier || "")
+    normalized_identifier = normalize_mail_auth_identifier(identifier)
 
     if String.contains?(normalized_identifier, "@") do
       case String.split(normalized_identifier, "@", parts: 2) do
@@ -516,6 +526,18 @@ defmodule Elektrine.Accounts.Authentication do
       end
     end
   end
+
+  defp normalize_mail_auth_identifier(identifier) do
+    identifier
+    |> to_string()
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp fallback_mail_auth_subject(""), do: "identifier:__empty__"
+
+  defp fallback_mail_auth_subject(identifier) when is_binary(identifier),
+    do: "identifier:#{identifier}"
 
   defp get_user_by_mailbox_email(email_identifier) do
     normalized_email = String.downcase(email_identifier)

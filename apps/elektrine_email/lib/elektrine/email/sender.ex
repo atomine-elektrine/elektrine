@@ -161,11 +161,11 @@ defmodule Elektrine.Email.Sender do
 
         :external ->
           # Send external email via Swoosh
-          with {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
-               {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
-               {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
+          with {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
                {:ok, _ownership} <-
                  validate_from_address_ownership(prepared_params[:from], user_id),
+               {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
+               {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
                {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
                {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
                external_params <-
@@ -372,6 +372,7 @@ defmodule Elektrine.Email.Sender do
           |> Map.delete(:raw_email)
           |> Map.delete("raw_email")
           |> Map.put(:subject, subject)
+          |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
           |> Map.put(:text_body, text_body)
           |> Map.put(:html_body, html_body)
           |> Map.put(:attachments, attachments)
@@ -420,6 +421,7 @@ defmodule Elektrine.Email.Sender do
     |> Map.delete(:raw_email)
     |> Map.delete("raw_email")
     |> Map.put(:subject, subject)
+    |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
     |> Map.put(:text_body, body || params[:text_body] || params["text_body"])
     |> put_if_present(:in_reply_to, extract_raw_header_from_email(raw_email, "In-Reply-To"))
     |> put_if_present(:references, extract_raw_header_from_email(raw_email, "References"))
@@ -1124,7 +1126,8 @@ defmodule Elektrine.Email.Sender do
          db_attachments
        ) do
     message_attrs = %{
-      message_id: swoosh_response.message_id || generate_message_id(),
+      message_id:
+        email_params[:message_id] || swoosh_response.message_id || generate_message_id(),
       from: email_params[:from],
       to: email_params[:to],
       cc: email_params[:cc],
@@ -1145,7 +1148,8 @@ defmodule Elektrine.Email.Sender do
           %{
             external_delivery: true,
             sent_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-            original_message_id: swoosh_response.message_id
+            original_message_id: swoosh_response.message_id,
+            client_message_id: email_params[:message_id]
           },
           email_params
         )
