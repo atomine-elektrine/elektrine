@@ -8,10 +8,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   import Elektrine.Components.User.UsernameEffects
   use Phoenix.Component
 
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
+  alias Elektrine.Social.Messages, as: MessagingMessages
 
   # Recursive component to render nested replies
   attr :reply, :map, required: true
@@ -418,7 +418,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   defp get_timeline_post(post_id) do
     import Ecto.Query
 
-    case from(m in Elektrine.Messaging.Message,
+    case from(m in Elektrine.Social.Message,
            where:
              m.id == ^post_id and
                is_nil(m.deleted_at) and
@@ -504,7 +504,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         {:ok, reply_post} ->
           # Link it as a reply
           reply_post
-          |> Elektrine.Messaging.Message.changeset(%{reply_to_id: reply_to_id})
+          |> Elektrine.Social.Message.changeset(%{reply_to_id: reply_to_id})
           |> Elektrine.Repo.update()
 
           # Increment reply count on parent
@@ -512,7 +512,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
           # Create notification for timeline comment/reply
           # Get the original post/reply being replied to
-          parent_message = Elektrine.Repo.get!(Elektrine.Messaging.Message, reply_to_id)
+          parent_message = Elektrine.Repo.get!(Elektrine.Social.Message, reply_to_id)
 
           if parent_message.sender_id &&
                parent_message.sender_id != socket.assigns.current_user.id do
@@ -813,7 +813,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
       # Check if user already has this reaction
       existing_reaction =
         Elektrine.Repo.get_by(
-          Elektrine.Messaging.MessageReaction,
+          Elektrine.Social.MessageReaction,
           message_id: message_id,
           user_id: user_id,
           emoji: emoji
@@ -984,7 +984,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
     # Get the main timeline post
     post =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.id == ^post_id and
             is_nil(m.deleted_at) and
@@ -1014,7 +1014,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
           if Enum.empty?(all_reply_ids) do
             []
           else
-            from(m in Elektrine.Messaging.Message,
+            from(m in Elektrine.Social.Message,
               where:
                 m.id in ^all_reply_ids and
                   is_nil(m.deleted_at) and
@@ -1041,7 +1041,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
     # Get direct replies to this post
     direct_reply_ids =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.reply_to_id == ^post_id and is_nil(m.deleted_at),
         select: m.id
       )

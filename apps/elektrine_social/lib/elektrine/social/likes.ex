@@ -12,8 +12,8 @@ defmodule Elektrine.Social.Likes do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.PostLike
 
   @doc """
@@ -206,7 +206,7 @@ defmodule Elektrine.Social.Likes do
       hashtags: Enum.map(message.hashtags || [], & &1.normalized_name)
     }
 
-    Elektrine.Messaging.Messages.broadcast_post_counts_updated(like.message_id, %{
+    Elektrine.Social.Messages.broadcast_post_counts_updated(like.message_id, %{
       like_count: message.like_count || 0,
       share_count: message.share_count || 0,
       reply_count: message.reply_count || 0

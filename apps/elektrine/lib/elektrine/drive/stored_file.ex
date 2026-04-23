@@ -1,4 +1,4 @@
-defmodule Elektrine.Files.StoredFile do
+defmodule Elektrine.Drive.StoredFile do
   @moduledoc """
   Metadata for a user-owned file stored in local or R2-backed object storage.
   """
@@ -6,9 +6,9 @@ defmodule Elektrine.Files.StoredFile do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Elektrine.Files.FileShare
+  alias Elektrine.Drive.FileShare
 
-  schema "stored_files" do
+  schema "drive_files" do
     field :path, :string
     field :storage_key, :string
     field :original_filename, :string
@@ -16,7 +16,7 @@ defmodule Elektrine.Files.StoredFile do
     field :size, :integer
 
     belongs_to :user, Elektrine.Accounts.User
-    has_many :shares, FileShare
+    has_many :shares, FileShare, foreign_key: :drive_file_id
 
     timestamps(type: :utc_datetime)
   end

@@ -6,8 +6,8 @@ defmodule ElektrineWeb.CommunityPostTest do
   alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.SocialFixtures
 
   setup do

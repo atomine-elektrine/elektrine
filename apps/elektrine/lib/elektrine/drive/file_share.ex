@@ -1,4 +1,4 @@
-defmodule Elektrine.Files.FileShare do
+defmodule Elektrine.Drive.FileShare do
   @moduledoc """
   Public share links for user-owned files.
   """
@@ -6,9 +6,9 @@ defmodule Elektrine.Files.FileShare do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Elektrine.Files.StoredFile
+  alias Elektrine.Drive.StoredFile
 
-  schema "file_shares" do
+  schema "drive_shares" do
     field :token, :string
     field :revoked_at, :utc_datetime
     field :expires_at, :utc_datetime
@@ -16,7 +16,7 @@ defmodule Elektrine.Files.FileShare do
     field :password_hash, :string
     field :download_count, :integer, default: 0
 
-    belongs_to :stored_file, StoredFile
+    belongs_to :stored_file, StoredFile, foreign_key: :drive_file_id
     belongs_to :user, Elektrine.Accounts.User
 
     timestamps(type: :utc_datetime)
@@ -25,7 +25,7 @@ defmodule Elektrine.Files.FileShare do
   def changeset(share, attrs) do
     share
     |> cast(attrs, [
-      :stored_file_id,
+      :drive_file_id,
       :user_id,
       :token,
       :revoked_at,
@@ -34,12 +34,12 @@ defmodule Elektrine.Files.FileShare do
       :password_hash,
       :download_count
     ])
-    |> validate_required([:stored_file_id, :user_id, :token])
+    |> validate_required([:drive_file_id, :user_id, :token])
     |> validate_length(:token, min: 16, max: 255)
     |> validate_number(:download_count, greater_than_or_equal_to: 0)
     |> validate_inclusion(:access_level, ["download", "view"])
     |> validate_expiry()
-    |> foreign_key_constraint(:stored_file_id)
+    |> foreign_key_constraint(:drive_file_id)
     |> foreign_key_constraint(:user_id)
     |> unique_constraint(:token)
   end

@@ -76,10 +76,10 @@
     </button>
     <button
       phx-click="change_tab"
-      phx-value-tab="files"
-      class={["tab", @active_tab == "files" && "tab-active"]}
+      phx-value-tab="drive"
+      class={["tab", @active_tab == "drive" && "tab-active"]}
     >
-      Files
+      Drive
     </button>
     <button
       phx-click="change_tab"
@@ -242,13 +242,13 @@
     </div>
   <% end %>
 
-  <%= if @active_tab == "files" do %>
+  <%= if @active_tab == "drive" do %>
     <div class="card panel-card">
       <div class="card-body">
         <div class="flex items-center justify-between mb-4 gap-3">
-          <h2 class="card-title">Files</h2>
-          <.link navigate={~p"/account/files"} class="btn btn-primary btn-sm">
-            <.icon name="hero-folder-open" class="w-4 h-4" /> Open Files
+          <h2 class="card-title">Drive</h2>
+          <.link navigate={~p"/account/drive"} class="btn btn-primary btn-sm">
+            <.icon name="hero-folder-open" class="w-4 h-4" /> Open Drive
           </.link>
         </div>
 

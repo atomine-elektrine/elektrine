@@ -173,8 +173,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   defp fetch_post_for_navigation(id) do
     with {post_id, ""} <- Integer.parse(to_string(id)),
-         %Elektrine.Messaging.Message{} = post <-
-           Elektrine.Repo.get(Elektrine.Messaging.Message, post_id) do
+         %Elektrine.Social.Message{} = post <-
+           Elektrine.Repo.get(Elektrine.Social.Message, post_id) do
       Elektrine.Repo.preload(post, [:conversation])
     else
       _ -> nil

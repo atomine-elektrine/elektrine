@@ -9,8 +9,9 @@ defmodule ElektrineChatWeb.API.ExtChatController do
 
   alias Elektrine.Accounts
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.{ChatMessages, Conversation, ConversationMember}
+  alias Elektrine.Messaging.ChatMessages
   alias Elektrine.Repo
+  alias Elektrine.Social.{Conversation, ConversationMember}
   alias Elektrine.Uploads
   alias ElektrineWeb.API.Response
 

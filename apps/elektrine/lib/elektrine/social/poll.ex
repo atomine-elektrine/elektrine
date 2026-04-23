@@ -11,13 +11,11 @@ defmodule Elektrine.Social.Poll do
     field(:allow_multiple, :boolean, default: false)
     field(:hide_totals, :boolean, default: false)
     field(:total_votes, :integer, default: 0)
-    # Unique voters count (for polls where users can vote on multiple options)
     field(:voters_count, :integer, default: 0)
-    # Track voter actor URIs for federated polls (like Akkoma's "voters" array)
     field(:voter_uris, {:array, :string}, default: [])
     field(:last_fetched_at, :utc_datetime)
 
-    belongs_to(:message, Elektrine.Messaging.Message)
+    belongs_to(:message, Elektrine.Social.Message)
     has_many(:options, Elektrine.Social.PollOption, foreign_key: :poll_id)
     has_many(:votes, Elektrine.Social.PollVote, foreign_key: :poll_id)
 
@@ -43,10 +41,6 @@ defmodule Elektrine.Social.Poll do
     |> foreign_key_constraint(:message_id)
   end
 
-  @doc """
-  Records a voter for federated polls.
-  Used to track unique voters and prevent double-voting from remote users.
-  """
   def record_voter(%__MODULE__{voter_uris: uris} = poll, actor_uri) when is_binary(actor_uri) do
     if actor_uri in (uris || []) do
       {:ok, poll}
@@ -54,24 +48,15 @@ defmodule Elektrine.Social.Poll do
       new_uris = [actor_uri | uris || []] |> Enum.uniq()
 
       poll
-      |> Ecto.Changeset.change(%{
-        voter_uris: new_uris,
-        voters_count: length(new_uris)
-      })
+      |> Ecto.Changeset.change(%{voter_uris: new_uris, voters_count: length(new_uris)})
       |> Elektrine.Repo.update()
     end
   end
 
-  @doc """
-  Checks if an actor has already voted on this poll.
-  """
   def has_voted?(%__MODULE__{voter_uris: uris}, actor_uri) do
     actor_uri in (uris || [])
   end
 
-  @doc """
-  Checks if the poll is still open for voting.
-  """
   def open?(%{closes_at: nil}), do: true
 
   def open?(%{closes_at: %DateTime{} = closes_at}) do
@@ -92,22 +77,18 @@ defmodule Elektrine.Social.Poll do
   end
 
   def open?(_poll), do: false
-
-  @doc """
-  Checks if the poll has closed.
-  """
   def closed?(poll), do: !open?(poll)
 
   def possibly_stale?(%{last_fetched_at: last_fetched_at, closes_at: closes_at}) do
     expires_after_last_fetch? =
-      is_nil(closes_at) || is_nil(last_fetched_at) ||
+      is_nil(closes_at) or is_nil(last_fetched_at) or
         DateTime.compare(last_fetched_at, closes_at) == :lt
 
     stale_fetch? =
-      is_nil(last_fetched_at) ||
+      is_nil(last_fetched_at) or
         DateTime.compare(last_fetched_at, DateTime.add(DateTime.utc_now(), -60, :second)) == :lt
 
-    expires_after_last_fetch? && stale_fetch?
+    expires_after_last_fetch? and stale_fetch?
   end
 
   def possibly_stale?(_poll), do: true

@@ -61,10 +61,19 @@ config :elektrine,
        ] ++ test_db_connection_opts
 
 # Isolate mail protocol listeners from any local services on default ports.
+mail_test_tls_opts = [
+  certfile:
+    Path.expand("../apps/elektrine_email/test/support/fixtures/pop3-test-cert.pem", __DIR__),
+  keyfile: Path.expand("../apps/elektrine_email/test/support/fixtures/pop3-test-key.pem", __DIR__)
+]
+
 config :elektrine,
   imap_port: 32_143,
   pop3_port: 32_110,
-  smtp_port: 32_587
+  smtp_port: 32_587,
+  imap_tls_opts: mail_test_tls_opts,
+  pop3_tls_opts: mail_test_tls_opts,
+  smtp_tls_opts: mail_test_tls_opts
 
 config :elektrine, :mail_client_settings,
   imap: [port: 32_143, security: :plain],

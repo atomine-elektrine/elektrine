@@ -5,8 +5,8 @@ defmodule Elektrine.Messaging.CustomDomainAliasesTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Conversation
-  alias Elektrine.Messaging.ConversationMember
+  alias Elektrine.Messaging.ChatConversation
+  alias Elektrine.Messaging.ChatConversationMember
   alias Elektrine.Messaging.Federation.Builders
   alias Elektrine.Messaging.Federation.DirectMessageState
   alias Elektrine.Messaging.Federation.Utils
@@ -18,8 +18,8 @@ defmodule Elektrine.Messaging.CustomDomainAliasesTest do
     custom_domain = verified_profile_custom_domain_fixture(sender, "dmcustomsender.test")
 
     conversation =
-      %Conversation{}
-      |> Conversation.dm_changeset(%{
+      %ChatConversation{}
+      |> ChatConversation.dm_changeset(%{
         creator_id: sender.id,
         name: "@alice@remote.example",
         federated_source: "arblarg:dm:handle:alice@remote.example"
@@ -27,7 +27,7 @@ defmodule Elektrine.Messaging.CustomDomainAliasesTest do
       |> Repo.insert!()
 
     conversation.id
-    |> ConversationMember.add_member_changeset(sender.id)
+    |> ChatConversationMember.add_member_changeset(sender.id)
     |> Repo.insert!()
 
     assert {:ok, message} =
@@ -70,7 +70,7 @@ defmodule Elektrine.Messaging.CustomDomainAliasesTest do
              )
 
     member_ids =
-      from(cm in ConversationMember,
+      from(cm in ChatConversationMember,
         where: cm.conversation_id == ^conversation.id and is_nil(cm.left_at),
         select: cm.user_id
       )

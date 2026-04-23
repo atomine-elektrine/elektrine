@@ -23,7 +23,7 @@ defmodule Elektrine.Social.BoostsTest do
 
       # Clear content but keep media
       Repo.update_all(
-        Elektrine.Messaging.Message |> Ecto.Query.where(id: ^post.id),
+        Elektrine.Social.Message |> Ecto.Query.where(id: ^post.id),
         set: [content: ""]
       )
 
@@ -37,7 +37,7 @@ defmodule Elektrine.Social.BoostsTest do
 
       # Directly update to empty content and no media to simulate edge case
       Repo.update_all(
-        Elektrine.Messaging.Message |> Ecto.Query.where(id: ^post.id),
+        Elektrine.Social.Message |> Ecto.Query.where(id: ^post.id),
         set: [content: "", media_urls: []]
       )
 
@@ -52,7 +52,7 @@ defmodule Elektrine.Social.BoostsTest do
 
       {:ok, _} = Boosts.boost_post(user.id, post.id)
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 1
     end
 
@@ -72,7 +72,7 @@ defmodule Elektrine.Social.BoostsTest do
       assert {:ok, _} = Boosts.boost_post(user1.id, post.id)
       assert {:ok, _} = Boosts.boost_post(user2.id, post.id)
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 2
     end
   end
@@ -92,12 +92,12 @@ defmodule Elektrine.Social.BoostsTest do
     end
 
     test "decrements share count on the post", %{user: user, post: post} do
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 1
 
       {:ok, _} = Boosts.unboost_post(user.id, post.id)
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 0
     end
 
@@ -124,7 +124,7 @@ defmodule Elektrine.Social.BoostsTest do
 
       {:ok, _} = Boosts.create_quote_post(user.id, original.id, "My commentary")
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, original.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, original.id)
       assert updated_post.quote_count == 1
     end
 
@@ -153,7 +153,7 @@ defmodule Elektrine.Social.BoostsTest do
       assert {:ok, _} = Boosts.create_quote_post(user.id, original.id, "First commentary")
       assert {:ok, _} = Boosts.create_quote_post(user.id, original.id, "Second commentary")
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, original.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, original.id)
       assert updated_post.quote_count == 2
     end
   end
@@ -191,7 +191,7 @@ defmodule Elektrine.Social.BoostsTest do
         {:ok, _} = Boosts.boost_post(user.id, post.id)
       end
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 5
 
       # First 3 users unboost
@@ -199,7 +199,7 @@ defmodule Elektrine.Social.BoostsTest do
         {:ok, _} = Boosts.unboost_post(user.id, post.id)
       end
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.share_count == 2
     end
   end

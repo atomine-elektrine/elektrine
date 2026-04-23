@@ -15,8 +15,8 @@ defmodule Elektrine.Messaging.CommunityFlair do
     field :is_mod_only, :boolean, default: false
     field :is_enabled, :boolean, default: true
 
-    belongs_to :community, Elektrine.Messaging.Conversation
-    has_many :messages, Elektrine.Messaging.Message, foreign_key: :flair_id
+    belongs_to :community, Elektrine.Social.Conversation
+    has_many :messages, Elektrine.Social.Message, foreign_key: :flair_id
 
     timestamps()
   end

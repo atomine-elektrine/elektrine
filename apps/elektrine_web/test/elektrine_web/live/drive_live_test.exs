@@ -1,9 +1,9 @@
-defmodule ElektrineWeb.FilesLiveTest do
+defmodule ElektrineWeb.DriveLiveTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.{Accounts, Files}
+  alias Elektrine.{Accounts, Drive}
 
   setup do
     previous_uploads = Application.get_env(:elektrine, :uploads)
@@ -24,10 +24,10 @@ defmodule ElektrineWeb.FilesLiveTest do
     end)
 
     user = user_fixture()
-    {:ok, _} = Files.upload_file(user, "projects/alpha", temp_upload("roadmap.txt", "v1"))
-    {:ok, _} = Files.upload_file(user, "projects/beta", temp_upload("launch.txt", "v2"))
-    {:ok, _} = Files.upload_file(user, "", temp_upload("root.txt", "root"))
-    {:ok, _} = Files.upload_file(user, "", temp_upload("photo.png", "pngdata"))
+    {:ok, _} = Drive.upload_file(user, "projects/alpha", temp_upload("roadmap.txt", "v1"))
+    {:ok, _} = Drive.upload_file(user, "projects/beta", temp_upload("launch.txt", "v2"))
+    {:ok, _} = Drive.upload_file(user, "", temp_upload("root.txt", "root"))
+    {:ok, _} = Drive.upload_file(user, "", temp_upload("photo.png", "pngdata"))
 
     {:ok, user: user}
   end
@@ -36,13 +36,13 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/files")
+      |> live(~p"/account/drive")
 
     assert has_element?(view, "a", "projects")
     assert has_element?(view, "p", "root.txt")
 
     view
-    |> element(~s(a[href="/account/files?folder=projects"]), "projects")
+    |> element(~s(a[href="/account/drive?folder=projects"]), "projects")
     |> render_click()
 
     assert has_element?(view, "a", "alpha")
@@ -54,7 +54,7 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/files")
+      |> live(~p"/account/drive")
 
     refute render(view) =~ "projects/alpha"
 
@@ -70,7 +70,7 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/files")
+      |> live(~p"/account/drive")
 
     render_change(view, "filter", %{"filters" => %{"q" => "root", "sort" => "updated_desc"}})
 
@@ -82,10 +82,10 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/files")
+      |> live(~p"/account/drive")
 
     view
-    |> element(~s(a[href="/account/files?filter=images"]), "Images")
+    |> element(~s(a[href="/account/drive?filter=images"]), "Images")
     |> render_click()
 
     assert render(view) =~ "photo.png"
@@ -96,7 +96,7 @@ defmodule ElektrineWeb.FilesLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/files")
+      |> live(~p"/account/drive")
 
     upload =
       file_input(view, "#file-explorer-upload-picker", :files, [

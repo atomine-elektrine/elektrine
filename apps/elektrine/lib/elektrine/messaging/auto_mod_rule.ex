@@ -12,7 +12,7 @@ defmodule Elektrine.Messaging.AutoModRule do
     field :action, :string
     field :enabled, :boolean, default: true
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :created_by, Elektrine.Accounts.User
 
     timestamps()

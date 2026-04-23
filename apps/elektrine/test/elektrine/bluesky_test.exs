@@ -8,8 +8,8 @@ defmodule Elektrine.BlueskyTest do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   defmodule MockHTTPClient do
     def put_responses(responses), do: Process.put(:bluesky_mock_responses, responses)

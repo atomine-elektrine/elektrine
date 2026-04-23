@@ -407,8 +407,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
           )
         end
 
-        with %Elektrine.Messaging.Message{} = message <-
-               Repo.get(Elektrine.Messaging.Message, message_id),
+        with %Elektrine.Social.Message{} = message <-
+               Repo.get(Elektrine.Social.Message, message_id),
              {:ok, _updated} <-
                Messaging.update_message(message, %{
                  media_metadata:
@@ -756,7 +756,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
               )
 
             case message
-                 |> Elektrine.Messaging.Message.changeset(updated_attrs)
+                 |> Elektrine.Social.Message.changeset(updated_attrs)
                  |> Repo.update() do
               {:ok, updated_message} ->
                 complete_post_creation(updated_message, params["content"], socket)
@@ -812,7 +812,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
               )
 
             case message
-                 |> Elektrine.Messaging.Message.changeset(updated_attrs)
+                 |> Elektrine.Social.Message.changeset(updated_attrs)
                  |> Repo.update() do
               {:ok, updated_message} ->
                 complete_post_creation(updated_message, content, socket)
@@ -880,7 +880,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
               )
 
             case message
-                 |> Elektrine.Messaging.Message.changeset(updated_attrs)
+                 |> Elektrine.Social.Message.changeset(updated_attrs)
                  |> Repo.update() do
               {:ok, updated_message} ->
                 # Create poll
@@ -957,7 +957,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     }
 
     case message
-         |> Elektrine.Messaging.Message.changeset(updated_attrs)
+         |> Elektrine.Social.Message.changeset(updated_attrs)
          |> Repo.update() do
       {:ok, updated_message} ->
         complete_post_creation(updated_message, params["content"], socket)
@@ -982,14 +982,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
         # Hold for review
         {:ok, _pending_message} =
           message
-          |> Elektrine.Messaging.Message.changeset(%{approval_status: "pending"})
+          |> Elektrine.Social.Message.changeset(%{approval_status: "pending"})
           |> Repo.update()
 
         # Reload pending posts to include this one
         pending_posts =
           if socket.assigns.is_moderator do
             Elektrine.Messaging.ModerationTools.list_pending_posts(socket.assigns.community.id)
-            |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+            |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
           else
             socket.assigns.pending_posts
           end
@@ -1007,7 +1007,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
         # Mark the message as flagged by storing the rule name in metadata
         {:ok, flagged_message} =
           message
-          |> Elektrine.Messaging.Message.changeset(%{
+          |> Elektrine.Social.Message.changeset(%{
             media_metadata:
               Map.put(message.media_metadata || %{}, "automod_flagged", %{
                 "rule_name" => rule.name,
@@ -1037,7 +1037,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
       if needs_approval do
         {:ok, updated} =
           message
-          |> Elektrine.Messaging.Message.changeset(%{approval_status: "pending"})
+          |> Elektrine.Social.Message.changeset(%{approval_status: "pending"})
           |> Repo.update()
 
         updated
@@ -1045,7 +1045,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
         # Auto-approve
         {:ok, updated} =
           message
-          |> Elektrine.Messaging.Message.changeset(%{approval_status: "approved"})
+          |> Elektrine.Social.Message.changeset(%{approval_status: "approved"})
           |> Repo.update()
 
         updated
@@ -1135,7 +1135,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
 
       # Federate to ActivityPub if community is public
       Elektrine.Async.run(fn ->
-        case Elektrine.Messaging.Conversations.get_conversation_basic(message.conversation_id) do
+        case Elektrine.Social.Conversations.get_conversation_basic(message.conversation_id) do
           {:ok, community_conv} ->
             if community_conv.is_public do
               Elektrine.ActivityPub.Outbox.federate_community_post(message, community_conv)
@@ -1190,7 +1190,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     import Ecto.Query
 
     Repo.exists?(
-      from cm in Elektrine.Messaging.ConversationMember,
+      from cm in Elektrine.Social.ConversationMember,
         where:
           cm.conversation_id == ^community_id and
             cm.user_id == ^user_id and
@@ -1233,7 +1233,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
       shared_message: [sender: [:profile], conversation: []],
       poll: [options: []]
     ])
-    |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+    |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
   end
 
   defp normalize_pin_role(role) when role in ["start_here", "recurring", "none"], do: role
@@ -1246,8 +1246,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
     Enum.each(pinned_posts, fn post ->
       if post.id != message_id &&
            get_in(post.media_metadata || %{}, ["community_pin_type"]) == role do
-        case Repo.get(Elektrine.Messaging.Message, post.id) do
-          %Elektrine.Messaging.Message{} = message ->
+        case Repo.get(Elektrine.Social.Message, post.id) do
+          %Elektrine.Social.Message{} = message ->
             cleaned_metadata = Map.delete(message.media_metadata || %{}, "community_pin_type")
             _ = Messaging.update_message(message, %{media_metadata: cleaned_metadata})
 

@@ -7,7 +7,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   import Phoenix.LiveView
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias ElektrineSocialWeb.Components.Social.PostUtilities
 
   def load_cached_lemmy_counts(posts, timeline_view)

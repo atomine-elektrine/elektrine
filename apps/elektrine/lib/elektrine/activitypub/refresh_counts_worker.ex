@@ -27,8 +27,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
-  alias Elektrine.Messaging.{Message, Messages}
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
+  alias Elektrine.Social.Messages
 
   @batch_size 50
   @recent_threshold_hours 24

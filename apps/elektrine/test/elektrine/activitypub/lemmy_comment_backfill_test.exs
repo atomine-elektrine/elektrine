@@ -4,7 +4,7 @@ defmodule Elektrine.ActivityPub.LemmyCommentBackfillTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.LemmyCommentBackfill
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   test "apply_comment_counts updates stored lemmy comment counters" do
     actor = remote_actor_fixture()

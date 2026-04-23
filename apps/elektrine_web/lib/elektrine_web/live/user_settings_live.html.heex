@@ -1642,13 +1642,13 @@
                 </div>
               </.form>
 
-              <div class="divider my-4">{gettext("Bluesky Bridge")}</div>
+              <div class="divider my-4">{gettext("Bluesky Integration")}</div>
               <% managed_linked = @bluesky_managed_enabled && @user.bluesky_enabled %> <% bluesky_profile_url =
                 bluesky_profile_url(@user) %>
               <div class="surface-muted rounded-xl p-4 sm:p-5 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <h3 class="text-sm sm:text-base font-semibold flex items-center gap-2">
-                    <.icon name="hero-link" class="w-4 h-4" /> {gettext("Managed Bluesky")}
+                    <.icon name="hero-link" class="w-4 h-4" /> {gettext("Bluesky Account")}
                   </h3>
 
                   <span class={[
@@ -1671,7 +1671,7 @@
                 <%= if @bluesky_managed_enabled do %>
                   <p class="text-xs sm:text-sm text-base-content/70">
                     {gettext(
-                      "This server provisions and maintains your Bluesky identifier, app password, and PDS URL."
+                      "This server manages the Bluesky credentials used for this account connection."
                     )}
                   </p>
 
@@ -1736,7 +1736,7 @@
                     <div class="alert alert-info">
                       <span class="text-sm">
                         {gettext(
-                          "Your account is not linked yet. Confirm your password below to create and connect a managed Bluesky account."
+                          "Your account is not linked yet. Confirm your password below to connect Bluesky."
                         )}
                       </span>
                     </div>
@@ -1744,7 +1744,7 @@
                 <% else %>
                   <div class="alert alert-warning">
                     <span class="text-sm">
-                      {gettext("Managed Bluesky is currently disabled on this server.")}
+                      {gettext("Bluesky integration is currently disabled on this server.")}
                     </span>
                   </div>
                 <% end %>
@@ -1758,20 +1758,18 @@
               <div class="card-body p-4 sm:p-6 space-y-4">
                 <h3 class="card-title text-base sm:text-lg flex flex-wrap items-center gap-2 leading-tight">
                   <.icon name="hero-link" class="w-5 h-5 shrink-0" /> {gettext(
-                    "Managed Account Setup"
+                    "Bluesky Connection"
                   )}
                 </h3>
 
                 <%= if managed_linked do %>
                   <p class="text-xs sm:text-sm text-base-content/70 break-words">
-                    {gettext(
-                      "Your managed Bluesky account is connected and maintained automatically."
-                    )}
+                    {gettext("Your Bluesky connection is active and managed by this server.")}
                   </p>
 
                   <div class="alert alert-success">
                     <span class="text-sm break-words">
-                      {gettext("Managed Bluesky is active for this account.")}
+                      {gettext("Bluesky is active for this account.")}
                     </span>
                   </div>
 
@@ -1794,7 +1792,7 @@
                       <div class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
                         <span class="block w-full min-w-0 text-xs text-base-content/60 whitespace-normal break-words leading-relaxed">
                           {gettext(
-                            "Reconnects this account and rotates the managed Bluesky app password."
+                            "Reconnects this account and rotates the stored Bluesky app password."
                           )}
                         </span>
                       </div>
@@ -1804,7 +1802,7 @@
                           type="submit"
                           class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                         >
-                          {gettext("Reconnect Managed Bluesky")}
+                          {gettext("Reconnect Bluesky")}
                         </.button>
                       </div>
                     </form>
@@ -1827,7 +1825,7 @@
                       <div class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
                         <span class="block w-full min-w-0 text-xs text-base-content/60 whitespace-normal break-words leading-relaxed">
                           {gettext(
-                            "Disconnects local Bluesky bridge credentials. Your Bluesky account remains on the managed PDS."
+                            "Disconnects this account from Bluesky and clears the locally stored Bluesky credentials."
                           )}
                         </span>
                       </div>
@@ -1837,7 +1835,7 @@
                           type="submit"
                           class="btn-error w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                         >
-                          {gettext("Disconnect Managed Bluesky")}
+                          {gettext("Disconnect Bluesky")}
                         </.button>
                       </div>
                     </form>
@@ -1845,7 +1843,7 @@
                 <% else %>
                   <p class="text-xs sm:text-sm text-base-content/70 break-words">
                     {gettext(
-                      "Confirm your account password once to create or reconnect your managed Bluesky account."
+                      "Confirm your account password once to connect or reconnect Bluesky."
                     )}
                   </p>
 
@@ -1868,7 +1866,7 @@
                       <div class="label py-0 w-full min-w-0 flex-wrap items-start gap-1">
                         <span class="block w-full min-w-0 text-xs text-base-content/60 whitespace-normal break-words leading-relaxed">
                           {gettext(
-                            "Used once to verify you and create or reconnect your managed Bluesky account. Bluesky credentials are then managed automatically."
+                            "Used once to verify you and connect or reconnect Bluesky. The required Bluesky credentials are then stored for this account."
                           )}
                         </span>
                       </div>
@@ -1879,7 +1877,7 @@
                         type="submit"
                         class="btn-primary w-full sm:w-auto whitespace-normal text-left sm:text-center leading-tight"
                       >
-                        {gettext("Create or Reconnect Managed Bluesky")}
+                        {gettext("Connect or Reconnect Bluesky")}
                       </.button>
                     </div>
                   </form>

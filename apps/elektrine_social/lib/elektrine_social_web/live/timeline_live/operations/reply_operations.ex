@@ -11,8 +11,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
     endpoint: ElektrineWeb.Endpoint,
     router: ElektrineWeb.Router
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Social
+  alias Elektrine.Social.Message
   alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
   alias ElektrineWeb.Live.PostInteractions
@@ -218,7 +218,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
   def handle_event("view_original_context", %{"message_id" => original_message_id}, socket) do
     original_message_id = String.to_integer(original_message_id)
 
-    case Elektrine.Repo.get(Elektrine.Messaging.Message, original_message_id) do
+    case Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
       nil ->
         {:noreply, put_flash(socket, :error, "Original content not found")}
 

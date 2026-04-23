@@ -1,9 +1,10 @@
 defmodule Elektrine.Social.Recommendations do
   @moduledoc "Advanced content recommendation engine with sophisticated ranking algorithms.\n\nFeatures:\n- Dwell time analysis (time spent = interest signal)\n- Negative signals (dismissals, scroll-past detection)\n- Session-aware adaptation (real-time preference learning)\n- Explore/exploit balance (discovery vs. known interests)\n- Interest decay (recent interests weighted more)\n- Two-stage retrieval (fast candidate generation + expensive ranking)\n- Satisfaction scoring (quality over clickbait)\n- Collaborative filtering (what similar users like)\n- Trending detection (engagement velocity)\n- Diversity enforcement (prevent echo chambers)\n"
   import Ecto.Query
-  alias Elektrine.{Messaging.Message, Social}
   alias Elektrine.Repo
+  alias Elektrine.Social
   alias Elektrine.Social.{CreatorSatisfaction, PostDismissal, PostView, Views}
+  alias Elektrine.Social.Message
   @min_score_threshold 10
   @exploration_ratio 0.15
   @interest_decay_rate 0.1
@@ -153,7 +154,7 @@ defmodule Elektrine.Social.Recommendations do
 
   defp get_recommended_own_posts(user_id, limit) do
     from(m in Message,
-      left_join: c in Elektrine.Messaging.Conversation,
+      left_join: c in Elektrine.Social.Conversation,
       on: c.id == m.conversation_id,
       where:
         m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
@@ -293,7 +294,7 @@ defmodule Elektrine.Social.Recommendations do
 
     local_base_query =
       from(m in Message,
-        join: c in Elektrine.Messaging.Conversation,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         where:
           is_nil(m.deleted_at) and (m.approval_status == "approved" or is_nil(m.approval_status)) and
@@ -1105,7 +1106,7 @@ defmodule Elektrine.Social.Recommendations do
         where: l.user_id == ^user_id,
         join: m in Message,
         on: m.id == l.message_id,
-        join: c in Elektrine.Messaging.Conversation,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         where: not is_nil(c.community_category),
         group_by: c.community_category,

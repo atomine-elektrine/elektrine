@@ -7,9 +7,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   import Ecto.Query, only: [from: 2]
 
   alias Elektrine.ActivityPub.LemmyApi
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
+  alias Elektrine.Social.Message
   alias Elektrine.Uploads
   alias ElektrineWeb.HtmlHelpers
 

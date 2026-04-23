@@ -5,8 +5,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.NotificationController do
 
   use ElektrineSocialWeb, :controller
 
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Notifications
+  alias Elektrine.Social.Messages
   alias ElektrineSocialWeb.MastodonAPI.StatusView
 
   action_fallback(ElektrineSocialWeb.MastodonAPI.FallbackController)

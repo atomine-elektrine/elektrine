@@ -7,9 +7,9 @@ defmodule ElektrineSocialWeb.MastodonAPI.ScheduledStatusController do
 
   import Ecto.Query
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.Drafts
+  alias Elektrine.Social.Message
 
   action_fallback(ElektrineSocialWeb.MastodonAPI.FallbackController)
 

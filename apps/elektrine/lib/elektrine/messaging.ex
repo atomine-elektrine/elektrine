@@ -3,8 +3,8 @@ defmodule Elektrine.Messaging do
   The Messaging context - handles conversations, messages, and real-time communication.
 
   This module serves as the main entry point and delegates to specialized sub-contexts:
-  - `Elektrine.Messaging.Conversations` - Conversation management
-  - `Elektrine.Messaging.Messages` - Message operations
+  - `Elektrine.Social.Conversations` - Social conversation management
+  - `Elektrine.Social.Messages` - Social message operations
   - `Elektrine.Messaging.Reactions` - Reaction handling
   - `Elektrine.Messaging.Moderation` - Moderation features
   """
@@ -18,16 +18,17 @@ defmodule Elektrine.Messaging do
     ChatConversation,
     ChatConversations,
     ChatMessage,
-    ChatMessages,
-    Message
+    ChatMessages
   }
 
-  alias Elektrine.Messaging.Conversations
+  alias Elektrine.Social.Message
+
   alias Elektrine.Messaging.Federation
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Messaging.Moderation
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Messaging.Servers
+  alias Elektrine.Social.Conversations
+  alias Elektrine.Social.Messages
 
   ## Conversations - Delegate to Conversations context
 

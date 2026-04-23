@@ -385,7 +385,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          socket
          |> assign(:user, refreshed_user)
          |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
-         |> notify_success("Bluesky managed account connected")}
+         |> notify_success("Bluesky connected")}
 
       {:error, reason} ->
         {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
@@ -409,7 +409,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          socket
          |> assign(:user, refreshed_user)
          |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
-         |> notify_success("Bluesky managed account reconnected")}
+         |> notify_success("Bluesky reconnected")}
 
       {:error, reason} ->
         {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
@@ -437,7 +437,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          socket
          |> assign(:user, refreshed_user)
          |> assign(:changeset, Accounts.change_user(refreshed_user, %{}))
-         |> notify_success("Bluesky managed account disconnected")}
+         |> notify_success("Bluesky disconnected")}
 
       {:error, reason} ->
         {:noreply, notify_error(socket, bluesky_managed_error_message(reason))}
@@ -1071,7 +1071,7 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp bluesky_managed_error_message(:managed_pds_disabled) do
-    "Managed Bluesky is disabled"
+    "Bluesky integration is disabled"
   end
 
   defp bluesky_managed_error_message(:user_not_found) do
@@ -1083,99 +1083,99 @@ defmodule ElektrineWeb.UserSettingsLive do
   end
 
   defp bluesky_managed_error_message(:missing_managed_domain) do
-    "Managed Bluesky domain is not configured"
+    "Bluesky service domain is not configured"
   end
 
   defp bluesky_managed_error_message(:invalid_managed_domain) do
-    "Managed Bluesky domain is invalid"
+    "Bluesky service domain is invalid"
   end
 
   defp bluesky_managed_error_message(:missing_managed_admin_password) do
-    "Managed Bluesky admin password is not configured"
+    "Bluesky service admin password is not configured"
   end
 
   defp bluesky_managed_error_message(:invalid_managed_service_url) do
-    "Managed Bluesky service URL is invalid"
+    "Bluesky service URL is invalid"
   end
 
   defp bluesky_managed_error_message(:missing_identifier) do
-    "Managed Bluesky identifier is missing. Disconnect and reconnect to repair this account."
+    "Bluesky identifier is missing. Disconnect and reconnect to repair this account."
   end
 
   defp bluesky_managed_error_message(:missing_invite_code) do
-    "Managed Bluesky did not return an invite code"
+    "The Bluesky service did not return an invite code"
   end
 
   defp bluesky_managed_error_message(:missing_did) do
-    "Managed Bluesky did not return an account DID"
+    "The Bluesky service did not return an account DID"
   end
 
   defp bluesky_managed_error_message(:missing_handle) do
-    "Managed Bluesky did not return an account handle"
+    "The Bluesky service did not return an account handle"
   end
 
   defp bluesky_managed_error_message(:invalid_handle) do
-    "Managed Bluesky handle is invalid"
+    "The returned Bluesky handle is invalid"
   end
 
   defp bluesky_managed_error_message(:missing_access_jwt) do
-    "Managed Bluesky did not return a session token"
+    "The Bluesky service did not return a session token"
   end
 
   defp bluesky_managed_error_message(:missing_app_password) do
-    "Managed Bluesky did not return an app password"
+    "The Bluesky service did not return an app password"
   end
 
   defp bluesky_managed_error_message(:invalid_json) do
-    "Managed Bluesky returned an invalid response"
+    "The Bluesky service returned an invalid response"
   end
 
   defp bluesky_managed_error_message({:create_invite_code_failed, 401}) do
-    "Managed Bluesky admin credentials are invalid"
+    "The Bluesky service admin credentials are invalid"
   end
 
   defp bluesky_managed_error_message({:create_invite_code_failed, _status}) do
-    "Managed Bluesky could not issue an invite code"
+    "The Bluesky service could not issue an invite code"
   end
 
   defp bluesky_managed_error_message({:create_account_failed, 409}) do
-    "A managed Bluesky account for this handle already exists. Try reconnecting instead."
+    "A Bluesky account for this handle already exists. Try reconnecting instead."
   end
 
   defp bluesky_managed_error_message({:create_account_failed, _status}) do
-    "Managed Bluesky could not create your account"
+    "The Bluesky service could not create your account"
   end
 
   defp bluesky_managed_error_message({:create_session_failed, 401}) do
-    "Could not authenticate with managed Bluesky. Stored Bluesky credentials may be stale."
+    "Could not authenticate with Bluesky. Stored Bluesky credentials may be stale."
   end
 
   defp bluesky_managed_error_message({:create_session_failed, _status}) do
-    "Could not reconnect managed Bluesky account"
+    "Could not reconnect Bluesky"
   end
 
   defp bluesky_managed_error_message({:create_app_password_failed, _status}) do
-    "Managed Bluesky could not issue an app password"
+    "The Bluesky service could not issue an app password"
   end
 
   defp bluesky_managed_error_message({:http_error, reason}) do
-    "Managed Bluesky service is unreachable (#{format_bluesky_http_reason(reason)})"
+    "The Bluesky service is unreachable (#{format_bluesky_http_reason(reason)})"
   end
 
   defp bluesky_managed_error_message({:banned, _reason}) do
-    "This account is banned and cannot connect to managed Bluesky"
+    "This account is banned and cannot connect to Bluesky"
   end
 
   defp bluesky_managed_error_message({:suspended, _until, _reason}) do
-    "This account is suspended and cannot connect to managed Bluesky"
+    "This account is suspended and cannot connect to Bluesky"
   end
 
   defp bluesky_managed_error_message(%Ecto.Changeset{}) do
-    "Managed Bluesky connected, but local account settings could not be saved"
+    "Bluesky connected, but local account settings could not be saved"
   end
 
   defp bluesky_managed_error_message(_) do
-    "Could not update managed Bluesky connection"
+    "Could not update the Bluesky connection"
   end
 
   defp recent_auth_valid?(socket) do

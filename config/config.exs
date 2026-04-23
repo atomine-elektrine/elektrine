@@ -16,6 +16,8 @@ config :elektrine,
   enforce_https: false,
   # Allow HTTP Basic Auth only in local development/testing when explicitly enabled there.
   allow_insecure_dav_jmap_auth: false,
+  # Mail auth should require TLS unless explicitly relaxed for local development.
+  allow_insecure_mail_auth: false,
   # Empty by default: no proxy headers are trusted unless explicitly configured.
   trusted_proxy_cidrs: []
 

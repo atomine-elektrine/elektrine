@@ -2006,7 +2006,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           Map.put(local_message.media_metadata || %{}, "external_link", submitted_url)
 
         Elektrine.Repo.update_all(
-          from(m in Messaging.Message, where: m.id == ^local_message.id),
+          from(m in Elektrine.Social.Message, where: m.id == ^local_message.id),
           set: [
             primary_url: submitted_url,
             media_metadata: repaired_metadata,
@@ -2303,7 +2303,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp preload_cached_message_associations(message) do
     preloads =
-      Elektrine.Messaging.Messages.timeline_post_preloads()
+      Elektrine.Social.Messages.timeline_post_preloads()
       |> Enum.map(fn
         {:conversation, _} -> {:conversation, [:remote_group_actor]}
         other -> other
@@ -2323,7 +2323,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
        when is_integer(message_id) and message_id > 0 do
     import Ecto.Query
 
-    case Elektrine.Messaging.Message
+    case Elektrine.Social.Message
          |> where([m], m.id == ^message_id)
          |> Elektrine.Repo.one() do
       nil ->
@@ -2332,7 +2332,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       message ->
         preloads =
           if message.federated && is_binary(message.activitypub_id) do
-            Elektrine.Messaging.Messages.timeline_post_preloads() ++
+            Elektrine.Social.Messages.timeline_post_preloads() ++
               [
                 replies: [
                   sender: [:profile],
@@ -2341,7 +2341,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 ]
               ]
           else
-            Elektrine.Messaging.Messages.timeline_post_preloads() ++
+            Elektrine.Social.Messages.timeline_post_preloads() ++
               [
                 replies: [
                   sender: [:profile],
@@ -2916,7 +2916,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     # Local post - quick database lookup
     import Ecto.Query
 
-    case Elektrine.Messaging.Message
+    case Elektrine.Social.Message
          |> where([m], m.id == ^String.to_integer(post_id))
          |> Elektrine.Repo.one()
          |> Elektrine.Repo.preload([:sender, :remote_actor]) do
@@ -3588,7 +3588,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         local_post_key = Integer.to_string(message.id)
 
         reactions =
-          from(r in Elektrine.Messaging.MessageReaction,
+          from(r in Elektrine.Social.MessageReaction,
             where: r.message_id == ^message.id,
             preload: [:user, :remote_actor]
           )
@@ -4377,7 +4377,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         import Ecto.Query
 
         reactions =
-          from(r in Elektrine.Messaging.MessageReaction,
+          from(r in Elektrine.Social.MessageReaction,
             where: r.message_id == ^message.id,
             preload: [:user, :remote_actor]
           )
@@ -4686,9 +4686,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       case actor_uri do
         actor_uri when is_binary(actor_uri) ->
           case ActivityPub.Handler.store_remote_post(post_object, actor_uri) do
-            {:ok, %Messaging.Message{} = message} -> preload_cached_message_associations(message)
-            {:ok, _} -> latest_local_message_for_post(post_id)
-            _ -> nil
+            {:ok, %Elektrine.Social.Message{} = message} ->
+              preload_cached_message_associations(message)
+
+            {:ok, _} ->
+              latest_local_message_for_post(post_id)
+
+            _ ->
+              nil
           end
 
         _ ->
@@ -4728,8 +4733,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp refresh_local_message(%{id: message_id} = local_message) when is_integer(message_id) do
-    case Elektrine.Repo.get(Messaging.Message, message_id) do
-      %Messaging.Message{} = fresh_message ->
+    case Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
+      %Elektrine.Social.Message{} = fresh_message ->
         %{local_message | reply_count: fresh_message.reply_count}
 
       _ ->
@@ -4887,7 +4892,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       Enum.reverse(acc)
     else
       replies =
-        Messaging.Message
+        Elektrine.Social.Message
         |> where([m], m.reply_to_id in ^pending_parent_ids and is_nil(m.deleted_at))
         |> order_by([m], asc: m.inserted_at)
         |> preload([:sender, :remote_actor])
@@ -4976,7 +4981,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
       {updated_rows, _} =
         Elektrine.Repo.update_all(
-          from(m in Messaging.Message,
+          from(m in Elektrine.Social.Message,
             where: m.id == ^message_id and (is_nil(m.reply_count) or m.reply_count < ^reply_count)
           ),
           set: [
@@ -4986,7 +4991,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         )
 
       if updated_rows > 0 do
-        Elektrine.Messaging.Messages.broadcast_post_counts_updated(message_id, %{
+        Elektrine.Social.Messages.broadcast_post_counts_updated(message_id, %{
           like_count: local_message.like_count || 0,
           share_count: local_message.share_count || 0,
           reply_count: reply_count
@@ -6282,7 +6287,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       {:ok, id} ->
         post =
           case socket.assigns[:local_message] do
-            %Elektrine.Messaging.Message{id: ^id} = message ->
+            %Elektrine.Social.Message{id: ^id} = message ->
               Elektrine.Repo.preload(message, [:conversation])
 
             _ ->
@@ -6298,7 +6303,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp fetch_post_for_navigation(id) when is_integer(id) do
     case Elektrine.Messaging.get_message(id) do
-      %Elektrine.Messaging.Message{} = post -> Elektrine.Repo.preload(post, [:conversation])
+      %Elektrine.Social.Message{} = post -> Elektrine.Repo.preload(post, [:conversation])
       _ -> nil
     end
   end

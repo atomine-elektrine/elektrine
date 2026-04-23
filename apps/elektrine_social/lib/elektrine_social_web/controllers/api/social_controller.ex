@@ -7,9 +7,9 @@ defmodule ElektrineSocialWeb.API.SocialController do
   alias Elektrine.Accounts
   alias Elektrine.Friends
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Profiles
   alias Elektrine.Social
+  alias Elektrine.Social.Messages
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias Elektrine.Uploads
 

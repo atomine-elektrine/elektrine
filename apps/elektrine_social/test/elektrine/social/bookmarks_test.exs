@@ -164,7 +164,7 @@ defmodule Elektrine.Social.BookmarksTest do
       import Ecto.Query
 
       Repo.update_all(
-        from(m in Elektrine.Messaging.Message, where: m.id == ^post.id),
+        from(m in Elektrine.Social.Message, where: m.id == ^post.id),
         set: [deleted_at: DateTime.truncate(DateTime.utc_now(), :second)]
       )
 

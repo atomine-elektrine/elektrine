@@ -86,4 +86,16 @@ defmodule Elektrine.IMAP.HelpersTest do
     assert {:ok, "INBOX"} = Helpers.parse_mailbox_arg("\"INBOX\" (CONDSTORE)")
     assert {:ok, "INBOX"} = Helpers.parse_mailbox_arg("INBOX")
   end
+
+  test "parse_append_args/1 accepts APPEND with flags and internal date" do
+    assert {:ok, "Sent", [], 1234, false} =
+             Helpers.parse_append_args(~S|"Sent" (\Seen) "22-Apr-2026 14:30:00 +0000" {1234}|)
+  end
+
+  test "canonical_system_folder_name/1 maps common client aliases" do
+    assert Helpers.canonical_system_folder_name("Sent Mail") == "Sent"
+    assert Helpers.canonical_system_folder_name("Sent Items") == "Sent"
+    assert Helpers.canonical_system_folder_name("Junk") == "Spam"
+    assert Helpers.canonical_system_folder_name("Deleted Messages") == "Trash"
+  end
 end

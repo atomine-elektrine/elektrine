@@ -18,11 +18,12 @@ defmodule Elektrine.Messaging.ChatMessages do
     ChatMessage,
     ChatMessageReaction,
     ChatUserHiddenMessage,
-    Conversations,
     Federation,
     FederationReadCursor,
     RoomACL
   }
+
+  alias Elektrine.Social.Conversations
 
   alias Elektrine.PubSubTopics
 

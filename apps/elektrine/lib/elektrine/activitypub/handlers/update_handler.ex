@@ -8,8 +8,8 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Handlers.CreateHandler
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @remote_media_metadata_keys [
     "alt_texts",

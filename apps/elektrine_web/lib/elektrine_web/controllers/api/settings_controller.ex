@@ -222,7 +222,7 @@ defmodule ElektrineWeb.API.SettingsController do
 
   @doc """
   POST /api/settings/bluesky/enable
-  Enables Bluesky in managed-PDS mode by provisioning an account automatically.
+  Connects Bluesky by provisioning an account automatically.
   """
   def enable_bluesky_managed(conn, %{"current_password" => current_password}) do
     user = conn.assigns[:current_user]
@@ -245,7 +245,7 @@ defmodule ElektrineWeb.API.SettingsController do
       {:error, :managed_pds_disabled} ->
         conn
         |> put_status(:forbidden)
-        |> json(%{error: "Managed Bluesky provisioning is disabled"})
+        |> json(%{error: "Bluesky provisioning is disabled"})
 
       {:error, :invalid_credentials} ->
         conn

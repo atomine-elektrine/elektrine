@@ -13,6 +13,7 @@ defmodule Elektrine.SMTP.Supervisor do
   def init(_init_arg) do
     port = smtp_port()
     enabled = smtp_enabled?()
+    tls_opts = smtp_tls_opts()
 
     require Logger
     Logger.info("Startup: smtp supervisor configured (enabled=#{enabled}, port=#{port})")
@@ -25,7 +26,7 @@ defmodule Elektrine.SMTP.Supervisor do
           # Rate limiter for sends per IP (anti-bot)
           Elektrine.SMTP.SendRateLimiter,
           # SMTP Server
-          {Elektrine.SMTP.Server, [port: port]}
+          {Elektrine.SMTP.Server, [port: port, tls_opts: tls_opts]}
         ]
       else
         []
@@ -42,5 +43,9 @@ defmodule Elektrine.SMTP.Supervisor do
     # Use port 2587 by default (non-privileged port)
     # Can be overridden with SMTP_PORT env var
     Application.get_env(:elektrine, :smtp_port, 2587)
+  end
+
+  defp smtp_tls_opts do
+    Application.get_env(:elektrine, :smtp_tls_opts, [])
   end
 end

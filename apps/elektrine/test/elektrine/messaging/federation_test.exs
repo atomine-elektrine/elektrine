@@ -8,6 +8,7 @@ defmodule Elektrine.Messaging.FederationTest do
   alias Elektrine.Messaging.{
     ArblargProfiles,
     ArblargSDK,
+    ChatConversation,
     ChatMessage,
     ChatMessageReaction,
     CommunityBan,
@@ -4818,8 +4819,8 @@ defmodule Elektrine.Messaging.FederationTest do
       })
       |> Repo.insert!()
 
-    %Conversation{}
-    |> Conversation.channel_changeset(%{
+    %ChatConversation{}
+    |> ChatConversation.channel_changeset(%{
       name: "remote-channel-#{suffix}",
       description: "Mirrored remote channel",
       server_id: server.id,

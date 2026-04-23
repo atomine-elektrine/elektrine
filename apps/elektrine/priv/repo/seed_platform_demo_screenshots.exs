@@ -18,8 +18,9 @@ alias Elektrine.{
 }
 
 alias Elektrine.Email.Message, as: EmailMessage
-alias Elektrine.Messaging.{ChatMessage, Conversation, Server}
-alias Elektrine.Messaging.Message, as: SocialMessage
+alias Elektrine.Messaging.{ChatMessage, Server}
+alias Elektrine.Social.Conversation
+alias Elektrine.Social.Message, as: SocialMessage
 alias Elektrine.Notifications.Notification
 
 seed_password = "DevPass123!"

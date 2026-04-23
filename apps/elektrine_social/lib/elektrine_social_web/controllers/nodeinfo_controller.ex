@@ -6,7 +6,6 @@ defmodule ElektrineSocialWeb.NodeinfoController do
   alias Elektrine.ActivityPub.MRF
   alias Elektrine.AppCache
   alias Elektrine.Domains
-  alias Elektrine.Messaging
   alias Elektrine.System, as: SystemSettings
 
   @doc """
@@ -265,7 +264,7 @@ defmodule ElektrineSocialWeb.NodeinfoController do
 
     post_count =
       Elektrine.Repo.aggregate(
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where: is_nil(m.deleted_at) and m.federated == false
         ),
         :count,

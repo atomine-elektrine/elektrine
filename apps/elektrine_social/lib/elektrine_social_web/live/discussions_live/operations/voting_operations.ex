@@ -76,7 +76,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
 
           # Reload the message with fresh poll data
           updated_message =
-            Repo.get!(Elektrine.Messaging.Message, message_id)
+            Repo.get!(Elektrine.Social.Message, message_id)
             |> Repo.preload(
               [
                 sender: [:profile],
@@ -87,7 +87,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.VotingOperations do
               ],
               force: true
             )
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           # Update the post in discussion_posts or pinned_posts
           updated_discussion_posts =

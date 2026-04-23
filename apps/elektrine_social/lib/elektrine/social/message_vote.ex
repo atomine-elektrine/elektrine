@@ -5,7 +5,7 @@ defmodule Elektrine.Social.MessageVote do
 
   schema "message_votes" do
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     field :vote_type, :string
 
     timestamps(updated_at: false)

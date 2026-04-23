@@ -4,7 +4,7 @@ defmodule ElektrineChatWeb.API.ConversationControllerTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.{Conversation, FederationMembershipState, Server}
+  alias Elektrine.Messaging.{ChatConversation, FederationMembershipState, Server}
   alias Elektrine.Repo
   alias ElektrineWeb.Plugs.APIAuth
 
@@ -72,8 +72,8 @@ defmodule ElektrineChatWeb.API.ConversationControllerTest do
         |> Repo.insert!()
 
       channel =
-        %Conversation{}
-        |> Conversation.channel_changeset(%{
+        %ChatConversation{}
+        |> ChatConversation.channel_changeset(%{
           name: "general",
           description: "Mirrored remote channel",
           server_id: server.id,

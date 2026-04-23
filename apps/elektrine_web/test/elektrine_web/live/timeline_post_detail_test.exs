@@ -7,9 +7,9 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Message
 
   describe "image posts on timeline detail page" do
     test "renders an image-only local post", %{conn: conn} do

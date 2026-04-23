@@ -7,7 +7,7 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   describe "get_message_by_activitypub_ref/1" do
     test "matches refs with query and fragment variants" do

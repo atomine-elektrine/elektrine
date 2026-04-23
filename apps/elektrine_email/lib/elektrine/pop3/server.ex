@@ -31,6 +31,13 @@ defmodule Elektrine.POP3.Server do
     transport = Keyword.get(opts, :transport, :tcp)
     tls_opts = Keyword.get(opts, :tls_opts, [])
 
+    allow_insecure_auth =
+      Keyword.get(
+        opts,
+        :allow_insecure_auth,
+        Application.get_env(:elektrine, :allow_insecure_mail_auth, false)
+      )
+
     Logger.info("Startup: pop3 listener starting (port=#{port}, transport=#{transport})")
 
     case Socket.listen(
@@ -56,8 +63,17 @@ defmodule Elektrine.POP3.Server do
         active_table = active_table_name(transport)
         ensure_table(active_table)
         :ets.insert(active_table, {:total, 0})
-        spawn_link(fn -> accept_loop(socket, transport) end)
-        {:ok, %{socket: socket, port: port, transport: transport, connections: 0}}
+        spawn_link(fn -> accept_loop(socket, transport, tls_opts, allow_insecure_auth) end)
+
+        {:ok,
+         %{
+           socket: socket,
+           port: port,
+           transport: transport,
+           connections: 0,
+           tls_opts: tls_opts,
+           allow_insecure_auth: allow_insecure_auth
+         }}
 
       {:error, :eaddrinuse} ->
         Logger.error("POP3 server failed: Port #{port} is already in use")
@@ -72,25 +88,25 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp accept_loop(socket, transport) do
+  defp accept_loop(socket, transport, tls_opts, allow_insecure_auth) do
     case Socket.accept(transport, socket) do
       {:ok, client} ->
-        handle_accepted_client(client, transport)
+        handle_accepted_client(client, transport, tls_opts, allow_insecure_auth)
 
-        accept_loop(socket, transport)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket, transport)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
     end
   end
 
-  defp handle_accepted_client(client, :ssl) do
+  defp handle_accepted_client(client, :ssl, tls_opts, allow_insecure_auth) do
     spawn(fn ->
       case Socket.handshake(client) do
         {:ok, tls_client} ->
-          handle_authenticated_client(tls_client, :ssl)
+          handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
 
         _ ->
           :ok
@@ -98,13 +114,13 @@ defmodule Elektrine.POP3.Server do
     end)
   end
 
-  defp handle_accepted_client(client, transport) do
-    handle_authenticated_client(client, transport)
+  defp handle_accepted_client(client, transport, tls_opts, allow_insecure_auth) do
+    handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth)
   end
 
-  defp handle_authenticated_client(client, transport) do
+  defp handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth) do
     {client_ip, initial_data} = parse_client_ip_and_data(client, transport)
-    maybe_start_client_session(client, client_ip, initial_data)
+    maybe_start_client_session(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
   end
 
   defp parse_client_ip_and_data(client, :ssl) do
@@ -142,15 +158,16 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp maybe_start_client_session(_client, nil, _initial_data), do: :ok
+  defp maybe_start_client_session(_client, nil, _initial_data, _tls_opts, _allow_insecure_auth),
+    do: :ok
 
-  defp maybe_start_client_session(client, client_ip, initial_data) do
+  defp maybe_start_client_session(client, client_ip, initial_data, tls_opts, allow_insecure_auth) do
     transport = transport_for_socket(client)
 
     if can_accept_connection?(client_ip, transport) do
       configure_client_socket(client)
       increment_connection_count(client_ip, transport)
-      spawn_client_handler(client, client_ip, initial_data)
+      spawn_client_handler(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
     else
       reject_client_connection(client, client_ip)
     end
@@ -166,16 +183,31 @@ defmodule Elektrine.POP3.Server do
     ])
   end
 
-  defp spawn_client_handler(client, client_ip, initial_data) do
-    spawn(fn ->
-      Process.put(:pop3_socket_transport, transport_for_socket(client))
+  defp spawn_client_handler(client, client_ip, initial_data, tls_opts, allow_insecure_auth) do
+    handler_pid =
+      spawn(fn ->
+        receive do
+          :go -> :ok
+        end
 
-      try do
-        handle_client(client, client_ip, initial_data)
-      after
+        Process.put(:pop3_socket_transport, transport_for_socket(client))
+
+        try do
+          handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
+        after
+          decrement_connection_count(client_ip, transport_for_socket(client))
+        end
+      end)
+
+    case Socket.controlling_process(client, handler_pid) do
+      :ok ->
+        send(handler_pid, :go)
+
+      {:error, reason} ->
+        Logger.error("POP3 failed to transfer socket ownership: #{inspect(reason)}")
+        Socket.close(client)
         decrement_connection_count(client_ip, transport_for_socket(client))
-      end
-    end)
+    end
   end
 
   defp reject_client_connection(client, client_ip) do
@@ -184,7 +216,7 @@ defmodule Elektrine.POP3.Server do
     Socket.close(client)
   end
 
-  defp handle_client(socket, client_ip, initial_data) do
+  defp handle_client(socket, client_ip, initial_data, tls_opts, allow_insecure_auth) do
     send_response(socket, "+OK Elektrine POP3 server ready")
 
     state = %{
@@ -197,7 +229,9 @@ defmodule Elektrine.POP3.Server do
       message_size_cache: %{},
       deleted_messages: MapSet.new(),
       transaction_state: :authorization,
-      initial_data: initial_data
+      initial_data: initial_data,
+      tls_opts: tls_opts,
+      allow_insecure_auth: allow_insecure_auth
     }
 
     client_loop(state)
@@ -288,8 +322,13 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp handle_auth_command("USER", username, state) do
-    send_response(state.socket, "+OK User accepted")
-    {:continue, %{state | user: username}}
+    if auth_allowed?(state) do
+      send_response(state.socket, "+OK User accepted")
+      {:continue, %{state | user: username}}
+    else
+      send_response(state.socket, "-ERR STLS required before authentication")
+      {:continue, state}
+    end
   end
 
   defp handle_auth_command("PASS", nil, state) do
@@ -298,79 +337,89 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp handle_auth_command("PASS", password, state) when is_binary(state.user) do
-    # Use client IP from state for rate limiting (from PROXY protocol)
-    ip_string = state.client_ip
+    if auth_allowed?(state) do
+      # Use client IP from state for rate limiting (from PROXY protocol)
+      ip_string = state.client_ip
 
-    case check_auth_rate_limits(ip_string, state.user) do
-      :ok ->
-        case authenticate_user(state.user, password) do
-          {:ok, _user, mailbox} ->
-            RateLimiter.clear_attempts(ip_string)
-            MailAuthRateLimiter.clear_attempts(:pop3, state.user)
-            MailTelemetry.auth(:pop3, :success, %{source: :pass})
-            messages = load_messages(mailbox)
-            message_size_cache = build_size_cache(messages)
-            send_response(state.socket, "+OK Logged in")
+      case check_auth_rate_limits(ip_string, state.user) do
+        :ok ->
+          case authenticate_user(state.user, password) do
+            {:ok, _user, mailbox} ->
+              RateLimiter.clear_attempts(ip_string)
+              MailAuthRateLimiter.clear_attempts(:pop3, state.user)
+              MailTelemetry.auth(:pop3, :success, %{source: :pass})
+              messages = load_messages(mailbox)
+              message_size_cache = build_size_cache(messages)
+              send_response(state.socket, "+OK Logged in")
 
-            {:continue,
-             %{
-               state
-               | authenticated: true,
-                 mailbox: mailbox,
-                 messages: messages,
-                 message_size_cache: message_size_cache,
-                 transaction_state: :transaction
-             }}
+              {:continue,
+               %{
+                 state
+                 | authenticated: true,
+                   mailbox: mailbox,
+                   messages: messages,
+                   message_size_cache: message_size_cache,
+                   transaction_state: :transaction
+               }}
 
-          {:error, reason} ->
-            RateLimiter.record_failure(ip_string)
-            MailAuthRateLimiter.record_failure(:pop3, state.user)
-            maybe_alert_auth_failure_pressure(ip_string, state.user)
+            {:error, reason} ->
+              RateLimiter.record_failure(ip_string)
+              MailAuthRateLimiter.record_failure(:pop3, state.user)
+              maybe_alert_auth_failure_pressure(ip_string, state.user)
 
-            Logger.warning(
-              "POP3 login failed: user=#{redact_identifier(state.user)} ip=#{ip_string}"
-            )
+              Logger.warning(
+                "POP3 login failed: user=#{redact_identifier(state.user)} ip=#{ip_string}"
+              )
 
-            MailTelemetry.auth(:pop3, :failure, %{reason: reason, source: :pass})
-            send_response(state.socket, "-ERR Authentication failed")
-            {:continue, %{state | user: nil}}
-        end
+              MailTelemetry.auth(:pop3, :failure, %{reason: reason, source: :pass})
+              send_response(state.socket, "-ERR Authentication failed")
+              {:continue, %{state | user: nil}}
+          end
 
-      {:error, {:ip, :rate_limited}} ->
-        Logger.warning(
-          "POP3 rate limited by IP: user=#{redact_identifier(state.user)} ip=#{ip_string}"
-        )
+        {:error, {:ip, :rate_limited}} ->
+          Logger.warning(
+            "POP3 rate limited by IP: user=#{redact_identifier(state.user)} ip=#{ip_string}"
+          )
 
-        MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :ip, source: :pass})
-        send_response(state.socket, "-ERR Too many failed attempts. Try again later.")
-        :timer.sleep(1000)
-        {:quit, state}
+          MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :ip, source: :pass})
+          send_response(state.socket, "-ERR Too many failed attempts. Try again later.")
+          :timer.sleep(1000)
+          {:quit, state}
 
-      {:error, {:ip, :blocked}} ->
-        Logger.warning("POP3 blocked IP: user=#{redact_identifier(state.user)} ip=#{ip_string}")
+        {:error, {:ip, :blocked}} ->
+          Logger.warning("POP3 blocked IP: user=#{redact_identifier(state.user)} ip=#{ip_string}")
 
-        MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :ip_blocked, source: :pass})
-        send_response(state.socket, "-ERR IP temporarily blocked due to excessive failures")
-        {:quit, state}
+          MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :ip_blocked, source: :pass})
+          send_response(state.socket, "-ERR IP temporarily blocked due to excessive failures")
+          {:quit, state}
 
-      {:error, {:account, :rate_limited}} ->
-        Logger.warning(
-          "POP3 rate limited by account key: user=#{redact_identifier(state.user)} ip=#{ip_string}"
-        )
+        {:error, {:account, :rate_limited}} ->
+          Logger.warning(
+            "POP3 rate limited by account key: user=#{redact_identifier(state.user)} ip=#{ip_string}"
+          )
 
-        MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :account, source: :pass})
-        send_response(state.socket, "-ERR Too many failed attempts. Try again later.")
-        :timer.sleep(1000)
-        {:quit, state}
+          MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :account, source: :pass})
+          send_response(state.socket, "-ERR Too many failed attempts. Try again later.")
+          :timer.sleep(1000)
+          {:quit, state}
 
-      {:error, {:account, :blocked}} ->
-        Logger.warning(
-          "POP3 blocked account key: user=#{redact_identifier(state.user)} ip=#{ip_string}"
-        )
+        {:error, {:account, :blocked}} ->
+          Logger.warning(
+            "POP3 blocked account key: user=#{redact_identifier(state.user)} ip=#{ip_string}"
+          )
 
-        MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :account_blocked, source: :pass})
-        send_response(state.socket, "-ERR Account temporarily blocked due to excessive failures")
-        {:quit, state}
+          MailTelemetry.auth(:pop3, :rate_limited, %{ratelimit: :account_blocked, source: :pass})
+
+          send_response(
+            state.socket,
+            "-ERR Account temporarily blocked due to excessive failures"
+          )
+
+          {:quit, state}
+      end
+    else
+      send_response(state.socket, "-ERR STLS required before authentication")
+      {:continue, %{state | user: nil}}
     end
   end
 
@@ -386,11 +435,32 @@ defmodule Elektrine.POP3.Server do
 
   defp handle_auth_command("CAPA", _args, state) do
     send_response(state.socket, "+OK Capability list follows")
-    send_response(state.socket, "USER")
+    maybe_send_user_capability(state)
+    maybe_send_stls_capability(state)
     send_response(state.socket, "UIDL")
     send_response(state.socket, "TOP")
     send_response(state.socket, ".")
     {:continue, state}
+  end
+
+  defp handle_auth_command("STLS", _args, state) do
+    if pop3_starttls_available?(state) do
+      send_response(state.socket, "+OK Begin TLS negotiation")
+
+      case Socket.starttls(state.socket, state.tls_opts) do
+        {:ok, tls_socket} ->
+          configure_client_socket(tls_socket)
+
+          {:continue, reset_after_stls(state, tls_socket)}
+
+        {:error, reason} ->
+          Logger.warning("POP3 STLS failed: #{inspect(reason)}")
+          {:quit, %{state | socket: state.socket}}
+      end
+    else
+      send_response(state.socket, "-ERR TLS not available")
+      {:continue, state}
+    end
   end
 
   defp handle_auth_command(_cmd, _args, state) do
@@ -542,7 +612,11 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp handle_transaction_command("QUIT", _args, state) do
-    send_response(state.socket, "+OK Goodbye")
+    case commit_deleted_messages(state) do
+      :ok -> send_response(state.socket, "+OK Goodbye")
+      {:error, _reason} -> send_response(state.socket, "-ERR Failed to update mailbox")
+    end
+
     {:quit, state}
   end
 
@@ -589,14 +663,40 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp handle_quit(state) do
-    if state.authenticated and MapSet.size(state.deleted_messages) > 0 do
-      Enum.each(state.deleted_messages, fn idx ->
-        msg = Enum.at(state.messages, idx - 1)
-        mark_message_as_deleted(msg)
-      end)
-    end
-
     Socket.close(state.socket)
+  end
+
+  @doc false
+  def reset_after_stls(state, tls_socket) do
+    %{
+      state
+      | socket: tls_socket,
+        authenticated: false,
+        user: nil,
+        mailbox: nil,
+        messages: [],
+        message_size_cache: %{},
+        deleted_messages: MapSet.new(),
+        transaction_state: :authorization,
+        initial_data: nil
+    }
+  end
+
+  defp commit_deleted_messages(state) do
+    state.deleted_messages
+    |> Enum.sort()
+    |> Enum.reduce_while(:ok, fn idx, :ok ->
+      case Enum.at(state.messages, idx - 1) do
+        nil ->
+          {:halt, {:error, :invalid_message_index}}
+
+        msg ->
+          case Email.delete_message(msg.id) do
+            {:ok, _deleted_message} -> {:cont, :ok}
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+      end
+    end)
   end
 
   defp check_auth_rate_limits(ip_string, username) do
@@ -770,9 +870,7 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp format_message_for_pop3(message) do
-    build_raw_email(message)
-  end
+  defp format_message_for_pop3(message), do: build_raw_email(message)
 
   defp format_message_top(message, line_count) do
     content = format_message_for_pop3(message)
@@ -790,13 +888,16 @@ defmodule Elektrine.POP3.Server do
     has_attachments =
       message.has_attachments && message.attachments && map_size(message.attachments) > 0
 
-    if has_attachments do
-      # Build multipart/mixed for messages with attachments
-      build_email_with_attachments(message)
-    else
-      # Simple email without attachments
-      build_simple_email(message)
-    end
+    raw_email =
+      if has_attachments do
+        build_email_with_attachments(message)
+      else
+        build_simple_email(message)
+      end
+
+    raw_email
+    |> normalize_crlf()
+    |> dot_stuff_pop3()
   end
 
   defp build_simple_email(message) do
@@ -959,12 +1060,6 @@ defmodule Elektrine.POP3.Server do
     Calendar.strftime(datetime, "%a, %d %b %Y %H:%M:%S +0000")
   end
 
-  defp mark_message_as_deleted(message) do
-    Elektrine.Async.start(fn ->
-      Email.delete_message(message.id)
-    end)
-  end
-
   # Connection limit enforcement (DOS protection)
   defp can_accept_connection?(ip, transport) do
     table = active_table_name(transport)
@@ -1108,13 +1203,52 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp send_raw(socket, data) do
-    data = String.replace(data, "\n.", "\n..")
-
     if String.ends_with?(data, "\r\n") do
       Socket.send(socket, data)
     else
       Socket.send(socket, "#{data}\r\n")
     end
+  end
+
+  defp maybe_send_stls_capability(state) do
+    if pop3_starttls_available?(state) do
+      send_response(state.socket, "STLS")
+    end
+  end
+
+  defp maybe_send_user_capability(state) do
+    if auth_allowed?(state) or pop3_starttls_available?(state) do
+      send_response(state.socket, "USER")
+    end
+  end
+
+  defp pop3_starttls_available?(state) do
+    transport_for_socket(state.socket) == :tcp and Socket.tls_available?(state.tls_opts)
+  end
+
+  defp auth_allowed?(state) do
+    secure_transport?(state) or Map.get(state, :allow_insecure_auth, false)
+  end
+
+  defp secure_transport?(state) do
+    socket = state.socket
+    is_tuple(socket) and tuple_size(socket) > 0 and elem(socket, 0) == :sslsocket
+  end
+
+  defp normalize_crlf(data) do
+    data
+    |> String.replace("\r\n", "\n")
+    |> String.replace("\r", "\n")
+    |> String.replace("\n", "\r\n")
+  end
+
+  defp dot_stuff_pop3(data) do
+    data
+    |> String.split("\r\n", trim: false)
+    |> Enum.map_join("\r\n", fn
+      <<".", rest::binary>> -> "." <> "." <> rest
+      line -> line
+    end)
   end
 
   defp ensure_table(table) do

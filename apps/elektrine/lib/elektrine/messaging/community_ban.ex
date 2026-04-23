@@ -4,7 +4,7 @@ defmodule Elektrine.Messaging.CommunityBan do
   import Ecto.Changeset
 
   schema "community_bans" do
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :user, Elektrine.Accounts.User
     belongs_to :banned_by, Elektrine.Accounts.User
     field :origin_domain, :string

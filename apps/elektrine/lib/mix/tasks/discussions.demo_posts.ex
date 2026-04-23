@@ -19,7 +19,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     # Get community
     community =
-      Elektrine.Repo.get_by(Elektrine.Messaging.Conversation,
+      Elektrine.Repo.get_by(Elektrine.Social.Conversation,
         name: community_name,
         type: "community"
       )
@@ -72,7 +72,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     {:ok, _} =
       text_msg
-      |> Elektrine.Messaging.Message.changeset(%{
+      |> Elektrine.Social.Message.changeset(%{
         title: "Why Functional Programming Matters in 2025",
         post_type: "discussion",
         visibility: "public"
@@ -95,7 +95,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     {:ok, _} =
       link_msg
-      |> Elektrine.Messaging.Message.changeset(%{
+      |> Elektrine.Social.Message.changeset(%{
         title: "Elixir Programming Language - Official Website",
         post_type: "link",
         primary_url: "https://elixir-lang.org",
@@ -119,7 +119,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     {:ok, _} =
       img_msg
-      |> Elektrine.Messaging.Message.changeset(%{
+      |> Elektrine.Social.Message.changeset(%{
         title: "Elixir/Phoenix Architecture Diagram",
         post_type: "discussion",
         message_type: "image",
@@ -146,7 +146,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     {:ok, poll_msg} =
       poll_msg
-      |> Elektrine.Messaging.Message.changeset(%{
+      |> Elektrine.Social.Message.changeset(%{
         title: "Community Poll: Favorite Web Framework",
         post_type: "poll",
         visibility: "public",
@@ -184,7 +184,7 @@ defmodule Mix.Tasks.Discussions.DemoPosts do
 
     {:ok, multi_poll_msg} =
       multi_poll_msg
-      |> Elektrine.Messaging.Message.changeset(%{
+      |> Elektrine.Social.Message.changeset(%{
         title: "What features do you want? (Select all that apply)",
         post_type: "poll",
         visibility: "public",

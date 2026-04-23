@@ -31,8 +31,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   import ElektrineSocialWeb.Components.User.HoverCard
 
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Platform.Integrations
 
@@ -1742,7 +1742,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     youtube_url =
       if !has_link_preview && assigns.post.content,
-        do: Elektrine.Messaging.Message.extract_youtube_embed_url(assigns.post.content),
+        do: Elektrine.Social.Message.extract_youtube_embed_url(assigns.post.content),
         else: nil
 
     assigns = assign(assigns, :youtube_url, youtube_url)
@@ -1762,7 +1762,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
 
   defp content_images(assigns) do
-    image_urls = Elektrine.Messaging.Message.extract_image_urls(assigns.post.content)
+    image_urls = Elektrine.Social.Message.extract_image_urls(assigns.post.content)
 
     assigns =
       assigns

@@ -1,10 +1,10 @@
 defmodule ElektrineSocialWeb.TimelineLive.Index do
   use ElektrineSocialWeb, :live_view
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.PubSubTopics
   alias Elektrine.RSS
   alias Elektrine.Social
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Social.Recommendations
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineSocialWeb.Components.Social.PostUtilities
@@ -315,7 +315,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     {rss_items, rss_saves} =
       cond do
-        filter in ["rss", "explore", "home"] && user ->
+        filter == "rss" && user ->
           items =
             user.id
             |> RSS.get_timeline_items(limit: 20)
@@ -1813,7 +1813,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   defp materialize_single_lemmy_comment(post, %{ap_id: ap_id} = comment) when is_binary(ap_id) do
     case Messaging.get_message_by_activitypub_ref(ap_id) do
-      %Elektrine.Messaging.Message{} = existing -> merge_lemmy_comment_counts(existing, comment)
+      %Elektrine.Social.Message{} = existing -> merge_lemmy_comment_counts(existing, comment)
       nil -> create_lemmy_comment_message(post, comment)
     end
   end
@@ -1850,7 +1850,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
       {:error, %Ecto.Changeset{errors: [activitypub_id: {"has already been taken", _}]}} ->
         case Messaging.get_message_by_activitypub_ref(ap_id) do
-          %Elektrine.Messaging.Message{} = existing ->
+          %Elektrine.Social.Message{} = existing ->
             merge_lemmy_comment_counts(existing, comment)
 
           _ ->
@@ -1881,7 +1881,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   defp resolve_lemmy_comment_actor(_), do: nil
 
-  defp merge_lemmy_comment_counts(%Elektrine.Messaging.Message{} = message, comment) do
+  defp merge_lemmy_comment_counts(%Elektrine.Social.Message{} = message, comment) do
     %{
       message
       | like_count: max(message.like_count || 0, Map.get(comment, :upvotes, 0)),
@@ -1944,7 +1944,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       local_message = Messaging.get_message_by_activitypub_ref(reply_object["id"])
 
       interaction_id =
-        if match?(%Elektrine.Messaging.Message{}, local_message) do
+        if match?(%Elektrine.Social.Message{}, local_message) do
           local_message.id
         else
           reply_object["id"]
@@ -1952,7 +1952,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
       resolved_remote_actor =
         case local_message do
-          %Elektrine.Messaging.Message{remote_actor: loaded_remote_actor}
+          %Elektrine.Social.Message{remote_actor: loaded_remote_actor}
           when is_map(loaded_remote_actor) ->
             case loaded_remote_actor do
               %Ecto.Association.NotLoaded{} -> remote_actor

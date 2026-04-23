@@ -5,9 +5,9 @@ defmodule Elektrine.Bluesky.Inbound do
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky
   alias Elektrine.Bluesky.InboundEvent
-  alias Elektrine.Messaging.Message
   alias Elektrine.Notifications
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   @default_limit 50
   @default_feed_limit 50
   @default_timeout_ms 12_000

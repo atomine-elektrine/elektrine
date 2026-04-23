@@ -8,7 +8,7 @@ defmodule Elektrine.Social.SavedItem do
 
   schema "saved_items" do
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     belongs_to :rss_item, Elektrine.RSS.Item
 
     field :folder, :string

@@ -28,7 +28,8 @@ defmodule Elektrine.POP3.Supervisor do
         if(enabled,
           do: [
             Supervisor.child_spec(
-              {Elektrine.POP3.Server, [name: Elektrine.POP3.Server, port: port]},
+              {Elektrine.POP3.Server,
+               [name: Elektrine.POP3.Server, port: port, tls_opts: tls_opts]},
               id: Elektrine.POP3.Server
             )
           ],

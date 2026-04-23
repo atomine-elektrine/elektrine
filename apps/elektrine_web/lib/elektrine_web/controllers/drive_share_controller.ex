@@ -1,16 +1,16 @@
-defmodule ElektrineWeb.FileShareController do
+defmodule ElektrineWeb.DriveShareController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Auth.RateLimiter
-  alias Elektrine.Files
+  alias Elektrine.Drive
   alias ElektrineWeb.ClientIP
 
   def show(conn, %{"token" => token}) do
-    with %Files.FileShare{} = share <- Files.get_active_share(token),
+    with %Drive.FileShare{} = share <- Drive.get_active_share(token),
          true <- password_authorized?(conn, share),
-         %Files.StoredFile{} = file <- share.stored_file,
-         {:ok, binary} <- Files.read_file(file) do
-      _ = Files.increment_share_download_count(share)
+         %Drive.StoredFile{} = file <- share.stored_file,
+         {:ok, binary} <- Drive.read_file(file) do
+      _ = Drive.increment_share_download_count(share)
 
       deliver_share(conn, share, file, binary)
     else
@@ -22,18 +22,18 @@ defmodule ElektrineWeb.FileShareController do
   end
 
   def authorize(conn, %{"token" => token, "password" => password}) do
-    case Files.get_active_share(token) do
-      %Files.FileShare{} = share ->
+    case Drive.get_active_share(token) do
+      %Drive.FileShare{} = share ->
         rate_limit_key = share_rate_limit_key(conn, token)
 
         case RateLimiter.check_rate_limit(rate_limit_key) do
           {:ok, :allowed} ->
-            if Files.verify_share_password(share, password) do
+            if Drive.verify_share_password(share, password) do
               RateLimiter.record_successful_attempt(rate_limit_key)
 
               conn
-              |> put_session("file_share_access", grant_token_access(conn, token))
-              |> redirect(to: ~p"/files/share/#{token}")
+              |> put_session("drive_share_access", grant_token_access(conn, token))
+              |> redirect(to: ~p"/drive/share/#{token}")
             else
               RateLimiter.record_failed_attempt(rate_limit_key)
               render_password_prompt(conn, token, 401, "Password was incorrect")
@@ -59,7 +59,7 @@ defmodule ElektrineWeb.FileShareController do
       |> put_resp_header("cache-control", share_cache_control(share))
       |> put_resp_header("x-content-type-options", "nosniff")
 
-    if Files.share_inline_view?(share) do
+    if Drive.share_inline_view?(share) do
       conn
       |> put_resp_content_type(file.content_type)
       |> send_resp(200, binary)
@@ -72,20 +72,20 @@ defmodule ElektrineWeb.FileShareController do
   end
 
   defp password_authorized?(conn, share) do
-    not Files.share_requires_password?(share) or
-      share.token in get_session(conn, "file_share_access", [])
+    not Drive.share_requires_password?(share) or
+      share.token in get_session(conn, "drive_share_access", [])
   end
 
   defp grant_token_access(conn, token) do
-    (get_session(conn, "file_share_access", []) ++ [token]) |> Enum.uniq()
+    (get_session(conn, "drive_share_access", []) ++ [token]) |> Enum.uniq()
   end
 
   defp share_rate_limit_key(conn, token) do
-    "file_share:" <> token <> ":" <> ClientIP.rate_limit_ip(conn)
+    "drive_share:" <> token <> ":" <> ClientIP.rate_limit_ip(conn)
   end
 
   defp share_cache_control(share) do
-    if Files.share_requires_password?(share) do
+    if Drive.share_requires_password?(share) do
       "private, no-store"
     else
       "public, max-age=300"
@@ -128,7 +128,7 @@ defmodule ElektrineWeb.FileShareController do
           <h1>Password Protected Link</h1>
           <p>Enter the share password to continue.</p>
           #{if error_message, do: "<p class=\"error\">#{Plug.HTML.html_escape(error_message)}</p>", else: ""}
-          <form method=\"post\" action=\"/files/share/#{token}\">
+          <form method=\"post\" action=\"/drive/share/#{token}\">
             <input type=\"hidden\" name=\"_csrf_token\" value=\"#{csrf_token}\" />
             <input type=\"password\" name=\"password\" placeholder=\"Share password\" autocomplete=\"current-password\" />
             <button type=\"submit\">Open Link</button>

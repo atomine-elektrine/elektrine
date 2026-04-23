@@ -5,8 +5,8 @@ defmodule Elektrine.Messaging.FederatedReplies do
 
   import Ecto.Query
   alias Elektrine.ActivityPub
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @doc """
   Creates a reply to a federated post.

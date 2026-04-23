@@ -20,11 +20,12 @@ defmodule Mix.Tasks.Messaging.Federation.LoadTest do
   import Ecto.Query, warn: false
 
   alias Elektrine.Messaging.ArblargSDK
-  alias Elektrine.Messaging.{ChatMessage, Conversation, Server}
+  alias Elektrine.Messaging.{ChatMessage, Server}
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.FederationEvent
   alias Elektrine.Messaging.FederationStreamPosition
   alias Elektrine.Repo
+  alias Elektrine.Social.Conversation
 
   @switches [
     events: :integer,

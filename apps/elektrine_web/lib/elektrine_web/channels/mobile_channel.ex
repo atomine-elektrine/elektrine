@@ -756,7 +756,7 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("like_post", %{"post_id" => post_id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Elektrine.Messaging.Messages.get_timeline_post(post_id) do
+    case Elektrine.Social.Messages.get_timeline_post(post_id) do
       post when not is_nil(post) ->
         if can_view_mobile_post?(post, user_id) do
           case Integrations.social_like_post(user_id, post_id) do

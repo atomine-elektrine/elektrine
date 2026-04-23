@@ -4,8 +4,8 @@ defmodule Elektrine.SocialFixtures do
   """
 
   import Elektrine.AccountsFixtures
-  alias Elektrine.Messaging.{Conversation, Message}
   alias Elektrine.Repo
+  alias Elektrine.Social.{Conversation, Message}
 
   @doc """
   Creates a timeline conversation for a user.

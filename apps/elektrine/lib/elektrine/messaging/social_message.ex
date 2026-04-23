@@ -1,4 +1,4 @@
-defmodule Elektrine.Messaging.Message do
+defmodule Elektrine.Social.Message do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
@@ -9,7 +9,7 @@ defmodule Elektrine.Messaging.Message do
   @local_content_max 20_000
   @federated_content_max 20_000
 
-  schema "messages" do
+  schema "social_messages" do
     field :content, :string
     field :encrypted_content, :map
     field :search_index, {:array, :string}, default: []
@@ -28,15 +28,15 @@ defmodule Elektrine.Messaging.Message do
     field :share_count, :integer, default: 0
     field :quote_count, :integer, default: 0
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
 
     belongs_to :link_preview,
-               {"link_previews", Elektrine.Messaging.OptionalSocialSchemas.LinkPreview}
+               {"link_previews", Elektrine.Social.LinkPreview}
 
     has_many :replies, __MODULE__, foreign_key: :reply_to_id
-    has_many :reactions, Elektrine.Messaging.MessageReaction, foreign_key: :message_id
+    has_many :reactions, Elektrine.Social.MessageReaction, foreign_key: :message_id
 
     # Cross-context promotion fields
     belongs_to :original_message, __MODULE__
@@ -83,9 +83,9 @@ defmodule Elektrine.Messaging.Message do
     # Post type specific fields
     # For link-type posts
     field :primary_url, :string
-    has_one :poll, {"polls", Elektrine.Messaging.OptionalSocialSchemas.Poll}
+    has_one :poll, {"polls", Elektrine.Social.Poll}
 
-    many_to_many :hashtags, {"hashtags", Elektrine.Messaging.OptionalSocialSchemas.Hashtag},
+    many_to_many :hashtags, {"hashtags", Elektrine.Social.Hashtag},
       join_through: "post_hashtags",
       on_replace: :delete
 

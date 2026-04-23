@@ -233,10 +233,10 @@ defmodule ElektrineWeb.CoreComponents do
               <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
             </.link>
             <.link
-              navigate="/account/files"
-              class={account_setting_secondary_link_class(@selected_link, "files")}
+              navigate="/account/drive"
+              class={account_setting_secondary_link_class(@selected_link, "drive")}
             >
-              <.icon name="hero-folder" class="w-4 h-4" /> {gettext("Files")}
+              <.icon name="hero-folder" class="w-4 h-4" /> {gettext("Drive")}
             </.link>
           </div>
         </div>

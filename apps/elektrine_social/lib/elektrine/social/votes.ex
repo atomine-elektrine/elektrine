@@ -22,8 +22,8 @@ defmodule Elektrine.Social.Votes do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.MessageVote
 
   @doc """

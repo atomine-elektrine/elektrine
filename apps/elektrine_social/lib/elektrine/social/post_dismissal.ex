@@ -17,7 +17,7 @@ defmodule Elektrine.Social.PostDismissal do
     field :dwell_time_ms, :integer
 
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
 
     timestamps(updated_at: false)
   end

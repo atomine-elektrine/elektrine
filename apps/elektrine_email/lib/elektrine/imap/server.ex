@@ -11,6 +11,7 @@ defmodule Elektrine.IMAP.Server do
   require Logger
   alias Elektrine.Constants
   alias Elektrine.IMAP.{Commands, Helpers}
+  alias Elektrine.IMAP.RecentTracker
   alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.ProxyProtocol
@@ -35,6 +36,13 @@ defmodule Elektrine.IMAP.Server do
     port = Keyword.get(opts, :port, Application.get_env(:elektrine, :imap_port, 2143))
     transport = Keyword.get(opts, :transport, :tcp)
     tls_opts = Keyword.get(opts, :tls_opts, [])
+
+    allow_insecure_auth =
+      Keyword.get(
+        opts,
+        :allow_insecure_auth,
+        Application.get_env(:elektrine, :allow_insecure_mail_auth, false)
+      )
 
     case Socket.listen(
            transport,
@@ -61,12 +69,13 @@ defmodule Elektrine.IMAP.Server do
         ensure_table(idle_table)
         ensure_table(invalid_table)
         ensure_table(active_table)
+        RecentTracker.table()
         :ets.insert(active_table, {:total, 0})
 
         # Start periodic cleanup task for stale IDLE connections
         spawn_link(fn -> periodic_idle_cleanup(transport) end)
 
-        spawn_link(fn -> accept_loop(socket, transport) end)
+        spawn_link(fn -> accept_loop(socket, transport, tls_opts, allow_insecure_auth) end)
 
         {:ok,
          %{
@@ -74,7 +83,8 @@ defmodule Elektrine.IMAP.Server do
            port: port,
            transport: transport,
            connections: 0,
-           connections_per_ip: %{}
+           connections_per_ip: %{},
+           allow_insecure_auth: allow_insecure_auth
          }}
 
       {:error, :eaddrinuse} ->
@@ -107,24 +117,24 @@ defmodule Elektrine.IMAP.Server do
 
   # Connection handling
 
-  defp accept_loop(socket, transport) do
+  defp accept_loop(socket, transport, tls_opts, allow_insecure_auth) do
     case Socket.accept(transport, socket) do
       {:ok, client} ->
-        handle_accepted_client(client, transport)
-        accept_loop(socket, transport)
+        handle_accepted_client(client, transport, tls_opts, allow_insecure_auth)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket, transport)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
     end
   end
 
-  defp handle_accepted_client(client, :ssl) do
+  defp handle_accepted_client(client, :ssl, tls_opts, allow_insecure_auth) do
     spawn(fn ->
       case Socket.handshake(client) do
         {:ok, tls_client} ->
-          handle_authenticated_client(tls_client, :ssl)
+          handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
 
         _ ->
           :ok
@@ -132,11 +142,11 @@ defmodule Elektrine.IMAP.Server do
     end)
   end
 
-  defp handle_accepted_client(client, transport) do
-    handle_authenticated_client(client, transport)
+  defp handle_accepted_client(client, transport, tls_opts, allow_insecure_auth) do
+    handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth)
   end
 
-  defp handle_authenticated_client(client, transport) do
+  defp handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth) do
     {client_ip, initial_data} = client_ip_and_data(client, transport)
 
     cond do
@@ -161,15 +171,30 @@ defmodule Elektrine.IMAP.Server do
 
         increment_connection_count(client_ip, transport)
 
-        spawn(fn ->
-          Process.put(:imap_socket_transport, transport)
+        handler_pid =
+          spawn(fn ->
+            receive do
+              :go -> :ok
+            end
 
-          try do
-            handle_client(client, client_ip, initial_data)
-          after
+            Process.put(:imap_socket_transport, transport)
+
+            try do
+              handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
+            after
+              decrement_connection_count(client_ip, transport)
+            end
+          end)
+
+        case Socket.controlling_process(client, handler_pid) do
+          :ok ->
+            send(handler_pid, :go)
+
+          {:error, reason} ->
+            Logger.error("IMAP failed to transfer socket ownership: #{inspect(reason)}")
+            Socket.close(client)
             decrement_connection_count(client_ip, transport)
-          end
-        end)
+        end
     end
   end
 
@@ -203,11 +228,11 @@ defmodule Elektrine.IMAP.Server do
     end
   end
 
-  defp handle_client(socket, client_ip, initial_data) do
+  defp handle_client(socket, client_ip, initial_data, tls_opts, allow_insecure_auth) do
     # Send greeting with CAPABILITY to help clients detect features early
     Helpers.send_response(
       socket,
-      "* OK [CAPABILITY #{Commands.capability_string(:not_authenticated)}] Elektrine IMAP4rev1 server ready"
+      "* OK [CAPABILITY #{Commands.capability_string(%{state: :not_authenticated, socket: socket, transport: socket_transport(), tls_opts: tls_opts})}] Elektrine IMAP4rev1 server ready"
     )
 
     # Normalize IPv6 subnet if needed
@@ -228,11 +253,15 @@ defmodule Elektrine.IMAP.Server do
       state: :not_authenticated,
       transport: socket_transport(),
       message_flags: %{},
+      recent_message_ids: MapSet.new(),
+      folder_key: nil,
       idle_session_id: nil,
       connection_start: now,
       last_activity: now,
       idle_start: nil,
-      initial_data: initial_data
+      initial_data: initial_data,
+      tls_opts: tls_opts,
+      allow_insecure_auth: allow_insecure_auth
     }
 
     # Use Process dictionary to track IDLE session for cleanup

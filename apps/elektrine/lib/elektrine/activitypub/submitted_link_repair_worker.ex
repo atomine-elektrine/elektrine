@@ -14,8 +14,8 @@ defmodule Elektrine.ActivityPub.SubmittedLinkRepairWorker do
 
   import Ecto.Query
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @batch_size 100
 

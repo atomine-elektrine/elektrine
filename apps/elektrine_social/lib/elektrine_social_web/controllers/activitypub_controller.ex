@@ -10,7 +10,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   alias Elektrine.ActivityPub.InboxQueue
   alias Elektrine.ActivityPub.ObjectValidator
   alias Elektrine.Domains
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
   alias Elektrine.Telemetry.Events
 
   @doc """

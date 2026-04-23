@@ -4,9 +4,9 @@ defmodule Elektrine.Social.HashtagExtractor do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.{Hashtag, PostHashtag}
+  alias Elektrine.Social.Message
 
   @doc """
   Extracts hashtags from text content.
@@ -39,7 +39,7 @@ defmodule Elektrine.Social.HashtagExtractor do
   def get_posts_for_hashtag(hashtag_name, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before_id = Keyword.get(opts, :before_id)
-    preloads = Elektrine.Messaging.Messages.timeline_post_preloads()
+    preloads = Elektrine.Social.Messages.timeline_post_preloads()
 
     normalized_name = String.downcase(hashtag_name)
 

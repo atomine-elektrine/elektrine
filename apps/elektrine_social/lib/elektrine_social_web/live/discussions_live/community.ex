@@ -40,7 +40,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
 
     # Find community by name (use Repo.one with limit to handle potential duplicates)
     community =
-      from(c in Elektrine.Messaging.Conversation,
+      from(c in Elektrine.Social.Conversation,
         where: c.name == ^community_name and c.type == "community",
         order_by: [asc: c.inserted_at],
         limit: 1,
@@ -247,7 +247,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
       message =
         if is_nil(message.sender) or is_nil(message.reactions) do
           preloads =
-            Elektrine.Messaging.Messages.discussion_post_preloads() ++
+            Elektrine.Social.Messages.discussion_post_preloads() ++
               [:replies, reactions: [:user, :remote_actor]]
 
           Elektrine.Repo.preload(
@@ -262,7 +262,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
       # Only add if it's a discussion-related post (discussion, poll, link, or legacy post with nil post_type)
       if message.post_type in ["discussion", "poll", "link", "post"] || is_nil(message.post_type) do
         # Decrypt content before adding to list
-        message = Elektrine.Messaging.Message.decrypt_content(message)
+        message = Elektrine.Social.Message.decrypt_content(message)
         updated_posts = [message | socket.assigns.discussion_posts]
 
         {:noreply,
@@ -414,8 +414,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     # Reload pinned posts when a message is pinned
     pinned_posts =
       Messaging.list_pinned_messages(socket.assigns.community.id)
-      |> Elektrine.Repo.preload(Elektrine.Messaging.Messages.discussion_post_preloads())
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Elektrine.Repo.preload(Elektrine.Social.Messages.discussion_post_preloads())
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     # Also update the post in discussion_posts if it's there
     updated_discussion_posts =
@@ -442,8 +442,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     # Reload pinned posts when a message is unpinned
     pinned_posts =
       Messaging.list_pinned_messages(socket.assigns.community.id)
-      |> Elektrine.Repo.preload(Elektrine.Messaging.Messages.discussion_post_preloads())
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Elektrine.Repo.preload(Elektrine.Social.Messages.discussion_post_preloads())
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     # Also update the post in discussion_posts if it's there
     updated_discussion_posts =
@@ -516,8 +516,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     # Get pinned posts
     pinned_posts =
       Messaging.list_pinned_messages(community_id)
-      |> Elektrine.Repo.preload(Elektrine.Messaging.Messages.discussion_post_preloads())
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Elektrine.Repo.preload(Elektrine.Social.Messages.discussion_post_preloads())
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     # Initialize user follows map using batch query
     user_follows =
@@ -552,7 +552,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
         pending_task =
           Task.async(fn ->
             Elektrine.Messaging.ModerationTools.list_pending_posts(community_id)
-            |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+            |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
           end)
 
         mod_log_task =
@@ -613,7 +613,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Community do
     import Ecto.Query
 
     Elektrine.Repo.exists?(
-      from cm in Elektrine.Messaging.ConversationMember,
+      from cm in Elektrine.Social.ConversationMember,
         where:
           cm.conversation_id == ^community_id and
             cm.user_id == ^user_id and

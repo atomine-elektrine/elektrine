@@ -28,10 +28,10 @@ defmodule ElektrineSocialWeb.MastodonAPI.AccountController do
   alias Elektrine.Accounts.Muting
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Message
 
   import Ecto.Query
 
@@ -310,7 +310,7 @@ defmodule ElektrineSocialWeb.MastodonAPI.AccountController do
 
     # Get posts from the user - using messages table with public visibility
     query =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user.id,
         where: m.visibility in ["public", "unlisted"],
         where: is_nil(m.deleted_at),

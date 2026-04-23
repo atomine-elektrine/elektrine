@@ -2,7 +2,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   @moduledoc """
   Schema for chat messages in DMs, groups, and channels.
 
-  This is separate from the `messages` table which is used for timeline posts,
+  This is separate from the `social_messages` table which is used for timeline posts,
   community discussions, and ActivityPub federation.
 
   Chat messages are:
@@ -35,8 +35,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
 
-    belongs_to :link_preview,
-               {"link_previews", Elektrine.Messaging.OptionalSocialSchemas.LinkPreview}
+    belongs_to :link_preview, Elektrine.Social.LinkPreview
 
     has_many :replies, __MODULE__, foreign_key: :reply_to_id
     has_many :reactions, Elektrine.Messaging.ChatMessageReaction, foreign_key: :chat_message_id

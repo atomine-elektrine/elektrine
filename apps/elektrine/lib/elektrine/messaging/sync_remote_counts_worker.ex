@@ -9,7 +9,7 @@ defmodule Elektrine.Messaging.SyncRemoteCountsWorker do
     max_attempts: 2,
     unique: [period: 60, keys: [:activitypub_id], states: [:available, :scheduled, :executing]]
 
-  alias Elektrine.Messaging.Messages
+  alias Elektrine.Social.Messages
 
   def enqueue(post_object) when is_map(post_object) do
     activitypub_id = post_object["id"] || post_object["url"]

@@ -6,9 +6,9 @@ defmodule ElektrineSocialWeb.API.ExtSocialController do
   use ElektrineSocialWeb, :controller
 
   alias Elektrine.Friends
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Profiles
   alias Elektrine.Social
+  alias Elektrine.Social.Messages
   alias Elektrine.Uploads
   alias ElektrineWeb.API.Response
 

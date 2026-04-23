@@ -6,7 +6,7 @@ defmodule Elektrine.Messaging.FederatedBoost do
   import Ecto.Changeset
 
   schema "federated_boosts" do
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     belongs_to :remote_actor, Elektrine.ActivityPub.Actor
 
     field :activitypub_id, :string

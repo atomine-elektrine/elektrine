@@ -2,7 +2,7 @@ defmodule ElektrineWeb.Admin.ModerationController do
   use ElektrineWeb, :controller
 
   alias Elektrine.{Accounts, Repo}
-  alias Elektrine.Messaging.Messages
+  alias Elektrine.Social.Messages
   alias ElektrineWeb.Platform.Integrations
   import Ecto.Query
 
@@ -19,15 +19,15 @@ defmodule ElektrineWeb.Admin.ModerationController do
     base_query =
       case content_type do
         "timeline" ->
-          from m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from m in Elektrine.Social.Message,
+            join: c in Elektrine.Social.Conversation,
             on: m.conversation_id == c.id,
             where: c.type == "timeline",
             where: is_nil(m.deleted_at)
 
         "discussions" ->
-          from m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from m in Elektrine.Social.Message,
+            join: c in Elektrine.Social.Conversation,
             on: m.conversation_id == c.id,
             where: c.type == "community",
             where: is_nil(m.deleted_at)
@@ -40,8 +40,8 @@ defmodule ElektrineWeb.Admin.ModerationController do
             where: is_nil(m.deleted_at)
 
         _ ->
-          from m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from m in Elektrine.Social.Message,
+            join: c in Elektrine.Social.Conversation,
             on: m.conversation_id == c.id,
             where: c.type == "timeline",
             where: is_nil(m.deleted_at)
@@ -89,22 +89,22 @@ defmodule ElektrineWeb.Admin.ModerationController do
         if content_type == "chat" do
           Elektrine.Messaging.ChatMessage.decrypt_messages(messages)
         else
-          Elektrine.Messaging.Message.decrypt_messages(messages)
+          Elektrine.Social.Message.decrypt_messages(messages)
         end
       end)
 
     # Get counts for all types
     counts = %{
       timeline:
-        from(m in Elektrine.Messaging.Message,
-          join: c in Elektrine.Messaging.Conversation,
+        from(m in Elektrine.Social.Message,
+          join: c in Elektrine.Social.Conversation,
           on: m.conversation_id == c.id,
           where: c.type == "timeline" and is_nil(m.deleted_at)
         )
         |> Repo.aggregate(:count),
       discussions:
-        from(m in Elektrine.Messaging.Message,
-          join: c in Elektrine.Messaging.Conversation,
+        from(m in Elektrine.Social.Message,
+          join: c in Elektrine.Social.Conversation,
           on: m.conversation_id == c.id,
           where: c.type == "community" and is_nil(m.deleted_at)
         )

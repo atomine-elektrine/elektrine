@@ -3,7 +3,7 @@ defmodule ElektrineWeb.CallChannelTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Calls.Call
-  alias Elektrine.Messaging.{Conversation, ConversationMember, FederationCallSession}
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, FederationCallSession}
   alias Elektrine.PubSubTopics
   alias Elektrine.Repo
   alias ElektrineWeb.UserSocket
@@ -53,15 +53,15 @@ defmodule ElektrineWeb.CallChannelTest do
     user = AccountsFixtures.user_fixture()
 
     conversation =
-      %Conversation{}
-      |> Conversation.dm_changeset(%{
+      %ChatConversation{}
+      |> ChatConversation.dm_changeset(%{
         creator_id: user.id,
         name: "@remote@peer.example",
         federated_source: "arblarg:dm:handle:remote@peer.example"
       })
       |> Repo.insert!()
 
-    ConversationMember.add_member_changeset(conversation.id, user.id, "member")
+    ChatConversationMember.add_member_changeset(conversation.id, user.id, "member")
     |> Repo.insert!()
 
     session =

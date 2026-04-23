@@ -28,7 +28,8 @@ defmodule Elektrine.IMAP.Supervisor do
         if(enabled,
           do: [
             Supervisor.child_spec(
-              {Elektrine.IMAP.Server, [name: Elektrine.IMAP.Server, port: port]},
+              {Elektrine.IMAP.Server,
+               [name: Elektrine.IMAP.Server, port: port, tls_opts: tls_opts]},
               id: Elektrine.IMAP.Server
             )
           ],

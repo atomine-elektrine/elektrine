@@ -7,8 +7,8 @@ defmodule Elektrine.ActivityPub.FetchRemotePollService do
 
   alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.ActivityPub.Handlers.{CreateHandler, UpdateHandler}
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   def call(%{id: _poll_id, message_id: _message_id} = poll) do
     poll = Repo.preload(poll, message: [:remote_actor])

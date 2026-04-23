@@ -5,9 +5,9 @@ defmodule Elektrine.Social.RecommendationsTest do
   import Elektrine.SocialFixtures
 
   alias Elektrine.Accounts.UserActivityStats
-  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.Recommendations
 
   describe "get_for_you_feed/2 visibility rules" do

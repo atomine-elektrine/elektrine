@@ -3,7 +3,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcher do
 
   require Logger
 
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   def handle_info(:fetch_community_posts, state) when is_map(state) do
     config = Application.get_env(:elektrine, :community_fetcher, [])

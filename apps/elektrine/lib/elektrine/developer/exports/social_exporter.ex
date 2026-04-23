@@ -8,9 +8,9 @@ defmodule Elektrine.Developer.Exports.SocialExporter do
   """
 
   import Ecto.Query
-  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.PostLike
 
   @doc """

@@ -7,7 +7,7 @@ defmodule Elektrine.Messaging.FederatedMessageNormalizationTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   describe "create_federated_message/1 normalization" do
     test "truncates titles longer than varchar limit" do

@@ -8,7 +8,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
 
     # Find community by name
     community =
-      Elektrine.Repo.get_by(Elektrine.Messaging.Conversation,
+      Elektrine.Repo.get_by(Elektrine.Social.Conversation,
         name: name,
         type: "community"
       )

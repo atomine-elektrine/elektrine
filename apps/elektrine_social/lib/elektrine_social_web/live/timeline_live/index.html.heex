@@ -1240,27 +1240,6 @@
                     <p class="text-sm mt-1">Save posts or RSS articles to see them here</p>
                   </div>
                 <% end %>
-                <!-- RSS Items for All/Following filters -->
-                <%= if @current_filter in ["explore", "home"] && !Enum.empty?(@rss_items) do %>
-                  <div class="mb-4">
-                    <h3 class="text-sm font-semibold text-base-content/70 mb-2 flex items-center gap-2">
-                      <.icon name="hero-rss" class="w-4 h-4 text-warning" /> From Your RSS Feeds
-                    </h3>
-
-                    <%= for item <- @rss_items do %>
-                      <.rss_item
-                        item={item}
-                        current_user={@current_user}
-                        timezone={@timezone}
-                        is_saved={Map.get(@rss_saves, item.id, false)}
-                      />
-                    <% end %>
-                  </div>
-
-                  <%= if !Enum.empty?(@filtered_posts) do %>
-                    <div class="divider text-xs text-base-content/50">Posts</div>
-                  <% end %>
-                <% end %>
                 <% recent_post_ids = MapSet.new(@recently_loaded_post_ids || []) %> <% first_recent_post =
                   Enum.find(@filtered_posts, fn post ->
                     MapSet.member?(recent_post_ids, post.id)

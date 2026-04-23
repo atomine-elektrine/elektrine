@@ -1,9 +1,9 @@
 defmodule Elektrine.Social.Drafts do
   @moduledoc "Context for managing post drafts.\nAllows users to save, edit, and publish draft posts.\n"
   import Ecto.Query, warn: false
-  alias Elektrine.Messaging.{Conversation, Message}
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.{Conversation, Message}
   alias Elektrine.Social.HashtagExtractor
   @doc "Lists all drafts for a user.\nReturns drafts ordered by most recently updated first.\n"
   def list_drafts(user_id, opts \\ []) do

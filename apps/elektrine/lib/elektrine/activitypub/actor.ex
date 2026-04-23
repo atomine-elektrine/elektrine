@@ -26,7 +26,7 @@ defmodule Elektrine.ActivityPub.Actor do
     field :moderators_url, :string
 
     # Relationship to local community (if this actor represents a local community)
-    belongs_to :community, Elektrine.Messaging.Conversation, foreign_key: :community_id
+    belongs_to :community, Elektrine.Social.Conversation, foreign_key: :community_id
 
     timestamps()
   end

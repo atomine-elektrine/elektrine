@@ -1225,7 +1225,7 @@ if Mix.env() == :dev do
 
         existing_message ->
           existing_message
-          |> Messaging.Message.federated_changeset(message_attrs)
+          |> Elektrine.Social.Message.federated_changeset(message_attrs)
           |> Repo.update!()
       end
 
@@ -1272,8 +1272,8 @@ if Mix.env() == :dev do
     reply_to_id = Keyword.get(opts, :reply_to_id)
 
     existing_post_query =
-      from(m in Messaging.Message,
-        join: c in Messaging.Conversation,
+      from(m in Elektrine.Social.Message,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         where:
           c.type == "timeline" and
@@ -1310,8 +1310,8 @@ if Mix.env() == :dev do
 
   ensure_timeline_draft = fn user_id, content, opts ->
     existing_draft =
-      from(m in Messaging.Message,
-        join: c in Messaging.Conversation,
+      from(m in Elektrine.Social.Message,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         where:
           c.type == "timeline" and
@@ -1407,7 +1407,11 @@ if Mix.env() == :dev do
   ensure_server_channel = fn server_id, creator_id, attrs ->
     name = attrs |> Map.get(:name, "general") |> String.downcase()
 
-    case Repo.get_by(Messaging.Conversation, server_id: server_id, type: "channel", name: name) do
+    case Repo.get_by(Elektrine.Social.Conversation,
+           server_id: server_id,
+           type: "channel",
+           name: name
+         ) do
       nil ->
         case Messaging.create_server_channel(server_id, creator_id, attrs) do
           {:ok, channel} -> channel
@@ -1423,7 +1427,7 @@ if Mix.env() == :dev do
     name = attrs |> Map.fetch!(:name) |> String.downcase()
 
     existing_group =
-      from(c in Messaging.Conversation,
+      from(c in Elektrine.Social.Conversation,
         where:
           c.creator_id == ^creator_id and
             c.type == "group" and

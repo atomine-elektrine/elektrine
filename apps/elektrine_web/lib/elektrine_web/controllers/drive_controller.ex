@@ -1,14 +1,14 @@
-defmodule ElektrineWeb.FilesController do
+defmodule ElektrineWeb.DriveController do
   use ElektrineWeb, :controller
 
-  alias Elektrine.Files
+  alias Elektrine.Drive
 
   def download(conn, %{"id" => id}) do
     current_user = conn.assigns.current_user
 
     with {file_id, ""} <- Integer.parse(id),
-         %Files.StoredFile{} = file <- Files.get_file(current_user.id, file_id),
-         {:ok, binary} <- Files.read_file(file) do
+         %Drive.StoredFile{} = file <- Drive.get_file(current_user.id, file_id),
+         {:ok, binary} <- Drive.read_file(file) do
       conn
       |> put_resp_header("cache-control", "private, max-age=300")
       |> put_resp_header("x-content-type-options", "nosniff")
@@ -28,9 +28,9 @@ defmodule ElektrineWeb.FilesController do
     current_user = conn.assigns.current_user
 
     with {file_id, ""} <- Integer.parse(id),
-         %Files.StoredFile{} = file <- Files.get_file(current_user.id, file_id),
-         true <- Files.inline_viewable_content_type?(file.content_type),
-         {:ok, binary} <- Files.read_file(file) do
+         %Drive.StoredFile{} = file <- Drive.get_file(current_user.id, file_id),
+         true <- Drive.inline_viewable_content_type?(file.content_type),
+         {:ok, binary} <- Drive.read_file(file) do
       conn
       |> put_resp_header("cache-control", "private, max-age=300")
       |> put_resp_header("x-content-type-options", "nosniff")

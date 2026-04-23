@@ -9,7 +9,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
   alias Elektrine.Messaging, as: Messaging
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Messaging.Federation.VoiceCalls
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
   alias Elektrine.Uploads
   import Elektrine.Components.User.Avatar
   import Elektrine.Components.User.UsernameEffects
@@ -2501,7 +2501,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
     can_send =
       current_member &&
-        Elektrine.Messaging.ConversationMember.can_send_messages?(current_member)
+        Elektrine.Social.ConversationMember.can_send_messages?(current_member)
 
     updated_socket =
       socket
@@ -2797,7 +2797,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
   # Helper to get display content for either Message or ChatMessage structs
   # Use __struct__ field matching to avoid cyclic dependency issues at compile time
-  defp message_display_content(%{__struct__: Elektrine.Messaging.Message} = msg),
+  defp message_display_content(%{__struct__: Elektrine.Social.Message} = msg),
     do: Message.display_content(msg)
 
   defp message_display_content(%{__struct__: Elektrine.Messaging.ChatMessage} = msg),
@@ -3217,11 +3217,6 @@ defmodule ElektrineChatWeb.ChatLive.Index do
   end
 
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
-
-  defp social_link_preview?(%{
-         __struct__: :"Elixir.Elektrine.Messaging.OptionalSocialSchemas.LinkPreview"
-       }),
-       do: true
 
   defp social_link_preview?(_), do: false
 

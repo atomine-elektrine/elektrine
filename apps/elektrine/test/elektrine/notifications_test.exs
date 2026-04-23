@@ -5,8 +5,8 @@ defmodule Elektrine.NotificationsTest do
   alias Elektrine.{Accounts, Messaging, Notifications, Repo}
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.FederationNotifications
+  alias Elektrine.Social.Message
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures
 

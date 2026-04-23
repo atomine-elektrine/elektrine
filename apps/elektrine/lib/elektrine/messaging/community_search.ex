@@ -5,8 +5,8 @@ defmodule Elektrine.Messaging.CommunitySearch do
 
   import Ecto.Query
   alias Elektrine.{ActivityPub, Repo}
-  alias Elektrine.Messaging.Conversation
   alias Elektrine.Profiles
+  alias Elektrine.Social.Conversation
   require Logger
 
   @doc """
@@ -147,7 +147,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
   defp add_membership_info(results, user_id) do
     # Get user's community memberships
     member_community_ids =
-      from(cm in Elektrine.Messaging.ConversationMember,
+      from(cm in Elektrine.Social.ConversationMember,
         where: cm.user_id == ^user_id and is_nil(cm.left_at),
         select: cm.conversation_id
       )

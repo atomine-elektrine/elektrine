@@ -4,7 +4,7 @@ defmodule Elektrine.Social.PostHashtag do
   import Ecto.Changeset
 
   schema "post_hashtags" do
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     belongs_to :hashtag, Elektrine.Social.Hashtag
 
     timestamps(updated_at: false)

@@ -7,7 +7,7 @@ defmodule Elektrine.Messaging.UserHiddenMessage do
     field :hidden_at, :naive_datetime
 
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
 
     timestamps()
   end

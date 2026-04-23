@@ -9,7 +9,7 @@ defmodule Elektrine.Messaging.ModeratorNote do
     field :note, :string
     field :is_important, :boolean, default: false
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :target_user, Elektrine.Accounts.User
     belongs_to :created_by, Elektrine.Accounts.User
 

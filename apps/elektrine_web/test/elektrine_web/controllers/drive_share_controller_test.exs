@@ -1,13 +1,13 @@
-defmodule ElektrineWeb.FileShareControllerTest do
+defmodule ElektrineWeb.DriveShareControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.{Accounts, Files, Repo}
+  alias Elektrine.{Accounts, Drive, Repo}
 
   setup do
     previous_uploads = Application.get_env(:elektrine, :uploads)
 
     tmp_dir =
-      Path.join(System.tmp_dir!(), "elektrine-file-share-#{System.unique_integer([:positive])}")
+      Path.join(System.tmp_dir!(), "elektrine-drive-share-#{System.unique_integer([:positive])}")
 
     File.mkdir_p!(tmp_dir)
 
@@ -22,14 +22,14 @@ defmodule ElektrineWeb.FileShareControllerTest do
     end)
 
     user = user_fixture()
-    {:ok, file} = Files.upload_file(user, "shared", temp_upload("hello.txt", "share me"))
-    {:ok, share} = Files.create_share(user.id, file.id)
+    {:ok, file} = Drive.upload_file(user, "shared", temp_upload("hello.txt", "share me"))
+    {:ok, share} = Drive.create_share(user.id, file.id)
 
     {:ok, user: user, stored_file: file, share: share}
   end
 
   test "downloads a shared file", %{conn: conn, share: share} do
-    conn = get(conn, ~p"/files/share/#{share.token}")
+    conn = get(conn, ~p"/drive/share/#{share.token}")
 
     assert response(conn, 200) == "share me"
 
@@ -39,22 +39,22 @@ defmodule ElektrineWeb.FileShareControllerTest do
 
     assert get_resp_header(conn, "cache-control") == ["public, max-age=300"]
 
-    assert Repo.get!(Files.FileShare, share.id).download_count == 1
+    assert Repo.get!(Drive.FileShare, share.id).download_count == 1
   end
 
   test "requires password for protected share links", %{conn: conn, user: user, stored_file: file} do
-    {:ok, protected_share} = Files.create_share(user.id, file.id, %{password: "secret-pass"})
+    {:ok, protected_share} = Drive.create_share(user.id, file.id, %{password: "secret-pass"})
 
-    conn = get(conn, ~p"/files/share/#{protected_share.token}")
+    conn = get(conn, ~p"/drive/share/#{protected_share.token}")
     assert response(conn, 200) =~ "Password Protected Link"
 
-    conn = post(conn, ~p"/files/share/#{protected_share.token}", %{"password" => "secret-pass"})
-    assert redirected_to(conn) == ~p"/files/share/#{protected_share.token}"
+    conn = post(conn, ~p"/drive/share/#{protected_share.token}", %{"password" => "secret-pass"})
+    assert redirected_to(conn) == ~p"/drive/share/#{protected_share.token}"
 
     conn =
       build_conn()
-      |> init_test_session(%{"file_share_access" => [protected_share.token]})
-      |> get(~p"/files/share/#{protected_share.token}")
+      |> init_test_session(%{"drive_share_access" => [protected_share.token]})
+      |> get(~p"/drive/share/#{protected_share.token}")
 
     assert get_resp_header(conn, "cache-control") == ["private, no-store"]
   end
@@ -64,7 +64,7 @@ defmodule ElektrineWeb.FileShareControllerTest do
     user: user,
     stored_file: file
   } do
-    {:ok, protected_share} = Files.create_share(user.id, file.id, %{password: "secret-pass"})
+    {:ok, protected_share} = Drive.create_share(user.id, file.id, %{password: "secret-pass"})
 
     attempts = [1, 2, 3, 4, 5]
 
@@ -73,7 +73,7 @@ defmodule ElektrineWeb.FileShareControllerTest do
         conn
         |> recycle()
         |> Map.put(:remote_ip, {0x2001, 0x0DB8, 0x1234, 0x5678, 0, 0, 0, host_part})
-        |> post(~p"/files/share/#{protected_share.token}", %{"password" => "wrong-pass"})
+        |> post(~p"/drive/share/#{protected_share.token}", %{"password" => "wrong-pass"})
 
       assert response(conn, 401) =~ "Password was incorrect"
     end)
@@ -82,18 +82,18 @@ defmodule ElektrineWeb.FileShareControllerTest do
       conn
       |> recycle()
       |> Map.put(:remote_ip, {0x2001, 0x0DB8, 0x1234, 0x5678, 0, 0, 0, 99})
-      |> post(~p"/files/share/#{protected_share.token}", %{"password" => "wrong-pass"})
+      |> post(~p"/drive/share/#{protected_share.token}", %{"password" => "wrong-pass"})
 
     assert response(conn, 429) =~ "Too many attempts"
   end
 
   test "renders inline for view-mode shares", %{conn: conn, user: user} do
     {:ok, inline_file} =
-      Files.upload_file(user, "shared", temp_upload("hello-view.txt", "view me"))
+      Drive.upload_file(user, "shared", temp_upload("hello-view.txt", "view me"))
 
-    {:ok, view_share} = Files.create_share(user.id, inline_file.id, %{access_level: "view"})
+    {:ok, view_share} = Drive.create_share(user.id, inline_file.id, %{access_level: "view"})
 
-    conn = get(conn, ~p"/files/share/#{view_share.token}")
+    conn = get(conn, ~p"/drive/share/#{view_share.token}")
 
     assert response(conn, 200) == "view me"
     assert get_resp_header(conn, "content-disposition") == []
@@ -103,10 +103,10 @@ defmodule ElektrineWeb.FileShareControllerTest do
     upload = temp_upload("hello.html", "<script>alert(1)</script>")
     upload = %{upload | content_type: "text/html"}
 
-    {:ok, html_file} = Files.upload_file(user, "shared", upload)
-    {:ok, view_share} = Files.create_share(user.id, html_file.id, %{access_level: "view"})
+    {:ok, html_file} = Drive.upload_file(user, "shared", upload)
+    {:ok, view_share} = Drive.create_share(user.id, html_file.id, %{access_level: "view"})
 
-    conn = get(conn, ~p"/files/share/#{view_share.token}")
+    conn = get(conn, ~p"/drive/share/#{view_share.token}")
 
     assert response(conn, 200) == "<script>alert(1)</script>"
 
@@ -116,9 +116,9 @@ defmodule ElektrineWeb.FileShareControllerTest do
   end
 
   test "returns 404 for revoked share links", %{conn: conn, user: user, share: share} do
-    assert {:ok, _} = Files.revoke_share(user.id, share.id)
+    assert {:ok, _} = Drive.revoke_share(user.id, share.id)
 
-    conn = get(conn, ~p"/files/share/#{share.token}")
+    conn = get(conn, ~p"/drive/share/#{share.token}")
     assert response(conn, 404) == "Not found"
   end
 
@@ -129,7 +129,7 @@ defmodule ElektrineWeb.FileShareControllerTest do
     )
     |> Repo.update!()
 
-    conn = get(conn, ~p"/files/share/#{share.token}")
+    conn = get(conn, ~p"/drive/share/#{share.token}")
     assert response(conn, 404) == "Not found"
   end
 

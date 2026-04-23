@@ -278,7 +278,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
       post_reactions
     else
       reactions =
-        from(r in Messaging.MessageReaction,
+        from(r in Elektrine.Social.MessageReaction,
           where: r.message_id in ^local_message_ids,
           preload: [:user, :remote_actor]
         )
@@ -306,7 +306,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
       post_reactions
     else
       grouped_reactions =
-        from(r in Messaging.MessageReaction,
+        from(r in Elektrine.Social.MessageReaction,
           where: r.message_id in ^local_message_ids,
           preload: [:user, :remote_actor]
         )
@@ -424,8 +424,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
 
     case local_message_id do
       local_message_id when is_integer(local_message_id) ->
-        case Repo.get(Messaging.Message, local_message_id) do
-          %Messaging.Message{} = message ->
+        case Repo.get(Elektrine.Social.Message, local_message_id) do
+          %Elektrine.Social.Message{} = message ->
             {:ok, message}
 
           _ ->

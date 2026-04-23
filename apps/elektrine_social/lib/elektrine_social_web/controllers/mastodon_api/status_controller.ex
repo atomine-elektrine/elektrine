@@ -5,9 +5,9 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusController do
 
   use ElektrineSocialWeb, :controller
 
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Social
   alias Elektrine.Social.Drafts
+  alias Elektrine.Social.Messages
   alias ElektrineSocialWeb.MastodonAPI.StatusView
 
   action_fallback(ElektrineSocialWeb.MastodonAPI.FallbackController)

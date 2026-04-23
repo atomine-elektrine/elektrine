@@ -5,7 +5,7 @@ defmodule Elektrine.Social.PostLike do
 
   schema "post_likes" do
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     field :created_at, :utc_datetime
   end
 

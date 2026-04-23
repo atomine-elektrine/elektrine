@@ -5,9 +5,9 @@ defmodule Elektrine.Reports do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.TrustLevel
-  alias Elektrine.Messaging.{Conversation, Message}
   alias Elektrine.Repo
   alias Elektrine.Reports.Report
+  alias Elektrine.Social.{Conversation, Message}
 
   @doc """
   Creates a report for any reportable entity with spam prevention.

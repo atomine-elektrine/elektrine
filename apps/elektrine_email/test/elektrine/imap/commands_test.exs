@@ -385,6 +385,40 @@ defmodule Elektrine.IMAP.CommandsTest do
     :gen_tcp.close(server_socket)
   end
 
+  test "SELECT accepts sent-folder aliases" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+    message_fixture(%{
+      mailbox_id: mailbox.id,
+      from: mailbox.email,
+      to: mailbox.email,
+      status: "sent"
+    })
+
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :authenticated,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: nil,
+      messages: []
+    }
+
+    assert {:continue, new_state} =
+             Commands.process_command("A065", "SELECT", "\"Sent Items\"", state)
+
+    assert new_state.selected_folder == "Sent"
+    response = read_until(client_socket, "A065 OK [READ-WRITE] SELECT completed")
+    assert response =~ "* 1 EXISTS\r\n"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
   test "UID FETCH handles Apple Mail header field request format" do
     user = user_fixture()
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
@@ -420,6 +454,111 @@ defmodule Elektrine.IMAP.CommandsTest do
              "BODY[HEADER.FIELDS (DATE FROM SUBJECT TO CC MESSAGE-ID REFERENCES IN-REPLY-TO)]"
 
     assert response =~ "BODY[TEXT]<0> {5}\r\nHello"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "APPEND stores sent messages when client sends an internal date" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: "Sent",
+      messages: []
+    }
+
+    email =
+      "From: #{mailbox.email}\r\n" <>
+        "To: friend@example.com\r\n" <>
+        "Subject: Thunderbird sent copy\r\n" <>
+        "Message-ID: <thunderbird-sent@example.com>\r\n\r\n" <>
+        "Hello from Thunderbird"
+
+    task =
+      Task.async(fn ->
+        Commands.process_command(
+          "A080",
+          "APPEND",
+          "\"Sent\" (\\Seen) \"22-Apr-2026 14:30:00 +0000\" {#{byte_size(email)}}",
+          state
+        )
+      end)
+
+    assert read_until(client_socket, "+ Ready for literal data") =~ "+ Ready for literal data"
+    assert :ok = :gen_tcp.send(client_socket, email <> "\r\n")
+    assert {:continue, _state} = Task.await(task)
+
+    response = read_until(client_socket, "A080 OK [APPENDUID")
+    assert response =~ "A080 OK [APPENDUID"
+
+    sent_message =
+      mailbox.id
+      |> Email.list_sent_messages_paginated(1, 20)
+      |> Map.fetch!(:messages)
+      |> Enum.find(&(&1.subject == "Thunderbird sent copy"))
+
+    assert sent_message
+    assert sent_message.status == "sent"
+    assert sent_message.subject == "Thunderbird sent copy"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "APPEND accepts sent-folder aliases" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: "Sent",
+      messages: []
+    }
+
+    email =
+      "From: #{mailbox.email}\r\n" <>
+        "To: friend@example.com\r\n" <>
+        "Subject: Alias sent copy\r\n" <>
+        "Message-ID: <alias-sent@example.com>\r\n\r\n" <>
+        "Hello from alias folder"
+
+    task =
+      Task.async(fn ->
+        Commands.process_command(
+          "A081",
+          "APPEND",
+          "\"Sent Mail\" {#{byte_size(email)}}",
+          state
+        )
+      end)
+
+    assert read_until(client_socket, "+ Ready for literal data") =~ "+ Ready for literal data"
+    assert :ok = :gen_tcp.send(client_socket, email <> "\r\n")
+    assert {:continue, _state} = Task.await(task)
+
+    response = read_until(client_socket, "A081 OK [APPENDUID")
+    assert response =~ "A081 OK [APPENDUID"
+
+    sent_message =
+      mailbox.id
+      |> Email.list_sent_messages_paginated(1, 20)
+      |> Map.fetch!(:messages)
+      |> Enum.find(&(&1.subject == "Alias sent copy"))
+
+    assert sent_message
+    assert sent_message.status == "sent"
 
     :gen_tcp.close(client_socket)
     :gen_tcp.close(server_socket)

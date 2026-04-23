@@ -61,6 +61,7 @@ config :elektrine, :environment, :dev
 config :elektrine,
   enforce_https: false,
   allow_insecure_dav_jmap_auth: true,
+  allow_insecure_mail_auth: true,
   trusted_proxy_cidrs: ["127.0.0.1/32", "::1/128"]
 
 config :elektrine, :mail_client_settings,

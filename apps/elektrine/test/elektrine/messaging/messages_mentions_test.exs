@@ -1,4 +1,4 @@
-defmodule Elektrine.Messaging.MessagesMentionsTest do
+defmodule Elektrine.Social.MessagesMentionsTest do
   use Elektrine.DataCase, async: true
 
   import Elektrine.AccountsFixtures

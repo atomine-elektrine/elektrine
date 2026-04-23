@@ -16,7 +16,7 @@ defmodule Elektrine.Messaging.ModerationAction do
 
     belongs_to :target_user, Elektrine.Accounts.User
     belongs_to :moderator, Elektrine.Accounts.User
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
 
     timestamps(type: :utc_datetime)
   end

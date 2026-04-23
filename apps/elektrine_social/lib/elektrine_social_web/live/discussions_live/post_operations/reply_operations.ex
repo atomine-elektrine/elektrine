@@ -158,7 +158,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
     import Ecto.Query
 
     Elektrine.Repo.exists?(
-      from m in Elektrine.Messaging.ConversationMember,
+      from m in Elektrine.Social.ConversationMember,
         where: m.conversation_id == ^community_id and m.user_id == ^user_id
     )
   end
@@ -167,7 +167,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
     import Ecto.Query
 
     post =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.id == ^post_id and m.conversation_id == ^community_id,
         preload: [
           sender: [:profile],
@@ -184,7 +184,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
         {:error, :not_found}
 
       post ->
-        post = Elektrine.Messaging.Message.decrypt_content(post)
+        post = Elektrine.Social.Message.decrypt_content(post)
         replies = get_threaded_replies_with_expansion(post_id, community_id, 0, expanded_threads)
         {:ok, post, replies}
     end
@@ -194,7 +194,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
     import Ecto.Query
 
     direct_replies =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.reply_to_id == ^parent_id and
             m.conversation_id == ^community_id and
@@ -208,7 +208,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ReplyOperations do
         ]
       )
       |> Elektrine.Repo.all()
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     Enum.map(direct_replies, fn reply ->
       should_expand = depth < 2 || MapSet.member?(expanded_threads, reply.id)

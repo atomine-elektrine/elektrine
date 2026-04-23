@@ -84,7 +84,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
   def fetch_replies_for_message(message_id, opts)
       when (is_binary(message_id) or is_integer(message_id)) and is_list(opts) do
-    case Elektrine.Repo.get(Messaging.Message, message_id) do
+    case Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
       nil ->
         {:error, :message_not_found}
 
@@ -499,7 +499,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     attrs = reply_count_attrs(object)
 
     if reply_count_attrs_changed?(message, attrs) do
-      case Elektrine.Messaging.Messages.update_message_metadata(message, attrs) do
+      case Elektrine.Social.Messages.update_message_metadata(message, attrs) do
         {:ok, updated_message} -> updated_message
         _ -> message
       end

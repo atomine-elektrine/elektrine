@@ -1082,7 +1082,7 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboard do
       Elektrine.Repo.get(Elektrine.Messaging.ChatMessage, id) ->
         {:ok, "/pripyat/arblarg/messages/#{id}/view"}
 
-      Elektrine.Repo.get(Elektrine.Messaging.Message, id) ->
+      Elektrine.Repo.get(Elektrine.Social.Message, id) ->
         {:ok, Elektrine.Paths.post_path(id)}
 
       true ->

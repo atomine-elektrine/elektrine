@@ -1492,7 +1492,7 @@
                               <% true -> %>
                                 <!-- Regular text post: Show content -->
                                 <% content =
-                                  Elektrine.Messaging.Message.display_content(post) || "" %>
+                                  Elektrine.Social.Message.display_content(post) || "" %>
                                 <div class="break-words text-sm sm:text-base post-content line-clamp-3 overflow-hidden">
                                   {raw(
                                     ElektrineWeb.Components.Social.PostUtilities.render_content_preview(

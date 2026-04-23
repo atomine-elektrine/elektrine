@@ -6,7 +6,7 @@ defmodule Elektrine.Email.Mailbox do
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "mailboxes" do
+  schema "email_mailboxes" do
     # Legacy field - will be phased out
     field :email, :string
     # Domain-agnostic username

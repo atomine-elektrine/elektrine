@@ -1,12 +1,12 @@
-defmodule Elektrine.Files.StoredFolder do
+defmodule Elektrine.Drive.StoredFolder do
   @moduledoc """
-  Explicit folder records for the personal file library.
+  Explicit folder records for the personal drive library.
   """
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "stored_folders" do
+  schema "drive_folders" do
     field :path, :string
 
     belongs_to :user, Elektrine.Accounts.User

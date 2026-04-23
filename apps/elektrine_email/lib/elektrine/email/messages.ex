@@ -8,6 +8,7 @@ defmodule Elektrine.Email.Messages do
   require Logger
   alias Ecto.Multi
   alias Elektrine.Email.{CacheHooks, Mailbox, MailboxEncryption, Message}
+  alias Elektrine.IMAP.RecentTracker
   alias Elektrine.JMAP
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -450,6 +451,7 @@ defmodule Elektrine.Email.Messages do
                |> Message.changeset(stored_attrs)
                |> Repo.insert() do
           bump_message_creation_states(mailbox_id, message.id)
+          RecentTracker.mark_message_recent(message)
 
           if mailbox_id do
             # Broadcast to any LiveViews monitoring this mailbox

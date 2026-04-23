@@ -7,6 +7,12 @@ defmodule ElektrineWeb.Features.HomePageTest do
     |> assert_has(Query.css("body"))
   end
 
+  feature "home page includes blinkenlights container", %{session: session} do
+    session
+    |> visit("/")
+    |> assert_has(Query.css("#blinkenlights-container"))
+  end
+
   feature "home page has login link", %{session: session} do
     session
     |> visit("/")
