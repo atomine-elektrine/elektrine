@@ -258,7 +258,10 @@ defmodule Elektrine.Social.Message do
     |> put_change(:federated, true)
     |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private"])
     |> validate_length(:content, max: @federated_content_max)
-    |> unique_constraint(:activitypub_id)
+    |> unique_constraint(:activitypub_id,
+      name: :activitypub_id_index,
+      match: :suffix
+    )
   end
 
   def federated_changeset(message, attrs), do: federated_changeset(message, Map.new(attrs))

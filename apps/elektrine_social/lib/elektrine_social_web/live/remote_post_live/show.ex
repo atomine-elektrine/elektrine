@@ -1187,7 +1187,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       clickable={false}
       source="timeline"
       id_prefix="remote-post-detail"
-      show_follow_button={true}
+      show_follow_button={false}
       show_admin_actions={false}
       show_post_dropdown={false}
       on_like={if @is_community_post, do: "upvote_post", else: "like_post"}
@@ -5793,6 +5793,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                socket
                |> assign(:is_following_author, false)
                |> assign(:is_pending_author, false)
+               |> assign_remote_author_follow_maps(remote_actor, false, false)
                |> put_flash(:info, "Unfollowed")}
 
             {:error, _reason} ->
@@ -5813,12 +5814,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                  socket
                  |> assign(:is_following_author, false)
                  |> assign(:is_pending_author, true)
+                 |> assign_remote_author_follow_maps(remote_actor, false, true)
                  |> put_flash(:info, "Follow request sent!")}
               else
                 {:noreply,
                  socket
                  |> assign(:is_following_author, true)
                  |> assign(:is_pending_author, false)
+                 |> assign_remote_author_follow_maps(remote_actor, true, false)
                  |> put_flash(:info, "Following!")}
               end
 
@@ -5827,6 +5830,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                socket
                |> assign(:is_following_author, true)
                |> assign(:is_pending_author, false)
+               |> assign_remote_author_follow_maps(remote_actor, true, false)
                |> put_flash(:info, "Already following")}
 
             {:error, _reason} ->
@@ -5835,6 +5839,50 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         end
       else
         {:noreply, put_flash(socket, :error, "Author not found")}
+      end
+    end
+  end
+
+  def handle_event("toggle_follow", %{"user_id" => user_id}, socket) do
+    if current_user_missing?(socket) do
+      {:noreply, put_flash(socket, :error, "You must be signed in to follow users")}
+    else
+      case Integer.parse(to_string(user_id)) do
+        {user_id, ""} ->
+          current_user_id = socket.assigns.current_user.id
+          currently_following = Map.get(socket.assigns.user_follows, {:local, user_id}, false)
+
+          if currently_following do
+            case Profiles.unfollow_user(current_user_id, user_id) do
+              {:ok, :unfollowed} ->
+                {:noreply,
+                 update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))
+                 |> put_flash(:info, "Unfollowed user.")}
+
+              {:ok, :not_following} ->
+                {:noreply,
+                 update(socket, :user_follows, &Map.put(&1, {:local, user_id}, false))
+                 |> put_flash(:info, "Unfollowed user.")}
+            end
+          else
+            case Profiles.follow_user(current_user_id, user_id) do
+              {:ok, _follow} ->
+                {:noreply,
+                 update(socket, :user_follows, &Map.put(&1, {:local, user_id}, true))
+                 |> put_flash(:info, "Now following user.")}
+
+              {:error, _reason} ->
+                {:noreply,
+                 put_flash(
+                   socket,
+                   :error,
+                   "Couldn't follow this user right now. Please try again."
+                 )}
+            end
+          end
+
+        _ ->
+          {:noreply, socket}
       end
     end
   end
