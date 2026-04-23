@@ -848,8 +848,7 @@
                           <button
                             id={"remote-post-follow-#{@remote_actor.id}"}
                             type="button"
-                            phx-click="toggle_follow_remote"
-                            phx-value-remote_actor_id={@remote_actor.id}
+                            phx-click="toggle_follow_author"
                             phx-hook="RemoteFollowButton"
                             data-remote-actor-id={@remote_actor.id}
                             data-follow-state={follow_state}
