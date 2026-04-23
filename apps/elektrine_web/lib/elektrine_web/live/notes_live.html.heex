@@ -1,32 +1,21 @@
 <div class="mx-auto w-full max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
   <.e_nav active_tab="notes" current_user={@current_user} class="mb-6 sm:mb-8" />
 
-  <div class="card panel-card mb-6 sm:mb-8">
-    <div class="card-body p-5 sm:p-6">
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
-            Notes
-          </h1>
-          <p class="mt-2 text-sm text-base-content/65 sm:text-base">
-            Private notes with quick capture, search, and pinning.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          phx-click="new_note"
-          class="btn btn-primary btn-sm h-9 min-h-9 sm:btn-md"
-        >
-          <.icon name="hero-document-plus" class="h-4 w-4" /> New Note
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div class="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)] xl:items-start">
     <section class="card panel-card overflow-hidden">
       <div class="border-b border-base-300/60 px-4 py-4 sm:px-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <h1 class="text-lg font-semibold text-base-content">Notes</h1>
+
+          <button
+            type="button"
+            phx-click="new_note"
+            class="btn btn-primary btn-sm h-9 min-h-9"
+          >
+            <.icon name="hero-document-plus" class="h-4 w-4" /> New Note
+          </button>
+        </div>
+
         <form phx-change="filter">
           <label class="form-control">
             <span class="sr-only">Search notes</span>

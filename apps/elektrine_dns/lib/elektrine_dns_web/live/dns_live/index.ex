@@ -454,24 +454,19 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
       <.e_nav active_tab="dns" current_user={@current_user} class="mb-6" />
 
-      <div class="card panel-card mb-6">
-        <div class="card-body p-5 sm:p-6">
-          <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div class="space-y-1">
-              <h1 class="text-xl font-semibold tracking-tight">DNS</h1>
-            </div>
-            <div class="text-xs font-mono text-base-content/55">
-              {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div class="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside class="space-y-6">
           <section class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <h1 class="text-lg font-semibold text-base-content">DNS</h1>
+
+                  <div class="badge badge-outline badge-sm">
+                    {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
+                  </div>
+                </div>
+
                 <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                   Zones
                 </h2>

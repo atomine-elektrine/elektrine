@@ -4,19 +4,7 @@
   <div class="space-y-6">
     <div class="card panel-card">
       <div class="card-body gap-4 p-4 sm:p-5">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div class="flex flex-wrap items-center gap-2">
-              <h1 class="text-xl font-bold sm:text-2xl">Notifications</h1>
-              <%= if @unread_count > 0 do %>
-                <span class="badge badge-primary badge-sm">{@unread_count} unread</span>
-              <% end %>
-            </div>
-            <p class="mt-1 text-sm opacity-70">
-              {@notification_stats.total_groups} groups in queue, {@notification_stats.waiting_groups} waiting.
-            </p>
-          </div>
-
+        <div class="flex flex-wrap gap-2 lg:justify-end">
           <div class="flex flex-wrap gap-2">
             <.link
               navigate={~p"/overview"}
