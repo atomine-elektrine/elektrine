@@ -635,21 +635,31 @@
         <div class="text-xs opacity-70 space-y-1">
           <p>
             <span class="font-semibold">IMAP:</span>
-            <span class="font-mono">{Elektrine.EmailAddresses.imap_host()}:993</span>
+            <span class="font-mono">
+              {Elektrine.MailClientSettings.host(:imap)}:{Elektrine.MailClientSettings.imap().port}
+            </span>
           </p>
 
           <p>
             <span class="font-semibold">POP3:</span>
-            <span class="font-mono">{Elektrine.EmailAddresses.pop_host()}:995</span>
+            <span class="font-mono">
+              {Elektrine.MailClientSettings.host(:pop3)}:{Elektrine.MailClientSettings.pop3().port}
+            </span>
           </p>
 
           <p>
             <span class="font-semibold">SMTP:</span>
-            <span class="font-mono">{Elektrine.EmailAddresses.smtp_host()}:465</span>
+            <span class="font-mono">
+              {Elektrine.MailClientSettings.host(:smtp)}:{Elektrine.MailClientSettings.smtp().port}
+            </span>
           </p>
         </div>
 
-        <p class="text-xs opacity-50 mt-2">SSL/TLS required</p>
+        <p class="text-xs opacity-50 mt-2">
+          IMAP/POP3 use TLS. SMTP uses {Elektrine.MailClientSettings.security_label(
+            Elektrine.MailClientSettings.smtp()
+          )}.
+        </p>
       </div>
       <!-- Support -->
       <div>

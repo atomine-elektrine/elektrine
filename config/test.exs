@@ -71,6 +71,8 @@ config :elektrine,
   imap_port: 32_143,
   pop3_port: 32_110,
   smtp_port: 32_587,
+  smtps_enabled: true,
+  smtps_port: 34_65,
   imap_tls_opts: mail_test_tls_opts,
   pop3_tls_opts: mail_test_tls_opts,
   smtp_tls_opts: mail_test_tls_opts
@@ -78,7 +80,12 @@ config :elektrine,
 config :elektrine, :mail_client_settings,
   imap: [port: 32_143, security: :plain],
   pop3: [port: 32_110, security: :plain],
-  smtp: [port: 32_587, security: :plain]
+  smtp: [port: 32_587, security: :starttls]
+
+config :elektrine, :mail_client_settings,
+  imap: [port: 32_143, security: :plain],
+  pop3: [port: 32_110, security: :plain],
+  smtp: [port: 32_587, security: :starttls]
 
 # Enable server for Wallaby browser tests
 config :elektrine, ElektrineWeb.Endpoint,

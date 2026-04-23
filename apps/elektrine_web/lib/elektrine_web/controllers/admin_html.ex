@@ -165,11 +165,6 @@ defmodule ElektrineWeb.AdminHTML do
         items: [
           %{label: "Users", path: Elektrine.Paths.admin_path(:users), icon: "hero-users"},
           %{
-            label: "Multi-Accounts",
-            path: "/pripyat/multi-accounts",
-            icon: "hero-user-circle"
-          },
-          %{
             label: "Account Lookup",
             path: "/pripyat/account-lookup",
             icon: "hero-magnifying-glass"

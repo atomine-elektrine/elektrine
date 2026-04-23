@@ -20,6 +20,7 @@ defmodule Elektrine.SMTP.Server do
 
   def init(opts) do
     port = Keyword.get(opts, :port, Application.get_env(:elektrine, :smtp_port, 2587))
+    transport = Keyword.get(opts, :transport, :tcp)
     tls_opts = Keyword.get(opts, :tls_opts, Application.get_env(:elektrine, :smtp_tls_opts, []))
 
     allow_insecure_auth =
@@ -29,27 +30,32 @@ defmodule Elektrine.SMTP.Server do
         Application.get_env(:elektrine, :allow_insecure_mail_auth, false)
       )
 
-    case :gen_tcp.listen(port, [
-           :binary,
-           active: false,
-           packet: :line,
-           packet_size: 8192,
-           reuseaddr: true,
-           ip: {0, 0, 0, 0},
-           backlog: 100,
-           keepalive: true,
-           send_timeout: Constants.smtp_send_timeout_ms(),
-           send_timeout_close: true
-         ]) do
+    case Socket.listen(
+           transport,
+           port,
+           [
+             {:active, false},
+             {:packet, :line},
+             {:packet_size, 8192},
+             {:reuseaddr, true},
+             {:ip, {0, 0, 0, 0}},
+             {:backlog, 100},
+             {:keepalive, true},
+             {:send_timeout, Constants.smtp_send_timeout_ms()},
+             {:send_timeout_close, true}
+           ],
+           tls_opts
+         ) do
       {:ok, socket} ->
         ensure_connection_table()
         :ets.insert(:smtp_active_connections, {:total, 0})
-        spawn_link(fn -> accept_loop(socket, tls_opts, allow_insecure_auth) end)
+        spawn_link(fn -> accept_loop(socket, transport, tls_opts, allow_insecure_auth) end)
 
         {:ok,
          %{
            socket: socket,
            port: port,
+           transport: transport,
            connections: 0,
            tls_opts: tls_opts,
            allow_insecure_auth: allow_insecure_auth
@@ -57,89 +63,119 @@ defmodule Elektrine.SMTP.Server do
 
       {:error, :eaddrinuse} ->
         Logger.error("SMTP server failed: Port #{port} is already in use")
-        {:ok, %{socket: nil, port: port, connections: 0, error: :port_in_use}}
+
+        {:ok,
+         %{socket: nil, port: port, transport: transport, connections: 0, error: :port_in_use}}
 
       {:error, reason} ->
         Logger.error("Failed to start SMTP server on port #{port}: #{inspect(reason)}")
-        {:ok, %{socket: nil, port: port, connections: 0, error: reason}}
+        {:ok, %{socket: nil, port: port, transport: transport, connections: 0, error: reason}}
     end
   end
 
-  defp accept_loop(socket, tls_opts, allow_insecure_auth) do
-    case :gen_tcp.accept(socket) do
+  defp accept_loop(socket, transport, tls_opts, allow_insecure_auth) do
+    case Socket.accept(transport, socket) do
       {:ok, client} ->
-        {client_ip, initial_data} =
-          case ProxyProtocol.parse_client_ip(client) do
-            {:ok, ip, data} ->
-              {normalize_ipv6_subnet(ip), data}
-
-            {:error, _reason} ->
-              case Socket.peername(client) do
-                {:ok, {ip, _port}} ->
-                  ip_string = :inet.ntoa(ip) |> to_string() |> normalize_ipv6_subnet()
-                  Socket.close(client)
-                  {ip_string, nil}
-
-                {:error, _} ->
-                  Socket.close(client)
-                  {nil, nil}
-              end
-          end
-
-        cond do
-          is_nil(client_ip) ->
-            :ok
-
-          !can_accept_connection?(client_ip) ->
-            Logger.warning(
-              "SMTP connection rejected from #{client_ip}: connection limit exceeded"
-            )
-
-            send_response(client, "421 Too many connections from your IP address")
-            Socket.close(client)
-
-          true ->
-            Socket.setopts(client,
-              keepalive: true,
-              nodelay: true,
-              send_timeout: Constants.smtp_send_timeout_ms(),
-              packet: :line,
-              recbuf: 65_536,
-              sndbuf: 65_536
-            )
-
-            increment_connection_count(client_ip)
-
-            handler_pid =
-              spawn(fn ->
-                receive do
-                  :go -> :ok
-                end
-
-                try do
-                  handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
-                after
-                  decrement_connection_count(client_ip)
-                end
-              end)
-
-            case Socket.controlling_process(client, handler_pid) do
-              :ok ->
-                send(handler_pid, :go)
-
-              {:error, reason} ->
-                Logger.error("SMTP failed to transfer socket ownership: #{inspect(reason)}")
-                Socket.close(client)
-                decrement_connection_count(client_ip)
-            end
-        end
-
-        accept_loop(socket, tls_opts, allow_insecure_auth)
+        handle_accepted_client(client, transport, tls_opts, allow_insecure_auth)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket, tls_opts, allow_insecure_auth)
+        accept_loop(socket, transport, tls_opts, allow_insecure_auth)
+    end
+  end
+
+  defp handle_accepted_client(client, :ssl, tls_opts, allow_insecure_auth) do
+    spawn(fn ->
+      case Socket.handshake(client) do
+        {:ok, tls_client} ->
+          handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
+
+        _ ->
+          :ok
+      end
+    end)
+  end
+
+  defp handle_accepted_client(client, transport, tls_opts, allow_insecure_auth) do
+    handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth)
+  end
+
+  defp handle_authenticated_client(client, transport, tls_opts, allow_insecure_auth) do
+    {client_ip, initial_data} = parse_client_ip_and_data(client, transport)
+
+    cond do
+      is_nil(client_ip) ->
+        :ok
+
+      !can_accept_connection?(client_ip) ->
+        Logger.warning("SMTP connection rejected from #{client_ip}: connection limit exceeded")
+        send_response(client, "421 Too many connections from your IP address")
+        Socket.close(client)
+
+      true ->
+        Socket.setopts(client,
+          keepalive: true,
+          nodelay: true,
+          send_timeout: Constants.smtp_send_timeout_ms(),
+          packet: :line,
+          recbuf: 65_536,
+          sndbuf: 65_536
+        )
+
+        increment_connection_count(client_ip)
+
+        handler_pid =
+          spawn(fn ->
+            receive do
+              :go -> :ok
+            end
+
+            try do
+              handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
+            after
+              decrement_connection_count(client_ip)
+            end
+          end)
+
+        case Socket.controlling_process(client, handler_pid) do
+          :ok ->
+            send(handler_pid, :go)
+
+          {:error, reason} ->
+            Logger.error("SMTP failed to transfer socket ownership: #{inspect(reason)}")
+            Socket.close(client)
+            decrement_connection_count(client_ip)
+        end
+    end
+  end
+
+  defp parse_client_ip_and_data(client, :ssl) do
+    case Socket.peername(client) do
+      {:ok, {ip, _port}} ->
+        {normalize_ipv6_subnet(:inet.ntoa(ip) |> to_string()), nil}
+
+      {:error, _reason} ->
+        Socket.close(client)
+        {nil, nil}
+    end
+  end
+
+  defp parse_client_ip_and_data(client, :tcp) do
+    case ProxyProtocol.parse_client_ip(client) do
+      {:ok, ip, data} ->
+        {normalize_ipv6_subnet(ip), data}
+
+      {:error, _reason} ->
+        case Socket.peername(client) do
+          {:ok, {ip, _port}} ->
+            {normalize_ipv6_subnet(:inet.ntoa(ip) |> to_string()), nil}
+
+          {:error, _} ->
+            Socket.close(client)
+            {nil, nil}
+        end
     end
   end
 

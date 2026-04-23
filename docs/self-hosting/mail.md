@@ -1,9 +1,9 @@
 # Mail Self-hosting
 
-Elektrine mail is a two-deployment setup.
+Elektrine mail can run either as a single deployment or alongside Haraka.
 
-- this repo owns mailbox UI, storage, JMAP, WKD, and Haraka-facing webhooks
-- `elektrine-haraka` owns SMTP edge, submission, outbound delivery, and queueing
+- this repo owns mailbox UI, storage, JMAP, WKD, SMTP submission, and Haraka-facing webhooks
+- `elektrine-haraka` can own inbound SMTP edge, outbound delivery, and queueing
 
 You can run both deployments on the same bare-metal server.
 
@@ -11,8 +11,8 @@ To enable mail:
 
 1. add the `email` module in `ELEKTRINE_ENABLED_MODULES`
 2. fill in the mail section already present in `.env.example` / `.env.production`
-3. deploy Haraka separately
-4. connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
+3. optionally deploy Haraka separately for inbound/outbound relay
+4. when using Haraka, connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
 
 Managed DNS for mail also provisions:
 
@@ -65,20 +65,19 @@ domains should point their MX records at the Haraka host.
 Same-server networking guidance:
 
 - keep Elektrine and Haraka as separate Compose projects
-- publish Haraka's public SMTP ports on the host used for mail delivery
+- publish Elektrine's SMTP submission port on the host used for mail clients
 - keep Elektrine web traffic on Caddy/Phoenix
 - for same-server Docker, point `HARAKA_BASE_URL` at Haraka's shared-network API endpoint such as `http://haraka-outbound:8080`
-- if Haraka owns public SMTPS on `465`, move Phoenix's `SMTP_TLS_BIND` off that port (for example `127.0.0.1:2465:2587`)
 - share only the API credentials and webhook secrets, not the Compose project itself
 - by default Elektrine derives `INTERNAL_API_KEY`, `HARAKA_HTTP_API_KEY`, `PHOENIX_API_KEY`, `HARAKA_INTERNAL_SIGNING_SECRET`, and `EMAIL_RECEIVER_WEBHOOK_SECRET` from `ELEKTRINE_MASTER_SECRET`
 
 Suggested split:
 
-- Elektrine: `80/443` for web, plus mailbox access on `143/110` and native secure mailbox access on `993/995`
-- Haraka: `25` for inbound SMTP, `587` or `465` for submission, `443` for Haraka admin/API if that repo exposes it through HTTPS
+- Elektrine: `80/443` for web, SMTP submission on `587`, plus mailbox access on `143/110` and native secure mailbox access on `993/995`
+- Haraka: `25` for inbound SMTP, plus outbound relay/API as needed
 
-SMTP delivery/submission stays with Haraka in this split setup.
-Elektrine does not bind public `25`, `465`, or `587` when Haraka is the SMTP edge.
+SMTP submission terminates at Elektrine in this split setup.
+Elektrine can still relay outbound mail through Haraka's HTTP/API path.
 
 Elektrine can expose native secure mailbox access directly for clients:
 
@@ -99,6 +98,7 @@ Recommended client settings:
 
 - prefer `993` (IMAPS) or `995` (POP3S)
 - use `143` / `110` only for clients that need plain IMAP/POP compatibility
+- use `587` with `STARTTLS` for SMTP submission
 
 Required env for native TLS mailbox access:
 

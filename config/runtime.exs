@@ -1288,6 +1288,8 @@ if config_env() != :test do
   imap_tls_key_path = System.get_env("IMAP_TLS_KEY_PATH") || mail_tls_key_path
   pop3_tls_cert_path = System.get_env("POP3_TLS_CERT_PATH") || mail_tls_cert_path
   pop3_tls_key_path = System.get_env("POP3_TLS_KEY_PATH") || mail_tls_key_path
+  smtp_tls_cert_path = System.get_env("SMTP_TLS_CERT_PATH") || mail_tls_cert_path
+  smtp_tls_key_path = System.get_env("SMTP_TLS_KEY_PATH") || mail_tls_key_path
 
   mail_tls_path_present? = fn value -> is_binary(value) and String.trim(value) != "" end
 
@@ -1302,6 +1304,7 @@ if config_env() != :test do
 
   imap_tls_opts = tls_opts_for.(imap_tls_cert_path, imap_tls_key_path)
   pop3_tls_opts = tls_opts_for.(pop3_tls_cert_path, pop3_tls_key_path)
+  smtp_tls_opts = tls_opts_for.(smtp_tls_cert_path, smtp_tls_key_path)
 
   config :elektrine,
     pop3_enabled: mail_enabled and parse_bool_env.("POP3_ENABLED", true),
@@ -1315,7 +1318,10 @@ if config_env() != :test do
     imaps_port: parse_int_env.("IMAPS_PORT", 2993),
     imap_tls_opts: imap_tls_opts,
     smtp_enabled: mail_enabled and parse_bool_env.("SMTP_ENABLED", true),
-    smtp_port: parse_int_env.("SMTP_PORT", 2587)
+    smtp_port: parse_int_env.("SMTP_PORT", 2587),
+    smtps_enabled: smtp_tls_opts != [] and parse_bool_env.("SMTPS_ENABLED", true),
+    smtps_port: parse_int_env.("SMTPS_PORT", 2465),
+    smtp_tls_opts: smtp_tls_opts
 end
 
 # Stripe configuration for subscriptions

@@ -24,7 +24,7 @@ config :elektrine,
 config :elektrine, :mail_client_settings,
   imap: [port: 993, security: :ssl],
   pop3: [port: 995, security: :ssl],
-  smtp: [port: 465, security: :ssl]
+  smtp: [port: 587, security: :starttls]
 
 # Oban background job processing
 # Queue concurrency defaults are overridden in runtime.exs based on POOL_SIZE.

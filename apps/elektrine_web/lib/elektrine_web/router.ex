@@ -583,7 +583,6 @@ defmodule ElektrineWeb.Router do
     post("/users/:id/impersonate", Admin.UsersController, :impersonate)
     delete("/users/:id", Admin.UsersController, :delete)
     delete("/users/:user_id/aliases/:alias_id", Admin.UsersController, :delete_user_alias)
-    get("/multi-accounts", Admin.UsersController, :multi_accounts)
     get("/lookup-ip/:ip", Admin.UsersController, :lookup_ip)
     get("/account-lookup", Admin.UsersController, :account_lookup)
     post("/account-lookup", Admin.UsersController, :search_accounts)

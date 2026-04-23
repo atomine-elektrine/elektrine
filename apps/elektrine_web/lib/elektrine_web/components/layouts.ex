@@ -75,9 +75,6 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.Admin.UsersController, :index} ->
         "User Management"
 
-      {ElektrineWeb.Admin.UsersController, :multi_accounts} ->
-        "Multi-Accounts"
-
       {ElektrineWeb.Admin.UsersController, :new} ->
         "New User"
 
