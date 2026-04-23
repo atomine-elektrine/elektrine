@@ -225,6 +225,40 @@ defmodule Elektrine.Email.MessageOperationsTest do
     end
   end
 
+  describe "message creation deduplication" do
+    setup do
+      user = user_fixture()
+      mailbox = mailbox_fixture(%{user_id: user.id, email: "dedupetest@example.com"})
+      {:ok, user: user, mailbox: mailbox}
+    end
+
+    test "returns the existing message for duplicate message_id inserts", %{mailbox: mailbox} do
+      attrs = %{
+        from: "sender@example.com",
+        to: "recipient@example.com",
+        subject: "Duplicate guard",
+        text_body: "Test body",
+        message_id: "duplicate-guard@example.com",
+        mailbox_id: mailbox.id,
+        status: "received",
+        read: true
+      }
+
+      assert {:ok, first} = Email.create_message(attrs)
+      assert {:ok, second} = Email.create_message(attrs)
+      assert second.id == first.id
+
+      duplicate_rows =
+        Elektrine.Repo.all(
+          Ecto.Query.from(m in Elektrine.Email.Message,
+            where: m.mailbox_id == ^mailbox.id and m.message_id == ^attrs.message_id
+          )
+        )
+
+      assert length(duplicate_rows) == 1
+    end
+  end
+
   describe "label operations" do
     setup do
       user = user_fixture()
