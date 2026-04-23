@@ -564,6 +564,67 @@ defmodule Elektrine.IMAP.CommandsTest do
     :gen_tcp.close(server_socket)
   end
 
+  test "APPEND stores multipart sent message bodies" do
+    user = user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: user.id},
+      mailbox: mailbox,
+      uid_validity: mailbox.id,
+      selected_folder: "Sent",
+      messages: []
+    }
+
+    email =
+      "From: #{mailbox.email}\r\n" <>
+        "To: friend@example.com\r\n" <>
+        "Subject: Multipart sent copy\r\n" <>
+        "Message-ID: <multipart-sent@example.com>\r\n" <>
+        "MIME-Version: 1.0\r\n" <>
+        "Content-Type: multipart/alternative; boundary=\"boundary-123\"\r\n\r\n" <>
+        "--boundary-123\r\n" <>
+        "Content-Type: text/plain; charset=UTF-8\r\n\r\n" <>
+        "Hello plain body\r\n" <>
+        "--boundary-123\r\n" <>
+        "Content-Type: text/html; charset=UTF-8\r\n\r\n" <>
+        "<p>Hello <strong>HTML</strong> body</p>\r\n" <>
+        "--boundary-123--\r\n"
+
+    task =
+      Task.async(fn ->
+        Commands.process_command(
+          "A082",
+          "APPEND",
+          "\"Sent\" {#{byte_size(email)}}",
+          state
+        )
+      end)
+
+    assert read_until(client_socket, "+ Ready for literal data") =~ "+ Ready for literal data"
+    assert :ok = :gen_tcp.send(client_socket, email <> "\r\n")
+    assert {:continue, _state} = Task.await(task)
+
+    response = read_until(client_socket, "A082 OK [APPENDUID")
+    assert response =~ "A082 OK [APPENDUID"
+
+    sent_message =
+      mailbox.id
+      |> Email.list_sent_messages_paginated(1, 20)
+      |> Map.fetch!(:messages)
+      |> Enum.find(&(&1.subject == "Multipart sent copy"))
+
+    assert sent_message
+    assert sent_message.text_body =~ "Hello plain body"
+    assert sent_message.html_body =~ "Hello <strong>HTML</strong> body"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
   defp socket_pair do
     {:ok, listener} =
       :gen_tcp.listen(0, [:binary, {:active, false}, {:packet, :raw}, {:reuseaddr, true}])
