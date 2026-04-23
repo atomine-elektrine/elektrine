@@ -142,7 +142,7 @@ defmodule ElektrineEmailWeb.EmailController do
                   "<pre style=\"font-family: monospace; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; margin: 0; padding: 16px;\">#{escaped_text}</pre>"
 
                 true ->
-                  "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"font-style: italic;\">This message has no content</p></div>"
+                  "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"font-style: italic; max-width: 32rem; text-align: center;\">This message does not contain a displayable text or HTML body.</p></div>"
               end
 
             # Set security headers with relaxed CSP for email content

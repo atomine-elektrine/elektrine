@@ -2310,10 +2310,10 @@ defmodule Elektrine.IMAP.Commands do
         end
 
       text_body =
-        extract_text_body(body, headers, message) || extract_text_body_internal(body, headers)
+        extract_text_body(body, headers, message)
 
       html_body =
-        extract_html_body(body, headers, message) || extract_html_body_internal(body, headers)
+        extract_html_body(body, headers, message)
 
       if folder_lower not in ["inbox", "sent", "drafts", "trash", "spam"] &&
            is_nil(custom_folder_id) do
@@ -2584,36 +2584,6 @@ defmodule Elektrine.IMAP.Commands do
       [type | _] when is_binary(type) -> type
       [type, _ | _] when is_binary(type) -> type
       _ -> "application/octet-stream"
-    end
-  end
-
-  defp extract_text_body_internal(body, _headers) do
-    if String.contains?(body, "Content-Type: text/plain") do
-      body
-      |> String.split(~r/Content-Type: text\/plain/i, parts: 2)
-      |> List.last()
-      |> String.split("\n\n", parts: 2)
-      |> List.last()
-      |> String.split(~r/--[a-zA-Z0-9_-]+--?/, parts: 2)
-      |> List.first()
-      |> String.trim()
-    else
-      body
-    end
-  end
-
-  defp extract_html_body_internal(body, _headers) do
-    if String.contains?(body, "Content-Type: text/html") do
-      body
-      |> String.split(~r/Content-Type: text\/html/i, parts: 2)
-      |> List.last()
-      |> String.split("\n\n", parts: 2)
-      |> List.last()
-      |> String.split(~r/--[a-zA-Z0-9_-]+--?/, parts: 2)
-      |> List.first()
-      |> String.trim()
-    else
-      nil
     end
   end
 
