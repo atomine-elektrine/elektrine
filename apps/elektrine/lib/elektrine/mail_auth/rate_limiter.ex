@@ -57,10 +57,10 @@ defmodule Elektrine.MailAuth.RateLimiter do
   """
   @spec normalized_key(atom(), String.t() | nil) :: String.t()
   def normalized_key(protocol, identifier) do
-    normalized_protocol = normalize_protocol(protocol)
-    normalized_identifier = normalize_identifier(identifier)
-    digest = :crypto.hash(:sha256, normalized_identifier) |> Base.encode16(case: :lower)
-    "#{normalized_protocol}:#{digest}"
+    _ = normalize_protocol(protocol)
+    normalized_subject = normalize_subject(identifier)
+    digest = :crypto.hash(:sha256, normalized_subject) |> Base.encode16(case: :lower)
+    "mail-auth:#{digest}"
   end
 
   defp normalize_protocol(protocol) when protocol in [:imap, :pop3, :smtp], do: protocol
@@ -76,16 +76,9 @@ defmodule Elektrine.MailAuth.RateLimiter do
 
   defp normalize_protocol(_protocol), do: :unknown
 
-  defp normalize_identifier(nil), do: "__nil__"
+  defp normalize_subject(nil), do: "identifier:__nil__"
 
-  defp normalize_identifier(identifier) do
-    identifier
-    |> to_string()
-    |> String.trim()
-    |> String.downcase()
-    |> case do
-      "" -> "__empty__"
-      value -> value
-    end
+  defp normalize_subject(identifier) do
+    Elektrine.Accounts.mail_auth_subject(identifier)
   end
 end

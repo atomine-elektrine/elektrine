@@ -12,6 +12,14 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
 
   @localhost ~c"127.0.0.1"
 
+  setup do
+    if :ets.whereis(:smtp_invalid_commands) != :undefined do
+      :ets.delete_all_objects(:smtp_invalid_commands)
+    end
+
+    :ok
+  end
+
   test "IMAP supports UID STORE + EXPUNGE sequence semantics" do
     {user, password, _mailbox} = create_user_with_messages(3)
     clear_auth_limits(:imap, user.username)
@@ -469,6 +477,80 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     send_line!(socket, "QUIT")
     assert recv_line!(socket) == "221 Bye"
     assert {:error, :closed} = :gen_tcp.recv(socket, 0, 1_000)
+  end
+
+  test "SMTP temporarily blocks clients after repeated invalid commands" do
+    port = unused_tcp_port()
+
+    start_supervised!(
+      {Elektrine.SMTP.Server, [name: :smtp_invalid_command_test_server, port: port, tls_opts: []]}
+    )
+
+    {:ok, socket} = connect_tcp(port)
+    assert String.starts_with?(recv_line!(socket), "220 ")
+
+    Enum.each(1..4, fn _ ->
+      assert String.starts_with?(smtp_command(socket, "BOGUS"), "500 ")
+    end)
+
+    assert String.starts_with?(smtp_command(socket, "BOGUS"), "421 ")
+    assert {:error, :closed} = :gen_tcp.recv(socket, 0, 1_000)
+
+    {:ok, blocked_socket} = connect_tcp(port)
+    assert recv_line!(blocked_socket) == "421 Too many invalid commands - try again later"
+    assert {:error, :closed} = :gen_tcp.recv(blocked_socket, 0, 1_000)
+  end
+
+  test "SMTP deduplicates repeated submissions with the same Message-ID" do
+    {user, password, mailbox} = create_user_with_messages(0)
+    clear_auth_limits(:smtp, user.username)
+
+    {:ok, socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(socket), "220 ")
+    assert String.starts_with?(smtp_command(socket, "STARTTLS"), "220 ")
+    {:ok, socket} = upgrade_socket_to_tls(socket)
+
+    plain_cred = Base.encode64("\0#{user.username}\0#{password}")
+    ehlo_lines = smtp_multiline_command(socket, "EHLO localhost")
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+    assert String.starts_with?(smtp_command(socket, "AUTH plain #{plain_cred}"), "235 ")
+
+    message_data =
+      [
+        "From: #{mailbox.email}",
+        "To: outside@example.com",
+        "Subject: Thunderbird duplicate guard",
+        "Message-ID: <smtp-duplicate@example.com>",
+        "MIME-Version: 1.0",
+        "Content-Type: text/plain; charset=UTF-8",
+        "",
+        "Hello once"
+      ]
+      |> Enum.join("\r\n")
+
+    assert String.starts_with?(smtp_command(socket, "MAIL FROM:<#{mailbox.email}>"), "250 ")
+    assert String.starts_with?(smtp_command(socket, "RCPT TO:<outside@example.com>"), "250 ")
+    assert String.starts_with?(smtp_command(socket, "DATA"), "354 ")
+    send_line!(socket, message_data)
+    send_line!(socket, ".")
+    assert String.starts_with?(recv_line!(socket), "250 ")
+
+    assert String.starts_with?(smtp_command(socket, "MAIL FROM:<#{mailbox.email}>"), "250 ")
+    assert String.starts_with?(smtp_command(socket, "RCPT TO:<outside@example.com>"), "250 ")
+    assert String.starts_with?(smtp_command(socket, "DATA"), "354 ")
+    send_line!(socket, message_data)
+    send_line!(socket, ".")
+    assert String.starts_with?(recv_line!(socket), "250 ")
+
+    sent_messages = Email.list_sent_messages_paginated(mailbox.id, 1, 20).messages
+
+    assert [sent_copy] =
+             Enum.filter(sent_messages, &(&1.subject == "Thunderbird duplicate guard"))
+
+    assert sent_copy.message_id == "smtp-duplicate@example.com"
+
+    assert String.starts_with?(smtp_command(socket, "QUIT"), "221 ")
+    :ok = close_socket(socket)
   end
 
   defp create_user_with_messages(message_count) do

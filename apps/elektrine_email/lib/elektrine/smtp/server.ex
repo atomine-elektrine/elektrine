@@ -13,6 +13,10 @@ defmodule Elektrine.SMTP.Server do
   @max_connections_per_ip Constants.smtp_max_connections_per_ip()
   @max_recipients Constants.smtp_max_recipients()
   @slow_command_threshold_us 750_000
+  @submission_idempotency_ttl_seconds 10 * 60
+  @invalid_command_block_threshold 5
+  @invalid_command_block_seconds 10 * 60
+  @invalid_command_retention_seconds 60 * 60
   def start_link(opts \\ []) do
     name = Keyword.get(opts, :name, __MODULE__)
     GenServer.start_link(__MODULE__, opts, name: name)
@@ -48,6 +52,8 @@ defmodule Elektrine.SMTP.Server do
          ) do
       {:ok, socket} ->
         ensure_connection_table()
+        ensure_submission_idempotency_table()
+        ensure_invalid_command_table()
         :ets.insert(:smtp_active_connections, {:total, 0})
         spawn_link(fn -> accept_loop(socket, transport, tls_opts, allow_insecure_auth) end)
 
@@ -108,6 +114,11 @@ defmodule Elektrine.SMTP.Server do
     cond do
       is_nil(client_ip) ->
         :ok
+
+      blocked_ip?(client_ip) ->
+        Logger.warning("SMTP connection rejected from #{client_ip}: temporary abuse block active")
+        send_response(client, "421 Too many invalid commands - try again later")
+        Socket.close(client)
 
       !can_accept_connection?(client_ip) ->
         Logger.warning("SMTP connection rejected from #{client_ip}: connection limit exceeded")
@@ -271,6 +282,7 @@ defmodule Elektrine.SMTP.Server do
           {normalized_cmd, handled}
 
         _ ->
+          handle_invalid_command("INVALID", state)
           send_response(state.socket, "500 Command not recognized")
           {"INVALID", {:continue, state}}
       end
@@ -790,26 +802,34 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp send_email(state, data) do
-    case Elektrine.SMTP.SendRateLimiter.check_send_limit(state.client_ip) do
-      {:error, :ip_rate_limited} ->
-        Logger.warning("SMTP: IP rate limited for #{state.client_ip}")
-        {:error, :ip_rate_limited}
+    case lookup_submission_idempotency(state.user_id, data) do
+      {:duplicate, response} ->
+        Logger.info("SMTP duplicate submission suppressed for user=#{state.user_id}")
+        {:ok, response}
 
-      {:ok, :allowed} ->
-        params = %{
-          from: state.from,
-          to: Enum.reverse(state.to) |> Enum.join(", "),
-          subject: "(SMTP raw message)",
-          raw_email: data
-        }
+      :new_submission ->
+        case Elektrine.SMTP.SendRateLimiter.check_send_limit(state.client_ip) do
+          {:error, :ip_rate_limited} ->
+            Logger.warning("SMTP: IP rate limited for #{state.client_ip}")
+            {:error, :ip_rate_limited}
 
-        result = Elektrine.Email.Sender.send_email(state.user_id, params)
+          {:ok, :allowed} ->
+            params = %{
+              from: state.from,
+              to: Enum.reverse(state.to) |> Enum.join(", "),
+              subject: "(SMTP raw message)",
+              raw_email: data
+            }
 
-        if match?({:ok, _}, result) do
-          Elektrine.SMTP.SendRateLimiter.record_send(state.client_ip)
+            result = Elektrine.Email.Sender.send_email(state.user_id, params)
+
+            if match?({:ok, _}, result) do
+              Elektrine.SMTP.SendRateLimiter.record_send(state.client_ip)
+              store_submission_idempotency(state.user_id, data, result)
+            end
+
+            result
         end
-
-        result
     end
   end
 
@@ -891,8 +911,15 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_unknown(cmd, state) do
-    send_response(state.socket, "500 Command not recognized: #{cmd}")
-    {:continue, state}
+    case handle_invalid_command(cmd, state) do
+      :blocked ->
+        send_response(state.socket, "421 Too many invalid commands - connection closing")
+        {:quit, state}
+
+      :continue ->
+        send_response(state.socket, "500 Command not recognized: #{cmd}")
+        {:continue, state}
+    end
   end
 
   defp can_accept_connection?(ip) do
@@ -1032,6 +1059,178 @@ defmodule Elektrine.SMTP.Server do
     if :ets.whereis(:smtp_active_connections) == :undefined do
       :ets.new(:smtp_active_connections, [:set, :public, :named_table])
     end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp ensure_submission_idempotency_table do
+    if :ets.whereis(:smtp_submission_idempotency) == :undefined do
+      :ets.new(:smtp_submission_idempotency, [:set, :public, :named_table])
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp ensure_invalid_command_table do
+    if :ets.whereis(:smtp_invalid_commands) == :undefined do
+      :ets.new(:smtp_invalid_commands, [:set, :public, :named_table])
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp lookup_submission_idempotency(user_id, data)
+       when is_integer(user_id) and is_binary(data) do
+    cleanup_submission_idempotency()
+
+    case submission_idempotency_key(user_id, data) do
+      nil ->
+        :new_submission
+
+      key ->
+        case :ets.lookup(:smtp_submission_idempotency, key) do
+          [{^key, response, _inserted_at}] -> {:duplicate, response}
+          [] -> :new_submission
+        end
+    end
+  rescue
+    ArgumentError -> :new_submission
+  end
+
+  defp store_submission_idempotency(user_id, data, {:ok, response})
+       when is_integer(user_id) and is_binary(data) do
+    cleanup_submission_idempotency()
+
+    case submission_idempotency_key(user_id, data) do
+      nil ->
+        :ok
+
+      key ->
+        :ets.insert(:smtp_submission_idempotency, {key, response, System.system_time(:second)})
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp store_submission_idempotency(_user_id, _data, _result), do: :ok
+
+  defp cleanup_submission_idempotency do
+    cutoff = System.system_time(:second) - @submission_idempotency_ttl_seconds
+
+    :ets.select_delete(:smtp_submission_idempotency, [
+      {{:"$1", :"$2", :"$3"}, [{:<, :"$3", cutoff}], [true]}
+    ])
+
+    :ok
+  rescue
+    ArgumentError -> :ok
+  end
+
+  defp submission_idempotency_key(user_id, data) do
+    case extract_message_id(data) do
+      nil -> nil
+      message_id -> {user_id, message_id}
+    end
+  end
+
+  defp extract_message_id(data) when is_binary(data) do
+    case Regex.run(~r/^Message-ID:\s*(.+?)(?:\r?\n(?!\s)|\r?\n\r?\n)/ims, data) do
+      [_, message_id] -> normalize_message_id(message_id)
+      _ -> nil
+    end
+  end
+
+  defp normalize_message_id(nil), do: nil
+  defp normalize_message_id(""), do: nil
+
+  defp normalize_message_id(message_id) when is_binary(message_id) do
+    message_id
+    |> String.replace(~r/\r?\n\s+/, " ")
+    |> String.trim()
+    |> String.replace(~r/^<|>$/, "")
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_message_id(message_id), do: normalize_message_id(to_string(message_id))
+
+  defp handle_invalid_command(_command, %{client_ip: nil}), do: :continue
+
+  defp handle_invalid_command(_command, %{client_ip: client_ip}) do
+    cleanup_invalid_command_entries()
+
+    now = System.system_time(:second)
+
+    {count, first_seen, blocked_until} =
+      case :ets.lookup(:smtp_invalid_commands, client_ip) do
+        [{^client_ip, existing_count, existing_first_seen, existing_blocked_until}] ->
+          {existing_count + 1, existing_first_seen, existing_blocked_until}
+
+        [] ->
+          {1, now, nil}
+      end
+
+    blocked_until =
+      cond do
+        is_integer(blocked_until) and blocked_until > now -> blocked_until
+        count >= @invalid_command_block_threshold -> now + @invalid_command_block_seconds
+        true -> nil
+      end
+
+    :ets.insert(:smtp_invalid_commands, {client_ip, count, first_seen, blocked_until})
+
+    if count >= @invalid_command_block_threshold do
+      Logger.error(
+        "SECURITY ALERT: SMTP invalid command flood from #{client_ip} - #{count} invalid commands in #{now - first_seen}s"
+      )
+    end
+
+    if is_integer(blocked_until) and blocked_until > now, do: :blocked, else: :continue
+  rescue
+    ArgumentError -> :continue
+  end
+
+  defp blocked_ip?(client_ip) when is_binary(client_ip) do
+    cleanup_invalid_command_entries()
+
+    case :ets.lookup(:smtp_invalid_commands, client_ip) do
+      [{^client_ip, _count, _first_seen, blocked_until}] when is_integer(blocked_until) ->
+        blocked_until > System.system_time(:second)
+
+      _ ->
+        false
+    end
+  rescue
+    ArgumentError -> false
+  end
+
+  defp cleanup_invalid_command_entries do
+    now = System.system_time(:second)
+    cutoff = now - @invalid_command_retention_seconds
+
+    :ets.foldl(
+      fn {client_ip, _count, first_seen, blocked_until}, _acc ->
+        expired_block = is_integer(blocked_until) and blocked_until < now
+
+        if first_seen < cutoff and (is_nil(blocked_until) or expired_block) do
+          :ets.delete(:smtp_invalid_commands, client_ip)
+        end
+
+        :ok
+      end,
+      :ok,
+      :smtp_invalid_commands
+    )
 
     :ok
   rescue
