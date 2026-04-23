@@ -3,7 +3,7 @@ defmodule ElektrineWeb.Components.Social.PollDisplayTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.Messaging.OptionalSocialSchemas.{Poll, PollOption}
+  alias Elektrine.Social.{Poll, PollOption}
   alias ElektrineWeb.Components.Social.PollDisplay
 
   test "renders local poll cards for optional social poll structs" do
@@ -58,7 +58,7 @@ defmodule ElektrineWeb.Components.Social.PollDisplayTest do
         interactive: true
       )
 
-    assert html =~ ~s(phx-click="vote_remote_poll")
+    assert html =~ ~s(phx-click="vote_poll")
     assert html =~ ~s(phx-value-option_name="Yes")
     assert html =~ ~s(phx-value-message_id="123")
   end

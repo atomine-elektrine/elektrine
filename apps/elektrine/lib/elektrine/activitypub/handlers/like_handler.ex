@@ -19,7 +19,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
     object_uri = extract_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
-         {:ok, message} <- get_local_message_from_uri(object_uri),
+         {:ok, message} <- get_or_fetch_message_from_uri(object_uri),
          {:ok, remote_actor} <- fetch_remote_actor(actor_uri, :like_actor_fetch_failed) do
       case Messaging.create_federated_like(message.id, remote_actor.id, activity_id) do
         {:ok, _like} ->
@@ -38,8 +38,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
       end
     else
       {:error, :message_not_found} ->
-        Logger.debug("Like for unknown message, ignoring")
-        {:error, :handle_like_failed}
+        Logger.debug("Like target #{inspect(object_uri)} not available yet, retrying")
+        {:error, :message_not_found}
 
       {:error, :like_actor_fetch_failed} ->
         {:error, :like_actor_fetch_failed}
@@ -58,7 +58,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
     object_uri = extract_target_object_uri(object_ref)
 
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
-         {:ok, message} <- get_local_message_from_uri(object_uri),
+         {:ok, message} <- get_or_fetch_message_from_uri(object_uri),
          {:ok, remote_actor} <- fetch_remote_actor(actor_uri, :dislike_actor_fetch_failed) do
       case Messaging.create_federated_dislike(message.id, remote_actor.id, activity_id) do
         {:ok, _dislike} ->
@@ -70,8 +70,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
       end
     else
       {:error, :message_not_found} ->
-        Logger.debug("Dislike for unknown message, ignoring")
-        {:error, :handle_dislike_failed}
+        Logger.debug("Dislike target #{inspect(object_uri)} not available yet, retrying")
+        {:error, :message_not_found}
 
       {:error, :dislike_actor_fetch_failed} ->
         {:error, :dislike_actor_fetch_failed}
@@ -96,7 +96,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
       with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
            {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
            {:ok, message} <- get_or_fetch_message_from_uri(object_uri) do
-        case Elektrine.Messaging.Messages.create_federated_emoji_reaction(
+        case Elektrine.Social.Messages.create_federated_emoji_reaction(
                message.id,
                remote_actor.id,
                emoji,
@@ -203,7 +203,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
     with {:ok, object_uri} when not is_nil(object_uri) <- {:ok, object_uri},
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
          {:ok, message} <- get_local_message_from_uri(object_uri) do
-      Elektrine.Messaging.Messages.delete_federated_emoji_reaction(
+      Elektrine.Social.Messages.delete_federated_emoji_reaction(
         message.id,
         remote_actor.id,
         emoji

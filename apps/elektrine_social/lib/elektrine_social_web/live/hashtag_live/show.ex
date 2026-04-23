@@ -1,10 +1,10 @@
 defmodule ElektrineSocialWeb.HashtagLive.Show do
   use ElektrineSocialWeb, :live_view
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   import ElektrineSocialWeb.Components.Platform.ENav
@@ -222,7 +222,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
       user_id = socket.assigns.current_user.id
 
       existing_reaction =
-        Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
+        Elektrine.Repo.get_by(Elektrine.Social.MessageReaction,
           message_id: message_id,
           user_id: user_id,
           emoji: emoji
@@ -517,9 +517,9 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
             message_id = poll.message_id
 
             updated_post =
-              Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+              Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
               |> Elektrine.Repo.preload(hashtag_post_preloads(), force: true)
-              |> Elektrine.Messaging.Message.decrypt_content()
+              |> Elektrine.Social.Message.decrypt_content()
 
             updated_posts =
               Enum.map(socket.assigns.posts, fn post ->
@@ -593,7 +593,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
         {:noreply, put_flash(socket, :error, "You can only delete your own posts")}
 
       true ->
-        case Elektrine.Messaging.Messages.delete_message(post_id, socket.assigns.current_user.id) do
+        case Elektrine.Social.Messages.delete_message(post_id, socket.assigns.current_user.id) do
           {:ok, _} ->
             updated_posts = Enum.reject(socket.assigns.posts, &(&1.id == post_id))
 
@@ -622,7 +622,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
         {:noreply, put_flash(socket, :error, "Admin only")}
 
       true ->
-        case Elektrine.Messaging.Messages.delete_message(
+        case Elektrine.Social.Messages.delete_message(
                post_id,
                socket.assigns.current_user.id,
                true
@@ -733,14 +733,14 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   defp reload_hashtag_post(message_id) when is_integer(message_id) do
     import Ecto.Query
 
-    from(m in Elektrine.Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where: m.id == ^message_id,
       preload: ^MessagingMessages.timeline_post_preloads()
     )
     |> Elektrine.Repo.one()
     |> case do
       nil -> nil
-      message -> Elektrine.Messaging.Message.decrypt_content(message)
+      message -> Elektrine.Social.Message.decrypt_content(message)
     end
   end
 
@@ -758,7 +758,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   defp parse_positive_int(_), do: :error
 
   defp hashtag_post_preloads do
-    Elektrine.Messaging.Messages.timeline_post_preloads()
+    Elektrine.Social.Messages.timeline_post_preloads()
   end
 
   defp redirect_to_external_url(socket, url) do

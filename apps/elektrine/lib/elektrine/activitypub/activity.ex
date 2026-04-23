@@ -18,7 +18,7 @@ defmodule Elektrine.ActivityPub.Activity do
     field :process_attempts, :integer, default: 0
 
     belongs_to :internal_user, Elektrine.Accounts.User
-    belongs_to :internal_message, Elektrine.Messaging.Message
+    belongs_to :internal_message, Elektrine.Social.Message
 
     has_many :deliveries, Elektrine.ActivityPub.Delivery
 

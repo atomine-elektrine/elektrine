@@ -17,6 +17,15 @@ function hash(x, y) {
   return n - Math.floor(n)
 }
 
+function syncTopChromeHeight() {
+  if (!container) return
+
+  const appNavbar = document.querySelector('.app-navbar')
+  const topChromeHeight = appNavbar ? appNavbar.getBoundingClientRect().height : 0
+
+  container.style.setProperty('--top-chrome-height', `${topChromeHeight}px`)
+}
+
 export function initBlinkenlights() {
   const path = window.location.pathname
   const showOnPages = ['/']
@@ -37,13 +46,17 @@ export function initBlinkenlights() {
 
   document.body.classList.add('has-blinkenlights')
   container.hidden = false
+  syncTopChromeHeight()
 
   createLights()
 
   let resizeTimeout
   resizeHandler = () => {
     clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(createLights, 300)
+    resizeTimeout = setTimeout(() => {
+      syncTopChromeHeight()
+      createLights()
+    }, 300)
   }
   window.addEventListener('resize', resizeHandler)
 

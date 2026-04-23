@@ -202,51 +202,54 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp do_webfinger_lookup(acct, opts) do
-    # acct format: user@domain.com
-    [_username, domain] = String.split(acct, "@", parts: 2)
+    case String.split(acct, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" ->
+        webfinger_url = "https://#{domain}/.well-known/webfinger?resource=acct:#{acct}"
 
-    webfinger_url = "https://#{domain}/.well-known/webfinger?resource=acct:#{acct}"
+        headers = [
+          {"accept", "application/jrd+json, application/json"},
+          {"user-agent", "Elektrine/1.0"}
+        ]
 
-    headers = [
-      {"accept", "application/jrd+json, application/json"},
-      {"user-agent", "Elektrine/1.0"}
-    ]
+        with :ok <- validate_fetch_url(webfinger_url, :webfinger, opts) do
+          case request_with_backoff(webfinger_url, headers, request_opts(opts)) do
+            {:ok, %Finch.Response{status: 200, body: body}} ->
+              case Jason.decode(body) do
+                {:ok, %{"links" => links}} ->
+                  # Find the self link with type application/activity+json
+                  actor_link =
+                    Enum.find(links, fn link ->
+                      link["rel"] == "self" &&
+                        (link["type"] == "application/activity+json" ||
+                           link["type"] ==
+                             "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")
+                    end)
 
-    with :ok <- validate_fetch_url(webfinger_url, :webfinger, opts) do
-      case request_with_backoff(webfinger_url, headers, request_opts(opts)) do
-        {:ok, %Finch.Response{status: 200, body: body}} ->
-          case Jason.decode(body) do
-            {:ok, %{"links" => links}} ->
-              # Find the self link with type application/activity+json
-              actor_link =
-                Enum.find(links, fn link ->
-                  link["rel"] == "self" &&
-                    (link["type"] == "application/activity+json" ||
-                       link["type"] ==
-                         "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"")
-                end)
+                  case actor_link do
+                    %{"href" => href} -> {:ok, href}
+                    _ -> {:error, :no_actor_link}
+                  end
 
-              case actor_link do
-                %{"href" => href} -> {:ok, href}
-                _ -> {:error, :no_actor_link}
+                {:error, _} ->
+                  {:error, :invalid_json}
               end
 
-            {:error, _} ->
-              {:error, :invalid_json}
+            {:ok, %Finch.Response{status: status}} ->
+              Logger.error("WebFinger lookup failed, status: #{status}")
+              {:error, :webfinger_failed}
+
+            {:error, :backoff} ->
+              Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
+              {:error, :webfinger_failed}
+
+            {:error, reason} ->
+              Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
+              {:error, :http_error}
           end
+        end
 
-        {:ok, %Finch.Response{status: status}} ->
-          Logger.error("WebFinger lookup failed, status: #{status}")
-          {:error, :webfinger_failed}
-
-        {:error, :backoff} ->
-          Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
-          {:error, :webfinger_failed}
-
-        {:error, reason} ->
-          Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
-          {:error, :http_error}
-      end
+      _ ->
+        {:error, :invalid_acct}
     end
   end
 

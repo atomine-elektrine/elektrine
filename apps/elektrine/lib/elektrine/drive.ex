@@ -1,13 +1,13 @@
-defmodule Elektrine.Files do
+defmodule Elektrine.Drive do
   @moduledoc """
-  Personal file library with folders, share links, and DAV-friendly operations.
+  Personal drive library with folders, share links, and DAV-friendly operations.
   """
 
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts.Storage
   alias Elektrine.Accounts.User
-  alias Elektrine.Files.{FileShare, StoredFile, StoredFolder}
+  alias Elektrine.Drive.{FileShare, StoredFile, StoredFolder}
   alias Elektrine.Repo
   alias ExAws.S3
 
@@ -371,7 +371,7 @@ defmodule Elektrine.Files do
         %StoredFile{} = file ->
           %FileShare{}
           |> FileShare.changeset(%{
-            stored_file_id: file.id,
+            drive_file_id: file.id,
             user_id: user_id,
             token: random_share_token(),
             expires_at: expires_at,
@@ -767,12 +767,12 @@ defmodule Elektrine.Files do
     end
   end
 
-  defp breadcrumbs(""), do: [%{name: "All files", path: ""}]
+  defp breadcrumbs(""), do: [%{name: "My Drive", path: ""}]
 
   defp breadcrumbs(folder_path) do
     folder_path
     |> String.split("/", trim: true)
-    |> Enum.reduce({[%{name: "All files", path: ""}], ""}, fn segment, {crumbs, prefix} ->
+    |> Enum.reduce({[%{name: "My Drive", path: ""}], ""}, fn segment, {crumbs, prefix} ->
       path = join_path(prefix, segment)
       {crumbs ++ [%{name: segment, path: path}], path}
     end)

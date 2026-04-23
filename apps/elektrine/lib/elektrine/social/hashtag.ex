@@ -9,7 +9,7 @@ defmodule Elektrine.Social.Hashtag do
     field :use_count, :integer, default: 0
     field :last_used_at, :utc_datetime
 
-    many_to_many :messages, Elektrine.Messaging.Message,
+    many_to_many :messages, Elektrine.Social.Message,
       join_through: "post_hashtags",
       on_replace: :delete
 
@@ -23,7 +23,7 @@ defmodule Elektrine.Social.Hashtag do
     |> update_change(:last_used_at, &Elektrine.Time.truncate/1)
     |> validate_required([:name, :normalized_name])
     |> validate_length(:name, min: 1, max: 50)
-    |> validate_format(:name, ~r/^[a-zA-Z0-9_]+$/,
+    |> validate_format(:name, ~r/^[A-Za-z0-9_]+$/,
       message: "can only contain letters, numbers, and underscores"
     )
     |> put_normalized_name()

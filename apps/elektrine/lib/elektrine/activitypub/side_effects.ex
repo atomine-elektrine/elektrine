@@ -168,7 +168,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
     import Ecto.Query
 
     Elektrine.Repo.update_all(
-      from(m in Elektrine.Messaging.Message, where: m.id == ^parent_message_id),
+      from(m in Elektrine.Social.Message, where: m.id == ^parent_message_id),
       inc: [reply_count: 1]
     )
 
@@ -194,7 +194,7 @@ defmodule Elektrine.ActivityPub.SideEffects do
 
     if updates != [] do
       Elektrine.Repo.update_all(
-        from(m in Elektrine.Messaging.Message, where: m.id == ^message_id),
+        from(m in Elektrine.Social.Message, where: m.id == ^message_id),
         set: updates
       )
     end

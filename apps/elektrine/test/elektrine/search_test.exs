@@ -4,8 +4,8 @@ defmodule Elektrine.SearchTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Messaging.Message
   alias Elektrine.{Repo, Search}
+  alias Elektrine.Social.Message
 
   describe "global_search/3" do
     test "finds local people when the query starts with @" do

@@ -1,4 +1,4 @@
-defmodule Elektrine.Messaging.Conversations do
+defmodule Elektrine.Social.Conversations do
   @moduledoc "Context for managing conversations - creation, updates, membership, and discovery.\n"
   import Ecto.Query, warn: false
   alias Elektrine.Accounts
@@ -7,15 +7,14 @@ defmodule Elektrine.Messaging.Conversations do
   alias Elektrine.Messaging.{
     ChatMessage,
     ChatUserHiddenMessage,
-    Conversation,
-    ConversationMember,
     Federation,
     FederationInviteState,
     FederationMembershipState,
-    Message,
     RateLimiter,
     UserHiddenMessage
   }
+
+  alias Elektrine.Social.{Conversation, ConversationMember, Message}
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor, as: ActivityPubActor

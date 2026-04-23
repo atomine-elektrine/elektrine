@@ -1,4 +1,4 @@
-defmodule Elektrine.Messaging.Messages do
+defmodule Elektrine.Social.Messages do
   @moduledoc """
   Context for managing messages - creation, editing, deletion, and retrieval.
   """
@@ -8,13 +8,8 @@ defmodule Elektrine.Messaging.Messages do
   alias Elektrine.{Accounts, AppCache}
   alias Elektrine.Repo
 
-  alias Elektrine.Messaging.{
-    Conversation,
-    ConversationMember,
-    Message,
-    RateLimiter,
-    UserHiddenMessage
-  }
+  alias Elektrine.Messaging.{RateLimiter, UserHiddenMessage}
+  alias Elektrine.Social.{Conversation, ConversationMember, Message}
 
   alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
   @mention_pattern ~r/(?:^|[^A-Za-z0-9_])@([A-Za-z0-9_]{1,30})/
@@ -1264,7 +1259,7 @@ defmodule Elektrine.Messaging.Messages do
       )
 
     # Check the conversation type to determine broadcast channel
-    conversation = Repo.get!(Elektrine.Messaging.Conversation, message.conversation_id)
+    conversation = Repo.get!(Elektrine.Social.Conversation, message.conversation_id)
 
     # Only broadcast to conversation channel for chat messages (dm/group/channel)
     # Communities and timelines use their own channels
@@ -2088,7 +2083,7 @@ defmodule Elektrine.Messaging.Messages do
   Supports custom emoji with URLs (4th argument).
   """
   def create_federated_emoji_reaction(message_id, remote_actor_id, emoji, emoji_url \\ nil) do
-    alias Elektrine.Messaging.MessageReaction
+    alias Elektrine.Social.MessageReaction
 
     # Check if already reacted with this emoji
     existing =
@@ -2160,7 +2155,7 @@ defmodule Elektrine.Messaging.Messages do
   Deletes an emoji reaction from a remote actor (Undo EmojiReact).
   """
   def delete_federated_emoji_reaction(message_id, remote_actor_id, emoji) do
-    alias Elektrine.Messaging.MessageReaction
+    alias Elektrine.Social.MessageReaction
 
     # Delete reaction record
     case Repo.get_by(MessageReaction,

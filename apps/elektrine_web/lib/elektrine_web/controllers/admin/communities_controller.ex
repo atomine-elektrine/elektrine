@@ -30,7 +30,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Base query for counting (without group_by)
     count_query =
-      from(c in Elektrine.Messaging.Conversation,
+      from(c in Elektrine.Social.Conversation,
         where: c.type == "community"
       )
 
@@ -69,9 +69,9 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Base query with message counts for display
     base_query =
-      from(c in Elektrine.Messaging.Conversation,
+      from(c in Elektrine.Social.Conversation,
         where: c.type == "community",
-        left_join: m in Elektrine.Messaging.Message,
+        left_join: m in Elektrine.Social.Message,
         on: m.conversation_id == c.id and is_nil(m.deleted_at),
         group_by: c.id,
         select: %{
@@ -130,7 +130,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Get category counts for filter
     category_counts =
-      from(c in Elektrine.Messaging.Conversation,
+      from(c in Elektrine.Social.Conversation,
         where: c.type == "community",
         group_by: c.community_category,
         select: {c.community_category, count(c.id)}
@@ -142,17 +142,17 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
     stats = %{
       total: total_count,
       public:
-        from(c in Elektrine.Messaging.Conversation,
+        from(c in Elektrine.Social.Conversation,
           where: c.type == "community" and c.is_public == true
         )
         |> Repo.aggregate(:count),
       private:
-        from(c in Elektrine.Messaging.Conversation,
+        from(c in Elektrine.Social.Conversation,
           where: c.type == "community" and c.is_public == false
         )
         |> Repo.aggregate(:count),
       active_7d:
-        from(c in Elektrine.Messaging.Conversation,
+        from(c in Elektrine.Social.Conversation,
           where: c.type == "community" and c.last_message_at > ago(7, "day")
         )
         |> Repo.aggregate(:count)
@@ -177,7 +177,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
   def show(conn, %{"id" => id} = params) do
     community =
-      Repo.get!(Elektrine.Messaging.Conversation, id)
+      Repo.get!(Elektrine.Social.Conversation, id)
       |> Repo.preload([:creator])
 
     # Pagination for members
@@ -186,7 +186,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Get members with their roles
     members_query =
-      from(cm in Elektrine.Messaging.ConversationMember,
+      from(cm in Elektrine.Social.ConversationMember,
         where: cm.conversation_id == ^id and is_nil(cm.left_at),
         join: u in Accounts.User,
         on: cm.user_id == u.id,
@@ -224,7 +224,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Get posts with pagination
     posts_query =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.conversation_id == ^id and is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at]
       )
@@ -237,7 +237,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
       |> offset(^((posts_page - 1) * posts_per_page))
       |> preload(:sender)
       |> Repo.all()
-      |> Elektrine.Messaging.Message.decrypt_messages()
+      |> Elektrine.Social.Message.decrypt_messages()
       |> Enum.map(fn m ->
         %{
           id: m.id,
@@ -261,13 +261,13 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
       total_posts: total_posts,
       total_members: total_members,
       posts_7d:
-        from(m in Elektrine.Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where:
             m.conversation_id == ^id and is_nil(m.deleted_at) and m.inserted_at > ago(7, "day")
         )
         |> Repo.aggregate(:count),
       posts_30d:
-        from(m in Elektrine.Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where:
             m.conversation_id == ^id and is_nil(m.deleted_at) and m.inserted_at > ago(30, "day")
         )
@@ -289,15 +289,15 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
   end
 
   def delete(conn, %{"id" => id}) do
-    community = Repo.get!(Elektrine.Messaging.Conversation, id)
+    community = Repo.get!(Elektrine.Social.Conversation, id)
 
     # Count what will be deleted for the confirmation message
     message_count =
-      from(m in Elektrine.Messaging.Message, where: m.conversation_id == ^id)
+      from(m in Elektrine.Social.Message, where: m.conversation_id == ^id)
       |> Repo.aggregate(:count, :id)
 
     member_count =
-      from(cm in Elektrine.Messaging.ConversationMember,
+      from(cm in Elektrine.Social.ConversationMember,
         where: cm.conversation_id == ^id and is_nil(cm.left_at)
       )
       |> Repo.aggregate(:count, :id)
@@ -311,11 +311,11 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
     |> Repo.delete_all()
 
     # Delete all messages in the community (includes posts, discussions, and replies)
-    from(m in Elektrine.Messaging.Message, where: m.conversation_id == ^id)
+    from(m in Elektrine.Social.Message, where: m.conversation_id == ^id)
     |> Repo.delete_all()
 
     # Delete all members
-    from(cm in Elektrine.Messaging.ConversationMember, where: cm.conversation_id == ^id)
+    from(cm in Elektrine.Social.ConversationMember, where: cm.conversation_id == ^id)
     |> Repo.delete_all()
 
     # Delete the community itself
@@ -330,7 +330,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
   end
 
   def toggle(conn, %{"id" => id}) do
-    community = Repo.get!(Elektrine.Messaging.Conversation, id)
+    community = Repo.get!(Elektrine.Social.Conversation, id)
 
     # Toggle enabled status (using is_public as enabled flag for now)
     changeset =
@@ -349,11 +349,11 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
   def remove_member(conn, %{"id" => id} = params) do
     user_id = params["user_id"]
-    community = Repo.get!(Elektrine.Messaging.Conversation, id)
+    community = Repo.get!(Elektrine.Social.Conversation, id)
 
     # Find and update the member record
     member =
-      Repo.get_by!(Elektrine.Messaging.ConversationMember,
+      Repo.get_by!(Elektrine.Social.ConversationMember,
         conversation_id: id,
         user_id: user_id
       )
@@ -367,7 +367,7 @@ defmodule ElektrineWeb.Admin.CommunitiesController do
 
     # Update member count
     new_count =
-      from(cm in Elektrine.Messaging.ConversationMember,
+      from(cm in Elektrine.Social.ConversationMember,
         where: cm.conversation_id == ^id and is_nil(cm.left_at)
       )
       |> Repo.aggregate(:count, :id)

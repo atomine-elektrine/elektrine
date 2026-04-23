@@ -18,7 +18,7 @@ defmodule Elektrine.Social.LinkPreviewJob do
     field :error, :string
     field :completed_at, :utc_datetime
 
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
     belongs_to :link_preview, Elektrine.Social.LinkPreview
 
     timestamps()

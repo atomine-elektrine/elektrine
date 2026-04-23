@@ -5,7 +5,7 @@ defmodule Elektrine.Messaging.UserTimeout do
 
   schema "user_timeouts" do
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :created_by, Elektrine.Accounts.User
     field :timeout_until, :utc_datetime
     field :reason, :string

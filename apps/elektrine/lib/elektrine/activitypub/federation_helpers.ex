@@ -162,7 +162,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
         else
           # Get messages from those remote actors
           messages =
-            from(m in Elektrine.Messaging.Message,
+            from(m in Elektrine.Social.Message,
               where: m.federated == true and m.remote_actor_id in ^remote_actor_ids,
               where: is_nil(m.deleted_at),
               order_by: [desc: m.inserted_at],
@@ -206,7 +206,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
 
         # Query for combined posts
         query =
-          from(m in Elektrine.Messaging.Message,
+          from(m in Elektrine.Social.Message,
             where: is_nil(m.deleted_at),
             where: m.visibility in ["public", "unlisted"],
             order_by: [desc: m.inserted_at],
@@ -247,7 +247,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
     offset = Keyword.get(opts, :offset, 0)
 
     messages =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.federated == true and m.visibility == "public",
         where: is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at],
@@ -281,7 +281,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
       pending_deliveries: length(ActivityPub.get_pending_deliveries(1000)),
       federated_messages:
         Repo.aggregate(
-          from(m in Elektrine.Messaging.Message, where: m.federated == true),
+          from(m in Elektrine.Social.Message, where: m.federated == true),
           :count,
           :id
         ),

@@ -160,7 +160,7 @@ defmodule ElektrineChatWeb.Admin.ChatMessagesController do
 
   defp base_chat_messages_query do
     from(m in Messaging.ChatMessage,
-      left_join: c in Messaging.Conversation,
+      left_join: c in Elektrine.Social.Conversation,
       on: m.conversation_id == c.id,
       left_join: s in Elektrine.Accounts.User,
       on: m.sender_id == s.id,

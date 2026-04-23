@@ -7,8 +7,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.FavouriteController do
 
   import Ecto.Query
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.PostLike
   alias ElektrineSocialWeb.MastodonAPI.StatusView
 

@@ -6,7 +6,7 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
   alias Elektrine.{AccountsFixtures, Messaging, Repo, Social, SocialFixtures}
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Emojis.CustomEmoji
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   defp log_in_user(conn, user) do
     token =

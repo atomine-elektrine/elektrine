@@ -5,8 +5,8 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Visibility
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Repo
+  alias Elektrine.Social.Messages, as: MessagingMessages
 
   def sync_actor_outbox(actor_or_id, limit \\ 20)
 
@@ -128,7 +128,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
     if visibility != "public" do
       if existing.visibility != visibility do
         case existing
-             |> Elektrine.Messaging.Message.federated_changeset(%{visibility: visibility})
+             |> Elektrine.Social.Message.federated_changeset(%{visibility: visibility})
              |> Repo.update() do
           {:ok, _message} -> nil
           {:error, _} -> nil
@@ -172,7 +172,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
 
       if map_size(updates) > 0 do
         case existing
-             |> Elektrine.Messaging.Message.federated_changeset(updates)
+             |> Elektrine.Social.Message.federated_changeset(updates)
              |> Repo.update() do
           {:ok, message} ->
             if message.visibility == "public" do

@@ -6,7 +6,7 @@ defmodule Elektrine.ActivityPub.Builder do
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.{Conversation, Message}
+  alias Elektrine.Social.{Conversation, Message}
 
   @doc """
   Builds an Actor document for a user.
@@ -607,8 +607,8 @@ defmodule Elektrine.ActivityPub.Builder do
       # Load the quoted message if not already loaded
       quoted_message =
         case message.quoted_message do
-          %Elektrine.Messaging.Message{} = qm -> qm
-          _ -> Elektrine.Repo.get(Elektrine.Messaging.Message, message.quoted_message_id)
+          %Elektrine.Social.Message{} = qm -> qm
+          _ -> Elektrine.Repo.get(Elektrine.Social.Message, message.quoted_message_id)
         end
 
       if quoted_message && quoted_message.activitypub_id do

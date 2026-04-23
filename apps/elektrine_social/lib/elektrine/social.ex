@@ -12,16 +12,16 @@ defmodule Elektrine.Social do
   alias Elektrine.Async
   alias Elektrine.Friends
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.{Conversation, Message}
-  alias Elektrine.Messaging.ConversationMember
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.RateLimiter
   alias Elektrine.Notifications
   alias Elektrine.Profiles
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
   alias Elektrine.Security.ContentValidator
+  alias Elektrine.Social.{Conversation, Message}
+  alias Elektrine.Social.ConversationMember
   alias Elektrine.Social.{FetchLinkPreviewWorker, Hashtag, HashtagExtractor, LinkPreviewFetcher}
+  alias Elektrine.Social.Messages, as: MessagingMessages
   @discussion_post_types ["discussion", "link", "poll"]
   @public_audience_uris ["Public", "as:Public", "https://www.w3.org/ns/activitystreams#Public"]
 

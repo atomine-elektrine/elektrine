@@ -4,7 +4,7 @@ defmodule Elektrine.IMAP.Commands do
   alias Elektrine.Constants
   alias Elektrine.Domains
   alias Elektrine.Email.AttachmentStorage
-  alias Elektrine.IMAP.{Helpers, Response}
+  alias Elektrine.IMAP.{Helpers, RecentTracker, Response}
   alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
@@ -33,7 +33,6 @@ defmodule Elektrine.IMAP.Commands do
     "QUOTA",
     "STATUS=SIZE"
   ]
-  @unauthenticated_capabilities ["AUTH=PLAIN", "AUTH=LOGIN" | @authenticated_capabilities]
   @system_folders [
     {"INBOX", "\\HasNoChildren"},
     {"Sent", "\\HasNoChildren \\Sent"},
@@ -44,13 +43,40 @@ defmodule Elektrine.IMAP.Commands do
   @doc false
   def capability_string(state \\ :not_authenticated)
 
+  def capability_string(%{state: state_name} = state) do
+    state_name
+    |> capability_list(state)
+    |> Enum.join(" ")
+  end
+
   def capability_string(:not_authenticated) do
-    Enum.join(@unauthenticated_capabilities, " ")
+    capability_list(:not_authenticated, %{})
+    |> Enum.join(" ")
   end
 
   def capability_string(_state) do
     Enum.join(@authenticated_capabilities, " ")
   end
+
+  defp capability_list(:not_authenticated, state) do
+    auth_caps =
+      if auth_allowed?(state) do
+        ["AUTH=PLAIN", "AUTH=LOGIN"]
+      else
+        []
+      end
+
+    starttls_caps =
+      if starttls_available?(state) do
+        ["STARTTLS"]
+      else
+        []
+      end
+
+    auth_caps ++ starttls_caps ++ @authenticated_capabilities
+  end
+
+  defp capability_list(_state, _context), do: @authenticated_capabilities
 
   @doc "Process IMAP command"
   def process_command(tag, cmd, args, state) do
@@ -169,27 +195,79 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_capability(tag, state) do
-    Helpers.send_response(state.socket, "* CAPABILITY #{capability_string(state.state)}")
+    Helpers.send_response(state.socket, "* CAPABILITY #{capability_string(state)}")
     Helpers.send_response(state.socket, "#{tag} OK CAPABILITY completed")
     {:continue, state}
   end
 
   defp handle_starttls(tag, state) do
-    Helpers.send_response(state.socket, "#{tag} NO STARTTLS not available (use port 993 for TLS)")
-    {:continue, state}
+    cond do
+      secure_transport?(state) ->
+        Helpers.send_response(state.socket, "#{tag} BAD STARTTLS not valid when TLS is active")
+        {:continue, state}
+
+      !starttls_available?(state) ->
+        Helpers.send_response(state.socket, "#{tag} NO STARTTLS not available")
+        {:continue, state}
+
+      true ->
+        Helpers.send_response(state.socket, "#{tag} OK Begin TLS negotiation now")
+
+        case Socket.starttls(state.socket, state.tls_opts) do
+          {:ok, tls_socket} ->
+            Socket.setopts(tls_socket, [
+              {:active, false},
+              {:packet, :line},
+              {:keepalive, true},
+              {:nodelay, true},
+              {:send_timeout, Constants.imap_send_timeout_ms()},
+              {:recbuf, 65_536},
+              {:sndbuf, 65_536}
+            ])
+
+            {:continue,
+             %{
+               state
+               | socket: tls_socket,
+                 transport: :ssl,
+                 authenticated: false,
+                 user: nil,
+                 username: nil,
+                 mailbox: nil,
+                 selected_folder: nil,
+                 messages: [],
+                 recent_message_ids: MapSet.new(),
+                 folder_key: nil,
+                 message_flags: %{},
+                 idle_session_id: nil,
+                 idle_start: nil,
+                 initial_data: nil,
+                 state: :not_authenticated
+             }}
+
+          {:error, reason} ->
+            Logger.warning("IMAP STARTTLS failed: #{inspect(reason)}")
+            {:logout, state}
+        end
+    end
   end
 
   defp handle_noop_any_state(tag, state) do
     if state.state == :selected && state.mailbox && state.selected_folder do
       {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
+      recent_message_ids = merge_recent_message_ids(state, fresh_messages)
 
       if length(fresh_messages) != length(state.messages) do
         Helpers.send_response(state.socket, "* #{length(fresh_messages)} EXISTS")
-        Helpers.send_response(state.socket, "* #{length(fresh_messages)} RECENT")
+
+        Helpers.send_response(
+          state.socket,
+          "* #{count_recent_messages(fresh_messages, recent_message_ids)} RECENT"
+        )
       end
 
       Helpers.send_response(state.socket, "#{tag} OK NOOP completed")
-      {:continue, %{state | messages: fresh_messages}}
+      {:continue, %{state | messages: fresh_messages, recent_message_ids: recent_message_ids}}
     else
       Helpers.send_response(state.socket, "#{tag} OK NOOP completed")
       {:continue, state}
@@ -197,80 +275,85 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_authenticate(tag, args, state) do
-    case parse_authenticate_args(args) do
-      {:ok, "PLAIN", nil} ->
-        Helpers.send_response(state.socket, "+")
+    if auth_allowed?(state) do
+      case parse_authenticate_args(args) do
+        {:ok, "PLAIN", nil} ->
+          Helpers.send_response(state.socket, "+")
 
-        case Socket.recv(state.socket, 0, 60_000) do
-          {:ok, data} ->
-            authenticate_plain_payload(tag, data, state)
+          case Socket.recv(state.socket, 0, 60_000) do
+            {:ok, data} ->
+              authenticate_plain_payload(tag, data, state)
 
-          {:error, _} ->
-            Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-            {:continue, state}
-        end
+            {:error, _} ->
+              Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+              {:continue, state}
+          end
 
-      {:ok, "PLAIN", initial_response} ->
-        authenticate_plain_payload(tag, initial_response, state)
+        {:ok, "PLAIN", initial_response} ->
+          authenticate_plain_payload(tag, initial_response, state)
 
-      {:ok, "LOGIN", nil} ->
-        Helpers.send_response(state.socket, "+ VXNlcm5hbWU6")
+        {:ok, "LOGIN", nil} ->
+          Helpers.send_response(state.socket, "+ VXNlcm5hbWU6")
 
-        case Socket.recv(state.socket, 0, 60_000) do
-          {:ok, username_data} ->
-            case Helpers.decode_auth_login_line(username_data) do
-              {:ok, "*"} ->
-                Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
-                {:continue, state}
+          case Socket.recv(state.socket, 0, 60_000) do
+            {:ok, username_data} ->
+              case Helpers.decode_auth_login_line(username_data) do
+                {:ok, "*"} ->
+                  Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
+                  {:continue, state}
 
-              {:ok, username} ->
-                Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
+                {:ok, username} ->
+                  Helpers.send_response(state.socket, "+ UGFzc3dvcmQ6")
 
-                case Socket.recv(state.socket, 0, 60_000) do
-                  {:ok, password_data} ->
-                    case Helpers.decode_auth_login_line(password_data) do
-                      {:ok, "*"} ->
-                        Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
-                        {:continue, state}
+                  case Socket.recv(state.socket, 0, 60_000) do
+                    {:ok, password_data} ->
+                      case Helpers.decode_auth_login_line(password_data) do
+                        {:ok, "*"} ->
+                          Helpers.send_response(state.socket, "#{tag} BAD AUTHENTICATE cancelled")
+                          {:continue, state}
 
-                      {:ok, password} ->
-                        do_authenticate(tag, username, password, state)
+                        {:ok, password} ->
+                          do_authenticate(tag, username, password, state)
 
-                      :error ->
-                        Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-                        {:continue, state}
-                    end
+                        :error ->
+                          Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+                          {:continue, state}
+                      end
 
-                  {:error, _} ->
-                    Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-                    {:continue, state}
-                end
+                    {:error, _} ->
+                      Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+                      {:continue, state}
+                  end
 
-              :error ->
-                Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-                {:continue, state}
-            end
+                :error ->
+                  Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+                  {:continue, state}
+              end
 
-          {:error, _} ->
-            Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
-            {:continue, state}
-        end
+            {:error, _} ->
+              Helpers.send_response(state.socket, "#{tag} NO AUTHENTICATE failed")
+              {:continue, state}
+          end
 
-      {:ok, "LOGIN", _initial_response} ->
-        Helpers.send_response(
-          state.socket,
-          "#{tag} BAD Unexpected initial response for AUTHENTICATE LOGIN"
-        )
+        {:ok, "LOGIN", _initial_response} ->
+          Helpers.send_response(
+            state.socket,
+            "#{tag} BAD Unexpected initial response for AUTHENTICATE LOGIN"
+          )
 
-        {:continue, state}
+          {:continue, state}
 
-      {:ok, _mechanism, _initial_response} ->
-        Helpers.send_response(state.socket, "#{tag} NO Unsupported authentication mechanism")
-        {:continue, state}
+        {:ok, _mechanism, _initial_response} ->
+          Helpers.send_response(state.socket, "#{tag} NO Unsupported authentication mechanism")
+          {:continue, state}
 
-      {:error, :missing_mechanism} ->
-        Helpers.send_response(state.socket, "#{tag} BAD Missing authentication mechanism")
-        {:continue, state}
+        {:error, :missing_mechanism} ->
+          Helpers.send_response(state.socket, "#{tag} BAD Missing authentication mechanism")
+          {:continue, state}
+      end
+    else
+      Helpers.send_response(state.socket, "#{tag} NO STARTTLS required before authentication")
+      {:continue, state}
     end
   end
 
@@ -308,13 +391,18 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp handle_login(tag, args, state) do
-    case Helpers.parse_login_args(args) do
-      {:ok, username, password} ->
-        do_authenticate(tag, username, password, state)
+    if auth_allowed?(state) do
+      case Helpers.parse_login_args(args) do
+        {:ok, username, password} ->
+          do_authenticate(tag, username, password, state)
 
-      {:error, _} ->
-        Helpers.send_response(state.socket, "#{tag} BAD Invalid LOGIN arguments")
-        {:continue, state}
+        {:error, _} ->
+          Helpers.send_response(state.socket, "#{tag} BAD Invalid LOGIN arguments")
+          {:continue, state}
+      end
+    else
+      Helpers.send_response(state.socket, "#{tag} NO STARTTLS required before authentication")
+      {:continue, state}
     end
   end
 
@@ -327,10 +415,12 @@ defmodule Elektrine.IMAP.Commands do
   defp handle_select(tag, args, state) do
     with {:ok, folder} <- Helpers.parse_mailbox_arg(args),
          {:ok, messages} <- load_folder_messages(state.mailbox, folder) do
-      unseen_count = Helpers.count_unseen(messages)
+      canonical_folder = Helpers.canonical_system_folder_name(folder)
+      folder_key = folder_key_for_mailbox(state.mailbox, canonical_folder)
+      recent_message_ids = claim_recent_message_ids(state.mailbox, folder_key, messages)
       first_unseen = find_first_unseen(messages)
       Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
-      Helpers.send_response(state.socket, "* #{unseen_count} RECENT")
+      Helpers.send_response(state.socket, "* #{MapSet.size(recent_message_ids)} RECENT")
 
       Helpers.send_response(
         state.socket,
@@ -355,7 +445,16 @@ defmodule Elektrine.IMAP.Commands do
 
       Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
       Helpers.send_response(state.socket, "#{tag} OK [READ-WRITE] SELECT completed")
-      {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
+
+      {:continue,
+       %{
+         state
+         | selected_folder: canonical_folder,
+           messages: messages,
+           recent_message_ids: recent_message_ids,
+           folder_key: folder_key,
+           state: :selected
+       }}
     else
       {:error, :missing_mailbox_name} ->
         Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
@@ -366,10 +465,13 @@ defmodule Elektrine.IMAP.Commands do
   defp handle_examine(tag, args, state) do
     with {:ok, folder} <- Helpers.parse_mailbox_arg(args),
          {:ok, messages} <- load_folder_messages(state.mailbox, folder) do
+      canonical_folder = Helpers.canonical_system_folder_name(folder)
+      folder_key = folder_key_for_mailbox(state.mailbox, canonical_folder)
+      recent_message_ids = claim_recent_message_ids(state.mailbox, folder_key, messages)
       _unseen_count = Helpers.count_unseen(messages)
       first_unseen = find_first_unseen(messages)
       Helpers.send_response(state.socket, "* #{length(messages)} EXISTS")
-      Helpers.send_response(state.socket, "* 0 RECENT")
+      Helpers.send_response(state.socket, "* #{MapSet.size(recent_message_ids)} RECENT")
 
       Helpers.send_response(
         state.socket,
@@ -394,7 +496,16 @@ defmodule Elektrine.IMAP.Commands do
 
       Helpers.send_response(state.socket, "* OK [HIGHESTMODSEQ 1] Highest modseq")
       Helpers.send_response(state.socket, "#{tag} OK [READ-ONLY] EXAMINE completed")
-      {:continue, %{state | selected_folder: folder, messages: messages, state: :selected}}
+
+      {:continue,
+       %{
+         state
+         | selected_folder: canonical_folder,
+           messages: messages,
+           recent_message_ids: recent_message_ids,
+           folder_key: folder_key,
+           state: :selected
+       }}
     else
       {:error, :missing_mailbox_name} ->
         Helpers.send_response(state.socket, "#{tag} BAD Missing mailbox name")
@@ -796,7 +907,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp system_folder_name?(folder_name) when is_binary(folder_name) do
-    normalized = String.upcase(String.trim(folder_name))
+    normalized = folder_name |> Helpers.canonical_system_folder_name() |> String.upcase()
     Enum.any?(@system_folders, fn {name, _attrs} -> String.upcase(name) == normalized end)
   end
 
@@ -900,7 +1011,7 @@ defmodule Elektrine.IMAP.Commands do
   defp maybe_send_list_status(folder, status_items, state) do
     if state.mailbox do
       {:ok, messages} = load_folder_messages(state.mailbox, folder)
-      items = build_status_items(messages, status_items, state)
+      items = build_status_items(messages, status_items, state, folder)
       escaped_folder = Helpers.escape_imap_string(folder)
       Helpers.send_response(state.socket, "* STATUS \"#{escaped_folder}\" (#{items})")
     end
@@ -960,7 +1071,7 @@ defmodule Elektrine.IMAP.Commands do
     case Helpers.parse_status_args(args) do
       {:ok, folder, items} ->
         {:ok, messages} = load_folder_messages(state.mailbox, folder)
-        status_items = build_status_items(messages, items, state)
+        status_items = build_status_items(messages, items, state, folder)
 
         escaped_folder = Helpers.escape_imap_string(folder)
         Helpers.send_response(state.socket, "* STATUS \"#{escaped_folder}\" (#{status_items})")
@@ -973,12 +1084,12 @@ defmodule Elektrine.IMAP.Commands do
     {:continue, state}
   end
 
-  defp build_status_items(messages, items, state) do
+  defp build_status_items(messages, items, state, folder) do
     items
     |> Enum.map(fn item ->
       case String.upcase(item) do
         "MESSAGES" -> "MESSAGES #{length(messages)}"
-        "RECENT" -> "RECENT #{Helpers.count_unseen(messages)}"
+        "RECENT" -> "RECENT #{status_recent_count(messages, state, folder)}"
         "UNSEEN" -> "UNSEEN #{Helpers.count_unseen(messages)}"
         "UIDNEXT" -> "UIDNEXT #{Helpers.get_next_uid(messages)}"
         "UIDVALIDITY" -> "UIDVALIDITY #{state.uid_validity}"
@@ -1048,17 +1159,31 @@ defmodule Elektrine.IMAP.Commands do
                   end)
                 end
 
-                if String.upcase(folder) == String.upcase(state.selected_folder || "") do
-                  {:ok, fresh_messages} =
-                    load_folder_messages(state.mailbox, state.selected_folder)
+                state =
+                  if String.upcase(folder) == String.upcase(state.selected_folder || "") do
+                    {:ok, fresh_messages} =
+                      load_folder_messages(state.mailbox, state.selected_folder)
 
-                  Helpers.send_response(state.socket, "* #{length(fresh_messages)} EXISTS")
-                end
+                    recent_message_ids = merge_recent_message_ids(state, fresh_messages)
+
+                    Helpers.send_response(state.socket, "* #{length(fresh_messages)} EXISTS")
+
+                    Helpers.send_response(
+                      state.socket,
+                      "* #{count_recent_messages(fresh_messages, recent_message_ids)} RECENT"
+                    )
+
+                    %{state | messages: fresh_messages, recent_message_ids: recent_message_ids}
+                  else
+                    state
+                  end
 
                 Helpers.send_response(
                   state.socket,
                   "#{tag} OK [APPENDUID #{state.uid_validity} #{message.id}] APPEND completed"
                 )
+
+                {:continue, state}
 
               {_time_us, {:error, reason}} ->
                 Logger.error("IMAP APPEND: Store failed: #{inspect(reason)}")
@@ -1071,22 +1196,25 @@ defmodule Elektrine.IMAP.Commands do
                 else
                   Helpers.send_response(state.socket, "#{tag} NO APPEND failed")
                 end
+
+                {:continue, state}
             end
 
           {:error, :message_too_large} ->
             Helpers.send_response(state.socket, "#{tag} NO [TOOBIG] Message exceeds size limit")
+            {:continue, state}
 
           {:error, reason} ->
             Logger.error("APPEND receive data failed: #{inspect(reason)}")
             Helpers.send_response(state.socket, "#{tag} NO APPEND failed")
+            {:continue, state}
         end
 
       {:error, reason} ->
         Logger.error("APPEND parse failed: #{inspect(reason)}")
         Helpers.send_response(state.socket, "#{tag} BAD Invalid APPEND arguments")
+        {:continue, state}
     end
-
-    {:continue, state}
   end
 
   defp handle_uid(tag, args, state) do
@@ -1195,7 +1323,7 @@ defmodule Elektrine.IMAP.Commands do
       state.messages
       |> Enum.with_index(1)
       |> Enum.filter(fn {msg, sequence_number} ->
-        Helpers.matches_search_criteria?(msg, criteria, sequence_number, max_sequence)
+        message_matches_search?(msg, criteria, state, sequence_number, max_sequence)
       end)
       |> Enum.map(fn {_msg, seq_num} -> seq_num end)
 
@@ -1340,14 +1468,25 @@ defmodule Elektrine.IMAP.Commands do
               Response.apply_flag_operation(msg, operation, flags, state.selected_folder)
 
             update_message_flags(msg, new_flags, state.mailbox)
-            flags_str = Response.format_flags(new_flags)
-            Helpers.send_response(state.socket, "* #{seq_num} FETCH (FLAGS (#{flags_str}))")
+
+            unless silent_store_operation?(operation) do
+              flags_str = Response.format_flags(new_flags)
+              Helpers.send_response(state.socket, "* #{seq_num} FETCH (FLAGS (#{flags_str}))")
+            end
+
             Map.put(acc, msg.id, message_updates_from_flags(msg, new_flags))
           end)
 
         Helpers.send_response(state.socket, "#{tag} OK STORE completed")
         refreshed_state_messages = apply_message_updates(state.messages, updated_messages_by_id)
-        {:continue, %{state | messages: refreshed_state_messages}}
+
+        {:continue,
+         %{
+           state
+           | messages: refreshed_state_messages,
+             recent_message_ids:
+               trim_recent_message_ids(refreshed_state_messages, state.recent_message_ids)
+         }}
 
       {:error, _} ->
         Helpers.send_response(state.socket, "#{tag} BAD Invalid STORE arguments")
@@ -1364,19 +1503,30 @@ defmodule Elektrine.IMAP.Commands do
     end)
 
     Helpers.send_response(state.socket, "#{tag} OK EXPUNGE completed")
-    {:continue, %{state | messages: remaining_messages}}
+
+    {:continue,
+     %{
+       state
+       | messages: remaining_messages,
+         recent_message_ids: trim_recent_message_ids(remaining_messages, state.recent_message_ids)
+     }}
   end
 
   defp handle_check(tag, state) do
     {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
+    recent_message_ids = merge_recent_message_ids(state, fresh_messages)
 
     if length(fresh_messages) != length(state.messages) do
       Helpers.send_response(state.socket, "* #{length(fresh_messages)} EXISTS")
-      Helpers.send_response(state.socket, "* #{length(fresh_messages)} RECENT")
+
+      Helpers.send_response(
+        state.socket,
+        "* #{count_recent_messages(fresh_messages, recent_message_ids)} RECENT"
+      )
     end
 
     Helpers.send_response(state.socket, "#{tag} OK CHECK completed")
-    {:continue, %{state | messages: fresh_messages}}
+    {:continue, %{state | messages: fresh_messages, recent_message_ids: recent_message_ids}}
   end
 
   defp handle_close(tag, state) do
@@ -1384,12 +1534,30 @@ defmodule Elektrine.IMAP.Commands do
       expunge_deleted_messages(state.messages, state.mailbox)
 
     Helpers.send_response(state.socket, "#{tag} OK CLOSE completed")
-    {:continue, %{state | selected_folder: nil, messages: [], state: :authenticated}}
+
+    {:continue,
+     %{
+       state
+       | selected_folder: nil,
+         messages: [],
+         recent_message_ids: MapSet.new(),
+         folder_key: nil,
+         state: :authenticated
+     }}
   end
 
   defp handle_unselect(tag, state) do
     Helpers.send_response(state.socket, "#{tag} OK UNSELECT completed")
-    {:continue, %{state | selected_folder: nil, messages: [], state: :authenticated}}
+
+    {:continue,
+     %{
+       state
+       | selected_folder: nil,
+         messages: [],
+         recent_message_ids: MapSet.new(),
+         folder_key: nil,
+         state: :authenticated
+     }}
   end
 
   defp handle_idle(tag, state) do
@@ -1479,7 +1647,7 @@ defmodule Elektrine.IMAP.Commands do
       state.messages
       |> Enum.with_index(1)
       |> Enum.filter(fn {msg, sequence_number} ->
-        Helpers.matches_search_criteria?(msg, criteria, sequence_number, max_sequence)
+        message_matches_search?(msg, criteria, state, sequence_number, max_sequence)
       end)
       |> Enum.map(fn {msg, _sequence_number} -> msg.id end)
 
@@ -1537,7 +1705,14 @@ defmodule Elektrine.IMAP.Commands do
 
           send_tagged_ok_with_optional_copyuid(state, tag, uid_pairs, "UID MOVE completed")
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
-          {:continue, %{state | messages: fresh_messages}}
+
+          {:continue,
+           %{
+             state
+             | messages: fresh_messages,
+               recent_message_ids:
+                 trim_recent_message_ids(fresh_messages, state.recent_message_ids)
+           }}
         else
           Helpers.send_response(
             state.socket,
@@ -1571,7 +1746,13 @@ defmodule Elektrine.IMAP.Commands do
     end)
 
     Helpers.send_response(state.socket, "#{tag} OK UID EXPUNGE completed")
-    {:continue, %{state | messages: remaining_messages}}
+
+    {:continue,
+     %{
+       state
+       | messages: remaining_messages,
+         recent_message_ids: trim_recent_message_ids(remaining_messages, state.recent_message_ids)
+     }}
   end
 
   defp handle_uid_store(tag, args, state) do
@@ -1589,12 +1770,15 @@ defmodule Elektrine.IMAP.Commands do
               Response.apply_flag_operation(msg, operation, flags, state.selected_folder)
 
             update_message_flags(msg, new_flags, state.mailbox)
-            flags_str = Response.format_flags(new_flags)
 
-            Helpers.send_response(
-              state.socket,
-              "* #{seq_num} FETCH (UID #{msg.id} FLAGS (#{flags_str}))"
-            )
+            unless silent_store_operation?(operation) do
+              flags_str = Response.format_flags(new_flags)
+
+              Helpers.send_response(
+                state.socket,
+                "* #{seq_num} FETCH (UID #{msg.id} FLAGS (#{flags_str}))"
+              )
+            end
 
             Map.put(acc, msg.id, message_updates_from_flags(msg, new_flags))
           end)
@@ -1611,16 +1795,34 @@ defmodule Elektrine.IMAP.Commands do
 
         if spam_changed do
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
-          {:continue, %{state | messages: fresh_messages}}
+
+          {:continue,
+           %{
+             state
+             | messages: fresh_messages,
+               recent_message_ids:
+                 trim_recent_message_ids(fresh_messages, state.recent_message_ids)
+           }}
         else
           refreshed_state_messages = apply_message_updates(state.messages, updated_messages_by_id)
-          {:continue, %{state | messages: refreshed_state_messages}}
+
+          {:continue,
+           %{
+             state
+             | messages: refreshed_state_messages,
+               recent_message_ids:
+                 trim_recent_message_ids(refreshed_state_messages, state.recent_message_ids)
+           }}
         end
 
       {:error, _} ->
         Helpers.send_response(state.socket, "#{tag} BAD Invalid UID STORE arguments")
         {:continue, state}
     end
+  end
+
+  defp silent_store_operation?(operation) when is_binary(operation) do
+    String.ends_with?(String.upcase(String.trim(operation)), ".SILENT")
   end
 
   defp do_authenticate(tag, username, password, state) do
@@ -1636,7 +1838,7 @@ defmodule Elektrine.IMAP.Commands do
 
             Helpers.send_response(
               state.socket,
-              "#{tag} OK [CAPABILITY #{capability_string(:authenticated)}] Logged in"
+              "#{tag} OK [CAPABILITY #{capability_string(%{state | state: :authenticated})}] Logged in"
             )
 
             {:continue,
@@ -1647,6 +1849,8 @@ defmodule Elektrine.IMAP.Commands do
                  username: username,
                  mailbox: mailbox,
                  uid_validity: mailbox.id,
+                 recent_message_ids: MapSet.new(),
+                 folder_key: nil,
                  state: :authenticated
              }}
 
@@ -1776,7 +1980,8 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp load_folder_messages(mailbox, folder) do
-    folder_normalized = String.upcase(folder)
+    canonical_folder = Helpers.canonical_system_folder_name(folder)
+    folder_normalized = String.upcase(canonical_folder)
 
     messages =
       case folder_normalized do
@@ -1785,7 +1990,7 @@ defmodule Elektrine.IMAP.Commands do
         "DRAFTS" -> Elektrine.Email.list_messages_for_imap(mailbox.id, :drafts)
         "TRASH" -> Elektrine.Email.list_messages_for_imap(mailbox.id, :trash)
         "SPAM" -> Elektrine.Email.list_messages_for_imap(mailbox.id, :spam)
-        _ -> load_custom_folder_messages(mailbox, folder)
+        _ -> load_custom_folder_messages(mailbox, canonical_folder)
       end
 
     {:ok, messages}
@@ -1946,7 +2151,7 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp resolve_destination_folder(dest_folder, mailbox_user_id, full_msg) do
-    case String.upcase(dest_folder) do
+    case dest_folder |> Helpers.canonical_system_folder_name() |> String.upcase() do
       "INBOX" ->
         {:ok, %{status: "received", spam: false, deleted: false, archived: false, folder_id: nil}}
 
@@ -2072,7 +2277,7 @@ defmodule Elektrine.IMAP.Commands do
     if subject == "(Parse Error)" do
       {:error, :parse_error}
     else
-      folder_clean = String.trim(folder)
+      folder_clean = Helpers.canonical_system_folder_name(folder)
       folder_lower = String.downcase(folder_clean)
 
       custom_folder_id =
@@ -2724,13 +2929,23 @@ defmodule Elektrine.IMAP.Commands do
       {:new_email, message} ->
         if should_notify_idle_folder_update?(message, state.selected_folder) do
           {:ok, fresh_messages} = load_folder_messages(state.mailbox, state.selected_folder)
+          recent_message_ids = merge_recent_message_ids(state, fresh_messages)
 
           if length(fresh_messages) != length(state.messages) do
             Helpers.send_response(state.socket, "* #{length(fresh_messages)} EXISTS")
-            Helpers.send_response(state.socket, "* #{length(fresh_messages)} RECENT")
+
+            Helpers.send_response(
+              state.socket,
+              "* #{count_recent_messages(fresh_messages, recent_message_ids)} RECENT"
+            )
           end
 
-          updated_state = %{state | messages: fresh_messages}
+          updated_state = %{
+            state
+            | messages: fresh_messages,
+              recent_message_ids: recent_message_ids
+          }
+
           idle_loop(updated_state, start_time)
         else
           idle_loop(state, start_time)
@@ -2805,6 +3020,102 @@ defmodule Elektrine.IMAP.Commands do
         [] ->
           :ok
       end
+    end
+  end
+
+  defp starttls_available?(state) do
+    not secure_transport?(state) and Socket.tls_available?(Map.get(state, :tls_opts, []))
+  end
+
+  defp auth_allowed?(state) do
+    secure_transport?(state) or Map.get(state, :allow_insecure_auth, false)
+  end
+
+  defp secure_transport?(state) do
+    Map.get(state, :transport) == :ssl or match?({:sslsocket, _, _}, state.socket)
+  end
+
+  defp message_matches_search?(msg, criteria, state, sequence_number, max_sequence) do
+    criteria_upper = String.upcase(criteria)
+
+    cond do
+      criteria_upper == "RECENT" ->
+        MapSet.member?(state.recent_message_ids, msg.id)
+
+      criteria_upper == "NEW" ->
+        MapSet.member?(state.recent_message_ids, msg.id) and not msg.read
+
+      criteria_upper == "OLD" ->
+        not MapSet.member?(state.recent_message_ids, msg.id)
+
+      true ->
+        Helpers.matches_search_criteria?(msg, criteria, sequence_number, max_sequence)
+    end
+  end
+
+  defp merge_recent_message_ids(state, fresh_messages) do
+    state.recent_message_ids
+    |> MapSet.union(claim_recent_message_ids(state.mailbox, state.folder_key, fresh_messages))
+    |> trim_recent_message_ids(fresh_messages)
+  end
+
+  defp trim_recent_message_ids(recent_message_ids, fresh_messages)
+       when is_struct(recent_message_ids, MapSet) and is_list(fresh_messages) do
+    active_message_ids = MapSet.new(fresh_messages, & &1.id)
+    MapSet.intersection(recent_message_ids, active_message_ids)
+  end
+
+  defp trim_recent_message_ids(fresh_messages, recent_message_ids)
+       when is_list(fresh_messages) and is_struct(recent_message_ids, MapSet) do
+    trim_recent_message_ids(recent_message_ids, fresh_messages)
+  end
+
+  defp count_recent_messages(fresh_messages, recent_message_ids) do
+    recent_message_ids
+    |> trim_recent_message_ids(fresh_messages)
+    |> MapSet.size()
+  end
+
+  defp status_recent_count(messages, state, folder) do
+    if state.state == :selected and
+         state.selected_folder == Helpers.canonical_system_folder_name(folder) do
+      count_recent_messages(messages, state.recent_message_ids)
+    else
+      count_global_recent_messages(state.mailbox, folder, messages)
+    end
+  end
+
+  defp claim_recent_message_ids(nil, _folder_key, _messages), do: MapSet.new()
+  defp claim_recent_message_ids(_mailbox, nil, _messages), do: MapSet.new()
+
+  defp claim_recent_message_ids(mailbox, folder_key, messages) do
+    RecentTracker.claim_recent_message_ids(mailbox.id, folder_key, messages)
+  end
+
+  defp count_global_recent_messages(nil, _folder, _messages), do: 0
+
+  defp count_global_recent_messages(mailbox, folder, messages) do
+    RecentTracker.count_recent_message_ids(
+      mailbox.id,
+      folder_key_for_mailbox(mailbox, folder),
+      messages
+    )
+  end
+
+  defp folder_key_for_mailbox(nil, _folder), do: nil
+
+  defp folder_key_for_mailbox(mailbox, folder) do
+    canonical_folder = Helpers.canonical_system_folder_name(folder)
+
+    case String.upcase(canonical_folder) do
+      folder_name when folder_name in ["INBOX", "SENT", "DRAFTS", "TRASH", "SPAM"] ->
+        folder_name
+
+      _ ->
+        case find_custom_folder_by_name(mailbox.user_id, canonical_folder) do
+          %{id: folder_id} -> {:custom, folder_id}
+          nil -> nil
+        end
     end
   end
 

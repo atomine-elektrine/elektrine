@@ -7,8 +7,8 @@ defmodule Elektrine.Social.Bookmarks do
   """
 
   import Ecto.Query, warn: false
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.SavedItem
 
   @doc """

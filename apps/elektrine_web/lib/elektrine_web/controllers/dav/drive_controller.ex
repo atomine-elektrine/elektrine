@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.DAV.FilesController do
+defmodule ElektrineWeb.DAV.DriveController do
   use ElektrineWeb, :controller
 
-  alias Elektrine.Files
+  alias Elektrine.Drive
   alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.DAV.ResponseHelpers
 
@@ -17,13 +17,13 @@ defmodule ElektrineWeb.DAV.FilesController do
       responses = [
         %{
           href: dav_href(base_url, username, ""),
-          propstat: [{200, collection_props("Files", user, username, "", base_url)}]
+          propstat: [{200, collection_props("Drive", user, username, "", base_url)}]
         }
       ]
 
       responses =
         if depth != 0 do
-          {:ok, folder_view} = Files.list_folder(user.id, "")
+          {:ok, folder_view} = Drive.list_folder(user.id, "")
           responses ++ folder_children_responses(folder_view, base_url, username)
         else
           responses
@@ -44,7 +44,7 @@ defmodule ElektrineWeb.DAV.FilesController do
         path == "" ->
           propfind_home(conn, %{"username" => username})
 
-        file = Files.get_file_by_path(user.id, path) ->
+        file = Drive.get_file_by_path(user.id, path) ->
           ResponseHelpers.send_multistatus(conn, [
             %{
               href: dav_href(base_url(conn), username, path, false),
@@ -53,7 +53,7 @@ defmodule ElektrineWeb.DAV.FilesController do
           ])
 
         true ->
-          case Files.list_folder(user.id, path) do
+          case Drive.list_folder(user.id, path) do
             {:ok, folder_view} ->
               depth = ResponseHelpers.get_depth(conn)
               base_url = base_url(conn)
@@ -88,7 +88,7 @@ defmodule ElektrineWeb.DAV.FilesController do
     if user.username != username do
       ResponseHelpers.send_forbidden(conn)
     else
-      case Files.create_folder(user.id, path) do
+      case Drive.create_folder(user.id, path) do
         {:ok, _folder} -> ResponseHelpers.send_created(conn)
         {:error, :path_taken} -> send_resp(conn, 405, "Collection already exists")
         {:error, _reason} -> send_resp(conn, 409, "Could not create folder")
@@ -103,8 +103,8 @@ defmodule ElektrineWeb.DAV.FilesController do
     if user.username != username do
       ResponseHelpers.send_forbidden(conn)
     else
-      with %Files.StoredFile{} = file <- Files.get_file_by_path(user.id, path),
-           {:ok, binary} <- Files.read_file(file) do
+      with %Drive.StoredFile{} = file <- Drive.get_file_by_path(user.id, path),
+           {:ok, binary} <- Drive.read_file(file) do
         ResponseHelpers.send_resource(conn, binary, file.content_type, dav_etag(file))
       else
         _ -> ResponseHelpers.send_not_found(conn)
@@ -120,9 +120,9 @@ defmodule ElektrineWeb.DAV.FilesController do
       ResponseHelpers.send_forbidden(conn)
     else
       {:ok, body, conn} = Plug.Conn.read_body(conn)
-      existing = Files.get_file_by_path(user.id, path)
+      existing = Drive.get_file_by_path(user.id, path)
 
-      case Files.put_file_content(user, path, body,
+      case Drive.put_file_content(user, path, body,
              content_type: List.first(get_req_header(conn, "content-type"))
            ) do
         {:ok, file} ->
@@ -145,15 +145,15 @@ defmodule ElektrineWeb.DAV.FilesController do
     if user.username != username do
       ResponseHelpers.send_forbidden(conn)
     else
-      case Files.get_file_by_path(user.id, path) do
+      case Drive.get_file_by_path(user.id, path) do
         file when not is_nil(file) ->
-          case Files.delete_file(user.id, file.id) do
+          case Drive.delete_file(user.id, file.id) do
             :ok -> ResponseHelpers.send_no_content(conn)
             {:error, _reason} -> send_resp(conn, 500, "Failed to delete file")
           end
 
         _ ->
-          case Files.delete_folder(user.id, path) do
+          case Drive.delete_folder(user.id, path) do
             :ok -> ResponseHelpers.send_no_content(conn)
             {:error, _reason} -> ResponseHelpers.send_not_found(conn)
           end
@@ -170,11 +170,11 @@ defmodule ElektrineWeb.DAV.FilesController do
     else
       with [destination] <- get_req_header(conn, "destination"),
            {:ok, destination_path} <- parse_destination(destination, username) do
-        case Files.get_file_by_path(user.id, source_path) do
+        case Drive.get_file_by_path(user.id, source_path) do
           file when not is_nil(file) ->
-            case Files.rename_file(user.id, file.id, Path.basename(destination_path)) do
+            case Drive.rename_file(user.id, file.id, Path.basename(destination_path)) do
               {:ok, renamed} ->
-                case Files.move_file(
+                case Drive.move_file(
                        user.id,
                        renamed.id,
                        Path.dirname(destination_path) |> normalize_destination_folder()
@@ -188,7 +188,7 @@ defmodule ElektrineWeb.DAV.FilesController do
             end
 
           _ ->
-            case Files.move_folder(
+            case Drive.move_folder(
                    user.id,
                    source_path,
                    Path.dirname(destination_path) |> normalize_destination_folder(),
@@ -228,7 +228,7 @@ defmodule ElektrineWeb.DAV.FilesController do
     owner_username = if user, do: user.username, else: username
 
     [
-      displayname: if(display_name in [nil, ""], do: "Files", else: display_name),
+      displayname: if(display_name in [nil, ""], do: "Drive", else: display_name),
       resourcetype: :collection,
       creationdate: DateTime.utc_now() |> DateTime.truncate(:second),
       current_user_principal: "#{base_url}/principals/users/#{owner_username}/",
@@ -262,13 +262,13 @@ defmodule ElektrineWeb.DAV.FilesController do
 
   defp parse_destination(destination, username) do
     uri = URI.parse(destination)
-    prefix = "/files-dav/#{username}/"
+    prefix = "/drive-dav/#{username}/"
 
     cond do
       is_nil(uri.path) ->
         {:error, :invalid_destination}
 
-      uri.path == "/files-dav/#{username}" ->
+      uri.path == "/drive-dav/#{username}" ->
         {:ok, ""}
 
       String.starts_with?(uri.path, prefix) ->
@@ -287,12 +287,12 @@ defmodule ElektrineWeb.DAV.FilesController do
 
   defp dav_href(base_url, username, "", trailing_slash) do
     suffix = if trailing_slash, do: "/", else: ""
-    "#{base_url}/files-dav/#{username}#{suffix}"
+    "#{base_url}/drive-dav/#{username}#{suffix}"
   end
 
   defp dav_href(base_url, username, path, trailing_slash) do
     suffix = if trailing_slash, do: "/", else: ""
-    "#{base_url}/files-dav/#{username}/#{path}#{suffix}"
+    "#{base_url}/drive-dav/#{username}/#{path}#{suffix}"
   end
 
   defp base_url(conn) do

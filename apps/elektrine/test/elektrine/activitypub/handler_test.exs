@@ -6,8 +6,8 @@ defmodule Elektrine.ActivityPub.HandlerTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handler
   alias Elektrine.ActivityPub.Instance
-  alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Repo
+  alias Elektrine.Social.MessageReaction
   alias Elektrine.SocialFixtures
 
   describe "process_activity_async/3" do
@@ -47,6 +47,36 @@ defmodule Elektrine.ActivityPub.HandlerTest do
       }
 
       assert {:ok, :blocked} = Handler.process_activity_async(activity, actor_uri, nil)
+    end
+
+    test "does not infer a single blocked target user from mentions on public activities" do
+      user = AccountsFixtures.user_fixture(%{username: "publicmentionblocked"})
+      actor_uri = "https://remote.example/users/public-mention-blocked"
+
+      assert {:ok, _block} = ActivityPub.block_for_user(user.id, actor_uri)
+
+      activity = %{
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "CustomType",
+        "actor" => actor_uri,
+        "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+        "object" => %{
+          "id" => "https://remote.example/objects/#{System.unique_integer([:positive])}",
+          "type" => "Note",
+          "content" => "Hello @#{user.username}",
+          "tag" => [
+            %{
+              "type" => "Mention",
+              "href" => "#{ActivityPub.instance_url()}/users/#{user.username}",
+              "name" => "@#{user.username}"
+            }
+          ],
+          "to" => ["https://www.w3.org/ns/activitystreams#Public"],
+          "cc" => []
+        }
+      }
+
+      assert {:ok, :unhandled} = Handler.process_activity_async(activity, actor_uri, nil)
     end
 
     test "resolves URI-form Undo activities from stored local state before fetching" do
@@ -97,7 +127,7 @@ defmodule Elektrine.ActivityPub.HandlerTest do
       object_id = "#{ActivityPub.instance_url()}/posts/#{message.id}"
 
       assert {:ok, _reaction} =
-               Elektrine.Messaging.Messages.create_federated_emoji_reaction(
+               Elektrine.Social.Messages.create_federated_emoji_reaction(
                  message.id,
                  remote_actor.id,
                  ":blobcat:"

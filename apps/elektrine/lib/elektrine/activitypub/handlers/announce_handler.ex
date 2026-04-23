@@ -241,7 +241,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
           unless is_distribution do
             ap_id = actual_object["id"]
 
-            case Elektrine.Repo.get_by(Elektrine.Messaging.Message, activitypub_id: ap_id) do
+            case Elektrine.Repo.get_by(Elektrine.Social.Message, activitypub_id: ap_id) do
               %{id: message_id, deleted_at: nil} ->
                 Messaging.create_federated_boost(
                   message_id,
@@ -269,7 +269,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
             else
               Messaging.create_federated_boost(message.id, booster_actor.id, announce_activity_id)
 
-              case Elektrine.Messaging.Messages.update_message_metadata(message, %{
+              case Elektrine.Social.Messages.update_message_metadata(message, %{
                      media_metadata:
                        Map.merge(message.media_metadata || %{}, %{
                          "boosted_by" => %{

@@ -8,8 +8,8 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.MastodonApi
   alias Elektrine.AppCache
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   def refresh_counts(actor_id) when is_integer(actor_id) do
     case Repo.get(Actor, actor_id) do

@@ -1,4 +1,4 @@
-defmodule Elektrine.Messaging.MessageReaction do
+defmodule Elektrine.Social.MessageReaction do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
@@ -10,7 +10,7 @@ defmodule Elektrine.Messaging.MessageReaction do
     # Format: https://instance.com/emoji/custom/blobcat.png
     field(:emoji_url, :string)
 
-    belongs_to(:message, Elektrine.Messaging.Message)
+    belongs_to(:message, Elektrine.Social.Message)
     belongs_to(:user, Elektrine.Accounts.User)
     belongs_to(:remote_actor, Elektrine.ActivityPub.Actor)
 

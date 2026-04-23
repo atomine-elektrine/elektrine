@@ -25,7 +25,7 @@ defmodule Elektrine.Social.LikesTest do
       {:ok, _} = Likes.like_post(user.id, post.id)
 
       # Reload the post to check the count
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 1
     end
 
@@ -45,7 +45,7 @@ defmodule Elektrine.Social.LikesTest do
       assert {:ok, _} = Likes.like_post(user1.id, post.id)
       assert {:ok, _} = Likes.like_post(user2.id, post.id)
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 2
     end
   end
@@ -65,12 +65,12 @@ defmodule Elektrine.Social.LikesTest do
     end
 
     test "decrements like count on the post", %{user: user, post: post} do
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 1
 
       {:ok, _} = Likes.unlike_post(user.id, post.id)
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 0
     end
 
@@ -145,7 +145,7 @@ defmodule Elektrine.Social.LikesTest do
         {:ok, _} = Likes.like_post(user.id, post.id)
       end
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 5
 
       # First 3 users unlike
@@ -153,7 +153,7 @@ defmodule Elektrine.Social.LikesTest do
         {:ok, _} = Likes.unlike_post(user.id, post.id)
       end
 
-      updated_post = Repo.get!(Elektrine.Messaging.Message, post.id)
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
       assert updated_post.like_count == 2
     end
   end

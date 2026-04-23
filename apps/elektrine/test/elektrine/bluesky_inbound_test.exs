@@ -9,9 +9,9 @@ defmodule Elektrine.BlueskyInboundTest do
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky.Inbound
   alias Elektrine.Bluesky.InboundEvent
-  alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   defmodule MockHTTPClient do
     def put_responses(responses), do: Process.put(:bluesky_inbound_mock_responses, responses)

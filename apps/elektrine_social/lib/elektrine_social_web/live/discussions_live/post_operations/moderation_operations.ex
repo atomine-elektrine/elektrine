@@ -80,7 +80,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
       case Messaging.pin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _pinned_post} ->
           updated_post =
-            Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+            Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
             |> Elektrine.Repo.preload(
               sender: [:profile],
               link_preview: [],
@@ -88,7 +88,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
               shared_message: [sender: [:profile], conversation: []],
               poll: [options: []]
             )
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           {:noreply,
            socket
@@ -110,7 +110,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
       case Messaging.unpin_message(message_id, socket.assigns.current_user.id) do
         {:ok, _unpinned_post} ->
           updated_post =
-            Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+            Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
             |> Elektrine.Repo.preload(
               sender: [:profile],
               link_preview: [],
@@ -118,7 +118,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
               shared_message: [sender: [:profile], conversation: []],
               poll: [options: []]
             )
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           {:noreply,
            socket
@@ -171,7 +171,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
            ) do
         {:ok, _} ->
           updated_post =
-            Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+            Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
             |> Elektrine.Repo.preload(
               [
                 sender: [:profile],
@@ -182,7 +182,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
               ],
               force: true
             )
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           {:noreply,
            socket
@@ -204,7 +204,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
       case Messaging.ModerationTools.unlock_thread(message_id, socket.assigns.current_user.id) do
         {:ok, _} ->
           updated_post =
-            Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+            Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
             |> Elektrine.Repo.preload(
               [
                 sender: [:profile],
@@ -215,7 +215,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
               ],
               force: true
             )
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           {:noreply,
            socket
@@ -565,7 +565,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
     import Ecto.Query
 
     post =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.id == ^post_id and m.conversation_id == ^community_id,
         preload: [
           sender: [:profile],
@@ -582,7 +582,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
         {:error, :not_found}
 
       post ->
-        post = Elektrine.Messaging.Message.decrypt_content(post)
+        post = Elektrine.Social.Message.decrypt_content(post)
         replies = get_threaded_replies_with_expansion(post_id, community_id, 0, expanded_threads)
         {:ok, post, replies}
     end
@@ -592,7 +592,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
     import Ecto.Query
 
     direct_replies =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.reply_to_id == ^parent_id and
             m.conversation_id == ^community_id and
@@ -606,7 +606,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.ModerationOperations
         ]
       )
       |> Elektrine.Repo.all()
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     Enum.map(direct_replies, fn reply ->
       should_expand = depth < 2 || MapSet.member?(expanded_threads, reply.id)

@@ -12,9 +12,10 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Friends
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.RSS
   alias Elektrine.Social
+  alias Elektrine.Social.Message
 
   defp log_in_user(conn, user) do
     token =
@@ -682,6 +683,47 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     html = render(view)
     assert html =~ "Post from followed user"
     refute html =~ "Public explore-only post"
+  end
+
+  test "home feed does not inject rss items into the default timeline", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    followed_author = AccountsFixtures.user_fixture()
+
+    {:ok, _follow} = Social.follow_user(viewer.id, followed_author.id)
+
+    {:ok, _followed_post} =
+      Social.create_timeline_post(followed_author.id, "Home feed post remains visible",
+        visibility: "public"
+      )
+
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/home-feed-rss.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Home Feed RSS", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(viewer.id, feed.url)
+
+    {:ok, _item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "home-feed-rss-item",
+        title: "RSS item should stay out of home",
+        url: "https://example.com/articles/home-feed-rss-item",
+        published_at: DateTime.utc_now()
+      })
+
+    {:ok, home_view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline")
+
+    home_html = render(home_view)
+    assert home_html =~ "Home feed post remains visible"
+    refute home_html =~ "RSS item should stay out of home"
+
+    {:ok, rss_view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=rss&view=all")
+
+    rss_html = render(rss_view)
+    assert rss_html =~ "RSS item should stay out of home"
   end
 
   test "for_you feed uses personalized recommendations", %{conn: conn} do

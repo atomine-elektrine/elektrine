@@ -149,10 +149,10 @@ defmodule Elektrine.Search do
           Elektrine.Encryption.hash_keyword(kw, user.id)
         end)
 
-      from(m in Elektrine.Messaging.Message,
-        join: cm in Elektrine.Messaging.ConversationMember,
+      from(m in Elektrine.Social.Message,
+        join: cm in Elektrine.Social.ConversationMember,
         on: cm.conversation_id == m.conversation_id,
-        join: c in Elektrine.Messaging.Conversation,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         # User must be an active member
         # Don't search deleted messages
@@ -200,8 +200,8 @@ defmodule Elektrine.Search do
           Elektrine.Encryption.hash_keyword(kw, user.id)
         end)
 
-      from(m in Elektrine.Messaging.Message,
-        join: c in Elektrine.Messaging.Conversation,
+      from(m in Elektrine.Social.Message,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
         left_join: u in Elektrine.Accounts.User,
         on: u.id == m.sender_id,
@@ -257,10 +257,10 @@ defmodule Elektrine.Search do
           Elektrine.Encryption.hash_keyword(kw, user.id)
         end)
 
-      from(m in Elektrine.Messaging.Message,
-        join: c in Elektrine.Messaging.Conversation,
+      from(m in Elektrine.Social.Message,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == m.conversation_id,
-        left_join: cm in Elektrine.Messaging.ConversationMember,
+        left_join: cm in Elektrine.Social.ConversationMember,
         on: cm.conversation_id == c.id and cm.user_id == ^user.id,
         # Don't search deleted posts
         # Public discussions are visible to all
@@ -300,8 +300,8 @@ defmodule Elektrine.Search do
 
   # Search communities - only public communities or ones user is a member of
   defp search_communities(user, search_term, limit) do
-    from(c in Elektrine.Messaging.Conversation,
-      left_join: cm in Elektrine.Messaging.ConversationMember,
+    from(c in Elektrine.Social.Conversation,
+      left_join: cm in Elektrine.Social.ConversationMember,
       on: cm.conversation_id == c.id and cm.user_id == ^user.id,
       where:
         c.type == "community" and
@@ -333,7 +333,7 @@ defmodule Elektrine.Search do
   defp search_federated_posts(search_patterns, limit) do
     federated_filter = federated_post_match_dynamic(search_patterns)
 
-    from(m in Elektrine.Messaging.Message,
+    from(m in Elektrine.Social.Message,
       left_join: a in Elektrine.ActivityPub.Actor,
       on: a.id == m.remote_actor_id,
       where:
@@ -1006,12 +1006,12 @@ defmodule Elektrine.Search do
     Enum.map(results, fn result ->
       if result[:id] && result[:sender_id] do
         # Fetch and decrypt the message
-        case Repo.get(Elektrine.Messaging.Message, result.id) do
+        case Repo.get(Elektrine.Social.Message, result.id) do
           nil ->
             result
 
           message ->
-            decrypted = Elektrine.Messaging.Message.decrypt_content(message)
+            decrypted = Elektrine.Social.Message.decrypt_content(message)
             # Update content with first 200 chars of decrypted content
             content =
               if decrypted.content do

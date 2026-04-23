@@ -12,11 +12,12 @@ defmodule Elektrine.Messaging.Moderation do
     ChatUserTimeout,
     CommunityBan,
     CommunityFlair,
-    ConversationMember,
     Federation,
     ModerationAction,
     UserTimeout
   }
+
+  alias Elektrine.Social.ConversationMember
 
   ## User Timeouts
 
@@ -587,7 +588,7 @@ defmodule Elektrine.Messaging.Moderation do
       )
       |> Repo.one()
 
-    from(c in Elektrine.Messaging.Conversation, where: c.id == ^conversation_id)
+    from(c in Elektrine.Social.Conversation, where: c.id == ^conversation_id)
     |> Repo.update_all(set: [member_count: count])
   end
 

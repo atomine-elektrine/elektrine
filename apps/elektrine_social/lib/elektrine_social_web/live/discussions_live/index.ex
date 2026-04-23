@@ -945,7 +945,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
               alias Elektrine.Messaging.Reactions
 
               existing_reaction =
-                Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
+                Elektrine.Repo.get_by(Elektrine.Social.MessageReaction,
                   message_id: message.id,
                   user_id: user_id,
                   emoji: emoji
@@ -1175,10 +1175,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
         {:ok, updated_message} =
           message
-          |> Elektrine.Messaging.Message.changeset(update_attrs)
+          |> Elektrine.Social.Message.changeset(update_attrs)
           |> Elektrine.Repo.update()
 
-        case Elektrine.Messaging.Conversations.get_conversation_basic(community_id) do
+        case Elektrine.Social.Conversations.get_conversation_basic(community_id) do
           {:ok, community_conv} ->
             if community_conv.is_public do
               Elektrine.ActivityPub.Outbox.federate_community_post(
@@ -2021,7 +2021,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> Enum.map(&map_local_post_search_result/1)
 
     remote_posts =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         left_join: a in Actor,
         on: a.id == m.remote_actor_id,
         where:
@@ -2046,8 +2046,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp local_post_search_query(query_term, nil) do
-    from(m in Messaging.Message,
-      join: c in Messaging.Conversation,
+    from(m in Elektrine.Social.Message,
+      join: c in Elektrine.Social.Conversation,
       on: c.id == m.conversation_id,
       where:
         c.type == "community" and c.is_public == true and is_nil(m.deleted_at) and
@@ -2060,10 +2060,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp local_post_search_query(query_term, user) do
-    from(m in Messaging.Message,
-      join: c in Messaging.Conversation,
+    from(m in Elektrine.Social.Message,
+      join: c in Elektrine.Social.Conversation,
       on: c.id == m.conversation_id,
-      left_join: cm in Messaging.ConversationMember,
+      left_join: cm in Elektrine.Social.ConversationMember,
       on: cm.conversation_id == c.id and cm.user_id == ^user.id,
       where:
         c.type == "community" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
@@ -2113,8 +2113,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp get_recent_joins(user_id) do
     local_joins =
-      from(cm in Messaging.ConversationMember,
-        join: c in Messaging.Conversation,
+      from(cm in Elektrine.Social.ConversationMember,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == cm.conversation_id,
         where:
           cm.user_id == ^user_id and is_nil(cm.left_at) and c.type == "community" and
@@ -2155,7 +2155,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     community_ids = Enum.map(joins, & &1.community_id)
 
     communities_by_id =
-      Messaging.Conversation
+      Elektrine.Social.Conversation
       |> where([c], c.id in ^community_ids)
       |> Repo.all()
       |> Repo.preload([:creator, :remote_group_actor])
@@ -2264,8 +2264,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     before_post = Keyword.get(opts, :before_post)
 
     joined_community_ids =
-      from(cm in Messaging.ConversationMember,
-        join: c in Messaging.Conversation,
+      from(cm in Elektrine.Social.ConversationMember,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == cm.conversation_id,
         where: cm.user_id == ^user_id and is_nil(cm.left_at) and c.type == "community",
         select: c.id
@@ -2283,8 +2283,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       |> Repo.all()
 
     federated_mirror_memberships =
-      from(cm in Messaging.ConversationMember,
-        join: c in Messaging.Conversation,
+      from(cm in Elektrine.Social.ConversationMember,
+        join: c in Elektrine.Social.Conversation,
         on: c.id == cm.conversation_id,
         left_join: a in Actor,
         on: c.remote_group_actor_id == a.id,
@@ -2349,7 +2349,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         end
 
       query =
-        Messaging.Message
+        Elektrine.Social.Message
         |> where(
           [m],
           m.visibility == "public" and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
@@ -2419,8 +2419,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     exclude_ids = Keyword.get(opts, :exclude_ids, [])
 
     query =
-      Messaging.Message
-      |> join(:left, [m], c in Messaging.Conversation, on: c.id == m.conversation_id)
+      Elektrine.Social.Message
+      |> join(:left, [m], c in Elektrine.Social.Conversation, on: c.id == m.conversation_id)
       |> where(
         [m, c],
         m.visibility == "public" and is_nil(m.deleted_at) and
@@ -2590,7 +2590,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp get_public_communities(limit) do
-    from(c in Messaging.Conversation,
+    from(c in Elektrine.Social.Conversation,
       where:
         c.type == "community" and c.is_public == true and
           (is_nil(c.is_federated_mirror) or c.is_federated_mirror == false),
@@ -2640,7 +2640,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     import Ecto.Query
     limit = Keyword.get(opts, :limit, 10)
 
-    from(m in Messaging.Message,
+    from(m in Elektrine.Social.Message,
       join: a in Elektrine.ActivityPub.Actor,
       on: a.id == m.remote_actor_id,
       where:
@@ -2760,7 +2760,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     "general"
   end
 
-  defp community_category(%Messaging.Conversation{community_category: category})
+  defp community_category(%Elektrine.Social.Conversation{community_category: category})
        when is_binary(category),
        do: category
 
@@ -3455,7 +3455,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp format_compact_number(value) when is_integer(value), do: Integer.to_string(value)
   defp format_compact_number(_), do: "0"
 
-  defp community_route(%Messaging.Conversation{} = community),
+  defp community_route(%Elektrine.Social.Conversation{} = community),
     do: ~p"/communities/#{community.name}"
 
   defp community_route(%Actor{} = actor), do: "/remote/!#{actor.username}@#{actor.domain}"
@@ -3463,7 +3463,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_route(%{remote_actor: actor}), do: community_route(actor)
   defp community_route(%{name: name}) when is_binary(name), do: ~p"/communities/#{name}"
 
-  defp community_address(%Messaging.Conversation{} = community) do
+  defp community_address(%Elektrine.Social.Conversation{} = community) do
     slug =
       community.name
       |> String.downcase()
@@ -3485,7 +3485,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     "!#{slug}@#{Elektrine.Domains.default_user_handle_domain()}"
   end
 
-  defp community_category_label(%Messaging.Conversation{} = community) do
+  defp community_category_label(%Elektrine.Social.Conversation{} = community) do
     community |> community_category() |> String.replace("_", " ") |> String.capitalize()
   end
 
@@ -3501,7 +3501,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_category_label(%{remote_actor: actor}), do: community_category_label(actor)
   defp community_category_label(_), do: "General"
 
-  defp community_activity_text(%Messaging.Conversation{} = community) do
+  defp community_activity_text(%Elektrine.Social.Conversation{} = community) do
     if community.last_message_at do
       "Active #{Elektrine.Social.time_ago_in_words(community.last_message_at)}"
     else
@@ -3515,7 +3515,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp community_activity_text(_), do: nil
 
-  defp community_display_name_markup(%Messaging.Conversation{} = community) do
+  defp community_display_name_markup(%Elektrine.Social.Conversation{} = community) do
     escape_markup(community.name)
   end
 
@@ -3538,7 +3538,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_display_name_markup(%{name: name}) when is_binary(name), do: escape_markup(name)
   defp community_display_name_markup(_), do: escape_markup("Community")
 
-  defp community_creator_markup(%Messaging.Conversation{} = community) do
+  defp community_creator_markup(%Elektrine.Social.Conversation{} = community) do
     if Ecto.assoc_loaded?(community.creator) && community.creator do
       escape_markup(community.creator.display_name || community.creator.username)
     else
@@ -3581,7 +3581,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     |> then(fn {cards, order} -> Enum.map(order, &Map.fetch!(cards, &1)) end)
   end
 
-  defp discovery_card_key(%Messaging.Conversation{} = community), do: {:community, community.id}
+  defp discovery_card_key(%Elektrine.Social.Conversation{} = community),
+    do: {:community, community.id}
+
   defp discovery_card_key(%{id: id, name: _name}) when is_integer(id), do: {:community, id}
   defp discovery_card_key(%Actor{} = actor), do: {:actor, actor.id}
   defp discovery_card_key(%{name: name}) when is_binary(name), do: {:name, name}

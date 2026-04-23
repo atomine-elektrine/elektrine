@@ -28,7 +28,7 @@ defmodule Elektrine.ActivityPub.RemoteInteraction do
     # For emoji_react type
     field(:emoji, :string)
 
-    belongs_to(:message, Elektrine.Messaging.Message)
+    belongs_to(:message, Elektrine.Social.Message)
     belongs_to(:remote_actor, Elektrine.ActivityPub.Actor)
 
     timestamps(type: :utc_datetime, updated_at: false)

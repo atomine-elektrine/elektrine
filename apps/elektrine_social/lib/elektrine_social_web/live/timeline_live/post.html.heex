@@ -422,7 +422,7 @@
             <% end %>
             
 <!-- Direct Image URLs from content -->
-            <% image_urls = Elektrine.Messaging.Message.extract_image_urls(@post.content || "") %>
+            <% image_urls = Elektrine.Social.Message.extract_image_urls(@post.content || "") %>
             <%= if image_urls != [] do %>
               <div class="mt-4 grid grid-cols-1 gap-2">
                 <%= for {image_url, idx} <- Enum.with_index(image_urls) do %>

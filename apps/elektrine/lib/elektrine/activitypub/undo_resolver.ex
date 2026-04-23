@@ -6,9 +6,10 @@ defmodule Elektrine.ActivityPub.UndoResolver do
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Activity, Actor, GroupFollow}
-  alias Elektrine.Messaging.{FederatedBoost, FederatedDislike, FederatedLike, Message}
+  alias Elektrine.Messaging.{FederatedBoost, FederatedDislike, FederatedLike}
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @undoable_activity_types ~w(Follow Like Dislike EmojiReact Announce Block)
 

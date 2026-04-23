@@ -29,8 +29,9 @@ defmodule Elektrine.ActivityPub do
   alias Elektrine.Accounts.User
   alias Elektrine.Async
   alias Elektrine.HTTP.SafeFetch
-  alias Elektrine.Messaging.{Conversation, Conversations}
   alias Elektrine.Security.URLValidator
+  alias Elektrine.Social.Conversation
+  alias Elektrine.Social.Conversations
   alias Elektrine.Telemetry.Events
   @public_audience_uri "https://www.w3.org/ns/activitystreams#Public"
 
@@ -354,10 +355,17 @@ defmodule Elektrine.ActivityPub do
       |> candidate_target_refs()
       |> Enum.find_value(&target_user_id_from_ref/1)
 
-    direct_ref || single_recipient_user_id(activity)
+    direct_ref || inferred_recipient_user_id(activity)
   end
 
   def resolve_target_user_id(_), do: nil
+
+  defp inferred_recipient_user_id(%{"type" => type} = activity)
+       when type in ["Follow", "Accept", "Reject", "Block", "Flag", "Move"] do
+    single_recipient_user_id(activity)
+  end
+
+  defp inferred_recipient_user_id(_), do: nil
 
   defp candidate_target_refs(activity) when is_map(activity) do
     []
@@ -409,6 +417,13 @@ defmodule Elektrine.ActivityPub do
         _ -> %{}
       end
 
+    mention_refs =
+      if public_activity?(activity, activity_object) do
+        []
+      else
+        mention_hrefs(activity_object)
+      end
+
     [
       Map.get(activity, "to"),
       Map.get(activity, "cc"),
@@ -417,7 +432,7 @@ defmodule Elektrine.ActivityPub do
       Map.get(activity_object, "to"),
       Map.get(activity_object, "cc"),
       Map.get(activity_object, "audience"),
-      mention_hrefs(activity_object)
+      mention_refs
     ]
     |> Enum.flat_map(&recipient_values/1)
   end
@@ -448,6 +463,22 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp mention_hrefs(_), do: []
+
+  defp public_activity?(activity, activity_object)
+       when is_map(activity) and is_map(activity_object) do
+    [
+      Map.get(activity, "to"),
+      Map.get(activity, "cc"),
+      Map.get(activity, "audience"),
+      Map.get(activity_object, "to"),
+      Map.get(activity_object, "cc"),
+      Map.get(activity_object, "audience")
+    ]
+    |> Enum.flat_map(&recipient_values/1)
+    |> Enum.any?(&(&1 == @public_audience_uri))
+  end
+
+  defp public_activity?(_, _), do: false
 
   defp target_user_id_from_ref(ref) when is_binary(ref) do
     local_user_id_from_activity(ref) ||

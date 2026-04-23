@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.DAV.FilesControllerTest do
+defmodule ElektrineWeb.DAV.DriveControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Accounts
@@ -9,7 +9,7 @@ defmodule ElektrineWeb.DAV.FilesControllerTest do
     previous_uploads = Application.get_env(:elektrine, :uploads)
 
     tmp_dir =
-      Path.join(System.tmp_dir!(), "elektrine-dav-files-#{System.unique_integer([:positive])}")
+      Path.join(System.tmp_dir!(), "elektrine-dav-drive-#{System.unique_integer([:positive])}")
 
     File.mkdir_p!(tmp_dir)
 
@@ -31,17 +31,17 @@ defmodule ElektrineWeb.DAV.FilesControllerTest do
       conn
       |> auth_conn(user)
       |> put_req_header("depth", "1")
-      |> request(:propfind, "/files-dav/#{user.username}")
+      |> request(:propfind, "/drive-dav/#{user.username}")
 
     assert conn.status == 207
-    assert conn.resp_body =~ "/files-dav/#{user.username}/"
+    assert conn.resp_body =~ "/drive-dav/#{user.username}/"
   end
 
-  test "PUT, GET, MKCOL, MOVE and DELETE work for DAV files", %{conn: conn, user: user} do
+  test "PUT, GET, MKCOL, MOVE and DELETE work for DAV drive items", %{conn: conn, user: user} do
     conn =
       conn
       |> auth_conn(user)
-      |> request(:mkcol, "/files-dav/#{user.username}/docs")
+      |> request(:mkcol, "/drive-dav/#{user.username}/docs")
 
     assert conn.status == 201
 
@@ -49,11 +49,11 @@ defmodule ElektrineWeb.DAV.FilesControllerTest do
       build_conn()
       |> auth_conn(user)
       |> put_req_header("content-type", "text/plain")
-      |> request(:put, "/files-dav/#{user.username}/docs/note.txt", "hello dav")
+      |> request(:put, "/drive-dav/#{user.username}/docs/note.txt", "hello dav")
 
     assert conn.status == 201
 
-    conn = build_conn() |> auth_conn(user) |> get("/files-dav/#{user.username}/docs/note.txt")
+    conn = build_conn() |> auth_conn(user) |> get("/drive-dav/#{user.username}/docs/note.txt")
     assert response(conn, 200) == "hello dav"
 
     conn =
@@ -61,20 +61,20 @@ defmodule ElektrineWeb.DAV.FilesControllerTest do
       |> auth_conn(user)
       |> put_req_header(
         "destination",
-        "http://localhost:4002/files-dav/#{user.username}/docs/moved.txt"
+        "http://localhost:4002/drive-dav/#{user.username}/docs/moved.txt"
       )
-      |> request(:move, "/files-dav/#{user.username}/docs/note.txt")
+      |> request(:move, "/drive-dav/#{user.username}/docs/note.txt")
 
     assert conn.status == 201
 
-    conn = build_conn() |> auth_conn(user) |> delete("/files-dav/#{user.username}/docs/moved.txt")
+    conn = build_conn() |> auth_conn(user) |> delete("/drive-dav/#{user.username}/docs/moved.txt")
     assert conn.status == 204
   end
 
   defp user_fixture do
     {:ok, user} =
       Accounts.create_user(%{
-        username: "davfiles#{System.unique_integer([:positive])}",
+        username: "davdrive#{System.unique_integer([:positive])}",
         password: @test_password,
         password_confirmation: @test_password
       })

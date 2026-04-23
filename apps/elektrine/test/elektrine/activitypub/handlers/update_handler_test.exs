@@ -8,9 +8,9 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandlerTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.UpdateHandler
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Message
   alias Elektrine.Social.{Poll, PostHashtag}
 
   test "matches a federated post by activitypub URL variant" do

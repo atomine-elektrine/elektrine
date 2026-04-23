@@ -7,10 +7,10 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
   alias Elektrine.ActivityPub.Instance
   alias Elektrine.Domains
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Message
   alias Elektrine.SocialFixtures
   alias Elektrine.System, as: SystemSettings
 

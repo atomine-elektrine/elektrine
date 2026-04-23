@@ -36,9 +36,8 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
 
         message ->
           if message.federated && message.remote_actor_id do
-            remote_actor = ActivityPub.get_actor_by_uri(actor_uri)
-
-            if remote_actor && message.remote_actor_id == remote_actor.id do
+            with {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
+                 true <- message.remote_actor_id == remote_actor.id do
               message
               |> Ecto.Changeset.change(%{
                 deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)
@@ -57,8 +56,16 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandler do
                   {:ok, :deleted}
               end
             else
-              Logger.warning("Delete attempt from non-owner: #{actor_uri}")
-              {:ok, :unauthorized}
+              {:error, reason} ->
+                Logger.warning(
+                  "Delete actor resolution failed for #{actor_uri}: #{inspect(reason)}"
+                )
+
+                {:error, :delete_actor_fetch_failed}
+
+              false ->
+                Logger.warning("Delete attempt from non-owner: #{actor_uri}")
+                {:ok, :unauthorized}
             end
           else
             {:ok, :not_federated_message}

@@ -4,9 +4,9 @@ defmodule Elektrine.ActivityPub.LemmyCommentBackfill do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.LemmyApi
-  alias Elektrine.Messaging.Message
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
+  alias Elektrine.Social.Messages
 
   @spec run(keyword()) :: %{posts: non_neg_integer(), comments: non_neg_integer()}
   def run(opts \\ []) do

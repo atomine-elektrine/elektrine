@@ -225,6 +225,12 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert {:error, :unsafe_url} =
                Fetcher.webfinger_lookup("alice@127.0.0.1", skip_cache: true)
     end
+
+    test "returns an error for malformed acct input" do
+      assert {:error, :invalid_acct} = Fetcher.webfinger_lookup("alice", skip_cache: true)
+      assert {:error, :invalid_acct} = Fetcher.webfinger_lookup("@example.com", skip_cache: true)
+      assert {:error, :invalid_acct} = Fetcher.webfinger_lookup("alice@", skip_cache: true)
+    end
   end
 
   describe "fetch_and_cache_actor/2" do

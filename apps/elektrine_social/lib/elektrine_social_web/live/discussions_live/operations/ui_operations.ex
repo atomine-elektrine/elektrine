@@ -129,7 +129,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
     original_message_id = String.to_integer(original_message_id)
 
     # Try to determine where the original message is and navigate there
-    case Elektrine.Repo.get(Elektrine.Messaging.Message, original_message_id) do
+    case Elektrine.Repo.get(Elektrine.Social.Message, original_message_id) do
       nil ->
         {:noreply, notify_error(socket, "Original content not found")}
 

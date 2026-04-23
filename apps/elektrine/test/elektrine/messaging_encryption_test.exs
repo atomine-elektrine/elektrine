@@ -2,7 +2,8 @@ defmodule Elektrine.MessagingEncryptionTest do
   use Elektrine.DataCase
 
   alias Elektrine.{Accounts, Messaging, Repo}
-  alias Elektrine.Messaging.{ChatMessage, Message}
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Social.Message
 
   setup do
     # Create test users
@@ -208,7 +209,7 @@ defmodule Elektrine.MessagingEncryptionTest do
         )
 
       # List conversations
-      conversations = Messaging.list_conversations(user1.id)
+      conversations = Messaging.list_chat_conversations(user1.id)
 
       # Find our conversation
       conv = Enum.find(conversations, fn c -> c.id == conversation.id end)

@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.StorageLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Accounts.Storage
-  alias Elektrine.Files
+  alias Elektrine.Drive
   alias ElektrineWeb.Platform.Integrations
   require Logger
 
@@ -50,7 +50,7 @@ defmodule ElektrineWeb.StorageLive do
         "chat" ->
           assign(socket, :chat_attachments, get_chat_attachments(socket.assigns.current_user.id))
 
-        "files" ->
+        "drive" ->
           assign(socket, :files, get_files(socket.assigns.current_user.id))
 
         "profile" ->
@@ -118,7 +118,7 @@ defmodule ElektrineWeb.StorageLive do
   @impl true
   def handle_event("delete_chat_attachment", %{"message_id" => message_id}, socket) do
     message_id = String.to_integer(message_id)
-    message = Elektrine.Repo.get(Elektrine.Messaging.Message, message_id)
+    message = Elektrine.Repo.get(Elektrine.Social.Message, message_id)
 
     if message && message.sender_id == socket.assigns.current_user.id do
       media_urls_to_delete = message.media_urls || []
@@ -128,13 +128,13 @@ defmodule ElektrineWeb.StorageLive do
         if Elektrine.Strings.present?(message.content) do
           # Clear media from message but keep the message text
           changeset =
-            Elektrine.Messaging.Message.changeset(message, %{media_urls: [], media_metadata: %{}})
+            Elektrine.Social.Message.changeset(message, %{media_urls: [], media_metadata: %{}})
 
           Elektrine.Repo.update(changeset)
         else
           # Directly mark as deleted since we already verified ownership
           changeset =
-            Elektrine.Messaging.Message.changeset(message, %{
+            Elektrine.Social.Message.changeset(message, %{
               deleted_at: DateTime.utc_now() |> DateTime.truncate(:second)
             })
 
@@ -170,7 +170,7 @@ defmodule ElektrineWeb.StorageLive do
     user_id = socket.assigns.current_user.id
 
     with {parsed_id, ""} <- Integer.parse(file_id),
-         :ok <- Files.delete_file(user_id, parsed_id) do
+         :ok <- Drive.delete_file(user_id, parsed_id) do
       storage_info = Storage.get_storage_info(user_id)
       breakdown = get_storage_breakdown(user_id)
 
@@ -308,7 +308,7 @@ defmodule ElektrineWeb.StorageLive do
         color: "text-warning"
       },
       %{
-        category: "Files",
+        category: "Drive",
         bytes: files_storage,
         icon: "hero-folder",
         color: "text-secondary"
@@ -319,7 +319,7 @@ defmodule ElektrineWeb.StorageLive do
   defp get_chat_attachments(user_id) do
     import Ecto.Query
 
-    from(m in Elektrine.Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where:
         m.sender_id == ^user_id and fragment("cardinality(?) > 0", m.media_urls) and
           is_nil(m.deleted_at),
@@ -420,7 +420,7 @@ defmodule ElektrineWeb.StorageLive do
   end
 
   defp get_files(user_id) do
-    Files.list_files(user_id)
+    Drive.list_files(user_id)
     |> Enum.sort_by(&{DateTime.to_unix(&1.updated_at, :second), &1.path}, :desc)
     |> Enum.take(100)
   end

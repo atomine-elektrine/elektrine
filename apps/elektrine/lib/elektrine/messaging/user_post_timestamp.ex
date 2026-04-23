@@ -8,7 +8,7 @@ defmodule Elektrine.Messaging.UserPostTimestamp do
   schema "user_post_timestamps" do
     field :last_post_at, :utc_datetime
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :user, Elektrine.Accounts.User
 
     timestamps(updated_at: false)

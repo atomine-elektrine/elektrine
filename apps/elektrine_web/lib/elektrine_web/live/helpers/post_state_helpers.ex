@@ -7,9 +7,9 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   import Ecto.Query
   require Logger
 
-  alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.Social.MessageReaction
   alias ElektrineWeb.Platform.Integrations
 
   @doc """

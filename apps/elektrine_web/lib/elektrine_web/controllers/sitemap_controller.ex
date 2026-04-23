@@ -37,8 +37,8 @@ defmodule ElektrineWeb.SitemapController do
         import Ecto.Query
 
         recent_posts =
-          from(m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from(m in Elektrine.Social.Message,
+            join: c in Elektrine.Social.Conversation,
             on: c.id == m.conversation_id,
             where:
               c.type == "timeline" and
@@ -69,8 +69,8 @@ defmodule ElektrineWeb.SitemapController do
         import Ecto.Query
 
         recent_discussions =
-          from(m in Elektrine.Messaging.Message,
-            join: c in Elektrine.Messaging.Conversation,
+          from(m in Elektrine.Social.Message,
+            join: c in Elektrine.Social.Conversation,
             on: c.id == m.conversation_id,
             where:
               c.type == "community" and

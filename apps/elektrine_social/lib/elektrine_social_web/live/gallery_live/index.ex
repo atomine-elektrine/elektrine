@@ -1,7 +1,7 @@
 defmodule ElektrineSocialWeb.GalleryLive.Index do
   use ElektrineSocialWeb, :live_view
-  alias Elektrine.{Messaging, Social}
   alias Elektrine.PubSubTopics
+  alias Elektrine.Social
   import Phoenix.HTML, only: [raw: 1]
   import ElektrineSocialWeb.Components.Platform.ENav
 
@@ -827,7 +827,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     before_naive = normalize_to_naive(before_timestamp)
 
     local_query =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.post_type == "gallery" and m.visibility == "public" and is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at],
         limit: ^limit,
@@ -844,7 +844,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     local_posts = Elektrine.Repo.all(local_query)
 
     federated_query =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.federated == true and m.visibility in ["public", "unlisted"] and is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and fragment("array_length(?, 1)", m.media_urls) > 0,
@@ -901,7 +901,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
         |> Elektrine.Repo.all()
 
       local_query =
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where:
             m.post_type == "gallery" and is_nil(m.deleted_at) and
               m.sender_id in ^following_user_ids and
@@ -925,7 +925,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
           []
         else
           federated_query =
-            from(m in Messaging.Message,
+            from(m in Elektrine.Social.Message,
               where:
                 m.federated == true and m.remote_actor_id in ^following_remote_actor_ids and
                   m.visibility in ["public", "unlisted", "followers"] and
@@ -971,7 +971,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       before_naive = normalize_to_naive(before_timestamp)
 
       query =
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           join: l in Elektrine.Social.PostLike,
           on: l.message_id == m.id,
           where:
@@ -1006,7 +1006,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       before_naive = normalize_to_naive(before_timestamp)
 
       query =
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           join: s in Elektrine.Social.SavedItem,
           on: s.message_id == m.id,
           where:
@@ -1040,7 +1040,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     before_naive = normalize_to_naive(before_timestamp)
 
     local_query =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.post_type == "gallery" and m.visibility == "public" and is_nil(m.deleted_at),
         order_by: [desc: m.like_count, desc: m.inserted_at],
         limit: ^limit,
@@ -1057,7 +1057,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     local_posts = Elektrine.Repo.all(local_query)
 
     federated_query =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.federated == true and m.visibility in ["public", "unlisted"] and is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and fragment("array_length(?, 1)", m.media_urls) > 0,
@@ -1106,7 +1106,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     import Ecto.Query
 
     photo_count =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
         select: count(m.id)
       )
@@ -1114,14 +1114,14 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
 
     if photo_count > 0 do
       total_likes =
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
           select: sum(m.like_count)
         )
         |> Elektrine.Repo.one() || 0
 
       gallery_message_ids =
-        from(m in Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
           select: m.id
         )
@@ -1157,7 +1157,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     import Ecto.Query
 
     recent_uploads =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
         order_by: [desc: m.inserted_at],
         limit: 3,
@@ -1166,7 +1166,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       |> Elektrine.Repo.all()
 
     top_upload =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
         order_by: [desc: m.like_count, desc: m.inserted_at],
         limit: 1,
@@ -1182,7 +1182,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     thirty_days_ago = Date.utc_today() |> Date.add(-30)
 
     upload_dates =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
         select: fragment("DATE(?)", m.inserted_at),
         distinct: true,
@@ -1217,7 +1217,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       )
       |> Elektrine.Repo.all()
 
-    from(m in Messaging.Message,
+    from(m in Elektrine.Social.Message,
       join: u in Elektrine.Accounts.User,
       on: u.id == m.sender_id,
       where:

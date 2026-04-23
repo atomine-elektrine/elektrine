@@ -6,9 +6,9 @@ defmodule ElektrineWeb.AdminLive.ReportsDashboardTest do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.UserActivityStats
   alias Elektrine.AccountsFixtures
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Reports
+  alias Elektrine.Social.Message
   alias Elektrine.SocialFixtures
   alias ElektrineWeb.AdminSecurity
 

@@ -8,9 +8,9 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   alias Elektrine.AppCache
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
+  alias Elektrine.Social.Message
   alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.RemotePostLive.Interactions
   alias ElektrineSocialWeb.RemotePostLive.Show

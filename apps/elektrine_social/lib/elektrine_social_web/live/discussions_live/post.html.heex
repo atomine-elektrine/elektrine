@@ -416,7 +416,7 @@
               </div>
               
 <!-- Direct Image URLs Preview -->
-              <% image_urls = Elektrine.Messaging.Message.extract_image_urls(@post.content) %>
+              <% image_urls = Elektrine.Social.Message.extract_image_urls(@post.content) %>
               <%= if image_urls != [] do %>
                 <div class="mt-4 space-y-2">
                   <%= for image_url <- image_urls do %>

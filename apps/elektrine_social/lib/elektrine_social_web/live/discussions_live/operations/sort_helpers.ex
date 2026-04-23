@@ -3,8 +3,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.SortHelpers do
   Shared helpers for community discussion sorting modes.
   """
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Social
+  alias Elektrine.Social.Message
 
   @doc """
   Normalizes sort values from UI/legacy values to supported discussion sort modes.

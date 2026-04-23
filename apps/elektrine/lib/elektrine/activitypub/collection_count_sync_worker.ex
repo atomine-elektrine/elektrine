@@ -11,8 +11,8 @@ defmodule Elektrine.ActivityPub.CollectionCountSyncWorker do
   import Ecto.Query
 
   alias Elektrine.ActivityPub.CollectionFetcher
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   def enqueue(message_id, post) when is_integer(message_id) and is_map(post) do
     %{

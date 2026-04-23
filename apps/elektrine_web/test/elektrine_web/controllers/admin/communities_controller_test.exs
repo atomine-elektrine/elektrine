@@ -3,8 +3,8 @@ defmodule ElektrineWeb.Admin.CommunitiesControllerTest do
 
   alias Elektrine.Accounts
   alias Elektrine.AccountsFixtures
-  alias Elektrine.Messaging.Conversation
   alias Elektrine.Repo
+  alias Elektrine.Social.Conversation
 
   describe "GET /pripyat/communities" do
     test "renders with fallback timezone when admin timezone is nil", %{conn: conn} do

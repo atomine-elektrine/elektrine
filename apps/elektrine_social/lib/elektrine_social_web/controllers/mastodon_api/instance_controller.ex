@@ -17,8 +17,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.InstanceController do
 
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub.Instance
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   import Ecto.Query
 

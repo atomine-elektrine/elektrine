@@ -3,7 +3,7 @@ defmodule Elektrine.Email.Contact do
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "contacts" do
+  schema "email_contacts" do
     # Original fields
     field :name, :string
     field :email, :string

@@ -325,7 +325,7 @@ defmodule ElektrineWeb.AdminController do
   defp get_bluesky_bridge_stats do
     alias Elektrine.Accounts.User
     alias Elektrine.Bluesky.InboundEvent
-    alias Elektrine.Messaging.Message
+    alias Elektrine.Social.Message
 
     last_24_hours = DateTime.add(DateTime.utc_now(), -24, :hour)
 

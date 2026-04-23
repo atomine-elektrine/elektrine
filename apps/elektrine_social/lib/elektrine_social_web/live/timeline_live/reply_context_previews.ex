@@ -2,7 +2,7 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
   @moduledoc false
 
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   @default_limit 8
 

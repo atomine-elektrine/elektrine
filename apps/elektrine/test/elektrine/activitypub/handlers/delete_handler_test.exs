@@ -9,8 +9,8 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Handlers.{CreateHandler, DeleteHandler}
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   test "matches a federated post by activitypub URL variant" do
     author = remote_actor_fixture("author")
@@ -73,6 +73,36 @@ defmodule Elektrine.ActivityPub.Handlers.DeleteHandlerTest do
              CreateHandler.handle(create_activity, author.uri, nil)
 
     assert is_nil(Messaging.get_message_by_activitypub_id(object_id))
+  end
+
+  test "returns a retryable error when the delete actor cannot be resolved" do
+    author = remote_actor_fixture("missing-delete-author")
+    object_id = "https://remote.server/objects/#{System.unique_integer([:positive])}"
+
+    assert {:ok, _message} =
+             Messaging.create_federated_message(%{
+               content: "Remote post",
+               visibility: "public",
+               activitypub_id: object_id,
+               activitypub_url: object_id,
+               federated: true,
+               remote_actor_id: author.id,
+               inserted_at: DateTime.utc_now() |> DateTime.truncate(:second)
+             })
+
+    stale_uri = author.uri
+
+    author
+    |> Actor.changeset(%{uri: "https://remote.server/users/renamed-#{author.id}"})
+    |> Repo.update!()
+
+    activity = %{
+      "type" => "Delete",
+      "actor" => stale_uri,
+      "object" => object_id
+    }
+
+    assert {:error, :delete_actor_fetch_failed} = DeleteHandler.handle(activity, stale_uri, nil)
   end
 
   defp remote_actor_fixture(label) do

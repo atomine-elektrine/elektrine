@@ -10,10 +10,10 @@ defmodule Elektrine.Messaging.UserWarning do
     field :severity, :string, default: "low"
     field :acknowledged_at, :utc_datetime
 
-    belongs_to :conversation, Elektrine.Messaging.Conversation
+    belongs_to :conversation, Elektrine.Social.Conversation
     belongs_to :user, Elektrine.Accounts.User
     belongs_to :warned_by, Elektrine.Accounts.User
-    belongs_to :related_message, Elektrine.Messaging.Message
+    belongs_to :related_message, Elektrine.Social.Message
 
     timestamps(updated_at: false)
   end

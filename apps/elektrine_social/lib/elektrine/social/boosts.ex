@@ -12,8 +12,8 @@ defmodule Elektrine.Social.Boosts do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.PostBoost
 
   @doc """
@@ -296,7 +296,7 @@ defmodule Elektrine.Social.Boosts do
   defp broadcast_share_count_update(message_id) do
     message = Repo.get!(Message, message_id)
 
-    Elektrine.Messaging.Messages.broadcast_post_counts_updated(message_id, %{
+    Elektrine.Social.Messages.broadcast_post_counts_updated(message_id, %{
       like_count: message.like_count || 0,
       share_count: message.share_count || 0,
       reply_count: message.reply_count || 0

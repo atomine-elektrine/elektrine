@@ -445,12 +445,12 @@ defmodule Elektrine.ActivityPub.Helpers do
 
   defp store_or_resolve_remote_post(post_object, actor_uri) do
     case Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri) do
-      {:ok, %Elektrine.Messaging.Message{} = message} ->
+      {:ok, %Elektrine.Social.Message{} = message} ->
         {:ok, message}
 
       {:ok, status} ->
         case resolve_cached_remote_post(post_object) do
-          {:ok, %Elektrine.Messaging.Message{} = message} -> {:ok, message}
+          {:ok, %Elektrine.Social.Message{} = message} -> {:ok, message}
           :error -> {:error, status}
         end
 
@@ -469,7 +469,7 @@ defmodule Elektrine.ActivityPub.Helpers do
       |> Enum.uniq()
 
     case Enum.find_value(refs, &cached_remote_post/1) do
-      %Elektrine.Messaging.Message{} = message -> {:ok, message}
+      %Elektrine.Social.Message{} = message -> {:ok, message}
       _ -> :error
     end
   end

@@ -6,8 +6,8 @@ defmodule Elektrine.Messaging.ModerationToolsTest do
   alias Elektrine.Messaging.ModerationTools
 
   defp create_community(owner_id, name) do
-    %Elektrine.Messaging.Conversation{}
-    |> Elektrine.Messaging.Conversation.changeset(%{
+    %Elektrine.Social.Conversation{}
+    |> Elektrine.Social.Conversation.changeset(%{
       name: name,
       type: "community",
       is_public: true,
@@ -507,7 +507,7 @@ defmodule Elektrine.Messaging.ModerationToolsTest do
 
       # Mark as pending
       message
-      |> Elektrine.Messaging.Message.changeset(%{approval_status: "pending"})
+      |> Elektrine.Social.Message.changeset(%{approval_status: "pending"})
       |> Repo.update()
 
       %{moderator: moderator, new_user: new_user, community: community, message: message}
@@ -555,7 +555,7 @@ defmodule Elektrine.Messaging.ModerationToolsTest do
           )
 
         msg
-        |> Elektrine.Messaging.Message.changeset(%{approval_status: "approved"})
+        |> Elektrine.Social.Message.changeset(%{approval_status: "approved"})
         |> Repo.update()
       end)
 

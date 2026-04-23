@@ -6,11 +6,11 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Paths
   alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineSocialWeb.RemotePostLive.SurfaceHelpers
@@ -833,8 +833,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       # Filter to only show Page type (or null for older posts without type stored)
       # Also filter out Lemmy comment URLs which contain "/comment/"
       Repo.all(
-        from(m in Elektrine.Messaging.Message,
-          left_join: c in Elektrine.Messaging.Conversation,
+        from(m in Elektrine.Social.Message,
+          left_join: c in Elektrine.Social.Conversation,
           on: c.id == m.conversation_id,
           where: fragment("?->>'community_actor_uri' = ?", m.media_metadata, ^remote_actor.uri),
           where: is_nil(c.id) or c.type in ["timeline", "community"],
@@ -864,8 +864,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       # Use left_join since federated posts might not have a conversation
       # Include replies - they'll be displayed with a "replying to" indicator
       Repo.all(
-        from(m in Elektrine.Messaging.Message,
-          left_join: c in Elektrine.Messaging.Conversation,
+        from(m in Elektrine.Social.Message,
+          left_join: c in Elektrine.Social.Conversation,
           on: c.id == m.conversation_id,
           where: m.remote_actor_id == ^remote_actor.id,
           where: is_nil(c.id) or c.type == "timeline",
@@ -1950,7 +1950,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
           key = PostInteractions.interaction_key(post_id, message)
 
           existing_reaction =
-            Repo.get_by(Elektrine.Messaging.MessageReaction,
+            Repo.get_by(Elektrine.Social.MessageReaction,
               message_id: message.id,
               user_id: user_id,
               emoji: emoji
@@ -2545,7 +2545,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
        when is_list(posts) and is_integer(user_id) do
     keyed_posts =
       posts
-      |> Enum.filter(&is_struct(&1, Elektrine.Messaging.Message))
+      |> Enum.filter(&is_struct(&1, Elektrine.Social.Message))
       |> Enum.map(fn post ->
         key = post.activitypub_id || Integer.to_string(post.id)
         {key, post.id}
@@ -2598,7 +2598,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     case Enum.find(socket.assigns.local_posts, fn post ->
            (post.activitypub_id || to_string(post.id)) == post_id
          end) do
-      %Elektrine.Messaging.Message{} = message ->
+      %Elektrine.Social.Message{} = message ->
         {:ok, message}
 
       _ ->
@@ -2608,7 +2608,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     end
   end
 
-  defp load_quote_target_post(%Elektrine.Messaging.Message{id: id}) do
+  defp load_quote_target_post(%Elektrine.Social.Message{id: id}) do
     MessagingMessages.get_timeline_post!(id, force: true)
   rescue
     _ -> MessagingMessages.get_timeline_post!(id)

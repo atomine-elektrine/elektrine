@@ -2,7 +2,7 @@ defmodule Elektrine.Paths do
   @moduledoc false
 
   alias Elektrine.{Accounts, Domains}
-  alias Elektrine.Messaging.Messages
+  alias Elektrine.Social.Messages
 
   def post_path(%{federated: true, id: id}) when is_integer(id), do: remote_post_path(id)
 

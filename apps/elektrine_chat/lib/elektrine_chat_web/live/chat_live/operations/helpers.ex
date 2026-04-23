@@ -5,7 +5,8 @@ defmodule ElektrineChatWeb.ChatLive.Operations.Helpers do
   """
 
   alias Elektrine.Messaging, as: Messaging
-  alias Elektrine.Messaging.{ChatMessage, Conversation, Message}
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Social.{Conversation, Message}
 
   @doc """
   Get the display name for a conversation based on the current user.

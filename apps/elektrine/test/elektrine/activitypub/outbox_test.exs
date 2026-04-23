@@ -33,7 +33,7 @@ defmodule Elektrine.ActivityPub.OutboxTest do
       sensitive: false
     }
 
-    struct(Elektrine.Messaging.Message, Map.merge(defaults, attrs))
+    struct(Elektrine.Social.Message, Map.merge(defaults, attrs))
   end
 
   describe "EmojiReact activity builder" do
@@ -102,7 +102,7 @@ defmodule Elektrine.ActivityPub.OutboxTest do
       Application.put_env(:elektrine, :uploads, public_url: "https://uploads.example")
 
       author = mock_user("communityauthor")
-      community = %Elektrine.Messaging.Conversation{name: "fedigroup"}
+      community = %Elektrine.Social.Conversation{name: "fedigroup"}
 
       message =
         mock_message(%{

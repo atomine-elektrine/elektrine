@@ -5,8 +5,8 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
 
   alias Elektrine.Accounts.User
   alias Elektrine.Bluesky.InboundEvent
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Oban.Job
 
   @inbound_events_limit 20

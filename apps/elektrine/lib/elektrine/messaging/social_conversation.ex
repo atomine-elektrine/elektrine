@@ -1,11 +1,11 @@
-defmodule Elektrine.Messaging.Conversation do
+defmodule Elektrine.Social.Conversation do
   @moduledoc false
   use Ecto.Schema
   import Ecto.Changeset
 
   alias Elektrine.Messaging.ChatConversation
 
-  schema "conversations" do
+  schema "social_conversations" do
     field :name, :string
     field :description, :string
     field :type, :string
@@ -42,9 +42,9 @@ defmodule Elektrine.Messaging.Conversation do
     belongs_to :creator, Elektrine.Accounts.User
     belongs_to :server, Elektrine.Messaging.Server
     has_many :channels, __MODULE__, foreign_key: :server_id
-    has_many :members, Elektrine.Messaging.ConversationMember, foreign_key: :conversation_id
+    has_many :members, Elektrine.Social.ConversationMember, foreign_key: :conversation_id
     has_many :users, through: [:members, :user]
-    has_many :messages, Elektrine.Messaging.Message, foreign_key: :conversation_id
+    has_many :messages, Elektrine.Social.Message, foreign_key: :conversation_id
 
     timestamps()
   end

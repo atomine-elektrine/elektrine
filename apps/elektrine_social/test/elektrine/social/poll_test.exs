@@ -2,7 +2,6 @@ defmodule Elektrine.Social.PollTest do
   use Elektrine.DataCase
 
   alias Elektrine.{Accounts, Messaging}
-  alias Elektrine.Messaging.OptionalSocialSchemas.Poll, as: OptionalPoll
   alias Elektrine.Social
 
   describe "polls" do
@@ -279,9 +278,9 @@ defmodule Elektrine.Social.PollTest do
       assert_in_delta option2_result.percentage, 33.3, 0.1
     end
 
-    test "open?/1 accepts optional social poll structs" do
-      future_poll = %OptionalPoll{closes_at: DateTime.add(DateTime.utc_now(), 3600, :second)}
-      past_poll = %OptionalPoll{closes_at: DateTime.add(DateTime.utc_now(), -3600, :second)}
+    test "open?/1 accepts poll structs" do
+      future_poll = %Social.Poll{closes_at: DateTime.add(DateTime.utc_now(), 3600, :second)}
+      past_poll = %Social.Poll{closes_at: DateTime.add(DateTime.utc_now(), -3600, :second)}
 
       assert Social.Poll.open?(future_poll)
       refute Social.Poll.open?(past_poll)

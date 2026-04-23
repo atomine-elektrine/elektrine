@@ -2,8 +2,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
   @moduledoc "Handles voting operations (likes, dislikes, boosts) for timeline posts.\nExtracted from TimelineLive.Index to improve code organization.\n"
   import Phoenix.LiveView
   import Phoenix.Component
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Social
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
   alias ElektrineWeb.Live.PostInteractions
@@ -311,7 +311,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
               import Ecto.Query
 
               boost_post =
-                from(m in Elektrine.Messaging.Message,
+                from(m in Elektrine.Social.Message,
                   where: m.sender_id == ^user_id and m.shared_message_id == ^message_id,
                   order_by: [desc: m.id],
                   limit: 1,
@@ -553,12 +553,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
             preloads = MessagingMessages.timeline_post_preloads()
 
             reloaded =
-              from(m in Elektrine.Messaging.Message,
+              from(m in Elektrine.Social.Message,
                 where: m.id == ^quote_post.id,
                 preload: ^preloads
               )
               |> Elektrine.Repo.one()
-              |> Elektrine.Messaging.Message.decrypt_content()
+              |> Elektrine.Social.Message.decrypt_content()
 
             update_fn = fn posts ->
               posts
@@ -612,9 +612,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
           message_id = poll.message_id
 
           updated_message =
-            Elektrine.Repo.get!(Elektrine.Messaging.Message, message_id)
+            Elektrine.Repo.get!(Elektrine.Social.Message, message_id)
             |> Elektrine.Repo.preload(MessagingMessages.timeline_post_preloads(), force: true)
-            |> Elektrine.Messaging.Message.decrypt_content()
+            |> Elektrine.Social.Message.decrypt_content()
 
           update_post = fn posts ->
             Enum.map(posts || [], fn post ->
@@ -734,7 +734,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
             alias Elektrine.Messaging.Reactions
 
             existing_reaction =
-              Elektrine.Repo.get_by(Elektrine.Messaging.MessageReaction,
+              Elektrine.Repo.get_by(Elektrine.Social.MessageReaction,
                 message_id: message.id,
                 user_id: user_id,
                 emoji: emoji

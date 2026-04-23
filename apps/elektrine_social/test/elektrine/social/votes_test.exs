@@ -1,8 +1,8 @@
 defmodule Elektrine.Social.VotesTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.Votes
   import Elektrine.AccountsFixtures
   import Elektrine.SocialFixtures

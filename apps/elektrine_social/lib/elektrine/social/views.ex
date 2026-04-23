@@ -10,8 +10,8 @@ defmodule Elektrine.Social.Views do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.TrustLevel
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Repo
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Social.PostView
 
   @doc """

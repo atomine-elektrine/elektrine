@@ -4,6 +4,7 @@ defmodule Elektrine.SMTP.Server do
   require Logger
   alias Elektrine.Constants
   alias Elektrine.Domains
+  alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
   alias Elektrine.MailAuth.RateLimiter, as: MailAuthRateLimiter
   alias Elektrine.ProxyProtocol
@@ -13,11 +14,20 @@ defmodule Elektrine.SMTP.Server do
   @max_recipients Constants.smtp_max_recipients()
   @slow_command_threshold_us 750_000
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   def init(opts) do
     port = Keyword.get(opts, :port, Application.get_env(:elektrine, :smtp_port, 2587))
+    tls_opts = Keyword.get(opts, :tls_opts, Application.get_env(:elektrine, :smtp_tls_opts, []))
+
+    allow_insecure_auth =
+      Keyword.get(
+        opts,
+        :allow_insecure_auth,
+        Application.get_env(:elektrine, :allow_insecure_mail_auth, false)
+      )
 
     case :gen_tcp.listen(port, [
            :binary,
@@ -32,10 +42,18 @@ defmodule Elektrine.SMTP.Server do
            send_timeout_close: true
          ]) do
       {:ok, socket} ->
-        :ets.new(:smtp_active_connections, [:set, :public, :named_table])
+        ensure_connection_table()
         :ets.insert(:smtp_active_connections, {:total, 0})
-        spawn_link(fn -> accept_loop(socket) end)
-        {:ok, %{socket: socket, port: port, connections: 0}}
+        spawn_link(fn -> accept_loop(socket, tls_opts, allow_insecure_auth) end)
+
+        {:ok,
+         %{
+           socket: socket,
+           port: port,
+           connections: 0,
+           tls_opts: tls_opts,
+           allow_insecure_auth: allow_insecure_auth
+         }}
 
       {:error, :eaddrinuse} ->
         Logger.error("SMTP server failed: Port #{port} is already in use")
@@ -47,7 +65,7 @@ defmodule Elektrine.SMTP.Server do
     end
   end
 
-  defp accept_loop(socket) do
+  defp accept_loop(socket, tls_opts, allow_insecure_auth) do
     case :gen_tcp.accept(socket) do
       {:ok, client} ->
         {client_ip, initial_data} =
@@ -56,14 +74,14 @@ defmodule Elektrine.SMTP.Server do
               {normalize_ipv6_subnet(ip), data}
 
             {:error, _reason} ->
-              case :inet.peername(client) do
+              case Socket.peername(client) do
                 {:ok, {ip, _port}} ->
                   ip_string = :inet.ntoa(ip) |> to_string() |> normalize_ipv6_subnet()
-                  :gen_tcp.close(client)
+                  Socket.close(client)
                   {ip_string, nil}
 
                 {:error, _} ->
-                  :gen_tcp.close(client)
+                  Socket.close(client)
                   {nil, nil}
               end
           end
@@ -78,38 +96,54 @@ defmodule Elektrine.SMTP.Server do
             )
 
             send_response(client, "421 Too many connections from your IP address")
-            :gen_tcp.close(client)
+            Socket.close(client)
 
           true ->
-            :inet.setopts(client,
+            Socket.setopts(client,
               keepalive: true,
               nodelay: true,
               send_timeout: Constants.smtp_send_timeout_ms(),
+              packet: :line,
               recbuf: 65_536,
               sndbuf: 65_536
             )
 
             increment_connection_count(client_ip)
 
-            spawn(fn ->
-              try do
-                handle_client(client, client_ip, initial_data)
-              after
+            handler_pid =
+              spawn(fn ->
+                receive do
+                  :go -> :ok
+                end
+
+                try do
+                  handle_client(client, client_ip, initial_data, tls_opts, allow_insecure_auth)
+                after
+                  decrement_connection_count(client_ip)
+                end
+              end)
+
+            case Socket.controlling_process(client, handler_pid) do
+              :ok ->
+                send(handler_pid, :go)
+
+              {:error, reason} ->
+                Logger.error("SMTP failed to transfer socket ownership: #{inspect(reason)}")
+                Socket.close(client)
                 decrement_connection_count(client_ip)
-              end
-            end)
+            end
         end
 
-        accept_loop(socket)
+        accept_loop(socket, tls_opts, allow_insecure_auth)
 
       {:error, reason} ->
         Logger.error("Accept failed: #{inspect(reason)}")
         :timer.sleep(1000)
-        accept_loop(socket)
+        accept_loop(socket, tls_opts, allow_insecure_auth)
     end
   end
 
-  defp handle_client(socket, client_ip, initial_data) do
+  defp handle_client(socket, client_ip, initial_data, tls_opts, allow_insecure_auth) do
     send_response(socket, "220 Elektrine SMTP server ready")
 
     state = %{
@@ -122,7 +156,9 @@ defmodule Elektrine.SMTP.Server do
       to: [],
       data: "",
       state: :greeting,
-      initial_data: initial_data
+      initial_data: initial_data,
+      tls_opts: tls_opts,
+      allow_insecure_auth: allow_insecure_auth
     }
 
     client_loop(state)
@@ -133,22 +169,22 @@ defmodule Elektrine.SMTP.Server do
       if state.initial_data do
         {state.initial_data, %{state | initial_data: nil}}
       else
-        case :gen_tcp.recv(state.socket, 0, 300_000) do
+        case Socket.recv(state.socket, 0, 300_000) do
           {:ok, data} ->
             {data, state}
 
           {:error, :timeout} ->
             send_response(state.socket, "421 Timeout")
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
 
           {:error, :closed} ->
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
 
           {:error, reason} ->
             Logger.error("SMTP receive error: #{inspect(reason)}")
-            :gen_tcp.close(state.socket)
+            Socket.close(state.socket)
             {nil, state}
         end
       end
@@ -161,8 +197,7 @@ defmodule Elektrine.SMTP.Server do
           client_loop(new_state)
 
         {:quit, _new_state} ->
-          send_response(state.socket, "221 Bye")
-          :gen_tcp.close(state.socket)
+          Socket.close(state.socket)
       end
     end
   end
@@ -186,6 +221,7 @@ defmodule Elektrine.SMTP.Server do
             case normalized_cmd do
               "EHLO" -> handle_ehlo(args_str, state)
               "HELO" -> handle_helo(args_str, state)
+              "STARTTLS" -> handle_starttls(state)
               "AUTH" -> handle_auth(args_str, state)
               "MAIL" -> handle_mail(args_str, state)
               "RCPT" -> handle_rcpt(args_str, state)
@@ -214,7 +250,15 @@ defmodule Elektrine.SMTP.Server do
     send_response(state.socket, "250-#{Domains.mail_hostname()}")
     send_response(state.socket, "250-SIZE 52428800")
     send_response(state.socket, "250-8BITMIME")
-    send_response(state.socket, "250-AUTH PLAIN LOGIN")
+
+    if starttls_available?(state) do
+      send_response(state.socket, "250-STARTTLS")
+    end
+
+    if auth_allowed?(state) do
+      send_response(state.socket, "250-AUTH PLAIN LOGIN")
+    end
+
     send_response(state.socket, "250 HELP")
     {:continue, %{state | state: :ready}}
   end
@@ -225,32 +269,41 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_auth(args, state) do
-    case parse_auth(args) do
-      {:plain, credentials} ->
-        handle_auth_plain(credentials, state)
+    if auth_allowed?(state) do
+      case parse_auth(args) do
+        {:plain, credentials} ->
+          handle_auth_plain(credentials, state)
 
-      {:login, nil} ->
-        send_response(state.socket, "334 VXNlcm5hbWU6")
-        handle_auth_login_flow(state)
+        {:login, nil} ->
+          send_response(state.socket, "334 VXNlcm5hbWU6")
+          handle_auth_login_flow(state)
 
-      {:login, username} ->
-        case decode_base64_line(username) do
-          {:ok, "*"} ->
-            send_response(state.socket, "501 Authentication cancelled")
-            {:continue, state}
+        {:login, username} ->
+          case decode_base64_line(username) do
+            {:ok, "*"} ->
+              send_response(state.socket, "501 Authentication cancelled")
+              {:continue, state}
 
-          {:ok, decoded_username} ->
-            send_response(state.socket, "334 UGFzc3dvcmQ6")
-            handle_auth_login_password(decoded_username, state)
+            {:ok, decoded_username} ->
+              send_response(state.socket, "334 UGFzc3dvcmQ6")
+              handle_auth_login_password(decoded_username, state)
 
-          :error ->
-            send_response(state.socket, "535 Authentication failed")
-            {:continue, state}
-        end
+            :error ->
+              send_response(state.socket, "535 Authentication failed")
+              {:continue, state}
+          end
 
-      {:error, _} ->
-        send_response(state.socket, "535 Authentication failed")
-        {:continue, state}
+        {:error, _} ->
+          send_response(state.socket, "535 Authentication failed")
+          {:continue, state}
+      end
+    else
+      send_response(
+        state.socket,
+        "538 Encryption required for requested authentication mechanism"
+      )
+
+      {:continue, state}
     end
   end
 
@@ -282,7 +335,7 @@ defmodule Elektrine.SMTP.Server do
   defp handle_auth_plain(nil, state) do
     send_response(state.socket, "334")
 
-    case :gen_tcp.recv(state.socket, 0, 60_000) do
+    case Socket.recv(state.socket, 0, 60_000) do
       {:ok, data} ->
         credentials = data |> to_string() |> String.trim()
 
@@ -320,7 +373,7 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_auth_login_flow(state) do
-    case :gen_tcp.recv(state.socket, 0, 60_000) do
+    case Socket.recv(state.socket, 0, 60_000) do
       {:ok, username_data} ->
         case decode_base64_line(username_data) do
           {:ok, "*"} ->
@@ -343,7 +396,7 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp handle_auth_login_password(username, state) do
-    case :gen_tcp.recv(state.socket, 0, 60_000) do
+    case Socket.recv(state.socket, 0, 60_000) do
       {:ok, password_data} ->
         case decode_base64_line(password_data) do
           {:ok, "*"} ->
@@ -607,9 +660,9 @@ defmodule Elektrine.SMTP.Server do
   defp handle_data(state) when state.state == :rcpt and state.to != [] do
     send_response(state.socket, "354 End data with <CR><LF>.<CR><LF>")
     Process.sleep(10)
-    :inet.setopts(state.socket, packet: :raw, active: false)
+    Socket.setopts(state.socket, packet: :raw, active: false)
     result = collect_data_binary(state.socket)
-    :inet.setopts(state.socket, packet: :line, active: false)
+    Socket.setopts(state.socket, packet: :line, active: false)
 
     case result do
       {:ok, data} ->
@@ -670,7 +723,7 @@ defmodule Elektrine.SMTP.Server do
       Logger.warning("SMTP DATA rejected: size #{size_so_far} exceeds limit #{@max_data_size}")
       {:error, :message_too_large}
     else
-      case :gen_tcp.recv(socket, 0, 30_000) do
+      case Socket.recv(socket, 0, 30_000) do
         {:ok, chunk_raw} ->
           chunk =
             if is_list(chunk_raw) do
@@ -734,9 +787,71 @@ defmodule Elektrine.SMTP.Server do
     {:continue, state}
   end
 
+  defp handle_starttls(state) do
+    cond do
+      secure_transport?(state) ->
+        send_response(state.socket, "454 TLS already active")
+        {:continue, state}
+
+      !starttls_available?(state) ->
+        send_response(state.socket, "454 TLS not available due to temporary reason")
+        {:continue, state}
+
+      true ->
+        send_response(state.socket, "220 Ready to start TLS")
+
+        case Socket.starttls(state.socket, state.tls_opts) do
+          {:ok, tls_socket} ->
+            Socket.setopts(tls_socket,
+              active: false,
+              packet: :line,
+              keepalive: true,
+              nodelay: true,
+              send_timeout: Constants.smtp_send_timeout_ms(),
+              recbuf: 65_536,
+              sndbuf: 65_536
+            )
+
+            {:continue, reset_after_starttls(state, tls_socket)}
+
+          {:error, reason} ->
+            Logger.warning("SMTP STARTTLS failed: #{inspect(reason)}")
+            {:quit, state}
+        end
+    end
+  end
+
   defp handle_quit(state) do
     send_response(state.socket, "221 Bye")
     {:quit, state}
+  end
+
+  defp reset_after_starttls(state, tls_socket) do
+    %{
+      state
+      | socket: tls_socket,
+        authenticated: false,
+        user: nil,
+        user_id: nil,
+        from: nil,
+        to: [],
+        data: "",
+        state: :greeting,
+        initial_data: nil
+    }
+  end
+
+  defp starttls_available?(state) do
+    not secure_transport?(state) and Socket.tls_available?(state.tls_opts)
+  end
+
+  defp auth_allowed?(state) do
+    secure_transport?(state) or Map.get(state, :allow_insecure_auth, false)
+  end
+
+  defp secure_transport?(state) do
+    is_tuple(state.socket) and tuple_size(state.socket) > 0 and
+      elem(state.socket, 0) == :sslsocket
   end
 
   defp handle_unknown(cmd, state) do
@@ -874,6 +989,16 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp send_response(socket, message) do
-    :gen_tcp.send(socket, "#{message}\r\n")
+    Socket.send(socket, "#{message}\r\n")
+  end
+
+  defp ensure_connection_table do
+    if :ets.whereis(:smtp_active_connections) == :undefined do
+      :ets.new(:smtp_active_connections, [:set, :public, :named_table])
+    end
+
+    :ok
+  rescue
+    ArgumentError -> :ok
   end
 end

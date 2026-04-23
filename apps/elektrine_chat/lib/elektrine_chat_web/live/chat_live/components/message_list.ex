@@ -4,7 +4,8 @@ defmodule ElektrineChatWeb.ChatLive.Components.MessageList do
   import Phoenix.HTML
   import ElektrineWeb.HtmlHelpers
 
-  alias Elektrine.Messaging.{ChatMessage, Message}
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Social.Message
 
   def render(assigns) do
     # Group consecutive messages from same sender within 5 minutes

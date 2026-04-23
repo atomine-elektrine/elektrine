@@ -4,13 +4,13 @@ defmodule ElektrineWeb.OverviewLive.Index do
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.Friends
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Messages, as: MessagingMessages
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Notifications
   alias Elektrine.Platform.Modules
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Security.SafeExternalURL
+  alias Elektrine.Social.Messages, as: MessagingMessages
   alias ElektrineWeb.Components.Social.PostUtilities
   alias ElektrineWeb.Live.PostInteractions
   alias ElektrineWeb.Platform.Integrations
@@ -521,7 +521,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
           user_id = socket.assigns.current_user.id
 
           existing_reaction =
-            Repo.get_by(Elektrine.Messaging.MessageReaction,
+            Repo.get_by(Elektrine.Social.MessageReaction,
               message_id: message_id,
               user_id: user_id,
               emoji: emoji
@@ -684,7 +684,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
               if Ecto.assoc_loaded?(post.conversation) do
                 post.conversation
               else
-                Elektrine.Repo.get(Messaging.Conversation, post.conversation_id)
+                Elektrine.Repo.get(Elektrine.Social.Conversation, post.conversation_id)
               end
 
             if conversation do
@@ -919,7 +919,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
           message ->
             if message.sender_id == user.id do
-              case Messaging.Messages.delete_message(message_id, user.id) do
+              case Messaging.delete_message(message_id, user.id) do
                 {:ok, _} ->
                   {:noreply,
                    socket
@@ -3073,14 +3073,14 @@ defmodule ElektrineWeb.OverviewLive.Index do
   defp reload_overview_post(message_id) when is_integer(message_id) do
     import Ecto.Query
 
-    from(m in Elektrine.Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where: m.id == ^message_id,
       preload: ^MessagingMessages.timeline_post_preloads()
     )
     |> Repo.one()
     |> case do
       nil -> nil
-      message -> Elektrine.Messaging.Message.decrypt_content(message)
+      message -> Elektrine.Social.Message.decrypt_content(message)
     end
   end
 
@@ -3148,7 +3148,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     today_start = NaiveDateTime.utc_now() |> NaiveDateTime.beginning_of_day()
 
     posts_today =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
             is_nil(m.deleted_at),
@@ -3159,7 +3159,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     week_start = NaiveDateTime.utc_now() |> NaiveDateTime.add(-7 * 24 * 60 * 60)
 
     posts_this_week =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^week_start and
             is_nil(m.deleted_at),
@@ -3168,7 +3168,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> Elektrine.Repo.one() || 0
 
     active_users =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
             is_nil(m.deleted_at),
@@ -3179,7 +3179,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> length()
 
     top_post_today =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
             m.visibility == "public" and is_nil(m.deleted_at),
@@ -3190,7 +3190,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> Elektrine.Repo.one()
 
     top_creators =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^week_start and
             is_nil(m.deleted_at),
@@ -3217,7 +3217,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     import Ecto.Query
 
     total_posts =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
@@ -3226,28 +3226,28 @@ defmodule ElektrineWeb.OverviewLive.Index do
       |> Elektrine.Repo.one() || 0
 
     timeline_posts =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "post" and is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
     gallery_posts =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "gallery" and is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
     discussion_posts =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.sender_id == ^user_id and m.post_type == "discussion" and is_nil(m.deleted_at),
         select: count(m.id)
       )
       |> Elektrine.Repo.one() || 0
 
     total_likes =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
@@ -3259,7 +3259,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
     following = Elektrine.Profiles.get_following_count(user_id)
 
     top_post =
-      from(m in Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
             is_nil(m.deleted_at),
@@ -3342,7 +3342,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     search_term = activity_search_pattern(query)
 
-    from(m in Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where:
         m.sender_id == ^user_id and m.post_type in ^post_types and is_nil(m.deleted_at) and
           m.is_draft == false,
@@ -3355,7 +3355,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       preload: [:conversation]
     )
     |> Repo.all()
-    |> Messaging.Message.decrypt_messages()
+    |> Elektrine.Social.Message.decrypt_messages()
     |> Enum.map(&activity_post_entry/1)
   end
 
@@ -3364,7 +3364,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     search_term = activity_search_pattern(query)
 
-    from(m in Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where:
         m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
           is_nil(m.deleted_at) and m.is_draft == false and m.like_count > 0,
@@ -3377,7 +3377,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
       preload: [:conversation]
     )
     |> Repo.all()
-    |> Messaging.Message.decrypt_messages()
+    |> Elektrine.Social.Message.decrypt_messages()
     |> Enum.map(&activity_like_entry/1)
   end
 
@@ -3566,7 +3566,7 @@ defmodule ElektrineWeb.OverviewLive.Index do
 
     preloads = [conversation: []] ++ MessagingMessages.timeline_feed_preloads()
 
-    from(m in Messaging.Message,
+    from(m in Elektrine.Social.Message,
       where:
         m.sender_id == ^user_id and m.post_type in ["post", "gallery", "discussion"] and
           is_nil(m.deleted_at),

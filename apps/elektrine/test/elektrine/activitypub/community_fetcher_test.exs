@@ -3,7 +3,7 @@ defmodule Elektrine.ActivityPub.CommunityFetcherTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.CommunityFetcher
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
 
   defmodule ActivityPubStub do
     def fetch_remote_user_timeline(remote_actor_id, opts) do

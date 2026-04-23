@@ -2,11 +2,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Interactions do
   @moduledoc false
 
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
-  alias Elektrine.Messaging.Message
-  alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Messaging.Reactions
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Message
+  alias Elektrine.Social.MessageReaction
   alias Elektrine.Social.Votes
   alias ElektrineWeb.Live.PostInteractions
 

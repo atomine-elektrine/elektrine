@@ -5,7 +5,7 @@ defmodule Elektrine.Social.PostBoost do
 
   schema "post_boosts" do
     belongs_to :user, Elektrine.Accounts.User
-    belongs_to :message, Elektrine.Messaging.Message
+    belongs_to :message, Elektrine.Social.Message
 
     field :activitypub_id, :string
 

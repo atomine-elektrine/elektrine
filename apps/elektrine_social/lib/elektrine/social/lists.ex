@@ -1,8 +1,8 @@
 defmodule Elektrine.Social.Lists do
   @moduledoc "Functions for managing user lists (curated collections of accounts to follow).\n"
   import Ecto.Query, warn: false
-  alias Elektrine.Messaging.{Conversation, Message}
   alias Elektrine.Repo
+  alias Elektrine.Social.{Conversation, Message}
   alias Elektrine.Social.{List, ListMember}
   @doc "Creates a new list for a user.\n"
   def create_list(attrs \\ %{}) do

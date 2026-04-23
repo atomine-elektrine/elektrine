@@ -6,10 +6,10 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
 
   alias Elektrine.Messaging.{
     ArblargSDK,
+    ChatConversation,
+    ChatConversationMember,
     ChatMessage,
     ChatMessages,
-    Conversation,
-    ConversationMember,
     Federation,
     FederationExtensionEvent,
     Server
@@ -224,8 +224,8 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
       })
       |> Repo.insert!()
 
-    %Conversation{}
-    |> Conversation.channel_changeset(%{
+    %ChatConversation{}
+    |> ChatConversation.channel_changeset(%{
       name: "remote-channel-#{suffix}",
       description: "Mirrored remote channel",
       server_id: server.id,
@@ -247,8 +247,8 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
   end
 
   defp mirrored_member_fixture(conversation_id, user_id, role \\ "member") do
-    %ConversationMember{}
-    |> ConversationMember.changeset(%{
+    %ChatConversationMember{}
+    |> ChatConversationMember.changeset(%{
       conversation_id: conversation_id,
       user_id: user_id,
       role: role,

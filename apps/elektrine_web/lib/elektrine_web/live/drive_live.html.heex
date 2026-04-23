@@ -1,6 +1,6 @@
 <div class="mx-auto w-full max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
   <ElektrineWeb.Components.Platform.ENav.e_nav
-    active_tab="files"
+    active_tab="drive"
     current_user={@current_user}
     class="mb-6 sm:mb-8"
   />
@@ -20,7 +20,7 @@
           <% end %>
           <div>
             <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
-              Files
+              Drive
             </h1>
             <p class="mt-2 text-sm text-base-content/65 sm:text-base">
               Private cloud storage with search, previews, share links, and WebDAV sync.
@@ -140,12 +140,12 @@
           >
             <input type="hidden" name="filters[filter]" value={@active_filter} />
             <label class="form-control">
-              <span class="sr-only">Search files</span>
+              <span class="sr-only">Search drive</span>
               <input
                 type="text"
                 name="filters[q]"
                 value={@search_query}
-                placeholder="Search files and folders"
+                placeholder="Search drive and folders"
                 phx-debounce="250"
                 id="file-explorer-search"
                 class="input input-bordered h-9 min-h-9 w-full"
@@ -171,7 +171,7 @@
             </span>
             <%= for {label, value} <- @quick_filter_options do %>
               <.link
-                patch={files_path(@current_folder, @search_query, @sort_by, value)}
+                patch={drive_path(@current_folder, @search_query, @sort_by, value)}
                 class={[
                   "rounded-full px-3 py-1.5 text-sm transition-colors",
                   quick_filter_class(@active_filter, value)
@@ -241,7 +241,7 @@
                 <p class="font-semibold">Upload Queue</p>
 
                 <p class="text-sm text-base-content/60">
-                  Files will upload into {if @folder_path in [nil, ""],
+                  Drive uploads will go into {if @folder_path in [nil, ""],
                     do: "the current folder",
                     else: @folder_path}.
                 </p>
@@ -429,7 +429,7 @@
                     <div></div>
                     <.link
                       patch={
-                        files_path(
+                        drive_path(
                           @current_folder,
                           @search_query,
                           next_table_sort(@sort_by, :name),
@@ -446,7 +446,7 @@
                     </.link>
                     <.link
                       patch={
-                        files_path(
+                        drive_path(
                           @current_folder,
                           @search_query,
                           next_table_sort(@sort_by, :location),
@@ -463,7 +463,7 @@
                     </.link>
                     <.link
                       patch={
-                        files_path(
+                        drive_path(
                           @current_folder,
                           @search_query,
                           next_table_sort(@sort_by, :modified),
@@ -480,7 +480,7 @@
                     </.link>
                     <.link
                       patch={
-                        files_path(
+                        drive_path(
                           @current_folder,
                           @search_query,
                           next_table_sort(@sort_by, :size),
@@ -537,7 +537,7 @@
                               <div class="min-w-0">
                                 <.link
                                   patch={
-                                    files_path(
+                                    drive_path(
                                       folder.path,
                                       @search_query,
                                       @sort_by,
@@ -580,7 +580,7 @@
                           >
                             <.link
                               patch={
-                                files_path(folder.path, @search_query, @sort_by, @active_filter)
+                                drive_path(folder.path, @search_query, @sort_by, @active_filter)
                               }
                               class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
                               title="Open folder"
@@ -635,7 +635,7 @@
                             <div class="flex items-start gap-3">
                               <%= if image_preview?(file.content_type) do %>
                                 <img
-                                  src={~p"/account/files/#{file.id}/preview"}
+                                  src={~p"/account/drive/#{file.id}/preview"}
                                   alt={file_display_name(file)}
                                   class="h-12 w-12 rounded-xl object-cover ring-1 ring-base-300"
                                 />
@@ -688,7 +688,7 @@
                           >
                             <%= if inline_viewable?(file.content_type) do %>
                               <.link
-                                href={~p"/account/files/#{file.id}/preview"}
+                                href={~p"/account/drive/#{file.id}/preview"}
                                 target="_blank"
                                 class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
                                 title="Preview"
@@ -698,7 +698,7 @@
                             <% end %>
 
                             <.link
-                              href={~p"/account/files/#{file.id}/download"}
+                              href={~p"/account/drive/#{file.id}/download"}
                               class="btn btn-ghost btn-sm h-8 min-h-8 px-2"
                               title="Download"
                             >
@@ -762,7 +762,7 @@
           <div class="flex flex-wrap gap-2 border-t border-base-300/70 pt-4">
             <%= if inline_viewable?(@active_file.content_type) do %>
               <.link
-                href={~p"/account/files/#{@active_file.id}/preview"}
+                href={~p"/account/drive/#{@active_file.id}/preview"}
                 target="_blank"
                 class="btn btn-outline btn-sm"
               >
@@ -770,7 +770,7 @@
               </.link>
             <% end %>
             <.link
-              href={~p"/account/files/#{@active_file.id}/download"}
+              href={~p"/account/drive/#{@active_file.id}/download"}
               class="btn btn-outline btn-sm"
             >
               Download
@@ -963,7 +963,7 @@
 
                     <div class="flex flex-wrap gap-2">
                       <.link
-                        href={~p"/files/share/#{share.token}"}
+                        href={~p"/drive/share/#{share.token}"}
                         target="_blank"
                         class="btn btn-outline btn-sm"
                       >
@@ -1008,7 +1008,7 @@
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="surface-soft rounded-2xl p-4">
               <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
-                Contained Files
+                Items in Folder
               </p>
               <p class="mt-2 text-2xl font-semibold">{@active_folder.file_count}</p>
             </div>

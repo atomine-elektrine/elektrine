@@ -7,9 +7,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   import Phoenix.LiveView
   import ElektrineWeb.Live.NotificationHelpers
 
-  alias Elektrine.Messaging.Messages
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.Social.Messages
 
   def handle_event("vote", %{"message_id" => message_id, "type" => vote_type}, socket) do
     if socket.assigns.current_user do
@@ -95,7 +95,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
 
       remote_actor =
         message_id
-        |> Repo.get(Elektrine.Messaging.Message)
+        |> Repo.get(Elektrine.Social.Message)
         |> case do
           nil -> nil
           message -> Repo.preload(message, [:remote_actor]).remote_actor
@@ -149,7 +149,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
       # Check if user already has this reaction
       existing_reaction =
         Elektrine.Repo.get_by(
-          Elektrine.Messaging.MessageReaction,
+          Elektrine.Social.MessageReaction,
           message_id: message_id,
           user_id: user_id,
           emoji: emoji
@@ -219,8 +219,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
   # Helper function
   defp get_post_with_replies_expanded(post_id, community_id, expanded_threads) do
     import Ecto.Query
-    alias Elektrine.Messaging.Message
     alias Elektrine.Repo
+    alias Elektrine.Social.Message
 
     post =
       from(m in Message,
@@ -242,8 +242,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostOperations.VotingOperations do
 
   defp get_threaded_replies_with_expansion(parent_id, community_id, depth, expanded_threads) do
     import Ecto.Query
-    alias Elektrine.Messaging.Message
     alias Elektrine.Repo
+    alias Elektrine.Social.Message
 
     direct_replies =
       from(m in Message,

@@ -12,8 +12,8 @@ defmodule Elektrine.ActivityPub.Outbox do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.{Builder, Fetcher, Mentions, Publisher}
   alias Elektrine.Bluesky.OutboundWorker
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @doc """
   Federates a newly created message/post to remote followers.
@@ -696,7 +696,7 @@ defmodule Elektrine.ActivityPub.Outbox do
 
   defp local_public_community(%Message{} = message) do
     case message_conversation(message) do
-      %Elektrine.Messaging.Conversation{
+      %Elektrine.Social.Conversation{
         type: "community",
         is_public: true,
         is_federated_mirror: false
@@ -712,10 +712,10 @@ defmodule Elektrine.ActivityPub.Outbox do
          conversation: %Ecto.Association.NotLoaded{},
          conversation_id: id
        }),
-       do: Repo.get(Elektrine.Messaging.Conversation, id)
+       do: Repo.get(Elektrine.Social.Conversation, id)
 
   defp message_conversation(%Message{conversation: nil, conversation_id: id}),
-    do: Repo.get(Elektrine.Messaging.Conversation, id)
+    do: Repo.get(Elektrine.Social.Conversation, id)
 
   defp message_conversation(%Message{conversation: conversation}), do: conversation
 

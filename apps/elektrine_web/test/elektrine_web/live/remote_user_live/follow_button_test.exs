@@ -6,10 +6,10 @@ defmodule ElektrineSocialWeb.RemoteUserLive.FollowButtonTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.Messaging.Conversation
-  alias Elektrine.Messaging.Message
   alias Elektrine.Profiles.Follow
   alias Elektrine.Repo
+  alias Elektrine.Social.Conversation
+  alias Elektrine.Social.Message
 
   defp log_in_user(conn, user) do
     token =

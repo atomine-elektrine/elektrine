@@ -357,16 +357,16 @@ defmodule ElektrineWeb.Router do
     get("/carddav", DAVController, :carddav_discovery)
   end
 
-  scope "/files-dav", ElektrineWeb.DAV do
+  scope "/drive-dav", ElektrineWeb.DAV do
     pipe_through(:dav)
 
-    match(:propfind, "/:username", FilesController, :propfind_home)
-    match(:propfind, "/:username/*path", FilesController, :propfind_resource)
-    match(:mkcol, "/:username/*path", FilesController, :mkcol)
-    match(:move, "/:username/*path", FilesController, :move_resource)
-    get("/:username/*path", FilesController, :get_file)
-    put("/:username/*path", FilesController, :put_file)
-    delete("/:username/*path", FilesController, :delete_resource)
+    match(:propfind, "/:username", DriveController, :propfind_home)
+    match(:propfind, "/:username/*path", DriveController, :propfind_resource)
+    match(:mkcol, "/:username/*path", DriveController, :mkcol)
+    match(:move, "/:username/*path", DriveController, :move_resource)
+    get("/:username/*path", DriveController, :get_file)
+    put("/:username/*path", DriveController, :put_file)
+    delete("/:username/*path", DriveController, :delete_resource)
   end
 
   ElektrineWeb.Routes.Email.wkd_routes()
@@ -421,8 +421,8 @@ defmodule ElektrineWeb.Router do
     get("/l/:id", LinkController, :click)
 
     # Public file shares
-    get("/files/share/:token", FileShareController, :show)
-    post("/files/share/:token", FileShareController, :authorize)
+    get("/drive/share/:token", DriveShareController, :show)
+    post("/drive/share/:token", DriveShareController, :authorize)
     get("/notes/share/:token", NoteShareController, :show)
   end
 
@@ -537,8 +537,8 @@ defmodule ElektrineWeb.Router do
     end
 
     # Personal file downloads
-    get("/account/files/:id/download", FilesController, :download)
-    get("/account/files/:id/preview", FilesController, :preview)
+    get("/account/drive/:id/download", DriveController, :download)
+    get("/account/drive/:id/preview", DriveController, :preview)
 
     # NOTE: All LiveView routes moved to single public_content live_session at end of router
     # for seamless navigation. Auth is enforced by pipe_through :require_authenticated_user
@@ -1116,7 +1116,7 @@ defmodule ElektrineWeb.Router do
       live("/account/profile/domains/analytics", ProfileLive.DomainAnalytics, :analytics)
       live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
       live("/account/storage", StorageLive)
-      live("/account/files", FilesLive)
+      live("/account/drive", DriveLive)
       live("/account/notes", NotesLive)
 
       live("/friends", FriendsLive, :index)

@@ -3,7 +3,7 @@ defmodule Elektrine.Messaging.ServersTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Conversation
+  alias Elektrine.Messaging.ChatConversation
   alias Elektrine.Messaging.Server
   alias Elektrine.Repo
 
@@ -72,8 +72,8 @@ defmodule Elektrine.Messaging.ServersTest do
         |> Repo.insert!()
 
       channel =
-        %Conversation{}
-        |> Conversation.channel_changeset(%{
+        %ChatConversation{}
+        |> ChatConversation.channel_changeset(%{
           name: "general",
           description: "Mirrored remote channel",
           server_id: server.id,

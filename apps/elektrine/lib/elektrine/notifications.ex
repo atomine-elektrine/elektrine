@@ -6,9 +6,9 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
-  alias Elektrine.Messaging.Message
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Telemetry.Events
 
   @doc """

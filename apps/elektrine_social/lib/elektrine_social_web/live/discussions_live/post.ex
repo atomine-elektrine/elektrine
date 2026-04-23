@@ -49,11 +49,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     else
       # Find community by name or hash
       community =
-        Elektrine.Repo.get_by(Elektrine.Messaging.Conversation,
+        Elektrine.Repo.get_by(Elektrine.Social.Conversation,
           name: community_name,
           type: "community"
         ) ||
-          Elektrine.Repo.get_by(Elektrine.Messaging.Conversation,
+          Elektrine.Repo.get_by(Elektrine.Social.Conversation,
             hash: community_name,
             type: "community"
           )
@@ -63,7 +63,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       if community_id do
         # For public communities, we don't require membership
         community =
-          Elektrine.Repo.get_by(Elektrine.Messaging.Conversation,
+          Elektrine.Repo.get_by(Elektrine.Social.Conversation,
             id: community_id,
             type: "community"
           )
@@ -76,7 +76,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
             else
               # Check membership for private communities
               Elektrine.Repo.exists?(
-                from cm in Elektrine.Messaging.ConversationMember,
+                from cm in Elektrine.Social.ConversationMember,
                   where:
                     cm.conversation_id == ^community_id and
                       cm.user_id == ^user.id and
@@ -99,7 +99,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                 # Get related posts
                 related_posts =
                   Social.get_related_discussion_posts(community_id, post_id, limit: 5)
-                  |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+                  |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
                 # Check if user is a moderator
                 is_moderator =
@@ -253,7 +253,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
   defp get_post(post_id, community_id) do
     post =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.id == ^post_id and m.conversation_id == ^community_id,
         preload: [
           sender: [:profile],
@@ -267,7 +267,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
     case post do
       nil -> {:error, :not_found}
-      post -> {:ok, Elektrine.Messaging.Message.decrypt_content(post)}
+      post -> {:ok, Elektrine.Social.Message.decrypt_content(post)}
     end
   end
 
@@ -276,7 +276,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
     # Get the main post
     post =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where: m.id == ^post_id and m.conversation_id == ^community_id,
         preload: [
           sender: [:profile],
@@ -294,7 +294,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
       post ->
         # Decrypt post content
-        post = Elektrine.Messaging.Message.decrypt_content(post)
+        post = Elektrine.Social.Message.decrypt_content(post)
 
         # Get all replies in a threaded structure
         replies = get_threaded_replies_with_expansion(post_id, community_id, 0, expanded_threads)
@@ -307,7 +307,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
     # Get direct replies to this parent
     direct_replies =
-      from(m in Elektrine.Messaging.Message,
+      from(m in Elektrine.Social.Message,
         where:
           m.reply_to_id == ^parent_id and
             m.conversation_id == ^community_id and
@@ -321,7 +321,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
         ]
       )
       |> Elektrine.Repo.all()
-      |> Enum.map(&Elektrine.Messaging.Message.decrypt_content/1)
+      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
     # For each reply, get its nested replies (recursive)
     Enum.map(direct_replies, fn reply ->
@@ -433,7 +433,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     import Ecto.Query
 
     Elektrine.Repo.exists?(
-      from m in Elektrine.Messaging.Message,
+      from m in Elektrine.Social.Message,
         where:
           m.reply_to_id == ^message_id and m.conversation_id == ^community_id and
             is_nil(m.deleted_at)
@@ -932,7 +932,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     if like.message_id == socket.assigns.post.id do
       # Reload post to get fresh like count while preserving all associations
       updated_post =
-        Elektrine.Repo.get!(Elektrine.Messaging.Message, socket.assigns.post.id)
+        Elektrine.Repo.get!(Elektrine.Social.Message, socket.assigns.post.id)
         |> Elektrine.Repo.preload(
           sender: [:profile],
           link_preview: [],
@@ -940,7 +940,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           shared_message: [sender: [:profile], conversation: []],
           poll: [options: []]
         )
-        |> Elektrine.Messaging.Message.decrypt_content()
+        |> Elektrine.Social.Message.decrypt_content()
 
       liked_by_user =
         if socket.assigns.current_user && like.user_id == socket.assigns.current_user.id,
@@ -972,7 +972,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     if like.message_id == socket.assigns.post.id do
       # Reload post to get fresh like count while preserving all associations
       updated_post =
-        Elektrine.Repo.get!(Elektrine.Messaging.Message, socket.assigns.post.id)
+        Elektrine.Repo.get!(Elektrine.Social.Message, socket.assigns.post.id)
         |> Elektrine.Repo.preload(
           sender: [:profile],
           link_preview: [],
@@ -980,7 +980,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
           shared_message: [sender: [:profile], conversation: []],
           poll: [options: []]
         )
-        |> Elektrine.Messaging.Message.decrypt_content()
+        |> Elektrine.Social.Message.decrypt_content()
 
       liked_by_user =
         if socket.assigns.current_user && like.user_id == socket.assigns.current_user.id,
@@ -1080,7 +1080,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
   def handle_info({:new_message, message}, socket) do
     # Decrypt the new message
-    message = Elektrine.Messaging.Message.decrypt_content(message)
+    message = Elektrine.Social.Message.decrypt_content(message)
 
     # Handle new replies to this post in real-time
     if message.reply_to_id == socket.assigns.post.id do
@@ -1210,7 +1210,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
       # Extract direct image URLs from content
       true ->
-        image_urls = Elektrine.Messaging.Message.extract_image_urls(post.content)
+        image_urls = Elektrine.Social.Message.extract_image_urls(post.content)
 
         cond do
           image_urls != [] ->
@@ -1232,7 +1232,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     import Ecto.Query
 
     reactions =
-      from(r in Elektrine.Messaging.MessageReaction,
+      from(r in Elektrine.Social.MessageReaction,
         where: r.message_id == ^post_id,
         preload: [:user, :remote_actor]
       )

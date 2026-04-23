@@ -167,7 +167,7 @@ defmodule Elektrine.Accounts.Storage do
     # Get all messages with media from the user (exclude deleted)
     messages =
       Repo.all(
-        from(m in Elektrine.Messaging.Message,
+        from(m in Elektrine.Social.Message,
           where:
             m.sender_id == ^user_id and fragment("cardinality(?) > 0", m.media_urls) and
               is_nil(m.deleted_at),
@@ -239,7 +239,7 @@ defmodule Elektrine.Accounts.Storage do
   end
 
   def calculate_files_storage(user_id) do
-    Elektrine.Files.storage_used(user_id)
+    Elektrine.Drive.storage_used(user_id)
   end
 
   @doc """

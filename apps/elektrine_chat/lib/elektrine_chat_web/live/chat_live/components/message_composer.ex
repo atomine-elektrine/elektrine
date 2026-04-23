@@ -2,7 +2,8 @@ defmodule ElektrineChatWeb.ChatLive.Components.MessageComposer do
   @moduledoc false
   use ElektrineChatWeb, :live_component
 
-  alias Elektrine.Messaging.{ChatMessage, Message}
+  alias Elektrine.Messaging.ChatMessage
+  alias Elektrine.Social.Message
 
   def render(assigns) do
     ~H"""

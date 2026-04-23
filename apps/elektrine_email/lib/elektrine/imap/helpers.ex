@@ -210,6 +210,29 @@ defmodule Elektrine.IMAP.Helpers do
     ) and not String.contains?(item_upper, ".PEEK[")
   end
 
+  @doc "Maps common client folder aliases to canonical system folder names"
+  def canonical_system_folder_name(folder_name) when is_binary(folder_name) do
+    normalized = folder_name |> String.trim() |> String.downcase()
+
+    case normalized do
+      "inbox" -> "INBOX"
+      "sent" -> "Sent"
+      "sent mail" -> "Sent"
+      "sent items" -> "Sent"
+      "drafts" -> "Drafts"
+      "draft" -> "Drafts"
+      "trash" -> "Trash"
+      "deleted messages" -> "Trash"
+      "deleted items" -> "Trash"
+      "spam" -> "Spam"
+      "junk" -> "Spam"
+      "junk mail" -> "Spam"
+      _ -> String.trim(folder_name)
+    end
+  end
+
+  def canonical_system_folder_name(folder_name), do: folder_name
+
   @doc "Extract the first mailbox token from an IMAP argument string"
   def parse_mailbox_arg(nil), do: {:error, :missing_mailbox_name}
 
@@ -273,7 +296,10 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Parse APPEND command arguments"
   def parse_append_args(args) do
-    case Regex.run(~r/"([^"]+)"\s*(?:\([^)]*\))?\s*\{(\d+)\+?\}/, args || "") do
+    case Regex.run(
+           ~r/"([^"]+)"\s*(?:\([^)]*\))?\s*(?:"[^"]+")?\s*\{(\d+)\+?\}/,
+           args || ""
+         ) do
       [_, folder, size_str] ->
         case Integer.parse(size_str) do
           {size, ""} ->
@@ -528,13 +554,13 @@ defmodule Elektrine.IMAP.Helpers do
         !Map.get(msg, :deleted, false)
 
       criteria_upper == "NEW" ->
-        !msg.read
+        false
 
       criteria_upper == "OLD" ->
-        msg.read
+        true
 
       criteria_upper == "RECENT" ->
-        !msg.read
+        false
 
       criteria_upper == "ANSWERED" ->
         Map.get(msg, :answered, false)
@@ -888,7 +914,7 @@ defmodule Elektrine.IMAP.Helpers do
 
   @doc "Check if message should be in current folder"
   def message_in_current_folder?(message, folder) do
-    folder_normalized = String.upcase(folder)
+    folder_normalized = folder |> canonical_system_folder_name() |> String.upcase()
 
     case folder_normalized do
       "INBOX" ->
@@ -925,6 +951,9 @@ defmodule Elektrine.IMAP.Helpers do
   def count_unseen(messages) do
     Enum.count(messages, fn msg -> !msg.read end)
   end
+
+  @doc "Count recent messages"
+  def count_recent(_messages), do: 0
 
   @doc "Check if FETCH items should mark messages as read"
   def should_mark_as_read?(items) do

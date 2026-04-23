@@ -13,8 +13,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.FederatedDislike
   alias Elektrine.Messaging.FederatedLike
-  alias Elektrine.Messaging.MessageReaction
   alias Elektrine.Repo
+  alias Elektrine.Social.MessageReaction
 
   describe "handle/3 - Like activity" do
     setup do
@@ -32,7 +32,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       }
 
       result = LikeHandler.handle(activity, "https://remote.server/users/liker", nil)
-      assert result == {:error, :handle_like_failed}
+      assert result == {:error, :message_not_found}
     end
 
     test "returns error for like with invalid object format" do
@@ -57,7 +57,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
 
       # Should extract id from map and process
       result = LikeHandler.handle(activity, "https://remote.server/users/liker", nil)
-      assert result == {:error, :handle_like_failed}
+      assert result == {:error, :message_not_found}
     end
 
     test "matches a cached federated post by activitypub URL variant" do
@@ -284,7 +284,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       message = remote_message_fixture("undo-reaction-post")
 
       assert {:ok, _reaction} =
-               Elektrine.Messaging.Messages.create_federated_emoji_reaction(
+               Elektrine.Social.Messages.create_federated_emoji_reaction(
                  message.id,
                  reactor.id,
                  ":blobcat:"
@@ -331,7 +331,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandlerTest do
       }
 
       result = LikeHandler.handle_dislike(activity, "https://remote.server/users/disliker", nil)
-      assert result == {:error, :handle_dislike_failed}
+      assert result == {:error, :message_not_found}
     end
   end
 

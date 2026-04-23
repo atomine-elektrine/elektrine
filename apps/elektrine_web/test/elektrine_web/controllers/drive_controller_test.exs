@@ -1,7 +1,7 @@
-defmodule ElektrineWeb.FilesControllerTest do
+defmodule ElektrineWeb.DriveControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
-  alias Elektrine.{Accounts, Files}
+  alias Elektrine.{Accounts, Drive}
 
   setup do
     previous_uploads = Application.get_env(:elektrine, :uploads)
@@ -25,13 +25,13 @@ defmodule ElektrineWeb.FilesControllerTest do
     end)
 
     user = user_fixture()
-    {:ok, file} = Files.upload_file(user, "private", temp_upload("secret.txt", "top secret"))
+    {:ok, file} = Drive.upload_file(user, "private", temp_upload("secret.txt", "top secret"))
 
     {:ok, user: user, stored_file: file}
   end
 
   test "downloads an owned file", %{conn: conn, user: user, stored_file: file} do
-    conn = get(log_in_user(conn, user), ~p"/account/files/#{file.id}/download")
+    conn = get(log_in_user(conn, user), ~p"/account/drive/#{file.id}/download")
 
     assert response(conn, 200) == "top secret"
 
@@ -41,7 +41,7 @@ defmodule ElektrineWeb.FilesControllerTest do
   end
 
   test "previews inline-viewable files", %{conn: conn, user: user, stored_file: file} do
-    conn = get(log_in_user(conn, user), ~p"/account/files/#{file.id}/preview")
+    conn = get(log_in_user(conn, user), ~p"/account/drive/#{file.id}/preview")
 
     assert response(conn, 200) == "top secret"
     assert get_resp_header(conn, "content-type") == ["text/plain; charset=utf-8"]
@@ -49,7 +49,7 @@ defmodule ElektrineWeb.FilesControllerTest do
 
   test "prevents downloading another user's file", %{conn: conn, stored_file: file} do
     other_user = user_fixture()
-    conn = get(log_in_user(conn, other_user), ~p"/account/files/#{file.id}/download")
+    conn = get(log_in_user(conn, other_user), ~p"/account/drive/#{file.id}/download")
 
     assert response(conn, 404) == "Not found"
   end

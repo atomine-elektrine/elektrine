@@ -8,8 +8,8 @@ defmodule ElektrineWeb.Live.PostInteractions do
 
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
 
   @default_state %{liked: false, boosted: false, like_delta: 0, boost_delta: 0}
 

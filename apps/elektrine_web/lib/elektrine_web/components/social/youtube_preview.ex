@@ -2,7 +2,7 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
   @moduledoc false
   use Phoenix.Component
 
-  alias Elektrine.Messaging.Message
+  alias Elektrine.Social.Message
   import ElektrineWeb.HtmlHelpers, only: [ensure_https: 1]
 
   attr :url, :string, required: true

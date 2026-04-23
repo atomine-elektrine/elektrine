@@ -5,9 +5,9 @@ defmodule Elektrine.Bluesky do
   alias Elektrine.Accounts.User
   alias Elektrine.ActivityPub
   alias Elektrine.Messaging
-  alias Elektrine.Messaging.Message
   alias Elektrine.Repo
   alias Elektrine.Security.URLValidator
+  alias Elektrine.Social.Message
   alias Elektrine.Uploads
   @post_collection "app.bsky.feed.post"
   @like_collection "app.bsky.feed.like"

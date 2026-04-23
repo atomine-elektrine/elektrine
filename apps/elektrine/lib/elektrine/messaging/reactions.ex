@@ -2,8 +2,9 @@ defmodule Elektrine.Messaging.Reactions do
   @moduledoc "Context for managing message reactions.\n"
   import Ecto.Query, warn: false
   alias Elektrine.ActivityPub
-  alias Elektrine.Messaging.{MessageReaction, RateLimiter}
+  alias Elektrine.Messaging.RateLimiter
   alias Elektrine.Repo
+  alias Elektrine.Social.MessageReaction
   @doc "Adds a reaction to a message.\n"
   def add_reaction(message_id, user_id, emoji) do
     if RateLimiter.can_add_reaction?(user_id) do

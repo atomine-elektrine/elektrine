@@ -10,11 +10,11 @@ defmodule Elektrine.Messaging.RoomACL do
     ArblargSDK,
     ChatConversation,
     ChatConversationMember,
-    Conversation,
-    ConversationMember,
     FederationExtensionEvent,
     FederationMembershipState
   }
+
+  alias Elektrine.Social.{Conversation, ConversationMember}
 
   alias Elektrine.Messaging.Federation.Utils
   alias Elektrine.Repo

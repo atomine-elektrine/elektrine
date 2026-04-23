@@ -56,6 +56,40 @@ defmodule Elektrine.Mail.Socket do
     end
   end
 
+  def starttls(socket, tls_opts, timeout \\ Constants.mail_tls_handshake_timeout_ms()) do
+    case transport(socket) do
+      :ssl ->
+        {:error, :already_tls}
+
+      :tcp ->
+        case :inet.setopts(socket, active: false, packet: :raw) do
+          :ok ->
+            case :ssl.handshake(socket, ssl_handshake_opts(tls_opts), timeout) do
+              {:ok, tls_client} ->
+                Logger.info("Mail TLS upgrade: handshake completed")
+                {:ok, tls_client}
+
+              :ok ->
+                Logger.info("Mail TLS upgrade: handshake completed")
+                {:ok, socket}
+
+              error ->
+                Logger.error("Mail TLS upgrade: handshake failed #{inspect(error)}")
+                close(socket)
+                error
+            end
+
+          error ->
+            Logger.error(
+              "Mail TLS upgrade: failed to switch socket to raw mode #{inspect(error)}"
+            )
+
+            close(socket)
+            error
+        end
+    end
+  end
+
   def send(socket, data) do
     case transport(socket) do
       :ssl -> :ssl.send(socket, data)
@@ -89,6 +123,34 @@ defmodule Elektrine.Mail.Socket do
       :ssl -> :ssl.peername(socket)
       :tcp -> :inet.peername(socket)
     end
+  end
+
+  def controlling_process(socket, pid) do
+    case transport(socket) do
+      :ssl -> :ssl.controlling_process(socket, pid)
+      :tcp -> :gen_tcp.controlling_process(socket, pid)
+    end
+  end
+
+  def tls_available?(tls_opts) when is_list(tls_opts) do
+    certfile = Keyword.get(tls_opts, :certfile)
+    keyfile = Keyword.get(tls_opts, :keyfile)
+
+    is_binary(certfile) and is_binary(keyfile) and File.regular?(certfile) and
+      File.regular?(keyfile)
+  end
+
+  def tls_available?(_tls_opts), do: false
+
+  defp ssl_handshake_opts(tls_opts) do
+    [
+      {:certfile, Keyword.fetch!(tls_opts, :certfile)},
+      {:keyfile, Keyword.fetch!(tls_opts, :keyfile)},
+      {:mode, :binary},
+      {:verify, :verify_none},
+      {:reuse_sessions, true},
+      {:versions, [:"tlsv1.2", :"tlsv1.3"]}
+    ]
   end
 
   defp transport(socket)
