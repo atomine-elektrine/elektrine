@@ -340,8 +340,13 @@ defmodule Elektrine.DNS.Query do
   defp candidate_domains(qname) do
     labels = String.split(qname, ".", trim: true)
 
-    0..(length(labels) - 1)
-    |> Enum.map(fn idx -> labels |> Enum.drop(idx) |> Enum.join(".") end)
+    case labels do
+      [] ->
+        []
+
+      _ ->
+        Enum.map(0..(length(labels) - 1), fn idx -> labels |> Enum.drop(idx) |> Enum.join(".") end)
+    end
   end
 
   defp wildcard_records_for_query(zone, fqdn, qtype) do
