@@ -4220,8 +4220,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
       {socket, local_message, synced_replies} =
         if should_sync_replies do
-          _ = Elektrine.ActivityPub.RepliesFetcher.fetch_full_thread_for_message(local_message.id)
-
           refreshed_local_message = refresh_local_message(local_message)
 
           synced_socket =
@@ -4243,6 +4241,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         |> assign(:replies_loading, should_continue_syncing)
 
       if should_continue_syncing do
+        # Keep expensive remote thread hydration off the LiveView process so
+        # websocket heartbeats are not starved on large community threads.
         _ = Elektrine.ActivityPub.ThreadBackfillWorker.enqueue(local_message.id)
 
         if is_binary(post_id) do

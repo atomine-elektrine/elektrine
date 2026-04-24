@@ -26,9 +26,45 @@ defmodule Elektrine.DNS.PacketTest do
     assert header(response).tc == 1
   end
 
+  test "preserves fully-qualified host names on struct-backed records" do
+    query = %{id: 1, rd: 0, qname: "elektrine.com", qtype: :ns, udp_size: 1232}
+
+    response =
+      Packet.encode_response(
+        query,
+        [
+          %{
+            __struct__: Elektrine.DNS.Record,
+            host: "elektrine.com",
+            name: "@",
+            type: "NS",
+            value: "ns1.elektrine.com",
+            ttl: 300
+          }
+        ],
+        :noerror,
+        additional: [
+          %{
+            __struct__: Elektrine.DNS.Record,
+            host: "ns1.elektrine.com",
+            name: "ns1",
+            type: "A",
+            content: "66.42.127.87",
+            ttl: 300
+          }
+        ]
+      )
+
+    assert {:ok, {:dns_rec, _header, _qd, answers, _ns, additional}} = :inet_dns.decode(response)
+    assert Enum.map(answers, &record_domain/1) == ["elektrine.com"]
+    assert Enum.map(additional, &record_domain/1) == ["ns1.elektrine.com"]
+  end
+
   defp header(
          <<_id::16, flags::16, _qd::16, ancount::16, _nscount::16, _arcount::16, _rest::binary>>
        ) do
     %{ancount: ancount, tc: Bitwise.band(Bitwise.bsr(flags, 9), 1)}
   end
+
+  defp record_domain(record), do: record |> elem(1) |> to_string() |> String.trim_trailing(".")
 end
