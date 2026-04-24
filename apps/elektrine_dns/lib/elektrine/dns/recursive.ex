@@ -284,7 +284,7 @@ defmodule Elektrine.DNS.Recursive do
         normalize_name(rr_domain(record)) in ns_names and
         within_bailiwick?(normalize_name(rr_domain(record)), delegated_names)
     end)
-    |> Enum.map(&rr_ip/1)
+    |> Enum.map(&rr_ip_tuple/1)
   end
 
   defp referral_domains(decoded) do
@@ -576,6 +576,8 @@ defmodule Elektrine.DNS.Recursive do
     |> :inet.ntoa()
     |> to_string()
   end
+
+  defp rr_ip_tuple(rr), do: rr |> rr_data()
 
   defp record_ip(%{content: content}), do: parse_ip!(content)
 
