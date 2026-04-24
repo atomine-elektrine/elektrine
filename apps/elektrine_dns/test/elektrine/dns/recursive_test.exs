@@ -137,6 +137,47 @@ defmodule Elektrine.DNS.RecursiveTest do
            end)
   end
 
+  test "uses tuple glue addresses for iterative follow-up queries" do
+    put_dns_config(recursive_root_hints: [{{1, 1, 1, 1}, 53}])
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn ip, _port, _packet, _timeout, query ->
+      response =
+        case {ip, query.qname, query.qtype} do
+          {{1, 1, 1, 1}, "example.test", :a} ->
+            Packet.encode_response(
+              query,
+              [],
+              :noerror,
+              authority: [%{name: "example.test", type: :ns, value: "ns.example.test", ttl: 300}],
+              additional: [
+                %{name: "ns.example.test", type: :a, content: "198.51.100.53", ttl: 300}
+              ]
+            )
+
+          {{198, 51, 100, 53}, "example.test", :a} ->
+            Packet.encode_response(
+              query,
+              [%{name: "example.test", type: :a, content: "192.0.2.55", ttl: 300}],
+              :noerror
+            )
+        end
+
+      {:ok, response}
+    end)
+
+    response =
+      Query.answer(Packet.encode_query(%{id: 103, rd: 1, qname: "example.test", qtype: :a}),
+        client_ip: {127, 0, 0, 1}
+      )
+
+    assert response =~ <<192, 0, 2, 55>>
+
+    assert Enum.any?(Elektrine.DNS.TestRecursiveTransport.calls(), fn {ip, port, _id, qname,
+                                                                       qtype} ->
+             ip == {198, 51, 100, 53} and port == 53 and qname == "example.test" and qtype == :a
+           end)
+  end
+
   test "negative responses are cached using soa minimum ttl" do
     put_dns_config(recursive_root_hints: [{{1, 1, 1, 1}, 53}])
 

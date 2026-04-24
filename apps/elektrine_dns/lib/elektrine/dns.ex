@@ -3,11 +3,13 @@ defmodule Elektrine.DNS do
   Core context for Elektrine's managed DNS service.
   """
 
+  import Bitwise
   import Ecto.Changeset, only: [add_error: 3, change: 1]
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts.User
   alias Elektrine.DNS.ManagedRecords
+  alias Elektrine.DNS.Packet
   alias Elektrine.DNS.QueryStat
   alias Elektrine.DNS.Record
   alias Elektrine.DNS.Zone
@@ -754,14 +756,95 @@ defmodule Elektrine.DNS do
       expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
       resolved = lookup_dns_values(domain, :ns, timeout: 5_000) |> Enum.sort()
 
-      if expected == resolved,
-        do: :ok,
-        else: {:error, delegation_mismatch_message(expected, resolved)}
+      if expected == resolved do
+        verify_authoritative_nameservers(domain, expected)
+      else
+        {:error, delegation_mismatch_message(expected, resolved)}
+      end
     else
       {:error, "Zone verification only supports public DNS domains"}
     end
   rescue
     error -> {:error, "NS lookup failed for #{domain}: #{inspect(error)}"}
+  end
+
+  defp verify_authoritative_nameservers(domain, nameservers) do
+    case nameserver_endpoints(nameservers) do
+      [] ->
+        {:error,
+         "Delegation matches the configured nameservers, but no usable A/AAAA records were found for them."}
+
+      endpoints ->
+        case authoritative_soa_served?(domain, endpoints) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            {:error,
+             "Delegation matches the configured nameservers, but they are not serving an authoritative SOA for #{domain}: #{reason}"}
+        end
+    end
+  end
+
+  defp nameserver_endpoints(nameservers) do
+    nameservers
+    |> Enum.flat_map(fn nameserver ->
+      lookup_dns_values(nameserver, :a, timeout: 5_000) ++
+        lookup_dns_values(nameserver, :aaaa, timeout: 5_000)
+    end)
+    |> Enum.map(&parse_ip/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&{&1, 53})
+    |> Enum.uniq()
+  end
+
+  defp authoritative_soa_served?(domain, endpoints) do
+    query = %{id: 1, rd: 0, qname: domain, qtype: :soa, udp_size: max_udp_payload()}
+    packet = Packet.encode_query(query)
+
+    endpoints
+    |> Enum.reduce_while({:error, :timeout}, fn {ip, port}, _acc ->
+      case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
+        {:ok, response} ->
+          case authoritative_soa_response?(response, domain) do
+            true -> {:halt, :ok}
+            false -> {:cont, {:error, "received a non-authoritative or empty SOA response"}}
+          end
+
+        {:error, _reason} = error ->
+          {:cont, error}
+      end
+    end)
+    |> case do
+      :ok -> :ok
+      {:error, :timeout} -> {:error, "query timed out"}
+      {:error, :unexpected_upstream} -> {:error, "received a reply from an unexpected upstream"}
+      {:error, reason} -> {:error, to_string(reason)}
+    end
+  end
+
+  defp authoritative_soa_response?(<<_id::16, flags::16, _rest::binary>> = response, domain) do
+    authoritative? = (flags &&& 0x0400) != 0
+    rcode = flags &&& 0x000F
+
+    authoritative? and rcode == 0 and authoritative_soa_answer?(response, domain)
+  end
+
+  defp authoritative_soa_response?(_, _domain), do: false
+
+  defp authoritative_soa_answer?(response, domain) do
+    case :inet_dns.decode(response) do
+      {:ok, {:dns_rec, _header, _qd, answers, _ns, _ar}} ->
+        normalized_domain = normalize_hostname(domain)
+
+        Enum.any?(answers, fn answer ->
+          elem(answer, 2) in [6, :soa] and
+            normalize_hostname(elem(answer, 1)) == normalized_domain
+        end)
+
+      _ ->
+        false
+    end
   end
 
   defp delegation_mismatch_message(expected, resolved) do
@@ -803,6 +886,15 @@ defmodule Elektrine.DNS do
     do: value |> List.to_string() |> String.trim()
 
   defp normalize_lookup_value(_, value), do: to_string(value)
+
+  defp parse_ip(value) when is_binary(value) do
+    case :inet.parse_address(String.to_charlist(value)) do
+      {:ok, ip} -> ip
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp parse_ip(_value), do: nil
 
   defp delegated_to_elektrine?(observed_nameservers) do
     expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
