@@ -25,9 +25,15 @@ defmodule Elektrine.DNS.TestVerificationTransport do
     Agent.start_link(fn -> %{} end, Keyword.put_new(opts, :name, __MODULE__))
   end
 
-  def exchange_udp(ip, port, _packet, _timeout) do
+  def exchange_udp(ip, port, packet, _timeout) do
+    {:ok, query} = Elektrine.DNS.Packet.decode_query(packet)
+
     Agent.get(__MODULE__, fn responses ->
-      Map.get(responses, {ip, port}, {:error, :timeout})
+      Map.get(
+        responses,
+        {ip, port, query.qname, query.qtype},
+        Map.get(responses, {ip, port, :any, query.qtype}, {:error, :timeout})
+      )
     end)
   end
 
@@ -56,7 +62,8 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
         nameservers: ["ns1.elektrine.com", "ns2.elektrine.com"],
         dns_resolver: Elektrine.DNS.TestResolver,
         recursive_transport: Elektrine.DNS.TestVerificationTransport,
-        recursive_timeout: 100
+        recursive_timeout: 100,
+        recursive_root_hints: [{{192, 0, 2, 1}, 53}]
       )
     )
 
@@ -76,7 +83,7 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_lookup(zone.domain, [~c"ns1.wrong.test"])
+    put_tld_delegation(zone.domain, ["ns1.wrong.test"], [{{203, 0, 113, 53}, 53}])
 
     assert {:ok, updated} = DNS.verify_zone(zone)
     assert updated.status == "pending"
@@ -89,7 +96,7 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_lookup(zone.domain, [])
+    put_tld_delegation(zone.domain, [], [])
 
     assert {:ok, updated} = DNS.verify_zone(zone)
 
@@ -101,9 +108,15 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_lookup(zone.domain, [~c"ns2.elektrine.com", ~c"ns1.elektrine.com"])
-    put_nameserver_ip("ns1.elektrine.com", {203, 0, 113, 10})
-    put_authoritative_response({203, 0, 113, 10}, authoritative_soa_response(zone.domain))
+    put_tld_delegation(zone.domain, ["ns2.elektrine.com", "ns1.elektrine.com"], [
+      {{203, 0, 113, 10}, 53}
+    ])
+
+    put_authoritative_response(
+      {203, 0, 113, 10},
+      zone.domain,
+      authoritative_soa_response(zone.domain)
+    )
 
     assert {:ok, updated} = DNS.verify_zone(zone)
     assert updated.status == "verified"
@@ -114,11 +127,13 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
-    put_lookup(zone.domain, [~c"ns1.elektrine.com", ~c"ns2.elektrine.com"])
-    put_nameserver_ip("ns1.elektrine.com", {203, 0, 113, 10})
+    put_tld_delegation(zone.domain, ["ns1.elektrine.com", "ns2.elektrine.com"], [
+      {{203, 0, 113, 10}, 53}
+    ])
 
     put_authoritative_response(
       {203, 0, 113, 10},
+      zone.domain,
       Elektrine.DNS.Packet.encode_response(
         %{id: 1, rd: 0, qname: zone.domain, qtype: :soa},
         [],
@@ -133,17 +148,79 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
              "Delegation matches the configured nameservers, but they are not serving an authoritative SOA for #{zone.domain}: received a non-authoritative or empty SOA response"
   end
 
-  defp put_lookup(domain, result) do
-    Agent.update(Elektrine.DNS.TestResolver, &Map.put(&1, {domain, 5_000}, result))
+  defp put_tld_delegation(domain, nameservers, endpoints) do
+    tld = domain |> String.split(".") |> List.last()
+    tld_server = {192, 0, 2, 53}
+
+    put_response(
+      {192, 0, 2, 1},
+      tld,
+      :ns,
+      delegated_nameserver_response(tld, ["ns1.#{tld_server_name()}"], [tld_server])
+    )
+
+    put_response(
+      tld_server,
+      domain,
+      :ns,
+      delegated_nameserver_response(domain, nameservers, endpoints)
+    )
   end
 
-  defp put_nameserver_ip(nameserver, ip) do
-    Agent.update(Elektrine.DNS.TestResolver, &Map.put(&1, {nameserver, :a, 5_000}, [ip]))
+  defp put_authoritative_response(ip, domain, response) do
+    put_response(ip, domain, :soa, response)
   end
 
-  defp put_authoritative_response(ip, response) do
-    Agent.update(Elektrine.DNS.TestVerificationTransport, &Map.put(&1, {ip, 53}, {:ok, response}))
+  defp put_response(ip, qname, qtype, response, opts \\ []) do
+    Agent.update(Elektrine.DNS.TestVerificationTransport, fn state ->
+      case Keyword.get(opts, :match_any_qname?, false) do
+        true ->
+          Map.put(state, {ip, 53, :any, qtype}, {:ok, response})
+
+        false ->
+          Map.put(state, {ip, 53, qname, qtype}, {:ok, response})
+      end
+    end)
   end
+
+  defp delegated_nameserver_response(domain, nameservers, endpoints) do
+    additional =
+      Enum.zip(nameservers, endpoints)
+      |> Enum.flat_map(fn {nameserver, endpoint} ->
+        ip =
+          case endpoint do
+            {tuple, _port} when is_tuple(tuple) -> tuple
+            tuple when is_tuple(tuple) -> tuple
+          end
+
+        case ip do
+          {_, _, _, _} ->
+            [%{name: nameserver, type: :a, content: :inet.ntoa(ip) |> to_string(), ttl: 300}]
+
+          tuple when tuple_size(tuple) == 8 ->
+            [
+              %{
+                name: nameserver,
+                type: :aaaa,
+                content: :inet.ntoa(tuple) |> to_string(),
+                ttl: 300
+              }
+            ]
+        end
+      end)
+
+    Elektrine.DNS.Packet.encode_response(
+      %{id: 1, rd: 0, qname: domain, qtype: :ns},
+      Enum.map(nameservers, fn nameserver ->
+        %{name: domain, type: :ns, value: nameserver, ttl: 300}
+      end),
+      :noerror,
+      authoritative: true,
+      additional: additional
+    )
+  end
+
+  defp tld_server_name, do: "gtld.test"
 
   defp authoritative_soa_response(domain) do
     Elektrine.DNS.Packet.encode_response(

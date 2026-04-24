@@ -754,12 +754,19 @@ defmodule Elektrine.DNS do
   defp verify_nameservers(%Zone{domain: domain}) do
     if public_hostname?(domain) do
       expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
-      resolved = lookup_dns_values(domain, :ns, timeout: 5_000) |> Enum.sort()
 
-      if expected == resolved do
-        verify_authoritative_nameservers(domain, expected)
-      else
-        {:error, delegation_mismatch_message(expected, resolved)}
+      case delegated_nameserver_data(domain) do
+        {:ok, %{nameservers: resolved, endpoints: endpoints}} ->
+          resolved = Enum.sort(resolved)
+
+          if expected == resolved do
+            verify_authoritative_nameservers(domain, endpoints)
+          else
+            {:error, delegation_mismatch_message(expected, resolved)}
+          end
+
+        {:error, reason} ->
+          {:error, "NS lookup failed for #{domain}: #{reason}"}
       end
     else
       {:error, "Zone verification only supports public DNS domains"}
@@ -768,8 +775,8 @@ defmodule Elektrine.DNS do
     error -> {:error, "NS lookup failed for #{domain}: #{inspect(error)}"}
   end
 
-  defp verify_authoritative_nameservers(domain, nameservers) do
-    case nameserver_endpoints(nameservers) do
+  defp verify_authoritative_nameservers(domain, endpoints) do
+    case endpoints do
       [] ->
         {:error,
          "Delegation matches the configured nameservers, but no usable A/AAAA records were found for them."}
@@ -786,7 +793,106 @@ defmodule Elektrine.DNS do
     end
   end
 
-  defp nameserver_endpoints(nameservers) do
+  defp delegated_nameserver_data(domain) do
+    with {:ok, tld_endpoints} <- tld_nameserver_endpoints(domain),
+         {:ok, response} <- query_nameserver_group(domain, :ns, tld_endpoints),
+         {:ok, nameservers} <- extract_delegated_nameservers(response, domain) do
+      endpoints = extract_nameserver_endpoints(response, nameservers)
+
+      {:ok,
+       %{
+         nameservers: nameservers,
+         endpoints:
+           case endpoints do
+             [] -> fallback_nameserver_endpoints(nameservers)
+             values -> values
+           end
+       }}
+    end
+  end
+
+  defp tld_nameserver_endpoints(domain) do
+    case tld_domain(domain) do
+      nil ->
+        {:error, "could not derive the parent zone"}
+
+      tld ->
+        with {:ok, response} <- query_nameserver_group(tld, :ns, recursive_root_hints()),
+             {:ok, nameservers} <- extract_delegated_nameservers(response, tld) do
+          endpoints = extract_nameserver_endpoints(response, nameservers)
+
+          if endpoints == [] do
+            {:error, "no usable parent nameserver glue was returned for #{tld}"}
+          else
+            {:ok, endpoints}
+          end
+        end
+    end
+  end
+
+  defp query_nameserver_group(qname, qtype, endpoints) do
+    query = %{id: 1, rd: 0, qname: qname, qtype: qtype, udp_size: max_udp_payload()}
+    packet = Packet.encode_query(query)
+
+    endpoints
+    |> Enum.reduce_while({:error, :timeout}, fn {ip, port}, _acc ->
+      case recursive_transport().exchange_udp(ip, port, packet, recursive_timeout()) do
+        {:ok, response} ->
+          {:halt, {:ok, response}}
+
+        {:error, _reason} = error ->
+          {:cont, error}
+      end
+    end)
+    |> case do
+      {:ok, response} -> {:ok, response}
+      {:error, :timeout} -> {:error, "query timed out"}
+      {:error, :unexpected_upstream} -> {:error, "received a reply from an unexpected upstream"}
+      {:error, reason} -> {:error, to_string(reason)}
+    end
+  end
+
+  defp extract_delegated_nameservers(response, domain) do
+    normalized_domain = normalize_hostname(domain)
+
+    case :inet_dns.decode(response) do
+      {:ok, {:dns_rec, _header, _qd, answers, authority, _additional}} ->
+        nameservers =
+          (answers ++ authority)
+          |> Enum.filter(fn answer ->
+            elem(answer, 2) in [2, :ns] and
+              normalize_hostname(elem(answer, 1)) == normalized_domain
+          end)
+          |> Enum.map(fn answer -> normalize_hostname(elem(answer, 6)) end)
+          |> Enum.uniq()
+
+        {:ok, nameservers}
+
+      _ ->
+        {:error, "received an invalid DNS response"}
+    end
+  end
+
+  defp extract_nameserver_endpoints(response, nameservers) do
+    nameserver_set = MapSet.new(nameservers)
+
+    case :inet_dns.decode(response) do
+      {:ok, {:dns_rec, _header, _qd, _answers, _authority, additional}} ->
+        additional
+        |> Enum.filter(fn answer ->
+          normalize_hostname(elem(answer, 1)) in nameserver_set and
+            elem(answer, 2) in [1, 28, :a, :aaaa]
+        end)
+        |> Enum.map(fn answer -> {parse_rr_ip(answer), 53} end)
+        |> Enum.reject(fn {ip, _port} -> is_nil(ip) end)
+        |> Enum.uniq()
+
+      _ ->
+        []
+    end
+  end
+
+  defp fallback_nameserver_endpoints(nameservers) do
     nameservers
     |> Enum.flat_map(fn nameserver ->
       lookup_dns_values(nameserver, :a, timeout: 5_000) ++
@@ -895,6 +1001,15 @@ defmodule Elektrine.DNS do
   end
 
   defp parse_ip(_value), do: nil
+
+  defp parse_rr_ip(answer), do: answer |> elem(6)
+
+  defp tld_domain(domain) do
+    domain
+    |> normalize_hostname()
+    |> String.split(".", trim: true)
+    |> List.last()
+  end
 
   defp delegated_to_elektrine?(observed_nameservers) do
     expected = nameservers() |> Enum.map(&normalize_hostname/1) |> Enum.sort()
