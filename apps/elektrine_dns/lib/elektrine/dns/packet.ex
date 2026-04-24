@@ -232,7 +232,7 @@ defmodule Elektrine.DNS.Packet do
     name = encode_name(record_name(record))
     type = encode_type(record.type)
     ttl = Map.get(record, :ttl, 300)
-    rdata = encode_rdata(%{record | type: normalize_type(record.type)})
+    rdata = encode_rdata(Map.put(record, :type, normalize_type(record.type)))
 
     <<name::binary, type::16, 1::16, ttl::32, byte_size(rdata)::16, rdata::binary>>
   end

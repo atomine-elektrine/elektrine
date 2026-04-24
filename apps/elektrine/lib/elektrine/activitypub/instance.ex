@@ -90,9 +90,11 @@ defmodule Elektrine.ActivityPub.Instance do
       :policy_applied_by_id
       | @policy_fields
     ])
+    |> normalize_domain()
     |> validate_required([:domain])
     |> validate_domain()
     |> unique_constraint(:domain, name: :activitypub_instances_domain_ci_unique)
+    |> unique_constraint(:domain, name: :activitypub_instances_domain_index)
   end
 
   @doc """
@@ -139,6 +141,15 @@ defmodule Elektrine.ActivityPub.Instance do
         true ->
           []
       end
+    end)
+  end
+
+  defp normalize_domain(changeset) do
+    update_change(changeset, :domain, fn domain ->
+      domain
+      |> String.trim()
+      |> String.downcase()
+      |> String.replace(~r/^https?:\/\//, "")
     end)
   end
 

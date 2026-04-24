@@ -86,6 +86,6 @@ defmodule Elektrine.DNS.ZoneVerificationTest do
   end
 
   defp unique_domain do
-    "verify#{System.unique_integer([:positive])}.example.com"
+    "verify#{System.unique_integer([:positive])}.elektrine.io"
   end
 end

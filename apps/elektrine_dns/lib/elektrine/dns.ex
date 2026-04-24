@@ -420,7 +420,7 @@ defmodule Elektrine.DNS do
 
       case verify_nameservers(zone) do
         :ok ->
-          update_zone(zone, %{
+          update_zone_verification(zone, %{
             status: "verified",
             verified_at: zone.verified_at || now,
             last_checked_at: now,
@@ -428,7 +428,11 @@ defmodule Elektrine.DNS do
           })
 
         {:error, reason} ->
-          update_zone(zone, %{status: "pending", last_checked_at: now, last_error: reason})
+          update_zone_verification(zone, %{
+            status: "pending",
+            last_checked_at: now,
+            last_error: reason
+          })
       end
     end
   end
@@ -1088,6 +1092,17 @@ defmodule Elektrine.DNS do
       "soa_expire",
       "soa_minimum"
     ])
+  end
+
+  defp update_zone_verification(%Zone{} = zone, attrs) when is_map(attrs) do
+    zone
+    |> Zone.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
+      error -> error
+    end
+    |> refresh_authority_cache_after_write()
   end
 
   defp public_record_attrs(attrs) do
