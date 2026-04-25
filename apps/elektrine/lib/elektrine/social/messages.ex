@@ -1594,10 +1594,22 @@ defmodule Elektrine.Social.Messages do
   Creates a message from a federated source (ActivityPub).
   """
   def create_federated_message(attrs) do
+    insert_opts = [
+      on_conflict: :nothing,
+      conflict_target: {:unsafe_fragment, "(activitypub_id) WHERE activitypub_id IS NOT NULL"},
+      returning: true
+    ]
+
     %Message{}
     |> Message.federated_changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(insert_opts)
     |> case do
+      {:ok, %Message{id: nil}} ->
+        case get_message_by_activitypub_id(activitypub_id_from_attrs(attrs)) do
+          %Message{} = message -> {:ok, message}
+          nil -> {:error, :federated_message_conflict}
+        end
+
       {:ok, message} = result ->
         invalidate_activitypub_ref_cache_for_message(message)
         result
@@ -1605,6 +1617,10 @@ defmodule Elektrine.Social.Messages do
       error ->
         error
     end
+  end
+
+  defp activitypub_id_from_attrs(attrs) when is_map(attrs) do
+    Map.get(attrs, :activitypub_id) || Map.get(attrs, "activitypub_id")
   end
 
   @doc """
@@ -1646,7 +1662,10 @@ defmodule Elektrine.Social.Messages do
         load_activitypub_lookup_message(id)
 
       nil ->
-        case message_id_by_legacy_activitypub_ref(canonical_ref) do
+        case message_id_by_legacy_activitypub_ref(canonical_ref, [
+               :activitypub_id,
+               :activitypub_url
+             ]) do
           id when is_integer(id) -> load_activitypub_lookup_message(id)
           nil -> nil
         end
@@ -1668,19 +1687,19 @@ defmodule Elektrine.Social.Messages do
     |> Repo.one()
   end
 
-  defp message_id_by_legacy_activitypub_ref(ref) when is_binary(ref) do
+  defp message_id_by_legacy_activitypub_ref(ref, field_names)
+       when is_binary(ref) and is_list(field_names) do
+    Enum.find_value(field_names, &message_id_by_legacy_activitypub_ref(ref, &1))
+  end
+
+  defp message_id_by_legacy_activitypub_ref(ref, field_name)
+       when is_binary(ref) and is_atom(field_name) do
     from(m in Message,
       where:
         fragment(
           "trim(trailing '/' from split_part(split_part(?, '#', 1), chr(63), 1))",
-          m.activitypub_id
-        ) ==
-          ^ref or
-          fragment(
-            "trim(trailing '/' from split_part(split_part(?, '#', 1), chr(63), 1))",
-            m.activitypub_url
-          ) ==
-            ^ref,
+          field(m, ^field_name)
+        ) == ^ref,
       select: m.id,
       limit: 1
     )

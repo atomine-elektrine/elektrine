@@ -455,7 +455,11 @@ defmodule ElektrineWeb.Router do
 
   # Routes that are specifically for unauthenticated users
   scope "/", ElektrineWeb do
-    pipe_through([:browser, :redirect_if_user_is_authenticated])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :redirect_if_user_is_authenticated
+    ])
 
     # LiveView routes in their own session for consistent behavior
     live_session :auth,
@@ -483,7 +487,7 @@ defmodule ElektrineWeb.Router do
 
   # Passkey authentication route (must be before authentication redirect)
   scope "/", ElektrineWeb do
-    pipe_through(:browser)
+    pipe_through([:browser, :require_vpn_when_netbird_enabled])
 
     post("/passkey/authenticate", PasskeyController, :authenticate)
   end
@@ -497,7 +501,7 @@ defmodule ElektrineWeb.Router do
 
   # Two-factor authentication routes (accessible during login process)
   scope "/", ElektrineWeb do
-    pipe_through(:browser)
+    pipe_through([:browser, :require_vpn_when_netbird_enabled])
 
     live_session :two_factor,
       on_mount: [{ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}] do
@@ -573,14 +577,25 @@ defmodule ElektrineWeb.Router do
 
   # Impersonation exit route (must be accessible while acting as a non-admin user)
   scope "/pripyat", ElektrineWeb do
-    pipe_through([:browser, :require_authenticated_user])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :require_admin_host,
+      :require_authenticated_user
+    ])
 
     post("/stop-impersonation", Admin.UsersController, :stop_impersonation)
   end
 
   # Admin security routes (elevation + per-action passkey re-sign)
   scope "/pripyat/security", ElektrineWeb do
-    pipe_through([:browser, :require_authenticated_user, :require_admin_user])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :require_admin_host,
+      :require_authenticated_user,
+      :require_admin_user
+    ])
 
     get("/elevate", Admin.SecurityController, :elevate)
     post("/elevate/start", Admin.SecurityController, :start_elevation)
@@ -591,7 +606,12 @@ defmodule ElektrineWeb.Router do
 
   # Admin routes - require admin privileges
   scope "/pripyat", ElektrineWeb do
-    pipe_through([:browser, :require_admin_access])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :require_admin_host,
+      :require_admin_access
+    ])
 
     # Main dashboard
     get("/", AdminController, :dashboard)
@@ -689,7 +709,12 @@ defmodule ElektrineWeb.Router do
 
   # Admin LiveView routes - wrapped in live_session for authentication
   scope "/pripyat", ElektrineWeb do
-    pipe_through([:browser, :require_admin_access])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :require_admin_host,
+      :require_admin_access
+    ])
 
     live_session :admin,
       on_mount: [
@@ -773,7 +798,7 @@ defmodule ElektrineWeb.Router do
 
   # Mobile app authentication - Always available for VPN access
   scope "/api", ElektrineWeb.API do
-    pipe_through(:api)
+    pipe_through([:api, :require_vpn_when_netbird_enabled])
 
     # Authentication endpoints (no auth required)
     post("/auth/login", AuthController, :login)
@@ -1037,7 +1062,12 @@ defmodule ElektrineWeb.Router do
 
   # LiveDashboard for admins in production
   scope "/pripyat" do
-    pipe_through([:browser, :require_admin_access])
+    pipe_through([
+      :browser,
+      :require_vpn_when_netbird_enabled,
+      :require_admin_host,
+      :require_admin_access
+    ])
 
     live_dashboard("/dashboard",
       metrics: ElektrineWeb.Telemetry,
@@ -1118,8 +1148,8 @@ defmodule ElektrineWeb.Router do
         ElektrineWeb.Routes.DNS.main_live_routes()
       end
 
-      # Overview
-      live("/overview", OverviewLive.Index, :index)
+      # Portal
+      live("/portal", PortalLive.Index, :index)
       live("/reputation", ReputationLive.Show, :index)
       live("/reputation/:handle", ReputationLive.Show, :show)
 

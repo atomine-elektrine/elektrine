@@ -449,7 +449,7 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp default_source_path("requests"), do: Elektrine.Paths.friends_path(tab: "requests")
   defp default_source_path("social"), do: Elektrine.Paths.timeline_path()
-  defp default_source_path(_source), do: ~p"/overview"
+  defp default_source_path(_source), do: ~p"/portal"
 
   defp notification_source_label("all"), do: "All"
   defp notification_source_label("chat"), do: "Chat"

@@ -89,9 +89,15 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
           end
 
         {:reserved_subdomain, handle, base_domain} ->
-          conn
-          |> redirect(external: "https://#{base_domain}#{reserved_subdomain_path(handle)}")
-          |> halt()
+          case reserved_subdomain_path(handle) do
+            :passthrough ->
+              conn
+
+            path ->
+              conn
+              |> redirect(external: "https://#{base_domain}#{path}")
+              |> halt()
+          end
 
         :not_subdomain ->
           conn
@@ -210,6 +216,15 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
 
   defp subdomain_hosted_by_platform?(_), do: true
 
+  defp reserved_subdomain_path("admin") do
+    if netbird_enabled?(), do: :passthrough, else: "/pripyat"
+  end
+
   defp reserved_subdomain_path("pripyat"), do: "/pripyat"
   defp reserved_subdomain_path(_), do: "/"
+
+  defp netbird_enabled? do
+    Application.get_env(:elektrine, :netbird, [])
+    |> Keyword.get(:enabled, false)
+  end
 end

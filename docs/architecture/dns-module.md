@@ -50,7 +50,7 @@ Recursive mode notes:
 - set `:dns, recursive_enabled: true` to resolve recursion-desired queries that are outside hosted zones
 - recursion starts from the configured `recursive_root_hints` list instead of depending on a public forwarder by default
 - recursive answers are cached in ETS with positive and negative TTL-based entries
-- recursion is restricted to private/local CIDRs by default via `recursive_allow_cidrs`
+- recursion is restricted to private/local CIDRs and CGNAT overlay ranges like NetBird's `100.64.0.0/10` by default via `recursive_allow_cidrs`
 
 Authoritative behavior:
 

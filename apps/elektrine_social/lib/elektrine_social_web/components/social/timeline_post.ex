@@ -817,14 +817,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   # Keep reply ancestor lookups cheap on high-volume feeds.
   defp reply_ancestor_max_depth(source)
-       when source in ["timeline", "overview", "hashtag", "remote_profile"],
+       when source in ["timeline", "portal", "hashtag", "remote_profile"],
        do: 3
 
   defp reply_ancestor_max_depth(_), do: 8
 
   # External reference resolution can be expensive and is not required for feed readability.
   defp should_resolve_reply_refs?(source, _resolve_reply_refs)
-       when source in ["timeline", "overview", "hashtag", "remote_profile"] do
+       when source in ["timeline", "portal", "hashtag", "remote_profile"] do
     false
   end
 
@@ -2350,7 +2350,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     like_only_mode = assigns.interaction_mode == :like_only
 
     # Prefer the explicit community vote state used by the remote post surface,
-    # while still supporting overview's existing user_likes/user_downvotes maps.
+    # while still supporting portal's existing user_likes/user_downvotes maps.
     current_vote =
       if like_only_mode do
         nil

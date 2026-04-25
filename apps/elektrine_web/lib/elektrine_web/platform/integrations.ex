@@ -354,7 +354,7 @@ defmodule ElektrineWeb.Platform.Integrations do
     end
   end
 
-  def overview_email_dashboard(user_id) do
+  def portal_email_dashboard(user_id) do
     mailbox = call_optional(:email, @email_module, :get_user_mailbox, [user_id], nil)
 
     if mailbox do
@@ -371,7 +371,7 @@ defmodule ElektrineWeb.Platform.Integrations do
     end
   end
 
-  def overview_recent_posts(user_id, opts \\ []) do
+  def portal_recent_posts(user_id, opts \\ []) do
     call_optional(:social, @social_module, :get_user_timeline_posts, [user_id, opts], [])
   end
 
@@ -427,15 +427,15 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:social, @social_module, :get_pinned_posts, [user_id, opts], [])
   end
 
-  def overview_public_timeline(opts \\ []) do
+  def portal_public_timeline(opts \\ []) do
     call_optional(:social, @social_module, :get_public_timeline, [opts], [])
   end
 
-  def overview_public_community_posts(opts \\ []) do
+  def portal_public_community_posts(opts \\ []) do
     call_optional(:social, @social_module, :get_public_community_posts, [opts], [])
   end
 
-  def overview_for_you_feed(user_id, opts \\ []) do
+  def portal_for_you_feed(user_id, opts \\ []) do
     call_optional(:social, @social_recommendations_module, :get_for_you_feed, [user_id, opts], [])
   end
 
@@ -443,7 +443,7 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:social, @social_module, :get_direct_replies_for_posts, [post_ids, opts], %{})
   end
 
-  def overview_record_view_with_dwell(user_id, post_id, attrs) do
+  def portal_record_view_with_dwell(user_id, post_id, attrs) do
     call_optional(
       :social,
       @social_recommendations_module,
@@ -453,7 +453,7 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
-  def overview_record_dismissal(user_id, post_id, type, dwell_time_ms) do
+  def portal_record_dismissal(user_id, post_id, type, dwell_time_ms) do
     call_optional(
       :social,
       @social_recommendations_module,

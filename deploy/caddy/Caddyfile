@@ -30,8 +30,17 @@
 	}
 }
 
+(admin_netbird_gate) {
+	@admin_off_vpn {
+		host {$CADDY_ADMIN_HOST:admin.elektrine.com}
+		not remote_ip {$NETBIRD_ALLOWED_CIDRS:192.0.2.0/32}
+	}
+	respond @admin_off_vpn "Not Found" 404
+}
+
 {$CADDY_MANAGED_SITE_1} {
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+	import admin_netbird_gate
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -41,6 +50,7 @@
 
 {$CADDY_MANAGED_SITE_2} {
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+	import admin_netbird_gate
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -54,6 +64,7 @@ https:// {
 	}
 
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+	import admin_netbird_gate
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -62,6 +73,8 @@ https:// {
 }
 
 :80 {
+	import admin_netbird_gate
+
 	@managed_hosts host {$CADDY_MANAGED_SITE_1} {$CADDY_MANAGED_SITE_2}
 	redir @managed_hosts https://{host}{uri} 308
 

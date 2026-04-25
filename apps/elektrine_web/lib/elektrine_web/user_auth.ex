@@ -231,8 +231,23 @@ defmodule ElektrineWeb.UserAuth do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && fetch_user_by_token(user_token)
+    {user, conn} = maybe_restrict_admin_user_to_vpn(conn, user)
+
     assign(conn, :current_user, user)
   end
+
+  defp maybe_restrict_admin_user_to_vpn(conn, %{is_admin: true} = user) do
+    if netbird_enabled?() and not on_netbird_vpn?(conn) do
+      {nil,
+       conn
+       |> delete_session(:user_token)
+       |> delete_resp_cookie(@remember_me_cookie, remember_me_options(conn))}
+    else
+      {user, conn}
+    end
+  end
+
+  defp maybe_restrict_admin_user_to_vpn(conn, user), do: {user, conn}
 
   defp ensure_user_token(conn) do
     if token = get_session(conn, :user_token) do
@@ -412,6 +427,35 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   @doc """
+  Restricts admin routes to the dedicated admin host when NetBird protection is enabled.
+  Non-NetBird deployments keep `/pripyat` available on the public app host for admins.
+  """
+  def require_admin_host(conn, _opts) do
+    if not netbird_enabled?() or admin_host?(conn.host) do
+      conn
+    else
+      conn
+      |> put_status(:not_found)
+      |> Phoenix.Controller.put_view(ElektrineWeb.ErrorHTML)
+      |> Phoenix.Controller.render(:"404")
+      |> halt()
+    end
+  end
+
+  @doc """
+  Requires clients to be on the NetBird VPN when NetBird protection is enabled.
+  """
+  def require_vpn_when_netbird_enabled(conn, _opts) do
+    if netbird_enabled?() and not on_netbird_vpn?(conn) do
+      conn
+      |> send_resp(:not_found, "Not Found")
+      |> halt()
+    else
+      conn
+    end
+  end
+
+  @doc """
   Special authentication for admin routes.
   Returns 404 for all unauthenticated or non-admin users to hide admin routes.
   Implements IP binding for admin sessions to detect potential session hijacking.
@@ -464,6 +508,28 @@ defmodule ElektrineWeb.UserAuth do
   # Helper function to get remote IP address
   defp get_remote_ip(conn) do
     ClientIP.client_ip(conn)
+  end
+
+  defp admin_host?(host) when is_binary(host) do
+    normalized_host = host |> String.downcase() |> String.split(":", parts: 2) |> List.first()
+    normalized_host == "admin.#{Elektrine.Domains.primary_profile_domain()}"
+  end
+
+  defp admin_host?(_), do: false
+
+  defp netbird_enabled? do
+    Application.get_env(:elektrine, :netbird, [])
+    |> Keyword.get(:enabled, false)
+  end
+
+  defp on_netbird_vpn?(conn) do
+    allowed_cidrs =
+      Application.get_env(:elektrine, :netbird, [])
+      |> Keyword.get(:allowed_cidrs, [])
+
+    conn
+    |> ClientIP.client_ip_tuple()
+    |> ClientIP.ip_in_cidrs?(allowed_cidrs)
   end
 
   defp remember_me_options(conn) do

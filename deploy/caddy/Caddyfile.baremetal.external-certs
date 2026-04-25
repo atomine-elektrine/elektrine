@@ -9,8 +9,17 @@
 	auto_https disable_redirects
 }
 
+(admin_netbird_gate) {
+	@admin_off_vpn {
+		host {$CADDY_ADMIN_HOST:admin.elektrine.com}
+		not remote_ip {$NETBIRD_ALLOWED_CIDRS:192.0.2.0/32}
+	}
+	respond @admin_off_vpn "Not Found" 404
+}
+
 {$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
+	import admin_netbird_gate
 
 	@bluesky host bsky.elektrine.com
 	handle @bluesky {
@@ -28,6 +37,7 @@
 
 {$CADDY_MANAGED_SITE_2} {
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
+	import admin_netbird_gate
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -39,6 +49,7 @@ https:// {
 	tls {
 		on_demand
 	}
+	import admin_netbird_gate
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -47,6 +58,8 @@ https:// {
 }
 
 :80 {
+	import admin_netbird_gate
+
 	@managed_hosts host {$CADDY_MANAGED_SITE_1} {$CADDY_MANAGED_SITE_2}
 	redir @managed_hosts https://{host}{uri} 308
 

@@ -375,7 +375,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     users profiles subdomain calendars calendar contacts addressbooks
     principals activitypub inbox outbox followers following liked
     wellknown .well-known jmap captcha uploads
-    overview communities discussions timeline hashtag lists gallery remote chat friends notifications
+    portal communities discussions timeline hashtag lists gallery remote chat friends notifications
     media_proxy federation relay tags mail autodiscover oauth webhook vpn
     nodeinfo sitemap.xml robots.txt announcements l c
   )

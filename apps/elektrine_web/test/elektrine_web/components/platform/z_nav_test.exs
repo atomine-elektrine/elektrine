@@ -22,9 +22,9 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
   test "hides disabled module tabs" do
     Application.put_env(:elektrine, :platform_modules, enabled: [:chat, :social])
 
-    html = render_component(&ZNav.z_nav/1, active_tab: "overview")
+    html = render_component(&ZNav.z_nav/1, active_tab: "portal")
 
-    assert html =~ "Overview"
+    assert html =~ "Portal"
     assert html =~ "Chat"
     assert html =~ "Timeline"
     refute html =~ "Email"

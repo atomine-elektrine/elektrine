@@ -559,9 +559,23 @@ defmodule Elektrine.Profiles do
         where: sv.profile_user_id == ^user_id and not is_nil(sv.request_host)
       )
 
-    case normalize_request_host(request_host) do
-      host when is_binary(host) and host != "" -> where(base, [sv], sv.request_host == ^host)
+    case normalize_request_hosts(request_host) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [sv], sv.request_host in ^hosts)
       _ -> base
+    end
+  end
+
+  defp normalize_request_hosts(hosts) when is_list(hosts) do
+    hosts
+    |> Enum.map(&normalize_request_host/1)
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+  end
+
+  defp normalize_request_hosts(host) do
+    case normalize_request_host(host) do
+      host when is_binary(host) and host != "" -> [host]
+      _ -> []
     end
   end
 
