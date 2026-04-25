@@ -65,7 +65,9 @@
 
                 <th class="text-xs sm:text-sm hidden md:table-cell">Mailbox Owner</th>
 
-                <th class="text-xs sm:text-sm">Status</th>
+                <th class="text-xs sm:text-sm">Rules</th>
+
+                <th class="text-xs sm:text-sm">Stats</th>
 
                 <th class="text-xs sm:text-sm hidden lg:table-cell">Created</th>
               </tr>
@@ -102,6 +104,29 @@
                     <% else %>
                       <span class="badge badge-error badge-sm">Disabled</span>
                     <% end %>
+                    <span :if={alias.catch_all} class="badge badge-warning badge-sm ml-1">
+                      Catch-all
+                    </span>
+                    <span :if={alias.expires_at} class="badge badge-outline badge-sm ml-1">
+                      Expires
+                    </span>
+                    <div :if={alias.auto_label} class="mt-1 text-xs opacity-60">
+                      Label: {alias.auto_label}
+                    </div>
+                  </td>
+
+                  <td class="text-xs sm:text-sm">
+                    <div>{alias.received_count || 0} received</div>
+                    <div>{alias.forwarded_count || 0} forwarded</div>
+                    <div :if={alias.last_used_at} class="opacity-60">
+                      Last used:
+                      <.local_time
+                        datetime={alias.last_used_at}
+                        format="date"
+                        timezone={@timezone}
+                        time_format={@time_format}
+                      />
+                    </div>
                   </td>
 
                   <td class="text-xs sm:text-sm opacity-70 hidden lg:table-cell">

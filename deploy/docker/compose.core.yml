@@ -16,7 +16,7 @@ services:
       ]
     environment:
       POSTGRES_USER: elektrine
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
       POSTGRES_DB: elektrine_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -48,17 +48,24 @@ services:
     env_file:
       - ../../.env.production
     environment:
-      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:-changeme}@postgres/elektrine_prod
+      DATABASE_URL: ecto://elektrine:${DB_PASSWORD:?set DB_PASSWORD}@postgres/elektrine_prod
       PHX_HOST: ${PHX_HOST:-localhost}
       PHX_SERVER: "true"
       PORT: ${PORT:-8080}
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault}
+      ACME_HOME: ${ACME_HOME:-/data/acme.sh}
+      ACME_WILDCARD_RENEWAL_ENABLED: ${ACME_WILDCARD_RENEWAL_ENABLED:-false}
+      ACME_RENEW_COMMAND: ${ACME_RENEW_COMMAND:-/data/acme.sh/acme.sh --cron --home /data/acme.sh}
+      ELEKTRINE_API_BASE: ${ELEKTRINE_API_BASE:-http://app:8080}
+      CADDY_TLS_MOUNT_DIR: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}
+      RELOAD_CMD: ${ACME_RELOAD_CMD:-true}
     ports:
       - "${APP_HTTP_BIND:-8080:8080}"
     volumes:
       - app_data:/data
       - uploads:/data/uploads
+      - ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs
     networks:
       - elektrine_network
     restart: unless-stopped

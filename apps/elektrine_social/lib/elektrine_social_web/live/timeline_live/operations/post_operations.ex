@@ -743,18 +743,22 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           )
 
         "communities" ->
+          source_filter = socket.assigns.current_filter || "all"
+
           if current_user do
             Social.get_public_community_posts(
               limit: 20,
               before_id: before_id,
               user_id: current_user.id,
-              search_query: search_query
+              search_query: search_query,
+              source_filter: source_filter
             )
           else
             Social.get_public_community_posts(
               limit: 20,
               before_id: before_id,
-              search_query: search_query
+              search_query: search_query,
+              source_filter: source_filter
             )
           end
 

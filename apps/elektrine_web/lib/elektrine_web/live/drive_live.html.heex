@@ -864,6 +864,10 @@
                 placeholder="Optional password"
                 class="input input-bordered h-9 min-h-9 w-full"
               />
+              <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2 lg:col-span-2">
+                <input type="checkbox" name="share[burn_after_read]" class="checkbox checkbox-sm" />
+                <span class="label-text text-sm">Burn after first open/download</span>
+              </label>
               <button type="submit" class="btn btn-primary h-9 min-h-9 w-full lg:col-span-2">
                 <.icon name="hero-link" class="h-4 w-4" /> Create link
               </button>
@@ -888,6 +892,12 @@
                           class="inline-flex rounded-full bg-warning/12 px-2.5 py-1 text-xs font-medium text-warning"
                         >
                           Password
+                        </span>
+                        <span
+                          :if={share.burn_after_read}
+                          class="inline-flex rounded-full bg-error/12 px-2.5 py-1 text-xs font-medium text-error"
+                        >
+                          One-time
                         </span>
                         <span class="text-xs text-base-content/50">
                           {share.download_count || 0} download{if (share.download_count || 0) != 1,

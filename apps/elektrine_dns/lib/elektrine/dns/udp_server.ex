@@ -24,15 +24,18 @@ defmodule Elektrine.DNS.UDPServer do
   def handle_info({:udp, socket, host, port, packet}, state) do
     case Elektrine.DNS.RequestGuard.begin_request(host, :udp) do
       {:ok, :udp} ->
-        Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
-          try do
-            result = Elektrine.DNS.Query.resolve(packet, client_ip: host, transport: :udp)
-            Elektrine.DNS.track_query(result, "udp")
-            :gen_udp.send(socket, host, port, result.response)
-          after
-            Elektrine.DNS.RequestGuard.finish_request(:udp)
-          end
-        end)
+        case Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
+               try do
+                 result = Elektrine.DNS.Query.resolve(packet, client_ip: host, transport: :udp)
+                 Elektrine.DNS.track_query(result, "udp")
+                 :gen_udp.send(socket, host, port, result.response)
+               after
+                 Elektrine.DNS.RequestGuard.finish_request(:udp)
+               end
+             end) do
+          {:ok, _pid} -> :ok
+          {:error, _reason} -> Elektrine.DNS.RequestGuard.finish_request(:udp)
+        end
 
       {:error, _reason} ->
         :ok

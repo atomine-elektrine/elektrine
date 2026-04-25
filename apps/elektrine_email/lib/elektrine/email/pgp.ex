@@ -12,6 +12,14 @@ defmodule Elektrine.Email.PGP do
   @cache_ttl_found_hours 24
   @cache_ttl_not_found_hours 1
   @wkd_timeout 10_000
+  @pgp_public_key_begin "-----BEGIN PGP PUBLIC KEY BLOCK-----"
+  @pgp_public_key_end "-----END PGP PUBLIC KEY BLOCK-----"
+  @pgp_message_begin "-----BEGIN PGP MESSAGE-----"
+  @pgp_message_end "-----END PGP MESSAGE-----"
+  @pgp_signed_begin "-----BEGIN PGP SIGNED MESSAGE-----"
+  @pgp_signature_begin "-----BEGIN PGP SIGNATURE-----"
+  @pgp_signature_end "-----END PGP SIGNATURE-----"
+
   @doc "Stores a user's PGP public key.\nParses the key to extract fingerprint and key ID.\nAccepts either a user struct or user_id.\n"
   def store_user_key(%User{id: user_id}, public_key_armor) do
     store_user_key(user_id, public_key_armor)
@@ -397,20 +405,11 @@ defmodule Elektrine.Email.PGP do
 
   @doc "Parses a PGP public key and extracts metadata.\nReturns {:ok, %{fingerprint: ..., key_id: ...}} or {:error, reason}\n"
   def parse_public_key(armor) when is_binary(armor) do
-    if String.contains?(armor, "-----BEGIN PGP PUBLIC KEY BLOCK-----") do
-      case extract_key_data(armor) do
-        {:ok, binary_key} ->
-          case extract_fingerprint(binary_key) do
-            {:ok, fingerprint} ->
-              key_id = String.slice(fingerprint, -16, 16)
-              {:ok, %{fingerprint: fingerprint, key_id: key_id}}
-
-            {:error, reason} ->
-              {:error, reason}
-          end
-
-        {:error, reason} ->
-          {:error, reason}
+    if String.contains?(armor, @pgp_public_key_begin) do
+      case parse_public_key_with_gpg(armor) do
+        {:ok, key_info} -> {:ok, key_info}
+        {:error, :gpg_unavailable} -> parse_public_key_from_packets(armor)
+        {:error, reason} -> {:error, reason}
       end
     else
       {:error, :not_pgp_key}
@@ -419,6 +418,344 @@ defmodule Elektrine.Email.PGP do
 
   def parse_public_key(_) do
     {:error, :invalid_input}
+  end
+
+  defp parse_public_key_from_packets(armor) do
+    case extract_key_data(armor) do
+      {:ok, binary_key} ->
+        case extract_fingerprint(binary_key) do
+          {:ok, fingerprint} ->
+            key_id = String.slice(fingerprint, -16, 16)
+            {:ok, %{fingerprint: fingerprint, key_id: key_id}}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp parse_public_key_with_gpg(armor) do
+    case gpg_executable() do
+      nil ->
+        {:error, :gpg_unavailable}
+
+      gpg ->
+        with_temp_dir("pgp_key_parse_", fn temp_dir ->
+          key_file = Path.join(temp_dir, "public.asc")
+          File.write!(key_file, armor)
+          File.chmod!(key_file, 0o600)
+
+          args = [
+            "--batch",
+            "--with-colons",
+            "--with-fingerprint",
+            "--show-keys",
+            key_file
+          ]
+
+          case System.cmd(gpg, args, stderr_to_stdout: true) do
+            {output, 0} -> parse_gpg_public_key_output(output)
+            {output, _status} -> gpg_show_keys_error(output)
+          end
+        end)
+    end
+  rescue
+    e ->
+      Logger.debug("PGP key validation error: #{inspect(e)}")
+      {:error, :parse_error}
+  end
+
+  defp parse_gpg_public_key_output(output) do
+    lines = String.split(output, "\n", trim: true)
+
+    cond do
+      Enum.any?(lines, &gpg_revoked_public_key?/1) ->
+        {:error, :revoked_key}
+
+      Enum.any?(lines, &gpg_expired_public_key?/1) ->
+        {:error, :expired_key}
+
+      true ->
+        fingerprint =
+          lines
+          |> Enum.find_value(fn line ->
+            case String.split(line, ":") do
+              ["fpr" | fields] -> Enum.at(fields, 8)
+              _ -> nil
+            end
+          end)
+
+        if Elektrine.Strings.present?(fingerprint) do
+          {:ok,
+           %{
+             fingerprint: fingerprint,
+             key_id: String.slice(fingerprint, -16, 16)
+           }}
+        else
+          {:error, :no_fingerprint}
+        end
+    end
+  end
+
+  defp gpg_revoked_public_key?(line) do
+    case String.split(line, ":") do
+      ["pub", validity | _] -> validity == "r"
+      _ -> false
+    end
+  end
+
+  defp gpg_expired_public_key?(line) do
+    case String.split(line, ":") do
+      ["pub", validity | _] -> validity == "e"
+      _ -> false
+    end
+  end
+
+  defp gpg_show_keys_error(output) do
+    cond do
+      String.contains?(output, "no valid OpenPGP data") -> {:error, :invalid_pgp_key}
+      String.contains?(output, "invalid armor") -> {:error, :invalid_armor}
+      true -> {:error, :invalid_pgp_key}
+    end
+  end
+
+  @doc "Returns detected OpenPGP content markers without decrypting message content."
+  def detect_content(text_body, html_body \\ nil, attachments \\ %{}, headers \\ %{}) do
+    text = Enum.join([text_body || "", html_body || ""], "\n")
+
+    attachment_values = normalize_attachment_values(attachments)
+
+    content_types =
+      attachment_values
+      |> Enum.filter(&is_map/1)
+      |> Enum.map(&(Map.get(&1, "content_type") || Map.get(&1, :content_type) || ""))
+      |> Enum.concat(header_content_types(headers))
+      |> Enum.map(&String.downcase(to_string(&1)))
+
+    filenames =
+      attachment_values
+      |> Enum.filter(&is_map/1)
+      |> Enum.map(
+        &(Map.get(&1, "filename") || Map.get(&1, "name") || Map.get(&1, :filename) || "")
+      )
+      |> Enum.map(&String.downcase(to_string(&1)))
+
+    %{
+      encrypted?: contains_pgp_message?(text),
+      signed?:
+        contains_pgp_signature?(text) or
+          Enum.any?(content_types, &String.contains?(&1, "application/pgp-signature")),
+      public_key?: extract_public_keys(text, attachments, headers) != [],
+      pgp_mime?: Enum.any?(content_types, &pgp_mime_content_type?/1),
+      pgp_attachment?:
+        Enum.any?(content_types, &String.contains?(&1, "application/pgp")) or
+          Enum.any?(filenames, &pgp_filename?/1)
+    }
+  end
+
+  @doc "Extracts ASCII-armored public keys from message bodies, headers, and attachment metadata."
+  def extract_public_keys(text_body, attachments \\ %{}, headers \\ %{}) do
+    header_text =
+      headers
+      |> normalize_header_values()
+      |> Enum.join("\n")
+
+    attachment_text =
+      attachments
+      |> normalize_attachment_values()
+      |> Enum.filter(&is_map/1)
+      |> Enum.flat_map(fn attachment ->
+        [attachment["data"], attachment["content"], attachment[:data], attachment[:content]]
+      end)
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map_join("\n", &maybe_decode_attachment_text/1)
+
+    [text_body || "", header_text, attachment_text]
+    |> Enum.join("\n")
+    |> extract_armored_blocks(@pgp_public_key_begin, @pgp_public_key_end)
+    |> Enum.uniq()
+  end
+
+  @doc "Verifies a clear-signed OpenPGP message using public keys only."
+  def verify_signed_message(message, public_key_armors)
+      when is_binary(message) and is_list(public_key_armors) do
+    keys =
+      public_key_armors
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    cond do
+      not contains_pgp_signature?(message) ->
+        {:error, :not_signed}
+
+      keys == [] ->
+        {:error, :no_public_key}
+
+      not gpg_available?() ->
+        {:error, :gpg_unavailable}
+
+      true ->
+        verify_signed_message_with_gpg(message, keys)
+    end
+  end
+
+  def verify_signed_message(_, _), do: {:error, :invalid_input}
+
+  defp verify_signed_message_with_gpg(message, public_key_armors) do
+    gpg = gpg_executable()
+
+    with_temp_dir("pgp_verify_", fn temp_dir ->
+      message_file = Path.join(temp_dir, "message.asc")
+      File.write!(message_file, message)
+      File.chmod!(message_file, 0o600)
+
+      key_files =
+        public_key_armors
+        |> Enum.with_index()
+        |> Enum.map(fn {armor, index} ->
+          key_file = Path.join(temp_dir, "signer_#{index}.asc")
+          File.write!(key_file, armor)
+          File.chmod!(key_file, 0o600)
+          key_file
+        end)
+
+      case import_keys(temp_dir, key_files) do
+        :ok ->
+          case System.cmd(
+                 gpg,
+                 ["--homedir", temp_dir, "--batch", "--status-fd", "1", "--verify", message_file],
+                 stderr_to_stdout: true
+               ) do
+            {output, 0} -> {:ok, parse_verify_output(output)}
+            {output, _status} -> {:error, verify_error(output)}
+          end
+
+        {:error, output} ->
+          Logger.debug("PGP verification key import failed: #{output}")
+          {:error, :key_import_failed}
+      end
+    end)
+  rescue
+    e ->
+      Logger.debug("PGP verification error: #{inspect(e)}")
+      {:error, :verification_error}
+  end
+
+  defp parse_verify_output(output) do
+    fingerprint =
+      output
+      |> String.split("\n", trim: true)
+      |> Enum.find_value(fn line ->
+        cond do
+          String.contains?(line, "[GNUPG:] VALIDSIG ") -> line |> String.split() |> Enum.at(2)
+          String.contains?(line, "[GNUPG:] GOODSIG ") -> line |> String.split() |> Enum.at(2)
+          true -> nil
+        end
+      end)
+
+    %{"status" => "verified", "fingerprint" => fingerprint}
+  end
+
+  defp verify_error(output) do
+    cond do
+      String.contains?(output, "NO_PUBKEY") -> :no_public_key
+      String.contains?(output, "BADSIG") -> :bad_signature
+      String.contains?(output, "EXPSIG") -> :expired_signature
+      String.contains?(output, "REVKEYSIG") -> :revoked_key
+      true -> :verification_failed
+    end
+  end
+
+  defp contains_pgp_message?(text) when is_binary(text) do
+    String.contains?(text, @pgp_message_begin) and String.contains?(text, @pgp_message_end)
+  end
+
+  defp contains_pgp_message?(_), do: false
+
+  defp contains_pgp_signature?(text) when is_binary(text) do
+    String.contains?(text, @pgp_signed_begin) or
+      (String.contains?(text, @pgp_signature_begin) and String.contains?(text, @pgp_signature_end))
+  end
+
+  defp contains_pgp_signature?(_), do: false
+
+  defp extract_armored_blocks(text, begin_marker, end_marker) when is_binary(text) do
+    pattern = Regex.escape(begin_marker) <> "[\\s\\S]*?" <> Regex.escape(end_marker)
+
+    Regex.scan(Regex.compile!(pattern), text)
+    |> Enum.map(fn [block] -> String.trim(block) end)
+  end
+
+  defp normalize_header_values(headers) when is_map(headers) do
+    headers
+    |> Enum.flat_map(fn {_key, value} -> List.wrap(value) end)
+    |> Enum.filter(&is_binary/1)
+  end
+
+  defp normalize_header_values(_), do: []
+
+  defp header_content_types(headers) when is_map(headers) do
+    headers
+    |> Enum.filter(fn {key, _value} ->
+      is_binary(key) and String.downcase(key) == "content-type"
+    end)
+    |> Enum.flat_map(fn {_key, value} -> List.wrap(value) end)
+  end
+
+  defp header_content_types(_), do: []
+
+  defp normalize_attachment_values(attachments) when is_map(attachments) do
+    Map.values(attachments)
+  end
+
+  defp normalize_attachment_values(attachments) when is_list(attachments) do
+    attachments
+  end
+
+  defp normalize_attachment_values(_), do: []
+
+  defp pgp_mime_content_type?(content_type) do
+    String.contains?(content_type, "multipart/encrypted") or
+      String.contains?(content_type, "multipart/signed") or
+      String.contains?(content_type, "application/pgp-encrypted")
+  end
+
+  defp pgp_filename?(filename) do
+    String.ends_with?(filename, [".asc", ".gpg", ".pgp", ".sig"])
+  end
+
+  defp maybe_decode_attachment_text(value) do
+    trimmed = String.trim(value)
+
+    if String.contains?(trimmed, @pgp_public_key_begin) do
+      trimmed
+    else
+      case Base.decode64(trimmed) do
+        {:ok, decoded} -> decoded
+        :error -> value
+      end
+    end
+  end
+
+  defp with_temp_dir(prefix, fun) when is_function(fun, 1) do
+    temp_dir =
+      Path.join(
+        System.tmp_dir!(),
+        "#{prefix}#{Base.encode16(:crypto.strong_rand_bytes(16), case: :lower)}"
+      )
+
+    try do
+      File.mkdir_p!(temp_dir)
+      File.chmod!(temp_dir, 0o700)
+      fun.(temp_dir)
+    after
+      File.rm_rf(temp_dir)
+    end
   end
 
   defp extract_key_data(armor) do

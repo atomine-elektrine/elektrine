@@ -31,9 +31,16 @@ defmodule Elektrine.DNS.TCPServer do
       {:ok, {client_ip, _client_port}} ->
         case Elektrine.DNS.RequestGuard.begin_request(client_ip, :tcp) do
           {:ok, :tcp} ->
-            Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
-              serve_client(socket)
-            end)
+            case Task.Supervisor.start_child(Elektrine.DNS.TaskSupervisor, fn ->
+                   serve_client(socket)
+                 end) do
+              {:ok, _pid} ->
+                :ok
+
+              {:error, _reason} ->
+                Elektrine.DNS.RequestGuard.finish_request(:tcp)
+                :gen_tcp.close(socket)
+            end
 
           {:error, _reason} ->
             :gen_tcp.close(socket)

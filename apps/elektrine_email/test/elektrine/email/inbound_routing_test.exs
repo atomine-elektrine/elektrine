@@ -74,6 +74,61 @@ defmodule Elektrine.Email.InboundRoutingTest do
                InboundRouting.resolve_recipient_mailbox(alias_email, alias_email)
     end
 
+    test "routes catch-all aliases to the owner's mailbox and records usage" do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      domain = "catchroute#{System.unique_integer([:positive])}.example.net"
+
+      {:ok, custom_domain} = Email.create_custom_domain(user, %{"domain" => domain})
+
+      custom_domain
+      |> Ecto.Changeset.change(
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      )
+      |> Elektrine.Repo.update!()
+
+      assert {:ok, alias_record} =
+               Email.create_alias(%{
+                 alias_email: "*@#{domain}",
+                 catch_all: true,
+                 delivery_mode: "deliver",
+                 auto_label: "catch-all",
+                 user_id: user.id
+               })
+
+      recipient = "shopping#{System.unique_integer([:positive])}@#{domain}"
+
+      assert {:ok, resolved_mailbox} =
+               InboundRouting.resolve_recipient_mailbox(recipient, recipient)
+
+      assert resolved_mailbox.id == mailbox.id
+
+      refetched = Email.get_alias(alias_record.id, user.id)
+      assert refetched.received_count == 1
+      assert refetched.forwarded_count == 0
+      assert refetched.last_used_at
+    end
+
+    test "expired temporary aliases stop accepting unmatched recipients" do
+      user = user_fixture()
+      domain = Domains.primary_email_domain()
+
+      assert {:ok, _alias_record} =
+               Email.create_alias(%{
+                 alias_email: "burner#{System.unique_integer([:positive])}@#{domain}",
+                 delivery_mode: "deliver",
+                 expires_at:
+                   DateTime.utc_now() |> DateTime.add(-60, :second) |> DateTime.truncate(:second),
+                 user_id: user.id
+               })
+
+      alias_email = Email.list_aliases(user.id) |> hd() |> Map.fetch!(:alias_email)
+
+      assert {:error, :no_mailbox} =
+               InboundRouting.resolve_recipient_mailbox(alias_email, alias_email)
+    end
+
     test "resolves verified custom-domain recipients to the owner's mailbox" do
       user = user_fixture(%{username: "customroute"})
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)

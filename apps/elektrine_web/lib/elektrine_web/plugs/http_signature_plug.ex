@@ -65,7 +65,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   end
 
   defp verify_signature_with_key(conn, signing_key, headers_string, signature, signature_params) do
-    headers_list = String.split(headers_string, " ", trim: true)
+    headers_list = parse_signed_headers(headers_string)
 
     case build_signing_string(conn, headers_list, signature_params) do
       {:ok, signing_string} ->
@@ -104,7 +104,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   defp retry_with_refreshed_key(conn, signing_key, headers_string, signature, signature_params) do
     case SigningKey.refresh_by_key_id(signing_key.key_id) do
       {:ok, refreshed_key} ->
-        headers_list = String.split(headers_string, " ", trim: true)
+        headers_list = parse_signed_headers(headers_string)
 
         case build_signing_string(conn, headers_list, signature_params) do
           {:ok, signing_string} ->
@@ -162,6 +162,12 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   end
 
   defp load_actor_for_key(_), do: nil
+
+  defp parse_signed_headers(headers_string) do
+    headers_string
+    |> String.split(" ", trim: true)
+    |> Enum.map(&String.downcase/1)
+  end
 
   defp parse_signature_header(header) do
     parts = extract_signature_params(header)

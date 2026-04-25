@@ -542,11 +542,13 @@ defmodule Elektrine.Accounts.Authentication do
   defp get_user_by_mailbox_email(email_identifier) do
     normalized_email = String.downcase(email_identifier)
 
-    User
-    |> join(:inner, [u], m in Mailbox, on: m.user_id == u.id)
-    |> where([_u, m], fragment("lower(?)", m.email) == ^normalized_email)
-    |> limit(1)
-    |> Repo.one()
+    case Email.get_mailbox_by_email(normalized_email) do
+      %{user_id: user_id} when is_integer(user_id) ->
+        Repo.get(User, user_id)
+
+      _ ->
+        nil
+    end
   end
 
   defp get_user_by_username_case_insensitive(username) when is_binary(username) do

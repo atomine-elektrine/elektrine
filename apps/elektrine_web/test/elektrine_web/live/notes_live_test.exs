@@ -58,7 +58,7 @@ defmodule ElektrineWeb.NotesLiveTest do
     refute render(view) =~ "Ops"
   end
 
-  test "creates and revokes a note share link", %{conn: conn} do
+  test "creates and revokes an encrypted note share link", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     {:ok, note} = Notes.create_note(user.id, %{title: "Paste", body: "hello world"})
 
@@ -67,13 +67,41 @@ defmodule ElektrineWeb.NotesLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/notes?note=#{note.id}")
 
-    view
-    |> element("button[phx-click='create_share'][phx-value-id='#{note.id}']")
-    |> render_click()
+    render_hook(view, "create_encrypted_share", %{
+      "id" => to_string(note.id),
+      "key" => "test-key",
+      "payload" => %{
+        "version" => 1,
+        "algorithm" => "AES-GCM-256",
+        "iv" => "test-iv",
+        "ciphertext" => "test-ciphertext"
+      },
+      "expires_in" => "1h",
+      "burn_after_read" => true
+    })
 
     share = Notes.get_active_share_for_note(user.id, note.id)
 
-    assert render(view) =~ share.token
+    assert share.encrypted_payload["algorithm"] == "AES-GCM-256"
+    assert share.burn_after_read
+    assert DateTime.diff(share.expires_at, DateTime.utc_now(), :second) in 1..3600
+    assert render(view) =~ "This note has an encrypted share"
+
+    html =
+      conn
+      |> get(~p"/notes/share/#{share.token}")
+      |> html_response(200)
+
+    assert html =~ "Encrypted Shared Note"
+    assert html =~ "Burn after read"
+    assert html =~ "Expiration"
+    assert html =~ "Raw view"
+    assert html =~ "test-ciphertext"
+    refute html =~ "hello world"
+
+    conn
+    |> get(~p"/notes/share/#{share.token}")
+    |> response(404)
 
     view
     |> element("button[phx-click='revoke_share'][phx-value-id='#{note.id}']")

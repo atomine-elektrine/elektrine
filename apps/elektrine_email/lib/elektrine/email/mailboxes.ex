@@ -6,9 +6,8 @@ defmodule Elektrine.Email.Mailboxes do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Ecto.Multi
   alias Elektrine.Domains
-  alias Elektrine.Email.{CustomDomains, Mailbox, Message}
+  alias Elektrine.Email.{CustomDomains, Mailbox}
   alias Elektrine.Repo
 
   @doc """
@@ -265,49 +264,20 @@ defmodule Elektrine.Email.Mailboxes do
 
   @doc """
   Transitions a user's mailbox for username change.
-  Creates new clean mailbox, clears old one for future reuse.
+  Updates the mailbox address in place so stored messages and private storage remain intact.
   """
   def transition_mailbox_for_username_change(user, old_mailbox, new_email) do
-    # Use a transaction to ensure atomicity
-    multi =
-      Multi.new()
-      # Step 1: Create new clean mailbox for user
-      |> Multi.insert(
-        :new_mailbox,
-        Mailbox.changeset(%Mailbox{}, %{
-          email: new_email,
-          username: mailbox_username_for_email(new_email) || user.username,
-          user_id: user.id
-        })
-      )
-      # Step 2: Clear old mailbox user association and data
-      |> Multi.update(
-        :clear_old_mailbox,
-        Mailbox.changeset(old_mailbox, %{
-          # Unassign from user
-          user_id: nil,
-          username: nil,
-          forward_to: nil,
-          forward_enabled: false
-        })
-      )
-      # Step 3: Delete all messages from old mailbox
-      |> Multi.delete_all(
-        :delete_old_messages,
-        from(m in Message, where: m.mailbox_id == ^old_mailbox.id)
-      )
-
-    case Repo.transaction(multi) do
-      {:ok, %{new_mailbox: new_mailbox}} ->
+    case update_mailbox_email(old_mailbox, new_email) do
+      {:ok, updated_mailbox} ->
         Logger.info(
-          "Successfully transitioned mailbox for user #{user.id}: old mailbox #{old_mailbox.id} cleared, new mailbox #{new_mailbox.id} created"
+          "Successfully transitioned mailbox for user #{user.id}: mailbox #{updated_mailbox.id} updated to #{new_email}"
         )
 
-        {:ok, new_mailbox}
+        {:ok, updated_mailbox}
 
-      {:error, step, changeset, _changes} ->
+      {:error, reason} ->
         Logger.error(
-          "Failed to transition mailbox for user #{user.id} at step #{step}: #{Kernel.inspect(changeset)}"
+          "Failed to transition mailbox for user #{user.id}: #{Kernel.inspect(reason)}"
         )
 
         {:error, "Failed to transition mailbox"}

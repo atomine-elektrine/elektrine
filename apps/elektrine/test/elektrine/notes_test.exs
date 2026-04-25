@@ -33,9 +33,32 @@ defmodule Elektrine.NotesTest do
     assert Notes.get_active_share_for_note(user.id, note.id).id == share.id
     assert Notes.get_public_share(share.token).id == share.id
 
-    assert {:ok, revoked_share} = Notes.revoke_note_share(user.id, note)
-    assert revoked_share.revoked_at
+    assert {:ok, %{revoked_count: 1}} = Notes.revoke_note_share(user.id, note)
     assert is_nil(Notes.get_active_share_for_note(user.id, note.id))
     assert is_nil(Notes.get_public_share(share.token))
+  end
+
+  test "get_active_share_for_note returns the latest active share when multiples exist" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, note} = Notes.create_note(user.id, %{title: "Paste", body: "hello world"})
+
+    assert {:ok, first} =
+             Notes.create_encrypted_note_share(user.id, note, %{
+               "version" => 1,
+               "algorithm" => "xchacha20-poly1305",
+               "iv" => "one",
+               "ciphertext" => "one"
+             })
+
+    assert {:ok, second} =
+             Notes.create_encrypted_note_share(user.id, note, %{
+               "version" => 1,
+               "algorithm" => "xchacha20-poly1305",
+               "iv" => "two",
+               "ciphertext" => "two"
+             })
+
+    assert first.id != second.id
+    assert Notes.get_active_share_for_note(user.id, note.id).id == second.id
   end
 end

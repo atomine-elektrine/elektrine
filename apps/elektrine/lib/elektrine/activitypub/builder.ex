@@ -19,6 +19,7 @@ defmodule Elektrine.ActivityPub.Builder do
     also_known_as = Map.get(opts, :also_known_as, [])
     actor_identifier = Map.get(opts, :actor_identifier, ActivityPub.actor_identifier(user))
     actor_url = ActivityPub.actor_uri(actor_identifier, base_url)
+    public_profile? = user.profile_visibility == "public"
 
     %{
       "@context" => [
@@ -28,9 +29,9 @@ defmodule Elektrine.ActivityPub.Builder do
       "id" => actor_url,
       "type" => "Person",
       "preferredUsername" => ActivityPub.actor_identifier(user),
-      "name" => user.display_name || user.username,
-      "summary" => build_user_summary(user),
-      "url" => "#{base_url}/#{user.handle}",
+      "name" => actor_display_name(user, public_profile?),
+      "summary" => if(public_profile?, do: build_user_summary(user), else: nil),
+      "url" => actor_profile_url(user, base_url, actor_url, public_profile?),
       "inbox" => "#{actor_url}/inbox",
       "outbox" => "#{actor_url}/outbox",
       "followers" => "#{actor_url}/followers",
@@ -38,8 +39,8 @@ defmodule Elektrine.ActivityPub.Builder do
       "published" => format_datetime(user.inserted_at),
       "manuallyApprovesFollowers" => user.activitypub_manually_approve_followers || false,
       "discoverable" => user.profile_visibility == "public",
-      "icon" => build_icon(user, base_url),
-      "image" => build_header_image(user, base_url),
+      "icon" => if(public_profile?, do: build_icon(user, base_url), else: nil),
+      "image" => if(public_profile?, do: build_header_image(user, base_url), else: nil),
       "publicKey" => %{
         "id" => "#{actor_url}#main-key",
         "owner" => actor_url,
@@ -49,10 +50,23 @@ defmodule Elektrine.ActivityPub.Builder do
         "sharedInbox" => "#{base_url}/inbox"
       }
     }
-    |> maybe_put("attachment", build_profile_attachments(user))
+    |> maybe_put(
+      "attachment",
+      if(public_profile?, do: build_profile_attachments(user), else: nil)
+    )
     |> maybe_put("movedTo", moved_to)
     |> maybe_put_list("alsoKnownAs", also_known_as)
   end
+
+  defp actor_display_name(user, true), do: user.display_name || user.username
+  defp actor_display_name(user, false), do: user.username
+
+  defp actor_profile_url(user, base_url, _actor_url, true) do
+    handle = if is_binary(user.handle) and user.handle != "", do: user.handle, else: user.username
+    "#{base_url}/#{handle}"
+  end
+
+  defp actor_profile_url(_user, _base_url, actor_url, false), do: actor_url
 
   defp build_user_summary(user) do
     # Get user profile bio if available

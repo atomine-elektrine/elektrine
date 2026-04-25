@@ -264,6 +264,13 @@ defmodule ElektrineWeb.Router do
     plug(:put_secure_browser_headers)
   end
 
+  pipeline :unsubscribe_post do
+    plug(:accepts, ["html", "text", "json"])
+    plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.TorAware)
+    plug(:put_secure_browser_headers)
+  end
+
   pipeline :mastodon_api do
     # Mastodon-compatible API pipeline
     plug(:accepts, ["json"])
@@ -298,6 +305,20 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api, :caddy_internal_api])
 
     get("/allow", CaddyTLSController, :allow)
+  end
+
+  # Internal DNS-01 automation endpoint used by acme.sh for wildcard certs.
+  scope "/_edge/acme/dns/v1", ElektrineWeb do
+    pipe_through([:api, :caddy_internal_api])
+
+    post("/txt", InternalACMEDNSController, :add_txt)
+    delete("/txt", InternalACMEDNSController, :remove_txt)
+  end
+
+  scope "/_edge/dns/v1", ElektrineWeb do
+    pipe_through([:api, :caddy_internal_api])
+
+    get("/health", InternalDNSController, :health)
   end
 
   # Media proxy for federation privacy (no auth required)
@@ -370,6 +391,12 @@ defmodule ElektrineWeb.Router do
   end
 
   ElektrineWeb.Routes.Email.wkd_routes()
+
+  scope "/", alias: false do
+    pipe_through(:unsubscribe_post)
+
+    post("/unsubscribe/:token", ElektrineEmailWeb.UnsubscribeController, :one_click)
+  end
 
   # CalDAV routes
   scope "/calendars", ElektrineWeb.DAV do

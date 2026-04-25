@@ -15,9 +15,20 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
   alias Elektrine.DNS
 
   setup do
-    old = Application.get_env(:elektrine, :managed_dns_dkim_module)
+    old_dkim = Application.get_env(:elektrine, :managed_dns_dkim_module)
+    old_master = Application.get_env(:elektrine, :encryption_master_secret)
+    old_salt = Application.get_env(:elektrine, :encryption_key_salt)
+
     Application.put_env(:elektrine, :managed_dns_dkim_module, Elektrine.DNS.TestDKIM)
-    on_exit(fn -> Application.put_env(:elektrine, :managed_dns_dkim_module, old) end)
+    Application.put_env(:elektrine, :encryption_master_secret, "test-master-secret-0123456789")
+    Application.put_env(:elektrine, :encryption_key_salt, "test-key-salt-0123456789")
+
+    on_exit(fn ->
+      restore_env(:managed_dns_dkim_module, old_dkim)
+      restore_env(:encryption_master_secret, old_master)
+      restore_env(:encryption_key_salt, old_salt)
+    end)
+
     :ok
   end
 
@@ -58,6 +69,44 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
 
     zone = DNS.get_zone(zone.id, user.id)
     refute Enum.any?(zone.records, &(&1.service == "mail" and &1.managed))
+  end
+
+  test "rejects CNAME records that coexist with other record types" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, _record} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "203.0.113.10"
+             })
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "CNAME",
+               "ttl" => 300,
+               "content" => zone.domain
+             })
+
+    assert %{type: [_ | _]} = errors_on(changeset)
+  end
+
+  test "rejects invalid wildcard placement" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "bad.*",
+               "type" => "TXT",
+               "ttl" => 300,
+               "content" => "invalid"
+             })
+
+    assert %{name: [_ | _]} = errors_on(changeset)
   end
 
   test "adopts an existing matching user rrset into managed web dns" do
@@ -203,11 +252,15 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert is_binary(config.settings["dkim_selector"])
     assert is_binary(config.settings["dkim_public_key"])
     assert is_binary(config.settings["dkim_private_key"])
+    refute config.settings["dkim_private_key"] == "PRIVATEKEY"
     assert String.contains?(config.settings["dkim_value"], "v=DKIM1")
     assert config.settings["caa_issue"] == "letsencrypt.org"
     assert config.settings["mail_target"] == zone.domain
 
     zone = DNS.get_zone(zone.id, user.id)
+
+    mail_health = DNS.zone_service_health(zone) |> Enum.find(&(&1.service == "mail"))
+    assert mail_health.settings["dkim_private_key"] == "[redacted]"
 
     assert Enum.any?(
              zone.records,
@@ -348,4 +401,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
   defp unique_domain do
     "zone#{System.unique_integer([:positive])}.example.com"
   end
+
+  defp restore_env(key, nil), do: Application.delete_env(:elektrine, key)
+  defp restore_env(key, value), do: Application.put_env(:elektrine, key, value)
 end

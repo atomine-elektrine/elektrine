@@ -75,9 +75,13 @@ defmodule Elektrine.DNS.Record do
     |> validate_inclusion(:type, @types)
     |> validate_inclusion(:source, ["user", "system"])
     |> validate_number(:ttl, greater_than: 0, less_than_or_equal_to: 86_400)
+    |> validate_record_name()
     |> validate_cname_constraints()
     |> normalize_type_specific_content()
+    |> validate_address_content()
     |> validate_alias_target()
+    |> validate_hostname_targets()
+    |> validate_txt_size()
     |> validate_type_specific_fields()
     |> foreign_key_constraint(:zone_id)
     |> unique_constraint(:name, name: :dns_records_identity_unique)
@@ -207,6 +211,47 @@ defmodule Elektrine.DNS.Record do
     end
   end
 
+  defp validate_record_name(changeset) do
+    validate_change(changeset, :name, fn :name, name ->
+      cond do
+        not is_binary(name) or name == "" ->
+          [name: "is invalid"]
+
+        name == "@" ->
+          []
+
+        String.length(name) > 253 ->
+          [name: "is too long"]
+
+        String.contains?(name, "..") ->
+          [name: "contains an empty label"]
+
+        String.contains?(name, "*") and not wildcard_name?(name) ->
+          [name: "has invalid wildcard placement"]
+
+        Enum.all?(String.split(name, "."), &valid_label?/1) ->
+          []
+
+        true ->
+          [name: "contains invalid labels"]
+      end
+    end)
+  end
+
+  defp wildcard_name?("*"), do: true
+  defp wildcard_name?("*." <> rest), do: rest != "" and not String.contains?(rest, "*")
+  defp wildcard_name?(_), do: false
+
+  defp valid_label?("_" <> rest), do: valid_service_label?(rest)
+
+  defp valid_label?(label) do
+    byte_size(label) in 1..63 and String.match?(label, ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
+  end
+
+  defp valid_service_label?(rest) do
+    byte_size(rest) in 0..62 and String.match?(rest, ~r/^[a-z0-9_-]*$/)
+  end
+
   defp validate_alias_target(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :content)} do
       {"ALIAS", content} when is_binary(content) ->
@@ -215,6 +260,62 @@ defmodule Elektrine.DNS.Record do
         else
           add_error(changeset, :content, "must point to a public DNS hostname")
         end
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_hostname_targets(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {type, content} when type in ["CNAME", "MX", "NS", "SRV"] and is_binary(content) ->
+        if valid_hostname_target?(content) do
+          changeset
+        else
+          add_error(changeset, :content, "must be a public DNS hostname")
+        end
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_address_content(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {"A", content} when is_binary(content) ->
+        validate_ip_address(changeset, content, 4, "must be a valid IPv4 address")
+
+      {"AAAA", content} when is_binary(content) ->
+        validate_ip_address(changeset, content, 8, "must be a valid IPv6 address")
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_ip_address(changeset, content, tuple_size, message) do
+    case :inet.parse_address(String.to_charlist(content)) do
+      {:ok, address} when tuple_size(address) == tuple_size -> changeset
+      _ -> add_error(changeset, :content, message)
+    end
+  end
+
+  defp valid_hostname_target?(content) do
+    content = content |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+    content != "" and String.contains?(content, ".") and
+      not String.contains?(content, ["/", "@", " "]) and
+      Enum.all?(String.split(content, "."), &valid_label?/1) and not ip_literal?(content)
+  end
+
+  defp ip_literal?(content) do
+    match?({:ok, _}, :inet.parse_address(String.to_charlist(content)))
+  end
+
+  defp validate_txt_size(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {"TXT", content} when is_binary(content) and byte_size(content) > 65_535 ->
+        add_error(changeset, :content, "is too large for a TXT record")
 
       _ ->
         changeset

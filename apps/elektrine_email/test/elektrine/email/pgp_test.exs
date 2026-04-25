@@ -28,6 +28,14 @@ defmodule Elektrine.Email.PGPTest do
   -----END PGP PUBLIC KEY BLOCK-----
   """
 
+  @sample_pgp_message """
+  -----BEGIN PGP MESSAGE-----
+
+  hQEMA1234567890ABCAQ/9H7B3c4V8mKTk2YpHvWpLKF6
+  =ABCD
+  -----END PGP MESSAGE-----
+  """
+
   describe "wkd_hash/1" do
     test "computes correct z-base32 hash for local part" do
       # Known test vector: "test" should hash to a specific value
@@ -116,6 +124,107 @@ defmodule Elektrine.Email.PGPTest do
           # Parsing might fail but it should recognize it as a PGP key
           assert reason != :not_pgp_key
       end
+    end
+  end
+
+  describe "gpg-backed OpenPGP operations" do
+    @tag :tmp_dir
+    test "parses, encrypts, and verifies with a real generated key", %{tmp_dir: tmp_dir} do
+      if PGP.gpg_available?() do
+        gpg = System.find_executable("gpg") || System.find_executable("gpg2")
+        homedir = Path.join(tmp_dir, "gnupg")
+        File.mkdir_p!(homedir)
+        File.chmod!(homedir, 0o700)
+
+        user_id =
+          "Elektrine PGP Test <pgp-test-#{System.unique_integer([:positive])}@example.com>"
+
+        {_output, 0} =
+          System.cmd(
+            gpg,
+            [
+              "--homedir",
+              homedir,
+              "--batch",
+              "--pinentry-mode",
+              "loopback",
+              "--passphrase",
+              "",
+              "--quick-generate-key",
+              user_id,
+              "rsa2048",
+              "sign,encrypt",
+              "1d"
+            ],
+            stderr_to_stdout: true
+          )
+
+        {public_key, 0} =
+          System.cmd(gpg, ["--homedir", homedir, "--armor", "--export", user_id],
+            stderr_to_stdout: true
+          )
+
+        assert {:ok, key_info} = PGP.parse_public_key(public_key)
+        assert String.length(key_info.fingerprint) >= 40
+        assert String.ends_with?(key_info.fingerprint, key_info.key_id)
+
+        assert {:ok, encrypted} = PGP.encrypt("hello pgp", public_key)
+        assert encrypted =~ "-----BEGIN PGP MESSAGE-----"
+
+        message_file = Path.join(tmp_dir, "message.txt")
+        signed_file = Path.join(tmp_dir, "message.asc")
+        File.write!(message_file, "signed hello")
+
+        {_sign_output, 0} =
+          System.cmd(
+            gpg,
+            [
+              "--homedir",
+              homedir,
+              "--batch",
+              "--pinentry-mode",
+              "loopback",
+              "--passphrase",
+              "",
+              "--armor",
+              "--clearsign",
+              "--local-user",
+              user_id,
+              "--output",
+              signed_file,
+              message_file
+            ],
+            stderr_to_stdout: true
+          )
+
+        signed_message = File.read!(signed_file)
+
+        assert {:ok, %{"status" => "verified"}} =
+                 PGP.verify_signed_message(signed_message, [public_key])
+      else
+        assert true
+      end
+    end
+  end
+
+  describe "detect_content/4 and extract_public_keys/3" do
+    test "detects encrypted, signed, PGP/MIME, and public key content" do
+      headers = %{"Content-Type" => "multipart/signed; protocol=\"application/pgp-signature\""}
+
+      attachments = [
+        %{"filename" => "signature.asc", "content_type" => "application/pgp-signature"}
+      ]
+
+      body = @sample_pgp_message <> "\n" <> @sample_pgp_key
+
+      status = PGP.detect_content(body, nil, attachments, headers)
+
+      assert status.encrypted?
+      assert status.signed?
+      assert status.pgp_mime?
+      assert status.pgp_attachment?
+      assert status.public_key?
+      assert PGP.extract_public_keys(body, attachments, headers) == [String.trim(@sample_pgp_key)]
     end
   end
 

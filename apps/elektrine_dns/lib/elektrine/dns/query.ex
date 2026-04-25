@@ -13,41 +13,62 @@ defmodule Elektrine.DNS.Query do
   end
 
   def resolve(packet, opts \\ []) when is_binary(packet) do
-    case Packet.decode_query(packet) do
-      {:ok, query} ->
-        if any_query?(query) do
-          response =
-            Packet.encode_response(query, [], :refused,
-              transport: Keyword.get(opts, :transport),
-              recursion_available: DNS.recursive_enabled?()
-            )
+    result =
+      case Packet.decode_query(packet) do
+        {:ok, query} ->
+          if any_query?(query) do
+            response =
+              Packet.encode_response(query, [], :refused,
+                transport: Keyword.get(opts, :transport),
+                recursion_available: DNS.recursive_enabled?()
+              )
 
-          response_meta(query, response, nil, :refused, false)
-        else
-          route_query(packet, query, opts)
-        end
+            response_meta(query, response, nil, :refused, false)
+          else
+            route_query(packet, query, opts)
+          end
 
-      {:error, :format_error} ->
-        %{
-          response: Packet.encode_error(packet, :formerr),
-          zone: nil,
-          qname: nil,
-          qtype: nil,
-          rcode: :formerr,
-          authoritative: false
-        }
+        {:error, :format_error} ->
+          %{
+            response: Packet.encode_error(packet, :formerr),
+            zone: nil,
+            qname: nil,
+            qtype: nil,
+            rcode: :formerr,
+            authoritative: false
+          }
 
-      _ ->
-        %{
-          response: Packet.encode_error(packet, :servfail),
-          zone: nil,
-          qname: nil,
-          qtype: nil,
-          rcode: :servfail,
-          authoritative: false
-        }
-    end
+        _ ->
+          %{
+            response: Packet.encode_error(packet, :servfail),
+            zone: nil,
+            qname: nil,
+            qtype: nil,
+            rcode: :servfail,
+            authoritative: false
+          }
+      end
+
+    emit_query_telemetry(result)
+    result
   end
+
+  defp emit_query_telemetry(result) do
+    :telemetry.execute(
+      [:elektrine, :dns, :query],
+      %{count: 1},
+      %{
+        zone: zone_domain(result.zone),
+        qname: result.qname,
+        qtype: result.qtype,
+        rcode: result.rcode,
+        authoritative: result.authoritative
+      }
+    )
+  end
+
+  defp zone_domain(%{domain: domain}), do: domain
+  defp zone_domain(_), do: nil
 
   defp route_query(packet, query, opts) do
     case fetch_zone(query.qname) do
@@ -57,7 +78,7 @@ defmodule Elektrine.DNS.Query do
       {:error, :not_authoritative} ->
         if query_recursion_desired?(packet) and DNS.recursive_enabled?() do
           response = Elektrine.DNS.Recursive.resolve(packet, opts)
-          response_meta(query, response, nil, :noerror, false)
+          response_meta(query, response, nil, response_rcode(response), false)
         else
           response =
             Packet.encode_response(query, [], :refused, transport: Keyword.get(opts, :transport))
@@ -93,6 +114,20 @@ defmodule Elektrine.DNS.Query do
     do: (flags &&& 0x0100) != 0
 
   defp query_recursion_desired?(_), do: false
+
+  defp response_rcode(<<_id::16, flags::16, _rest::binary>>) do
+    case flags &&& 0x000F do
+      0 -> :noerror
+      1 -> :formerr
+      2 -> :servfail
+      3 -> :nxdomain
+      4 -> :notimp
+      5 -> :refused
+      other -> other
+    end
+  end
+
+  defp response_rcode(_), do: :servfail
 
   defp fetch_zone(qname) do
     qname = normalize_name(qname)

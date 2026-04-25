@@ -15,7 +15,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
   alias Elektrine.Social.Message
   alias Elektrine.Utils.SafeConvert
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
-  alias ElektrineWeb.Live.PostInteractions
 
   # Shows the reply form for a post.
   def handle_event("show_reply_form", %{"message_id" => message_id}, socket) do
@@ -362,15 +361,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
 
       parent_reply && is_integer(Map.get(parent_reply, :id)) ->
         {:ok, %{parent_id: parent_reply.id, parent: parent_reply}}
-
-      is_integer(normalized_id) or is_binary(normalized_id) ->
-        case PostInteractions.resolve_message_for_interaction(normalized_id) do
-          {:ok, parent_message} ->
-            {:ok, %{parent_id: parent_message.id, parent: parent_message}}
-
-          {:error, _} ->
-            {:error, :invalid_reply_target}
-        end
 
       true ->
         {:error, :invalid_reply_target}

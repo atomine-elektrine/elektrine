@@ -174,7 +174,7 @@ SHELL ["/bin/bash", "-c"]
 
 RUN for i in 1 2 3 4 5; do \
       if apt-get update -y && \
-           apt-get install -y libstdc++6 openssl libncurses6 ca-certificates libvips42 tor gpg gnupg2 dirmngr wireguard-tools iproute2 shadowsocks-libev; then \
+           apt-get install -y libstdc++6 openssl libncurses6 ca-certificates curl libvips42 tor gpg gnupg2 dirmngr wireguard-tools iproute2 shadowsocks-libev; then \
         apt-get clean; \
         rm -rf /var/lib/apt/lists/*; \
         break; \
@@ -207,6 +207,7 @@ RUN chown nobody /app
 # Copy startup scripts
 COPY --chmod=755 deploy/docker/start.sh /app/start.sh
 COPY --chmod=755 deploy/docker/docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY --chmod=755 scripts/acme /app/scripts/acme
 
 # set runner ENV
 ENV MIX_ENV="prod"

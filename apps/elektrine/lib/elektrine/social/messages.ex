@@ -1646,7 +1646,10 @@ defmodule Elektrine.Social.Messages do
         load_activitypub_lookup_message(id)
 
       nil ->
-        nil
+        case message_id_by_legacy_activitypub_ref(canonical_ref) do
+          id when is_integer(id) -> load_activitypub_lookup_message(id)
+          nil -> nil
+        end
     end
   end
 
@@ -1659,6 +1662,25 @@ defmodule Elektrine.Social.Messages do
        when is_binary(ref) and is_atom(field_name) do
     from(m in Message,
       where: field(m, ^field_name) == ^ref,
+      select: m.id,
+      limit: 1
+    )
+    |> Repo.one()
+  end
+
+  defp message_id_by_legacy_activitypub_ref(ref) when is_binary(ref) do
+    from(m in Message,
+      where:
+        fragment(
+          "trim(trailing '/' from split_part(split_part(?, '#', 1), chr(63), 1))",
+          m.activitypub_id
+        ) ==
+          ^ref or
+          fragment(
+            "trim(trailing '/' from split_part(split_part(?, '#', 1), chr(63), 1))",
+            m.activitypub_url
+          ) ==
+            ^ref,
       select: m.id,
       limit: 1
     )

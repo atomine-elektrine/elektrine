@@ -25,27 +25,12 @@ defmodule Elektrine.Email.InboundRouting do
     if clean_email do
       normalized_email = Email.normalize_plus_address(clean_email)
 
-      case Email.resolve_alias(clean_email) do
-        target_email when is_binary(target_email) ->
-          {:forward_external, target_email, clean_email}
-
-        :no_forward ->
-          find_main_mailbox_for_alias(clean_email)
+      case Email.get_alias_by_email(clean_email) do
+        %Email.Alias{} = alias_record ->
+          route_alias(alias_record, clean_email)
 
         nil ->
-          case find_existing_mailbox(normalized_email, normalized_email) do
-            {:ok, mailbox} ->
-              case Email.get_mailbox_forward_target(mailbox) do
-                target_email when is_binary(target_email) ->
-                  {:forward_external, target_email, clean_email}
-
-                nil ->
-                  {:ok, mailbox}
-              end
-
-            nil ->
-              {:error, :no_mailbox}
-          end
+          route_mailbox(normalized_email, clean_email)
       end
     else
       {:error, :invalid_email}
@@ -218,6 +203,39 @@ defmodule Elektrine.Email.InboundRouting do
       check_regular_mailboxes(clean_email)
     else
       nil
+    end
+  end
+
+  defp route_alias(%Email.Alias{} = alias_record, clean_email) do
+    case Email.resolve_alias(clean_email) do
+      target_email when is_binary(target_email) ->
+        Email.record_alias_delivery(alias_record, true)
+        {:forward_external, target_email, clean_email}
+
+      :no_forward ->
+        with {:ok, mailbox} <- find_main_mailbox_for_alias(clean_email) do
+          Email.record_alias_delivery(alias_record, false)
+          {:ok, mailbox}
+        end
+
+      nil ->
+        {:error, :no_mailbox}
+    end
+  end
+
+  defp route_mailbox(normalized_email, clean_email) do
+    case find_existing_mailbox(normalized_email, normalized_email) do
+      {:ok, mailbox} ->
+        case Email.get_mailbox_forward_target(mailbox) do
+          target_email when is_binary(target_email) ->
+            {:forward_external, target_email, clean_email}
+
+          nil ->
+            {:ok, mailbox}
+        end
+
+      nil ->
+        {:error, :no_mailbox}
     end
   end
 

@@ -4,6 +4,7 @@ defmodule Elektrine.Email.Receiver do
   alias Elektrine.Email.ForwardedMessage
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.MailboxEncryption
+  alias Elektrine.Email.PGP
   alias Elektrine.EmailConfig
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -510,7 +511,7 @@ defmodule Elektrine.Email.Receiver do
       "spam" => spam?(params),
       "archived" => false,
       "mailbox_id" => mailbox_id,
-      "metadata" => extract_metadata(params),
+      "metadata" => extract_metadata(params, mailbox_user_id, sender_email),
       "attachments" => attachments_for_storage,
       "has_attachments" => map_size(attachments_for_storage) > 0,
       "in_reply_to" => in_reply_to,
@@ -727,16 +728,83 @@ defmodule Elektrine.Email.Receiver do
   defp normalize_thread_header_value(value),
     do: to_string(value) |> normalize_thread_header_value()
 
-  defp extract_metadata(params) do
+  defp extract_metadata(params, user_id, sender_email) do
     %{
-      received_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-      spam_score: params["spam_score"],
-      attachments: params["attachments"],
-      headers: sanitize_headers_map(params["headers"])
+      "received_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "spam_score" => params["spam_score"],
+      "attachments" => params["attachments"],
+      "headers" => sanitize_headers_map(params["headers"]),
+      "pgp" => extract_pgp_metadata(params, user_id, sender_email)
     }
     |> Enum.filter(fn {_k, v} -> v != nil end)
     |> Enum.into(%{})
   end
+
+  defp extract_pgp_metadata(params, user_id, sender_email) do
+    text_body = params["plain_body"] || params["text_body"] || ""
+    html_body = params["html_body"] || ""
+    attachments = params["attachments"] || []
+    headers = params["headers"] || %{}
+
+    content = PGP.detect_content(text_body, html_body, attachments, headers)
+    public_keys = PGP.extract_public_keys(text_body, attachments, headers)
+
+    pgp_metadata = %{
+      "encrypted" => content.encrypted?,
+      "signed" => content.signed?,
+      "pgp_mime" => content.pgp_mime?,
+      "pgp_attachment" => content.pgp_attachment?,
+      "public_key_present" => content.public_key?,
+      "discovered_public_keys" => public_key_summaries(public_keys),
+      "signature" =>
+        signature_status(text_body, public_keys, user_id, sender_email, content.signed?)
+    }
+
+    if Enum.any?(pgp_metadata, fn {_key, value} -> pgp_metadata_present?(value) end) do
+      pgp_metadata
+      |> Enum.reject(fn {_key, value} -> value in [nil, false, [], %{}] end)
+      |> Enum.into(%{})
+    end
+  end
+
+  defp public_key_summaries(public_keys) do
+    public_keys
+    |> Enum.map(fn key ->
+      case PGP.parse_public_key(key) do
+        {:ok, key_info} ->
+          %{
+            "fingerprint" => key_info.fingerprint,
+            "key_id" => key_info.key_id,
+            "trusted" => false
+          }
+
+        {:error, reason} ->
+          %{"error" => inspect(reason), "trusted" => false}
+      end
+    end)
+  end
+
+  defp signature_status(_text_body, _public_keys, _user_id, _sender_email, false), do: nil
+
+  defp signature_status(text_body, public_keys, user_id, sender_email, true) do
+    keys = public_keys ++ known_sender_keys(sender_email, user_id)
+
+    case PGP.verify_signed_message(text_body, keys) do
+      {:ok, info} -> Map.put(info, "checked_with", "public_key")
+      {:error, reason} -> %{"status" => "unverified", "reason" => inspect(reason)}
+    end
+  end
+
+  defp known_sender_keys(sender_email, user_id) when is_binary(sender_email) do
+    case PGP.lookup_recipient_key(sender_email, user_id, fetch_remote: false) do
+      {:ok, key} -> [key]
+      {:error, _reason} -> []
+    end
+  end
+
+  defp known_sender_keys(_sender_email, _user_id), do: []
+
+  defp pgp_metadata_present?(value), do: value not in [nil, false, [], %{}]
 
   defp sanitize_headers_map(nil) do
     nil

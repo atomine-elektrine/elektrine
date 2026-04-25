@@ -92,7 +92,8 @@ defmodule Elektrine.StaticSites do
   def upload_file(user, path, binary, content_type) do
     size = byte_size(binary)
 
-    with :ok <- validate_limits(user.id, size),
+    with {:ok, path} <- normalize_site_path(path),
+         :ok <- validate_limits(user.id, size),
          :ok <- validate_file_extension(path),
          :ok <- validate_content_type(path, binary, content_type),
          storage_key <- generate_storage_key(user.id, path),
@@ -115,6 +116,38 @@ defmodule Elektrine.StaticSites do
       |> Repo.insert()
     end
   end
+
+  defp normalize_site_path(path) when is_binary(path) do
+    decoded = URI.decode(path) |> String.trim()
+
+    normalized =
+      decoded
+      |> String.replace("\\", "/")
+      |> Path.expand("/")
+      |> String.trim_leading("/")
+
+    cond do
+      decoded == "" ->
+        {:error, :invalid_path}
+
+      String.starts_with?(decoded, ["/", "\\"]) ->
+        {:error, :invalid_path}
+
+      String.contains?(decoded, ["..", "\0", "//", "\\"]) ->
+        {:error, :invalid_path}
+
+      normalized == "" ->
+        {:error, :invalid_path}
+
+      not Regex.match?(~r/^[A-Za-z0-9._\-\/]+$/, normalized) ->
+        {:error, :invalid_path}
+
+      true ->
+        {:ok, normalized}
+    end
+  end
+
+  defp normalize_site_path(_), do: {:error, :invalid_path}
 
   # Validates that the file extension is allowed
   defp validate_file_extension(path) do

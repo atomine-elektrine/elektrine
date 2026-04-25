@@ -376,7 +376,9 @@ defmodule Elektrine.Drive do
             token: random_share_token(),
             expires_at: expires_at,
             access_level: access_level,
-            password_hash: password_hash
+            password_hash: password_hash,
+            burn_after_read:
+              truthy?(Map.get(attrs, "burn_after_read") || Map.get(attrs, :burn_after_read))
           })
           |> Repo.insert()
       end
@@ -405,6 +407,7 @@ defmodule Elektrine.Drive do
     FileShare
     |> where([s], s.token == ^token and is_nil(s.revoked_at))
     |> where([s], is_nil(s.expires_at) or s.expires_at > ^DateTime.utc_now())
+    |> where([s], not s.burn_after_read or s.download_count == 0)
     |> preload(:stored_file)
     |> Repo.one()
   end
@@ -979,6 +982,8 @@ defmodule Elektrine.Drive do
   defp hash_share_password(password) do
     {:ok, Argon2.hash_pwd_salt(password)}
   end
+
+  defp truthy?(value), do: value in [true, "true", "1", 1, "on"]
 
   defp expires_at_from_option(nil), do: {:ok, nil}
   defp expires_at_from_option(""), do: {:ok, nil}

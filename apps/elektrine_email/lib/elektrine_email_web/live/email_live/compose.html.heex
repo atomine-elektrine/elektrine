@@ -504,6 +504,28 @@
                 />
               </div>
 
+              <div class="rounded-lg border border-base-300/60 bg-base-100/50 p-4">
+                <label class="label px-0 pt-0">
+                  <span class="font-semibold">{gettext("Send Later")}</span>
+                  <span class="label-text-alt text-base-content/60">UTC</span>
+                </label>
+                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <input
+                    type="datetime-local"
+                    name="email[send_at]"
+                    class="input input-bordered w-full text-sm"
+                    min={
+                      DateTime.utc_now()
+                      |> DateTime.add(60, :second)
+                      |> Calendar.strftime("%Y-%m-%dT%H:%M")
+                    }
+                  />
+                  <p class="text-xs leading-5 text-base-content/60 sm:max-w-xs">
+                    Leave blank to send immediately, or choose a future UTC time to queue delivery.
+                  </p>
+                </div>
+              </div>
+
               <div class="rounded-lg bg-base-200/55 p-4 space-y-3">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div class="space-y-1">

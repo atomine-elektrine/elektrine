@@ -14,6 +14,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
   alias Elektrine.{Messaging, Social}
   alias ElektrineSocialWeb.DiscussionsLive.PostRouter
 
+  @initial_reply_expand_depth 2
+  @max_reply_depth 10
+
   @impl true
   def mount(params, _session, socket) do
     user = socket.assigns[:current_user]
@@ -75,13 +78,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
               true
             else
               # Check membership for private communities
-              Elektrine.Repo.exists?(
-                from cm in Elektrine.Social.ConversationMember,
-                  where:
-                    cm.conversation_id == ^community_id and
-                      cm.user_id == ^user.id and
-                      is_nil(cm.left_at)
-              )
+              user &&
+                Elektrine.Repo.exists?(
+                  from cm in Elektrine.Social.ConversationMember,
+                    where:
+                      cm.conversation_id == ^community_id and
+                        cm.user_id == ^user.id and
+                        is_nil(cm.left_at)
+                )
             end
 
           if has_access do
@@ -302,42 +306,117 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     end
   end
 
-  defp get_threaded_replies_with_expansion(parent_id, community_id, depth, expanded_threads) do
-    import Ecto.Query
-
-    # Get direct replies to this parent
-    direct_replies =
-      from(m in Elektrine.Social.Message,
-        where:
-          m.reply_to_id == ^parent_id and
-            m.conversation_id == ^community_id and
-            is_nil(m.deleted_at) and
-            (m.approval_status == "approved" or is_nil(m.approval_status)),
-        order_by: [desc: m.score, asc: m.inserted_at],
-        preload: [
-          sender: [:profile],
-          flair: [],
-          shared_message: [sender: [:profile], conversation: []]
-        ]
+  defp get_threaded_replies_with_expansion(parent_id, community_id, _depth, expanded_threads) do
+    {replies_by_parent, collapsed_parent_ids} =
+      load_visible_reply_tree(
+        %{parent_id => 0},
+        community_id,
+        expanded_threads,
+        %{},
+        MapSet.new()
       )
-      |> Elektrine.Repo.all()
-      |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
 
-    # For each reply, get its nested replies (recursive)
-    Enum.map(direct_replies, fn reply ->
-      # Check if we should expand this reply's children
-      # Either we're within initial depth (< 2) OR this specific reply is in expanded set
-      should_expand = depth < 2 || MapSet.member?(expanded_threads, reply.id)
+    child_counts = load_reply_child_counts(MapSet.to_list(collapsed_parent_ids), community_id)
+    build_threaded_reply_nodes(parent_id, replies_by_parent, child_counts, 0)
+  end
 
-      # Hard limit at 10 to prevent infinite recursion
-      nested_replies =
-        if should_expand && depth < 10 do
-          get_threaded_replies_with_expansion(reply.id, community_id, depth + 1, expanded_threads)
+  defp load_visible_reply_tree(
+         parent_depths,
+         _community_id,
+         _expanded_threads,
+         replies_by_parent,
+         collapsed_parent_ids
+       )
+       when map_size(parent_depths) == 0 do
+    {replies_by_parent, collapsed_parent_ids}
+  end
+
+  defp load_visible_reply_tree(
+         parent_depths,
+         community_id,
+         expanded_threads,
+         replies_by_parent,
+         collapsed_parent_ids
+       ) do
+    parent_ids = Map.keys(parent_depths)
+    replies = load_direct_replies(parent_ids, community_id)
+    grouped = Enum.group_by(replies, & &1.reply_to_id)
+
+    {next_parent_depths, collapsed_parent_ids} =
+      Enum.reduce(replies, {%{}, collapsed_parent_ids}, fn reply, {next, collapsed} ->
+        depth = Map.fetch!(parent_depths, reply.reply_to_id)
+
+        should_expand =
+          depth < @initial_reply_expand_depth || MapSet.member?(expanded_threads, reply.id)
+
+        if should_expand && depth < @max_reply_depth do
+          {Map.put(next, reply.id, depth + 1), collapsed}
         else
-          []
+          {next, MapSet.put(collapsed, reply.id)}
         end
+      end)
 
-      %{reply: reply, children: nested_replies, depth: depth, has_children: should_expand}
+    replies_by_parent = Map.merge(replies_by_parent, grouped)
+
+    load_visible_reply_tree(
+      next_parent_depths,
+      community_id,
+      expanded_threads,
+      replies_by_parent,
+      collapsed_parent_ids
+    )
+  end
+
+  defp load_direct_replies([], _community_id), do: []
+
+  defp load_direct_replies(parent_ids, community_id) do
+    from(m in Elektrine.Social.Message,
+      where:
+        m.reply_to_id in ^parent_ids and
+          m.conversation_id == ^community_id and
+          is_nil(m.deleted_at) and
+          (m.approval_status == "approved" or is_nil(m.approval_status)),
+      order_by: [asc: m.reply_to_id, desc: m.score, asc: m.inserted_at],
+      preload: [
+        sender: [:profile],
+        flair: [],
+        shared_message: [sender: [:profile], conversation: []]
+      ]
+    )
+    |> Elektrine.Repo.all()
+    |> Enum.map(&Elektrine.Social.Message.decrypt_content/1)
+  end
+
+  defp load_reply_child_counts([], _community_id), do: %{}
+
+  defp load_reply_child_counts(parent_ids, community_id) do
+    from(m in Elektrine.Social.Message,
+      where:
+        m.reply_to_id in ^parent_ids and
+          m.conversation_id == ^community_id and
+          is_nil(m.deleted_at) and
+          (m.approval_status == "approved" or is_nil(m.approval_status)),
+      group_by: m.reply_to_id,
+      select: {m.reply_to_id, count(m.id)}
+    )
+    |> Elektrine.Repo.all()
+    |> Map.new()
+  end
+
+  defp build_threaded_reply_nodes(parent_id, replies_by_parent, child_counts, depth) do
+    replies_by_parent
+    |> Map.get(parent_id, [])
+    |> Enum.map(fn reply ->
+      children = build_threaded_reply_nodes(reply.id, replies_by_parent, child_counts, depth + 1)
+      hidden_child_count = Map.get(child_counts, reply.id, 0)
+
+      %{
+        reply: reply,
+        children: children,
+        depth: depth,
+        has_children: children != [] || hidden_child_count > 0,
+        has_more_children: children == [] && hidden_child_count > 0
+      }
     end)
   end
 
@@ -429,17 +508,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     end
   end
 
-  defp has_more_replies?(message_id, community_id) do
-    import Ecto.Query
-
-    Elektrine.Repo.exists?(
-      from m in Elektrine.Social.Message,
-        where:
-          m.reply_to_id == ^message_id and m.conversation_id == ^community_id and
-            is_nil(m.deleted_at)
-    )
-  end
-
   def count_total_replies(threaded_replies) when is_list(threaded_replies) do
     Enum.reduce(threaded_replies, 0, fn
       %{children: children}, acc ->
@@ -501,7 +569,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     )
   end
 
-  defp render_single_threaded_reply(%{reply: reply, children: children, depth: depth}, assigns) do
+  defp render_single_threaded_reply(
+         %{reply: reply, children: children, depth: depth} = threaded_reply,
+         assigns
+       ) do
     # Use minimal indentation and cap it early (like Reddit)
     indent_class =
       case depth do
@@ -827,7 +898,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       </div>
 
       <!-- Continue Thread Link -->
-      #{if depth >= 2 && children == [] && has_more_replies?(reply.id, Map.get(assigns, :community).id) do
+      #{if depth >= 2 && Map.get(threaded_reply, :has_more_children) do
       """
       <div class="#{indent_class} mt-2">
         <button

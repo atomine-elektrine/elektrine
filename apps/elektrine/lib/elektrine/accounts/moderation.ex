@@ -430,7 +430,7 @@ defmodule Elektrine.Accounts.Moderation do
             # Check if the new email conflicts with an existing mailbox
             case Elektrine.Email.get_mailbox_by_email(new_email) do
               nil ->
-                # New email is available - transition the mailbox
+                # New email is available - update the mailbox in place.
                 case Elektrine.Email.transition_mailbox_for_username_change(
                        user,
                        mailbox,

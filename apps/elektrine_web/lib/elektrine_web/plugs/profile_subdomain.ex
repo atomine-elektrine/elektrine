@@ -126,11 +126,21 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
           handle in @reserved_subdomains ->
             {:reserved_subdomain, handle, base_domain}
 
+          !valid_handle?(handle) ->
+            :invalid_subdomain
+
           true ->
             {:ok, handle, base_domain}
         end
     end
   end
+
+  defp valid_handle?(handle) when is_binary(handle) do
+    byte_size(handle) <= 100 and String.valid?(handle) and
+      not String.contains?(handle, ["/", "\0", "\r", "\n", "\t"])
+  end
+
+  defp valid_handle?(_), do: false
 
   defp maybe_rewrite_root_path(conn, handle) do
     if conn.request_path == "/" do

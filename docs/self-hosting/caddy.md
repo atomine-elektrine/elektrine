@@ -5,7 +5,7 @@ friendly:
 
 - stock app containers behind one reverse proxy
 - automatic HTTPS for your owned domains
-- optional external wildcard certificates mounted into Caddy
+- optional wildcard certificates issued through Elektrine DNS and mounted into Caddy
 - on-demand TLS for custom/user domains
 - plain HTTP bootstrap access over the server IP before a domain is ready
 
@@ -51,6 +51,36 @@ For wildcard issuance directly in Caddy through Cloudflare DNS, set instead:
 
 - `CLOUDFLARE_API_TOKEN`
 
+If you are not on Cloudflare DNS, Elektrine can issue the wildcard cert with
+Elektrine DNS and use external certificate mode. The issuer loads `.env.production` and infers the domain/API base from
+`PRIMARY_DOMAIN`, `PHX_HOST`, and `CADDY_MANAGED_SITE_1`. It uses the existing
+`PHOENIX_API_KEY` or `CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
+endpoint and saves that config into acme.sh. If needed, override with
+`--domain=example.com` or `--api-base=https://example.com`.
+
+For automatic renewals through Oban, set:
+
+```env
+ACME_WILDCARD_RENEWAL_ENABLED=true
+ACME_HOME=/data/acme.sh
+```
+
+Oban runs `acme.sh --cron` daily. acme.sh only renews certificates near expiry
+and runs the reload command saved during initial issuance.
+
+When deploying through `scripts/deploy/docker_deploy.sh`, initial issuance is
+automatic when all of these are true:
+
+- the `caddy` profile is enabled
+- `CADDY_MANAGED_SITE_*` contains a wildcard host
+- `CLOUDFLARE_API_TOKEN` is not set
+- `ACME_WILDCARD_RENEWAL_ENABLED=true`
+
+The script installs:
+
+- `/opt/elektrine/certs/example.com.fullchain.pem`
+- `/opt/elektrine/certs/example.com.key.pem`
+
 When you deploy through `scripts/deploy/docker_deploy.sh`, you usually do not
 need to set `CADDY_CONFIG_PATH` manually. The deploy tooling auto-selects the
 wildcard Cloudflare Caddyfile when it sees wildcard site entries together with
@@ -74,6 +104,11 @@ If you use external wildcard certs, mount the directory that contains your certs
 with `CADDY_TLS_MOUNT_DIR`, then set the matching `CADDY_MANAGED_SITE_*_CERT_PATH`
 and `..._KEY_PATH` values to container paths.
 
+If you use the Elektrine ACME script, those files are installed at the default
+paths inferred by `scripts/deploy/docker_deploy.sh`, so normally only
+`CADDY_MANAGED_SITE_1="example.com *.example.com"` and
+`CADDY_TLS_MOUNT_DIR=/opt/elektrine/certs` are needed for Caddy.
+
 If you use Cloudflare DNS challenge instead, set `CLOUDFLARE_API_TOKEN` and let
 the deploy wrapper select the wildcard Cloudflare Caddyfile automatically.
 
@@ -95,6 +130,8 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 - raw server IP access is not expected to work over `https://`
 - for full browser interactivity over raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>`
 - wildcard external mode keeps certificate issuance outside Caddy
+- Elektrine DNS wildcard automation uses acme.sh DNS-01 and then feeds Caddy external cert files
+- Oban runs acme.sh renewal checks and acme.sh runs the saved Caddy reload command after renewal
 - wildcard Cloudflare mode lets Caddy issue and renew wildcard certs directly
 - wildcard external mode is the recommended path for high-volume username subdomains
 - stock on-demand TLS is still available in the default Caddyfile for explicit-host setups

@@ -112,7 +112,8 @@ interactivity over the raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>` in
 `.env.production`.
 
 If you need one wildcard cert for many username subdomains, switch to the
-wildcard Caddy path with either Cloudflare DNS challenge or an external cert.
+wildcard Caddy path with Cloudflare DNS challenge, Elektrine DNS challenge, or
+an external cert.
 
 For Cloudflare DNS challenge in Caddy, set:
 
@@ -132,11 +133,28 @@ The deploy wrapper now infers the cert paths automatically as:
 Override `CADDY_MANAGED_SITE_1_CERT_PATH` and `CADDY_MANAGED_SITE_1_KEY_PATH`
 only if your cert files live somewhere else or use a different filename.
 
+If Elektrine hosts the authoritative DNS zone, the deploy wrapper issues and
+installs the initial wildcard certificate automatically when Oban renewal is
+enabled. The issuer uses the existing `PHOENIX_API_KEY` or `CADDY_EDGE_API_KEY`
+for the internal DNS-01 endpoint and saves that config into acme.sh. Pass
+`--domain=example.com` to `scripts/acme/issue_elektrine_wildcard_cert.sh` only
+when you need to run it manually with an override.
+
+Enable Oban renewals with:
+
+```env
+ACME_WILDCARD_RENEWAL_ENABLED=true
+ACME_HOME=/data/acme.sh
+```
+
+Oban runs `acme.sh --cron` daily. acme.sh only renews certificates near expiry
+and runs the reload command saved during initial issuance.
+
 When `CLOUDFLARE_API_TOKEN` is set together with wildcard hosts, the deploy
 wrapper now selects the Cloudflare wildcard Caddyfile automatically.
 
-Then renew that wildcard certificate outside Docker and keep the host cert
-directory mounted read-only into the Caddy container. `scripts/deploy/docker_deploy.sh`
+Keep the host cert directory mounted read-only into the Caddy container.
+`scripts/deploy/docker_deploy.sh`
 auto-selects the wildcard Caddyfile for this combination, so `CADDY_CONFIG_PATH`
 usually does not need to be set manually.
 

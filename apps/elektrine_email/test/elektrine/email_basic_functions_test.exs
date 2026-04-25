@@ -45,6 +45,28 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       assert Email.get_mailbox_by_email("nonexistent@example.net") == nil
     end
 
+    test "verify_email_ownership accepts routable mailbox variants", %{user: user} do
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      assert {:ok, :main_mailbox} = Email.verify_email_ownership(mailbox.email, user.id)
+
+      assert {:ok, :main_mailbox} =
+               Email.verify_email_ownership(
+                 "#{user.username}+tag@#{Domains.primary_email_domain()}",
+                 user.id
+               )
+
+      alternate_domain =
+        Elektrine.Domains.supported_email_domains()
+        |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))
+        |> List.first()
+
+      if alternate_domain do
+        assert {:ok, :main_mailbox} =
+                 Email.verify_email_ownership("#{user.username}@#{alternate_domain}", user.id)
+      end
+    end
+
     test "get_user_mailbox prefers the canonical mailbox when legacy duplicates exist", %{
       user: user
     } do
@@ -91,8 +113,20 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       end
     end
 
-    test "transition_mailbox_for_username_change creates a domain-agnostic mailbox", %{user: user} do
+    test "transition_mailbox_for_username_change preserves mailbox data", %{user: user} do
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, message} =
+        Email.create_message(%{
+          message_id: "rename-preserves-message",
+          from: "sender@example.com",
+          to: mailbox.email,
+          subject: "Keep me",
+          text_body: "This message should remain in the mailbox.",
+          status: "received",
+          mailbox_id: mailbox.id
+        })
+
       renamed_user = %{user | username: "renamed"}
       new_email = "renamed@#{Domains.primary_email_domain()}"
 
@@ -101,19 +135,19 @@ defmodule Elektrine.EmailBasicFunctionsTest do
         |> Enum.reject(&(&1 == Elektrine.Domains.primary_email_domain()))
         |> List.first()
 
-      assert {:ok, new_mailbox} =
+      assert {:ok, updated_mailbox} =
                Email.transition_mailbox_for_username_change(renamed_user, mailbox, new_email)
 
-      assert new_mailbox.email == new_email
-      assert new_mailbox.username == "renamed"
+      assert updated_mailbox.id == mailbox.id
+      assert updated_mailbox.email == new_email
+      assert updated_mailbox.username == "renamed"
 
       if alternate_domain do
-        assert Email.get_mailbox_by_email("renamed@#{alternate_domain}").id == new_mailbox.id
+        assert Email.get_mailbox_by_email("renamed@#{alternate_domain}").id == updated_mailbox.id
       end
 
-      old_mailbox = Email.Mailboxes.get_mailbox_internal(mailbox.id)
-      assert old_mailbox.user_id == nil
-      assert old_mailbox.username == nil
+      assert Email.Mailboxes.get_mailbox_internal(mailbox.id).user_id == user.id
+      assert Email.get_message_internal(message.id).mailbox_id == mailbox.id
     end
   end
 

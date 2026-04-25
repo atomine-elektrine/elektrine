@@ -149,7 +149,54 @@
                   <div class="card-body p-4">
                     <div class="text-sm text-base-content/65">NXDOMAIN</div>
                     <div class="text-3xl font-bold">{@dns_stats.nxdomain_queries}</div>
+                    <div class="mt-1 text-xs text-base-content/50">
+                      <% nxdomain_rate =
+                        if @dns_stats.total_queries > 0,
+                          do: @dns_stats.nxdomain_queries / @dns_stats.total_queries * 100,
+                          else: 0.0 %>
+                      {Float.round(nxdomain_rate, 1)}% of total
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              <div class="card bg-base-200/40">
+                <div class="card-body p-6">
+                  <div class="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 class="card-title text-base">Last 24 Hours</h3>
+                      <p class="mt-1 text-sm text-base-content/55">
+                        Hourly authoritative DNS query volume.
+                      </p>
+                    </div>
+                    <span class="badge badge-outline">UTC</span>
+                  </div>
+
+                  <%= if @dns_display_hours == [] do %>
+                    <div class="py-8 text-center text-sm text-base-content/55">
+                      No hourly DNS query data yet.
+                    </div>
+                  <% else %>
+                    <div class="mt-5 flex h-48 items-end gap-1 overflow-x-auto rounded-xl bg-base-100 px-3 py-4">
+                      <%= for hour <- @dns_hourly_queries do %>
+                        <% height =
+                          if @max_dns_hourly_queries > 0,
+                            do: max(hour.count / @max_dns_hourly_queries * 100, 3),
+                            else: 3 %>
+                        <div class="flex min-w-8 flex-1 flex-col items-center justify-end gap-2">
+                          <div class="text-[10px] text-base-content/45">{hour.count}</div>
+                          <div
+                            class="w-full rounded-t-md bg-secondary/85"
+                            style={"height: #{height}%"}
+                          >
+                          </div>
+                          <div class="text-[10px] text-base-content/45">
+                            {Calendar.strftime(hour.hour, "%H")}
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
                 </div>
               </div>
 
@@ -235,29 +282,75 @@
                       <% end %>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div class="card bg-base-200/40">
-                <div class="card-body p-6">
-                  <h3 class="card-title text-base">Top Queried Names</h3>
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Transport</h3>
 
-                  <%= if @dns_top_names == [] do %>
-                    <div class="py-8 text-center text-sm text-base-content/55">
-                      No name-level query data yet.
-                    </div>
-                  <% else %>
-                    <div class="mt-4 space-y-3">
-                      <%= for item <- @dns_top_names do %>
-                        <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
-                          <div class="min-w-0">
-                            <p class="truncate font-medium">{item.qname}</p>
-                          </div>
-                          <span class="badge badge-secondary">{item.count}</span>
+                      <%= if @dns_transport_breakdown == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No transport data yet.
+                        </div>
+                      <% else %>
+                        <div class="mt-4 space-y-3">
+                          <%= for item <- @dns_transport_breakdown do %>
+                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                              <span class="font-medium uppercase">{item.transport}</span>
+                              <span class="badge badge-outline">{item.count}</span>
+                            </div>
+                          <% end %>
                         </div>
                       <% end %>
                     </div>
-                  <% end %>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid gap-6 xl:grid-cols-2">
+                <div class="card bg-base-200/40">
+                  <div class="card-body p-6">
+                    <h3 class="card-title text-base">Top Queried Names</h3>
+
+                    <%= if @dns_top_names == [] do %>
+                      <div class="py-8 text-center text-sm text-base-content/55">
+                        No name-level query data yet.
+                      </div>
+                    <% else %>
+                      <div class="mt-4 space-y-3">
+                        <%= for item <- @dns_top_names do %>
+                          <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
+                            <div class="min-w-0">
+                              <p class="truncate font-medium">{item.qname}</p>
+                            </div>
+                            <span class="badge badge-secondary">{item.count}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="card bg-base-200/40">
+                  <div class="card-body p-6">
+                    <h3 class="card-title text-base">Top NXDOMAIN Names</h3>
+
+                    <%= if @dns_top_nxdomain_names == [] do %>
+                      <div class="py-8 text-center text-sm text-base-content/55">
+                        No NXDOMAIN names yet.
+                      </div>
+                    <% else %>
+                      <div class="mt-4 space-y-3">
+                        <%= for item <- @dns_top_nxdomain_names do %>
+                          <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
+                            <div class="min-w-0">
+                              <p class="truncate font-medium">{item.qname}</p>
+                            </div>
+                            <span class="badge badge-error badge-outline">{item.count}</span>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
                 </div>
               </div>
             <% else %>

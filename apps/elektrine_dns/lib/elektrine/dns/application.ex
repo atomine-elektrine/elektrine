@@ -9,6 +9,7 @@ defmodule Elektrine.DNS.Application do
       [
         Elektrine.DNS.RecursiveCache,
         Elektrine.DNS.RequestGuard,
+        Elektrine.DNS.QueryStatsBuffer,
         {Task.Supervisor, name: Elektrine.DNS.TaskSupervisor}
       ] ++ authority_children()
 

@@ -9,6 +9,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   alias Elektrine.Email.MailboxEncryption
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
+  alias Elektrine.Email.SendEmailWorker
   alias Elektrine.Email.Sender
   alias ElektrineEmailWeb.UserErrorHelpers
   require Logger
@@ -776,7 +777,16 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
         nil
       end
 
-    case Sender.send_email(user.id, email_attrs, db_attachments_map) do
+    send_at = parse_scheduled_send_at(email_params["send_at"])
+
+    send_result =
+      if scheduled_send?(send_at) do
+        SendEmailWorker.enqueue(user.id, email_attrs, db_attachments_map, scheduled_for: send_at)
+      else
+        Sender.send_email(user.id, email_attrs, db_attachments_map)
+      end
+
+    case send_result do
       {:ok, _message} ->
         Elektrine.Accounts.Storage.update_user_storage(user.id)
 
@@ -787,10 +797,17 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
         updated_status = RateLimiter.get_rate_limit_status(user.id)
         return_url = email_return_url(socket.assigns)
 
+        message =
+          if scheduled_send?(send_at) do
+            "Email scheduled for #{Calendar.strftime(send_at, "%b %-d, %Y %H:%M UTC")}."
+          else
+            "Email sent successfully!"
+          end
+
         {:noreply,
          socket
          |> assign(:rate_limit_status, updated_status)
-         |> notify_info("Email sent successfully!")
+         |> notify_info(message)
          |> push_navigate(to: return_url)}
 
       {:error, :rate_limit_exceeded} ->
@@ -838,7 +855,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
          socket
          |> assign(:sending, false)
          |> notify_error(
-           "Required encryption is only available for message-body-only email right now. Remove attachments or switch to Encrypt when possible."
+           "Required encryption cannot protect regular attachments yet. Remove attachments, attach already-encrypted .pgp/.gpg/.asc files, or switch to Encrypt when possible."
          )
          |> assign(:form, to_form(email_params))}
 
@@ -885,6 +902,25 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
         {:noreply, socket |> notify_error("Failed to save draft")}
     end
   end
+
+  defp parse_scheduled_send_at(nil), do: nil
+  defp parse_scheduled_send_at(""), do: nil
+
+  defp parse_scheduled_send_at(value) when is_binary(value) do
+    value
+    |> NaiveDateTime.from_iso8601()
+    |> case do
+      {:ok, naive} -> DateTime.from_naive!(naive, "Etc/UTC")
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp parse_scheduled_send_at(_value), do: nil
+
+  defp scheduled_send?(%DateTime{} = send_at),
+    do: DateTime.compare(send_at, DateTime.utc_now()) == :gt
+
+  defp scheduled_send?(_send_at), do: false
 
   defp add_tag_from_input(socket, field) do
     {current_input, tags_key, error_key, input_key} =

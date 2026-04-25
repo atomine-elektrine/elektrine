@@ -71,7 +71,6 @@ defmodule ElektrineWeb.Routes.Email do
   defmacro public_browser_routes do
     quote do
       scope "/", alias: false do
-        post("/unsubscribe/:token", ElektrineEmailWeb.UnsubscribeController, :one_click)
         post("/unsubscribe/confirm/:token", ElektrineEmailWeb.UnsubscribeController, :confirm)
         post("/resubscribe", ElektrineEmailWeb.UnsubscribeController, :resubscribe)
       end

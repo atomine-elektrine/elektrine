@@ -33,14 +33,15 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   def handle(%{"object" => object} = activity, actor_uri, _target_user) when is_map(object) do
     object = inherit_wrapper_fields(activity, object)
     activity_id = activity["id"] || object["id"]
+    opts = ingestion_opts(activity)
 
     case validate_object_author(object, actor_uri) do
       :ok ->
         case object["type"] do
-          "Note" -> create_note(object, actor_uri)
-          "Page" -> create_note(object, actor_uri)
-          "Article" -> create_note(object, actor_uri)
-          "Question" -> create_question(object, actor_uri)
+          "Note" -> create_note(object, actor_uri, opts)
+          "Page" -> create_note(object, actor_uri, opts)
+          "Article" -> create_note(object, actor_uri, opts)
+          "Question" -> create_question(object, actor_uri, opts)
           # Akkoma/Pleroma explicitly sends Answer type for poll votes
           "Answer" -> handle_incoming_poll_vote(object, actor_uri, activity_id: activity_id)
           _ -> {:ok, :unhandled}
@@ -138,18 +139,14 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                 Async.run(fn -> sync_message_hashtags(message.id, payload.hashtags) end)
               end
 
-              reloaded_message =
-                Elektrine.Repo.preload(
-                  message,
-                  [:remote_actor, :sender, :link_preview, :hashtags, poll: [options: []]],
-                  force: true
-                )
-
-              Phoenix.PubSub.broadcast(
-                Elektrine.PubSub,
-                "timeline:public",
-                {:new_public_post, reloaded_message}
-              )
+              broadcast_created_message(message, opts, [
+                :remote_actor,
+                :sender,
+                :conversation,
+                :link_preview,
+                :hashtags,
+                poll: [options: []]
+              ])
 
               {:ok, message}
 
@@ -202,6 +199,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           sensitive: object["sensitive"] || false,
           content_warning: object["summary"]
         }
+        |> Map.merge(federated_context_attrs(opts))
         |> Map.merge(Helpers.extract_vote_totals(object)),
       hashtags: hashtags,
       mentioned_local_users: extract_local_mentions(object)
@@ -240,6 +238,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           sensitive: object["sensitive"] || false,
           content_warning: object["summary"]
         }
+        |> Map.merge(federated_context_attrs(opts))
         |> Map.merge(Helpers.extract_vote_totals(object)),
       question: question,
       hashtags: hashtags,
@@ -518,6 +517,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                 sensitive: object["sensitive"] || false,
                 content_warning: object["summary"]
               }
+              |> Map.merge(federated_context_attrs(opts))
               |> Map.merge(Helpers.extract_vote_totals(object))
             )
 
@@ -528,7 +528,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
                 remote_actor,
                 hashtags,
                 reply_to_id,
-                mentioned_local_users
+                mentioned_local_users,
+                opts
               )
 
               {:ok, message}
@@ -552,7 +553,8 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
          remote_actor,
          hashtags,
          reply_to_id,
-         mentioned_local_users
+         mentioned_local_users,
+         opts
        ) do
     # Link hashtags
     if hashtags != [] do
@@ -586,17 +588,70 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       end)
     end
 
-    # Broadcast to timelines
-    reloaded_message =
-      Elektrine.Repo.preload(message, [:remote_actor, :sender, :link_preview, :hashtags],
-        force: true
-      )
+    # Broadcast to timelines or the addressed local community.
+    broadcast_created_message(message, opts, [
+      :remote_actor,
+      :sender,
+      :conversation,
+      :link_preview,
+      :hashtags
+    ])
+  end
 
-    Phoenix.PubSub.broadcast(
-      Elektrine.PubSub,
-      "timeline:public",
-      {:new_public_post, reloaded_message}
-    )
+  defp ingestion_opts(activity) when is_map(activity) do
+    []
+    |> maybe_put_opt(:conversation_id, activity["_elektrine_target_community_id"])
+    |> maybe_put_opt(:fallback_community_uri, activity["_elektrine_target_community_uri"])
+  end
+
+  defp ingestion_opts(_), do: []
+
+  defp maybe_put_opt(opts, key, value) when is_integer(value), do: Keyword.put(opts, key, value)
+
+  defp maybe_put_opt(opts, key, value) when is_binary(value) and value != "",
+    do: Keyword.put(opts, key, value)
+
+  defp maybe_put_opt(opts, _key, _value), do: opts
+
+  defp federated_context_attrs(opts) do
+    case Keyword.get(opts, :conversation_id) do
+      conversation_id when is_integer(conversation_id) -> %{conversation_id: conversation_id}
+      _ -> %{}
+    end
+  end
+
+  defp broadcast_created_message(message, opts, preloads) do
+    reloaded_message = Elektrine.Repo.preload(message, preloads, force: true)
+
+    case Keyword.get(opts, :conversation_id) do
+      conversation_id when is_integer(conversation_id) ->
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "conversation:#{conversation_id}",
+          {:new_message, reloaded_message}
+        )
+
+        if is_nil(reloaded_message.reply_to_id) do
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "discussion:#{conversation_id}",
+            {:new_message, reloaded_message}
+          )
+
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "discussions:all",
+            {:new_discussion_post, reloaded_message}
+          )
+        end
+
+      _ ->
+        Phoenix.PubSub.broadcast(
+          Elektrine.PubSub,
+          "timeline:public",
+          {:new_public_post, reloaded_message}
+        )
+    end
   end
 
   defp maybe_store_missing_reply_parent(message, remote_actor) do

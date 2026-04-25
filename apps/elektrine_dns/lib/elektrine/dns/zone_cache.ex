@@ -80,7 +80,7 @@ defmodule Elektrine.DNS.ZoneCache do
   defp load_zones(repo_opts) do
     {:ok,
      Zone
-     |> where([z], z.status in ["verified", "provisioning"])
+     |> where([z], z.status in ["verified", "pending", "provisioning"])
      |> preload(:records)
      |> Repo.all(repo_opts)}
   rescue

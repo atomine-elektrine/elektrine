@@ -193,7 +193,7 @@ async function fetchJson(url, options = {}) {
   
   // Redirect to login if unauthorized
   if (response.status === 401) {
-    window.location.href = "/login"
+    window.location.href = `${MAIN_DOMAIN}/login`
     return null
   }
   

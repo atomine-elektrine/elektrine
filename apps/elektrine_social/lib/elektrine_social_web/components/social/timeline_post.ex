@@ -409,7 +409,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp remote_author_header(assigns) do
     community_uri = PostUtilities.community_actor_uri(assigns.post)
-    assigns = assign(assigns, :community_uri, community_uri)
+
+    assigns =
+      assigns
+      |> assign(:community_uri, community_uri)
+      |> assign(:community_path, community_path(assigns.post, community_uri))
 
     ~H"""
     <.user_hover_card remote_actor={@post.remote_actor}>
@@ -449,9 +453,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           @{@post.remote_actor.username}@{@post.remote_actor.domain}
           <%= if @community_uri do %>
             <span class="opacity-50">in</span>
-            <a href={@community_uri} target="_blank" rel="noopener noreferrer" class="link link-hover">
-              {extract_community_name(@community_uri)}
-            </a>
+            <%= if @community_path do %>
+              <.link navigate={@community_path} class="link link-hover">
+                {extract_community_name(@community_uri)}
+              </.link>
+            <% else %>
+              <span>{extract_community_name(@community_uri)}</span>
+            <% end %>
           <% end %>
           ·
           <.local_time

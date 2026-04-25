@@ -68,7 +68,36 @@ defmodule Elektrine.Email.Sender do
 
     # Check if we have any valid recipients
     all_recipients = to_emails ++ cc_emails ++ bcc_emails
+    list_id = params[:list_id] || params["list_id"]
 
+    if split_list_delivery?(params, list_id, all_recipients) do
+      send_list_email_individually(user_id, params, db_attachments, all_recipients, started_at)
+    else
+      send_email_to_resolved_recipients(
+        user_id,
+        params,
+        db_attachments,
+        started_at,
+        to_emails,
+        cc_emails,
+        bcc_emails,
+        all_recipients,
+        list_id
+      )
+    end
+  end
+
+  defp send_email_to_resolved_recipients(
+         user_id,
+         params,
+         db_attachments,
+         started_at,
+         to_emails,
+         cc_emails,
+         bcc_emails,
+         all_recipients,
+         list_id
+       ) do
     # Validate recipients first
     result =
       case validate_recipients(all_recipients) do
@@ -102,8 +131,6 @@ defmodule Elektrine.Email.Sender do
 
               # Only check unsubscribes if this is a mass email with an explicit list_id
               # Personal emails (SMTP/webmail without list_id) skip this check
-              list_id = params[:list_id] || params["list_id"]
-
               if list_id && !transactional_email?(list_id) do
                 # Mass email - filter out unsubscribed recipients
                 case filter_unsubscribed_recipients(
@@ -130,6 +157,55 @@ defmodule Elektrine.Email.Sender do
 
     maybe_emit_email_sent_webhook(user_id, params, result)
     emit_outbound_telemetry(:request, result, started_at, %{route: :auto})
+    result
+  end
+
+  defp split_list_delivery?(params, list_id, all_recipients) do
+    list_id && !transactional_email?(list_id) && params[:list_recipient_delivery] != true &&
+      length(all_recipients) > 1
+  end
+
+  defp send_list_email_individually(user_id, params, db_attachments, recipients, started_at) do
+    result =
+      case RateLimiter.check_rate_limit(user_id) do
+        {:ok, _remaining} ->
+          results =
+            recipients
+            |> Enum.uniq()
+            |> Enum.map(fn recipient ->
+              recipient_params =
+                params
+                |> Map.put(:to, recipient)
+                |> Map.put(:cc, "")
+                |> Map.put(:bcc, "")
+                |> Map.put(:list_recipient_delivery, true)
+                |> Map.put(:skip_rate_limit, true)
+
+              send_email(user_id, recipient_params, db_attachments)
+            end)
+
+          case Enum.split_with(results, &match?({:ok, _}, &1)) do
+            {[], [{:error, reason} | _]} ->
+              {:error, reason}
+
+            {successes, []} ->
+              RateLimiter.record_send(user_id)
+              {:ok, %{sent_count: length(successes)}}
+
+            {successes, failures} ->
+              RateLimiter.record_send(user_id)
+              {:ok, %{sent_count: length(successes), failed_count: length(failures)}}
+          end
+
+        {:error, :daily_limit_exceeded} ->
+          {:error, :rate_limit_exceeded}
+
+        {:error, :minute_limit_exceeded} ->
+          {:error, :rate_limit_exceeded}
+      end
+
+    maybe_emit_email_sent_webhook(user_id, params, result)
+    emit_outbound_telemetry(:request, result, started_at, %{route: :list_split})
     result
   end
 
@@ -164,7 +240,7 @@ defmodule Elektrine.Email.Sender do
           with {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
                {:ok, _ownership} <-
                  validate_from_address_ownership(prepared_params[:from], user_id),
-               {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
+               {:ok, _remaining} <- maybe_check_rate_limit(user_id, prepared_params),
                {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
                {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
                {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
@@ -202,8 +278,7 @@ defmodule Elektrine.Email.Sender do
               db_attachments
             )
 
-            # Record successful send for rate limiting
-            RateLimiter.record_send(user_id)
+            maybe_record_send(user_id, prepared_params)
 
             # Record recipients for recipient limiting
             record_recipients(user_id, formatted_params)
@@ -255,9 +330,14 @@ defmodule Elektrine.Email.Sender do
   defp maybe_emit_email_sent_webhook(_user_id, _params, _result), do: :ok
 
   defp prepare_outbound_payload(params) do
-    params
-    |> parse_raw_email_if_present()
-    |> Sanitizer.sanitize_outgoing_email()
+    skip_rate_limit? = params[:skip_rate_limit] == true || params["skip_rate_limit"] == true
+
+    prepared =
+      params
+      |> parse_raw_email_if_present()
+      |> Sanitizer.sanitize_outgoing_email()
+
+    if skip_rate_limit?, do: Map.put(prepared, :skip_rate_limit, true), else: prepared
   end
 
   # Check recipient limits for all To, CC, BCC addresses
@@ -939,14 +1019,13 @@ defmodule Elektrine.Email.Sender do
         params
       end
 
-    with {:ok, _remaining} <- RateLimiter.check_rate_limit(user_id),
+    with {:ok, _remaining} <- maybe_check_rate_limit(user_id, params_with_db_attachments),
          {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
          {:ok, _ownership} <- validate_from_address_ownership(params[:from], user_id),
          {:ok, formatted_params} <- format_from_header(params_with_db_attachments, user, mailbox),
          {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
          {:ok, message} <- deliver_internal_email(mailbox.id, pgp_params) do
-      # Record successful send for rate limiting
-      RateLimiter.record_send(user_id)
+      maybe_record_send(user_id, params_with_db_attachments)
       {:ok, message}
     else
       {:error, :daily_limit_exceeded} ->
@@ -1663,7 +1742,7 @@ defmodule Elektrine.Email.Sender do
       recipients == [] ->
         {:ok, params}
 
-      mode == :require and attachments_present?(params) ->
+      mode == :require and attachments_present?(params) and not pgp_protected_attachments?(params) ->
         {:error, :pgp_attachments_unsupported}
 
       true ->
@@ -1755,8 +1834,37 @@ defmodule Elektrine.Email.Sender do
   defp attachments_present?(params) do
     attachments = params[:attachments] || params["attachments"] || params[:db_attachments]
 
-    is_map(attachments) and map_size(attachments) > 0
+    cond do
+      is_map(attachments) -> map_size(attachments) > 0
+      is_list(attachments) -> attachments != []
+      true -> false
+    end
   end
+
+  defp pgp_protected_attachments?(params) do
+    attachments = params[:attachments] || params["attachments"] || params[:db_attachments]
+
+    attachments
+    |> attachment_values()
+    |> Enum.all?(&pgp_protected_attachment?/1)
+  end
+
+  defp attachment_values(attachments) when is_map(attachments), do: Map.values(attachments)
+  defp attachment_values(attachments) when is_list(attachments), do: attachments
+  defp attachment_values(_), do: []
+
+  defp pgp_protected_attachment?(attachment) when is_map(attachment) do
+    filename =
+      attachment[:filename] || attachment["filename"] || attachment["name"] || ""
+
+    content_type =
+      attachment[:content_type] || attachment["content_type"] || attachment["mime_type"] || ""
+
+    String.ends_with?(String.downcase(to_string(filename)), [".asc", ".gpg", ".pgp"]) or
+      String.contains?(String.downcase(to_string(content_type)), "application/pgp")
+  end
+
+  defp pgp_protected_attachment?(_), do: false
 
   defp enrich_metadata_for_pgp(metadata, email_params) do
     if email_params[:pgp_encrypted] do
@@ -1821,6 +1929,14 @@ defmodule Elektrine.Email.Sender do
   defp transactional_email?(list_id) do
     ListTypes.transactional?(list_id)
   end
+
+  defp maybe_check_rate_limit(_user_id, %{skip_rate_limit: true}), do: {:ok, :skipped}
+  defp maybe_check_rate_limit(_user_id, %{"skip_rate_limit" => true}), do: {:ok, :skipped}
+  defp maybe_check_rate_limit(user_id, _params), do: RateLimiter.check_rate_limit(user_id)
+
+  defp maybe_record_send(_user_id, %{skip_rate_limit: true}), do: :ok
+  defp maybe_record_send(_user_id, %{"skip_rate_limit" => true}), do: :ok
+  defp maybe_record_send(user_id, _params), do: RateLimiter.record_send(user_id)
 
   # VPN Quota Notification Emails
 

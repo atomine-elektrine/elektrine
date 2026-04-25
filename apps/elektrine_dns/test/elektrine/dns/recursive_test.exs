@@ -219,6 +219,52 @@ defmodule Elektrine.DNS.RecursiveTest do
     assert ttl_ms <= 30_500
   end
 
+  test "nodata responses return noerror and are cached" do
+    put_dns_config(recursive_root_hints: [{{1, 1, 1, 1}, 53}])
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, query ->
+      {:ok,
+       Packet.encode_response(
+         query,
+         [],
+         :noerror,
+         authority: [
+           %{
+             name: "test",
+             type: :soa,
+             mname: "ns1.test",
+             rname: "hostmaster.test",
+             serial: 1,
+             refresh: 3600,
+             retry: 600,
+             expire: 86_400,
+             minimum: 30,
+             ttl: 120
+           }
+         ]
+       )}
+    end)
+
+    packet = Packet.encode_query(%{id: 104, rd: 1, qname: "empty.test", qtype: :aaaa})
+
+    response1 = Query.answer(packet, client_ip: {127, 0, 0, 1})
+    response2 = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert header(response1).rcode == 0
+    assert header(response2).rcode == 0
+    assert length(Elektrine.DNS.TestRecursiveTransport.calls()) == 1
+  end
+
+  test "recursive cache trims entries over the configured limit" do
+    put_dns_config(recursive_cache_max_entries: 2)
+
+    Elektrine.DNS.RecursiveCache.put({"one.test", :a}, %{answers: []}, 60)
+    Elektrine.DNS.RecursiveCache.put({"two.test", :a}, %{answers: []}, 60)
+    Elektrine.DNS.RecursiveCache.put({"three.test", :a}, %{answers: []}, 60)
+
+    assert :ets.info(Elektrine.DNS.RecursiveCache, :size) <= 2
+  end
+
   test "randomizes upstream ids instead of reusing client ids" do
     Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, query ->
       {:ok,

@@ -101,6 +101,9 @@ import {
 // Passkey hooks
 import { PasskeyRegister, PasskeyAuth } from "./passkey_hooks";
 
+// Notes hooks
+import { EncryptedNoteShare } from "./notes_hooks";
+
 // Presence hooks
 import { ActivityTracker, DeviceDetector } from "./presence_hooks";
 
@@ -193,6 +196,9 @@ export const Hooks = {
   // Passkey
   PasskeyRegister,
   PasskeyAuth,
+
+  // Notes
+  EncryptedNoteShare,
 
   // (intentionally no product-specific hooks here)
 };

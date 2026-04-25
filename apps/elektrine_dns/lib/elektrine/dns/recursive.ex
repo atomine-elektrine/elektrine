@@ -114,6 +114,7 @@ defmodule Elektrine.DNS.Recursive do
     answers = convert_records(answer_records(decoded))
     authority = convert_records(authority_records(decoded))
     additional = convert_records(additional_records(decoded))
+    referral_ns = referral_nameservers(decoded)
 
     cond do
       rcode == :nxdomain ->
@@ -133,8 +134,12 @@ defmodule Elektrine.DNS.Recursive do
       cname = first_cname_answer(answers) ->
         follow_cname(query, cname, answers, depth, seen_cnames)
 
-      referral_ns = referral_nameservers(decoded) ->
+      referral_ns != [] ->
         follow_referral(query, referral_ns, decoded, depth, seen_cnames)
+
+      rcode == :noerror ->
+        result = %{answers: [], authority: authority, additional: additional, rcode: :noerror}
+        cache_result(query, result)
 
       true ->
         {:error, :servfail}
@@ -462,7 +467,7 @@ defmodule Elektrine.DNS.Recursive do
   defp rotate_servers(servers, _query_id), do: servers
 
   defp random_id do
-    :rand.uniform(65_536) - 1
+    :crypto.strong_rand_bytes(2) |> :binary.decode_unsigned()
   end
 
   defp forwarding_mode?, do: DNS.recursive_upstreams() != []

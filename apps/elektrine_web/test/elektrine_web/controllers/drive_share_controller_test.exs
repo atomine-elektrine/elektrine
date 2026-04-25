@@ -133,6 +133,16 @@ defmodule ElektrineWeb.DriveShareControllerTest do
     assert response(conn, 404) == "Not found"
   end
 
+  test "burn after read links only work once", %{conn: conn, user: user, stored_file: file} do
+    {:ok, one_time_share} = Drive.create_share(user.id, file.id, %{burn_after_read: true})
+
+    conn = get(conn, ~p"/drive/share/#{one_time_share.token}")
+    assert response(conn, 200) == "share me"
+
+    conn = build_conn() |> get(~p"/drive/share/#{one_time_share.token}")
+    assert response(conn, 404) == "Not found"
+  end
+
   defp user_fixture do
     {:ok, user} =
       Accounts.create_user(%{

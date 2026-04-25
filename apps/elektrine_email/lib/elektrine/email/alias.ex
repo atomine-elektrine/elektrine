@@ -14,6 +14,13 @@ defmodule Elektrine.Email.Alias do
     field :target_email, :string
     field :enabled, :boolean, default: true
     field :description, :string
+    field :catch_all, :boolean, default: false
+    field :delivery_mode, :string, default: "deliver"
+    field :auto_label, :string
+    field :expires_at, :utc_datetime
+    field :last_used_at, :utc_datetime
+    field :received_count, :integer, default: 0
+    field :forwarded_count, :integer, default: 0
 
     belongs_to :user, User
 
@@ -22,22 +29,40 @@ defmodule Elektrine.Email.Alias do
 
   def changeset(alias, attrs) do
     alias
-    |> cast(attrs, [:alias_email, :target_email, :enabled, :description, :user_id])
+    |> cast(attrs, [
+      :alias_email,
+      :target_email,
+      :enabled,
+      :description,
+      :catch_all,
+      :delivery_mode,
+      :auto_label,
+      :expires_at,
+      :last_used_at,
+      :received_count,
+      :forwarded_count,
+      :user_id
+    ])
     |> normalize_alias_email()
+    |> default_delivery_mode(attrs)
     |> validate_required([:alias_email, :user_id])
     |> validate_format(:alias_email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/,
       message: "must be a valid email format"
     )
     |> validate_alias_local_part()
     |> validate_alias_domain()
+    |> validate_catch_all_domain()
     |> validate_no_case_conflicts()
     |> validate_alias_not_mailbox()
     |> validate_optional_target_email()
+    |> validate_inclusion(:delivery_mode, ["deliver", "forward"])
+    |> validate_forwarding_target_for_mode()
     |> validate_alias_limit()
     |> validate_one_alias_per_domain()
     |> validate_no_forwarding_loops()
     |> validate_length(:alias_email, max: 255)
     |> validate_length(:target_email, max: 255)
+    |> validate_length(:auto_label, max: 64)
     |> validate_length(:description, max: 500)
     |> unique_constraint(:alias_email,
       name: :email_aliases_alias_email_ci_unique,
@@ -90,15 +115,16 @@ defmodule Elektrine.Email.Alias do
       # Extract domain from email
       case String.split(alias_email, "@") do
         [_local, domain] ->
-          allowed_domains = Elektrine.Domains.available_email_domains_for_user(user_id)
+          domain = String.downcase(domain)
+          allowed_domains = allowed_alias_domains(changeset, user_id)
 
-          if String.downcase(domain) in allowed_domains do
+          if domain in allowed_domains do
             changeset
           else
             add_error(
               changeset,
               :alias_email,
-              "choose one of your available email domains"
+              alias_domain_error(changeset)
             )
           end
 
@@ -108,6 +134,72 @@ defmodule Elektrine.Email.Alias do
       end
     else
       changeset
+    end
+  end
+
+  defp allowed_alias_domains(changeset, user_id) do
+    if get_field(changeset, :catch_all) == true do
+      Elektrine.Email.CustomDomains.verified_domains_for_user(user_id)
+    else
+      Elektrine.Domains.available_email_domains_for_user(user_id)
+    end
+  end
+
+  defp alias_domain_error(changeset) do
+    if get_field(changeset, :catch_all) == true do
+      "catch-all aliases require one of your verified custom email domains"
+    else
+      "choose one of your available email domains"
+    end
+  end
+
+  defp validate_catch_all_domain(changeset) do
+    alias_email = get_field(changeset, :alias_email)
+
+    if get_field(changeset, :catch_all) == true and alias_email do
+      case String.split(alias_email, "@", parts: 2) do
+        ["*", domain] ->
+          domain = String.downcase(domain)
+
+          if domain in Elektrine.Domains.supported_email_domains() do
+            add_error(
+              changeset,
+              :alias_email,
+              "catch-all aliases require one of your verified custom email domains"
+            )
+          else
+            changeset
+          end
+
+        _ ->
+          changeset
+      end
+    else
+      changeset
+    end
+  end
+
+  defp validate_forwarding_target_for_mode(changeset) do
+    if get_field(changeset, :delivery_mode) == "forward" and
+         not Elektrine.Strings.present?(get_field(changeset, :target_email)) do
+      add_error(changeset, :target_email, "is required when forwarding is enabled")
+    else
+      changeset
+    end
+  end
+
+  defp default_delivery_mode(changeset, attrs) do
+    explicit? = Map.has_key?(attrs, :delivery_mode) or Map.has_key?(attrs, "delivery_mode")
+
+    if explicit? do
+      changeset
+    else
+      mode =
+        if Elektrine.Strings.present?(get_field(changeset, :target_email)),
+          do: "forward",
+          else: "deliver"
+
+      put_change(changeset, :delivery_mode, mode)
     end
   end
 
@@ -278,6 +370,9 @@ defmodule Elektrine.Email.Alias do
       case String.split(alias_email, "@") do
         [local_part, _domain] ->
           cond do
+            get_field(changeset, :catch_all) == true and local_part == "*" ->
+              changeset
+
             # Check minimum length (4 characters minimum)
             String.length(local_part) < 4 ->
               add_error(

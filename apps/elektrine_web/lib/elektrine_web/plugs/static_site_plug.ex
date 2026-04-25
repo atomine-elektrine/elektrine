@@ -8,6 +8,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   import Phoenix.Controller, only: [redirect: 2]
   alias Elektrine.{Accounts, Profiles, StaticSites}
   alias Elektrine.Accounts.User
+  alias ElektrineWeb.UserAuth
 
   # Allowed content types for static sites (validated on upload, but double-check here)
   @allowed_content_types ~w(
@@ -122,10 +123,13 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   # sobelow_skip ["XSS.SendResp"]
   defp check_and_serve_static_profile(conn, handle) do
+    conn = ensure_current_user(conn)
+
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
          true <-
            User.built_in_subdomain_hosted_by_platform?(user) or
              is_binary(conn.assigns[:profile_custom_domain]),
+         :ok <- authorize_static_profile(conn, user),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- StaticSites.get_file(user.id, "index.html"),
@@ -174,10 +178,13 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   # sobelow_skip ["XSS.SendResp", "XSS.ContentType"]
   defp serve_asset(conn, handle, asset_path) do
+    conn = ensure_current_user(conn)
+
     with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
          true <-
            User.built_in_subdomain_hosted_by_platform?(user) or
              is_binary(conn.assigns[:profile_custom_domain]),
+         :ok <- authorize_static_profile(conn, user),
          profile when not is_nil(profile) <- Profiles.get_user_profile(user.id),
          true <- profile.profile_mode == "static",
          file when not is_nil(file) <- resolve_static_site_file(user.id, asset_path),
@@ -201,6 +208,22 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
     else
       _ ->
         conn
+    end
+  end
+
+  defp ensure_current_user(%{assigns: %{current_user: _}} = conn), do: conn
+
+  defp ensure_current_user(%{private: %{plug_session_fetch: :done}} = conn),
+    do: UserAuth.fetch_current_user(conn, [])
+
+  defp ensure_current_user(conn), do: assign(conn, :current_user, nil)
+
+  defp authorize_static_profile(conn, user) do
+    current_user = conn.assigns[:current_user]
+
+    case Accounts.can_view_profile?(user, current_user) do
+      {:ok, :allowed} -> :ok
+      {:error, _reason} -> :error
     end
   end
 

@@ -8,10 +8,20 @@ defmodule Elektrine.DNS.ManagedRecords do
   alias Elektrine.DNS.Zone
   alias Elektrine.DNS.ZoneServiceConfig
   alias Elektrine.Repo
+  alias Elektrine.Secrets.EncryptedString
+
+  @redacted_secret "[redacted]"
+  @sensitive_settings ~w(dkim_private_key)
 
   def apply_service(%Zone{} = zone, service, attrs \\ %{}) when is_map(attrs) do
     service = normalize_service(service)
-    settings = normalize_settings(Map.get(attrs, "settings", %{}))
+
+    incoming_settings =
+      attrs
+      |> Map.get("settings", %{})
+      |> normalize_settings()
+      |> drop_redacted_private_settings(service)
+
     enabled = Map.get(attrs, "enabled", true)
     mode = Map.get(attrs, "mode", "managed")
 
@@ -21,6 +31,12 @@ defmodule Elektrine.DNS.ManagedRecords do
           Repo.get_by(ZoneServiceConfig, zone_id: zone.id, service: service) ||
             %ZoneServiceConfig{zone_id: zone.id, service: service}
 
+        settings =
+          config.settings
+          |> normalize_settings()
+          |> Map.merge(incoming_settings)
+          |> decrypt_private_settings(service)
+
         {:ok, config} =
           config
           |> ZoneServiceConfig.changeset(%{
@@ -28,7 +44,7 @@ defmodule Elektrine.DNS.ManagedRecords do
             service: service,
             enabled: enabled,
             mode: mode,
-            settings: settings,
+            settings: store_private_settings(service, settings),
             status: if(enabled, do: "pending", else: "disabled"),
             last_error: nil
           })
@@ -66,7 +82,7 @@ defmodule Elektrine.DNS.ManagedRecords do
 
             Repo.update!(
               ZoneServiceConfig.changeset(config, %{
-                settings: settings,
+                settings: store_private_settings(service, settings),
                 status: "ok",
                 last_applied_at: now(),
                 last_error: nil
@@ -75,7 +91,7 @@ defmodule Elektrine.DNS.ManagedRecords do
           else
             Repo.update!(
               ZoneServiceConfig.changeset(config, %{
-                settings: settings,
+                settings: store_private_settings(service, settings),
                 status: "conflict",
                 last_applied_at: now(),
                 last_error: Enum.join(conflicts, "; ")
@@ -124,12 +140,25 @@ defmodule Elektrine.DNS.ManagedRecords do
     |> Repo.all()
   end
 
+  def public_settings(service, settings) do
+    service = normalize_service(service)
+
+    settings
+    |> normalize_settings()
+    |> redact_private_settings(service)
+  end
+
   def service_health(%Zone{} = zone) do
     configs = list_service_configs(zone.id)
 
     Enum.map(ZoneServiceConfig.services(), fn service ->
       config = Enum.find(configs, &(&1.service == service))
-      settings = normalize_settings(config && config.settings)
+
+      settings =
+        config
+        |> then(&(&1 && &1.settings))
+        |> normalize_settings()
+        |> decrypt_private_settings(service)
 
       desired =
         if(config && config.enabled, do: desired_records(zone, service, settings), else: [])
@@ -144,7 +173,7 @@ defmodule Elektrine.DNS.ManagedRecords do
         mode: config && config.mode,
         status: if(config, do: config.status, else: "not_configured"),
         last_error: if(config, do: config.last_error, else: nil),
-        settings: settings,
+        settings: redact_private_settings(settings, service),
         desired_records: desired,
         managed_records: managed_records,
         conflicts: conflicts,
@@ -240,7 +269,14 @@ defmodule Elektrine.DNS.ManagedRecords do
        do: {:ok, config}
 
   defp finalize_side_effects(zone, service, %ZoneServiceConfig{} = config) do
-    sync_error = sync_side_effects(zone, service, normalize_settings(config.settings))
+    sync_error =
+      sync_side_effects(
+        zone,
+        service,
+        config.settings
+        |> normalize_settings()
+        |> decrypt_private_settings(service)
+      )
 
     updated =
       Repo.update!(
@@ -424,6 +460,65 @@ defmodule Elektrine.DNS.ManagedRecords do
        do: false
 
   defp normalize_setting_value(value), do: value
+
+  defp drop_redacted_private_settings(settings, service) do
+    Map.reject(settings, fn {key, value} ->
+      private_setting?(service, key) and value == @redacted_secret
+    end)
+  end
+
+  defp redact_private_settings(settings, service) do
+    Map.new(settings, fn {key, value} ->
+      if private_setting?(service, key) and not blank?(value) do
+        {key, @redacted_secret}
+      else
+        {key, value}
+      end
+    end)
+  end
+
+  defp decrypt_private_settings(settings, service) do
+    update_private_settings(settings, service, &decrypt_secret/1)
+  end
+
+  defp store_private_settings(service, settings) do
+    update_private_settings(settings, service, &encrypt_secret/1)
+  end
+
+  defp update_private_settings(settings, service, fun) do
+    Enum.reduce(@sensitive_settings, settings, fn key, acc ->
+      if private_setting?(service, key) and Map.has_key?(acc, key) do
+        Map.update!(acc, key, fun)
+      else
+        acc
+      end
+    end)
+  end
+
+  defp private_setting?("mail", "dkim_private_key"), do: true
+  defp private_setting?(_service, _key), do: false
+
+  defp encrypt_secret(value) when is_binary(value) do
+    if EncryptedString.encrypted?(value) do
+      value
+    else
+      case EncryptedString.encrypt(value) do
+        {:ok, encrypted} -> encrypted
+        :error -> value
+      end
+    end
+  end
+
+  defp encrypt_secret(value), do: value
+
+  defp decrypt_secret(value) when is_binary(value) do
+    case EncryptedString.decrypt(value) do
+      {:ok, decrypted} -> decrypted
+      :error -> value
+    end
+  end
+
+  defp decrypt_secret(value), do: value
 
   defp blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank?(nil), do: true

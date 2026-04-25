@@ -79,6 +79,7 @@ defmodule Elektrine.Email.PGPReceiveTest do
       decrypted = Email.Message.decrypt_content(message)
       assert String.contains?(decrypted.text_body, "-----BEGIN PGP MESSAGE-----")
       assert String.contains?(decrypted.text_body, "-----END PGP MESSAGE-----")
+      assert get_in(message.metadata, ["pgp", "encrypted"]) == true
     end
 
     test "stores PGP-signed email body", %{mailbox: mailbox} do
@@ -97,6 +98,8 @@ defmodule Elektrine.Email.PGPReceiveTest do
       decrypted = Email.Message.decrypt_content(message)
       assert String.contains?(decrypted.text_body, "-----BEGIN PGP SIGNED MESSAGE-----")
       assert String.contains?(decrypted.text_body, "-----BEGIN PGP SIGNATURE-----")
+      assert get_in(message.metadata, ["pgp", "signed"]) == true
+      assert get_in(message.metadata, ["pgp", "signature", "status"]) == "unverified"
     end
 
     test "stores email with inline PGP content", %{mailbox: mailbox} do
@@ -175,6 +178,7 @@ defmodule Elektrine.Email.PGPReceiveTest do
       assert {:ok, message} = Receiver.process_incoming_email(params)
       assert message.has_attachments == true
       assert map_size(message.attachments) == 1
+      assert get_in(message.metadata, ["pgp", "pgp_attachment"]) == true
     end
   end
 
@@ -239,6 +243,7 @@ defmodule Elektrine.Email.PGPReceiveTest do
 
       assert {:ok, message} = Receiver.process_incoming_email(params)
       assert message.mailbox_id == mailbox.id
+      assert get_in(message.metadata, ["pgp", "pgp_mime"]) == true
     end
 
     test "handles PGP/MIME signed message", %{mailbox: mailbox} do
@@ -412,6 +417,9 @@ defmodule Elektrine.Email.PGPReceiveTest do
 
       decrypted = Email.Message.decrypt_content(message)
       assert String.contains?(decrypted.text_body, "-----BEGIN PGP PUBLIC KEY BLOCK-----")
+      discovered = get_in(message.metadata, ["pgp", "discovered_public_keys"])
+      assert is_list(discovered)
+      assert [%{"trusted" => false} | _] = discovered
     end
   end
 

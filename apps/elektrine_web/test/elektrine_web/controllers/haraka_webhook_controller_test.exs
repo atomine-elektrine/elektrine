@@ -2,6 +2,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
   use ElektrineWeb.ConnCase
   import Elektrine.AccountsFixtures
   import Elektrine.EmailFixtures
+  import Swoosh.TestAssertions
 
   alias Elektrine.Email
 
@@ -35,6 +36,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
 
     {:ok, conn: %{conn | host: "localhost"}}
   end
+
+  setup :set_swoosh_global
 
   defp auth_conn(conn) do
     conn
@@ -145,6 +148,73 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
 
       messages = Email.list_inbox_messages(mailbox.id)
       assert length(messages) == 1
+    end
+
+    test "applies user filters to locally delivered Haraka mail", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      assert {:ok, _filter} =
+               Email.create_filter(%{
+                 user_id: user.id,
+                 name: "Spam matching subject",
+                 conditions: %{
+                   "match_type" => "all",
+                   "rules" => [
+                     %{"field" => "subject", "operator" => "contains", "value" => "Filter Me"}
+                   ]
+                 },
+                 actions: %{"mark_as_spam" => true}
+               })
+
+      params = %{
+        "from" => "sender@remote.test",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
+        "subject" => "Please Filter Me",
+        "text_body" => "This should be classified by the user's filter",
+        "message_id" => "test-haraka-filter-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] = Email.list_spam_messages(mailbox.id)
+      assert message.subject == "Please Filter Me"
+      assert message.spam
+    end
+
+    test "sends auto-replies for locally delivered Haraka mail", %{conn: conn} do
+      user = user_fixture(%{username: "harakaautoreply"})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      assert {:ok, _auto_reply} =
+               Email.upsert_auto_reply(user.id, %{
+                 enabled: true,
+                 body: "I am away"
+               })
+
+      params = %{
+        "from" => "haraka-sender@gmail.com",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Haraka auto reply trigger",
+        "text_body" => "Checking in",
+        "message_id" => "test-haraka-auto-reply-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+      assert_email_sent(to: "haraka-sender@gmail.com", subject: "Re: Haraka auto reply trigger")
     end
 
     test "stores repeated messages with the same sender and subject when message ids differ",

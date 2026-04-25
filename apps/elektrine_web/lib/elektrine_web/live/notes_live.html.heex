@@ -90,7 +90,7 @@
       <%= if @selected_note do %>
         <div class="border-b border-base-300/60 bg-base-200/20 px-5 py-4 sm:px-6">
           <div class="space-y-4">
-            <%= if @selected_note_share_url do %>
+            <%= if @selected_note_share_url && is_nil(@selected_note_share.encrypted_payload) do %>
               <div class="space-y-2">
                 <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
                   Share Link
@@ -114,14 +114,72 @@
               </div>
             <% end %>
 
+            <div data-encrypted-share-output class="hidden space-y-2">
+              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Encrypted Share Link
+              </div>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  id="encrypted-note-share-url"
+                  type="text"
+                  readonly
+                  class="input input-bordered h-10 min-h-10 w-full text-sm"
+                />
+              </div>
+              <p class="text-xs text-base-content/55">
+                The decryption key is after the # in this URL and is not stored by the server.
+              </p>
+            </div>
+
+            <div class="rounded-box border border-base-300/70 bg-base-100/40 p-3">
+              <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <label class="form-control space-y-2">
+                  <span class="label-text text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                    Link Expiration
+                  </span>
+                  <select
+                    id="encrypted-note-expires-in"
+                    class="select select-bordered select-sm h-9 min-h-9 w-full"
+                  >
+                    <%= for {label, value} <- @share_expiry_options do %>
+                      <option value={value} selected={value == "1d"}>{label}</option>
+                    <% end %>
+                  </select>
+                </label>
+
+                <label class="label cursor-pointer justify-start gap-2 rounded-lg border border-base-300/60 px-3 py-2">
+                  <input
+                    id="encrypted-note-burn-after-read"
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                  />
+                  <span class="label-text text-sm">Burn after first open</span>
+                </label>
+              </div>
+            </div>
+
+            <%= if @selected_note_share && @selected_note_share.encrypted_payload do %>
+              <p class="rounded-box border border-info/25 bg-info/10 px-3 py-2 text-sm text-base-content/70">
+                This note has an encrypted share. Creating another encrypted link will make a new
+                URL with a new private key; existing links keep their original key.
+                <%= if @selected_note_share.expires_at do %>
+                  It expires {last_updated_label(%Note{
+                    updated_at: @selected_note_share.expires_at
+                  })}.
+                <% end %>
+              </p>
+            <% end %>
+
             <div class="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
-                phx-click="create_share"
-                phx-value-id={@selected_note.id}
+                id="encrypted-note-share-button"
+                phx-hook="EncryptedNoteShare"
+                data-note-id={@selected_note.id}
+                data-output-id="encrypted-note-share-url"
                 class="btn btn-outline btn-sm h-9 min-h-9"
               >
-                <.icon name="hero-link" class="h-4 w-4" /> {share_button_label(
+                <.icon name="hero-link" class="h-4 w-4" /> {encrypted_share_button_label(
                   @selected_note_share
                 )}
               </button>
@@ -157,10 +215,10 @@
         </div>
       <% end %>
 
-      <div class="p-5 sm:p-6">
-        <.form for={@form} phx-change="validate" phx-submit="save_note" class="space-y-6">
-          <label class="form-control space-y-3">
-            <span class="label-text text-sm font-medium">Title</span>
+      <div class="p-4 sm:p-5">
+        <.form for={@form} phx-change="validate" phx-submit="save_note" class="space-y-4">
+          <label class="form-control">
+            <span class="sr-only">Title</span>
             <input
               type="text"
               name={@form[:title].name}
@@ -170,19 +228,170 @@
             />
           </label>
 
-          <label class="form-control space-y-3">
-            <span class="label-text text-sm font-medium">Body</span>
-            <textarea
-              name={@form[:body].name}
-              placeholder="Write in Markdown or plain text"
-              class="textarea textarea-bordered min-h-[24rem] w-full resize-y leading-relaxed"
-            ><%= @form[:body].value %></textarea>
+          <div class="form-control space-y-2">
+            <div class="text-xs uppercase tracking-[0.18em] text-base-content/40">
+              <span>Markdown editor</span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="tabs tabs-boxed bg-base-200">
+                <button type="button" class="tab tab-active" data-editor-tab="write">
+                  <.icon name="hero-pencil" class="mr-1 h-4 w-4" /> Write
+                </button>
+                <button type="button" class="tab" data-editor-tab="preview">
+                  <.icon name="hero-eye" class="mr-1 h-4 w-4" /> Preview
+                </button>
+                <button type="button" class="tab" data-editor-tab="split">
+                  <.icon name="hero-view-columns" class="mr-1 h-4 w-4" /> Split
+                </button>
+              </div>
+
+              <div
+                id="formatting-toolbar"
+                class="flex flex-wrap items-center gap-1 rounded-t-lg bg-base-200 p-2"
+              >
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="bold"
+                    data-target="html-editor"
+                    data-tip="Bold"
+                  >
+                    <strong class="text-sm">B</strong>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="italic"
+                    data-target="html-editor"
+                    data-tip="Italic"
+                  >
+                    <em class="text-sm">I</em>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="code"
+                    data-target="html-editor"
+                    data-tip="Code"
+                  >
+                    <.icon name="hero-code-bracket" class="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div class="divider divider-horizontal mx-1 h-6"></div>
+
+                <div class="dropdown dropdown-hover">
+                  <button
+                    type="button"
+                    tabindex="0"
+                    class="btn btn-ghost btn-sm gap-1 hover:bg-secondary/20"
+                  >
+                    <span class="text-sm font-bold">H</span>
+                    <.icon name="hero-chevron-down" class="h-3 w-3" />
+                  </button>
+                  <ul tabindex="0" class="dropdown-content menu rounded-box z-50 w-32 p-2">
+                    <li>
+                      <button type="button" data-markdown-format="h1" data-target="html-editor">
+                        H1
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" data-markdown-format="h2" data-target="html-editor">
+                        H2
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" data-markdown-format="h3" data-target="html-editor">
+                        H3
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="divider divider-horizontal mx-1 h-6"></div>
+
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="list-bullet"
+                    data-target="html-editor"
+                    data-tip="Bullet list"
+                  >
+                    <.icon name="hero-list-bullet" class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="list-number"
+                    data-target="html-editor"
+                    data-tip="Numbered list"
+                  >
+                    <span class="text-sm">1.</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="link"
+                    data-target="html-editor"
+                    data-tip="Insert link"
+                  >
+                    <.icon name="hero-link" class="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div class="divider divider-horizontal mx-1 h-6"></div>
+
+                <div class="flex items-center gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="quote"
+                    data-target="html-editor"
+                    data-tip="Quote"
+                  >
+                    <.icon name="hero-chat-bubble-bottom-center-text" class="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-sm tooltip hover:bg-secondary/20"
+                    data-markdown-format="code-block"
+                    data-target="html-editor"
+                    data-tip="Code block"
+                  >
+                    <span class="text-xs font-medium">[/]</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="editor-container" class="relative">
+                <div id="editor-write" class="block">
+                  <textarea
+                    id="html-editor"
+                    name={@form[:body].name}
+                    placeholder="Write in Markdown or plain text"
+                    class="textarea min-h-[24rem] w-full resize-y rounded-b-lg border-x border-b border-base-300 leading-relaxed focus:border-secondary focus:outline-none"
+                  ><%= @form[:body].value %></textarea>
+                </div>
+
+                <div id="editor-preview" class="hidden">
+                  <div class="min-h-[24rem] overflow-auto rounded-b-lg border-x border-b border-base-300 p-4">
+                    <div id="preview-content" class="prose prose-sm max-w-full">
+                      <p class="text-base-content/50">Nothing to preview yet...</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <%= if Phoenix.Component.used_input?(@form[:body]) do %>
               <%= for error <- @form[:body].errors do %>
                 <span class="mt-2 text-sm text-error">{translate_error(error)}</span>
               <% end %>
             <% end %>
-          </label>
+          </div>
 
           <div class="border-t border-base-300/60 pt-4 sm:pt-5">
             <div class="flex flex-wrap items-center justify-end gap-2">
