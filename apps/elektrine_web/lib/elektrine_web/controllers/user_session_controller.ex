@@ -61,36 +61,45 @@ defmodule ElektrineWeb.UserSessionController do
         RateLimiter.record_successful_attempt(ip_address)
         RateLimiter.record_successful_attempt(username)
 
-        if user.two_factor_enabled do
-          # Check if this device is trusted
-          if device_is_trusted?(conn, user.id) do
-            # Device is trusted, skip 2FA
-            require Logger
-            Logger.info("Skipping 2FA for user #{user.id} - trusted device")
-            Events.auth(:password_login, :success, %{reason: :trusted_device})
+        cond do
+          UserAuth.admin_login_restricted?(conn, user) ->
+            Events.auth(:password_login, :failure, %{reason: :admin_private_network_required})
 
-            flash_message = UserAuth.login_flash_message(user, method: :trusted_device)
+            conn
+            |> put_flash(:error, "Admin accounts must sign in over the private admin network.")
+            |> render_login()
+
+          user.two_factor_enabled ->
+            # Check if this device is trusted
+            if device_is_trusted?(conn, user.id) do
+              # Device is trusted, skip 2FA
+              require Logger
+              Logger.info("Skipping 2FA for user #{user.id} - trusted device")
+              Events.auth(:password_login, :success, %{reason: :trusted_device})
+
+              flash_message = UserAuth.login_flash_message(user, method: :trusted_device)
+
+              UserAuth.log_in_user(conn, user, user_params,
+                flash: {:info, flash_message},
+                auth_method: :trusted_device
+              )
+            else
+              # Require 2FA
+              Events.auth(:password_login, :challenge_required, %{reason: :two_factor_required})
+
+              conn
+              |> UserAuth.store_user_for_two_factor_verification(user)
+              |> redirect(to: ~p"/two_factor")
+            end
+
+          true ->
+            Events.auth(:password_login, :success, %{reason: :password})
+            flash_message = UserAuth.login_flash_message(user, method: :password)
 
             UserAuth.log_in_user(conn, user, user_params,
               flash: {:info, flash_message},
-              auth_method: :trusted_device
+              auth_method: :password
             )
-          else
-            # Require 2FA
-            Events.auth(:password_login, :challenge_required, %{reason: :two_factor_required})
-
-            conn
-            |> UserAuth.store_user_for_two_factor_verification(user)
-            |> redirect(to: ~p"/two_factor")
-          end
-        else
-          Events.auth(:password_login, :success, %{reason: :password})
-          flash_message = UserAuth.login_flash_message(user, method: :password)
-
-          UserAuth.log_in_user(conn, user, user_params,
-            flash: {:info, flash_message},
-            auth_method: :password
-          )
         end
 
       {:error, {:banned, banned_reason}} ->

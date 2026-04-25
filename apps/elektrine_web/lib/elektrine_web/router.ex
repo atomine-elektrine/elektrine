@@ -457,7 +457,6 @@ defmodule ElektrineWeb.Router do
   scope "/", ElektrineWeb do
     pipe_through([
       :browser,
-      :require_vpn_when_netbird_enabled,
       :redirect_if_user_is_authenticated
     ])
 
