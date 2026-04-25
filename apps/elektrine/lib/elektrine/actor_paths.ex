@@ -15,7 +15,7 @@ defmodule Elektrine.ActorPaths do
   defdelegate discussion_message_path(community_name, post_id, message_id), to: Elektrine.Paths
   defdelegate email_view_path(ref), to: Elektrine.Paths
   defdelegate notifications_path(), to: Elektrine.Paths
-  defdelegate overview_path(), to: Elektrine.Paths
+  defdelegate portal_path(), to: Elektrine.Paths
   defdelegate search_path(), to: Elektrine.Paths
   defdelegate login_path(), to: Elektrine.Paths
   defdelegate register_path(), to: Elektrine.Paths

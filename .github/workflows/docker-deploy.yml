@@ -98,8 +98,6 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v6
-
       - name: Install SSH key
         run: |
           install -m 700 -d ~/.ssh
@@ -109,19 +107,13 @@ jobs:
 
       - name: Deploy over SSH
         run: |
-          LOCAL_SOURCE_ARCHIVE="$RUNNER_TEMP/elektrine-source-${GITHUB_SHA}.tar.gz"
-          REMOTE_SOURCE_ARCHIVE="/tmp/elektrine-source-${GITHUB_SHA}.tar.gz"
-
-          tar --exclude=.git -czf "$LOCAL_SOURCE_ARCHIVE" .
-          scp -P "$DEPLOY_PORT" "$LOCAL_SOURCE_ARCHIVE" "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_SOURCE_ARCHIVE"
-
           PROFILE_ARGS=""
           for profile in ${DOCKER_PROFILES}; do
             PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
           done
 
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' SOURCE_ARCHIVE='$REMOTE_SOURCE_ARCHIVE' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' DEPLOY_BRANCH='$DEPLOY_BRANCH' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
           set -euo pipefail
 
           if docker info >/dev/null 2>&1; then
@@ -133,19 +125,26 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$SOURCE_ARCHIVE" ]; then
-            echo "Missing uploaded source archive: $SOURCE_ARCHIVE" >&2
-            exit 1
+          cd "$DEPLOY_PATH"
+          git fetch --all --tags
+
+          if [ -z "$(git status --porcelain)" ]; then
+            current_branch="$(git branch --show-current || true)"
+            if [ "$current_branch" != "$DEPLOY_BRANCH" ]; then
+              git checkout "$DEPLOY_BRANCH"
+            fi
+            git merge --ff-only "origin/$DEPLOY_BRANCH"
+          else
+            echo "Skipping checkout sync for $DEPLOY_PATH: local changes present"
           fi
 
           WORKTREE_PATH="$DEPLOY_PATH/.deploy-worktree.$(date +%s).$$"
 
           OUTPUT_FILE="$WORKTREE_PATH/deploy/docker/generated.docker.yml"
           OVERRIDE_FILE="$(mktemp /tmp/elektrine.docker-image.override.XXXXXX.yml)"
-          trap 'rm -rf "$WORKTREE_PATH"; rm -f "$OVERRIDE_FILE" "$SOURCE_ARCHIVE"' EXIT
+          trap 'git -C "$DEPLOY_PATH" worktree remove --force "$WORKTREE_PATH" >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"; rm -f "$OVERRIDE_FILE"' EXIT
 
-          mkdir -p "$WORKTREE_PATH"
-          tar -xzf "$SOURCE_ARCHIVE" -C "$WORKTREE_PATH"
+          git worktree add --force --detach "$WORKTREE_PATH" "$DEPLOY_REF"
           ln -sfn "$DEPLOY_PATH/.env.production" "$WORKTREE_PATH/.env.production"
           cd "$WORKTREE_PATH"
 

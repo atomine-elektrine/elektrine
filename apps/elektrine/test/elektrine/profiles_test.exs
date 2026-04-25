@@ -400,6 +400,40 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
+  describe "site visit analytics" do
+    test "can scope stats to multiple hosts" do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, _} =
+        Profiles.track_profile_site_visit(user.id,
+          visitor_id: "visitor-1",
+          request_host: "example.com",
+          request_path: "/"
+        )
+
+      {:ok, _} =
+        Profiles.track_profile_site_visit(user.id,
+          visitor_id: "visitor-2",
+          request_host: "www.example.com",
+          request_path: "/about"
+        )
+
+      {:ok, _} =
+        Profiles.track_profile_site_visit(user.id,
+          visitor_id: "visitor-3",
+          request_host: "other.example.net",
+          request_path: "/"
+        )
+
+      stats = Profiles.get_site_view_stats(user.id, ["example.com", "www.example.com"])
+
+      assert stats.total_views == 2
+      assert stats.unique_visitors == 2
+      assert stats.views_today == 2
+      assert stats.views_this_week == 2
+    end
+  end
+
   defp remote_actor_fixture(label, overrides \\ %{}) do
     unique_id = System.unique_integer([:positive])
     username = "#{label}_#{unique_id}"

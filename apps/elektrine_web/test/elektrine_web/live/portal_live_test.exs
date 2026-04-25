@@ -1,4 +1,4 @@
-defmodule ElektrineWeb.OverviewLiveTest do
+defmodule ElektrineWeb.PortalLiveTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -8,7 +8,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
   alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, Social}
   alias Elektrine.ActivityPub.Actor
-  alias ElektrineWeb.OverviewLive.Index
+  alias ElektrineWeb.PortalLive.Index
 
   defp log_in_user(conn, user) do
     token =
@@ -32,19 +32,19 @@ defmodule ElektrineWeb.OverviewLiveTest do
   end
 
   test "redirects unauthenticated users to login", %{conn: conn} do
-    assert {:error, reason} = live(conn, ~p"/overview")
+    assert {:error, reason} = live(conn, ~p"/portal")
 
     assert match?({:redirect, %{to: "/login"}}, reason) or
              match?({:live_redirect, %{to: "/login"}}, reason)
   end
 
-  test "invalid filter param falls back to default overview content", %{conn: conn} do
+  test "invalid filter param falls back to default portal content", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview?filter=not-real")
+      |> live(~p"/portal?filter=not-real")
 
     assert html =~ "Attention Queue"
 
@@ -66,7 +66,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, _view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     assert html =~ ~s(data-test="global-composer")
     assert html =~ "Quick Create"
@@ -80,7 +80,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     assert has_element?(view, ~s([data-role="recent-activity-list"].overflow-y-auto.pr-1))
   end
@@ -91,7 +91,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     assert has_element?(view, ~s([data-role="attention-queue-list"].overflow-y-auto.pr-1))
   end
@@ -105,7 +105,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     assert render(view) =~ "Respond to friend requests"
 
@@ -113,7 +113,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     |> element(~s(button[phx-click="set_attention_filter"][phx-value-filter="requests"]))
     |> render_click()
 
-    assert_patch(view, ~p"/overview?filter=all&attention=requests")
+    assert_patch(view, ~p"/portal?filter=all&attention=requests")
     assert render(view) =~ "Respond to friend requests"
   end
 
@@ -123,21 +123,21 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     render_hook(view, "like_post", %{"message_id" => "abc"})
     assert render(view) =~ "Invalid post id"
   end
 
-  test "discussion cards on overview accept post_id for upvotes and downvotes", %{conn: conn} do
+  test "discussion cards on portal accept post_id for upvotes and downvotes", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
-    post = discussion_post_fixture(%{user: author, title: "Overview vote regression"})
+    post = discussion_post_fixture(%{user: author, title: "Portal vote regression"})
 
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview?filter=discussions")
+      |> live(~p"/portal?filter=discussions")
 
     assert has_element?(
              view,
@@ -176,13 +176,13 @@ defmodule ElektrineWeb.OverviewLiveTest do
     assert Enum.map(merged, & &1.id) == [1, 2, 3]
   end
 
-  test "overview renders a taller loading shell before feed hydration", %{conn: conn} do
+  test "portal renders a taller loading shell before feed hydration", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     html =
       conn
       |> log_in_user(user)
-      |> get(~p"/overview")
+      |> get(~p"/portal")
       |> html_response(200)
 
     assert html =~ ~s(phx-hook="TimelineReply")
@@ -190,19 +190,19 @@ defmodule ElektrineWeb.OverviewLiveTest do
     assert html =~ "data-feed-loading-skeleton"
   end
 
-  test "overview uses the infinite scroll feed container", %{conn: conn} do
+  test "portal uses the infinite scroll feed container", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
-    assert has_element?(view, ~s(#overview-infinite-scroll[phx-hook="InfiniteScroll"]))
-    assert has_element?(view, ~s(#overview-posts-list))
+    assert has_element?(view, ~s(#portal-infinite-scroll[phx-hook="InfiniteScroll"]))
+    assert has_element?(view, ~s(#portal-posts-list))
   end
 
-  test "overview feed loads older posts when infinite scroll requests more", %{conn: conn} do
+  test "portal feed loads older posts when infinite scroll requests more", %{conn: conn} do
     previous = Application.get_env(:elektrine, :recommendations_enabled, true)
     Application.put_env(:elektrine, :recommendations_enabled, false)
     on_exit(fn -> Application.put_env(:elektrine, :recommendations_enabled, previous) end)
@@ -213,7 +213,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     for index <- 1..25 do
       post_fixture(%{
         user: author,
-        content: "Overview batch token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
+        content: "Portal batch token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
         visibility: "public"
       })
     end
@@ -221,14 +221,14 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     html =
       Enum.reduce_while(1..100, "", fn _, _acc ->
         send(view.pid, :load_feed_data)
         rendered = render(view)
 
-        if rendered =~ "Overview batch token 25" do
+        if rendered =~ "Portal batch token 25" do
           {:halt, rendered}
         else
           Process.sleep(50)
@@ -237,8 +237,8 @@ defmodule ElektrineWeb.OverviewLiveTest do
       end)
 
     assert html =~ "20 posts"
-    assert html =~ "Overview batch token 25"
-    refute html =~ "Overview batch token 01"
+    assert html =~ "Portal batch token 25"
+    refute html =~ "Portal batch token 01"
 
     render_hook(view, "load-more", %{})
 
@@ -246,7 +246,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
       Enum.reduce_while(1..100, html, fn _, _acc ->
         rendered = render(view)
 
-        if rendered =~ "25 posts" and rendered =~ "Overview batch token 01" do
+        if rendered =~ "25 posts" and rendered =~ "Portal batch token 01" do
           {:halt, rendered}
         else
           Process.sleep(50)
@@ -255,8 +255,8 @@ defmodule ElektrineWeb.OverviewLiveTest do
       end)
 
     assert html =~ "25 posts"
-    assert html =~ "Overview batch token 25"
-    assert html =~ "Overview batch token 01"
+    assert html =~ "Portal batch token 25"
+    assert html =~ "Portal batch token 01"
   end
 
   test "gallery filter fetches its own recommendation-backed feed", %{conn: conn} do
@@ -270,15 +270,15 @@ defmodule ElektrineWeb.OverviewLiveTest do
     gallery_post =
       media_post_fixture(%{
         user: author,
-        content: "Overview gallery refresh token",
-        media_urls: ["/uploads/overview-gallery-refresh.jpg"]
+        content: "Portal gallery refresh token",
+        media_urls: ["/uploads/portal-gallery-refresh.jpg"]
       })
 
     for index <- 1..25 do
       post_fixture(%{
         user: author,
         content:
-          "Overview timeline fill token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
+          "Portal timeline fill token #{String.pad_leading(Integer.to_string(index), 2, "0")}",
         visibility: "public"
       })
     end
@@ -286,7 +286,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, initial_html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     refute initial_html =~ gallery_post.content
 
@@ -294,7 +294,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     |> element(~s(button[phx-click="set_filter"][phx-value-filter="gallery"]))
     |> render_click()
 
-    assert_patch(view, ~p"/overview?filter=gallery&attention=all")
+    assert_patch(view, ~p"/portal?filter=gallery&attention=all")
 
     html =
       Enum.reduce_while(1..100, "", fn _, _acc ->
@@ -310,7 +310,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
 
     assert html =~ "Gallery"
     assert html =~ gallery_post.content
-    refute html =~ "Overview timeline fill token 25"
+    refute html =~ "Portal timeline fill token 25"
   end
 
   test "following stat opens the current user's following list", %{conn: conn} do
@@ -322,7 +322,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     send(view.pid, :load_stats_data)
     render(view)
@@ -341,7 +341,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     send(view.pid, :load_stats_data)
     render(view)
@@ -374,7 +374,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     send(view.pid, :load_stats_data)
     render(view)
@@ -405,12 +405,12 @@ defmodule ElektrineWeb.OverviewLiveTest do
     assert count_occurrences(html, ~s(data-role="activity-entry")) == 30
   end
 
-  test "unfollowing from overview does not crash when the follow exists", %{conn: conn} do
+  test "unfollowing from portal does not crash when the follow exists", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
     {:ok, _post} =
-      Social.create_timeline_post(author.id, "Overview follow regression target",
+      Social.create_timeline_post(author.id, "Portal follow regression target",
         visibility: "public"
       )
 
@@ -419,14 +419,14 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     html =
       Enum.reduce_while(1..20, "", fn _, _acc ->
         send(view.pid, :load_feed_data)
         rendered = render(view)
 
-        if rendered =~ "Overview follow regression target" and
+        if rendered =~ "Portal follow regression target" and
              has_element?(
                view,
                ~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
@@ -439,7 +439,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
         end
       end)
 
-    assert html =~ "Overview follow regression target"
+    assert html =~ "Portal follow regression target"
     assert Profiles.following?(viewer.id, author.id)
 
     view
@@ -455,24 +455,24 @@ defmodule ElektrineWeb.OverviewLiveTest do
            )
   end
 
-  test "not interested removes a post from the overview feed", %{conn: conn} do
+  test "not interested removes a post from the portal feed", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
     {:ok, post} =
-      Social.create_timeline_post(author.id, "Overview dismissal target", visibility: "public")
+      Social.create_timeline_post(author.id, "Portal dismissal target", visibility: "public")
 
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     html =
       Enum.reduce_while(1..20, "", fn _, _acc ->
         send(view.pid, :load_feed_data)
         rendered = render(view)
 
-        if rendered =~ "Overview dismissal target" and
+        if rendered =~ "Portal dismissal target" and
              has_element?(
                view,
                ~s(button[phx-click="not_interested"][phx-value-post_id="#{post.id}"])
@@ -484,16 +484,16 @@ defmodule ElektrineWeb.OverviewLiveTest do
         end
       end)
 
-    assert html =~ "Overview dismissal target"
+    assert html =~ "Portal dismissal target"
 
     view
     |> element(~s(button[phx-click="not_interested"][phx-value-post_id="#{post.id}"]))
     |> render_click()
 
-    refute render(view) =~ "Overview dismissal target"
+    refute render(view) =~ "Portal dismissal target"
   end
 
-  test "overview renders community posts with the same lemmy layout as timeline", %{conn: _conn} do
+  test "portal renders community posts with the same lemmy layout as timeline", %{conn: _conn} do
     unique = System.unique_integer([:positive])
 
     remote_actor =
@@ -511,7 +511,7 @@ defmodule ElektrineWeb.OverviewLiveTest do
     {:ok, post} =
       Messaging.create_federated_message(%{
         content: "Thread body",
-        title: "Overview community thread",
+        title: "Portal community thread",
         visibility: "public",
         post_type: "discussion",
         federated: true,
@@ -524,8 +524,8 @@ defmodule ElektrineWeb.OverviewLiveTest do
     post = Repo.preload(post, [:link_preview, :conversation, remote_actor: []])
 
     html =
-      render_component(ElektrineWeb.Components.Social.OverviewStreamPost,
-        id: "overview-stream-post-#{post.id}",
+      render_component(ElektrineSocialWeb.Components.Social.TimelineStreamPost,
+        id: "portal-stream-post-#{post.id}",
         post: post,
         current_user: nil,
         timezone: "UTC",

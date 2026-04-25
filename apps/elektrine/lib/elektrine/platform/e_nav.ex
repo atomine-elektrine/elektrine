@@ -4,9 +4,9 @@ defmodule Elektrine.Platform.ENav do
   def primary_items do
     [
       %{
-        id: "overview",
-        label: "Overview",
-        href: "/overview",
+        id: "portal",
+        label: "Portal",
+        href: "/portal",
         platform_module: nil,
         icon: "hero-squares-2x2",
         active_icon: "hero-squares-2x2-solid"

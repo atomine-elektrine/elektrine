@@ -764,18 +764,18 @@ defmodule Elektrine.Search do
         keywords: ["vpn", "wireguard", "security", "network"]
       },
       %{
-        id: "action_open_overview",
+        id: "action_open_portal",
         type: "action",
-        title: "Open Overview",
-        command: "open overview",
-        aliases: ["overview", "home"],
+        title: "Open Portal",
+        command: "open portal",
+        aliases: ["portal", "home"],
         execution: :navigate,
         required_scopes: ["read:account"],
         content: "Go back to your home dashboard",
-        url: "/overview",
+        url: "/portal",
         updated_at: DateTime.utc_now(),
         relevance: 1.02,
-        keywords: ["overview", "home", "dashboard"]
+        keywords: ["portal", "home", "dashboard"]
       }
     ]
   end

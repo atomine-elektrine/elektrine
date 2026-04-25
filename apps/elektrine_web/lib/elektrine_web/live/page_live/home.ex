@@ -56,8 +56,8 @@ defmodule ElektrineWeb.PageLive.Home do
 
                 <div class="flex flex-wrap items-center gap-3">
                   <%= if @current_user do %>
-                    <.link href={~p"/overview"} class="btn btn-primary btn-lg">
-                      {gettext("Overview")}
+                    <.link href={~p"/portal"} class="btn btn-primary btn-lg">
+                      {gettext("Portal")}
                     </.link>
                     <%= if Modules.enabled?(:email) do %>
                       <.link href={~p"/email"} class="btn btn-ghost btn-lg">

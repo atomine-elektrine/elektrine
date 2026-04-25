@@ -686,6 +686,15 @@ if config_env() == :prod do
 
   config :elektrine, :trusted_proxy_cidrs, trusted_proxy_cidrs
 
+  netbird_allowed_cidrs =
+    System.get_env("NETBIRD_ALLOWED_CIDRS", "")
+    |> String.split(~r/[\s,]+/, trim: true)
+    |> Enum.map(&String.trim/1)
+
+  config :elektrine, :netbird,
+    enabled: parse_bool_env.("NETBIRD_ENABLED", false),
+    allowed_cidrs: netbird_allowed_cidrs
+
   # Production paths - use persistent /data volume
   config :elektrine, :export_dir, "/data/exports"
 

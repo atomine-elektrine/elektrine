@@ -113,11 +113,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What is Overview?
+                  What is Portal?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Overview is the dashboard for your account. It brings together activity from the modules enabled on the deployment.
+                    Portal is the dashboard for your account. It brings together activity from the modules enabled on the deployment.
                   </p>
                 </div>
               </div>

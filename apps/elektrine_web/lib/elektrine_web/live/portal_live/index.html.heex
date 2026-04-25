@@ -1,10 +1,10 @@
 <div
-  id="overview-container"
+  id="portal-container"
   phx-hook="TimelineReply"
   class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2"
 >
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="overview" current_user={@current_user} />
+  <.e_nav active_tab="portal" current_user={@current_user} />
   <div class="mb-6 space-y-6">
     <div class="card panel-card">
       <div class="card-body p-4 sm:p-5 gap-4">
@@ -404,7 +404,7 @@
             <button
               phx-click="set_filter"
               phx-value-filter="all"
-              class={overview_filter_pill_class(@filter, "all")}
+              class={portal_filter_pill_class(@filter, "all")}
               aria-pressed={@filter == "all"}
             >
               <.icon name="hero-sparkles" class="w-4 h-4 mr-1" /> For You
@@ -412,7 +412,7 @@
             <button
               phx-click="set_filter"
               phx-value-filter="timeline"
-              class={overview_filter_pill_class(@filter, "timeline")}
+              class={portal_filter_pill_class(@filter, "timeline")}
               aria-pressed={@filter == "timeline"}
             >
               <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Timeline
@@ -420,7 +420,7 @@
             <button
               phx-click="set_filter"
               phx-value-filter="gallery"
-              class={overview_filter_pill_class(@filter, "gallery")}
+              class={portal_filter_pill_class(@filter, "gallery")}
               aria-pressed={@filter == "gallery"}
             >
               <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Gallery
@@ -428,7 +428,7 @@
             <button
               phx-click="set_filter"
               phx-value-filter="discussions"
-              class={overview_filter_pill_class(@filter, "discussions")}
+              class={portal_filter_pill_class(@filter, "discussions")}
               aria-pressed={@filter == "discussions"}
             >
               <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4 mr-1" />
@@ -439,7 +439,7 @@
           <div
             class="space-y-4"
             phx-hook="InfiniteScroll"
-            id="overview-infinite-scroll"
+            id="portal-infinite-scroll"
             data-offset="500"
             data-no-more={@no_more_posts}
             data-loading-more={@loading_more}
@@ -472,12 +472,12 @@
                 <% end %>
               </div>
             <% else %>
-              <div id="overview-posts-list" class="space-y-4">
+              <div id="portal-posts-list" class="space-y-4">
                 <%= for post <- visible_posts do %>
-                  <div id={"overview-post-#{post.id}"} class="overview-post-entry">
+                  <div id={"portal-post-#{post.id}"} class="portal-post-entry">
                     <.live_component
                       module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
-                      id={"overview-stream-post-#{post.id}"}
+                      id={"portal-stream-post-#{post.id}"}
                       post={post}
                       current_user={@current_user}
                       timezone={@timezone}
@@ -499,7 +499,7 @@
                       reply_content=""
                       reply_to_reply_id={nil}
                       loading_remote_replies={@loading_remote_replies}
-                      source="timeline"
+                      source="portal"
                       interaction_mode={if(@filter == "discussions", do: :like_only, else: :vote)}
                     />
                   </div>
@@ -777,24 +777,26 @@
   </div>
 </div>
 <!-- Image Modal -->
-<.image_modal
-  show={@show_image_modal}
-  image_url={@modal_image_url}
-  images={@modal_images}
-  image_index={@modal_image_index}
-  post={@modal_post}
-  timezone={@timezone}
-  time_format={@time_format}
-  current_user={@current_user}
-  can_like={true}
-  is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
-  like_count={(@modal_post && @modal_post.like_count) || 0}
-/>
+<%= if @show_image_modal do %>
+  <.image_modal
+    show={@show_image_modal}
+    image_url={@modal_image_url}
+    images={@modal_images}
+    image_index={@modal_image_index}
+    post={@modal_post}
+    timezone={@timezone}
+    time_format={@time_format}
+    current_user={@current_user}
+    can_like={true}
+    is_liked={@modal_post && Map.get(@user_likes || %{}, @modal_post.id, false)}
+    like_count={(@modal_post && @modal_post.like_count) || 0}
+  />
+<% end %>
 <!-- Scroll to Top Button -->
 <button
   id="scroll-to-top"
   phx-hook="ScrollToTop"
-  data-scroll-root="overview-container"
+  data-scroll-root="portal-container"
   class="fixed bottom-6 right-6 z-50 btn btn-circle btn-primary shadow-lg opacity-0 pointer-events-none transition-all duration-300"
   aria-label="Scroll to top"
 >

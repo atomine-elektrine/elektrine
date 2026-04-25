@@ -432,20 +432,20 @@ div.message-selected:hover {
   contain: layout;
 }
 
-.overview-post-entry {
+.portal-post-entry {
   content-visibility: visible;
   contain: none;
   overflow: visible;
 }
 
-.overview-post-entry {
+.portal-post-entry {
   position: relative;
   z-index: 1;
   overflow: visible;
 }
 
-.overview-post-entry:hover,
-.overview-post-entry:focus-within {
+.portal-post-entry:hover,
+.portal-post-entry:focus-within {
   z-index: 220;
 }
 
@@ -457,7 +457,7 @@ div.message-selected:hover {
 
 .timeline-post-card,
 .timeline-stream-entry,
-.overview-post-entry,
+.portal-post-entry,
 [data-post-id] {
   overflow-anchor: auto;
 }

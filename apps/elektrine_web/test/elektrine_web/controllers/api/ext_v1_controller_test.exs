@@ -74,12 +74,12 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["read:account"])
 
-      conn = post(conn, "/api/ext/v1/search/actions/execute", %{"command" => "open overview"})
+      conn = post(conn, "/api/ext/v1/search/actions/execute", %{"command" => "open portal"})
 
       assert %{"data" => %{"result" => result}} = json_response(conn, 200)
-      assert result["action_id"] == "action_open_overview"
+      assert result["action_id"] == "action_open_portal"
       assert result["mode"] == "navigate"
-      assert result["url"] == "/overview"
+      assert result["url"] == "/portal"
     end
 
     test "capabilities endpoint exposes token presets and allowed endpoints", %{conn: conn} do

@@ -31,21 +31,22 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp assign_domain_analytics(socket, user, active_domain) do
     active_host = active_domain && active_domain.host
     domain_hosts = Enum.map(socket.assigns[:domains] || [], & &1.host)
+    active_site_scope = active_site_scope(active_domain, domain_hosts)
     domain_breakdown = Profiles.get_site_domain_breakdown(user.id, domain_hosts)
-    daily_views = Profiles.get_site_daily_view_counts(user.id, 30, active_host)
+    daily_views = Profiles.get_site_daily_view_counts(user.id, 30, active_site_scope)
     dns_daily_queries = dns_daily_queries(active_domain)
     dns_hourly_queries = dns_hourly_queries(active_domain)
 
     socket
     |> assign(:active_domain, active_domain)
     |> assign(:active_host, active_host)
-    |> assign(:stats, Profiles.get_site_view_stats(user.id, active_host))
+    |> assign(:stats, Profiles.get_site_view_stats(user.id, active_site_scope))
     |> assign(
       :domain_breakdown,
       merge_domain_breakdown(socket.assigns[:domains] || [], domain_breakdown)
     )
-    |> assign(:top_pages, Profiles.get_site_top_pages(user.id, active_host, 10))
-    |> assign(:top_referrers, Profiles.get_site_top_referrers(user.id, active_host, 10))
+    |> assign(:top_pages, Profiles.get_site_top_pages(user.id, active_site_scope, 10))
+    |> assign(:top_referrers, Profiles.get_site_top_referrers(user.id, active_site_scope, 10))
     |> assign(:daily_views, daily_views)
     |> assign(:display_days, Enum.filter(daily_views, &(&1.count > 0)) |> Enum.reverse())
     |> assign(:max_daily_views, max_daily_views(daily_views))
@@ -163,6 +164,19 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       Map.merge(domain, stats)
     end)
   end
+
+  defp active_site_scope(%{host: host, dns_zone_id: zone_id}, domain_hosts)
+       when is_binary(host) and is_integer(zone_id) do
+    suffix = ".#{host}"
+
+    domain_hosts
+    |> Enum.filter(fn domain_host ->
+      is_binary(domain_host) and (domain_host == host or String.ends_with?(domain_host, suffix))
+    end)
+  end
+
+  defp active_site_scope(%{host: host}, _domain_hosts), do: host
+  defp active_site_scope(_, _domain_hosts), do: nil
 
   defp max_daily_views([]), do: 0
   defp max_daily_views(daily_views), do: Enum.max_by(daily_views, & &1.count).count

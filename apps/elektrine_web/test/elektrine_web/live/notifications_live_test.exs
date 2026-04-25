@@ -130,7 +130,7 @@ defmodule ElektrineWeb.NotificationsLiveTest do
         body: "System lane body",
         source_type: "system",
         source_id: 1,
-        url: "/overview"
+        url: "/portal"
       })
 
     {:ok, view, _html} =

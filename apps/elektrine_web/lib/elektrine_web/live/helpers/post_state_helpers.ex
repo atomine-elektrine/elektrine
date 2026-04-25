@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   @moduledoc """
   Shared helpers for managing post interaction state (likes, boosts, follows) across LiveViews.
-  Eliminates duplication across Timeline, Hashtag, List, Overview, and Gallery views.
+  Eliminates duplication across Timeline, Hashtag, List, Portal, and Gallery views.
   """
 
   import Ecto.Query

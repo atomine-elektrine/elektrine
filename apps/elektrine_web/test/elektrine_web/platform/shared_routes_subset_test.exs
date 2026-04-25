@@ -18,7 +18,7 @@ defmodule ElektrineWeb.Platform.SharedRoutesSubsetTest do
     :ok
   end
 
-  test "overview still renders when optional modules are disabled", %{conn: conn} do
+  test "portal still renders when optional modules are disabled", %{conn: conn} do
     Application.put_env(:elektrine, :platform_modules, enabled: [])
 
     user = AccountsFixtures.user_fixture()
@@ -26,7 +26,7 @@ defmodule ElektrineWeb.Platform.SharedRoutesSubsetTest do
     {:ok, _view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/overview")
+      |> live(~p"/portal")
 
     assert html =~ "Attention Queue"
     refute html =~ "Compose Email"

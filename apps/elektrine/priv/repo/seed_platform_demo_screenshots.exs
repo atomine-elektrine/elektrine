@@ -371,7 +371,7 @@ if Mix.env() == :dev do
     ensure_profile.(screenshot_user, %{
       display_name: "Platform Demo",
       description:
-        "Curated cross-platform account for overview, inbox, chat, calendar, vault, and profile screenshots.",
+        "Curated cross-platform account for portal, inbox, chat, calendar, vault, and profile screenshots.",
       location: "Detroit, MI",
       theme: "blue",
       accent_color: "#38bdf8",
@@ -381,7 +381,7 @@ if Mix.env() == :dev do
     })
 
   ensure_profile_link.(profile, %{
-    title: "Platform Overview",
+    title: "Platform Portal",
     url: "https://example.com/platformdemo",
     platform: "website",
     position: 0
@@ -420,9 +420,9 @@ if Mix.env() == :dev do
       to: screenshot_mailbox.email,
       subject: "Launch brief is ready for the screenshot pass",
       text_body:
-        "I folded the latest overview copy, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.",
+        "I folded the latest portal copy, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.",
       html_body:
-        "<p>I folded the latest <strong>overview copy</strong>, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.</p>",
+        "<p>I folded the latest <strong>portal copy</strong>, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.</p>",
       category: "inbox",
       status: "received",
       priority: "high",
@@ -517,14 +517,14 @@ if Mix.env() == :dev do
   platform_post =
     ensure_timeline_post.(
       screenshot_user.id,
-      "Platform demo account is ready for capture: overview, inbox, chat, calendar, and vault all share the same launch story now. #elektrine #product",
+      "Platform demo account is ready for capture: portal, inbox, chat, calendar, and vault all share the same launch story now. #elektrine #product",
       visibility: "public"
     )
 
   _orbit_post =
     ensure_timeline_post.(
       orbitdev.id,
-      "Trimmed the release notes so the overview card reads cleanly in a full-width screenshot. #shipping",
+      "Trimmed the release notes so the portal card reads cleanly in a full-width screenshot. #shipping",
       visibility: "public"
     )
 
@@ -593,7 +593,7 @@ if Mix.env() == :dev do
   ensure_chat_message.(
     dm_with_orbit.id,
     orbitdev.id,
-    "Do one more pass on the overview screenshot before we lock the set."
+    "Do one more pass on the portal screenshot before we lock the set."
   )
 
   ensure_chat_message.(
@@ -611,7 +611,7 @@ if Mix.env() == :dev do
   ensure_chat_message.(
     captures_channel.id,
     pixelvera.id,
-    "Mobile email and overview are the strongest shots right now."
+    "Mobile email and portal are the strongest shots right now."
   )
 
   ensure_chat_message.(
@@ -644,7 +644,7 @@ if Mix.env() == :dev do
     ensure_event.(work_calendar.id, "platform-demo-review@elektrine.dev", %{
       summary: "Screenshot review",
       description:
-        "Walk through overview, email, and chat captures before publishing the demo set.",
+        "Walk through portal, email, and chat captures before publishing the demo set.",
       location: "War Room",
       dtstart: hours_from_now.(20),
       dtend: hours_from_now.(21),
@@ -767,8 +767,8 @@ if Mix.env() == :dev do
 
   ensure_notification.(screenshot_user.id, "Screenshot seed refreshed", %{
     type: "system",
-    body: "Overview, inbox, chat, calendar, notifications, and vault now have curated demo data.",
-    url: "/overview",
+    body: "Portal, inbox, chat, calendar, notifications, and vault now have curated demo data.",
+    url: "/portal",
     icon: "hero-sparkles",
     source_type: "system",
     source_id: screenshot_user.id,
@@ -786,7 +786,7 @@ if Mix.env() == :dev do
   IO.puts("  Password: #{seed_password}")
   IO.puts("")
   IO.puts("Suggested routes:")
-  IO.puts("  /overview")
+  IO.puts("  /portal")
   IO.puts("  /email?tab=inbox&filter=unread")
   IO.puts("  /email?tab=inbox&filter=boomerang")
   IO.puts("  /email?tab=inbox&filter=digest")

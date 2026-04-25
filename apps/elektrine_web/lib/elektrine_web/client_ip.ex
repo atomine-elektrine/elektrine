@@ -52,6 +52,18 @@ defmodule ElektrineWeb.ClientIP do
 
   def trusted_proxy?(_), do: false
 
+  @spec ip_in_cidrs?(ip_tuple() | nil, [String.t()]) :: boolean()
+  def ip_in_cidrs?(ip, cidrs) when is_tuple(ip) and is_list(cidrs) do
+    ip = normalize_ip_tuple(ip)
+
+    cidrs
+    |> Enum.map(&parse_cidr/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.any?(&ip_in_cidr?(ip, &1))
+  end
+
+  def ip_in_cidrs?(_, _), do: false
+
   defp forwarded_ip(conn) do
     with nil <- header_ip(conn, "cf-connecting-ip"),
          nil <- x_forwarded_for_ip(conn),

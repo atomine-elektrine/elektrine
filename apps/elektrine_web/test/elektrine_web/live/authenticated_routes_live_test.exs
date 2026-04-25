@@ -4,7 +4,7 @@ defmodule ElektrineWeb.AuthenticatedRoutesLiveTest do
   import Phoenix.LiveViewTest
 
   @authenticated_live_routes [
-    "/overview",
+    "/portal",
     "/lists",
     "/lists/1",
     "/account",

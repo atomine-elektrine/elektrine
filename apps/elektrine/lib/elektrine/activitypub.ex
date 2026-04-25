@@ -838,7 +838,13 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp upsert_cached_actor(nil, attrs) do
-    case %Actor{} |> Actor.changeset(attrs) |> Repo.insert() do
+    insert_opts = [
+      on_conflict: {:replace_all_except, [:id, :inserted_at]},
+      conflict_target: :uri,
+      returning: true
+    ]
+
+    case %Actor{} |> Actor.changeset(attrs) |> Repo.insert(insert_opts) do
       {:ok, actor} ->
         {:ok, actor}
 

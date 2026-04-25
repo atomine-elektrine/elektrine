@@ -21,6 +21,10 @@ config :elektrine,
   # Empty by default: no proxy headers are trusted unless explicitly configured.
   trusted_proxy_cidrs: []
 
+config :elektrine, :netbird,
+  enabled: false,
+  allowed_cidrs: []
+
 config :elektrine, :mail_client_settings,
   imap: [port: 993, security: :ssl],
   pop3: [port: 995, security: :ssl],
@@ -219,6 +223,7 @@ config :elektrine, :dns,
     "10.0.0.0/8",
     "172.16.0.0/12",
     "192.168.0.0/16",
+    "100.64.0.0/10",
     "::1/128",
     "fc00::/7"
   ],

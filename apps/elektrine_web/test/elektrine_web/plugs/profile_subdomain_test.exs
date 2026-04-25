@@ -17,13 +17,21 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
 
   setup do
     original = Application.get_env(:elektrine, :profile_base_domains)
+    original_netbird = Application.get_env(:elektrine, :netbird)
     Application.put_env(:elektrine, :profile_base_domains, ["example.com"])
+    Application.put_env(:elektrine, :netbird, enabled: false, allowed_cidrs: [])
 
     on_exit(fn ->
       if is_nil(original) do
         Application.delete_env(:elektrine, :profile_base_domains)
       else
         Application.put_env(:elektrine, :profile_base_domains, original)
+      end
+
+      if is_nil(original_netbird) do
+        Application.delete_env(:elektrine, :netbird)
+      else
+        Application.put_env(:elektrine, :netbird, original_netbird)
       end
     end)
 
@@ -95,14 +103,26 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
       assert get_resp_header(conn, "location") == ["https://example.com/"]
     end
 
-    test "redirects admin subdomain to main domain" do
+    test "redirects admin subdomain to main admin path when NetBird is disabled" do
       conn =
-        build_conn_with_host("admin.example.com", "/")
+        build_conn_with_host("admin.example.com", "/pripyat")
         |> ProfileSubdomain.call([])
 
       assert conn.halted
       assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://example.com/"]
+      assert get_resp_header(conn, "location") == ["https://example.com/pripyat"]
+    end
+
+    test "passes admin subdomain through when NetBird is enabled" do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
+
+      conn =
+        build_conn_with_host("admin.example.com", "/pripyat")
+        |> ProfileSubdomain.call([])
+
+      refute conn.halted
+      assert conn.request_path == "/pripyat"
+      refute conn.assigns[:subdomain_handle]
     end
 
     test "redirects api subdomain to main domain" do
