@@ -241,7 +241,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
-- `DOCKER_PROFILES` optional, defaults to `caddy dns email tor turn bluesky` in the GitHub Docker deploy workflow
+- `DOCKER_PROFILES` optional, defaults to `caddy dns email tor turn bluesky` in the GitHub Docker deploy workflow; remove `dns` only when this host should not serve DNS on port 53
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)

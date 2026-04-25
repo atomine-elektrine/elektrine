@@ -505,14 +505,13 @@ defmodule Elektrine.Messaging.Federation.Snapshots do
        when is_list(channel_ids) and is_map(channel_index) and is_map(context) do
     from(ban in CommunityBan,
       where: ban.conversation_id in ^channel_ids,
-      preload: [:user, :banned_by, :conversation],
+      preload: [:user, :banned_by],
       order_by: [asc: ban.conversation_id, asc: ban.user_id]
     )
     |> Repo.all()
     |> Enum.reduce([], fn ban, acc ->
       with %User{} = target_user <- ban.user,
-           %ChatConversation{} = conversation <- ban.conversation,
-           %ChatConversation{} = indexed_channel <- Map.get(channel_index, conversation.id),
+           %ChatConversation{} = indexed_channel <- Map.get(channel_index, ban.conversation_id),
            %{} = actor_payload <- ban_actor_payload(ban, context) do
         payload = %{
           "refs" => call(context, :event_refs_payload, [server, indexed_channel]),

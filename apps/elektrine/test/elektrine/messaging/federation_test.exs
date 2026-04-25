@@ -12,8 +12,6 @@ defmodule Elektrine.Messaging.FederationTest do
     ChatMessage,
     ChatMessageReaction,
     CommunityBan,
-    Conversation,
-    ConversationMember,
     Federation,
     Federation.Builders,
     Federation.Transport,
@@ -30,6 +28,9 @@ defmodule Elektrine.Messaging.FederationTest do
     FederationStreamPosition,
     Server
   }
+
+  alias Elektrine.Messaging.ChatConversation, as: Conversation
+  alias Elektrine.Messaging.ChatConversationMember, as: ConversationMember
 
   alias Elektrine.Repo
 

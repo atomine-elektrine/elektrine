@@ -272,7 +272,13 @@ defmodule Elektrine.Messaging.Federation.Protocol do
       "dynamic_peer_discovery" => true,
       "open_domain_bootstrap" => true,
       "key_continuity_tracking" => true,
-      "key_continuity_quarantine" => true
+      "key_continuity_quarantine" => true,
+      "deterministic_governance_projection" => true,
+      "client_sync_cursors" => true,
+      "gateway_resume" => true,
+      "attachment_authorization_metadata" => true,
+      "rich_room_metadata" => true,
+      "federation_abuse_controls" => true
     }
   end
 
@@ -312,6 +318,12 @@ defmodule Elektrine.Messaging.Federation.Protocol do
       "configured_trust_anchors" => true,
       "key_continuity_tracking" => true,
       "key_continuity_quarantine" => true,
+      "deterministic_governance_projection" => true,
+      "client_sync_cursors" => true,
+      "gateway_resume" => true,
+      "attachment_authorization_metadata" => true,
+      "rich_room_metadata" => true,
+      "federation_abuse_controls" => true,
       "wire_contract_frozen" => true
     }
   end

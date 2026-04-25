@@ -9,9 +9,10 @@ defmodule ElektrineChatWeb.API.ExtChatController do
 
   alias Elektrine.Accounts
   alias Elektrine.Messaging
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember}
   alias Elektrine.Messaging.ChatMessages
   alias Elektrine.Repo
-  alias Elektrine.Social.{Conversation, ConversationMember}
+  alias Elektrine.Social.Conversation
   alias Elektrine.Uploads
   alias ElektrineWeb.API.Response
 
@@ -213,8 +214,8 @@ defmodule ElektrineChatWeb.API.ExtChatController do
   end
 
   defp list_chat_conversations(user_id, limit) do
-    from(conversation in Conversation,
-      join: membership in ConversationMember,
+    from(conversation in ChatConversation,
+      join: membership in ChatConversationMember,
       on: membership.conversation_id == conversation.id and membership.user_id == ^user_id,
       where: is_nil(membership.left_at) and conversation.type in ^@chat_types,
       order_by: [
@@ -231,7 +232,7 @@ defmodule ElektrineChatWeb.API.ExtChatController do
 
   defp fetch_chat_conversation(conversation_id, user_id) do
     case Messaging.get_conversation_for_chat!(conversation_id, user_id) do
-      {:ok, %Conversation{type: type} = conversation} when type in @chat_types ->
+      {:ok, %ChatConversation{type: type} = conversation} when type in @chat_types ->
         if blocked_dm?(conversation, user_id) do
           {:error, :not_found}
         else
@@ -255,7 +256,8 @@ defmodule ElektrineChatWeb.API.ExtChatController do
     Map.put(conversation, :latest_message, latest_message)
   end
 
-  defp blocked_dm?(%Conversation{type: "dm", members: members}, user_id) when is_list(members) do
+  defp blocked_dm?(%ChatConversation{type: "dm", members: members}, user_id)
+       when is_list(members) do
     case Enum.find(members, fn member ->
            member.user_id != user_id and is_nil(member.left_at)
          end) do
