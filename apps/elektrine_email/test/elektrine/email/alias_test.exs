@@ -1,8 +1,12 @@
 defmodule Elektrine.Email.AliasTest do
   use Elektrine.DataCase
 
+  import Elektrine.AccountsFixtures
+
   alias Elektrine.Domains
+  alias Elektrine.Email
   alias Elektrine.Email.Alias
+  alias Elektrine.Repo
 
   describe "changeset/2" do
     test "with valid attributes" do
@@ -108,6 +112,79 @@ defmodule Elektrine.Email.AliasTest do
       changeset = Alias.changeset(%Alias{}, attrs)
 
       assert changeset.valid?
+    end
+
+    test "allows catch-all aliases with verified custom domain rule metadata" do
+      user = user_fixture()
+      domain = "catchall#{System.unique_integer([:positive])}.example.net"
+
+      {:ok, custom_domain} = Email.create_custom_domain(user, %{"domain" => domain})
+
+      custom_domain
+      |> Ecto.Changeset.change(
+        status: "verified",
+        verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      )
+      |> Repo.update!()
+
+      attrs = %{
+        alias_email: "*@#{domain}",
+        user_id: user.id,
+        catch_all: true,
+        delivery_mode: "deliver",
+        auto_label: "catch-all",
+        expires_at:
+          DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.truncate(:second)
+      }
+
+      changeset = Alias.changeset(%Alias{}, attrs)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :catch_all) == true
+    end
+
+    test "rejects catch-all aliases on platform domains" do
+      user = user_fixture()
+
+      attrs = %{
+        alias_email: "*@#{Domains.primary_email_domain()}",
+        user_id: user.id,
+        catch_all: true,
+        delivery_mode: "deliver"
+      }
+
+      changeset = Alias.changeset(%Alias{}, attrs)
+
+      refute changeset.valid?
+
+      assert "catch-all aliases require one of your verified custom email domains" in errors_on(
+               changeset
+             ).alias_email
+    end
+
+    test "requires target email for forwarding mode" do
+      attrs = %{
+        alias_email: "forwardrule@#{Domains.primary_email_domain()}",
+        user_id: 1,
+        delivery_mode: "forward"
+      }
+
+      changeset = Alias.changeset(%Alias{}, attrs)
+
+      assert %{target_email: ["is required when forwarding is enabled"]} = errors_on(changeset)
+    end
+
+    test "defaults delivery mode to forward when target email is present" do
+      attrs = %{
+        alias_email: "targetrule@#{Domains.primary_email_domain()}",
+        target_email: "user@example.net",
+        user_id: 1
+      }
+
+      changeset = Alias.changeset(%Alias{}, attrs)
+
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :delivery_mode) == "forward"
     end
 
     test "validates allowed domains for alias_email" do

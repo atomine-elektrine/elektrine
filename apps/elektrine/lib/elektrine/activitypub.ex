@@ -1386,6 +1386,17 @@ defmodule Elektrine.ActivityPub do
     |> Enum.uniq()
   end
 
+  @doc """
+  Returns true when the actor URI belongs to an accepted relay subscription.
+  """
+  def active_relay_actor_uri?(actor_uri) when is_binary(actor_uri) do
+    RelaySubscription
+    |> where([s], s.relay_uri == ^actor_uri and s.status == "active" and s.accepted == true)
+    |> Repo.exists?()
+  end
+
+  def active_relay_actor_uri?(_), do: false
+
   ## Community/Group Actors
 
   @doc """

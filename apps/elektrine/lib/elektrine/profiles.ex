@@ -590,31 +590,60 @@ defmodule Elektrine.Profiles do
   Follow a user.
   """
   def follow_user(follower_id, followed_id) do
-    result =
-      %Follow{}
-      |> Follow.changeset(%{follower_id: follower_id, followed_id: followed_id})
-      |> Repo.insert()
-
-    case result do
-      {:ok, follow} ->
-        # Create notification for the followed user
-        follower = Elektrine.Accounts.get_user!(follower_id)
-        Elektrine.Notifications.notify_follow(followed_id, follower)
-
-        Elektrine.Async.run(fn ->
-          _ = Elektrine.Bluesky.OutboundWorker.enqueue_follow(follower_id, followed_id)
-        end)
-
+    case Repo.get_by(Follow, follower_id: follower_id, followed_id: followed_id) do
+      %Follow{} = follow ->
         {:ok, follow}
 
-      {:error, %Ecto.Changeset{errors: [follower_id: {"has already been taken", _}]}} ->
-        case Repo.get_by(Follow, follower_id: follower_id, followed_id: followed_id) do
-          nil -> result
-          follow -> {:ok, follow}
-        end
+      nil ->
+        with :ok <- validate_local_follow_allowed(follower_id, followed_id) do
+          result =
+            %Follow{}
+            |> Follow.changeset(%{follower_id: follower_id, followed_id: followed_id})
+            |> Repo.insert()
 
-      error ->
-        error
+          case result do
+            {:ok, follow} ->
+              # Create notification for the followed user
+              follower = Elektrine.Accounts.get_user!(follower_id)
+              Elektrine.Notifications.notify_follow(followed_id, follower)
+
+              Elektrine.Async.run(fn ->
+                _ = Elektrine.Bluesky.OutboundWorker.enqueue_follow(follower_id, followed_id)
+              end)
+
+              {:ok, follow}
+
+            {:error, %Ecto.Changeset{errors: [follower_id: {"has already been taken", _}]}} ->
+              case Repo.get_by(Follow, follower_id: follower_id, followed_id: followed_id) do
+                nil -> result
+                follow -> {:ok, follow}
+              end
+
+            error ->
+              error
+          end
+        end
+    end
+  end
+
+  defp validate_local_follow_allowed(follower_id, followed_id) do
+    cond do
+      Elektrine.Accounts.user_blocked?(follower_id, followed_id) or
+          Elektrine.Accounts.user_blocked?(followed_id, follower_id) ->
+        {:error, :blocked}
+
+      protected_profile?(followed_id) ->
+        {:error, :follow_requires_approval}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp protected_profile?(user_id) do
+    case Elektrine.Accounts.get_user!(user_id) do
+      %{profile_visibility: visibility} when visibility in ["followers", "private"] -> true
+      _ -> false
     end
   end
 
@@ -1083,6 +1112,22 @@ defmodule Elektrine.Profiles do
       when is_integer(remote_actor_id) do
     following_remote_actor?(follower_id, remote_actor_id)
   end
+
+  @doc """
+  Returns true when any local user actively follows a remote actor.
+  """
+  def any_local_following_remote_actor?(remote_actor_id) when is_integer(remote_actor_id) do
+    Follow
+    |> join(:inner, [f], a in Elektrine.ActivityPub.Actor, on: f.remote_actor_id == a.id)
+    |> where(
+      [f, a],
+      f.remote_actor_id == ^remote_actor_id and not is_nil(f.follower_id) and
+        is_nil(f.followed_id) and (f.pending == false or a.manually_approves_followers == false)
+    )
+    |> Repo.exists?()
+  end
+
+  def any_local_following_remote_actor?(_), do: false
 
   defp remote_actor_identity_query(
          remote_actor_id,

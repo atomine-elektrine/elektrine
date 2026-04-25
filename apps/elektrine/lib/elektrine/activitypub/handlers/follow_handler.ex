@@ -285,7 +285,9 @@ defmodule Elektrine.ActivityPub.Handlers.FollowHandler do
             {:ok, :already_following}
           end
         else
-          pending = followed_user.activitypub_manually_approve_followers
+          pending =
+            followed_user.activitypub_manually_approve_followers ||
+              followed_user.profile_visibility in ["followers", "private"]
 
           case Profiles.create_remote_follow(
                  remote_actor.id,

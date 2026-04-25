@@ -34,6 +34,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     domain_breakdown = Profiles.get_site_domain_breakdown(user.id, domain_hosts)
     daily_views = Profiles.get_site_daily_view_counts(user.id, 30, active_host)
     dns_daily_queries = dns_daily_queries(active_domain)
+    dns_hourly_queries = dns_hourly_queries(active_domain)
 
     socket
     |> assign(:active_domain, active_domain)
@@ -51,7 +52,12 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     |> assign(:dns_stats, dns_stats(active_domain))
     |> assign(:dns_query_types, dns_query_types(active_domain))
     |> assign(:dns_top_names, dns_top_names(active_domain))
+    |> assign(:dns_top_nxdomain_names, dns_top_nxdomain_names(active_domain))
     |> assign(:dns_rcode_breakdown, dns_rcode_breakdown(active_domain))
+    |> assign(:dns_transport_breakdown, dns_transport_breakdown(active_domain))
+    |> assign(:dns_hourly_queries, dns_hourly_queries)
+    |> assign(:dns_display_hours, Enum.filter(dns_hourly_queries, &(&1.count > 0)))
+    |> assign(:max_dns_hourly_queries, max_hourly_queries(dns_hourly_queries))
     |> assign(:dns_daily_queries, dns_daily_queries)
     |> assign(
       :dns_display_days,
@@ -161,6 +167,9 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp max_daily_views([]), do: 0
   defp max_daily_views(daily_views), do: Enum.max_by(daily_views, & &1.count).count
 
+  defp max_hourly_queries([]), do: 0
+  defp max_hourly_queries(hourly_queries), do: Enum.max_by(hourly_queries, & &1.count).count
+
   defp dns_stats(%{dns_zone_id: zone_id}) when is_integer(zone_id),
     do: DNS.get_zone_query_stats(zone_id)
 
@@ -172,6 +181,11 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp dns_daily_queries(_), do: []
 
+  defp dns_hourly_queries(%{dns_zone_id: zone_id}) when is_integer(zone_id),
+    do: DNS.get_zone_hourly_query_counts(zone_id, 24)
+
+  defp dns_hourly_queries(_), do: []
+
   defp dns_query_types(%{dns_zone_id: zone_id}) when is_integer(zone_id),
     do: DNS.get_zone_query_type_breakdown(zone_id, 10)
 
@@ -182,10 +196,20 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp dns_top_names(_), do: []
 
+  defp dns_top_nxdomain_names(%{dns_zone_id: zone_id}) when is_integer(zone_id),
+    do: DNS.get_zone_top_nxdomain_names(zone_id, 10)
+
+  defp dns_top_nxdomain_names(_), do: []
+
   defp dns_rcode_breakdown(%{dns_zone_id: zone_id}) when is_integer(zone_id),
     do: DNS.get_zone_rcode_breakdown(zone_id)
 
   defp dns_rcode_breakdown(_), do: []
+
+  defp dns_transport_breakdown(%{dns_zone_id: zone_id}) when is_integer(zone_id),
+    do: DNS.get_zone_transport_breakdown(zone_id)
+
+  defp dns_transport_breakdown(_), do: []
 
   defp normalize_host(host) when is_binary(host) do
     host

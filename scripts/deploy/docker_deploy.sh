@@ -145,6 +145,7 @@ infer_caddy_config_default() {
       echo "Error: CADDY_MANAGED_SITE_1 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_1 for the stock Caddy setup." >&2
       echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
+      echo "Hint: or run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
       echo "Hint: or provide CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
@@ -155,6 +156,7 @@ infer_caddy_config_default() {
       echo "Error: CADDY_MANAGED_SITE_2 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_2 for the stock Caddy setup." >&2
       echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
+      echo "Hint: or run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
       echo "Hint: or provide CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
@@ -244,6 +246,46 @@ populate_wildcard_cert_defaults() {
   fi
 }
 
+uses_elektrine_wildcard_acme() {
+  local site_values="${CADDY_MANAGED_SITE_1:-} ${CADDY_MANAGED_SITE_2:-}"
+
+  [[ " $RENDER_PROFILES " == *" caddy " ]] &&
+    [[ "$site_values" == *"*."* ]] &&
+    [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] &&
+    [[ "${ACME_WILDCARD_RENEWAL_ENABLED:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]
+}
+
+compose_has_service() {
+  local service_name="$1"
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" config --services | grep -qx "$service_name"
+}
+
+acme_runner_service() {
+  if compose_has_service worker; then
+    printf '%s' worker
+  else
+    printf '%s' app
+  fi
+}
+
+issue_initial_wildcard_cert() {
+  if ! uses_elektrine_wildcard_acme; then
+    return 0
+  fi
+
+  local runner_service
+  runner_service="$(acme_runner_service)"
+
+  echo "Info: ensuring initial Elektrine DNS wildcard certificate via $runner_service" >&2
+  if [[ "$runner_service" == "app" ]]; then
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d app
+  else
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d app "$runner_service"
+  fi
+
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" exec -T "$runner_service" /app/scripts/acme/issue_elektrine_wildcard_cert.sh
+}
+
 populate_wildcard_cert_defaults
 
 INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
@@ -324,11 +366,15 @@ if [[ "$DO_MIGRATE" -eq 1 ]]; then
 fi
 
 if [[ "$DO_UP" -eq 1 ]]; then
+  issue_initial_wildcard_cert
+
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+    exit $?
   fi
 
-  exec "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+  exit $?
 fi
 
 if [[ "${#PASSTHROUGH_ARGS[@]}" -gt 0 ]]; then

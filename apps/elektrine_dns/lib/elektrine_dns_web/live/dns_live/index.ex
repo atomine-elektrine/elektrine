@@ -24,6 +24,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
        |> assign(:zones, zones)
        |> assign(:active_zone, active_zone)
        |> assign(:linked_domains, linked_domains(active_zone, user.id))
+       |> assign(:domain_health, DNS.domain_health(active_zone))
        |> assign(:service_health, service_health(active_zone))
        |> assign(:service_forms, service_forms(active_zone))
        |> assign(:zone_settings_form, zone_settings_form(active_zone))
@@ -50,6 +51,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
      |> assign(:zones, zones)
      |> assign(:active_zone, active_zone)
      |> assign(:linked_domains, linked_domains(active_zone, socket.assigns.current_user.id))
+     |> assign(:domain_health, DNS.domain_health(active_zone))
      |> assign(:service_health, service_health(active_zone))
      |> assign(:service_forms, service_forms(active_zone))
      |> assign(:zone_settings_form, zone_settings_form(active_zone))
@@ -1280,6 +1282,60 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           <section :if={!builtin_zone?(@active_zone, @current_user)} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                      Domain health
+                    </h3>
+                    <p class="mt-1 text-sm text-base-content/65">
+                      Checks DNS, mail security, TLS posture, deliverability signals, and suggested fixes.
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="radial-progress text-primary"
+                      style={"--value:#{@domain_health.score}; --size:4rem; --thickness:0.4rem;"}
+                    >
+                      <span class="text-sm font-semibold">{@domain_health.score}</span>
+                    </div>
+                    <div class="text-sm">
+                      <span class={domain_health_badge_class(@domain_health.status)}>
+                        {@domain_health.status}
+                      </span>
+                      <p class="mt-1 text-xs text-base-content/60">{@domain_health.summary}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="space-y-4 p-5">
+                <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <%= for check <- @domain_health.checks do %>
+                    <div class="rounded-2xl border border-base-content/10 bg-base-200/20 p-4">
+                      <div class="flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+                            {domain_health_category_label(check.category)}
+                          </p>
+                          <p class="mt-1 font-semibold">{check.label}</p>
+                        </div>
+                        <span class={domain_health_badge_class(check.status)}>{check.status}</span>
+                      </div>
+                      <p class="mt-3 text-sm text-base-content/65">{check.detail}</p>
+                      <%= if check.fix do %>
+                        <p class="mt-3 rounded-xl bg-base-100 px-3 py-2 text-xs text-base-content/60">
+                          {check.fix}
+                        </p>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section :if={!builtin_zone?(@active_zone, @current_user)} class="card panel-card">
+            <div class="card-body p-0">
+              <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                   Service templates
                 </h3>
@@ -2499,6 +2555,18 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp linked_domain_check_badge_class("missing"), do: "badge badge-error badge-outline"
   defp linked_domain_check_badge_class("review"), do: "badge badge-ghost"
   defp linked_domain_check_badge_class(_), do: "badge badge-outline"
+
+  defp domain_health_badge_class(:ok), do: "badge badge-success badge-outline"
+  defp domain_health_badge_class(:review), do: "badge badge-warning badge-outline"
+  defp domain_health_badge_class(:warning), do: "badge badge-warning badge-outline"
+  defp domain_health_badge_class(:missing), do: "badge badge-error badge-outline"
+  defp domain_health_badge_class(_), do: "badge badge-outline"
+
+  defp domain_health_category_label(:dns), do: "DNS"
+  defp domain_health_category_label(:mail), do: "Mail"
+  defp domain_health_category_label(:tls), do: "TLS"
+  defp domain_health_category_label(:deliverability), do: "Deliverability"
+  defp domain_health_category_label(category), do: category |> to_string() |> String.capitalize()
 
   defp format_zone_error(changeset) do
     changeset.errors

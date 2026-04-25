@@ -41,27 +41,43 @@ defmodule Elektrine.Email.Aliases do
         alias_record
 
       nil ->
-        # Support plus addressing: username+tag@domain.com -> check username@domain.com
-        case String.split(alias_email, "@", parts: 2) do
-          [username_part, domain] ->
-            domain = String.downcase(domain)
+        get_plus_address_alias(alias_email) || get_catch_all_alias(alias_email)
+    end
+  end
 
-            if Elektrine.Domains.receiving_email_domain?(domain) do
-              # Extract base username (before +)
-              base_username = username_part |> String.split("+") |> List.first()
-              base_email = "#{String.downcase(base_username)}@#{domain}"
+  defp get_plus_address_alias(alias_email) do
+    case String.split(alias_email, "@", parts: 2) do
+      [username_part, domain] ->
+        domain = String.downcase(domain)
 
-              # Try lookup with base email (case-insensitive)
-              Alias
-              |> where([a], fragment("lower(?)", a.alias_email) == ^base_email)
-              |> Repo.one()
-            else
-              nil
-            end
+        if Elektrine.Domains.receiving_email_domain?(domain) do
+          base_username = username_part |> String.split("+") |> List.first()
+          base_email = "#{String.downcase(base_username)}@#{domain}"
 
-          _ ->
-            nil
+          Alias
+          |> where([a], fragment("lower(?)", a.alias_email) == ^base_email)
+          |> Repo.one()
         end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp get_catch_all_alias(alias_email) do
+    case String.split(alias_email, "@", parts: 2) do
+      [_local_part, domain] ->
+        catch_all_email = "*@#{String.downcase(domain)}"
+
+        Alias
+        |> where([a], a.catch_all == true)
+        |> where([a], fragment("lower(?)", a.alias_email) == ^catch_all_email)
+        |> order_by([a], desc: a.inserted_at)
+        |> limit(1)
+        |> Repo.one()
+
+      _ ->
+        nil
     end
   end
 
@@ -223,26 +239,64 @@ defmodule Elektrine.Email.Aliases do
     Alias.changeset(alias, attrs)
   end
 
+  def alias_expired?(%Alias{expires_at: nil}), do: false
+
+  def alias_expired?(%Alias{expires_at: %DateTime{} = expires_at}) do
+    DateTime.compare(expires_at, DateTime.utc_now()) != :gt
+  end
+
+  def alias_active?(%Alias{enabled: true} = alias), do: not alias_expired?(alias)
+  def alias_active?(%Alias{}), do: false
+
+  def record_alias_delivery(alias, forwarded? \\ false)
+
+  def record_alias_delivery(%Alias{} = alias, forwarded?) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    increments =
+      if forwarded?, do: [received_count: 1, forwarded_count: 1], else: [received_count: 1]
+
+    from(a in Alias, where: a.id == ^alias.id)
+    |> Repo.update_all(inc: increments, set: [last_used_at: now])
+
+    :ok
+  end
+
+  def record_alias_delivery(_, _), do: :ok
+
   @doc """
   Checks if an email address is an alias and returns the target email.
-  Returns nil if not an alias or if alias has no forwarding target.
-  Returns :no_forward if alias exists but should deliver to main mailbox.
+  Returns nil if not an alias or if the matched alias has expired.
+  Returns :no_forward if alias exists but should deliver to the main mailbox.
   """
   def resolve_alias(email) do
     case get_alias_by_email(email) do
-      # Enabled alias with target email - forward it
-      %Alias{enabled: true, target_email: target_email}
+      %Alias{enabled: true, delivery_mode: "forward", target_email: target_email} = alias
       when is_binary(target_email) and target_email != "" ->
-        target_email
+        if alias_expired?(alias), do: nil, else: target_email
 
-      # Disabled alias or alias without target - deliver to mailbox
+      %Alias{enabled: true, delivery_mode: "deliver"} = alias ->
+        if alias_expired?(alias), do: nil, else: :no_forward
+
+      %Alias{enabled: true, target_email: target_email} = alias
+      when is_binary(target_email) and target_email != "" ->
+        if alias_expired?(alias), do: nil, else: target_email
+
+      %Alias{enabled: true} = alias ->
+        if alias_expired?(alias), do: nil, else: :no_forward
+
+      %Alias{catch_all: true} ->
+        nil
+
+      %Alias{expires_at: %DateTime{}} ->
+        nil
+
       %Alias{enabled: false} ->
         :no_forward
 
       %Alias{target_email: target_email} when is_nil(target_email) or target_email == "" ->
         :no_forward
 
-      # Not an alias
       nil ->
         nil
     end

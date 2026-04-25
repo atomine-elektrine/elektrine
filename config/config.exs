@@ -94,7 +94,9 @@ config :elektrine, Oban,
        # Poll Bluesky notifications for mirrored post replies/mentions
        {"*/2 * * * *", Elektrine.Bluesky.InboundPollWorker},
        # Archive/prune federation event/outbox data daily
-       {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker}
+       {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker},
+       # Renew wildcard certificates through acme.sh when enabled
+       {"35 2 * * *", Elektrine.ACME.WildcardRenewalWorker}
      ]}
   ]
 
@@ -195,6 +197,8 @@ config :elektrine, :dns,
   tcp_rate_limit_per_window: 50,
   udp_max_inflight: 1024,
   tcp_max_inflight: 256,
+  recursive_cache_max_entries: 10_000,
+  recursive_cache_cleanup_interval_ms: 60_000,
   recursive_root_hints: [
     {{198, 41, 0, 4}, 53},
     {{170, 247, 170, 2}, 53},

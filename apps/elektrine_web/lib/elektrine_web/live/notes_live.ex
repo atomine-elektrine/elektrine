@@ -19,6 +19,7 @@ defmodule ElektrineWeb.NotesLive do
          |> assign(:selected_note, nil)
          |> assign(:selected_note_share, nil)
          |> assign(:selected_note_share_url, nil)
+         |> assign(:share_expiry_options, Notes.share_expiry_options())
          |> assign(:note_form_mode, :new)
          |> assign_form(Notes.change_note(%Note{}))}
     end
@@ -129,6 +130,27 @@ defmodule ElektrineWeb.NotesLive do
        |> push_patch(to: notes_path(q: socket.assigns.search_query, note: note.id))}
     else
       _ -> {:noreply, put_flash(socket, :error, "Could not create share link")}
+    end
+  end
+
+  def handle_event(
+        "create_encrypted_share",
+        %{"id" => id, "payload" => payload, "key" => key} = params,
+        socket
+      ) do
+    user = socket.assigns.current_user
+
+    with {:ok, note_id} <- parse_id(id),
+         %Note{} = note <- Notes.get_note(user.id, note_id),
+         {:ok, share} <- Notes.create_encrypted_note_share(user.id, note, payload, params) do
+      socket =
+        socket
+        |> put_flash(:info, "Encrypted share link ready")
+        |> push_patch(to: notes_path(q: socket.assigns.search_query, note: note.id))
+
+      {:reply, %{url: share_url(share) <> "#" <> key}, socket}
+    else
+      _ -> {:reply, %{error: "Could not create encrypted share link"}, socket}
     end
   end
 
@@ -245,6 +267,9 @@ defmodule ElektrineWeb.NotesLive do
 
   def share_button_label(nil), do: "Create share link"
   def share_button_label(_share), do: "Share link active"
+
+  def encrypted_share_button_label(nil), do: "Create encrypted link"
+  def encrypted_share_button_label(_share), do: "Create new encrypted link"
 
   def active_share_for(%Note{id: id}, user_id), do: Notes.get_active_share_for_note(user_id, id)
   def active_share_for(_note, _user_id), do: nil

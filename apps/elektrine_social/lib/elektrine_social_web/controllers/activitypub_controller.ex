@@ -10,6 +10,8 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   alias Elektrine.ActivityPub.InboxQueue
   alias Elektrine.ActivityPub.ObjectValidator
   alias Elektrine.Domains
+  alias Elektrine.Messaging
+  alias Elektrine.Profiles
   alias Elektrine.Social.Message
   alias Elektrine.Telemetry.Events
 
@@ -212,32 +214,44 @@ defmodule ElektrineSocialWeb.ActivityPubController do
           :ok ->
             case validate_incoming_activity(activity, actor_uri) do
               {:ok, validated_activity} ->
-                enqueue_start = System.monotonic_time(:millisecond)
+                case validate_inbound_delivery_policy(validated_activity, actor_uri, user, nil) do
+                  :ok ->
+                    enqueue_start = System.monotonic_time(:millisecond)
 
-                # Enqueue to in-memory queue (no DB hit - batched later)
-                target_user_id = user && user.id
-                result = InboxQueue.enqueue(validated_activity, actor_uri, target_user_id)
+                    # Enqueue to in-memory queue (no DB hit - batched later)
+                    target_user_id = user && user.id
+                    result = InboxQueue.enqueue(validated_activity, actor_uri, target_user_id)
 
-                enqueue_time = System.monotonic_time(:millisecond) - enqueue_start
-                total_time = System.monotonic_time(:millisecond) - start_time
+                    enqueue_time = System.monotonic_time(:millisecond) - enqueue_start
+                    total_time = System.monotonic_time(:millisecond) - start_time
 
-                # Log timing if slow (> 50ms - should be very fast now)
-                if total_time > 50 do
-                  Logger.warning(
-                    "Slow inbox: user_lookup=#{user_lookup_time}ms enqueue=#{enqueue_time}ms total=#{total_time}ms"
-                  )
+                    # Log timing if slow (> 50ms - should be very fast now)
+                    if total_time > 50 do
+                      Logger.warning(
+                        "Slow inbox: user_lookup=#{user_lookup_time}ms enqueue=#{enqueue_time}ms total=#{total_time}ms"
+                      )
+                    end
+
+                    # InboxQueue always succeeds (returns {:ok, _})
+                    _ = result
+
+                    Events.federation(:inbox, :enqueue, :success, total_time, %{
+                      domain: actor_domain(actor_uri)
+                    })
+
+                    conn
+                    |> put_status(:accepted)
+                    |> json(%{})
+
+                  {:error, reason} ->
+                    Logger.info(
+                      "Dropping inbox activity #{inspect(validated_activity["id"])} from #{format_actor_ref(actor_uri)}: #{inspect(reason)}"
+                    )
+
+                    conn
+                    |> put_status(:accepted)
+                    |> json(%{})
                 end
-
-                # InboxQueue always succeeds (returns {:ok, _})
-                _ = result
-
-                Events.federation(:inbox, :enqueue, :success, total_time, %{
-                  domain: actor_domain(actor_uri)
-                })
-
-                conn
-                |> put_status(:accepted)
-                |> json(%{})
 
               {:error, :invalid_activity} ->
                 total_time = System.monotonic_time(:millisecond) - start_time
@@ -393,7 +407,7 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   defp signature_actor_matches?(sig_actor_uri, actor_uri, sig_actor) do
     comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) ||
       signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor) ||
-      signature_actor_move_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+      signature_actor_reciprocal_alias_match?(sig_actor_uri, actor_uri, sig_actor)
   end
 
   defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
@@ -413,28 +427,34 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
   defp signature_actor_username_alias_match?(_, _, _), do: false
 
-  defp signature_actor_move_alias_match?(sig_actor_uri, actor_uri, sig_actor)
+  defp signature_actor_reciprocal_alias_match?(sig_actor_uri, actor_uri, sig_actor)
        when is_binary(sig_actor_uri) and is_binary(actor_uri) and is_map(sig_actor) do
     normalized_actor_uri = comparable_uri(actor_uri)
     normalized_sig_actor_uri = comparable_uri(sig_actor_uri)
 
-    moved_to_uris =
-      sig_actor
-      |> Map.get(:metadata, %{})
-      |> extract_uri_candidates("movedTo")
-      |> Enum.map(&comparable_uri/1)
+    sig_alias_uris = actor_alias_uris(sig_actor) |> Enum.map(&comparable_uri/1)
 
-    also_known_as_uris =
-      sig_actor
-      |> Map.get(:metadata, %{})
-      |> extract_uri_candidates("alsoKnownAs")
-      |> Enum.map(&comparable_uri/1)
+    if normalized_actor_uri in sig_alias_uris do
+      case ActivityPub.get_or_fetch_actor(actor_uri) do
+        {:ok, claimed_actor} ->
+          claimed_alias_uris = actor_alias_uris(claimed_actor) |> Enum.map(&comparable_uri/1)
+          normalized_sig_actor_uri in claimed_alias_uris
 
-    normalized_actor_uri in moved_to_uris || normalized_actor_uri in also_known_as_uris ||
-      normalized_sig_actor_uri in also_known_as_uris
+        _ ->
+          false
+      end
+    else
+      false
+    end
   end
 
-  defp signature_actor_move_alias_match?(_, _, _), do: false
+  defp signature_actor_reciprocal_alias_match?(_, _, _), do: false
+
+  defp actor_alias_uris(%{metadata: metadata}) do
+    extract_uri_candidates(metadata, "movedTo") ++ extract_uri_candidates(metadata, "alsoKnownAs")
+  end
+
+  defp actor_alias_uris(_), do: []
 
   defp extract_uri_candidates(metadata, field) when is_map(metadata) do
     metadata
@@ -913,7 +933,12 @@ defmodule ElektrineSocialWeb.ActivityPubController do
 
       {:ok, community} ->
         {:ok, _community_actor} = ActivityPub.get_or_create_community_actor(community.id)
-        activity = Map.drop(params, ["name"])
+
+        activity =
+          params
+          |> Map.drop(["name"])
+          |> put_community_inbox_context(community)
+
         actor_uri = activity["actor"]
 
         if is_nil(actor_uri) do
@@ -925,13 +950,30 @@ defmodule ElektrineSocialWeb.ActivityPubController do
             :ok ->
               case validate_incoming_activity(activity, actor_uri) do
                 {:ok, validated_activity} ->
-                  log_inbound_group_activity(community, validated_activity, actor_uri)
+                  case validate_inbound_delivery_policy(
+                         validated_activity,
+                         actor_uri,
+                         nil,
+                         community
+                       ) do
+                    :ok ->
+                      log_inbound_group_activity(community, validated_activity, actor_uri)
 
-                  _ = InboxQueue.enqueue(validated_activity, actor_uri, nil)
+                      _ = InboxQueue.enqueue(validated_activity, actor_uri, nil)
 
-                  conn
-                  |> put_status(:accepted)
-                  |> json(%{})
+                      conn
+                      |> put_status(:accepted)
+                      |> json(%{})
+
+                    {:error, reason} ->
+                      Logger.info(
+                        "Dropping community inbox activity #{inspect(validated_activity["id"])} for #{community.name} from #{format_actor_ref(actor_uri)}: #{inspect(reason)}"
+                      )
+
+                      conn
+                      |> put_status(:accepted)
+                      |> json(%{})
+                  end
 
                 {:error, :invalid_activity} ->
                   conn
@@ -1310,6 +1352,175 @@ defmodule ElektrineSocialWeb.ActivityPubController do
         "Community inbox accepted #{activity_type} for #{community.name} from #{format_actor_ref(actor_uri)} object=#{inspect(object)}"
       )
     end
+  end
+
+  defp put_community_inbox_context(activity, community) do
+    activity
+    |> Map.put("_elektrine_target_community_id", community.id)
+    |> Map.put("_elektrine_target_community_uri", ActivityPub.community_actor_uri(community.name))
+  end
+
+  defp validate_inbound_delivery_policy(activity, actor_uri, target_user, target_community) do
+    if content_distribution_activity?(activity) do
+      cond do
+        local_user_targeted?(activity, target_user) ->
+          :ok
+
+        local_community_targeted?(activity, target_community) ->
+          :ok
+
+        references_known_message?(activity) ->
+          :ok
+
+        locally_followed_actor?(actor_uri) ->
+          :ok
+
+        ActivityPub.active_relay_actor_uri?(actor_uri) ->
+          :ok
+
+        true ->
+          {:error, :not_addressed_to_local_audience}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp content_distribution_activity?(%{"type" => type}) when type in ["Create", "Announce"],
+    do: true
+
+  defp content_distribution_activity?(_), do: false
+
+  defp local_user_targeted?(activity, nil) do
+    activity
+    |> activity_recipient_refs()
+    |> Enum.any?(&local_user_ref?/1)
+  end
+
+  defp local_user_targeted?(activity, user) do
+    target_uris = user_delivery_uris(user) |> Enum.map(&comparable_uri/1)
+
+    activity
+    |> activity_recipient_refs()
+    |> Enum.map(&comparable_uri/1)
+    |> Enum.any?(&(&1 in target_uris))
+  end
+
+  defp local_community_targeted?(_activity, nil), do: false
+
+  defp local_community_targeted?(activity, community) do
+    target_uris = community_delivery_uris(community) |> Enum.map(&comparable_uri/1)
+
+    activity
+    |> activity_recipient_refs()
+    |> Enum.map(&comparable_uri/1)
+    |> Enum.any?(&(&1 in target_uris))
+  end
+
+  defp references_known_message?(activity) do
+    activity
+    |> activity_object_refs()
+    |> Enum.any?(&known_message_ref?/1)
+  end
+
+  defp locally_followed_actor?(actor_uri) when is_binary(actor_uri) do
+    case ActivityPub.get_actor_by_uri(actor_uri) do
+      %Elektrine.ActivityPub.Actor{id: actor_id} ->
+        Profiles.any_local_following_remote_actor?(actor_id)
+
+      _ ->
+        false
+    end
+  end
+
+  defp locally_followed_actor?(_), do: false
+
+  defp activity_recipient_refs(activity) when is_map(activity) do
+    object = if is_map(activity["object"]), do: activity["object"], else: %{}
+
+    [
+      activity["to"],
+      activity["cc"],
+      activity["bto"],
+      activity["bcc"],
+      activity["audience"],
+      activity["target"],
+      object["to"],
+      object["cc"],
+      object["bto"],
+      object["bcc"],
+      object["audience"],
+      object["target"],
+      object["context"],
+      mention_hrefs(object)
+    ]
+    |> Enum.flat_map(&expand_uri_candidates/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp activity_recipient_refs(_), do: []
+
+  defp activity_object_refs(activity) when is_map(activity) do
+    object = Map.get(activity, "object")
+
+    [
+      object,
+      object_ref_field(object, "id"),
+      object_ref_field(object, "url"),
+      object_ref_field(object, "href"),
+      object_ref_field(object, "inReplyTo")
+    ]
+    |> Enum.flat_map(&expand_uri_candidates/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp activity_object_refs(_), do: []
+
+  defp object_ref_field(object, field) when is_map(object), do: Map.get(object, field)
+  defp object_ref_field(_, _), do: nil
+
+  defp mention_hrefs(%{"tag" => tags}) when is_list(tags) do
+    tags
+    |> Enum.filter(&(Map.get(&1, "type") == "Mention"))
+    |> Enum.map(&Map.get(&1, "href"))
+  end
+
+  defp mention_hrefs(_), do: []
+
+  defp local_user_ref?(ref) when is_binary(ref) do
+    case ActivityPub.local_username_from_uri(ref) do
+      {:ok, _username} -> true
+      _ -> false
+    end
+  end
+
+  defp local_user_ref?(_), do: false
+
+  defp known_message_ref?(ref) when is_binary(ref) do
+    match?(%{}, Messaging.get_message_by_activitypub_ref(ref))
+  end
+
+  defp known_message_ref?(_), do: false
+
+  defp user_delivery_uris(user) do
+    for identifier <- ActivityPub.actor_identifiers(user),
+        uri <- [
+          ActivityPub.actor_uri(identifier),
+          ActivityPub.user_collection_uri(identifier, "followers")
+        ],
+        is_binary(uri),
+        do: uri
+  end
+
+  defp community_delivery_uris(community) do
+    [
+      ActivityPub.community_actor_uri(community.name),
+      ActivityPub.community_followers_uri(community.name),
+      Map.get(community, :activitypub_id)
+    ]
+    |> Enum.filter(&is_binary/1)
   end
 
   defp validate_incoming_activity(activity, actor_uri) do

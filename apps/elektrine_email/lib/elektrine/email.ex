@@ -218,6 +218,9 @@ defmodule Elektrine.Email do
   defdelegate delete_alias(alias), to: Elektrine.Email.Aliases
   defdelegate change_alias(alias, attrs \\ %{}), to: Elektrine.Email.Aliases
   defdelegate resolve_alias(email), to: Elektrine.Email.Aliases
+  defdelegate alias_active?(alias), to: Elektrine.Email.Aliases
+  defdelegate alias_expired?(alias), to: Elektrine.Email.Aliases
+  defdelegate record_alias_delivery(alias, forwarded? \\ false), to: Elektrine.Email.Aliases
 
   # Delegate custom domain functions
   defdelegate list_user_custom_domains(user_id), to: Elektrine.Email.CustomDomains
@@ -260,10 +263,13 @@ defmodule Elektrine.Email do
       when is_binary(email_address) and is_integer(user_id) do
     clean_email = String.downcase(String.trim(email_address))
 
-    # Check 1: User's main mailbox
+    # Check 1: User's main mailbox, including domain variants and plus addresses.
     case Elektrine.Email.Mailboxes.get_user_mailbox(user_id) do
-      %Elektrine.Email.Mailbox{email: mailbox_email} ->
-        if String.downcase(mailbox_email) == clean_email do
+      %Elektrine.Email.Mailbox{} = mailbox ->
+        resolved_mailbox = Elektrine.Email.Mailboxes.get_mailbox_by_email(clean_email)
+
+        if Elektrine.Email.Mailbox.owns_email?(mailbox, clean_email) or
+             match?(%Elektrine.Email.Mailbox{user_id: ^user_id}, resolved_mailbox) do
           {:ok, :main_mailbox}
         else
           check_alias_ownership(clean_email, user_id)

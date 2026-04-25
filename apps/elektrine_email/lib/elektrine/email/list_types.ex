@@ -118,9 +118,18 @@ defmodule Elektrine.Email.ListTypes do
   end
 
   @active_list_ids MapSet.new([
-                     "elektrine-password-reset",
+                     "elektrine-transactional",
+                     "elektrine-security",
                      "elektrine-account",
-                     "elektrine-security"
+                     "elektrine-password-reset",
+                     "elektrine-two-factor",
+                     "elektrine-marketing",
+                     "elektrine-newsletter",
+                     "elektrine-announcements",
+                     "elektrine-social",
+                     "elektrine-messages",
+                     "elektrine-email-notifications",
+                     "elektrine-general"
                    ])
 
   @doc """

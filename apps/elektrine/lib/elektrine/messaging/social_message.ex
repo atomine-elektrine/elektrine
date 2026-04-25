@@ -226,6 +226,7 @@ defmodule Elektrine.Social.Message do
     |> cast(attrs, [
       :content,
       :title,
+      :conversation_id,
       :message_type,
       :media_urls,
       :media_metadata,
@@ -258,6 +259,7 @@ defmodule Elektrine.Social.Message do
     |> put_change(:federated, true)
     |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private"])
     |> validate_length(:content, max: @federated_content_max)
+    |> foreign_key_constraint(:conversation_id)
     |> unique_constraint(:activitypub_id,
       name: :activitypub_id_index,
       match: :suffix

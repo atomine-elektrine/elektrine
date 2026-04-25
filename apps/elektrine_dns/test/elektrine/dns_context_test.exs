@@ -314,6 +314,132 @@ defmodule Elektrine.DNSContextTest do
     assert "can only be used at the zone apex" in errors_on(changeset).type
   end
 
+  test "rejects invalid A and AAAA record content" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "not-an-ip"
+             })
+
+    assert "must be a valid IPv4 address" in errors_on(changeset).content
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "AAAA",
+               "ttl" => 300,
+               "content" => "203.0.113.10"
+             })
+
+    assert "must be a valid IPv6 address" in errors_on(changeset).content
+  end
+
+  test "record writes bump the zone serial and publication timestamp" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "203.0.113.10"
+             })
+
+    zone_after_create = DNS.get_zone(zone.id, user.id)
+    assert zone_after_create.serial == zone.serial + 1
+    assert zone_after_create.last_published_at
+
+    assert {:ok, _record} = DNS.update_record(record, %{"content" => "203.0.113.11"})
+
+    zone_after_update = DNS.get_zone(zone.id, user.id)
+    assert zone_after_update.serial == zone_after_create.serial + 1
+  end
+
+  test "domain_health/1 reports missing mail security records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    health = DNS.domain_health(DNS.get_zone(zone.id, user.id))
+
+    assert health.status == :missing
+    assert health.score < 50
+    assert Enum.any?(health.checks, &(&1.label == "MX records" and &1.status == :missing))
+    assert Enum.any?(health.checks, &(&1.label == "SPF policy" and &1.status == :missing))
+    assert Enum.any?(health.recommendations, &(&1.label == "DMARC policy"))
+  end
+
+  test "domain_health/1 recognizes common domain hardening records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "@",
+        "type" => "MX",
+        "ttl" => 300,
+        "priority" => 10,
+        "content" => "mail.#{zone.domain}"
+      })
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "@",
+        "type" => "TXT",
+        "ttl" => 300,
+        "content" => "v=spf1 mx -all"
+      })
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "default._domainkey",
+        "type" => "TXT",
+        "ttl" => 300,
+        "content" => "v=DKIM1; k=rsa; p=abc123"
+      })
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "_dmarc",
+        "type" => "TXT",
+        "ttl" => 300,
+        "content" => "v=DMARC1; p=reject; rua=mailto:postmaster@#{zone.domain}"
+      })
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "@",
+        "type" => "CAA",
+        "ttl" => 300,
+        "flags" => 0,
+        "tag" => "issue",
+        "content" => "letsencrypt.org"
+      })
+
+    {:ok, _} =
+      DNS.create_record(zone, %{
+        "name" => "_smtp._tls",
+        "type" => "TXT",
+        "ttl" => 300,
+        "content" => "v=TLSRPTv1; rua=mailto:postmaster@#{zone.domain}"
+      })
+
+    health = DNS.domain_health(DNS.get_zone(zone.id, user.id))
+
+    assert Enum.find(health.checks, &(&1.label == "MX records")).status == :ok
+    assert Enum.find(health.checks, &(&1.label == "SPF policy")).status == :ok
+    assert Enum.find(health.checks, &(&1.label == "DKIM key")).status == :ok
+    assert Enum.find(health.checks, &(&1.label == "DMARC policy")).status == :ok
+    assert Enum.find(health.checks, &(&1.label == "CAA records")).status == :ok
+    assert Enum.find(health.checks, &(&1.label == "SMTP TLS reports")).status == :ok
+    assert health.score >= 50
+  end
+
   defp unique_domain do
     "dnsctx#{System.unique_integer([:positive])}.example.com"
   end

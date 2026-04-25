@@ -6,6 +6,7 @@ defmodule Elektrine.DNS.QueryStat do
 
   schema "dns_query_stats" do
     field :query_date, :date
+    field :query_hour, :utc_datetime
     field :qname, :string
     field :qtype, :string
     field :rcode, :string
@@ -19,9 +20,19 @@ defmodule Elektrine.DNS.QueryStat do
 
   def changeset(query_stat, attrs) do
     query_stat
-    |> cast(attrs, [:query_date, :qname, :qtype, :rcode, :transport, :query_count, :zone_id])
+    |> cast(attrs, [
+      :query_date,
+      :query_hour,
+      :qname,
+      :qtype,
+      :rcode,
+      :transport,
+      :query_count,
+      :zone_id
+    ])
     |> validate_required([
       :query_date,
+      :query_hour,
       :qname,
       :qtype,
       :rcode,

@@ -2693,7 +2693,7 @@ defmodule Elektrine.Social do
   end
 
   @doc """
-  Gets local timeline - posts from local users only (includes replies and community posts).
+  Gets local timeline - top-level posts from local users only.
   Local posts are identified by having a sender_id (local user) and no remote_actor_id.
   """
   def get_local_timeline(opts \\ []) do
@@ -2717,6 +2717,8 @@ defmodule Elektrine.Social do
             is_nil(m.remote_actor_id) and
             m.visibility == "public" and
             is_nil(m.deleted_at) and
+            is_nil(m.reply_to_id) and
+            fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
         limit: ^limit,
@@ -2741,7 +2743,10 @@ defmodule Elektrine.Social do
     query =
       from(m in Message,
         where: m.federated == true and m.visibility == "public",
-        where: is_nil(m.deleted_at) and is_nil(m.reply_to_id),
+        where:
+          is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+            fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
+            (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
         limit: ^limit,
         preload: ^preloads

@@ -114,6 +114,16 @@ defmodule Elektrine.DriveTest do
     assert is_nil(Drive.get_active_share(expired_share.token))
   end
 
+  test "burn after read shares are no longer active after first download", %{user: user} do
+    assert {:ok, file} = Drive.upload_file(user, "", temp_upload("single-use.txt", "once"))
+    assert {:ok, share} = Drive.create_share(user.id, file.id, %{burn_after_read: true})
+
+    assert %Drive.FileShare{} = Drive.get_active_share(share.token)
+
+    assert {:ok, _updated_share} = Drive.increment_share_download_count(share)
+    assert is_nil(Drive.get_active_share(share.token))
+  end
+
   test "share links can be password protected and inline viewable", %{user: user} do
     assert {:ok, file} = Drive.upload_file(user, "", temp_upload("preview.txt", "hello world"))
 

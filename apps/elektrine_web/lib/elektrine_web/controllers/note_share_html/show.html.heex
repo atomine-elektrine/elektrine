@@ -1,37 +1,194 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{@page_title} • Elektrine</title>
-    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-  </head>
-  <body class="min-h-screen bg-base-100 text-base-content">
-    <main class="mx-auto flex min-h-screen w-full max-w-5xl items-start px-4 py-10 sm:px-6 lg:px-8">
-      <article class="card panel-card mx-auto w-full max-w-3xl overflow-hidden">
-        <div class="border-b border-base-300/60 px-5 py-5 sm:px-6 sm:py-6">
-          <div class="flex flex-wrap items-start justify-between gap-4">
-            <div class="space-y-2">
-              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
-                Shared Note
-              </div>
-              <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
-                <%= if @note.title in [nil, ""] do %>
-                  Untitled note
-                <% else %>
-                  {@note.title}
-                <% end %>
-              </h1>
-            </div>
-
-            <a href="/" class="btn btn-ghost btn-sm h-9 min-h-9">Elektrine</a>
+<div class="mx-auto w-full max-w-4xl px-0 pb-8 sm:px-2 lg:px-0">
+  <article class="card panel-card mx-auto w-full overflow-hidden">
+    <div class="border-b border-base-300/60 bg-base-200/20 px-5 py-5 sm:px-6 sm:py-6">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="space-y-2">
+          <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+            <%= if @share.encrypted_payload do %>
+              Encrypted Shared Note
+            <% else %>
+              Shared Note
+            <% end %>
           </div>
+          <h1 class="text-2xl font-semibold tracking-tight text-base-content sm:text-3xl">
+            <%= if @share.encrypted_payload do %>
+              <span data-note-title>Locked note</span>
+            <% else %>
+              <%= if @note.title in [nil, ""] do %>
+                Untitled note
+              <% else %>
+                {@note.title}
+              <% end %>
+            <% end %>
+          </h1>
         </div>
 
-        <div class="px-5 py-5 sm:px-6 sm:py-6">
-          <pre class="overflow-x-auto whitespace-pre-wrap break-words font-sans text-sm leading-7 text-base-content sm:text-[0.95rem]"><%= @note.body %></pre>
+        <div class="flex flex-wrap items-center gap-2">
+          <%= if @share.burn_after_read do %>
+            <span class="badge badge-outline border-warning/30 bg-warning/10 text-warning">
+              Burn after read
+            </span>
+          <% end %>
         </div>
-      </article>
-    </main>
-  </body>
-</html>
+      </div>
+    </div>
+
+    <div class="grid gap-3 border-b border-base-300/60 bg-base-100/30 px-5 py-4 text-sm sm:grid-cols-3 sm:px-6">
+      <div class="rounded-box border border-base-300/60 bg-base-100/50 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45">
+          Expiration
+        </div>
+        <div class="mt-1 text-base-content/80">
+          <%= if @share.expires_at do %>
+            {Calendar.strftime(@share.expires_at, "%b %-d, %Y %H:%M UTC")}
+          <% else %>
+            Never
+          <% end %>
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-300/60 bg-base-100/50 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45">
+          Access
+        </div>
+        <div class="mt-1 text-base-content/80">
+          <%= if @share.burn_after_read do %>
+            Burns after this open
+          <% else %>
+            Reusable link
+          <% end %>
+        </div>
+      </div>
+
+      <div class="rounded-box border border-base-300/60 bg-base-100/50 px-3 py-2">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45">
+          Views
+        </div>
+        <div class="mt-1 text-base-content/80">
+          {@share.view_count || 0}
+        </div>
+      </div>
+    </div>
+
+    <%= if @share.encrypted_payload do %>
+      <div class="px-5 py-5 sm:px-6 sm:py-6">
+        <div
+          data-note-status
+          class="mb-4 rounded-box border border-base-300/70 bg-base-100/60 px-4 py-3 text-sm text-base-content/70"
+        >
+          Decrypting in this browser. The server does not receive the key in the URL fragment.
+        </div>
+        <div data-note-actions class="mb-4 hidden flex-wrap justify-end gap-2">
+          <button type="button" data-copy-raw class="btn btn-outline btn-sm h-9 min-h-9">
+            Copy raw
+          </button>
+          <button type="button" data-open-raw class="btn btn-ghost btn-sm h-9 min-h-9">
+            Raw view
+          </button>
+        </div>
+        <pre
+          data-note-body
+          class="min-h-[18rem] overflow-x-auto whitespace-pre-wrap break-words rounded-box border border-base-300/60 bg-base-100/50 p-4 font-sans text-sm leading-7 text-base-content sm:text-[0.95rem]"
+        ></pre>
+      </div>
+      <script id="encrypted-note-payload" type="application/json">
+        <%= Phoenix.HTML.raw(Jason.encode!(@share.encrypted_payload)) %>
+      </script>
+      <script>
+        (() => {
+          const statusEl = document.querySelector("[data-note-status]")
+          const titleEl = document.querySelector("[data-note-title]")
+          const bodyEl = document.querySelector("[data-note-body]")
+          const actionsEl = document.querySelector("[data-note-actions]")
+          const copyRawButton = document.querySelector("[data-copy-raw]")
+          const openRawButton = document.querySelector("[data-open-raw]")
+          const payloadEl = document.getElementById("encrypted-note-payload")
+          const decoder = new TextDecoder()
+          let rawBody = ""
+
+          function setStatus(message, error = false) {
+            statusEl.textContent = message
+            statusEl.classList.toggle("border-error/30", error)
+            statusEl.classList.toggle("bg-error/10", error)
+          }
+
+          function base64UrlToBytes(value) {
+            const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=")
+            const binary = atob(padded)
+            const bytes = new Uint8Array(binary.length)
+
+            for (let index = 0; index < binary.length; index += 1) {
+              bytes[index] = binary.charCodeAt(index)
+            }
+
+            return bytes
+          }
+
+          async function decrypt() {
+            if (!window.crypto?.subtle) {
+              setStatus("This browser does not support Web Crypto.", true)
+              return
+            }
+
+            const fragmentKey = window.location.hash.slice(1)
+
+            if (!fragmentKey) {
+              setStatus("Missing decryption key. Use the full share URL including the #key part.", true)
+              return
+            }
+
+            try {
+              const payload = JSON.parse(payloadEl.textContent)
+              const key = await crypto.subtle.importKey("raw", base64UrlToBytes(fragmentKey), "AES-GCM", false, ["decrypt"])
+              const plaintext = await crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: base64UrlToBytes(payload.iv) },
+                key,
+                base64UrlToBytes(payload.ciphertext)
+              )
+              const note = JSON.parse(decoder.decode(plaintext))
+
+              titleEl.textContent = note.title || "Untitled note"
+              rawBody = note.body || ""
+              bodyEl.textContent = rawBody
+              actionsEl?.classList.remove("hidden")
+              actionsEl?.classList.add("flex")
+              setStatus("Decrypted locally in your browser.")
+            } catch (_error) {
+              setStatus("Could not decrypt this note. Check that the URL includes the correct #key.", true)
+            }
+          }
+
+          copyRawButton?.addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText(rawBody)
+              setStatus("Raw note copied to clipboard.")
+            } catch (_error) {
+              setStatus("Could not copy raw note from this browser.", true)
+            }
+          })
+
+          openRawButton?.addEventListener("click", () => {
+            const blob = new Blob([rawBody], { type: "text/plain;charset=utf-8" })
+            window.open(URL.createObjectURL(blob), "_blank", "noopener")
+          })
+
+          decrypt()
+        })()
+      </script>
+    <% else %>
+      <div class="px-5 py-5 sm:px-6 sm:py-6">
+        <div class="mb-4 flex flex-wrap justify-end gap-2">
+          <a
+            href={"data:text/plain;charset=utf-8," <> URI.encode(@note.body || "")}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-ghost btn-sm h-9 min-h-9"
+          >
+            Raw view
+          </a>
+        </div>
+        <pre class="min-h-[18rem] overflow-x-auto whitespace-pre-wrap break-words rounded-box border border-base-300/60 bg-base-100/50 p-4 font-sans text-sm leading-7 text-base-content sm:text-[0.95rem]"><%= @note.body %></pre>
+      </div>
+    <% end %>
+  </article>
+</div>

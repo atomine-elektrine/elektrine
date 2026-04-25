@@ -2,6 +2,7 @@ defmodule Elektrine.MailAuth.RateLimiterTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.Accounts
+  alias Elektrine.Domains
   alias Elektrine.Email
   alias Elektrine.MailAuth.RateLimiter
 
@@ -63,5 +64,8 @@ defmodule Elektrine.MailAuth.RateLimiterTest do
 
     assert {:error, :blocked} = RateLimiter.check_attempt(:smtp, mailbox.email)
     assert Accounts.mail_auth_subject(username) == Accounts.mail_auth_subject(mailbox.email)
+
+    assert Accounts.mail_auth_subject(username) ==
+             Accounts.mail_auth_subject("#{username}+tag@#{Domains.primary_email_domain()}")
   end
 end

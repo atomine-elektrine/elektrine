@@ -79,146 +79,157 @@ defmodule ElektrineWeb.ProfileController do
     handle =
       Map.get(params, "handle") || conn.assigns[:subdomain_handle]
 
-    if !is_binary(handle) or handle == "" or not String.valid?(handle) do
-      conn
-      |> put_status(:not_found)
-      |> put_view(html: ElektrineWeb.ErrorHTML)
-      |> render(:"404")
-    else
-      # Only allow profiles in dev/test environment or on configured profile domains
-      if RuntimeEnv.dev_or_test?() or
-           allowed_profile_host?(conn.host) do
-        # Check if handle is reserved
-        if handle in @reserved_usernames do
-          conn
-          |> put_status(:not_found)
-          |> put_view(html: ElektrineWeb.ErrorHTML)
-          |> render(:"404")
-        else
-          case Profiles.get_profile_by_handle(handle) do
-            nil ->
-              # No custom profile, check if user exists for default profile
-              case Accounts.get_user_by_handle(handle) do
-                nil ->
-                  conn
-                  |> put_status(:not_found)
-                  |> put_view(html: ElektrineWeb.ErrorHTML)
-                  |> render(:"404")
-
-                user ->
-                  # Check profile visibility settings
-                  current_user = conn.assigns[:current_user]
-
-                  case Accounts.can_view_profile?(user, current_user) do
-                    {:ok, :allowed} ->
-                      # Show default profile - create minimal profile for view tracking
-                      # Create or get profile just for view counting
-                      {profile, conn} =
-                        case Profiles.upsert_user_profile(user.id, %{display_name: user.username}) do
-                          {:ok, prof} ->
-                            if should_increment_view?(conn, prof.id) do
-                              # Track profile view using the new accurate tracking system
-                              viewer_user_id = if current_user, do: current_user.id, else: nil
-
-                              {updated_conn, visitor_id} = ensure_profile_site_visitor_id(conn)
-
-                              Profiles.track_profile_view(user.id,
-                                viewer_user_id: viewer_user_id,
-                                ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
-                                user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                                referer: get_req_header(conn, "referer") |> List.first()
-                              )
-
-                              Profiles.track_profile_site_visit(user.id,
-                                viewer_user_id: viewer_user_id,
-                                visitor_id: visitor_id,
-                                ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
-                                user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                                referer: get_req_header(conn, "referer") |> List.first(),
-                                request_host: conn.host,
-                                request_path: conn.request_path
-                              )
-
-                              updated_conn = record_profile_view(updated_conn, prof.id)
-                              updated_profile = Profiles.get_user_profile(user.id)
-                              {updated_profile, updated_conn}
-                            else
-                              {prof, conn}
-                            end
-
-                          _ ->
-                            {nil, conn}
-                        end
-
-                      render_default_profile(conn, user, profile)
-
-                    {:error, :privacy_restriction} ->
-                      conn
-                      |> put_status(:forbidden)
-                      |> put_view(html: ElektrineWeb.ErrorHTML)
-                      |> render(:"403")
-                  end
-              end
-
-            profile ->
-              # Check profile visibility settings
-              current_user = conn.assigns[:current_user]
-              user = Accounts.get_user!(profile.user_id)
-
-              case Accounts.can_view_profile?(user, current_user) do
-                {:ok, :allowed} ->
-                  # Show custom profile and increment view count (if unique)
-                  if should_increment_view?(conn, profile.id) do
-                    # Track profile view using the new accurate tracking system
-                    viewer_user_id = if current_user, do: current_user.id, else: nil
-
-                    {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
-
-                    Profiles.track_profile_view(profile.user_id,
-                      viewer_user_id: viewer_user_id,
-                      ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
-                      user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                      referer: get_req_header(conn, "referer") |> List.first()
-                    )
-
-                    Profiles.track_profile_site_visit(profile.user_id,
-                      viewer_user_id: viewer_user_id,
-                      visitor_id: visitor_id,
-                      ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
-                      user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                      referer: get_req_header(conn, "referer") |> List.first(),
-                      request_host: conn.host,
-                      request_path: conn.request_path
-                    )
-
-                    # Record this view in session
-                    conn = record_profile_view(conn, profile.id)
-
-                    # Reload profile to get updated view count
-                    updated_profile = Profiles.get_profile_by_handle(handle)
-
-                    render_custom_profile(conn, updated_profile)
-                  else
-                    render_custom_profile(conn, profile)
-                  end
-
-                {:error, :privacy_restriction} ->
-                  conn
-                  |> put_status(:forbidden)
-                  |> put_view(html: ElektrineWeb.ErrorHTML)
-                  |> render(:"403")
-              end
-          end
-        end
-      else
-        # Not an allowed profile domain - 404
+    case valid_profile_handle?(handle) do
+      false ->
         conn
         |> put_status(:not_found)
         |> put_view(html: ElektrineWeb.ErrorHTML)
         |> render(:"404")
-      end
+
+      true ->
+        # Only allow profiles in dev/test environment or on configured profile domains
+        if RuntimeEnv.dev_or_test?() or
+             allowed_profile_host?(conn.host) do
+          # Check if handle is reserved
+          if handle in @reserved_usernames do
+            conn
+            |> put_status(:not_found)
+            |> put_view(html: ElektrineWeb.ErrorHTML)
+            |> render(:"404")
+          else
+            case Profiles.get_profile_by_handle(handle) do
+              nil ->
+                # No custom profile, check if user exists for default profile
+                case Accounts.get_user_by_handle(handle) do
+                  nil ->
+                    conn
+                    |> put_status(:not_found)
+                    |> put_view(html: ElektrineWeb.ErrorHTML)
+                    |> render(:"404")
+
+                  user ->
+                    # Check profile visibility settings
+                    current_user = conn.assigns[:current_user]
+
+                    case Accounts.can_view_profile?(user, current_user) do
+                      {:ok, :allowed} ->
+                        # Show default profile - create minimal profile for view tracking
+                        # Create or get profile just for view counting
+                        {profile, conn} =
+                          case Profiles.upsert_user_profile(user.id, %{
+                                 display_name: user.username
+                               }) do
+                            {:ok, prof} ->
+                              if should_increment_view?(conn, prof.id) do
+                                # Track profile view using the new accurate tracking system
+                                viewer_user_id = if current_user, do: current_user.id, else: nil
+
+                                {updated_conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
+                                Profiles.track_profile_view(user.id,
+                                  viewer_user_id: viewer_user_id,
+                                  ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                                  user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                                  referer: get_req_header(conn, "referer") |> List.first()
+                                )
+
+                                Profiles.track_profile_site_visit(user.id,
+                                  viewer_user_id: viewer_user_id,
+                                  visitor_id: visitor_id,
+                                  ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                                  user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                                  referer: get_req_header(conn, "referer") |> List.first(),
+                                  request_host: conn.host,
+                                  request_path: conn.request_path
+                                )
+
+                                updated_conn = record_profile_view(updated_conn, prof.id)
+                                updated_profile = Profiles.get_user_profile(user.id)
+                                {updated_profile, updated_conn}
+                              else
+                                {prof, conn}
+                              end
+
+                            _ ->
+                              {nil, conn}
+                          end
+
+                        render_default_profile(conn, user, profile)
+
+                      {:error, :privacy_restriction} ->
+                        conn
+                        |> put_status(:forbidden)
+                        |> put_view(html: ElektrineWeb.ErrorHTML)
+                        |> render(:"403")
+                    end
+                end
+
+              profile ->
+                # Check profile visibility settings
+                current_user = conn.assigns[:current_user]
+                user = Accounts.get_user!(profile.user_id)
+
+                case Accounts.can_view_profile?(user, current_user) do
+                  {:ok, :allowed} ->
+                    # Show custom profile and increment view count (if unique)
+                    if should_increment_view?(conn, profile.id) do
+                      # Track profile view using the new accurate tracking system
+                      viewer_user_id = if current_user, do: current_user.id, else: nil
+
+                      {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
+                      Profiles.track_profile_view(profile.user_id,
+                        viewer_user_id: viewer_user_id,
+                        ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                        user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                        referer: get_req_header(conn, "referer") |> List.first()
+                      )
+
+                      Profiles.track_profile_site_visit(profile.user_id,
+                        viewer_user_id: viewer_user_id,
+                        visitor_id: visitor_id,
+                        ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                        user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                        referer: get_req_header(conn, "referer") |> List.first(),
+                        request_host: conn.host,
+                        request_path: conn.request_path
+                      )
+
+                      # Record this view in session
+                      conn = record_profile_view(conn, profile.id)
+
+                      # Reload profile to get updated view count
+                      updated_profile = Profiles.get_profile_by_handle(handle)
+
+                      render_custom_profile(conn, updated_profile)
+                    else
+                      render_custom_profile(conn, profile)
+                    end
+
+                  {:error, :privacy_restriction} ->
+                    conn
+                    |> put_status(:forbidden)
+                    |> put_view(html: ElektrineWeb.ErrorHTML)
+                    |> render(:"403")
+                end
+            end
+          end
+        else
+          # Not an allowed profile domain - 404
+          conn
+          |> put_status(:not_found)
+          |> put_view(html: ElektrineWeb.ErrorHTML)
+          |> render(:"404")
+        end
     end
   end
+
+  defp valid_profile_handle?(handle) when is_binary(handle) do
+    byte_size(handle) <= 100 and String.valid?(handle) and
+      not String.contains?(handle, ["/", "\0", "\r", "\n", "\t"])
+  end
+
+  defp valid_profile_handle?(_), do: false
 
   defp render_default_profile(conn, user, profile) do
     # Default profile for users who haven't customized

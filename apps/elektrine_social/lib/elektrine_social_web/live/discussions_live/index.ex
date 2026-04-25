@@ -1246,7 +1246,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       post_opts = [
         visibility: "public",
         community_actor_uri: remote_actor.uri,
-        post_type: if(Elektrine.Strings.present?(link_url), do: "link", else: "post"),
+        post_type: if(Elektrine.Strings.present?(link_url), do: "link", else: "discussion"),
         primary_url: link_url,
         title: title
       ]
@@ -1408,13 +1408,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   def handle_info({:post_reaction_added, reaction}, socket) do
     message_id = reaction.message_id
+    message = Elektrine.Messaging.get_message(message_id)
 
     matching_post =
       Enum.find(socket.assigns.filtered_community_posts, fn post ->
-        case Elektrine.Messaging.get_message(message_id) do
-          nil -> false
-          msg -> msg.activitypub_id == post.activitypub_id
-        end
+        message && message.activitypub_id == post.activitypub_id
       end)
 
     if matching_post do
@@ -1437,13 +1435,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   def handle_info({:post_reaction_removed, reaction}, socket) do
     message_id = reaction.message_id
+    message = Elektrine.Messaging.get_message(message_id)
 
     matching_post =
       Enum.find(socket.assigns.filtered_community_posts, fn post ->
-        case Elektrine.Messaging.get_message(message_id) do
-          nil -> false
-          msg -> msg.activitypub_id == post.activitypub_id
-        end
+        message && message.activitypub_id == post.activitypub_id
       end)
 
     if matching_post do

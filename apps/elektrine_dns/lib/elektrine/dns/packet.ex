@@ -200,8 +200,15 @@ defmodule Elektrine.DNS.Packet do
 
   defp decode_name(_, _, _, 20), do: {:error, :compression_loop}
 
-  defp decode_name(<<0, rest::binary>>, _packet, labels, _depth),
-    do: {:ok, Enum.reverse(labels) |> Enum.join("."), rest}
+  defp decode_name(<<0, rest::binary>>, _packet, labels, _depth) do
+    name = Enum.reverse(labels) |> Enum.join(".")
+
+    if byte_size(name) <= 253 do
+      {:ok, name, rest}
+    else
+      {:error, :name_too_long}
+    end
+  end
 
   defp decode_name(<<len, _::binary>> = data, packet, labels, depth)
        when (len &&& 0xC0) == 0xC0 do
@@ -223,8 +230,12 @@ defmodule Elektrine.DNS.Packet do
     end
   end
 
-  defp decode_name(<<len, label::binary-size(len), rest::binary>>, packet, labels, depth),
-    do: decode_name(rest, packet, [label | labels], depth)
+  defp decode_name(<<len, _::binary>>, _packet, _labels, _depth) when (len &&& 0xC0) != 0,
+    do: {:error, :bad_label}
+
+  defp decode_name(<<len, label::binary-size(len), rest::binary>>, packet, labels, depth)
+       when len <= 63,
+       do: decode_name(rest, packet, [label | labels], depth)
 
   defp decode_name(_, _, _, _), do: {:error, :bad_name}
 
@@ -365,9 +376,13 @@ defmodule Elektrine.DNS.Packet do
 
   defp encode_name(name) do
     normalized = name |> to_string() |> String.trim_trailing(".")
+    labels = String.split(normalized, ".", trim: true)
 
-    normalized
-    |> String.split(".", trim: true)
+    if byte_size(normalized) > 253 or Enum.any?(labels, &(byte_size(&1) > 63)) do
+      raise ArgumentError, "DNS name is too long"
+    end
+
+    labels
     |> Enum.map_join(fn label -> <<byte_size(label)>> <> label end)
     |> Kernel.<>(<<0>>)
   end

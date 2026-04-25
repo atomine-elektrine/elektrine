@@ -15,6 +15,7 @@ defmodule Elektrine.Drive.FileShare do
     field :access_level, :string, default: "download"
     field :password_hash, :string
     field :download_count, :integer, default: 0
+    field :burn_after_read, :boolean, default: false
 
     belongs_to :stored_file, StoredFile, foreign_key: :drive_file_id
     belongs_to :user, Elektrine.Accounts.User
@@ -32,7 +33,8 @@ defmodule Elektrine.Drive.FileShare do
       :expires_at,
       :access_level,
       :password_hash,
-      :download_count
+      :download_count,
+      :burn_after_read
     ])
     |> validate_required([:drive_file_id, :user_id, :token])
     |> validate_length(:token, min: 16, max: 255)

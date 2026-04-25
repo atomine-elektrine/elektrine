@@ -60,6 +60,16 @@ defmodule Elektrine.DNS.PacketTest do
     assert Enum.map(additional, &record_domain/1) == ["ns1.elektrine.com"]
   end
 
+  test "rejects query labels longer than the DNS limit" do
+    label = String.duplicate("a", 64)
+
+    packet =
+      <<1::16, 0::16, 1::16, 0::16, 0::16, 0::16, byte_size(label)::8, label::binary, 0, 1::16,
+        1::16>>
+
+    assert {:error, :format_error} = Packet.decode_query(packet)
+  end
+
   defp header(
          <<_id::16, flags::16, _qd::16, ancount::16, _nscount::16, _arcount::16, _rest::binary>>
        ) do

@@ -64,6 +64,24 @@ defmodule Elektrine.StaticSitesTest do
                StaticSites.upload_file(user, "file.php", content, "text/x-php")
     end
 
+    test "rejects unsafe paths", %{user: user} do
+      content = "<html></html>"
+
+      for path <- [
+            "../index.html",
+            "pages/../index.html",
+            "/index.html",
+            "\\index.html",
+            "pages\\index.html",
+            "pages//index.html",
+            "pages/%2e%2e/index.html",
+            "bad\0name.html",
+            "bad name.html"
+          ] do
+        assert {:error, :invalid_path} = StaticSites.upload_file(user, path, content, "text/html")
+      end
+    end
+
     test "rejects binary content declared as text", %{user: user} do
       # Binary content that's not valid UTF-8
       content = <<0xFF, 0xFE, 0x00, 0x01>>

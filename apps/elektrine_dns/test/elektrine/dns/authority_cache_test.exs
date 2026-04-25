@@ -85,6 +85,22 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
     assert header(response).ancount == 1
   end
 
+  test "managed service disable refreshes authority cache immediately" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    assert {:ok, _config} = DNS.apply_zone_service(zone, "mail")
+
+    qname = "_dmarc." <> zone.domain
+    assert header(Query.answer(build_query(qname, 16))).ancount == 1
+
+    zone = DNS.get_zone(zone.id, user.id)
+    assert {:ok, _config} = DNS.disable_zone_service(zone, "mail")
+
+    response = Query.answer(build_query(qname, 16))
+    assert header(response).rcode == 3
+    assert header(response).ancount == 0
+  end
+
   test "periodic cache refresh picks up records written by another runtime" do
     user = AccountsFixtures.user_fixture()
 

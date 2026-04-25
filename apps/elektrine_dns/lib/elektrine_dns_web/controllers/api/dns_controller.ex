@@ -293,7 +293,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
       last_published_at: zone.last_published_at,
       last_error: zone.last_error,
       service_configs: Enum.map(loaded_assoc(zone.service_configs), &format_service_config/1),
-      service_health: DNS.zone_service_health(zone),
+      service_health: Enum.map(DNS.zone_service_health(zone), &format_service_health/1),
       reserved_hint: DNS.builtin_user_zone_reserved_hint(zone),
       records:
         if(include_records?,
@@ -307,27 +307,66 @@ defmodule ElektrineDNSWeb.API.DNSController do
 
   defp format_record(record) do
     %{
-      id: record.id,
-      zone_id: record.zone_id,
-      name: record.name,
-      type: record.type,
-      ttl: record.ttl,
-      content: record.content,
-      priority: record.priority,
-      weight: record.weight,
-      port: record.port,
-      flags: record.flags,
-      tag: record.tag,
-      source: record.source,
-      service: record.service,
-      managed: record.managed,
-      managed_key: record.managed_key,
-      required: record.required,
-      metadata: record.metadata,
-      inserted_at: record.inserted_at,
-      updated_at: record.updated_at
+      id: Map.get(record, :id),
+      zone_id: Map.get(record, :zone_id),
+      name: Map.get(record, :name),
+      type: Map.get(record, :type),
+      ttl: Map.get(record, :ttl),
+      content: Map.get(record, :content),
+      priority: Map.get(record, :priority),
+      weight: Map.get(record, :weight),
+      port: Map.get(record, :port),
+      flags: Map.get(record, :flags),
+      tag: Map.get(record, :tag),
+      protocol: Map.get(record, :protocol),
+      algorithm: Map.get(record, :algorithm),
+      key_tag: Map.get(record, :key_tag),
+      digest_type: Map.get(record, :digest_type),
+      usage: Map.get(record, :usage),
+      selector: Map.get(record, :selector),
+      matching_type: Map.get(record, :matching_type),
+      source: Map.get(record, :source),
+      service: Map.get(record, :service),
+      managed: Map.get(record, :managed),
+      managed_key: Map.get(record, :managed_key),
+      required: Map.get(record, :required),
+      metadata: Map.get(record, :metadata),
+      inserted_at: Map.get(record, :inserted_at),
+      updated_at: Map.get(record, :updated_at)
     }
   end
+
+  defp format_service_health(health) do
+    service = Map.get(health, :service)
+
+    %{
+      service: service,
+      enabled: Map.get(health, :enabled),
+      mode: Map.get(health, :mode),
+      status: Map.get(health, :status),
+      last_error: Map.get(health, :last_error),
+      settings: DNS.public_service_settings(service, Map.get(health, :settings)),
+      desired_records: Enum.map(Map.get(health, :desired_records, []), &format_record/1),
+      managed_records: Enum.map(Map.get(health, :managed_records, []), &format_record/1),
+      conflicts: Map.get(health, :conflicts, []),
+      checks: Enum.map(Map.get(health, :checks, []), &format_service_check/1),
+      repairable: Map.get(health, :repairable)
+    }
+  end
+
+  defp format_service_check(check) do
+    %{
+      key: Map.get(check, :key),
+      label: Map.get(check, :label),
+      required: Map.get(check, :required),
+      status: Map.get(check, :status),
+      expected: maybe_format_record(Map.get(check, :expected)),
+      actual: maybe_format_record(Map.get(check, :actual))
+    }
+  end
+
+  defp maybe_format_record(nil), do: nil
+  defp maybe_format_record(record), do: format_record(record)
 
   defp format_service_config(config) do
     %{
@@ -337,7 +376,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
       enabled: config.enabled,
       mode: config.mode,
       status: config.status,
-      settings: config.settings,
+      settings: DNS.public_service_settings(config.service, config.settings),
       last_applied_at: config.last_applied_at,
       last_error: config.last_error,
       inserted_at: config.inserted_at,

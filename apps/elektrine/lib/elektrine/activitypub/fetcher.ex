@@ -44,10 +44,10 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
     with :ok <- validate_fetch_url(uri, :object, opts) do
       if skip_cache do
-        do_signed_fetch(uri, opts)
+        fetch_and_validate_object(uri, opts)
       else
         Elektrine.AppCache.get_object(uri, fn ->
-          do_signed_fetch(uri, opts)
+          fetch_and_validate_object(uri, opts)
         end)
       end
     end
@@ -60,9 +60,90 @@ defmodule Elektrine.ActivityPub.Fetcher do
     with :ok <- validate_fetch_url(uri, :object, opts) do
       # Also invalidate the cache so next regular fetch gets fresh data
       Elektrine.AppCache.invalidate_object(uri)
-      do_signed_fetch(uri, opts)
+      fetch_and_validate_object(uri, opts)
     end
   end
+
+  defp fetch_and_validate_object(uri, opts) do
+    with {:ok, object} <- do_signed_fetch(uri, opts),
+         :ok <- validate_fetched_object_identity(uri, object, opts) do
+      {:ok, object}
+    end
+  end
+
+  defp validate_fetched_object_identity(_uri, object, _opts) when not is_map(object), do: :ok
+
+  defp validate_fetched_object_identity(_uri, %{"type" => type}, _opts)
+       when type in ["Collection", "OrderedCollection", "CollectionPage", "OrderedCollectionPage"] do
+    :ok
+  end
+
+  defp validate_fetched_object_identity(uri, object, opts) do
+    if Keyword.get(opts, :skip_identity_check, false) do
+      :ok
+    else
+      requested_uri = comparable_object_uri(uri)
+      object_uris = object_identity_candidates(object) |> Enum.map(&comparable_object_uri/1)
+
+      if requested_uri in object_uris do
+        :ok
+      else
+        Logger.warning(
+          "Rejected fetched object due to id mismatch: requested=#{inspect(uri)} returned=#{inspect(object["id"])}"
+        )
+
+        {:error, :object_id_mismatch}
+      end
+    end
+  end
+
+  defp object_identity_candidates(%{"type" => "Create", "object" => object} = activity) do
+    expand_uri_candidates(activity) ++ expand_uri_candidates(object)
+  end
+
+  defp object_identity_candidates(object), do: expand_uri_candidates(object)
+
+  defp expand_uri_candidates(value) when is_binary(value), do: [value]
+
+  defp expand_uri_candidates(values) when is_list(values),
+    do: Enum.flat_map(values, &expand_uri_candidates/1)
+
+  defp expand_uri_candidates(value) when is_map(value) do
+    value
+    |> Map.take(["id", "url", "href"])
+    |> Map.values()
+    |> Enum.flat_map(&expand_uri_candidates/1)
+  end
+
+  defp expand_uri_candidates(_), do: []
+
+  defp comparable_object_uri(uri) when is_binary(uri) do
+    uri
+    |> String.trim()
+    |> case do
+      "" ->
+        nil
+
+      trimmed ->
+        case URI.parse(trimmed) do
+          %URI{scheme: scheme, host: host} = parsed
+          when is_binary(scheme) and is_binary(host) and host != "" ->
+            path = parsed.path || "/"
+
+            parsed
+            |> Map.put(:scheme, String.downcase(scheme))
+            |> Map.put(:host, String.downcase(host))
+            |> Map.put(:path, String.trim_trailing(path, "/"))
+            |> Map.put(:fragment, nil)
+            |> URI.to_string()
+
+          _ ->
+            trimmed
+        end
+    end
+  end
+
+  defp comparable_object_uri(_), do: nil
 
   # Performs a signed or unsigned fetch based on configuration
   defp do_signed_fetch(uri, opts) do

@@ -169,20 +169,29 @@ defmodule ElektrineSocialWeb.WebFingerController do
     base_url = webfinger_base_url(requested_domain)
     canonical_actor_url = ActivityPub.actor_uri(user, ActivityPub.instance_url())
     actor_url = webfinger_actor_url(user, requested_identifier, requested_domain)
-    profile_url = webfinger_profile_url(user, requested_domain)
+    public_profile? = user.profile_visibility == "public"
+    profile_url = if public_profile?, do: webfinger_profile_url(user, requested_domain), else: nil
     subject_domain = requested_domain || ActivityPub.instance_domain()
     subject = "acct:#{requested_identifier}@#{subject_domain}"
 
-    links = [
-      %{rel: "http://webfinger.net/rel/profile-page", type: "text/html", href: profile_url},
-      %{rel: "self", type: "application/activity+json", href: actor_url},
-      %{
-        rel: "self",
-        type: "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
-        href: actor_url
-      },
-      subscribe_link(base_url)
-    ]
+    links =
+      [
+        if(profile_url,
+          do: %{
+            rel: "http://webfinger.net/rel/profile-page",
+            type: "text/html",
+            href: profile_url
+          }
+        ),
+        %{rel: "self", type: "application/activity+json", href: actor_url},
+        %{
+          rel: "self",
+          type: "application/ld+json; profile=\"https://www.w3.org/ns/activitystreams\"",
+          href: actor_url
+        },
+        subscribe_link(base_url)
+      ]
+      |> Enum.reject(&is_nil/1)
 
     aliases =
       [canonical_actor_url, actor_url, profile_url]

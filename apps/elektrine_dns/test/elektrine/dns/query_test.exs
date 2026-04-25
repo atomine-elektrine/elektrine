@@ -6,9 +6,9 @@ defmodule Elektrine.DNS.QueryTest do
   alias Elektrine.DNS.Zone
 
   defmodule AliasResolverStub do
-    def lookup(~c"edge.example.net", :in, :a, timeout: 5_000), do: [{198, 51, 100, 99}]
+    def lookup(~c"edge.elektrine.com", :in, :a, timeout: 5_000), do: [{198, 51, 100, 99}]
 
-    def lookup(~c"edge.example.net", :in, :aaaa, timeout: 5_000),
+    def lookup(~c"edge.elektrine.com", :in, :aaaa, timeout: 5_000),
       do: [{0x2001, 0xDB8, 0, 0, 0, 0, 0, 0x99}]
 
     def lookup(_, _, _, timeout: 5_000), do: []
@@ -117,6 +117,60 @@ defmodule Elektrine.DNS.QueryTest do
     assert first_answer_name(response) == "example.com"
   end
 
+  test "answers authoritatively when recursion is not requested" do
+    response = Query.answer(build_query("example.com", 6, rd: false))
+    header = header(response)
+
+    assert header.ancount == 1
+    assert header.rcode == 0
+    assert header.aa == 1
+    assert header.rd == 0
+    assert first_answer_name(response) == "example.com"
+  end
+
+  test "emits query telemetry metadata" do
+    test_pid = self()
+    handler_id = "dns-query-test-#{System.unique_integer([:positive])}"
+
+    :telemetry.attach(
+      handler_id,
+      [:elektrine, :dns, :query],
+      fn event, measurements, metadata, _config ->
+        send(test_pid, {:dns_query_telemetry, event, measurements, metadata})
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    _response = Query.answer(build_query("www.example.com", 1))
+
+    assert_receive {:dns_query_telemetry, [:elektrine, :dns, :query], %{count: 1}, metadata}
+    assert metadata.zone == "example.com"
+    assert metadata.qname == "www.example.com"
+    assert metadata.qtype == :a
+    assert metadata.rcode == :noerror
+    assert metadata.authoritative == true
+  end
+
+  test "truncates oversized UDP responses" do
+    zone = %Zone{
+      domain: "large.example.com",
+      records: [
+        %Record{name: "@", type: "TXT", content: String.duplicate("a", 900), ttl: 300}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"large.example.com", zone})
+
+    response = Query.answer(build_query("large.example.com", 16), transport: :udp)
+    header = header(response)
+
+    assert header.tc == 1
+    assert header.ancount == 0
+    assert header.rcode == 0
+  end
+
   test "answers apex records stored as absolute names" do
     zone = %Zone{
       domain: "absolute.example.com",
@@ -171,7 +225,7 @@ defmodule Elektrine.DNS.QueryTest do
     zone = %Zone{
       domain: "alias-a.example.com",
       records: [
-        %Record{name: "@", type: "ALIAS", content: "edge.example.net", ttl: 180}
+        %Record{name: "@", type: "ALIAS", content: "edge.elektrine.com", ttl: 180}
       ]
     }
 
@@ -189,7 +243,7 @@ defmodule Elektrine.DNS.QueryTest do
     zone = %Zone{
       domain: "alias-aaaa.example.com",
       records: [
-        %Record{name: "@", type: "ALIAS", content: "edge.example.net", ttl: 180}
+        %Record{name: "@", type: "ALIAS", content: "edge.elektrine.com", ttl: 180}
       ]
     }
 
@@ -321,8 +375,10 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).rcode == 5
   end
 
-  defp build_query(name, type) do
-    <<0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  defp build_query(name, type, opts \\ []) do
+    flags = if Keyword.get(opts, :rd, true), do: 0x0100, else: 0
+
+    <<0x12, 0x34, flags::16, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
       encode_name(name)::binary, type::16, 1::16>>
   end
 
@@ -336,7 +392,15 @@ defmodule Elektrine.DNS.QueryTest do
   defp header(
          <<_id::16, flags::16, _qd::16, ancount::16, nscount::16, arcount::16, _rest::binary>>
        ) do
-    %{ancount: ancount, nscount: nscount, arcount: arcount, rcode: Bitwise.band(flags, 0x000F)}
+    %{
+      aa: div(Bitwise.band(flags, 0x0400), 0x0400),
+      tc: div(Bitwise.band(flags, 0x0200), 0x0200),
+      rd: div(Bitwise.band(flags, 0x0100), 0x0100),
+      ancount: ancount,
+      nscount: nscount,
+      arcount: arcount,
+      rcode: Bitwise.band(flags, 0x000F)
+    }
   end
 
   defp first_answer_name(

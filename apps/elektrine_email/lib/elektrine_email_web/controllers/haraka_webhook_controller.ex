@@ -600,12 +600,18 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
                 result =
                   case find_duplicate_message(email_data) do
-                    nil -> Elektrine.Email.MailboxAdapter.create_message(email_data)
-                    existing_message -> {:ok, existing_message}
+                    nil ->
+                      with {:ok, message} <-
+                             Elektrine.Email.MailboxAdapter.create_message(email_data) do
+                        {:ok, maybe_apply_haraka_user_filters(message, mailbox.user_id), true}
+                      end
+
+                    existing_message ->
+                      {:ok, existing_message, false}
                   end
 
                 case result do
-                  {:ok, message} ->
+                  {:ok, message, new_message?} ->
                     maybe_apply_suppression(mailbox, suppression_event, params, message_id)
 
                     if mailbox.user_id do
@@ -614,9 +620,15 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                         "user:#{mailbox.user_id}",
                         {:new_email, message}
                       )
+
+                      if new_message? do
+                        Elektrine.Async.run(fn ->
+                          Elektrine.Email.process_auto_reply(message, mailbox.user_id)
+                        end)
+                      end
                     end
 
-                    result
+                    {:ok, message}
 
                   error ->
                     error
@@ -685,6 +697,17 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
   defp maybe_send_spoofing_alert(_reason, _params) do
     :ok
+  end
+
+  defp maybe_apply_haraka_user_filters(message, nil), do: message
+
+  defp maybe_apply_haraka_user_filters(message, user_id) do
+    actions = Elektrine.Email.apply_filters(user_id, message)
+
+    case Elektrine.Email.execute_actions(message, actions) do
+      {:ok, updated_message} -> updated_message
+      {:error, _reason} -> message
+    end
   end
 
   defp normalize_attachments_to_list(nil) do

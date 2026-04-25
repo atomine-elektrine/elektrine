@@ -8,6 +8,7 @@ defmodule Elektrine.DNS do
   import Ecto.Query, warn: false
 
   alias Elektrine.Accounts.User
+  alias Elektrine.DNS.DomainHealth
   alias Elektrine.DNS.ManagedRecords
   alias Elektrine.DNS.Packet
   alias Elektrine.DNS.QueryStat
@@ -170,6 +171,30 @@ defmodule Elektrine.DNS do
 
   def web_force_https_for_host(_), do: false
 
+  def health_status do
+    zone_cache_running? = Process.whereis(Elektrine.DNS.ZoneCache) != nil
+    nameservers_configured? = nameservers() != []
+
+    status =
+      if zone_cache_running? and nameservers_configured? do
+        :ok
+      else
+        :error
+      end
+
+    %{
+      status: status,
+      zone_cache_running: zone_cache_running?,
+      nameservers_configured: nameservers_configured?,
+      authority_enabled: authority_enabled?(),
+      recursive_enabled: recursive_enabled?()
+    }
+  end
+
+  def domain_health(%Zone{} = zone), do: DomainHealth.analyze(zone)
+
+  def domain_health(_), do: DomainHealth.analyze(nil)
+
   def create_zone(%User{id: user_id}, attrs), do: create_zone(user_id, attrs)
 
   def create_zone(user_id, attrs) when is_integer(user_id) and is_map(attrs) do
@@ -196,17 +221,15 @@ defmodule Elektrine.DNS do
         normalize_record_attrs(Map.put(normalized_attrs, "zone_id", zone.id), zone_domain)
       )
       |> Repo.insert()
-      |> refresh_authority_cache_after_write()
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
   def create_record(zone_id, attrs) when is_integer(zone_id) and is_map(attrs) do
-    zone_domain = zone_domain(zone_id)
-
-    %Record{}
-    |> Record.changeset(normalize_record_attrs(Map.put(attrs, "zone_id", zone_id), zone_domain))
-    |> Repo.insert()
-    |> refresh_authority_cache_after_write()
+    case Repo.get(Zone, zone_id) do
+      %Zone{} = zone -> create_record(zone, attrs)
+      nil -> {:error, :not_found}
+    end
   end
 
   def create_record(_, _), do: {:error, :invalid_attributes}
@@ -222,7 +245,7 @@ defmodule Elektrine.DNS do
         {:ok, zone} -> {:ok, Repo.preload(zone, [:records, :service_configs])}
         error -> error
       end
-      |> refresh_authority_cache_after_write()
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
@@ -261,7 +284,7 @@ defmodule Elektrine.DNS do
       record
       |> Record.changeset(normalized_attrs)
       |> Repo.update()
-      |> refresh_authority_cache_after_write()
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
@@ -269,7 +292,7 @@ defmodule Elektrine.DNS do
     with :ok <- validate_record_mutation(record, :delete) do
       record
       |> Repo.delete()
-      |> refresh_authority_cache_after_write()
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
@@ -319,7 +342,7 @@ defmodule Elektrine.DNS do
     else
       zone
       |> ManagedRecords.apply_service(service, attrs)
-      |> refresh_authority_cache_after_write()
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
@@ -332,11 +355,16 @@ defmodule Elektrine.DNS do
          "managed service bundles are disabled for the built-in profile subdomain"
        )}
     else
-      ManagedRecords.apply_service(zone, service, %{"enabled" => false})
+      zone
+      |> ManagedRecords.apply_service(service, %{"enabled" => false})
+      |> refresh_authority_cache_after_write(touch_zone: true)
     end
   end
 
   def zone_service_health(%Zone{} = zone), do: ManagedRecords.service_health(zone)
+
+  def public_service_settings(service, settings),
+    do: ManagedRecords.public_settings(service, settings)
 
   def builtin_user_zone_reserved_hint(%Zone{} = zone) do
     if builtin_user_zone?(zone) and builtin_user_zone_hosted_by_platform?(zone) do
@@ -508,20 +536,15 @@ defmodule Elektrine.DNS do
     attrs = %{
       zone_id: zone_id,
       query_date: Date.utc_today(),
-      qname: normalize_dns_name(result.qname),
+      query_hour: DateTime.utc_now() |> DateTime.truncate(:second) |> truncate_to_hour(),
+      qname: normalize_dns_metric_name(result.qname, result.zone.domain),
       qtype: normalize_dns_metric_value(result.qtype),
       rcode: normalize_dns_metric_value(result.rcode),
       transport: transport,
       query_count: 1
     }
 
-    %QueryStat{}
-    |> QueryStat.changeset(attrs)
-    |> Repo.insert(
-      on_conflict: [inc: [query_count: 1]],
-      conflict_target: [:zone_id, :query_date, :qname, :qtype, :rcode, :transport],
-      returning: false
-    )
+    Elektrine.DNS.QueryStatsBuffer.increment(attrs)
 
     :ok
   rescue
@@ -530,7 +553,15 @@ defmodule Elektrine.DNS do
 
   def track_query(_result, _transport), do: :ok
 
+  defp flush_query_stats_buffer do
+    Elektrine.DNS.QueryStatsBuffer.flush()
+  rescue
+    _ -> :ok
+  end
+
   def get_zone_query_stats(zone_id) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
     today = Date.utc_today()
     week_ago = Date.add(today, -6)
 
@@ -547,6 +578,8 @@ defmodule Elektrine.DNS do
   def get_zone_daily_query_counts(zone_id, days \\ 30)
 
   def get_zone_daily_query_counts(zone_id, days) when is_integer(zone_id) and days > 0 do
+    flush_query_stats_buffer()
+
     start_date = Date.add(Date.utc_today(), -days + 1)
     end_date = Date.utc_today()
 
@@ -565,9 +598,35 @@ defmodule Elektrine.DNS do
 
   def get_zone_daily_query_counts(_, _), do: []
 
+  def get_zone_hourly_query_counts(zone_id, hours \\ 24)
+
+  def get_zone_hourly_query_counts(zone_id, hours) when is_integer(zone_id) and hours > 0 do
+    flush_query_stats_buffer()
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second) |> truncate_to_hour()
+    start_hour = DateTime.add(now, -(hours - 1), :hour)
+
+    actual_counts =
+      from(qs in QueryStat,
+        where: qs.zone_id == ^zone_id and qs.query_hour >= ^start_hour,
+        group_by: qs.query_hour,
+        select: %{hour: qs.query_hour, count: sum(qs.query_count)}
+      )
+      |> Repo.all()
+      |> Map.new(fn %{hour: hour, count: count} -> {hour, count || 0} end)
+
+    0..(hours - 1)
+    |> Enum.map(fn offset -> DateTime.add(start_hour, offset, :hour) end)
+    |> Enum.map(fn hour -> %{hour: hour, count: Map.get(actual_counts, hour, 0)} end)
+  end
+
+  def get_zone_hourly_query_counts(_, _), do: []
+
   def get_zone_query_type_breakdown(zone_id, limit \\ 10)
 
   def get_zone_query_type_breakdown(zone_id, limit) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
     from(qs in QueryStat,
       where: qs.zone_id == ^zone_id,
       group_by: qs.qtype,
@@ -583,6 +642,8 @@ defmodule Elektrine.DNS do
   def get_zone_top_names(zone_id, limit \\ 10)
 
   def get_zone_top_names(zone_id, limit) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
     from(qs in QueryStat,
       where: qs.zone_id == ^zone_id,
       group_by: qs.qname,
@@ -595,7 +656,26 @@ defmodule Elektrine.DNS do
 
   def get_zone_top_names(_, _), do: []
 
+  def get_zone_top_nxdomain_names(zone_id, limit \\ 10)
+
+  def get_zone_top_nxdomain_names(zone_id, limit) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id and qs.rcode == "NXDOMAIN",
+      group_by: qs.qname,
+      select: %{qname: qs.qname, count: sum(qs.query_count)},
+      order_by: [desc: sum(qs.query_count), asc: qs.qname],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  def get_zone_top_nxdomain_names(_, _), do: []
+
   def get_zone_rcode_breakdown(zone_id) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
     from(qs in QueryStat,
       where: qs.zone_id == ^zone_id,
       group_by: qs.rcode,
@@ -606,6 +686,20 @@ defmodule Elektrine.DNS do
   end
 
   def get_zone_rcode_breakdown(_), do: []
+
+  def get_zone_transport_breakdown(zone_id) when is_integer(zone_id) do
+    flush_query_stats_buffer()
+
+    from(qs in QueryStat,
+      where: qs.zone_id == ^zone_id,
+      group_by: qs.transport,
+      select: %{transport: qs.transport, count: sum(qs.query_count)},
+      order_by: [desc: sum(qs.query_count), asc: qs.transport]
+    )
+    |> Repo.all()
+  end
+
+  def get_zone_transport_breakdown(_), do: []
 
   def max_udp_payload do
     Application.get_env(:elektrine, :dns, [])
@@ -1086,6 +1180,10 @@ defmodule Elektrine.DNS do
 
   defp normalize_dns_metric_value(value), do: value |> to_string() |> String.upcase()
 
+  defp truncate_to_hour(%DateTime{} = date_time) do
+    %{date_time | minute: 0, second: 0, microsecond: {0, 0}}
+  end
+
   defp normalize_dns_name(value) when is_binary(value) do
     value
     |> String.trim()
@@ -1095,12 +1193,68 @@ defmodule Elektrine.DNS do
 
   defp normalize_dns_name(value), do: value |> to_string() |> normalize_dns_name()
 
-  defp refresh_authority_cache_after_write({:ok, _result} = result) do
-    refresh_authority_cache()
-    result
+  defp normalize_dns_metric_name(qname, zone_domain) do
+    qname = normalize_dns_name(qname)
+    zone_domain = normalize_dns_name(zone_domain)
+    qname_labels = String.split(qname, ".", trim: true)
+    zone_labels = String.split(zone_domain, ".", trim: true)
+    max_labels = length(zone_labels) + 2
+
+    if String.ends_with?(qname, "." <> zone_domain) and length(qname_labels) > max_labels do
+      suffix = qname_labels |> Enum.take(-max_labels) |> Enum.join(".")
+      "*." <> suffix
+    else
+      qname
+    end
   end
 
-  defp refresh_authority_cache_after_write(result), do: result
+  defp refresh_authority_cache_after_write(result, opts \\ [])
+
+  defp refresh_authority_cache_after_write({:ok, result}, opts) do
+    result =
+      if Keyword.get(opts, :touch_zone, false), do: touch_authority_zone(result), else: result
+
+    refresh_authority_cache()
+    {:ok, result}
+  end
+
+  defp refresh_authority_cache_after_write(result, _opts), do: result
+
+  defp touch_authority_zone(%Record{zone_id: zone_id} = record) do
+    _ = touch_zone_publication(zone_id)
+    record
+  end
+
+  defp touch_authority_zone(%Zone{id: zone_id} = zone) do
+    case touch_zone_publication(zone_id) do
+      %Zone{} = updated -> Repo.preload(updated, [:records, :service_configs])
+      _ -> zone
+    end
+  end
+
+  defp touch_authority_zone(%ZoneServiceConfig{zone_id: zone_id} = config) do
+    _ = touch_zone_publication(zone_id)
+    config
+  end
+
+  defp touch_authority_zone(result), do: result
+
+  defp touch_zone_publication(zone_id) when is_integer(zone_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Zone
+    |> where([z], z.id == ^zone_id)
+    |> select([z], z)
+    |> Repo.update_all(inc: [serial: 1], set: [last_published_at: now])
+    |> case do
+      {1, [zone]} -> zone
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp touch_zone_publication(_), do: nil
 
   defp refresh_authority_cache do
     case Process.whereis(ZoneCache) do
@@ -1362,14 +1516,38 @@ defmodule Elektrine.DNS do
   defp normalize_record_name(name, _zone_domain), do: name
 
   defp validate_zone_record_write(%Zone{} = zone, attrs) when is_map(attrs) do
-    if builtin_user_zone?(zone) and builtin_user_zone_hosted_by_platform?(zone) do
-      validate_builtin_zone_record_write(zone, attrs)
-    else
-      :ok
+    with :ok <- validate_cname_exclusivity(zone, attrs) do
+      if builtin_user_zone?(zone) and builtin_user_zone_hosted_by_platform?(zone) do
+        validate_builtin_zone_record_write(zone, attrs)
+      else
+        :ok
+      end
     end
   end
 
   defp validate_zone_record_write(_, _), do: :ok
+
+  defp validate_cname_exclusivity(zone, attrs) do
+    name = Map.get(attrs, "name", "@") |> normalize_record_name(zone.domain)
+    type = attrs |> Map.get("type") |> normalize_record_type()
+
+    records =
+      Record
+      |> where([r], r.zone_id == ^zone.id and r.name == ^name)
+      |> Repo.all()
+
+    cond do
+      type == "CNAME" and Enum.any?(records, &(&1.type != "CNAME")) ->
+        {:error,
+         add_error(change(%Record{}), :type, "cannot coexist with other records at the same name")}
+
+      type != "CNAME" and Enum.any?(records, &(&1.type == "CNAME")) ->
+        {:error, add_error(change(%Record{}), :name, "already has a CNAME record")}
+
+      true ->
+        :ok
+    end
+  end
 
   defp validate_builtin_zone_record_write(zone, attrs) do
     name = Map.get(attrs, "name", "@") |> normalize_record_name(zone.domain)
