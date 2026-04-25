@@ -33,26 +33,39 @@ defmodule ElektrineWeb.UserAuth do
   This is used to remember users when they return to the app.
   """
   def log_in_user(conn, user, params \\ %{}, opts \\ []) do
-    token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user))
-    user_return_to = get_session(conn, :user_return_to)
+    if admin_login_restricted?(conn, user) do
+      conn
+      |> renew_session()
+      |> put_flash(:error, "Admin accounts must sign in over the private admin network.")
+      |> redirect(to: Elektrine.Paths.login_path())
+    else
+      token = Phoenix.Token.sign(conn, "user auth", user_session_claims(user))
+      user_return_to = get_session(conn, :user_return_to)
 
-    # Update login information (IP, timestamp, count)
-    remote_ip = get_remote_ip(conn)
-    Accounts.update_user_login_info(user, remote_ip)
+      # Update login information (IP, timestamp, count)
+      remote_ip = get_remote_ip(conn)
+      Accounts.update_user_login_info(user, remote_ip)
 
-    # Warm up caches for the user after successful login
-    warm_user_caches(user)
+      # Warm up caches for the user after successful login
+      warm_user_caches(user)
 
-    conn
-    |> renew_session()
-    |> put_token_in_session(token)
-    |> mark_recent_auth()
-    |> maybe_write_remember_me_cookie(token, user, params)
-    |> maybe_put_session_values(opts[:session])
-    |> maybe_initialize_admin_security_session(user, opts)
-    |> maybe_put_flash(opts[:flash])
-    |> redirect(to: user_return_to || signed_in_path(conn, user))
+      conn
+      |> renew_session()
+      |> put_token_in_session(token)
+      |> mark_recent_auth()
+      |> maybe_write_remember_me_cookie(token, user, params)
+      |> maybe_put_session_values(opts[:session])
+      |> maybe_initialize_admin_security_session(user, opts)
+      |> maybe_put_flash(opts[:flash])
+      |> redirect(to: user_return_to || signed_in_path(conn, user))
+    end
   end
+
+  def admin_login_restricted?(conn, %{is_admin: true}) do
+    netbird_enabled?() and not on_netbird_vpn?(conn)
+  end
+
+  def admin_login_restricted?(_conn, _user), do: false
 
   defp maybe_put_flash(conn, nil), do: conn
 
