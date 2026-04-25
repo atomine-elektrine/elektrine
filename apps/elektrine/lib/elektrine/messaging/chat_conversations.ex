@@ -1260,7 +1260,21 @@ defmodule Elektrine.Messaging.ChatConversations do
         "manage_roles",
         "manage_permissions",
         "manage_moderation",
-        "invite_members"
+        "manage_messages",
+        "manage_channels",
+        "manage_threads",
+        "create_threads",
+        "view_audit_log",
+        "manage_webhooks",
+        "manage_server",
+        "invite_members",
+        "send_messages",
+        "send_tts_messages",
+        "send_voice_signaling",
+        "attach_files",
+        "embed_links",
+        "mention_everyone",
+        "use_external_emoji"
       ],
       "position" => 100
     }
@@ -1273,7 +1287,20 @@ defmodule Elektrine.Messaging.ChatConversations do
         "manage_roles",
         "manage_permissions",
         "manage_moderation",
-        "invite_members"
+        "manage_messages",
+        "manage_channels",
+        "manage_threads",
+        "create_threads",
+        "view_audit_log",
+        "manage_webhooks",
+        "invite_members",
+        "send_messages",
+        "send_tts_messages",
+        "send_voice_signaling",
+        "attach_files",
+        "embed_links",
+        "mention_everyone",
+        "use_external_emoji"
       ],
       "position" => 80
     }
@@ -1282,7 +1309,16 @@ defmodule Elektrine.Messaging.ChatConversations do
     do: %{
       "id" => "builtin:moderator",
       "name" => "Moderator",
-      "permissions" => ["manage_moderation", "invite_members"],
+      "permissions" => [
+        "manage_moderation",
+        "manage_messages",
+        "manage_threads",
+        "invite_members",
+        "send_messages",
+        "attach_files",
+        "embed_links",
+        "use_external_emoji"
+      ],
       "position" => 60
     }
 
@@ -1290,7 +1326,7 @@ defmodule Elektrine.Messaging.ChatConversations do
     do: %{
       "id" => "builtin:member",
       "name" => "Member",
-      "permissions" => ["send_messages"],
+      "permissions" => ["send_messages", "attach_files", "embed_links", "use_external_emoji"],
       "position" => 10
     }
 

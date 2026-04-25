@@ -125,8 +125,24 @@ jobs:
             exit 1
           fi
 
+          retry_git_fetch() {
+            local attempt=1
+            local max_attempts=5
+
+            until git fetch --all --tags; do
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "Git fetch failed after $max_attempts attempts. Check DNS/network access to github.com from $DEPLOY_HOST." >&2
+                return 1
+              fi
+
+              echo "Git fetch failed; retrying in $((attempt * 5)) seconds ($attempt/$max_attempts)..." >&2
+              sleep $((attempt * 5))
+              attempt=$((attempt + 1))
+            done
+          }
+
           cd "$DEPLOY_PATH"
-          git fetch --all --tags
+          retry_git_fetch
 
           if [ -z "$(git status --porcelain)" ]; then
             current_branch="$(git branch --show-current || true)"

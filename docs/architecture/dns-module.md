@@ -43,7 +43,7 @@ Docker deployment notes:
 - authoritative DNS runs through the `dns` Compose profile
 - the DNS service reuses the main `elektrine` release from the same Dockerfile and disables unrelated runtime components
 - default internal listening ports are UDP/TCP `5300`, mapped to host port `53`
-- the Docker `dns` profile keeps recursive mode disabled by default with `DNS_RECURSIVE_ENABLED=false`
+- the Docker `dns` profile enables recursive mode by default for local/private clients with `DNS_RECURSIVE_ENABLED=true`
 
 Recursive mode notes:
 

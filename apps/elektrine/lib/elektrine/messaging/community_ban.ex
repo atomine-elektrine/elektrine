@@ -4,7 +4,7 @@ defmodule Elektrine.Messaging.CommunityBan do
   import Ecto.Changeset
 
   schema "community_bans" do
-    belongs_to :conversation, Elektrine.Social.Conversation
+    field :conversation_id, :integer
     belongs_to :user, Elektrine.Accounts.User
     belongs_to :banned_by, Elektrine.Accounts.User
     field :origin_domain, :string
@@ -37,7 +37,6 @@ defmodule Elektrine.Messaging.CommunityBan do
     |> validate_ban_actor()
     |> validate_length(:reason, max: 500)
     |> validate_length(:origin_domain, max: 255)
-    |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:banned_by_id)
     |> unique_constraint([:conversation_id, :user_id])

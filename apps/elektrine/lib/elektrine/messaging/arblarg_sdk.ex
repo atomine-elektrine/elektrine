@@ -202,6 +202,47 @@ defmodule Elektrine.Messaging.ArblargSDK do
   @call_types ["audio", "video"]
   @call_signal_kinds ["offer", "answer", "ice"]
   @call_end_reasons ["ended", "failed", "disconnected", "timeout", "cancelled"]
+  @permission_vocabulary [
+    "read_messages",
+    "send_messages",
+    "send_tts_messages",
+    "send_voice_signaling",
+    "attach_files",
+    "embed_links",
+    "mention_everyone",
+    "use_external_emoji",
+    "invite_members",
+    "manage_moderation",
+    "manage_messages",
+    "manage_roles",
+    "manage_permissions",
+    "manage_channels",
+    "manage_threads",
+    "create_threads",
+    "view_audit_log",
+    "manage_webhooks",
+    "manage_server"
+  ]
+
+  @structured_error_codes [
+    "invalid_payload",
+    "unsupported_event_type",
+    "invalid_event_signature",
+    "origin_domain_mismatch",
+    "origin_actor_domain_mismatch",
+    "origin_identifier_host_mismatch",
+    "origin_stream_host_mismatch",
+    "not_authorized_for_room",
+    "unsupported_version",
+    "rate_limited",
+    "peer_quarantined",
+    "peer_blocked",
+    "event_too_large",
+    "batch_too_large",
+    "snapshot_too_large",
+    "cursor_expired",
+    "media_not_authorized"
+  ]
   @actor_schema %{
     "type" => "object",
     "required" => ["uri", "username", "domain", "handle"],
@@ -1010,6 +1051,8 @@ defmodule Elektrine.Messaging.ArblargSDK do
   def clock_skew_seconds, do: @clock_skew_seconds
   def core_event_types, do: @core_event_types
   def extension_event_types, do: @extension_event_types
+  def permission_vocabulary, do: @permission_vocabulary
+  def structured_error_codes, do: @structured_error_codes
   def bootstrap_extension_urn, do: @bootstrap_extension_urn
   def bootstrap_server_upsert_event_type, do: @bootstrap_server_upsert_event_type
   def roles_extension_urn, do: @roles_extension_urn

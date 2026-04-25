@@ -27,8 +27,21 @@ defmodule Elektrine.Messaging.RoomACL do
           "manage_roles",
           "manage_permissions",
           "manage_moderation",
+          "manage_messages",
+          "manage_channels",
+          "manage_threads",
+          "create_threads",
+          "view_audit_log",
+          "manage_webhooks",
+          "manage_server",
           "invite_members",
-          "send_messages"
+          "send_messages",
+          "send_tts_messages",
+          "send_voice_signaling",
+          "attach_files",
+          "embed_links",
+          "mention_everyone",
+          "use_external_emoji"
         ])
     },
     "builtin:admin" => %{
@@ -38,17 +51,40 @@ defmodule Elektrine.Messaging.RoomACL do
           "manage_roles",
           "manage_permissions",
           "manage_moderation",
+          "manage_messages",
+          "manage_channels",
+          "manage_threads",
+          "create_threads",
+          "view_audit_log",
+          "manage_webhooks",
           "invite_members",
-          "send_messages"
+          "send_messages",
+          "send_tts_messages",
+          "send_voice_signaling",
+          "attach_files",
+          "embed_links",
+          "mention_everyone",
+          "use_external_emoji"
         ])
     },
     "builtin:moderator" => %{
       position: 60,
-      permissions: MapSet.new(["manage_moderation", "invite_members", "send_messages"])
+      permissions:
+        MapSet.new([
+          "manage_moderation",
+          "manage_messages",
+          "manage_threads",
+          "invite_members",
+          "send_messages",
+          "attach_files",
+          "embed_links",
+          "use_external_emoji"
+        ])
     },
     "builtin:member" => %{
       position: 10,
-      permissions: MapSet.new(["send_messages"])
+      permissions:
+        MapSet.new(["send_messages", "attach_files", "embed_links", "use_external_emoji"])
     },
     "builtin:readonly" => %{
       position: 0,
@@ -128,6 +164,23 @@ defmodule Elektrine.Messaging.RoomACL do
         options
       )
       when is_integer(remote_actor_id) and is_atom(action) and is_map(options) do
+    authorize_remote_actor_for_conversation(conversation, remote_actor_id, action, options)
+  end
+
+  def authorize_remote_actor_action(
+        %ChatConversation{} = conversation,
+        remote_actor_id,
+        action,
+        options
+      )
+      when is_integer(remote_actor_id) and is_atom(action) and is_map(options) do
+    authorize_remote_actor_for_conversation(conversation, remote_actor_id, action, options)
+  end
+
+  def authorize_remote_actor_action(_conversation, _remote_actor_id, _action, _options),
+    do: {:error, :not_authorized_for_room}
+
+  defp authorize_remote_actor_for_conversation(conversation, remote_actor_id, action, options) do
     membership =
       Repo.get_by(FederationMembershipState,
         conversation_id: conversation.id,
@@ -154,9 +207,6 @@ defmodule Elektrine.Messaging.RoomACL do
       _ -> {:error, :not_authorized_for_room}
     end
   end
-
-  def authorize_remote_actor_action(_conversation, _remote_actor_id, _action, _options),
-    do: {:error, :not_authorized_for_room}
 
   defp allowed?(%Conversation{type: type}, _base_role, _actor_uri, action, _options)
        when type != "channel" and action in [:participate, :write, :send_messages],
@@ -186,6 +236,24 @@ defmodule Elektrine.Messaging.RoomACL do
       action when action in [:write, :send_messages] ->
         MapSet.member?(permissions, "send_messages")
 
+      :attach_files ->
+        MapSet.member?(permissions, "attach_files")
+
+      :embed_links ->
+        MapSet.member?(permissions, "embed_links")
+
+      :mention_everyone ->
+        MapSet.member?(permissions, "mention_everyone")
+
+      :manage_messages ->
+        MapSet.member?(permissions, "manage_messages")
+
+      :manage_channels ->
+        MapSet.member?(permissions, "manage_channels")
+
+      :manage_server ->
+        MapSet.member?(permissions, "manage_server")
+
       :invite ->
         MapSet.member?(permissions, "invite_members")
 
@@ -199,10 +267,12 @@ defmodule Elektrine.Messaging.RoomACL do
         MapSet.member?(permissions, "manage_permissions")
 
       :thread_upsert ->
-        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
 
       :thread_archive ->
-        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
 
       _ ->
         false
@@ -221,6 +291,24 @@ defmodule Elektrine.Messaging.RoomACL do
       action when action in [:write, :send_messages] ->
         MapSet.member?(permissions, "send_messages")
 
+      :attach_files ->
+        MapSet.member?(permissions, "attach_files")
+
+      :embed_links ->
+        MapSet.member?(permissions, "embed_links")
+
+      :mention_everyone ->
+        MapSet.member?(permissions, "mention_everyone")
+
+      :manage_messages ->
+        MapSet.member?(permissions, "manage_messages")
+
+      :manage_channels ->
+        MapSet.member?(permissions, "manage_channels")
+
+      :manage_server ->
+        MapSet.member?(permissions, "manage_server")
+
       :invite ->
         MapSet.member?(permissions, "invite_members")
 
@@ -234,10 +322,12 @@ defmodule Elektrine.Messaging.RoomACL do
         MapSet.member?(permissions, "manage_permissions")
 
       :thread_upsert ->
-        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
 
       :thread_archive ->
-        MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
+        MapSet.member?(permissions, "manage_threads") or
+          MapSet.member?(permissions, "manage_moderation") or owner_matches?(options, actor_uri)
 
       _ ->
         false

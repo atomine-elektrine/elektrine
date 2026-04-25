@@ -149,9 +149,13 @@ defmodule Elektrine.Messaging.Federation.State do
         |> Repo.insert()
 
       %FederationExtensionEvent{} = event ->
-        event
-        |> FederationExtensionEvent.changeset(attrs)
-        |> Repo.update()
+        if stale_remote_update?(event.occurred_at, attrs.occurred_at) do
+          {:ok, event}
+        else
+          event
+          |> FederationExtensionEvent.changeset(attrs)
+          |> Repo.update()
+        end
     end
   end
 
@@ -268,9 +272,13 @@ defmodule Elektrine.Messaging.Federation.State do
         |> Repo.insert()
 
       %FederationAccountPresenceState{} = state ->
-        state
-        |> FederationAccountPresenceState.changeset(attrs)
-        |> Repo.update()
+        if stale_remote_update?(state.updated_at_remote, effective_updated_at) do
+          {:ok, state}
+        else
+          state
+          |> FederationAccountPresenceState.changeset(attrs)
+          |> Repo.update()
+        end
     end
   end
 
@@ -319,9 +327,13 @@ defmodule Elektrine.Messaging.Federation.State do
         |> Repo.insert()
 
       %FederationRoomPresenceState{} = state ->
-        state
-        |> FederationRoomPresenceState.changeset(attrs)
-        |> Repo.update()
+        if stale_remote_update?(state.updated_at_remote, effective_updated_at) do
+          {:ok, state}
+        else
+          state
+          |> FederationRoomPresenceState.changeset(attrs)
+          |> Repo.update()
+        end
     end
   end
 
@@ -350,6 +362,8 @@ defmodule Elektrine.Messaging.Federation.State do
       when is_integer(conversation_id) and is_integer(remote_actor_id) and
              is_binary(remote_domain) and is_binary(role) and is_binary(state) and
              is_map(metadata) do
+    effective_updated_at = updated_at || DateTime.utc_now()
+
     attrs = %{
       conversation_id: conversation_id,
       remote_actor_id: remote_actor_id,
@@ -357,7 +371,7 @@ defmodule Elektrine.Messaging.Federation.State do
       role: role,
       state: state,
       joined_at_remote: joined_at,
-      updated_at_remote: updated_at || DateTime.utc_now(),
+      updated_at_remote: effective_updated_at,
       metadata: metadata
     }
 
@@ -371,9 +385,13 @@ defmodule Elektrine.Messaging.Federation.State do
         |> Repo.insert()
 
       %FederationMembershipState{} = membership_state ->
-        membership_state
-        |> FederationMembershipState.changeset(attrs)
-        |> Repo.update()
+        if stale_remote_update?(membership_state.updated_at_remote, effective_updated_at) do
+          {:ok, membership_state}
+        else
+          membership_state
+          |> FederationMembershipState.changeset(attrs)
+          |> Repo.update()
+        end
     end
   end
 
@@ -406,6 +424,8 @@ defmodule Elektrine.Messaging.Federation.State do
     actor_uri = normalize_optional_string(actor_payload["uri"] || actor_payload["id"])
     target_uri = normalize_optional_string(target_payload["uri"] || target_payload["id"])
 
+    effective_updated_at = updated_at || DateTime.utc_now()
+
     attrs = %{
       conversation_id: conversation_id,
       origin_domain: String.downcase(remote_domain),
@@ -416,7 +436,7 @@ defmodule Elektrine.Messaging.Federation.State do
       role: role,
       state: state,
       invited_at_remote: invited_at,
-      updated_at_remote: updated_at || DateTime.utc_now(),
+      updated_at_remote: effective_updated_at,
       metadata: metadata
     }
 
@@ -433,9 +453,13 @@ defmodule Elektrine.Messaging.Federation.State do
           |> Repo.insert()
 
         %FederationInviteState{} = invite_state ->
-          invite_state
-          |> FederationInviteState.changeset(attrs)
-          |> Repo.update()
+          if stale_remote_update?(invite_state.updated_at_remote, effective_updated_at) do
+            {:ok, invite_state}
+          else
+            invite_state
+            |> FederationInviteState.changeset(attrs)
+            |> Repo.update()
+          end
       end
     end
   end
@@ -916,6 +940,12 @@ defmodule Elektrine.Messaging.Federation.State do
     do: Elektrine.Strings.present(value)
 
   defp normalize_optional_string(_value), do: nil
+
+  defp stale_remote_update?(%DateTime{} = current_at, %DateTime{} = incoming_at) do
+    DateTime.compare(current_at, incoming_at) == :gt
+  end
+
+  defp stale_remote_update?(_current_at, _incoming_at), do: false
 
   defp call(context, key, args) do
     context

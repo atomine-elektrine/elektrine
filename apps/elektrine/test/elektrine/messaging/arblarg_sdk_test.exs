@@ -3,6 +3,27 @@ defmodule Elektrine.Messaging.ArblargSDKTest do
 
   alias Elektrine.Messaging.ArblargSDK
 
+  test "exposes expanded interoperable permission vocabulary" do
+    permissions = ArblargSDK.permission_vocabulary()
+
+    assert "read_messages" in permissions
+    assert "send_messages" in permissions
+    assert "attach_files" in permissions
+    assert "manage_messages" in permissions
+    assert "manage_threads" in permissions
+    assert "manage_server" in permissions
+  end
+
+  test "exposes parity structured error codes" do
+    error_codes = ArblargSDK.structured_error_codes()
+
+    assert "rate_limited" in error_codes
+    assert "peer_quarantined" in error_codes
+    assert "event_too_large" in error_codes
+    assert "cursor_expired" in error_codes
+    assert "media_not_authorized" in error_codes
+  end
+
   test "signs and verifies detached payload signatures" do
     payload = "hello-arblarg"
     secret = "shared-test-secret"

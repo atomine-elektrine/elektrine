@@ -235,7 +235,7 @@ services:
       ELEKTRINE_ENABLE_MAIL: "false"
       ELEKTRINE_ENABLE_TOR: "false"
       DNS_AUTHORITY_ENABLED: "true"
-      DNS_RECURSIVE_ENABLED: ${DNS_RECURSIVE_ENABLED:-false}
+      DNS_RECURSIVE_ENABLED: ${DNS_RECURSIVE_ENABLED:-true}
     ports:
       - "${DNS_UDP_BIND:-53:5300/udp}"
       - "${DNS_TCP_BIND:-53:5300/tcp}"

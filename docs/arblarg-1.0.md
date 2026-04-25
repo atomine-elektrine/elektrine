@@ -25,7 +25,7 @@ semantics and the JSON schemas are normative for field shape.
 
 ## 1. Overview
 
-Arblarg is a federated, Discord-shaped chat protocol built around signed events,
+Arblarg is a federated community chat protocol built around signed events,
 ordered room streams, explicit recovery, and room-scoped replication.
 
 Arblarg 1.0 is optimized for:
@@ -43,7 +43,8 @@ Arblarg 1.0 is intentionally not:
 - a state DAG inspired by room-based messaging systems
 - a general-purpose XML messaging substrate
 - an end-to-end encrypted device protocol
-- a media transport for voice or video
+- a media transport for voice or video; call signaling events carry metadata and
+  negotiation payloads only
 
 Arblarg's product model is:
 
@@ -136,10 +137,23 @@ The default interoperable permission vocabulary is:
 
 - `read_messages`
 - `send_messages`
+- `send_tts_messages`
+- `send_voice_signaling`
+- `attach_files`
+- `embed_links`
+- `mention_everyone`
+- `use_external_emoji`
 - `invite_members`
 - `manage_moderation`
+- `manage_messages`
 - `manage_roles`
 - `manage_permissions`
+- `manage_channels`
+- `manage_threads`
+- `create_threads`
+- `view_audit_log`
+- `manage_webhooks`
+- `manage_server`
 
 Built-in interoperable roles are:
 
@@ -151,6 +165,40 @@ Built-in interoperable roles are:
 
 Implementations MAY add additional permission strings, but unsupported tokens
 are only synchronized metadata unless a receiver understands them.
+
+### 2.6 Deterministic projection and conflict resolution
+
+Receivers MUST converge on the same projected room state when they have accepted
+the same set of authorized events.
+
+For governed objects such as memberships, bans, roles, role assignments,
+permission overwrites, threads, channel metadata, pins, and moderation review
+state, the governed object key is the stable object identifier carried by the
+payload.
+
+Projection rules:
+
+- receivers MUST reject events that fail signature, origin ownership, schema, or
+  authorization checks before conflict resolution
+- receivers MUST resolve accepted concurrent updates by comparing the object
+  revision tuple `(updated_at, origin_domain, stream_id, sequence, event_id)` in
+  lexicographic order
+- `updated_at` values used for conflict resolution MUST be normalized ISO 8601
+  UTC timestamps before comparison
+- the event with the greatest revision tuple wins for last-write-wins governed
+  objects
+- tombstone states such as deleted, archived, revoked, lifted, or left MUST be
+  projected as normal states and MUST NOT be discarded merely because they are
+  terminal
+- receivers SHOULD retain superseded governance events for audit and replay even
+  when they are not the current projection
+- if `updated_at` is absent, receivers MUST use the envelope `sent_at` for the
+  first tuple component
+- implementations MUST NOT use local receipt time for deterministic projection
+
+Some objects are append-only rather than last-write-wins. Audit log entries,
+moderation records, and message history events are retained by unique id and are
+not overwritten unless an explicit update or tombstone event targets them.
 
 ## 3. Identifiers and actor rules
 
@@ -217,6 +265,37 @@ Optional fields:
 - `key_id`
 
 Actor identity equality is by `uri`, not by `handle`.
+
+### 3.5 Profile history, handles, and account moves
+
+Actor profile data is mutable metadata. Receivers MUST treat `uri` as the stable
+identity and MUST NOT treat `username`, `display_name`, `avatar_url`, or `handle`
+changes as a new actor.
+
+Profile update rules:
+
+- profile changes SHOULD be distributed as durable actor profile updates or as
+  actor blocks embedded in accepted events
+- receivers SHOULD preserve profile history for moderation and audit display
+- clients SHOULD render historical messages with the best available current
+  profile while retaining access to the profile snapshot that was present when
+  the event was accepted
+
+Handle rules:
+
+- handles are presentation identifiers and MAY change
+- a handle collision MUST be disambiguated by domain or actor URI
+- servers SHOULD reject profile claims that impersonate reserved system names or
+  trusted service identities
+
+Account move rules:
+
+- a moved actor SHOULD publish an account move proof signed by both the old and
+  new actor keys when both are available
+- receivers MAY display old and new actors as linked after verifying the proof
+- account moves do not rewrite historical event authorship
+- if the old key is unavailable, account moves require local trust policy or
+  operator approval
 
 ## 4. Discovery, profiles, and trust
 
@@ -309,6 +388,21 @@ Rules:
 - refreshed discovery state MUST still pass trust policy checks before new keys
   are accepted
 
+Operational trust rules:
+
+- discovery documents SHOULD advertise key creation, expiry, and previous-key
+  overlap when available
+- key rotation SHOULD preserve at least one overlapping trusted key until peers
+  have had time to refresh discovery
+- compromised keys MUST be removed from discovery and SHOULD be published in a
+  revocation list or operator notice channel when available
+- receivers MUST NOT automatically trust a `replaced` key solely because the
+  domain name is unchanged
+- operators SHOULD be able to pin peer keys, quarantine peers, block peers, and
+  approve key replacement manually
+- request signatures and event signatures MUST be verified against keys accepted
+  by the receiver's current trust policy, not merely keys present in discovery
+
 ## 5. Transport and request security
 
 ### 5.1 Base transport
@@ -331,6 +425,10 @@ Optional session transport:
 
 - websocket at `/_arblarg/session`
 - subprotocol `arblarg.session.v1`
+
+Client sync endpoints MAY be exposed by homeservers for local clients. These
+endpoints are not used for server-to-server trust, but they SHOULD follow the
+same cursor, replay, and visibility semantics as federation transport.
 
 ### 5.2 Content types
 
@@ -390,18 +488,17 @@ HTTP errors such as `404`, `406`, `410`, `415`, `426`, or `501`.
 
 Every durable event envelope MUST include:
 
-- `version`
+- `protocol`
+- `protocol_id`
+- `protocol_version`
 - `event_type`
 - `origin_domain`
 - `stream_id`
 - `sequence`
 - `event_id`
 - `idempotency_key`
-- `occurred_at`
+- `sent_at`
 - `payload`
-
-Durable envelopes SHOULD also include:
-
 - `signature`
 
 Rules:
@@ -413,7 +510,7 @@ Rules:
 
 ### 6.1 Event signatures
 
-Durable envelopes SHOULD be signed with Ed25519 over canonical JSON for the
+Durable envelopes MUST be signed with Ed25519 over canonical JSON for the
 envelope without its `signature` block.
 
 ### 6.2 Canonical JSON
@@ -493,6 +590,21 @@ Expected permission checks:
 - `thread.upsert` and `thread.archive` require thread ownership or sufficient
   room moderation privilege
 
+Moderation records SHOULD include enough context for auditability without
+leaking private content to unauthorized peers:
+
+- action id
+- action kind
+- actor and target
+- room or server context
+- reason or policy reference when available
+- duration or expiry when applicable
+- redacted message reference when content is not visible to the receiver
+- appeal or review state when supported
+
+Moderation actions MUST be visible only to peers with a legitimate room,
+server, or trust-policy reason to receive them.
+
 ### 7.3 Bootstrap event
 
 `server.upsert` is a bootstrap advertisement event.
@@ -515,6 +627,75 @@ Rules:
 - DM sender identity MUST be validated by actor `uri`
 - DM event context is DM-scoped, not room-scoped
 
+### 7.5 DM call signaling
+
+The voice extension defines DM call control and signaling events. These events
+do not transport media.
+
+Durable DM call control events are:
+
+- `dm.call.invite`
+- `dm.call.accept`
+- `dm.call.reject`
+- `dm.call.end`
+
+Ephemeral DM call signaling events are:
+
+- `dm.call.signal`
+
+Rules:
+
+- durable call control event types MUST use canonical voice extension URNs on
+  wire
+- durable call control events use `stream_id = dm:{dm_id}`
+- `dm.call.signal` is ephemeral, non-replayable, and MUST NOT appear inside a
+  durable signed envelope
+
+### 7.6 Rich room features
+
+Rich community chat features SHOULD be represented as room-scoped governance or
+message-adjacent state rather than out-of-band local-only behavior.
+
+Interoperable rich features include:
+
+- threads with owner, parent channel, archive state, visibility, and permission
+  inheritance
+- pinned messages as governed room state
+- slowmode and rate-limit policy hints on channels or threads
+- announcement or broadcast channels with restricted send permissions
+- forum-style channels where each post is represented as a thread
+- webhook-authored messages with explicit webhook actor metadata
+- bot actors identified by actor metadata and governed by normal permissions
+- message references for replies, forwards, and system notices
+
+Feature-specific authorization MUST reduce to the effective room permission
+projection. Unsupported rich features MAY be preserved as metadata, but MUST NOT
+grant additional authority unless the receiver understands them.
+
+### 7.7 Attachments and media metadata
+
+Arblarg does not define a binary media transport, but message payloads MAY carry
+attachment metadata.
+
+Attachment rules:
+
+- attachment ids MUST be stable within the authoring domain
+- attachment URLs MUST be authorized according to the attachment `authorization`
+  field
+- `public` attachments MAY be fetched without federation request signatures
+- `signed` attachments require a short-lived signed URL or equivalent bearer
+  authorization
+- `origin-authenticated` attachments require an authenticated federation request
+  to the origin or a trusted media proxy
+- receivers SHOULD verify `sha256` and `byte_size` when present
+- receivers MAY rehost attachments when policy permits and MUST preserve the
+  original origin reference for auditability
+- deletion or redaction of a message SHOULD revoke or hide associated attachment
+  access when feasible
+- thumbnails, dimensions, duration, alt text, MIME type, and expiry SHOULD be
+  preserved when available
+- servers SHOULD scan or policy-check media before exposing it to local clients
+
 ## 8. Extension registry and negotiation
 
 Current extension URNs are:
@@ -528,7 +709,8 @@ Current extension URNs are:
 - `urn:arblarg:ext:dm:1`
 - `urn:arblarg:ext:voice:1`
 
-`urn:arblarg:ext:voice:1` is reserved in 1.0 and defines no wire events.
+`urn:arblarg:ext:voice:1` defines DM call control and signaling events only. It
+does not define voice or video media transport.
 
 Negotiation rules:
 
@@ -571,6 +753,29 @@ A receiver stores remote rooms as mirrors:
 - mirrored rooms are not a separate protocol type; they are local projections of
   authoritative remote rooms
 
+### 9.4 Abuse controls and federation policy
+
+Implementations MUST enforce local abuse controls before accepting or forwarding
+events.
+
+Required controls:
+
+- maximum event size, batch size, attachment metadata size, and snapshot size
+- per-peer and per-room rate limits
+- idempotency and replay windows for signed requests
+- invite and join-request throttles
+- maximum retry and backoff behavior for failed delivery
+- backpressure responses when a peer is overloaded
+- local allowlists, blocklists, quarantine lists, and defederation policy
+
+Peers MAY reject or drop traffic from abusive domains even when events are
+otherwise well-formed. Rejections caused by abuse policy SHOULD use structured
+error codes such as `rate_limited`, `peer_quarantined`, `peer_blocked`,
+`event_too_large`, or `snapshot_too_large`.
+
+Servers SHOULD maintain an audit trail for federation policy decisions including
+peer quarantine, key replacement, defederation, and manual trust overrides.
+
 ## 10. Snapshots and recovery
 
 ### 10.1 Snapshot purpose
@@ -583,7 +788,7 @@ A snapshot is a signed coarse export used for:
 
 ### 10.2 Snapshot contents
 
-A snapshot MAY include:
+A snapshot MAY include state sections such as:
 
 - `server`
 - `channels`
@@ -594,9 +799,9 @@ A snapshot MAY include:
 - `read_cursors`
 - `extensions`
 - `stream_positions`
-- `signature`
 
 `stream_positions` are required for a complete snapshot.
+`signature` is required for trusted snapshot import.
 
 ### 10.3 Multi-origin snapshots
 
@@ -654,6 +859,7 @@ Allowed ephemeral event types are:
 - `presence.update`
 - `typing.start`
 - `typing.stop`
+- `dm.call.signal`
 
 These events MUST NOT appear inside durable signed envelopes.
 
@@ -741,6 +947,45 @@ It MAY carry:
 - snapshot control operations
 - ping / flow-control ops
 
+### 12.7 Client sync and gateway semantics
+
+Homeservers SHOULD expose a client sync or gateway API for local clients. The
+exact client authentication mechanism is deployment-specific, but sync semantics
+MUST be compatible with the Arblarg room projection model.
+
+Client sync responses SHOULD include:
+
+- joined, invited, left, and banned room membership state visible to the client
+- ordered timeline events per room or DM
+- current governance projection for roles, permissions, threads, pins, and room
+  metadata
+- read cursors, unread counts, mentions, and notification hints
+- ephemeral presence and typing hints when authorized
+- media references and attachment access metadata
+- a resumable sync cursor
+
+Client sync cursors:
+
+- cursors MUST be opaque to clients
+- cursors MUST allow missed-event recovery after reconnect
+- clients MAY request an incremental sync from the last acknowledged cursor
+- servers MAY expire old cursors, but MUST then provide a clear recovery path via
+  full sync, limited sync, or room snapshot
+- clients MUST NOT infer federation stream positions from client cursors
+
+Gateway websocket sessions SHOULD support:
+
+- identify/resume
+- heartbeat and heartbeat acknowledgement
+- dispatch events with monotonically increasing client sequence numbers
+- explicit acknowledgement of received dispatch ranges
+- backpressure and reconnect instructions
+- invalid-session responses when cursors are expired or authorization changes
+
+Homeservers MUST filter client sync by effective local authorization. Private
+rooms, deleted messages, moderation-only audit data, and hidden channels MUST NOT
+leak through sync responses.
+
 ## 13. Error handling
 
 Receivers SHOULD return structured error codes.
@@ -756,6 +1001,14 @@ Common error classes include:
 - `origin_stream_host_mismatch`
 - `not_authorized_for_room`
 - `unsupported_version`
+- `rate_limited`
+- `peer_quarantined`
+- `peer_blocked`
+- `event_too_large`
+- `batch_too_large`
+- `snapshot_too_large`
+- `cursor_expired`
+- `media_not_authorized`
 
 Senders SHOULD treat authorization and capability errors as non-retryable unless
 operator action or membership state changes.
@@ -790,6 +1043,11 @@ The canonical schema set for 1.0 currently includes:
 - `typing.stop`
 - `moderation.action.recorded`
 - `dm.message.create`
+- `dm.call.invite`
+- `dm.call.accept`
+- `dm.call.reject`
+- `dm.call.end`
+- `dm.call.signal`
 
 ## 15. Minimal sender checklist
 
@@ -808,12 +1066,18 @@ A conforming sender SHOULD:
     `stream_positions`.
 11. Reject invalid actor origin and invalid origin-owned identifiers.
 12. Treat presence and typing as ephemeral only.
+13. Apply deterministic governed-object projection using the Arblarg revision
+    tuple.
+14. Enforce abuse controls, rate limits, and local peer trust policy before
+    fanout.
+15. Preserve rich room metadata and media attachment authorization fields when
+    understood.
 
 ## 16. Future work
 
 The following are intentionally outside Arblarg 1.0:
 
-- native voice and video media transport
+- native voice and video media transport beyond DM call signaling metadata
 - end-to-end device identity and key graph semantics
 - DAG-based state resolution
 - richer transport profiles beyond the current HTTP and websocket model
