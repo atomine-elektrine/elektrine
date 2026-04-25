@@ -4,8 +4,6 @@
 
 	on_demand_tls {
 		ask {$CADDY_ASK_URL}?token={$CADDY_EDGE_API_KEY}
-		interval 2m
-		burst 10
 	}
 
 	auto_https disable_redirects
