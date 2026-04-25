@@ -6,6 +6,10 @@ defmodule ElektrineWeb.CaddyTLSController do
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
+  @cache_table :caddy_tls_domain_cache
+  @allow_cache_ttl_ms :timer.minutes(5)
+  @deny_cache_ttl_ms :timer.minutes(15)
+
   @doc """
   Approves custom hostnames for Caddy on-demand TLS issuance.
 
@@ -40,15 +44,59 @@ defmodule ElektrineWeb.CaddyTLSController do
         nil
 
       normalized_domain ->
-        if built_in_domain?(normalized_domain) do
-          normalized_domain
-        else
-          Profiles.get_verified_custom_domain_for_host(normalized_domain)
-        end
+        cached_allowed_domain(normalized_domain)
     end
   end
 
   defp allowed_domain(_), do: nil
+
+  defp cached_allowed_domain(domain) do
+    ensure_cache_table()
+    now = System.monotonic_time(:millisecond)
+
+    case :ets.lookup(@cache_table, domain) do
+      [{^domain, value, expires_at}] when expires_at > now ->
+        value
+
+      _ ->
+        value = resolve_allowed_domain(domain)
+        ttl = if value, do: @allow_cache_ttl_ms, else: @deny_cache_ttl_ms
+
+        :ets.insert(@cache_table, {domain, value, now + ttl})
+        value
+    end
+  end
+
+  defp resolve_allowed_domain(domain) do
+    cond do
+      built_in_domain?(domain) ->
+        domain
+
+      invalid_nested_built_in_subdomain?(domain) ->
+        nil
+
+      true ->
+        Profiles.get_verified_custom_domain_for_host(domain)
+    end
+  end
+
+  defp ensure_cache_table do
+    case :ets.whereis(@cache_table) do
+      :undefined ->
+        :ets.new(@cache_table, [
+          :named_table,
+          :public,
+          :set,
+          {:read_concurrency, true},
+          {:write_concurrency, true}
+        ])
+
+      _table ->
+        :ok
+    end
+  rescue
+    ArgumentError -> :ok
+  end
 
   defp normalize_domain(domain) do
     domain
@@ -102,6 +150,19 @@ defmodule ElektrineWeb.CaddyTLSController do
       else
         _ -> false
       end
+    end)
+  end
+
+  defp invalid_nested_built_in_subdomain?(host) do
+    profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+    Enum.any?(profile_base_domains, fn base_domain ->
+      base_domain = to_string(base_domain)
+
+      String.ends_with?(host, "." <> base_domain) and
+        host
+        |> String.trim_trailing("." <> base_domain)
+        |> String.contains?(".")
     end)
   end
 end

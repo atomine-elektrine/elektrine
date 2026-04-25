@@ -784,7 +784,7 @@ defmodule ElektrineWeb.ProfileController do
     visitor_ip = get_visitor_ip(conn)
 
     # Check session for recent views
-    recent_views = get_session(conn, :profile_views) || %{}
+    recent_views = recent_profile_views(conn)
     last_view_time = Map.get(recent_views, "#{profile_id}_#{visitor_ip}")
 
     # Only count if not viewed in last 30 minutes
@@ -803,10 +803,30 @@ defmodule ElektrineWeb.ProfileController do
     visitor_ip = get_visitor_ip(conn)
     current_time = System.system_time(:second)
 
-    recent_views = get_session(conn, :profile_views) || %{}
-    updated_views = Map.put(recent_views, "#{profile_id}_#{visitor_ip}", current_time)
+    updated_views =
+      conn
+      |> recent_profile_views()
+      |> Map.put("#{profile_id}_#{visitor_ip}", current_time)
+      |> prune_recent_profile_views(current_time)
 
     put_session(conn, :profile_views, updated_views)
+  end
+
+  defp recent_profile_views(conn) do
+    case get_session(conn, :profile_views) do
+      views when is_map(views) -> views
+      _ -> %{}
+    end
+  end
+
+  defp prune_recent_profile_views(views, current_time) do
+    views
+    |> Enum.filter(fn {_key, viewed_at} ->
+      is_integer(viewed_at) and current_time - viewed_at <= 1800
+    end)
+    |> Enum.sort_by(fn {_key, viewed_at} -> viewed_at end, :desc)
+    |> Enum.take(50)
+    |> Map.new()
   end
 
   defp ensure_profile_site_visitor_id(conn) do

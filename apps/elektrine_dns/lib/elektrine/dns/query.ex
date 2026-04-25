@@ -147,9 +147,9 @@ defmodule Elektrine.DNS.Query do
   end
 
   defp answer_for_zone(query, zone, opts) do
-    records = records_for_query(zone, query.qname, query.qtype)
+    records = records_for_query(zone, query.qname, query.qtype, opts)
     authority = [Elektrine.DNS.Zone.soa_record(zone)]
-    additional = additional_records(zone, records)
+    additional = additional_records(zone, records, opts)
 
     cond do
       records != [] ->
@@ -195,18 +195,18 @@ defmodule Elektrine.DNS.Query do
     }
   end
 
-  defp records_for_query(zone, qname, qtype) do
+  defp records_for_query(zone, qname, qtype, opts) do
     fqdn = normalize_name(qname)
 
     if qtype == :soa and fqdn == normalize_name(zone.domain) do
       [Elektrine.DNS.Zone.soa_record(zone)]
     else
-      exact_records = exact_records_for_query(zone, fqdn, qtype)
+      exact_records = exact_records_for_query(zone, fqdn, qtype, opts)
 
       if exact_records != [] do
         exact_records
       else
-        cname_records = cname_records_for_name(zone, fqdn)
+        cname_records = cname_records_for_name(zone, fqdn, opts)
 
         cond do
           cname_records != [] ->
@@ -216,14 +216,14 @@ defmodule Elektrine.DNS.Query do
             []
 
           true ->
-            wildcard_records_for_query(zone, fqdn, qtype)
+            wildcard_records_for_query(zone, fqdn, qtype, opts)
         end
       end
     end
   end
 
-  defp exact_records_for_query(zone, fqdn, qtype) do
-    zone_records(zone)
+  defp exact_records_for_query(zone, fqdn, qtype, opts) do
+    zone_records(zone, opts)
     |> Enum.filter(fn record ->
       record_name(zone, record) == fqdn and
         (qtype == :any or normalize_type(record.type) == qtype)
@@ -231,28 +231,28 @@ defmodule Elektrine.DNS.Query do
     |> Enum.reject(&(normalize_type(&1.type) == :alias))
     |> Enum.map(&with_record_host(zone, &1))
     |> case do
-      [] -> alias_records_for_query(zone, fqdn, qtype)
+      [] -> alias_records_for_query(zone, fqdn, qtype, opts)
       records -> records
     end
   end
 
-  defp alias_records_for_query(zone, fqdn, qtype) when qtype in [:a, :aaaa] do
-    zone_records(zone)
+  defp alias_records_for_query(zone, fqdn, qtype, opts) when qtype in [:a, :aaaa] do
+    zone_records(zone, opts)
     |> Enum.filter(fn record ->
       record_name(zone, record) == fqdn and normalize_type(record.type) == :alias
     end)
-    |> Enum.flat_map(&flatten_alias_record(zone, fqdn, qtype, &1))
+    |> Enum.flat_map(&flatten_alias_record(zone, fqdn, qtype, &1, opts))
   end
 
-  defp alias_records_for_query(_zone, _fqdn, _qtype), do: []
+  defp alias_records_for_query(_zone, _fqdn, _qtype, _opts), do: []
 
-  defp flatten_alias_record(zone, fqdn, qtype, record) do
+  defp flatten_alias_record(zone, fqdn, qtype, record, opts) do
     target = normalize_name(record.content)
 
     if target in ["", fqdn] do
       []
     else
-      local_alias_records(zone, target, qtype, record.ttl)
+      local_alias_records(zone, target, qtype, record.ttl, opts)
       |> case do
         [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
         records -> records
@@ -260,8 +260,8 @@ defmodule Elektrine.DNS.Query do
     end
   end
 
-  defp local_alias_records(zone, target, qtype, ttl) do
-    zone_records(zone)
+  defp local_alias_records(zone, target, qtype, ttl, opts) do
+    zone_records(zone, opts)
     |> Enum.filter(fn record ->
       record_name(zone, record) == target and normalize_type(record.type) == qtype
     end)
@@ -310,8 +310,8 @@ defmodule Elektrine.DNS.Query do
   defp normalize_lookup_value(value) when is_list(value), do: to_string(value)
   defp normalize_lookup_value(_value), do: nil
 
-  defp cname_records_for_name(zone, fqdn) do
-    zone_records(zone)
+  defp cname_records_for_name(zone, fqdn, opts) do
+    zone_records(zone, opts)
     |> Enum.filter(fn record ->
       record_name(zone, record) == fqdn and normalize_type(record.type) == :cname
     end)
@@ -320,16 +320,22 @@ defmodule Elektrine.DNS.Query do
 
   defp name_exists?(zone, qname) do
     fqdn = normalize_name(qname)
-    Enum.any?(zone_records(zone), &(record_name(zone, &1) == fqdn))
+    Enum.any?(all_zone_records(zone), &(record_name(zone, &1) == fqdn))
   end
 
-  defp zone_records(zone) do
+  defp zone_records(zone, opts) do
+    zone
+    |> all_zone_records()
+    |> Enum.reject(&(Elektrine.DNS.Record.private?(&1) and not private_query?(opts)))
+  end
+
+  defp all_zone_records(zone) do
     bootstrap = DNS.zone_onboarding_records(zone)
     persisted = zone.records || []
     bootstrap ++ persisted
   end
 
-  defp additional_records(zone, answers) do
+  defp additional_records(zone, answers, opts) do
     targets =
       answers
       |> Enum.flat_map(fn
@@ -344,7 +350,7 @@ defmodule Elektrine.DNS.Query do
       end)
       |> Enum.uniq()
 
-    zone_records(zone)
+    zone_records(zone, opts)
     |> Enum.filter(fn record ->
       record_name(zone, record) in targets and normalize_type(record.type) in [:a, :aaaa]
     end)
@@ -384,11 +390,11 @@ defmodule Elektrine.DNS.Query do
     end
   end
 
-  defp wildcard_records_for_query(zone, fqdn, qtype) do
+  defp wildcard_records_for_query(zone, fqdn, qtype, opts) do
     wildcard_candidates(fqdn, zone.domain)
     |> Enum.find_value([], fn wildcard_name ->
       records =
-        zone_records(zone)
+        zone_records(zone, opts)
         |> Enum.filter(fn record ->
           record_name(zone, record) == wildcard_name and
             (qtype == :any or normalize_type(record.type) == qtype)
@@ -430,4 +436,10 @@ defmodule Elektrine.DNS.Query do
 
   defp any_query?(%{qtype: :any}), do: true
   defp any_query?(_query), do: false
+
+  defp private_query?(opts) do
+    opts
+    |> Keyword.get(:client_ip)
+    |> DNS.Recursive.allow_recursive?()
+  end
 end

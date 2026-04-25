@@ -83,26 +83,7 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "require_admin_host/2" do
-    test "allows the public apex when NetBird is disabled", %{conn: conn} do
-      conn = %{conn | host: Elektrine.Domains.primary_profile_domain()}
-
-      conn = UserAuth.require_admin_host(conn, [])
-
-      refute conn.halted
-    end
-
-    test "allows the dedicated admin host when NetBird is enabled", %{conn: conn} do
-      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
-      conn = %{conn | host: "admin.#{Elektrine.Domains.primary_profile_domain()}"}
-
-      conn = UserAuth.require_admin_host(conn, [])
-
-      refute conn.halted
-    end
-
-    test "returns 404 on the public apex when NetBird is enabled", %{conn: conn} do
-      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
-
+    test "returns 404 on the public apex", %{conn: conn} do
       conn =
         conn
         |> fetch_query_params()
@@ -113,6 +94,31 @@ defmodule ElektrineWeb.UserAuthTest do
 
       assert conn.halted
       assert conn.status == 404
+    end
+
+    test "allows the dedicated admin host", %{conn: conn} do
+      conn = %{conn | host: "admin.#{Elektrine.Domains.primary_profile_domain()}"}
+
+      conn = UserAuth.require_admin_host(conn, [])
+
+      refute conn.halted
+    end
+
+    test "allows CADDY_ADMIN_HOST override", %{conn: conn} do
+      original = System.get_env("CADDY_ADMIN_HOST")
+      System.put_env("CADDY_ADMIN_HOST", "ops.example.test")
+
+      on_exit(fn ->
+        if original,
+          do: System.put_env("CADDY_ADMIN_HOST", original),
+          else: System.delete_env("CADDY_ADMIN_HOST")
+      end)
+
+      conn = %{conn | host: "ops.example.test"}
+
+      conn = UserAuth.require_admin_host(conn, [])
+
+      refute conn.halted
     end
   end
 
