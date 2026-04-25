@@ -72,12 +72,5 @@ https:// {
 
 :80 {
 	import admin_netbird_gate
-
-	@managed_hosts host {$CADDY_MANAGED_SITE_1} {$CADDY_MANAGED_SITE_2}
-	redir @managed_hosts https://{host}{uri} 308
-
-	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
-		header_up Host {host}
-		header_up X-Forwarded-Proto http
-	}
+	redir https://{host}{uri} 308
 }

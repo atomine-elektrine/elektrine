@@ -37,6 +37,13 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     notification
   end
 
+  test "redirects instead of crashing when mounted without current_user" do
+    assert {:ok, socket} =
+             ElektrineWeb.NotificationsLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{})
+
+    assert socket.redirected == {:redirect, %{status: 302, to: Elektrine.Paths.login_path()}}
+  end
+
   test "source filter narrows the queue to one lane", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     sender = AccountsFixtures.user_fixture(%{username: "notifsender"})
