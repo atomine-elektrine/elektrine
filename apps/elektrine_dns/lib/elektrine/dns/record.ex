@@ -21,6 +21,7 @@ defmodule Elektrine.DNS.Record do
     field :managed_key, :string
     field :required, :boolean, default: false
     field :metadata, :map, default: %{}
+    field :private, :boolean, virtual: true, default: false
     field :priority, :integer
     field :weight, :integer
     field :port, :integer
@@ -52,6 +53,7 @@ defmodule Elektrine.DNS.Record do
       :managed_key,
       :required,
       :metadata,
+      :private,
       :priority,
       :weight,
       :port,
@@ -71,6 +73,7 @@ defmodule Elektrine.DNS.Record do
     |> update_change(:source, &normalize_source/1)
     |> update_change(:service, &normalize_service/1)
     |> update_change(:content, &normalize_content/1)
+    |> put_private_metadata()
     |> validate_required([:name, :type, :ttl, :content, :zone_id])
     |> validate_inclusion(:type, @types)
     |> validate_inclusion(:source, ["user", "system"])
@@ -86,6 +89,33 @@ defmodule Elektrine.DNS.Record do
     |> foreign_key_constraint(:zone_id)
     |> unique_constraint(:name, name: :dns_records_identity_unique)
     |> unique_constraint(:managed_key, name: :dns_records_zone_managed_key_unique)
+  end
+
+  def private?(%__MODULE__{metadata: %{} = metadata}) do
+    metadata["visibility"] == "private" or metadata["private"] == true
+  end
+
+  def private?(_), do: false
+
+  defp put_private_metadata(changeset) do
+    if Map.has_key?(changeset.changes, :private) do
+      metadata = get_field(changeset, :metadata) || %{}
+
+      metadata =
+        if get_field(changeset, :private) do
+          metadata
+          |> Map.put("visibility", "private")
+          |> Map.put("private", true)
+        else
+          metadata
+          |> Map.delete("visibility")
+          |> Map.delete("private")
+        end
+
+      put_change(changeset, :metadata, metadata)
+    else
+      changeset
+    end
   end
 
   defp normalize_name(nil), do: nil

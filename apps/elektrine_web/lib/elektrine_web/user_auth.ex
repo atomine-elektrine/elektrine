@@ -427,11 +427,10 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   @doc """
-  Restricts admin routes to the dedicated admin host when NetBird protection is enabled.
-  Non-NetBird deployments keep `/pripyat` available on the public app host for admins.
+  Restricts admin routes to the dedicated admin host.
   """
   def require_admin_host(conn, _opts) do
-    if not netbird_enabled?() or admin_host?(conn.host) do
+    if admin_host?(conn.host) do
       conn
     else
       conn
@@ -512,10 +511,20 @@ defmodule ElektrineWeb.UserAuth do
 
   defp admin_host?(host) when is_binary(host) do
     normalized_host = host |> String.downcase() |> String.split(":", parts: 2) |> List.first()
-    normalized_host == "admin.#{Elektrine.Domains.primary_profile_domain()}"
+    normalized_host == configured_admin_host()
   end
 
   defp admin_host?(_), do: false
+
+  defp configured_admin_host do
+    case System.get_env("CADDY_ADMIN_HOST") do
+      host when is_binary(host) and host != "" ->
+        host |> String.downcase() |> String.split(":", parts: 2) |> List.first()
+
+      _ ->
+        "admin.#{Elektrine.Domains.primary_profile_domain()}"
+    end
+  end
 
   defp netbird_enabled? do
     Application.get_env(:elektrine, :netbird, [])

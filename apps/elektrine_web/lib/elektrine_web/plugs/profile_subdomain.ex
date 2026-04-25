@@ -216,15 +216,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
 
   defp subdomain_hosted_by_platform?(_), do: true
 
-  defp reserved_subdomain_path("admin") do
-    if netbird_enabled?(), do: :passthrough, else: "/pripyat"
-  end
-
+  defp reserved_subdomain_path("admin"), do: :passthrough
   defp reserved_subdomain_path("pripyat"), do: "/pripyat"
   defp reserved_subdomain_path(_), do: "/"
-
-  defp netbird_enabled? do
-    Application.get_env(:elektrine, :netbird, [])
-    |> Keyword.get(:enabled, false)
-  end
 end

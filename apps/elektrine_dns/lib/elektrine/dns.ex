@@ -296,7 +296,11 @@ defmodule Elektrine.DNS do
     end
   end
 
-  def change_record(%Record{} = record, attrs \\ %{}), do: Record.changeset(record, attrs)
+  def change_record(%Record{} = record, attrs \\ %{}) do
+    record
+    |> Map.put(:private, Record.private?(record))
+    |> Record.changeset(attrs)
+  end
 
   def new_zone_changeset(%User{id: user_id}), do: new_zone_changeset(user_id)
 

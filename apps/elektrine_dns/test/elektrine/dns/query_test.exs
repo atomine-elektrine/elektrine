@@ -309,6 +309,59 @@ defmodule Elektrine.DNS.QueryTest do
     assert response =~ <<203, 0, 113, 30>>
   end
 
+  test "hides private records from public authoritative clients" do
+    zone = %Zone{
+      domain: "private.example.com",
+      records: [
+        %Record{
+          name: "admin",
+          type: "A",
+          content: "100.90.10.120",
+          ttl: 300,
+          metadata: %{"visibility" => "private"}
+        },
+        %Record{name: "*", type: "A", content: "203.0.113.30", ttl: 300}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"private.example.com", zone})
+
+    response =
+      Query.answer(build_query("admin.private.example.com", 1), client_ip: {203, 0, 113, 10})
+
+    assert header(response).ancount == 0
+    assert header(response).rcode == 0
+    refute response =~ <<203, 0, 113, 30>>
+    refute response =~ <<100, 90, 10, 120>>
+  end
+
+  test "answers private records for recursive-allowed clients" do
+    zone = %Zone{
+      domain: "private-client.example.com",
+      records: [
+        %Record{
+          name: "admin",
+          type: "A",
+          content: "100.90.10.120",
+          ttl: 300,
+          metadata: %{"visibility" => "private"}
+        },
+        %Record{name: "*", type: "A", content: "203.0.113.30", ttl: 300}
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"private-client.example.com", zone})
+
+    response =
+      Query.answer(build_query("admin.private-client.example.com", 1),
+        client_ip: {100, 90, 10, 50}
+      )
+
+    assert header(response).ancount == 1
+    assert header(response).rcode == 0
+    assert response =~ <<100, 90, 10, 120>>
+  end
+
   test "returns additional A records for MX targets" do
     response = Query.answer(build_query("mail.example.com", 15))
     assert header(response).ancount == 1

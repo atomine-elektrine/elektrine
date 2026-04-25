@@ -103,19 +103,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
       assert get_resp_header(conn, "location") == ["https://example.com/"]
     end
 
-    test "redirects admin subdomain to main admin path when NetBird is disabled" do
-      conn =
-        build_conn_with_host("admin.example.com", "/pripyat")
-        |> ProfileSubdomain.call([])
-
-      assert conn.halted
-      assert conn.status == 302
-      assert get_resp_header(conn, "location") == ["https://example.com/pripyat"]
-    end
-
-    test "passes admin subdomain through when NetBird is enabled" do
-      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
-
+    test "passes admin subdomain through" do
       conn =
         build_conn_with_host("admin.example.com", "/pripyat")
         |> ProfileSubdomain.call([])

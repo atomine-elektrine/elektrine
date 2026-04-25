@@ -195,6 +195,28 @@ defmodule Elektrine.DNSContextTest do
     assert record.name == "@"
   end
 
+  test "stores private record visibility in metadata" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "admin",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "100.90.10.120",
+               "private" => "true"
+             })
+
+    assert Elektrine.DNS.Record.private?(record)
+    assert record.metadata["visibility"] == "private"
+
+    assert {:ok, updated} = DNS.update_record(record, %{"private" => "false"})
+
+    refute Elektrine.DNS.Record.private?(updated)
+    refute Map.has_key?(updated.metadata, "visibility")
+  end
+
   test "rejects apex cname records" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})

@@ -931,6 +931,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                           </p>
                           <.input field={@record_form[:ttl]} type="number" label="TTL" />
                           <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
+                          <.input
+                            field={@record_form[:private]}
+                            type="checkbox"
+                            label="Private record"
+                          />
+                          <p class="text-xs text-base-content/55">
+                            Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+                          </p>
                           <%= for spec <- record_param_specs(@record_form) do %>
                             <.input
                               field={@record_form[spec.field]}
@@ -978,6 +986,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                                   <span class="font-mono text-xs sm:text-sm">{record.name}</span>
                                   <%= if record.managed do %>
                                     <span class="badge badge-outline badge-xs">managed</span>
+                                  <% end %>
+                                  <%= if Record.private?(record) do %>
+                                    <span class="badge badge-primary badge-outline badge-xs">
+                                      private
+                                    </span>
                                   <% end %>
                                 </div>
                               </td>
@@ -1185,6 +1198,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
                     <.input field={@record_form[:ttl]} type="number" label="TTL" />
                     <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
+                    <.input
+                      field={@record_form[:private]}
+                      type="checkbox"
+                      label="Private record"
+                    />
+                    <p class="text-xs text-base-content/55">
+                      Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+                    </p>
                     <%= for spec <- record_param_specs(@record_form) do %>
                       <.input
                         field={@record_form[spec.field]}

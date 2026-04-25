@@ -1119,7 +1119,7 @@ if config_env() == :prod do
     port: port,
     http_1_options: [
       max_header_count: 50,
-      max_header_length: 8_192
+      max_header_length: 32_768
     ]
   ]
 
@@ -1134,7 +1134,7 @@ if config_env() == :prod do
         keyfile: onion_tls_keyfile,
         http_1_options: [
           max_header_count: 50,
-          max_header_length: 8_192
+          max_header_length: 32_768
         ]
       ]
     else
