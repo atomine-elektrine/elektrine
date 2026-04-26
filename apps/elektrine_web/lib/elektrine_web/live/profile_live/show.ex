@@ -710,6 +710,13 @@ defmodule ElektrineWeb.ProfileLive.Show do
 
   defp lighten_color(hex, factor), do: Elektrine.Theme.lighten(hex, factor)
 
+  defp profile_attachment_url(url, source) do
+    case Elektrine.Uploads.attachment_url(url, source) do
+      attachment_url when is_binary(attachment_url) -> attachment_url
+      _ -> nil
+    end
+  end
+
   defp get_connection_metadata(socket) do
     connect_params = get_connect_params(socket) || %{}
 

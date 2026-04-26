@@ -8,28 +8,33 @@ defmodule ElektrineWeb.DAV.DriveController do
   def propfind_home(conn, %{"username" => username}) do
     user = conn.assigns.current_user
 
-    if user.username != username do
-      ResponseHelpers.send_forbidden(conn)
-    else
-      base_url = base_url(conn)
-      depth = ResponseHelpers.get_depth(conn)
+    cond do
+      not Drive.user_can_access?(user) ->
+        ResponseHelpers.send_forbidden(conn)
 
-      responses = [
-        %{
-          href: dav_href(base_url, username, ""),
-          propstat: [{200, collection_props("Drive", user, username, "", base_url)}]
-        }
-      ]
+      user.username != username ->
+        ResponseHelpers.send_forbidden(conn)
 
-      responses =
-        if depth != 0 do
-          {:ok, folder_view} = Drive.list_folder(user.id, "")
-          responses ++ folder_children_responses(folder_view, base_url, username)
-        else
-          responses
-        end
+      true ->
+        base_url = base_url(conn)
+        depth = ResponseHelpers.get_depth(conn)
 
-      ResponseHelpers.send_multistatus(conn, responses)
+        responses = [
+          %{
+            href: dav_href(base_url, username, ""),
+            propstat: [{200, collection_props("Drive", user, username, "", base_url)}]
+          }
+        ]
+
+        responses =
+          if depth != 0 do
+            {:ok, folder_view} = Drive.list_folder(user.id, "")
+            responses ++ folder_children_responses(folder_view, base_url, username)
+          else
+            responses
+          end
+
+        ResponseHelpers.send_multistatus(conn, responses)
     end
   end
 
@@ -37,7 +42,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       cond do
@@ -85,7 +90,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       case Drive.create_folder(user.id, path) do
@@ -100,7 +105,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       with %Drive.StoredFile{} = file <- Drive.get_file_by_path(user.id, path),
@@ -116,7 +121,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -142,7 +147,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       case Drive.get_file_by_path(user.id, path) do
@@ -165,7 +170,7 @@ defmodule ElektrineWeb.DAV.DriveController do
     user = conn.assigns.current_user
     source_path = dav_path(params)
 
-    if user.username != username do
+    if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
       with [destination] <- get_req_header(conn, "destination"),

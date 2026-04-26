@@ -25,12 +25,14 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
     stats = Accounts.get_invite_code_stats()
     invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
     self_service_invite_min_trust_level = Elektrine.System.self_service_invite_min_trust_level()
+    module_access_rules = Elektrine.System.module_access_rules()
 
     render(conn, :invite_codes,
       invite_codes: invite_codes,
       stats: stats,
       invite_codes_enabled: invite_codes_enabled,
-      self_service_invite_min_trust_level: self_service_invite_min_trust_level
+      self_service_invite_min_trust_level: self_service_invite_min_trust_level,
+      module_access_rules: module_access_rules
     )
   end
 
@@ -118,5 +120,31 @@ defmodule ElektrineWeb.Admin.InviteCodesController do
         |> put_flash(:error, "Failed to update self-service invite trust level.")
         |> redirect(to: ~p"/pripyat/invite-codes")
     end
+  end
+
+  def update_module_access(conn, %{"module_access" => module_access_params}) do
+    results =
+      Enum.map(module_access_params, fn {module, level} ->
+        case Integer.parse(to_string(level)) do
+          {parsed_level, ""} -> Elektrine.System.set_module_min_trust_level(module, parsed_level)
+          _ -> {:error, :invalid_level}
+        end
+      end)
+
+    if Enum.all?(results, &match?({:ok, _}, &1)) do
+      conn
+      |> put_flash(:info, "Module trust access rules updated.")
+      |> redirect(to: ~p"/pripyat/invite-codes")
+    else
+      conn
+      |> put_flash(:error, "Failed to update one or more module access rules.")
+      |> redirect(to: ~p"/pripyat/invite-codes")
+    end
+  end
+
+  def update_module_access(conn, _params) do
+    conn
+    |> put_flash(:error, "No module access rules were submitted.")
+    |> redirect(to: ~p"/pripyat/invite-codes")
   end
 end

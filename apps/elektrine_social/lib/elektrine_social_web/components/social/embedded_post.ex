@@ -41,6 +41,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
           |> assign(:shared_message, msg)
           |> assign(:post_url, post_url)
           |> assign(:is_federated_link, is_federated_external_link)
+          |> assign(:embedded_media_items, embedded_media_items(msg))
 
         render_embedded_post(assigns)
     end
@@ -111,17 +112,14 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
         <% end %>
         
     <!-- Original Post Media (Images and Videos) -->
-        <%= if @shared_message.media_urls && !Enum.empty?(@shared_message.media_urls) do %>
+        <%= if @embedded_media_items != [] do %>
           <% alt_texts =
             if @shared_message.media_metadata && @shared_message.media_metadata["alt_texts"],
               do: @shared_message.media_metadata["alt_texts"],
               else: %{} %>
           <div class="mt-3 grid grid-cols-1 gap-2">
-            <%= for {media_url, idx} <- Enum.with_index(@shared_message.media_urls) do %>
-              <% full_url = Elektrine.Uploads.attachment_url(media_url, @shared_message)
-              alt_text = Map.get(alt_texts, to_string(idx), "Shared media")
-              is_video = String.match?(full_url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
-              is_audio = String.match?(full_url, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i) %>
+            <%= for %{url: full_url, index: idx, video?: is_video, audio?: is_audio} <- @embedded_media_items do %>
+              <% alt_text = Map.get(alt_texts, to_string(idx), "Shared media") %>
               <%= cond do %>
                 <% is_video -> %>
                   <video
@@ -248,6 +246,30 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   defp format_platform_name(%{conversation: %{type: "community", name: name}}), do: name
   defp format_platform_name(%{conversation: %{type: "chat"}}), do: "Chat"
   defp format_platform_name(_), do: "Post"
+
+  defp embedded_media_items(message) do
+    message
+    |> Map.get(:media_urls, [])
+    |> List.wrap()
+    |> Enum.with_index()
+    |> Enum.reduce([], fn {media_url, index}, items ->
+      case Elektrine.Uploads.attachment_url(media_url, message) do
+        url when is_binary(url) ->
+          item = %{
+            url: url,
+            index: index,
+            video?: String.match?(url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i),
+            audio?: String.match?(url, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+          }
+
+          [item | items]
+
+        _ ->
+          items
+      end
+    end)
+    |> Enum.reverse()
+  end
 
   defp get_post_url(%{
          federated: true,

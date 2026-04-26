@@ -1459,7 +1459,76 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   def handle_info(:load_communities_data, socket) do
-    user = socket.assigns[:current_user]
+    assigns = socket.assigns
+    parent = self()
+
+    Task.start(fn ->
+      send(parent, {:communities_data_loaded, build_communities_data(assigns)})
+    end)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:communities_data_loaded, data}, socket) do
+    {:noreply, apply_communities_data(socket, data)}
+  end
+
+  def handle_info(:load_more_community_feed_posts, socket) do
+    current_posts = socket.assigns.followed_community_posts || []
+    before_post = List.last(current_posts)
+
+    feed_page =
+      load_community_feed_page(socket.assigns.current_user, current_posts,
+        limit: @community_feed_page_size,
+        before_post: before_post
+      )
+
+    more_posts =
+      feed_page.posts
+      |> ElektrineSocialWeb.Components.Social.PostUtilities.attach_cached_link_previews()
+
+    merged_posts = merge_loaded_feed_posts(current_posts, more_posts)
+    {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, more_posts)
+
+    post_interactions =
+      Map.merge(
+        socket.assigns.post_interactions || %{},
+        load_post_interactions(more_posts, socket.assigns.current_user)
+      )
+
+    post_reactions =
+      Map.merge(socket.assigns.post_reactions || %{}, get_post_reactions(more_posts))
+
+    filtered_posts =
+      merged_posts
+      |> filter_community_posts_by_category(socket.assigns.selected_category)
+      |> sort_feed_posts(
+        socket.assigns.feed_sort,
+        lemmy_counts,
+        socket.assigns.session_context
+      )
+
+    {:noreply,
+     socket
+     |> assign(:loading_more, false)
+     |> assign(:no_more_posts, length(more_posts) < @community_feed_page_size)
+     |> assign(:followed_community_posts, merged_posts)
+     |> Phoenix.Component.update(:public_fallback_post_ids, fn existing_ids ->
+       MapSet.union(existing_ids || MapSet.new(), feed_page.public_fallback_ids)
+     end)
+     |> assign(:filtered_community_posts, filtered_posts)
+     |> assign(:lemmy_counts, lemmy_counts)
+     |> assign(:post_replies, post_replies)
+     |> assign(:post_interactions, post_interactions)
+     |> assign(:post_reactions, post_reactions)}
+  end
+
+  def handle_info(_info, socket) do
+    {:noreply, socket}
+  end
+
+  defp build_communities_data(assigns) do
+    user = assigns[:current_user]
 
     results = %{
       communities:
@@ -1633,45 +1702,45 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         discover_remote_communities,
         joined_community_ids,
         followed_remote_actor_ids,
-        socket.assigns.selected_category
+        assigns.selected_category
       )
 
     filtered_followed_posts =
       followed_community_posts
-      |> filter_community_posts_by_category(socket.assigns.selected_category)
-      |> sort_feed_posts(socket.assigns.feed_sort, lemmy_counts, socket.assigns.session_context)
+      |> filter_community_posts_by_category(assigns.selected_category)
+      |> sort_feed_posts(assigns.feed_sort, lemmy_counts, assigns.session_context)
 
     filtered_communities =
-      filter_communities_by_category(communities, socket.assigns.selected_category)
+      filter_communities_by_category(communities, assigns.selected_category)
 
     filtered_public_communities =
-      filter_communities_by_category(public_communities, socket.assigns.selected_category)
+      filter_communities_by_category(public_communities, assigns.selected_category)
 
     filtered_discussions =
-      filter_discussions_by_category(trending_discussions, socket.assigns.selected_category)
+      filter_discussions_by_category(trending_discussions, assigns.selected_category)
 
     filtered_federated_discussions =
-      filter_discussions_by_category(federated_discussions, socket.assigns.selected_category)
+      filter_discussions_by_category(federated_discussions, assigns.selected_category)
 
     filtered_recent_activity =
-      filter_activity_by_category(recent_activity, socket.assigns.selected_category)
+      filter_activity_by_category(recent_activity, assigns.selected_category)
 
     filtered_popular_communities =
       filter_popular_communities_by_category(
         popular_communities,
-        socket.assigns.selected_category
+        assigns.selected_category
       )
 
     filtered_remote_communities =
       filter_communities_by_category(
         followed_remote_communities,
-        socket.assigns.selected_category
+        assigns.selected_category
       )
 
     filtered_discover_remote_communities =
       filter_communities_by_category(
         discover_remote_communities,
-        socket.assigns.selected_category
+        assigns.selected_category
       )
 
     overview_data = %{
@@ -1683,97 +1752,48 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       filtered_federated_discussions: filtered_federated_discussions,
       filtered_remote_communities: filtered_remote_communities,
       filtered_discover_remote_communities: filtered_discover_remote_communities,
-      overview_card_limit: socket.assigns.overview_card_limit
+      overview_card_limit: assigns.overview_card_limit
     }
 
-    {:noreply,
-     socket
-     |> assign(:communities, communities)
-     |> assign(:followed_remote_communities, followed_remote_communities)
-     |> assign(:discover_remote_communities, discover_remote_communities)
-     |> assign(:public_communities, public_communities)
-     |> assign(:trending_discussions, trending_discussions)
-     |> assign(:federated_discussions, federated_discussions)
-     |> assign(:followed_community_posts, followed_community_posts)
-     |> assign(:recent_activity, recent_activity)
-     |> assign(:popular_communities, popular_communities)
-     |> assign(:my_community_posts, my_community_posts)
-     |> assign(:filtered_communities, filtered_communities)
-     |> assign(:filtered_public_communities, filtered_public_communities)
-     |> assign(:filtered_discussions, filtered_discussions)
-     |> assign(:filtered_federated_discussions, filtered_federated_discussions)
-     |> assign(:filtered_recent_activity, filtered_recent_activity)
-     |> assign(:filtered_popular_communities, filtered_popular_communities)
-     |> assign(:filtered_community_posts, filtered_followed_posts)
-     |> assign(:filtered_remote_communities, filtered_remote_communities)
-     |> assign(:filtered_discover_remote_communities, filtered_discover_remote_communities)
-     |> assign(:public_fallback_post_ids, followed_community_feed_page.public_fallback_ids)
-     |> assign(:joined_community_ids, joined_community_ids)
-     |> assign(:followed_remote_actor_ids, followed_remote_actor_ids)
-     |> assign(:recent_searches, recent_searches)
-     |> assign(:recent_joins, recent_joins)
-     |> assign(:because_you_follow, because_you_follow)
-     |> assign(:post_interactions, post_interactions)
-     |> assign(:lemmy_counts, lemmy_counts)
-     |> assign(:post_replies, post_replies)
-     |> assign(:post_reactions, post_reactions)
-     |> assign(:no_more_posts, length(followed_community_posts) < @community_feed_page_size)
-     |> assign(:overview_no_more, overview_no_more?(overview_data))
-     |> assign(:loading_communities, false)}
+    %{
+      communities: communities,
+      followed_remote_communities: followed_remote_communities,
+      discover_remote_communities: discover_remote_communities,
+      public_communities: public_communities,
+      trending_discussions: trending_discussions,
+      federated_discussions: federated_discussions,
+      followed_community_posts: followed_community_posts,
+      recent_activity: recent_activity,
+      popular_communities: popular_communities,
+      my_community_posts: my_community_posts,
+      filtered_communities: filtered_communities,
+      filtered_public_communities: filtered_public_communities,
+      filtered_discussions: filtered_discussions,
+      filtered_federated_discussions: filtered_federated_discussions,
+      filtered_recent_activity: filtered_recent_activity,
+      filtered_popular_communities: filtered_popular_communities,
+      filtered_community_posts: filtered_followed_posts,
+      filtered_remote_communities: filtered_remote_communities,
+      filtered_discover_remote_communities: filtered_discover_remote_communities,
+      public_fallback_post_ids: followed_community_feed_page.public_fallback_ids,
+      joined_community_ids: joined_community_ids,
+      followed_remote_actor_ids: followed_remote_actor_ids,
+      recent_searches: recent_searches,
+      recent_joins: recent_joins,
+      because_you_follow: because_you_follow,
+      post_interactions: post_interactions,
+      lemmy_counts: lemmy_counts,
+      post_replies: post_replies,
+      post_reactions: post_reactions,
+      no_more_posts: length(followed_community_posts) < @community_feed_page_size,
+      overview_no_more: overview_no_more?(overview_data)
+    }
   end
 
-  def handle_info(:load_more_community_feed_posts, socket) do
-    current_posts = socket.assigns.followed_community_posts || []
-    before_post = List.last(current_posts)
-
-    feed_page =
-      load_community_feed_page(socket.assigns.current_user, current_posts,
-        limit: @community_feed_page_size,
-        before_post: before_post
-      )
-
-    more_posts =
-      feed_page.posts
-      |> ElektrineSocialWeb.Components.Social.PostUtilities.attach_cached_link_previews()
-
-    merged_posts = merge_loaded_feed_posts(current_posts, more_posts)
-    {lemmy_counts, post_replies} = merge_feed_lemmy_cache(socket, more_posts)
-
-    post_interactions =
-      Map.merge(
-        socket.assigns.post_interactions || %{},
-        load_post_interactions(more_posts, socket.assigns.current_user)
-      )
-
-    post_reactions =
-      Map.merge(socket.assigns.post_reactions || %{}, get_post_reactions(more_posts))
-
-    filtered_posts =
-      merged_posts
-      |> filter_community_posts_by_category(socket.assigns.selected_category)
-      |> sort_feed_posts(
-        socket.assigns.feed_sort,
-        lemmy_counts,
-        socket.assigns.session_context
-      )
-
-    {:noreply,
-     socket
-     |> assign(:loading_more, false)
-     |> assign(:no_more_posts, length(more_posts) < @community_feed_page_size)
-     |> assign(:followed_community_posts, merged_posts)
-     |> Phoenix.Component.update(:public_fallback_post_ids, fn existing_ids ->
-       MapSet.union(existing_ids || MapSet.new(), feed_page.public_fallback_ids)
-     end)
-     |> assign(:filtered_community_posts, filtered_posts)
-     |> assign(:lemmy_counts, lemmy_counts)
-     |> assign(:post_replies, post_replies)
-     |> assign(:post_interactions, post_interactions)
-     |> assign(:post_reactions, post_reactions)}
-  end
-
-  def handle_info(_info, socket) do
-    {:noreply, socket}
+  defp apply_communities_data(socket, data) do
+    data
+    |> Enum.reduce(socket, fn {key, value}, socket -> assign(socket, key, value) end)
+    |> assign(:loading_communities, false)
   end
 
   defp normalize_quick_post_link_url(url) when is_binary(url), do: String.trim(url)

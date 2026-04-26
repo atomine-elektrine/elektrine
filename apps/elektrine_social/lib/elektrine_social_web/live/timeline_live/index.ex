@@ -6,7 +6,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   alias Elektrine.Social
   alias Elektrine.Social.Messages, as: MessagingMessages
   alias Elektrine.Social.Recommendations
-  alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
   import ElektrineSocialWeb.Components.Social.RSSItem
@@ -231,39 +230,28 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     end
   end
 
-  defp load_data_for_filter(socket, filter) do
-    case allow_timeline_read(socket, :filter_reload) do
-      :ok ->
-        do_load_data_for_filter(socket, filter)
-
-      {:error, retry_after} ->
-        {:noreply,
-         socket
-         |> assign(:loading_timeline, false)
-         |> assign(:loading_more, false)
-         |> put_flash(
-           :error,
-           "Timeline is being refreshed too quickly. Please retry in #{retry_after}s."
-         )}
-    end
+  defp timeline_load_context(socket) do
+    %{
+      user: socket.assigns[:current_user],
+      timeline_view: socket.assigns.timeline_filter,
+      search_query: socket.assigns.search_query,
+      session_context: socket.assigns[:session_context] || %{},
+      current_filter: socket.assigns.current_filter,
+      special_view_cache: socket.assigns[:special_view_cache] || %{},
+      base_timeline_key: socket.assigns.base_timeline_key,
+      base_timeline_posts: socket.assigns.base_timeline_posts || []
+    }
   end
 
-  defp do_load_data_for_filter(socket, filter) do
+  defp build_timeline_load_state(context, filter) do
     started_at = System.monotonic_time()
-    user = socket.assigns[:current_user]
-    timeline_view = socket.assigns.timeline_filter
-    search_query = socket.assigns.search_query
-    session_context = socket.assigns[:session_context] || %{}
-    filter_changed = filter != socket.assigns.current_filter
-    special_view_cache = socket.assigns[:special_view_cache] || %{}
+    user = context.user
+    timeline_view = context.timeline_view
+    search_query = context.search_query
+    session_context = context.session_context
+    filter_changed = filter != context.current_filter
+    special_view_cache = context.special_view_cache
     cache_key = {filter, timeline_view, search_query}
-
-    filter_context_socket =
-      socket
-      |> assign(:current_filter, filter)
-      |> assign(:timeline_filter, timeline_view)
-      |> assign(:search_query, search_query)
-
     cached_special_view = Map.get(special_view_cache, cache_key)
 
     posts =
@@ -297,9 +285,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
             session_context: session_context
           )
 
-        socket.assigns.base_timeline_key == {filter, search_query} &&
-            socket.assigns.base_timeline_posts != [] ->
-          socket.assigns.base_timeline_posts
+        context.base_timeline_key == {filter, search_query} && context.base_timeline_posts != [] ->
+          context.base_timeline_posts
 
         true ->
           load_posts_for_filter(filter, user, "all",
@@ -311,71 +298,90 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     special_view_cache =
       Map.put(special_view_cache, cache_key, %{posts: posts, post_replies: cached_post_replies})
 
-    queued_posts = queued_posts_for_active_filters(filter_context_socket)
+    {rss_items, rss_saves} = load_rss_timeline_state(filter, user, search_query)
 
-    {rss_items, rss_saves} =
-      cond do
-        filter == "rss" && user ->
-          items =
-            user.id
-            |> RSS.get_timeline_items(limit: 20)
-            |> filter_rss_items_by_query(search_query)
+    %{
+      filter: filter,
+      timeline_view: timeline_view,
+      search_query: search_query,
+      user: user,
+      started_at: started_at,
+      posts: posts,
+      cached_post_replies: cached_post_replies,
+      cached_lemmy_counts: cached_lemmy_counts,
+      base_timeline_posts: base_timeline_posts,
+      special_view_cache: special_view_cache,
+      rss_items: rss_items,
+      rss_saves: rss_saves
+    }
+  end
 
-          item_ids = Enum.map(items, & &1.id)
-          saves = Social.list_user_saved_rss_items(user.id, item_ids)
-          saves_map = Enum.into(saves, %{}, fn id -> {id, true} end)
-          {items, saves_map}
+  defp load_rss_timeline_state("rss", user, search_query) when not is_nil(user) do
+    items =
+      user.id
+      |> RSS.get_timeline_items(limit: 20)
+      |> filter_rss_items_by_query(search_query)
 
-        filter == "saved" && user ->
-          items =
-            user.id
-            |> Social.get_saved_rss_items(limit: 20)
-            |> filter_rss_items_by_query(search_query)
+    item_ids = Enum.map(items, & &1.id)
+    saves = Social.list_user_saved_rss_items(user.id, item_ids)
+    {items, Enum.into(saves, %{}, fn id -> {id, true} end)}
+  end
 
-          saves_map = Enum.into(items, %{}, fn item -> {item.id, true} end)
-          {items, saves_map}
+  defp load_rss_timeline_state("saved", user, search_query) when not is_nil(user) do
+    items =
+      user.id
+      |> Social.get_saved_rss_items(limit: 20)
+      |> filter_rss_items_by_query(search_query)
 
-        true ->
-          {[], %{}}
-      end
+    {items, Enum.into(items, %{}, fn item -> {item.id, true} end)}
+  end
 
-    {:noreply,
-     socket
-     |> assign(:current_filter, filter)
-     |> assign(:base_timeline_posts, base_timeline_posts)
-     |> assign(:base_timeline_key, {filter, search_query})
-     |> assign(:special_view_cache, special_view_cache)
-     |> assign(:timeline_posts, posts)
-     |> assign(:queued_posts, queued_posts)
-     |> assign(:post_replies, cached_post_replies)
-     |> assign(:loading_more, false)
-     |> assign(:no_more_posts, false)
-     |> assign(:recently_loaded_post_ids, [])
-     |> assign(:recently_loaded_count, 0)
-     |> assign(
-       :lemmy_counts,
-       Map.merge(socket.assigns[:lemmy_counts] || %{}, cached_lemmy_counts)
-     )
-     |> assign(:remote_post_data, socket.assigns[:remote_post_data] || %{})
-     |> assign(:remote_data_request_ref, nil)
-     |> assign(:refresh_remote_counts_ref, nil)
-     |> assign(:timeline_load_started_at, started_at)
-     |> assign(:rss_items, rss_items)
-     |> assign(:rss_saves, rss_saves)
-     |> assign(:user_likes, %{})
-     |> assign(:user_downvotes, %{})
-     |> assign(:post_interactions, %{})
-     |> assign(:post_reactions, %{})
-     |> assign(:user_follows, %{})
-     |> assign(:pending_follows, %{})
-     |> assign(:user_boosts, %{})
-     |> assign(:user_saves, %{})
-     |> assign(:loading_timeline, false)
-     |> apply_timeline_filter()
-     |> maybe_schedule_background_refresh(posts)
-     |> maybe_schedule_reply_ingestion(posts)
-     |> maybe_queue_reply_context_previews(posts)
-     |> start_timeline_hydration(posts, filter, timeline_view, user)}
+  defp load_rss_timeline_state(_filter, _user, _search_query), do: {[], %{}}
+
+  defp apply_timeline_load_state(socket, load_state) do
+    socket
+    |> assign(:current_filter, load_state.filter)
+    |> assign(:timeline_filter, load_state.timeline_view)
+    |> assign(:search_query, load_state.search_query)
+    |> assign(:base_timeline_posts, load_state.base_timeline_posts)
+    |> assign(:base_timeline_key, {load_state.filter, load_state.search_query})
+    |> assign(:special_view_cache, load_state.special_view_cache)
+    |> assign(:timeline_posts, load_state.posts)
+    |> assign(:post_replies, load_state.cached_post_replies)
+    |> assign(:loading_more, false)
+    |> assign(:no_more_posts, false)
+    |> assign(:recently_loaded_post_ids, [])
+    |> assign(:recently_loaded_count, 0)
+    |> assign(
+      :lemmy_counts,
+      Map.merge(socket.assigns[:lemmy_counts] || %{}, load_state.cached_lemmy_counts)
+    )
+    |> assign(:remote_post_data, socket.assigns[:remote_post_data] || %{})
+    |> assign(:remote_data_request_ref, nil)
+    |> assign(:refresh_remote_counts_ref, nil)
+    |> assign(:timeline_load_started_at, load_state.started_at)
+    |> assign(:rss_items, load_state.rss_items)
+    |> assign(:rss_saves, load_state.rss_saves)
+    |> assign(:user_likes, %{})
+    |> assign(:user_downvotes, %{})
+    |> assign(:post_interactions, %{})
+    |> assign(:post_reactions, %{})
+    |> assign(:user_follows, %{})
+    |> assign(:pending_follows, %{})
+    |> assign(:user_boosts, %{})
+    |> assign(:user_saves, %{})
+    |> assign(:loading_timeline, false)
+    |> prune_queued_posts_for_active_filters()
+    |> apply_timeline_filter()
+    |> maybe_schedule_background_refresh(load_state.posts)
+    |> maybe_schedule_reply_ingestion(load_state.posts)
+    |> maybe_queue_reply_context_previews(load_state.posts)
+    |> start_timeline_hydration(
+      load_state.posts,
+      load_state.filter,
+      load_state.timeline_view,
+      load_state.user
+    )
   end
 
   defp queue_timeline_reload(socket, filter, timeline_view) do
@@ -384,6 +390,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     socket
     |> assign(:timeline_load_ref, load_ref)
+    |> assign(:current_filter, filter)
     |> assign(:timeline_filter, timeline_view)
     |> assign(:loading_timeline, Enum.empty?(socket.assigns.timeline_posts))
     |> assign(:loading_more, false)
@@ -532,9 +539,34 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   @impl true
   def handle_info({:load_view_data, load_ref, filter, timeline_view}, socket) do
     if load_ref == socket.assigns.timeline_load_ref do
-      load_data_for_filter(assign(socket, :timeline_filter, timeline_view), filter)
+      {:noreply, start_timeline_data_load(socket, load_ref, filter, timeline_view)}
     else
       {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:timeline_data_loaded, load_ref, load_state}, socket) do
+    cond do
+      load_ref != socket.assigns.timeline_load_ref ->
+        {:noreply, socket}
+
+      load_state.filter != socket.assigns.current_filter ||
+        load_state.timeline_view != socket.assigns.timeline_filter ||
+          load_state.search_query != socket.assigns.search_query ->
+        current_ref = System.unique_integer([:positive, :monotonic])
+
+        {:noreply,
+         socket
+         |> assign(:timeline_load_ref, current_ref)
+         |> start_timeline_data_load(
+           current_ref,
+           socket.assigns.current_filter,
+           socket.assigns.timeline_filter
+         )}
+
+      true ->
+        {:noreply, apply_timeline_load_state(socket, load_state)}
     end
   end
 
@@ -584,42 +616,65 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     user = socket.assigns[:current_user]
     filter = socket.assigns.current_filter
 
-    {:noreply, loaded_socket} = load_data_for_filter(socket, filter)
+    load_ref = System.unique_integer([:positive, :monotonic])
 
     loaded_socket =
-      loaded_socket
-      |> assign(
-        :user_drafts,
-        if user do
-          Elektrine.Social.Drafts.list_drafts(user.id, limit: 20)
-        else
-          []
-        end
-      )
+      socket
+      |> assign(:timeline_load_ref, load_ref)
+      |> start_timeline_data_load(load_ref, filter, socket.assigns.timeline_filter)
       |> assign_continuity_state()
 
     if user do
-      send(self(), :load_secondary_data)
+      send(self(), :load_user_timeline_side_data)
     end
 
     {:noreply, loaded_socket}
   end
 
   @impl true
-  def handle_info(:load_secondary_data, socket) do
-    user = socket.assigns.current_user
-    suggested_follows = Social.get_suggested_follows(user.id, limit: 5)
-    friends = Elektrine.Friends.list_friends(user.id)
-    friend_ids = Enum.map(friends, & &1.id)
-    recent_community_activity = Social.get_recent_community_activity(user.id, limit: 24)
+  def handle_info(:load_user_timeline_side_data, socket) do
+    if user = socket.assigns.current_user do
+      user_id = user.id
+      parent = self()
 
-    {:noreply,
-     socket
-     |> assign(:suggested_follows, suggested_follows)
-     |> assign(:friends, friends)
-     |> assign(:friend_ids, friend_ids)
-     |> assign(:recent_community_activity, recent_community_activity)
-     |> assign_continuity_state()}
+      Task.start(fn ->
+        friends = Elektrine.Friends.list_friends(user_id)
+
+        send(parent, {
+          :user_timeline_side_data_loaded,
+          user_id,
+          %{
+            user_drafts: Elektrine.Social.Drafts.list_drafts(user_id, limit: 20),
+            suggested_follows: Social.get_suggested_follows(user_id, limit: 5),
+            friends: friends,
+            friend_ids: Enum.map(friends, & &1.id),
+            recent_community_activity: Social.get_recent_community_activity(user_id, limit: 24)
+          }
+        })
+      end)
+
+      {:noreply, socket}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_info({:user_timeline_side_data_loaded, user_id, side_data}, socket) do
+    case socket.assigns.current_user do
+      %{id: ^user_id} ->
+        {:noreply,
+         socket
+         |> assign(:user_drafts, side_data.user_drafts)
+         |> assign(:suggested_follows, side_data.suggested_follows)
+         |> assign(:friends, side_data.friends)
+         |> assign(:friend_ids, side_data.friend_ids)
+         |> assign(:recent_community_activity, side_data.recent_community_activity)
+         |> assign_continuity_state()}
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -1239,6 +1294,24 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   @impl true
   def handle_info(_info, socket) do
     {:noreply, socket}
+  end
+
+  defp start_timeline_data_load(socket, load_ref, filter, timeline_view) do
+    context =
+      socket
+      |> assign(:timeline_filter, timeline_view)
+      |> timeline_load_context()
+
+    parent = self()
+
+    Task.start(fn ->
+      send(parent, {:timeline_data_loaded, load_ref, build_timeline_load_state(context, filter)})
+    end)
+
+    socket
+    |> assign(:timeline_filter, timeline_view)
+    |> assign(:loading_more, false)
+    |> assign(:no_more_posts, false)
   end
 
   defp load_posts_for_filter(filter, user, timeline_view, opts) do
@@ -2000,20 +2073,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   defp convert_single_remote_reply(_) do
     nil
-  end
-
-  defp allow_timeline_read(socket, action) do
-    TimelineRateLimiter.allow_read(timeline_rate_limit_identifier(socket, action))
-  end
-
-  defp timeline_rate_limit_identifier(socket, action) do
-    actor =
-      case socket.assigns[:current_user] do
-        %{id: user_id} -> "user:#{user_id}"
-        _ -> "anon:#{socket.id || "unknown"}"
-      end
-
-    "liveview:#{action}:#{actor}"
   end
 
   defp normalize_timeline_view(nil) do

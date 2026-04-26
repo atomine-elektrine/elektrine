@@ -14,6 +14,12 @@ defmodule Elektrine.VPN do
   @hashed_api_key_prefix "sha256:"
   @default_shadowsocks_cipher "chacha20-ietf-poly1305"
   @default_shadowsocks_port_range_size 2000
+  def minimum_trust_level, do: Elektrine.System.module_min_trust_level(:vpn)
+
+  def user_can_access?(%Elektrine.Accounts.User{} = user),
+    do: Elektrine.System.user_can_access_module?(user, :vpn)
+
+  def user_can_access?(_user), do: false
 
   ## Server functions
 
@@ -78,10 +84,16 @@ defmodule Elektrine.VPN do
   Returns the list of active VPN servers that the user has access to based on their trust level.
   """
   def list_active_servers_for_user(user_trust_level) do
-    from(s in Server,
-      where: s.status == "active" and s.minimum_trust_level <= ^user_trust_level
-    )
-    |> Repo.all()
+    user_trust_level = user_trust_level || 0
+
+    if user_trust_level < minimum_trust_level() do
+      []
+    else
+      from(s in Server,
+        where: s.status == "active" and s.minimum_trust_level <= ^user_trust_level
+      )
+      |> Repo.all()
+    end
   end
 
   @doc """
@@ -463,6 +475,9 @@ defmodule Elektrine.VPN do
       server.status != "active" ->
         {:error, :server_not_active}
 
+      user_trust_level < minimum_trust_level() ->
+        {:error, :insufficient_trust_level}
+
       server.minimum_trust_level > user_trust_level ->
         {:error, :insufficient_trust_level}
 
@@ -479,6 +494,8 @@ defmodule Elektrine.VPN do
   end
 
   defp build_wireguard_sync_snapshot(%Server{id: server_id} = server) do
+    required_trust_level = max(server.minimum_trust_level, minimum_trust_level())
+
     active_configs =
       from(uc in UserConfig,
         join: u in Elektrine.Accounts.User,
@@ -487,7 +504,8 @@ defmodule Elektrine.VPN do
           uc.vpn_server_id == ^server_id and
             uc.status == "active" and
             u.banned == false and
-            u.suspended == false,
+            u.suspended == false and
+            (u.is_admin == true or u.trust_level >= ^required_trust_level),
         select: %{
           public_key: uc.public_key,
           allocated_ip: uc.allocated_ip,
@@ -506,7 +524,8 @@ defmodule Elektrine.VPN do
           uc.vpn_server_id == ^server_id and
             (uc.status in ["suspended", "revoked"] or
                u.banned == true or
-               u.suspended == true),
+               u.suspended == true or
+               (u.is_admin == false and u.trust_level < ^required_trust_level)),
         select: %{public_key: uc.public_key}
       )
       |> Repo.all()
@@ -527,6 +546,8 @@ defmodule Elektrine.VPN do
   end
 
   defp build_shadowsocks_sync_snapshot(%Server{id: server_id} = server) do
+    required_trust_level = max(server.minimum_trust_level, minimum_trust_level())
+
     active_configs =
       from(uc in UserConfig,
         join: u in Elektrine.Accounts.User,
@@ -535,7 +556,8 @@ defmodule Elektrine.VPN do
           uc.vpn_server_id == ^server_id and
             uc.status == "active" and
             u.banned == false and
-            u.suspended == false
+            u.suspended == false and
+            (u.is_admin == true or u.trust_level >= ^required_trust_level)
       )
       |> Repo.all()
       |> Enum.map(fn config ->
@@ -556,7 +578,8 @@ defmodule Elektrine.VPN do
           uc.vpn_server_id == ^server_id and
             (uc.status in ["suspended", "revoked"] or
                u.banned == true or
-               u.suspended == true),
+               u.suspended == true or
+               (u.is_admin == false and u.trust_level < ^required_trust_level)),
         select: %{client_id: uc.public_key}
       )
       |> Repo.all()
@@ -766,6 +789,7 @@ defmodule Elektrine.VPN do
 
   defp get_user_trust_level(user_id) when is_integer(user_id) do
     case Repo.get(Elektrine.Accounts.User, user_id) do
+      %{is_admin: true} -> 4
       %{trust_level: trust_level} when is_integer(trust_level) -> trust_level
       _ -> 0
     end

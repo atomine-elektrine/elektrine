@@ -12,33 +12,47 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    if user do
-      # Load user's VPN configs
-      user_configs = VPN.list_user_configs(user.id)
+    cond do
+      is_nil(user) ->
+        {:ok,
+         socket
+         |> put_flash(:error, "You must be logged in to access VPN")
+         |> redirect(to: Elektrine.Paths.login_path())}
 
-      # Load available servers filtered by user's trust level
-      available_servers = VPN.list_active_servers_for_user(user.trust_level)
+      not VPN.user_can_access?(user) ->
+        {:ok,
+         socket
+         |> put_flash(
+           :error,
+           "VPN unlocks at trust level #{VPN.minimum_trust_level()} to reduce abuse."
+         )
+         |> redirect(to: ~p"/portal")}
 
-      # Set timezone and time_format from user preferences
-      timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
-      time_format = if user && user.time_format, do: user.time_format, else: "12"
+      true ->
+        # Load user's VPN configs
+        user_configs = VPN.list_user_configs(user.id)
 
-      {:ok,
-       socket
-       |> assign(:page_title, "VPN")
-       |> assign(:user_configs, user_configs)
-       |> assign(:available_servers, available_servers)
-       |> assign(:show_qr_modal, false)
-       |> assign(:qr_code_svg, nil)
-       |> assign(:qr_config, nil)
-       |> assign(:qr_config_name, nil)
-       |> assign(:timezone, timezone)
-       |> assign(:time_format, time_format)}
-    else
-      {:ok,
-       socket
-       |> put_flash(:error, "You must be logged in to access VPN")
-       |> redirect(to: Elektrine.Paths.login_path())}
+        # Load available servers filtered by user's trust level
+        available_servers =
+          if user.is_admin,
+            do: VPN.list_active_servers(),
+            else: VPN.list_active_servers_for_user(user.trust_level)
+
+        # Set timezone and time_format from user preferences
+        timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
+        time_format = if user && user.time_format, do: user.time_format, else: "12"
+
+        {:ok,
+         socket
+         |> assign(:page_title, "VPN")
+         |> assign(:user_configs, user_configs)
+         |> assign(:available_servers, available_servers)
+         |> assign(:show_qr_modal, false)
+         |> assign(:qr_code_svg, nil)
+         |> assign(:qr_config, nil)
+         |> assign(:qr_config_name, nil)
+         |> assign(:timezone, timezone)
+         |> assign(:time_format, time_format)}
     end
   end
 

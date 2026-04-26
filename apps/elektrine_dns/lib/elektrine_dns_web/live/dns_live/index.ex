@@ -573,7 +573,21 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           </section>
         </aside>
 
-        <main :if={@active_zone || @zone_scan} class="space-y-6">
+        <main class="space-y-6">
+          <section :if={!@active_zone && !@zone_scan} class="card panel-card">
+            <div class="card-body p-6 sm:p-8">
+              <div class="mx-auto max-w-2xl text-center">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  No DNS zones
+                </div>
+                <h2 class="mt-2 text-2xl font-semibold tracking-tight">Add a domain to manage DNS</h2>
+                <p class="mt-3 text-sm leading-6 text-base-content/65">
+                  Provision a zone from the form on the left, or scan public DNS first to import existing records before switching nameservers.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <%= if @zone_scan do %>
             <section class="card panel-card">
               <div class="card-body p-5 sm:p-6">
@@ -680,200 +694,202 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </section>
           <% end %>
 
-          <section :if={@active_zone} class="card panel-card">
-            <div class="card-body p-0">
-              <div class="flex flex-col gap-5 border-b border-base-content/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-                <div class="space-y-3">
-                  <div>
-                    <h2 class="font-mono text-xl font-semibold tracking-tight">
-                      {@active_zone.domain}
-                    </h2>
-                    <p class="mt-1 text-sm text-base-content/65">
-                      {zone_description(@active_zone, @current_user)}
-                    </p>
-                  </div>
-
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class={zone_status_badge_class(@active_zone.status)}>
-                      {@active_zone.status}
-                    </span>
-                    <%= if builtin_zone?(@active_zone, @current_user) do %>
-                      <span class="badge badge-info badge-outline">built-in</span>
-                      <span class="badge badge-outline">
-                        {builtin_zone_mode_label(@current_user)}
-                      </span>
-                    <% end %>
-                    <span class="badge badge-ghost">TTL {@active_zone.default_ttl}</span>
-                    <%= if @active_zone.verified_at do %>
-                      <span class="badge badge-outline">
-                        Verified {Calendar.strftime(@active_zone.verified_at, "%Y-%m-%d")}
-                      </span>
-                    <% end %>
-                  </div>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <.link
-                    navigate={~p"/account/profile/domains/analytics?zone_id=#{@active_zone.id}"}
-                    class="btn btn-sm btn-outline"
-                  >
-                    <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
-                  </.link>
-                  <%= if builtin_zone?(@active_zone, @current_user) do %>
-                    <span class="text-sm text-base-content/60">
-                      {if builtin_zone_hosted_by_platform?(@current_user),
-                        do: "Apex remains reserved for Elektrine.",
-                        else: "Apex is user-managed in DNS."}
-                    </span>
-                  <% else %>
-                    <button
-                      type="button"
-                      phx-click="zone_verify"
-                      phx-value-id={@active_zone.id}
-                      class="btn btn-sm btn-primary"
-                    >
-                      <.icon name="hero-check-badge" class="h-4 w-4" /> Check setup
-                    </button>
-                    <button
-                      type="button"
-                      phx-click="zone_delete"
-                      phx-value-id={@active_zone.id}
-                      data-confirm="Delete this DNS zone and all records?"
-                      class="btn btn-sm btn-error btn-outline"
-                    >
-                      <.icon name="hero-trash" class="h-4 w-4" /> Delete
-                    </button>
-                  <% end %>
-                </div>
-              </div>
-
-              <div class="space-y-5 px-5 py-4">
-                <%= if builtin_zone?(@active_zone, @current_user) do %>
-                  <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm">
-                    <%= if builtin_zone_hosted_by_platform?(@current_user) do %>
-                      <span>
-                        <code>{@active_zone.domain}</code>
-                        is the built-in host for your profile/static site. Apex `@` stays platform-managed; user records can be added on descendant labels plus apex `TXT` and `CAA`.
-                      </span>
-                    <% else %>
-                      <span>
-                        <code>{@active_zone.domain}</code>
-                        is handed off to DNS. Elektrine will not serve the built-in profile/static site on this host until you switch it back.
-                      </span>
-                    <% end %>
-                  </div>
-
-                  <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
-                    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div class="space-y-1">
-                        <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                          Built-in host ownership
-                        </h3>
-                        <p class="text-sm text-base-content/65">
-                          Switch between platform-managed apex routing and full user DNS control.
-                        </p>
-                      </div>
-                      <div class="join self-start lg:self-auto">
-                        <button
-                          type="button"
-                          phx-click="builtin_zone_mode_set"
-                          phx-value-mode="platform"
-                          class={builtin_zone_mode_button_class(@current_user, "platform")}
-                        >
-                          Platform
-                        </button>
-                        <button
-                          type="button"
-                          phx-click="builtin_zone_mode_set"
-                          phx-value-mode="external_dns"
-                          class={builtin_zone_mode_button_class(@current_user, "external_dns")}
-                        >
-                          External DNS
-                        </button>
-                      </div>
+          <%= if @active_zone do %>
+            <section class="card panel-card">
+              <div class="card-body p-0">
+                <div class="flex flex-col gap-5 border-b border-base-content/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div class="space-y-3">
+                    <div>
+                      <h2 class="font-mono text-xl font-semibold tracking-tight">
+                        {@active_zone.domain}
+                      </h2>
+                      <p class="mt-1 text-sm text-base-content/65">
+                        {zone_description(@active_zone, @current_user)}
+                      </p>
                     </div>
-                  </div>
-                <% end %>
 
-                <%= if @active_zone.last_error do %>
-                  <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm">
-                    {@active_zone.last_error}
-                  </div>
-                <% end %>
-
-                <%= if not builtin_zone?(@active_zone, @current_user) do %>
-                  <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
-                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div class="space-y-1">
-                        <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                          Quick start
-                        </h3>
-                        <p class="text-sm text-base-content/65">
-                          Follow these steps to move this domain onto Elektrine DNS.
-                        </p>
-                      </div>
+                    <div class="flex flex-wrap items-center gap-2">
                       <span class={zone_status_badge_class(@active_zone.status)}>
                         {@active_zone.status}
                       </span>
-                    </div>
-                    <div class="mt-4 grid gap-3 xl:grid-cols-3">
-                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                        <p class="font-semibold">1. Point your registrar here</p>
-                        <p class="mt-1 text-base-content/65">
-                          Replace your current nameservers with the Elektrine nameservers shown below.
-                        </p>
-                      </div>
-                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                        <p class="font-semibold">2. Wait for DNS to update</p>
-                        <p class="mt-1 text-base-content/65">
-                          Registrar changes can take a little while to spread. This is normal.
-                        </p>
-                      </div>
-                      <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                        <p class="font-semibold">3. Check setup here</p>
-                        <p class="mt-1 text-base-content/65">
-                          When the nameserver change is live, use the button above to verify the zone.
-                        </p>
-                      </div>
+                      <%= if builtin_zone?(@active_zone, @current_user) do %>
+                        <span class="badge badge-info badge-outline">built-in</span>
+                        <span class="badge badge-outline">
+                          {builtin_zone_mode_label(@current_user)}
+                        </span>
+                      <% end %>
+                      <span class="badge badge-ghost">TTL {@active_zone.default_ttl}</span>
+                      <%= if @active_zone.verified_at do %>
+                        <span class="badge badge-outline">
+                          Verified {Calendar.strftime(@active_zone.verified_at, "%Y-%m-%d")}
+                        </span>
+                      <% end %>
                     </div>
                   </div>
-                <% end %>
 
-                <.simple_form
-                  for={@zone_settings_form}
-                  bare={true}
-                  phx-submit="zone_update"
-                  class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4"
-                >
-                  <div class="mb-4">
-                    <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                      Zone settings
-                    </h3>
-                    <p class="mt-1 text-sm text-base-content/65">
-                      Applies to records created inside this zone.
-                    </p>
+                  <div class="flex flex-wrap gap-2">
+                    <.link
+                      navigate={~p"/account/profile/domains/analytics?zone_id=#{@active_zone.id}"}
+                      class="btn btn-sm btn-outline"
+                    >
+                      <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
+                    </.link>
+                    <%= if builtin_zone?(@active_zone, @current_user) do %>
+                      <span class="text-sm text-base-content/60">
+                        {if builtin_zone_hosted_by_platform?(@current_user),
+                          do: "Apex remains reserved for Elektrine.",
+                          else: "Apex is user-managed in DNS."}
+                      </span>
+                    <% else %>
+                      <button
+                        type="button"
+                        phx-click="zone_verify"
+                        phx-value-id={@active_zone.id}
+                        class="btn btn-sm btn-primary"
+                      >
+                        <.icon name="hero-check-badge" class="h-4 w-4" /> Check setup
+                      </button>
+                      <button
+                        type="button"
+                        phx-click="zone_delete"
+                        phx-value-id={@active_zone.id}
+                        data-confirm="Delete this DNS zone and all records?"
+                        class="btn btn-sm btn-error btn-outline"
+                      >
+                        <.icon name="hero-trash" class="h-4 w-4" /> Delete
+                      </button>
+                    <% end %>
                   </div>
-                  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <.input
-                      field={@zone_settings_form[:default_ttl]}
-                      type="number"
-                      label="Default TTL"
-                    />
-                    <.input
-                      field={@zone_settings_form[:force_https]}
-                      type="checkbox"
-                      label="Force HTTPS"
-                    />
-                  </div>
-                  <:actions>
-                    <.button>Save settings</.button>
-                  </:actions>
-                </.simple_form>
+                </div>
+
+                <div class="space-y-5 px-5 py-4">
+                  <%= if builtin_zone?(@active_zone, @current_user) do %>
+                    <div class="rounded-2xl border border-info/20 bg-info/5 px-4 py-3 text-sm">
+                      <%= if builtin_zone_hosted_by_platform?(@current_user) do %>
+                        <span>
+                          <code>{@active_zone.domain}</code>
+                          is the built-in host for your profile/static site. Apex `@` stays platform-managed; user records can be added on descendant labels plus apex `TXT` and `CAA`.
+                        </span>
+                      <% else %>
+                        <span>
+                          <code>{@active_zone.domain}</code>
+                          is handed off to DNS. Elektrine will not serve the built-in profile/static site on this host until you switch it back.
+                        </span>
+                      <% end %>
+                    </div>
+
+                    <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
+                      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div class="space-y-1">
+                          <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                            Built-in host ownership
+                          </h3>
+                          <p class="text-sm text-base-content/65">
+                            Switch between platform-managed apex routing and full user DNS control.
+                          </p>
+                        </div>
+                        <div class="join self-start lg:self-auto">
+                          <button
+                            type="button"
+                            phx-click="builtin_zone_mode_set"
+                            phx-value-mode="platform"
+                            class={builtin_zone_mode_button_class(@current_user, "platform")}
+                          >
+                            Platform
+                          </button>
+                          <button
+                            type="button"
+                            phx-click="builtin_zone_mode_set"
+                            phx-value-mode="external_dns"
+                            class={builtin_zone_mode_button_class(@current_user, "external_dns")}
+                          >
+                            External DNS
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <%= if @active_zone.last_error do %>
+                    <div class="rounded-xl border border-warning/20 bg-warning/10 px-4 py-3 text-sm">
+                      {@active_zone.last_error}
+                    </div>
+                  <% end %>
+
+                  <%= if not builtin_zone?(@active_zone, @current_user) do %>
+                    <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
+                      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="space-y-1">
+                          <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                            Quick start
+                          </h3>
+                          <p class="text-sm text-base-content/65">
+                            Follow these steps to move this domain onto Elektrine DNS.
+                          </p>
+                        </div>
+                        <span class={zone_status_badge_class(@active_zone.status)}>
+                          {@active_zone.status}
+                        </span>
+                      </div>
+                      <div class="mt-4 grid gap-3 xl:grid-cols-3">
+                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                          <p class="font-semibold">1. Point your registrar here</p>
+                          <p class="mt-1 text-base-content/65">
+                            Replace your current nameservers with the Elektrine nameservers shown below.
+                          </p>
+                        </div>
+                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                          <p class="font-semibold">2. Wait for DNS to update</p>
+                          <p class="mt-1 text-base-content/65">
+                            Registrar changes can take a little while to spread. This is normal.
+                          </p>
+                        </div>
+                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
+                          <p class="font-semibold">3. Check setup here</p>
+                          <p class="mt-1 text-base-content/65">
+                            When the nameserver change is live, use the button above to verify the zone.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  <% end %>
+
+                  <.simple_form
+                    for={@zone_settings_form}
+                    bare={true}
+                    phx-submit="zone_update"
+                    class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4"
+                  >
+                    <div class="mb-4">
+                      <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
+                        Zone settings
+                      </h3>
+                      <p class="mt-1 text-sm text-base-content/65">
+                        Applies to records created inside this zone.
+                      </p>
+                    </div>
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <.input
+                        field={@zone_settings_form[:default_ttl]}
+                        type="number"
+                        label="Default TTL"
+                      />
+                      <.input
+                        field={@zone_settings_form[:force_https]}
+                        type="checkbox"
+                        label="Force HTTPS"
+                      />
+                    </div>
+                    <:actions>
+                      <.button>Save settings</.button>
+                    </:actions>
+                  </.simple_form>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          <% end %>
 
-          <div class="space-y-6">
+          <div :if={@active_zone} class="space-y-6">
             <section class="card panel-card">
               <div class="card-body p-0">
                 <div class="border-b border-base-content/10 px-5 py-4">
@@ -1083,7 +1099,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </section>
           </div>
 
-          <section class="card panel-card">
+          <section :if={@active_zone} class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -1220,7 +1236,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section :if={!builtin_zone?(@active_zone, @current_user)} class="card panel-card">
+          <section
+            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
+            class="card panel-card"
+          >
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
@@ -1297,7 +1316,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section :if={!builtin_zone?(@active_zone, @current_user)} class="card panel-card">
+          <section
+            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
+            class="card panel-card"
+          >
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1351,7 +1373,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
             </div>
           </section>
 
-          <section :if={!builtin_zone?(@active_zone, @current_user)} class="card panel-card">
+          <section
+            :if={@active_zone && !builtin_zone?(@active_zone, @current_user)}
+            class="card panel-card"
+          >
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
