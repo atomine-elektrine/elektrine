@@ -4,7 +4,7 @@
 #
 # Required environment for the preferred internal API path:
 #   ELEKTRINE_API_BASE  e.g. https://elektrine.com
-#   ELEKTRINE_INTERNAL_API_KEY shared internal key, usually PHOENIX_API_KEY or CADDY_EDGE_API_KEY
+#   ELEKTRINE_INTERNAL_API_KEY shared internal key, usually CADDY_EDGE_API_KEY
 #
 # Legacy external API fallback:
 #   ELEKTRINE_DNS_TOKEN personal access token with write:dns scope

@@ -47,9 +47,17 @@ runs in the same stack.
 
 ## Environment Files
 
-- start from `.env.example` for a first deploy
-- use the smaller files under `env/` as reference for feature-specific overrides
-- keep `.env.production` limited to the values you actually need on that host
+For a first deploy, generate a minimal `.env.production` instead of starting from
+the full kitchen-sink example:
+
+```bash
+scripts/deploy/generate_env.sh --domain example.com --email admin@example.com
+scripts/deploy/doctor.sh
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
+```
+
+Use the smaller files under `env/` as reference for feature-specific overrides,
+and keep `.env.production` limited to the values you actually need on that host.
 
 Minimal first-run values are usually:
 
@@ -57,6 +65,10 @@ Minimal first-run values are usually:
 - `DB_PASSWORD`
 - `ELEKTRINE_MASTER_SECRET`
 - `ACME_EMAIL` if you want automatic HTTPS via Caddy
+
+`scripts/deploy/doctor.sh` checks these values before deploy and also validates
+the common Caddy, wildcard TLS, Magpie/S3, Docker, and stale bind-mount failure
+points.
 
 By default, the DNS service derives:
 
@@ -74,16 +86,19 @@ Local uploads without S3-compatible object storage:
 - the container entrypoint links that volume into the release `priv/static/uploads` path so `/uploads/...` URLs keep working
 - keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
 
-To use a private S3-compatible service from another Compose project, attach the
-Elektrine app and worker containers to the same external Docker network. For
-example, with a Magpie service on `app-shared`:
+To use a private S3-compatible service from another Compose project, set the
+Magpie/S3 variables in `.env.production`. If `S3_PUBLIC_URL` points at
+`media.<PRIMARY_DOMAIN>` and `CADDY_MEDIA_UPSTREAM` is `magpie:8090`, the deploy
+wrapper automatically attaches app, worker, and Caddy to the Magpie shared
+network and renders a media route.
+
+With a Magpie service on `app-shared`:
 
 ```bash
 docker network create app-shared
 scripts/deploy/docker_deploy.sh \
-  --modules chat,social,vault \
-  --profile caddy \
-  --compose-override deploy/docker/compose.magpie-network.yml
+	--modules chat,social,vault \
+	--profile caddy
 ```
 
 Then set the storage endpoint to the object-store service name in
@@ -91,9 +106,12 @@ Then set the storage endpoint to the object-store service name in
 
 ```env
 S3_ENDPOINT=magpie:8090
-S3_PUBLIC_URL=http://magpie:8090/app-uploads
+S3_BUCKET_NAME=app-uploads
+S3_PUBLIC_URL=https://media.example.com
 S3_SCHEME=http://
 S3_PORT=8090
+CADDY_MEDIA_HOST=media.example.com
+CADDY_MEDIA_UPSTREAM=magpie:8090
 ```
 
 If the shared network has a different name, set `MAGPIE_DOCKER_NETWORK` before
@@ -154,7 +172,7 @@ only if your cert files live somewhere else or use a different filename.
 
 If Elektrine hosts the authoritative DNS zone, the deploy wrapper issues and
 installs the initial wildcard certificate automatically when Oban renewal is
-enabled. The issuer uses the existing `PHOENIX_API_KEY` or `CADDY_EDGE_API_KEY`
+enabled. The issuer uses the existing `CADDY_EDGE_API_KEY`
 for the internal DNS-01 endpoint and saves that config into acme.sh. Pass
 `--domain=example.com` to `scripts/acme/issue_elektrine_wildcard_cert.sh` only
 when you need to run it manually with an override.
@@ -257,7 +275,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
-- `DOCKER_PROFILES` optional, defaults to `caddy dns email tor turn bluesky` in the GitHub Docker deploy workflow; remove `dns` only when this host should not serve DNS on port 53
+- `DOCKER_PROFILES` optional, defaults to `caddy`; add `dns`, `email`, `tor`, `turn`, or `bluesky` only when this host should run those services
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
@@ -265,7 +283,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 Variables for `.github/workflows/docker-deploy.yml`:
 
-- `ELEKTRINE_ENABLED_MODULES` optional, defaults to `all`
+- `ELEKTRINE_ENABLED_MODULES` optional, defaults to `chat,social,vault`
 - `ELEKTRINE_RELEASE_MODULES` optional advanced build override
 - `DOCKER_BUILD_PRIMARY_DOMAIN`
 - `DOCKER_BUILD_EMAIL_DOMAIN`

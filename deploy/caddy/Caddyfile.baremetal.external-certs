@@ -3,7 +3,7 @@
 	storage file_system /data/caddy
 
 	on_demand_tls {
-		ask {$CADDY_ASK_URL}?token={$CADDY_EDGE_API_KEY}
+		ask {$CADDY_ASK_URL}/{$CADDY_EDGE_API_KEY}
 	}
 
 	auto_https disable_redirects
@@ -17,17 +17,22 @@
 	respond @admin_off_vpn "Not Found" 404
 }
 
+# elektrine:media:start
 {$CADDY_MEDIA_HOST:media.elektrine.com} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
-	uri replace / /{$S3_BUCKET_NAME}/ 1
+	@private_media path /attachments/* /chat-attachments/* /discussion-attachments/* /email-attachments/* /gallery-attachments/* /timeline-attachments/* /voice-messages/*
+	respond @private_media "Not Found" 404
+
+	rewrite * /{$S3_BUCKET_NAME}{uri}
 
 	reverse_proxy {$CADDY_MEDIA_UPSTREAM:magpie:8090} {
-		header_up Host {host}
+		header_up Host {upstream_hostport}
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-For {remote_host}
 		header_up X-Real-IP {remote_host}
 	}
 }
+# elektrine:media:end
 
 {$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
@@ -51,6 +56,7 @@
 	}
 }
 
+# elektrine:site2:start
 {$CADDY_MANAGED_SITE_2} {
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 	import admin_netbird_gate
@@ -62,6 +68,7 @@
 		header_up X-Real-IP {remote_host}
 	}
 }
+# elektrine:site2:end
 
 https:// {
 	tls {

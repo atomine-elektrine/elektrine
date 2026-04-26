@@ -135,10 +135,7 @@ defmodule ElektrineChatWeb.ChatLive.Router do
     "show_message_context_menu" => ContextMenuOperations,
     "hide_message_context_menu" => ContextMenuOperations,
     "toggle_emoji_picker" => EmojiGifOperations,
-    "toggle_gif_picker" => EmojiGifOperations,
     "insert_emoji" => EmojiGifOperations,
-    "search_gifs" => EmojiGifOperations,
-    "insert_gif" => EmojiGifOperations,
     "emoji_search" => EmojiGifOperations,
     "emoji_tab" => EmojiGifOperations
   }

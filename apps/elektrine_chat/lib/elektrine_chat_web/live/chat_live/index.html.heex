@@ -1484,44 +1484,6 @@
           </div>
         <% end %>
         
-<!-- GIF Picker -->
-        <%= if @ui.show_gif_picker do %>
-          <div class="border-t border-base-300 p-3 bg-base-100">
-            <input
-              type="text"
-              placeholder="Search GIFs..."
-              value={@search.gif_query}
-              phx-keyup="search_gifs"
-              phx-debounce="300"
-              class="input input-bordered w-full mb-3"
-              name="query"
-            />
-            <div class="grid grid-cols-3 gap-2 max-h-48 sm:max-h-64 overflow-y-auto">
-              <%= for gif <- @search.gif_results do %>
-                <button
-                  type="button"
-                  phx-click="insert_gif"
-                  phx-value-gif_url={gif.url}
-                  class="relative aspect-square overflow-hidden rounded hover:scale-105 transition-transform"
-                  title={gif.title}
-                >
-                  <img
-                    src={Map.get(gif, :preview_url, gif.url)}
-                    alt={gif.title}
-                    class="w-full h-full object-cover rounded"
-                  />
-                </button>
-              <% end %>
-            </div>
-            <%= if @search.gif_results == [] and @search.gif_query != "" do %>
-              <div class="text-center py-8">
-                <p class="text-sm opacity-70">No GIFs found for "{@search.gif_query}"</p>
-                <p class="text-xs opacity-50">Try: happy, sad, hello, bye, yes, no</p>
-              </div>
-            <% end %>
-          </div>
-        <% end %>
-        
 <!-- Message Input -->
         <div class="flex-shrink-0 bg-base-200 border-t border-base-300 px-2 py-2.5 sm:px-4 sm:py-4 xl:px-5 xl:py-5">
           <div class="mx-auto w-full max-w-5xl">
@@ -1667,16 +1629,6 @@
                       title="Emoji"
                     >
                       <.icon name="hero-face-smile" class="w-5 h-5" />
-                    </button>
-                    
-<!-- GIF Button - Hidden on mobile, shows on tablet+ -->
-                    <button
-                      type="button"
-                      phx-click="toggle_gif_picker"
-                      class="btn btn-ghost btn-circle p-0 min-h-0 h-10 w-10 flex-shrink-0 hidden md:flex items-center justify-center text-base-content/80 hover:bg-base-300"
-                      title="GIF"
-                    >
-                      <.icon name="hero-gif" class="w-5 h-5" />
                     </button>
                     
 <!-- Voice Message Button -->

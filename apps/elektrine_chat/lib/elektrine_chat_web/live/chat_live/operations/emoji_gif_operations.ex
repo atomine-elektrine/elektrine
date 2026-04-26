@@ -1,6 +1,6 @@
 defmodule ElektrineChatWeb.ChatLive.Operations.EmojiGifOperations do
   @moduledoc """
-  Handles emoji picker and GIF search operations.
+  Handles emoji picker operations.
   Extracted from ChatLive.Home.
   """
 
@@ -15,15 +15,6 @@ defmodule ElektrineChatWeb.ChatLive.Operations.EmojiGifOperations do
      )}
   end
 
-  def handle_event("toggle_gif_picker", _params, socket) do
-    {:noreply,
-     assign(
-       socket,
-       :ui,
-       Map.put(socket.assigns.ui, :show_gif_picker, !socket.assigns.ui.show_gif_picker)
-     )}
-  end
-
   def handle_event("insert_emoji", %{"emoji" => emoji}, socket) do
     current_message = socket.assigns.message.new_message
     updated_message = "#{current_message}#{emoji}"
@@ -32,35 +23,6 @@ defmodule ElektrineChatWeb.ChatLive.Operations.EmojiGifOperations do
      socket
      |> assign(:message, %{socket.assigns.message | new_message: updated_message})
      |> assign(:ui, Map.put(socket.assigns.ui, :show_emoji_picker, false))}
-  end
-
-  def handle_event("search_gifs", %{"query" => query}, socket) do
-    gifs =
-      if String.length(query) >= 2 do
-        # Search GIFs using Giphy API
-        case Elektrine.Giphy.search_gifs(query) do
-          {:ok, results} -> results
-          {:error, _} -> []
-        end
-      else
-        # Return trending GIFs
-        case Elektrine.Giphy.trending_gifs() do
-          {:ok, results} -> results
-          {:error, _} -> []
-        end
-      end
-
-    {:noreply, assign(socket, :gif_results, gifs)}
-  end
-
-  def handle_event("insert_gif", %{"url" => gif_url}, socket) do
-    current_message = socket.assigns.message.new_message
-    updated_message = "#{current_message}\n#{gif_url}"
-
-    {:noreply,
-     socket
-     |> assign(:message, %{socket.assigns.message | new_message: updated_message})
-     |> assign(:show_gif_picker, false)}
   end
 
   def handle_event("emoji_search", %{"value" => query}, socket) do

@@ -69,6 +69,7 @@ npm-debug.log*
 
 # Deploy-time generated configs
 /deploy/docker/generated*.yml
+/deploy/docker/generated.Caddyfile
 /deploy/docker/generated.mongooseim.toml
 
 # =============================================================================

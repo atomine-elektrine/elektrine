@@ -750,7 +750,7 @@ defmodule ElektrineWeb.HtmlHelpers do
       ~r/^https?:\/\/[^\/]*programming\.dev\/pictrs\/image\//i,
       ~r/^https?:\/\/[^\/]*\/pictrs\/image\//i,
       ~r/^https?:\/\/i\.(imgur|redd\.it|postimg)/i,
-      ~r/^https?:\/\/media\.(tenor|giphy)\.com/i
+      ~r/^https?:\/\/media\.tenor\.com/i
     ]
 
     Enum.any?(trusted_patterns, fn pattern -> Regex.match?(pattern, url) end)

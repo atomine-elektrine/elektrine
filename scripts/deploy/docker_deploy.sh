@@ -18,6 +18,7 @@ DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
 RENDER_PROFILES=""
 FORCE_RECREATE_ARGS=(--force-recreate)
+CADDY_RENDERED_CONFIG_PATH="${CADDY_RENDERED_CONFIG_PATH:-$ROOT_DIR/deploy/docker/generated.Caddyfile}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
@@ -86,7 +87,27 @@ for arg in "${PASSTHROUGH_ARGS[@]}"; do
   fi
 done
 
+validate_env_file() {
+  local env_file="$1"
+  local line=""
+  local line_no=0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_no=$((line_no + 1))
+    [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]] && continue
+    if [[ ! "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+      echo "Error: invalid env syntax at $env_file:$line_no" >&2
+      return 1
+    fi
+    if [[ "$line" == *'$('* || "$line" == *'`'* || "$line" == *';'* || "$line" == *'&&'* || "$line" == *'||'* ]]; then
+      echo "Error: unsafe shell syntax in env file at $env_file:$line_no" >&2
+      return 1
+    fi
+  done < "$env_file"
+}
+
 if [[ -f "$ENV_FILE" ]]; then
+  validate_env_file "$ENV_FILE"
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
@@ -218,6 +239,124 @@ validate_external_caddy_cert_paths() {
   fi
 }
 
+url_host() {
+  local value="$1"
+
+  value="${value#http://}"
+  value="${value#https://}"
+  value="${value%%/*}"
+  value="${value%%:*}"
+  printf '%s' "$value"
+}
+
+media_route_enabled() {
+  local public_host=""
+  local media_host="${CADDY_MEDIA_HOST:-media.elektrine.com}"
+
+  if [[ -z "${S3_PUBLIC_URL:-${MAGPIE_PUBLIC_URL:-}}" ]]; then
+    return 1
+  fi
+
+  public_host="$(url_host "${S3_PUBLIC_URL:-${MAGPIE_PUBLIC_URL:-}}")"
+  [[ "$public_host" == "$media_host" ]]
+}
+
+validate_media_storage_config() {
+  if ! media_route_enabled; then
+    return 0
+  fi
+
+  if [[ -z "${S3_BUCKET_NAME:-${MAGPIE_BUCKET_NAME:-}}" ]]; then
+    echo "Error: S3_PUBLIC_URL points at ${CADDY_MEDIA_HOST:-media.elektrine.com}, but S3_BUCKET_NAME is not set." >&2
+    echo "Hint: set S3_BUCKET_NAME to the Magpie bucket so Caddy can rewrite /path to /bucket/path." >&2
+    return 1
+  fi
+
+  case "$INFERRED_CADDY_CONFIG_PATH" in
+    *external-certs|*wildcard-external) ;;
+    *)
+      echo "Error: S3_PUBLIC_URL uses ${CADDY_MEDIA_HOST:-media.elektrine.com}, but the selected Caddyfile has no Magpie media route." >&2
+      echo "Hint: use external/wildcard external Caddy mode with CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH." >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+    echo "Error: media Caddy route requires CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH." >&2
+    return 1
+  fi
+}
+
+validate_caddy_admin_cidrs() {
+  if [[ "${NETBIRD_ALLOWED_CIDRS:-}" == *"0.0.0.0/0"* || "${NETBIRD_ALLOWED_CIDRS:-}" == *"::/0"* ]]; then
+    echo "Error: NETBIRD_ALLOWED_CIDRS must not include 0.0.0.0/0 or ::/0 when Caddy is enabled." >&2
+    echo "Hint: set exact VPN/private CIDRs, or leave it unset to deny public admin host access by default." >&2
+    return 1
+  fi
+}
+
+append_compose_override_if_missing() {
+  local wanted="$1"
+  local existing=""
+
+  for existing in "${COMPOSE_OVERRIDE_FILES[@]}"; do
+    if [[ "$existing" == "$wanted" ]]; then
+      return 0
+    fi
+  done
+
+  COMPOSE_OVERRIDE_FILES+=("$wanted")
+}
+
+maybe_enable_magpie_network_override() {
+  local upstream_host="${CADDY_MEDIA_UPSTREAM:-magpie:8090}"
+  upstream_host="${upstream_host%%:*}"
+
+  if media_route_enabled && [[ "$upstream_host" == "magpie" ]]; then
+    append_compose_override_if_missing "$ROOT_DIR/deploy/docker/compose.magpie-network.yml"
+  fi
+}
+
+resolve_caddy_config_path() {
+  local config_path="$1"
+
+  if [[ "$config_path" == /* ]]; then
+    printf '%s' "$config_path"
+  else
+    printf '%s/%s' "$ROOT_DIR/deploy/docker" "$config_path"
+  fi
+}
+
+render_caddy_config() {
+  local source_path=""
+  local include_site2=0
+  local include_media=0
+
+  source_path="$(resolve_caddy_config_path "$INFERRED_CADDY_CONFIG_PATH")"
+
+  if [[ ! -f "$source_path" ]]; then
+    echo "Error: Caddy config does not exist: $source_path" >&2
+    return 1
+  fi
+
+  if [[ -n "${CADDY_MANAGED_SITE_2:-}" ]]; then
+    include_site2=1
+  fi
+
+  if media_route_enabled; then
+    include_media=1
+  fi
+
+  awk -v include_site2="$include_site2" -v include_media="$include_media" '
+    /# elektrine:site2:start/ { skip = include_site2 ? 0 : 1; next }
+    /# elektrine:site2:end/ { skip = 0; next }
+    /# elektrine:media:start/ { skip = include_media ? 0 : 1; next }
+    /# elektrine:media:end/ { skip = 0; next }
+    skip { next }
+    { print }
+  ' "$source_path" > "$CADDY_RENDERED_CONFIG_PATH"
+}
+
 infer_cert_base_name() {
   local site_values="$1"
   local token=""
@@ -278,6 +417,22 @@ compose_has_service() {
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" config --services | grep -qx "$service_name"
 }
 
+remove_caddy_with_stale_config_mount() {
+  local container_name="elektrine_caddy_edge"
+  local mounted_config=""
+
+  if ! "${DOCKER_BIN[@]}" inspect "$container_name" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  mounted_config="$("${DOCKER_BIN[@]}" inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}')"
+
+  if [[ -n "$mounted_config" && ! -f "$mounted_config" ]]; then
+    echo "Info: removing $container_name because its Caddyfile bind mount no longer exists: $mounted_config" >&2
+    "${DOCKER_BIN[@]}" rm -f "$container_name" >/dev/null
+  fi
+}
+
 acme_runner_service() {
   if compose_has_service worker; then
     printf '%s' worker
@@ -308,17 +463,22 @@ populate_wildcard_cert_defaults
 
 INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
 validate_external_caddy_cert_paths "$INFERRED_CADDY_CONFIG_PATH"
+validate_media_storage_config
+validate_caddy_admin_cidrs
+maybe_enable_magpie_network_override
+render_caddy_config
+INFERRED_CADDY_CONFIG_PATH="$CADDY_RENDERED_CONFIG_PATH"
 
 if [[ " $RENDER_PROFILES " == *" caddy "* ]]; then
-  if [[ -z "${CADDY_EDGE_API_KEY:-}" && -n "${PHOENIX_API_KEY:-}" ]]; then
-    CADDY_EDGE_API_KEY="$PHOENIX_API_KEY"
-    export CADDY_EDGE_API_KEY
-    echo "Info: CADDY_EDGE_API_KEY not set; defaulting it from PHOENIX_API_KEY for Caddy internal TLS auth." >&2
+  if [[ -z "${CADDY_EDGE_API_KEY:-}" ]]; then
+    echo "Error: Caddy profile requires a distinct CADDY_EDGE_API_KEY for internal TLS auth." >&2
+    echo "Hint: generate a long random value and set CADDY_EDGE_API_KEY in .env.production." >&2
+    exit 1
   fi
 
-  if [[ -z "${CADDY_EDGE_API_KEY:-}" ]]; then
-    echo "Error: Caddy profile requires CADDY_EDGE_API_KEY or PHOENIX_API_KEY for internal TLS auth." >&2
-    echo "Hint: set CADDY_EDGE_API_KEY explicitly, or reuse PHOENIX_API_KEY." >&2
+  if [[ ! "$CADDY_EDGE_API_KEY" =~ ^[A-Za-z0-9._~-]+$ ]]; then
+    echo "Error: CADDY_EDGE_API_KEY must contain only URL path-safe characters: A-Z a-z 0-9 . _ ~ -" >&2
+    echo "Hint: scripts/deploy/generate_env.sh generates a compatible hex value." >&2
     exit 1
   fi
 fi
@@ -347,6 +507,8 @@ COMPOSE_ARGS=("${COMPOSE_BASE_ARGS[@]}" -f "$OUTPUT_PATH")
 for override_file in "${COMPOSE_OVERRIDE_FILES[@]}"; do
   COMPOSE_ARGS+=(-f "$override_file")
 done
+
+remove_caddy_with_stale_config_mount
 
 if [[ "$DO_UP" -eq 1 ]]; then
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres

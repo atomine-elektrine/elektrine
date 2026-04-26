@@ -39,8 +39,6 @@ defmodule Elektrine.Social.OEmbed do
     ~r/tiktok\.com\// => "https://www.tiktok.com/oembed",
     # Instagram
     ~r/instagram\.com\// => "https://api.instagram.com/oembed",
-    # Giphy
-    ~r/giphy\.com\// => "https://giphy.com/services/oembed",
     # Imgur
     ~r/imgur\.com\// => "https://api.imgur.com/oembed",
     # CodePen
@@ -241,8 +239,7 @@ defmodule Elektrine.Social.OEmbed do
       "w.soundcloud.com",
       "platform.twitter.com",
       "tiktok.com",
-      "codepen.io",
-      "giphy.com"
+      "codepen.io"
     ]
 
     # Extract src from iframe

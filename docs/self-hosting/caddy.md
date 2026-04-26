@@ -50,7 +50,7 @@ For wildcard/external certificate mode, also set:
 Elektrine can issue the wildcard cert with Elektrine DNS and use external
 certificate mode. The issuer loads `.env.production` and infers the domain/API base from
 `PRIMARY_DOMAIN`, `PHX_HOST`, and `CADDY_MANAGED_SITE_1`. It uses the existing
-`PHOENIX_API_KEY` or `CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
+`CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
 endpoint and saves that config into acme.sh. If needed, override with
 `--domain=example.com` or `--api-base=https://example.com`.
 

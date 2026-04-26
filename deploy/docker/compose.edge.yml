@@ -14,9 +14,9 @@ services:
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
-      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-${PHOENIX_API_KEY:-}}
+      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-}
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
-      NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-0.0.0.0/0 ::/0}
+      NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-192.0.2.0/32}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
