@@ -1158,21 +1158,29 @@ defmodule Elektrine.Social do
   end
 
   defp maybe_exclude_blocked_instances(query) do
-    from(m in query,
-      left_join: remote_actor in assoc(m, :remote_actor),
-      left_join: blocked_instance in Instance,
-      on:
-        blocked_instance.blocked == true and
-          (fragment("lower(?)", blocked_instance.domain) ==
-             fragment("lower(?)", remote_actor.domain) or
-             fragment(
-               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
-               blocked_instance.domain,
-               remote_actor.domain,
-               blocked_instance.domain
-             )),
-      where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
-    )
+    if blocked_instances_exist?() do
+      from(m in query,
+        left_join: remote_actor in assoc(m, :remote_actor),
+        left_join: blocked_instance in Instance,
+        on:
+          blocked_instance.blocked == true and
+            (fragment("lower(?)", blocked_instance.domain) ==
+               fragment("lower(?)", remote_actor.domain) or
+               fragment(
+                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+                 blocked_instance.domain,
+                 remote_actor.domain,
+                 blocked_instance.domain
+               )),
+        where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
+      )
+    else
+      query
+    end
+  end
+
+  defp blocked_instances_exist? do
+    Repo.exists?(from(i in Instance, where: i.blocked == true))
   end
 
   defp visibility_levels_for_viewer(user_id, viewer_id) do
