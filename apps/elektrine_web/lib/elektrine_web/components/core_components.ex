@@ -481,32 +481,6 @@ defmodule ElektrineWeb.CoreComponents do
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
 
-    tone_vars =
-      case assigns.kind do
-        :error ->
-          Elektrine.Theme.inline_vars(%{
-            "--flash-accent" => "color-mix(in srgb, var(--color-error) 92%, transparent)",
-            "--flash-accent-soft" => "color-mix(in srgb, var(--color-error) 25%, transparent)",
-            "--flash-tint-start" => "color-mix(in srgb, var(--color-error) 20%, transparent)",
-            "--flash-tint-mid" => "color-mix(in srgb, var(--color-error) 8%, transparent)",
-            "--flash-border" => "color-mix(in srgb, var(--color-error) 48%, transparent)",
-            "--flash-icon" =>
-              "color-mix(in srgb, var(--color-error) 72%, var(--color-error-content) 28%)"
-          })
-
-        _ ->
-          Elektrine.Theme.inline_vars(%{
-            "--flash-accent" => "color-mix(in srgb, var(--color-success) 90%, transparent)",
-            "--flash-accent-soft" => "color-mix(in srgb, var(--color-success) 24%, transparent)",
-            "--flash-tint-start" => "color-mix(in srgb, var(--color-success) 16%, transparent)",
-            "--flash-tint-mid" => "color-mix(in srgb, var(--color-success) 6%, transparent)",
-            "--flash-border" => "color-mix(in srgb, var(--color-success) 42%, transparent)",
-            "--flash-icon" => "color-mix(in srgb, var(--color-success) 96%, transparent)"
-          })
-      end
-
-    assigns = assign(assigns, :tone_vars, tone_vars)
-
     ~H"""
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
@@ -522,7 +496,7 @@ defmodule ElektrineWeb.CoreComponents do
       data-flash-auto-dismiss-ms={@auto_dismiss_ms}
       data-flash-exit-ms={@exit_ms}
       data-flash-kind={@kind}
-      style={"--flash-auto-dismiss: #{@auto_dismiss_ms}ms; --flash-exit: #{@exit_ms}ms; #{@tone_vars}"}
+      style={"--flash-auto-dismiss: #{@auto_dismiss_ms}ms; --flash-exit: #{@exit_ms}ms;"}
       {@rest}
     >
       <.icon name={flash_icon(@kind)} class="h-5 w-5 flex-shrink-0" />
