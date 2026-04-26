@@ -173,6 +173,22 @@ jobs:
               *) resolved_override="$WORKTREE_PATH/$override_file" ;;
             esac
             if [ ! -f "$resolved_override" ]; then
+              case " $DOCKER_PROFILES " in
+                *" $override_file "*)
+                  echo "Ignoring DEPLOY_COMPOSE_OVERRIDES entry '$override_file' because it is already enabled in DOCKER_PROFILES."
+                  continue
+                  ;;
+                *)
+                  case "$override_file" in
+                    bluesky|caddy|dns|email|tor|turn|vpn)
+                      echo "Treating DEPLOY_COMPOSE_OVERRIDES entry '$override_file' as a Docker profile. Prefer setting DOCKER_PROFILES instead."
+                      DOCKER_PROFILES="$DOCKER_PROFILES $override_file"
+                      continue
+                      ;;
+                  esac
+                  ;;
+              esac
+
               echo "Compose override not found: $resolved_override"
               exit 1
             fi
