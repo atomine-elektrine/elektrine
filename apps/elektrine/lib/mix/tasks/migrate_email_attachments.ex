@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Elektrine.MigrateEmailAttachments do
   @moduledoc """
-  Migrates existing email attachments from database storage to S3/R2.
+  Migrates existing email attachments from database storage to S3-compatible storage.
 
   Usage:
     mix elektrine.migrate_email_attachments [--batch-size 100] [--dry-run]
@@ -17,7 +17,7 @@ defmodule Mix.Tasks.Elektrine.MigrateEmailAttachments do
   alias Elektrine.Email.{AttachmentStorage, Message}
   alias Elektrine.Repo
 
-  @shortdoc "Migrates email attachments from database to S3/R2"
+  @shortdoc "Migrates email attachments from database to S3-compatible storage"
 
   def run(args) do
     Mix.Task.run("app.start")
@@ -31,7 +31,7 @@ defmodule Mix.Tasks.Elektrine.MigrateEmailAttachments do
     batch_size = opts[:batch_size] || 100
     dry_run = opts[:dry_run] || false
 
-    Logger.info("Starting email attachment migration to S3/R2")
+    Logger.info("Starting email attachment migration to S3-compatible storage")
     Logger.info("Batch size: #{batch_size}")
     Logger.info("Dry run: #{dry_run}")
 

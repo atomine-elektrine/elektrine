@@ -15,7 +15,9 @@ defmodule ElektrineWeb.Plugs.BlockPrivateUploadPaths do
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{request_path: path} = conn, _opts) when is_binary(path) do
+  def call(%Plug.Conn{} = conn, _opts) do
+    path = normalized_path(conn)
+
     if Enum.any?(@private_prefixes, &String.starts_with?(path, &1)) do
       conn
       |> send_resp(404, "Not found")
@@ -25,5 +27,9 @@ defmodule ElektrineWeb.Plugs.BlockPrivateUploadPaths do
     end
   end
 
-  def call(conn, _opts), do: conn
+  defp normalized_path(%Plug.Conn{path_info: segments}) when is_list(segments) do
+    "/" <> Enum.join(segments, "/") <> "/"
+  end
+
+  defp normalized_path(%Plug.Conn{request_path: path}) when is_binary(path), do: path
 end

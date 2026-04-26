@@ -465,6 +465,21 @@ defmodule Elektrine.Drive do
     |> Repo.update()
   end
 
+  def reserve_share_download(%FileShare{} = share) do
+    now = DateTime.utc_now()
+
+    query =
+      FileShare
+      |> where([s], s.id == ^share.id and is_nil(s.revoked_at))
+      |> where([s], is_nil(s.expires_at) or s.expires_at > ^now)
+      |> where([s], not s.burn_after_read or s.download_count == 0)
+
+    case Repo.update_all(query, inc: [download_count: 1]) do
+      {1, _} -> :ok
+      _ -> {:error, :not_found}
+    end
+  end
+
   def read_file(%StoredFile{} = file) do
     case storage_adapter() do
       :local -> read_local(file.storage_key)
@@ -1124,7 +1139,7 @@ defmodule Elektrine.Drive do
   end
 
   defp get_bucket do
-    Application.get_env(:elektrine, :uploads, [])[:bucket] || raise "R2 bucket not configured"
+    Application.get_env(:elektrine, :uploads, [])[:bucket] || raise "S3 bucket not configured"
   end
 
   defp random_share_token do

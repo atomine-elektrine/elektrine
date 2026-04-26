@@ -52,6 +52,7 @@ defmodule ElektrineWeb.Endpoint do
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+  plug ElektrineWeb.Plugs.ActivityPubRequestGuard
 
   # Cache raw body for signature verification on signed webhook/federation endpoints.
   plug ElektrineWeb.Plugs.CacheRawBody,

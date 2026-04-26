@@ -62,7 +62,7 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   def admin_login_restricted?(conn, %{is_admin: true}) do
-    netbird_enabled?() and not on_netbird_vpn?(conn)
+    netbird_enabled?() and (not on_netbird_vpn?(conn) or not admin_host?(conn.host))
   end
 
   def admin_login_restricted?(_conn, _user), do: false
@@ -440,10 +440,11 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   @doc """
-  Restricts admin routes to the dedicated admin host.
+  Restricts admin routes to the dedicated admin host when NetBird protection is enabled.
+  Non-NetBird deployments keep `/pripyat` available on the public app host for admins.
   """
   def require_admin_host(conn, _opts) do
-    if admin_host?(conn.host) do
+    if not netbird_enabled?() or admin_host?(conn.host) do
       conn
     else
       conn

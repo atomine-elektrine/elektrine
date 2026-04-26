@@ -343,7 +343,7 @@ config :elektrine, ElektrineWeb.Gettext,
 # Configure Swoosh API client
 config :swoosh, :api_client, Swoosh.ApiClient.Hackney
 
-# S3-compatible storage configuration (Cloudflare R2, AWS S3, etc.)
+# S3-compatible storage configuration (Magpie or any S3-compatible endpoint)
 # Configure in runtime.exs for production
 config :elektrine, :uploads,
   adapter: :s3,

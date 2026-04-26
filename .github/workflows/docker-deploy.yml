@@ -84,6 +84,7 @@ jobs:
       ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'all' }}
       ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
       DOCKER_PROFILES: ${{ vars.DOCKER_PROFILES || secrets.DOCKER_PROFILES || secrets.BAREMETAL_PROFILES || 'caddy dns email tor turn bluesky' }}
+      DEPLOY_COMPOSE_OVERRIDES: ${{ vars.DEPLOY_COMPOSE_OVERRIDES || secrets.DEPLOY_COMPOSE_OVERRIDES || '' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}
     concurrency:
@@ -113,7 +114,7 @@ jobs:
           done
 
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' DEPLOY_BRANCH='$DEPLOY_BRANCH' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
+            "DEPLOY_PATH='$DEPLOY_PATH' DEPLOY_REF='$DEPLOY_REF' DEPLOY_BRANCH='$DEPLOY_BRANCH' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ELEKTRINE_ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$ELEKTRINE_RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' DEPLOY_COMPOSE_OVERRIDES='$DEPLOY_COMPOSE_OVERRIDES' bash -s" <<'EOF'
           set -euo pipefail
 
           if docker info >/dev/null 2>&1; then
@@ -160,6 +161,19 @@ jobs:
               image: ${TARGET_IMAGE}
           OVERRIDE
 
+          EXTRA_OVERRIDE_ARGS=""
+          for override_file in $DEPLOY_COMPOSE_OVERRIDES; do
+            case "$override_file" in
+              /*) resolved_override="$override_file" ;;
+              *) resolved_override="$WORKTREE_PATH/$override_file" ;;
+            esac
+            if [ ! -f "$resolved_override" ]; then
+              echo "Compose override not found: $resolved_override"
+              exit 1
+            fi
+            EXTRA_OVERRIDE_ARGS="$EXTRA_OVERRIDE_ARGS --compose-override $resolved_override"
+          done
+
           COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$WORKTREE_PATH/deploy/docker" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_ENABLED_MODULES" \
             --env-file "$DEPLOY_PATH/.env.production" \
@@ -167,6 +181,7 @@ jobs:
             --pull \
             --skip-build \
             --compose-override "$OVERRIDE_FILE" \
+            $EXTRA_OVERRIDE_ARGS \
             $PROFILE_ARGS
           EOF
 

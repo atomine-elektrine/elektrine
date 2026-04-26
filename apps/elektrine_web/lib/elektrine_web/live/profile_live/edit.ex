@@ -93,7 +93,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
        accept:
          ~w(.zip .html .htm .css .js .json .txt .png .jpg .jpeg .gif .webp .svg .ico .woff .woff2 .ttf .otf),
        max_entries: 20,
-       max_file_size: 50 * 1024 * 1024,
+       max_file_size: 10 * 1024 * 1024,
        auto_upload: true
      )}
   end

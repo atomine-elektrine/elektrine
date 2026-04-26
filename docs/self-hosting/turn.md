@@ -49,8 +49,7 @@ TURN_SHARED_SECRET=replace-me
 
 Notes:
 
-- if you use Cloudflare or another proxy, the TURN hostname should be DNS-only,
-  not proxied
+- if you use an HTTP proxy/CDN, the TURN hostname should be DNS-only, not proxied
 - if your server sits behind NAT, set `TURN_EXTERNAL_IP` to the public IPv4
 - if you omit `TURN_HOST`, clients use `PRIMARY_DOMAIN`
 - raw `docker compose` users must still ensure `TURN_ENABLED=true` in the app

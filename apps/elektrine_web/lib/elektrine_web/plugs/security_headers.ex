@@ -59,22 +59,22 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
     # Build CSP directives
     base_directives = [
       "default-src 'self'",
-      # Scripts: allow self, Cloudflare (Turnstile + Insights)
+      # Scripts: allow self and Turnstile
       # Note: 'unsafe-inline' needed for LiveView's inline event handlers
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com blob:",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
-      # Images: allow self, data URIs, HTTPS (for R2/S3 storage, Giphy, avatars)
+      # Images: allow self, data URIs, HTTPS (for S3-compatible storage, Giphy, avatars)
       "img-src 'self' data: https: blob:",
       # Fonts: allow self and data URIs
       "font-src 'self' data:",
       # Connect: allow self and the explicit third-party endpoints used by the app
-      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com https://static.cloudflareinsights.com",
-      # Media: allow self and HTTPS (for video backgrounds from R2/S3)
+      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com",
+      # Media: allow self and HTTPS (for video backgrounds from S3-compatible storage)
       "media-src 'self' https: blob:",
-      # Frames: allow Cloudflare Turnstile and any HTTPS embeds (for emails/chat/profiles)
+      # Frames: allow Turnstile and any HTTPS embeds (for emails/chat/profiles)
       "frame-src 'self' https://challenges.cloudflare.com https:",
-      # Child/Worker: allow Cloudflare Turnstile workers
+      # Child/Worker: allow Turnstile workers
       "child-src 'self' https://challenges.cloudflare.com blob:",
       "worker-src 'self' https://challenges.cloudflare.com blob:",
       # Objects: block all

@@ -67,12 +67,37 @@ Override those only if you want custom DNS branding via `DNS_NAMESERVERS` or `DN
 
 ## Storage
 
-Local uploads without R2:
+Local uploads without S3-compatible object storage:
 
-- if `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, and `R2_BUCKET_NAME` are unset, uploads stay on local disk
+- if `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, and `S3_BUCKET_NAME` are unset, uploads stay on local disk
 - Docker persists those files in the named `uploads` volume mounted at `/data/uploads`
 - the container entrypoint links that volume into the release `priv/static/uploads` path so `/uploads/...` URLs keep working
 - keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
+
+To use a private S3-compatible service from another Compose project, attach the
+Elektrine app and worker containers to the same external Docker network. For
+example, with a Magpie service on `app-shared`:
+
+```bash
+docker network create app-shared
+scripts/deploy/docker_deploy.sh \
+  --modules chat,social,vault \
+  --profile caddy \
+  --compose-override deploy/docker/compose.magpie-network.yml
+```
+
+Then set the storage endpoint to the object-store service name in
+`.env.production`:
+
+```env
+S3_ENDPOINT=magpie:8090
+S3_PUBLIC_URL=http://magpie:8090/app-uploads
+S3_SCHEME=http://
+S3_PORT=8090
+```
+
+If the shared network has a different name, set `MAGPIE_DOCKER_NETWORK` before
+deploying.
 
 ## Deploy
 
@@ -112,13 +137,7 @@ interactivity over the raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>` in
 `.env.production`.
 
 If you need one wildcard cert for many username subdomains, switch to the
-wildcard Caddy path with Cloudflare DNS challenge, Elektrine DNS challenge, or
-an external cert.
-
-For Cloudflare DNS challenge in Caddy, set:
-
-- `CADDY_MANAGED_SITE_1="example.com *.example.com"`
-- `CLOUDFLARE_API_TOKEN=<cloudflare dns token>`
+wildcard Caddy path with Elektrine DNS challenge or an external cert.
 
 For external wildcard certs, set:
 
@@ -149,9 +168,6 @@ ACME_HOME=/data/acme.sh
 
 Oban runs `acme.sh --cron` daily. acme.sh only renews certificates near expiry
 and runs the reload command saved during initial issuance.
-
-When `CLOUDFLARE_API_TOKEN` is set together with wildcard hosts, the deploy
-wrapper now selects the Cloudflare wildcard Caddyfile automatically.
 
 Keep the host cert directory mounted read-only into the Caddy container.
 `scripts/deploy/docker_deploy.sh`

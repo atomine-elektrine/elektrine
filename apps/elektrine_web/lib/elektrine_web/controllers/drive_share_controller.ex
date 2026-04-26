@@ -8,10 +8,9 @@ defmodule ElektrineWeb.DriveShareController do
   def show(conn, %{"token" => token}) do
     with %Drive.FileShare{} = share <- Drive.get_active_share(token),
          true <- password_authorized?(conn, share),
+         :ok <- Drive.reserve_share_download(share),
          %Drive.StoredFile{} = file <- share.stored_file,
          {:ok, binary} <- Drive.read_file(file) do
-      _ = Drive.increment_share_download_count(share)
-
       deliver_share(conn, share, file, binary)
     else
       false -> render_password_prompt(conn, token)

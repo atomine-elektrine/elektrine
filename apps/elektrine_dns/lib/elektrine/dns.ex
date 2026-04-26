@@ -1121,7 +1121,6 @@ defmodule Elektrine.DNS do
     joined = Enum.join(nameservers, " ")
 
     cond do
-      String.contains?(joined, "cloudflare.com") -> "Cloudflare"
       String.contains?(joined, "awsdns-") -> "Route53"
       String.contains?(joined, "digitalocean.com") -> "DigitalOcean"
       String.contains?(joined, "domaincontrol.com") -> "GoDaddy"

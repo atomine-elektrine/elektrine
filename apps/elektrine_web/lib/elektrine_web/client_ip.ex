@@ -65,8 +65,7 @@ defmodule ElektrineWeb.ClientIP do
   def ip_in_cidrs?(_, _), do: false
 
   defp forwarded_ip(conn) do
-    with nil <- header_ip(conn, "cf-connecting-ip"),
-         nil <- x_forwarded_for_ip(conn),
+    with nil <- x_forwarded_for_ip(conn),
          nil <- header_ip(conn, "x-real-ip") do
       nil
     else

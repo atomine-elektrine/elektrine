@@ -11,7 +11,7 @@ defmodule ElektrineWeb.Plugs.ProfileCSP do
     csp =
       [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://open.spotify.com https://www.youtube.com https://s.ytimg.com https://static.cloudflareinsights.com",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://open.spotify.com https://www.youtube.com https://s.ytimg.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: https: blob:",
         "media-src 'self' https: blob:",

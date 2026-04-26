@@ -150,8 +150,6 @@ defmodule ElektrineEmailWeb.EmailController do
             conn
             |> put_resp_header("x-frame-options", "SAMEORIGIN")
             |> put_resp_header("content-security-policy", build_email_iframe_csp())
-            # Tell Cloudflare not to modify email iframe content
-            |> put_resp_header("cf-edge-cache", "no-transform")
             |> put_resp_header("cache-control", "no-transform")
             |> put_resp_content_type("text/html")
             |> send_resp(200, build_iframe_html(content))
@@ -204,12 +202,10 @@ defmodule ElektrineEmailWeb.EmailController do
   defp build_iframe_html(content) do
     """
     <!DOCTYPE html>
-    <html data-cf-beacon="false">
+    <html>
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <!-- Disable Cloudflare's automatic script injection for email content -->
-      <meta name="cf-dont-modify" content="true">
       <style>
         body {
           margin: 0;

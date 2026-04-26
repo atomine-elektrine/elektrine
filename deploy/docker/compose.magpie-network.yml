@@ -1,0 +1,13 @@
+services:
+  app:
+    networks:
+      - magpie_shared
+
+  worker:
+    networks:
+      - magpie_shared
+
+networks:
+  magpie_shared:
+    external: true
+    name: ${MAGPIE_DOCKER_NETWORK:-app-shared}

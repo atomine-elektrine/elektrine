@@ -330,7 +330,7 @@ defmodule Elektrine.DNS.QueryTest do
       Query.answer(build_query("admin.private.example.com", 1), client_ip: {203, 0, 113, 10})
 
     assert header(response).ancount == 0
-    assert header(response).rcode == 0
+    assert header(response).rcode == 3
     refute response =~ <<203, 0, 113, 30>>
     refute response =~ <<100, 90, 10, 120>>
   end

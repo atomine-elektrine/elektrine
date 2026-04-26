@@ -43,6 +43,9 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
   end
 
   defp read_and_cache_full_body(conn, opts, acc) do
+    max_length = conn.private[:raw_body_max_length]
+    opts = if is_integer(max_length), do: Keyword.put(opts, :length, max_length), else: opts
+
     case Plug.Conn.read_body(conn, opts) do
       {:ok, chunk, conn} ->
         body = acc <> chunk

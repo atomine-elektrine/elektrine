@@ -138,25 +138,22 @@ fi
 infer_caddy_config_default() {
   local site1_values="${CADDY_MANAGED_SITE_1:-}"
   local site2_values="${CADDY_MANAGED_SITE_2:-}"
-  local cloudflare_token="${CLOUDFLARE_API_TOKEN:-}"
 
   if [[ "$site1_values" == *"*."* ]]; then
-    if [[ -z "$cloudflare_token" && ( -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ) ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
       echo "Error: CADDY_MANAGED_SITE_1 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_1 for the stock Caddy setup." >&2
-      echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
-      echo "Hint: or run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
+      echo "Hint: run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
       echo "Hint: or provide CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
   fi
 
   if [[ "$site2_values" == *"*."* ]]; then
-    if [[ -z "$cloudflare_token" && ( -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ) ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
       echo "Error: CADDY_MANAGED_SITE_2 contains wildcard hosts but no matching external cert/key paths are set." >&2
       echo "Hint: remove wildcard hosts like *.example.com from CADDY_MANAGED_SITE_2 for the stock Caddy setup." >&2
-      echo "Hint: set CLOUDFLARE_API_TOKEN for DNS-challenge wildcard issuance in Caddy." >&2
-      echo "Hint: or run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
+      echo "Hint: run scripts/acme/issue_elektrine_wildcard_cert.sh with ELEKTRINE_DNS_TOKEN, then use external wildcard cert mode." >&2
       echo "Hint: or provide CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH for an external wildcard certificate." >&2
       return 1
     fi
@@ -170,7 +167,6 @@ infer_caddy_config_default() {
   local default_path="../caddy/Caddyfile.baremetal"
   local external_path="../caddy/Caddyfile.baremetal.external-certs"
   local wildcard_path="../caddy/Caddyfile.baremetal.wildcard-external"
-  local wildcard_cloudflare_path="../caddy/Caddyfile.baremetal.wildcard-cloudflare"
 
   local site_values="$site1_values $site2_values"
   local has_wildcard=0
@@ -188,9 +184,7 @@ infer_caddy_config_default() {
     has_external_cert=1
   fi
 
-  if [[ -n "$cloudflare_token" && "$has_wildcard" -eq 1 ]]; then
-    printf '%s' "$wildcard_cloudflare_path"
-  elif [[ "$has_external_cert" -eq 1 && "$has_wildcard" -eq 1 ]]; then
+  if [[ "$has_external_cert" -eq 1 && "$has_wildcard" -eq 1 ]]; then
     printf '%s' "$wildcard_path"
   elif [[ "$has_external_cert" -eq 1 ]]; then
     printf '%s' "$external_path"
@@ -249,9 +243,8 @@ populate_wildcard_cert_defaults() {
 uses_elektrine_wildcard_acme() {
   local site_values="${CADDY_MANAGED_SITE_1:-} ${CADDY_MANAGED_SITE_2:-}"
 
-  [[ " $RENDER_PROFILES " == *" caddy " ]] &&
+    [[ " $RENDER_PROFILES " == *" caddy " ]] &&
     [[ "$site_values" == *"*."* ]] &&
-    [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]] &&
     [[ "${ACME_WILDCARD_RENEWAL_ENABLED:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]
 }
 
