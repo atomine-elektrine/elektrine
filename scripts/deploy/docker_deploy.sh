@@ -193,6 +193,31 @@ infer_caddy_config_default() {
   fi
 }
 
+validate_external_caddy_cert_paths() {
+  local config_path="$1"
+
+  case "$config_path" in
+    *external-certs|*wildcard-external) ;;
+    *) return 0 ;;
+  esac
+
+  if [[ -n "${CADDY_MANAGED_SITE_1:-}" ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_1_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_1_KEY_PATH:-}" ]]; then
+      echo "Error: $config_path requires CADDY_MANAGED_SITE_1_CERT_PATH and CADDY_MANAGED_SITE_1_KEY_PATH." >&2
+      echo "Hint: set both paths to certificate files mounted inside the Caddy container, or use the stock Caddyfile for Caddy-managed TLS." >&2
+      return 1
+    fi
+  fi
+
+  if [[ -n "${CADDY_MANAGED_SITE_2:-}" ]]; then
+    if [[ -z "${CADDY_MANAGED_SITE_2_CERT_PATH:-}" || -z "${CADDY_MANAGED_SITE_2_KEY_PATH:-}" ]]; then
+      echo "Error: $config_path requires CADDY_MANAGED_SITE_2_CERT_PATH and CADDY_MANAGED_SITE_2_KEY_PATH." >&2
+      echo "Hint: set both paths to certificate files mounted inside the Caddy container, or unset CADDY_MANAGED_SITE_2 if you do not use a second site block." >&2
+      return 1
+    fi
+  fi
+}
+
 infer_cert_base_name() {
   local site_values="$1"
   local token=""
@@ -282,6 +307,7 @@ issue_initial_wildcard_cert() {
 populate_wildcard_cert_defaults
 
 INFERRED_CADDY_CONFIG_PATH="$(infer_caddy_config_default)"
+validate_external_caddy_cert_paths "$INFERRED_CADDY_CONFIG_PATH"
 
 if [[ " $RENDER_PROFILES " == *" caddy "* ]]; then
   if [[ -z "${CADDY_EDGE_API_KEY:-}" && -n "${PHOENIX_API_KEY:-}" ]]; then

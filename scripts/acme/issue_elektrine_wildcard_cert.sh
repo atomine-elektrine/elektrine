@@ -110,7 +110,14 @@ if [ ! -x "$ACME_HOME/acme.sh" ]; then
   fi
 
   mkdir -p "$ACME_HOME"
-  curl -fsSL https://get.acme.sh | sh -s -- --home "$ACME_HOME" --no-cron
+  curl -fsSL https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh -o "$ACME_HOME/acme.sh"
+  chmod 700 "$ACME_HOME/acme.sh"
+
+  if [ -n "${ACME_EMAIL:-}" ]; then
+    "$ACME_HOME/acme.sh" --install --home "$ACME_HOME" --no-cron --accountemail "$ACME_EMAIL"
+  else
+    "$ACME_HOME/acme.sh" --install --home "$ACME_HOME" --no-cron
+  fi
 fi
 
 mkdir -p "$ACME_HOME/dnsapi" "$CERT_DIR"

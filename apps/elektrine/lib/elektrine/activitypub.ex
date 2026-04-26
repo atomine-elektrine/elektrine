@@ -826,7 +826,9 @@ defmodule Elektrine.ActivityPub do
       metadata: actor_data
     }
 
-    upsert_cached_actor(existing_actor, attrs)
+    actor = existing_actor || get_actor_by_username_and_domain(attrs.username, attrs.domain)
+
+    upsert_cached_actor(actor, attrs)
   end
 
   defp upsert_cached_actor(%Actor{} = existing_actor, attrs) do

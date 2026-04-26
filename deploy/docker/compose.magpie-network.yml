@@ -7,6 +7,10 @@ services:
     networks:
       - magpie_shared
 
+  caddy_edge:
+    networks:
+      - magpie_shared
+
 networks:
   magpie_shared:
     external: true
