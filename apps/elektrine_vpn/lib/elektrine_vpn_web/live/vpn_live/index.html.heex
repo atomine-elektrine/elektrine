@@ -166,23 +166,18 @@
         <div class="card-body p-3 sm:p-6">
           <!-- Header -->
           <div class="mb-4 sm:mb-6">
-            <div class="flex items-center space-x-2 sm:space-x-3">
-              <div class="p-1.5 sm:p-2 bg-primary/10 rounded-lg">
-                <.icon name="hero-shield-check" class="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              </div>
-              <div>
-                <h1 class="text-xl sm:text-2xl font-bold">{gettext("VPN Configurations")}</h1>
-                <p class="text-xs sm:text-sm text-base-content/70">
-                  {if length(@available_servers) == 1,
-                    do:
-                      gettext(
-                        "Create your VPN config, then download it or scan the QR code to connect"
-                      ),
-                    else:
-                      gettext("Create configs for any server, then download or scan to connect")}
-                </p>
-              </div>
-            </div>
+            <ElektrineWeb.Components.Platform.ENav.product_header
+              eyebrow={gettext("VPN")}
+              title={gettext("Configurations")}
+              description={
+                if length(@available_servers) == 1,
+                  do:
+                    gettext(
+                      "Create your VPN config, then download it or scan the QR code to connect"
+                    ),
+                  else: gettext("Create configs for any server, then download or scan to connect")
+              }
+            />
             <%= if length(@user_configs) > 0 do %>
               <div class="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <div class="rounded-2xl border border-base-300 bg-base-200/60 px-3 py-2">

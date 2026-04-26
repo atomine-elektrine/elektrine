@@ -461,20 +461,17 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
           <section class="card panel-card">
             <div class="card-body p-0">
               <div class="border-b border-base-content/10 px-5 py-4">
-                <div class="mb-3 flex items-center justify-between gap-3">
-                  <h1 class="text-lg font-semibold text-base-content">DNS</h1>
-
-                  <div class="badge badge-outline badge-sm">
-                    {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
-                  </div>
-                </div>
-
-                <h2 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                  Zones
-                </h2>
-                <p class="mt-1 text-sm text-base-content/65">
-                  Pick a domain on the left, then add records like `www` or `mail` relative to it.
-                </p>
+                <ElektrineWeb.Components.Platform.ENav.product_header
+                  eyebrow="DNS"
+                  title="Zones"
+                  description="Pick a domain, then add records like `www` or `mail` relative to it."
+                >
+                  <:actions>
+                    <div class="badge badge-outline badge-sm">
+                      {length(@zones)} zone{if length(@zones) == 1, do: "", else: "s"}
+                    </div>
+                  </:actions>
+                </ElektrineWeb.Components.Platform.ENav.product_header>
               </div>
 
               <%= if @zones == [] do %>

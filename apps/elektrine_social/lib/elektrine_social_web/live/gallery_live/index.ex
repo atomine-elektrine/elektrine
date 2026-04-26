@@ -1485,24 +1485,27 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   defp gallery_plain_text(_), do: ""
 
   defp gallery_primary_image(post) do
-    post.media_urls
-    |> List.first()
-    |> case do
-      nil -> nil
-      url -> Elektrine.Uploads.attachment_url(url, post)
-    end
+    post.media_urls ||
+      []
+      |> Enum.map(&Elektrine.Uploads.attachment_url(&1, post))
+      |> Enum.find(&gallery_image_url?/1)
   end
 
   defp gallery_image_urls(post) do
-    Enum.map(post.media_urls || [], &Elektrine.Uploads.attachment_url(&1, post))
+    post.media_urls ||
+      []
+      |> Enum.map(&Elektrine.Uploads.attachment_url(&1, post))
+      |> Enum.filter(&gallery_image_url?/1)
   end
 
   defp gallery_image?(post) do
-    case gallery_primary_image(post) do
-      nil -> false
-      url -> String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)
-    end
+    is_binary(gallery_primary_image(post))
   end
+
+  defp gallery_image_url?(url) when is_binary(url),
+    do: String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)
+
+  defp gallery_image_url?(_), do: false
 
   defp gallery_empty_state(assigns) do
     cond do
