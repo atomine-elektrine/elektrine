@@ -995,8 +995,15 @@ if config_env() == :prod do
 
   host_domain = normalize_domain.(host)
 
+  admin_host_domain =
+    case System.get_env("CADDY_ADMIN_HOST") do
+      value when is_binary(value) and value != "" -> normalize_domain.(value)
+      _ -> nil
+    end
+
   all_public_domains =
-    ([host_domain] ++ supported_email_domains ++ profile_base_domains)
+    ([host_domain, admin_host_domain] ++ supported_email_domains ++ profile_base_domains)
+    |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
 
   custom_domain_mx_host =
