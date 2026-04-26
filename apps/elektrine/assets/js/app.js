@@ -554,19 +554,25 @@ document.addEventListener('DOMContentLoaded', () => {
 // Connect LiveSocket
 // ============================================================================
 
-liveSocket.connect()
+function shouldConnectLiveSocket() {
+  return Boolean(document.querySelector('[data-phx-main]'))
+}
+
+if (shouldConnectLiveSocket()) {
+  liveSocket.connect()
+}
 
 // Ensure LiveSocket reconnects when returning from static pages (e.g., profile subdomains)
 // The socket may disconnect when on non-LiveView pages, so we reconnect on visibility change
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !liveSocket.isConnected()) {
+  if (document.visibilityState === "visible" && shouldConnectLiveSocket() && !liveSocket.isConnected()) {
     liveSocket.connect()
   }
 })
 
 // Also attempt reconnection on page focus (backup for browsers that don't fire visibilitychange)
 window.addEventListener("focus", () => {
-  if (!liveSocket.isConnected()) {
+  if (shouldConnectLiveSocket() && !liveSocket.isConnected()) {
     liveSocket.connect()
   }
   syncCursorGlowForRoute()
