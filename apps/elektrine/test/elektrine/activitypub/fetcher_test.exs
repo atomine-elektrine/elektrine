@@ -2,6 +2,7 @@ defmodule Elektrine.ActivityPub.FetcherTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Fetcher
 
   describe "fetch_object/2" do
@@ -286,6 +287,47 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert {:ok, actor} = ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
       assert actor.uri == "https://mastodon.social/ap/users/116313284892040418"
       assert actor.username == "Sea1Am"
+    end
+
+    test "updates an existing actor when username and domain already exist for another URI" do
+      actor_uri = "https://baraag.net/users/minigun"
+
+      existing_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://baraag.net/@minigun",
+          username: "minigun",
+          domain: "baraag.net",
+          display_name: "Old Minigun",
+          inbox_url: "https://baraag.net/inbox",
+          public_key: "old-key",
+          last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        })
+        |> Repo.insert!()
+
+      request_fun = fn ^actor_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "id" => actor_uri,
+               "type" => "Person",
+               "preferredUsername" => "minigun",
+               "name" => "Minigun",
+               "inbox" => "https://baraag.net/users/minigun/inbox",
+               "outbox" => "https://baraag.net/users/minigun/outbox",
+               "followers" => "https://baraag.net/users/minigun/followers",
+               "following" => "https://baraag.net/users/minigun/following",
+               "publicKey" => %{"publicKeyPem" => "new-key"}
+             })
+         }}
+      end
+
+      assert {:ok, actor} = ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
+      assert actor.id == existing_actor.id
+      assert actor.uri == actor_uri
+      assert actor.display_name == "Minigun"
     end
 
     test "rejects actor documents that advertise unsafe inboxes" do

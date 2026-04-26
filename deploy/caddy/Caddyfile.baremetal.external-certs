@@ -17,6 +17,18 @@
 	respond @admin_off_vpn "Not Found" 404
 }
 
+{$CADDY_MEDIA_HOST:media.elektrine.com} {
+	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
+	uri replace / /{$S3_BUCKET_NAME}/ 1
+
+	reverse_proxy {$CADDY_MEDIA_UPSTREAM:magpie:8090} {
+		header_up Host {host}
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+}
+
 {$CADDY_MANAGED_SITE_1} {
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 	import admin_netbird_gate

@@ -600,6 +600,9 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
       !is_binary(username) or username == "" or !is_binary(domain) or domain == "" ->
         nil
 
+      existing = ActivityPub.get_actor_by_username_and_domain(username, domain) ->
+        existing
+
       true ->
         attrs = %{
           uri: actor_uri,
