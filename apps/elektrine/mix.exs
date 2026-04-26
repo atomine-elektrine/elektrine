@@ -115,7 +115,7 @@ defmodule Elektrine.MixProject do
       {:earmark, "== 1.4.48"},
       {:sentry, "== 12.0.3"},
       {:tzdata, "== 1.1.3"},
-      {:image, "== 0.65.0"},
+      {:image, "== 0.66.0"},
       {:html_entities, "~> 0.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
