@@ -116,16 +116,14 @@ defmodule Elektrine.Repo.Migrations.AddBroaderSocialSurfaceIndexes do
     """)
 
     execute("""
-    CREATE INDEX CONCURRENTLY IF NOT EXISTS social_conversation_members_user_active_community_idx
-    ON social_conversation_members (user_id, conversation_id)
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS conversation_members_user_active_community_idx
+    ON conversation_members (user_id, conversation_id)
     WHERE left_at IS NULL
     """)
   end
 
   def down do
-    execute(
-      "DROP INDEX CONCURRENTLY IF EXISTS social_conversation_members_user_active_community_idx"
-    )
+    execute("DROP INDEX CONCURRENTLY IF EXISTS conversation_members_user_active_community_idx")
 
     execute("DROP INDEX CONCURRENTLY IF EXISTS social_conversations_public_community_member_idx")
     execute("DROP INDEX CONCURRENTLY IF EXISTS social_messages_media_sender_inserted_idx")
