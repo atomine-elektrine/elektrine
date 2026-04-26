@@ -104,7 +104,7 @@ alias:
 ```bash
 docker network create elektrine-magpie-shared
 cd /path/to/magpie
-docker compose -f docker-compose.yml -f docker-compose.network.example.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.network.yml up -d --build
 
 cd /path/to/elektrine
 scripts/deploy/docker_deploy.sh \
