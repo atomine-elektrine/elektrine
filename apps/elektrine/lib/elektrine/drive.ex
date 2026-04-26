@@ -43,12 +43,15 @@ defmodule Elektrine.Drive do
   @valid_share_access_levels Enum.map(@share_access_options, &elem(&1, 1))
   @valid_sort_values Enum.map(@sort_options, &elem(&1, 1))
   @valid_filter_values Enum.map(@quick_filter_options, &elem(&1, 1))
-
+  def minimum_trust_level, do: Elektrine.System.module_min_trust_level(:drive)
   def max_upload_size, do: @default_max_upload_size
   def share_expiry_options, do: @share_expiry_options
   def share_access_options, do: @share_access_options
   def sort_options, do: @sort_options
   def quick_filter_options, do: @quick_filter_options
+
+  def user_can_access?(%User{} = user), do: Elektrine.System.user_can_access_module?(user, :drive)
+  def user_can_access?(_user), do: false
 
   def list_files(user_id) do
     StoredFile
@@ -413,6 +416,14 @@ defmodule Elektrine.Drive do
   end
 
   def get_active_share(_token), do: nil
+
+  def share_owner_can_access?(%FileShare{stored_file: %StoredFile{user_id: user_id}}) do
+    user_id
+    |> then(&Repo.get(User, &1))
+    |> user_can_access?()
+  end
+
+  def share_owner_can_access?(_share), do: false
 
   def share_requires_password?(%FileShare{password_hash: hash}),
     do: is_binary(hash) and hash != ""

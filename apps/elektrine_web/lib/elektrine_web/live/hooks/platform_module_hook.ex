@@ -12,7 +12,7 @@ defmodule ElektrineWeb.Live.Hooks.PlatformModuleHook do
   alias ElektrineWeb.PlatformAccess
 
   def on_mount(:default, _params, _session, socket) do
-    if PlatformAccess.accessible_view?(socket.view) do
+    if PlatformAccess.accessible_view?(socket.view, socket.assigns[:current_user]) do
       {:cont, socket}
     else
       {:halt, redirect(socket, to: ~p"/")}

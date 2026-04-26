@@ -64,6 +64,50 @@
 
   <div class="card panel-card">
     <div class="card-body p-4 sm:p-5">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 class="font-semibold">Module Trust Access</h2>
+
+          <p class="mt-1 text-sm text-base-content/70">
+            Choose the minimum trust level required to open user-facing modules. Admins always bypass these gates.
+          </p>
+        </div>
+      </div>
+
+      <form method="post" action={~p"/pripyat/invite-codes/module-access"} class="mt-4 space-y-4">
+        <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
+
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <%= for rule <- @module_access_rules do %>
+            <label class="surface-muted rounded-box px-4 py-3">
+              <span class="block text-sm font-semibold text-base-content">{rule.label}</span>
+              <span class="mt-1 block text-xs text-base-content/55">
+                Current: TL{rule.min_trust_level}+
+              </span>
+              <div class="select select-bordered select-sm mt-3 w-full">
+                <select name={"module_access[#{rule.module}]"}>
+                  <%= for level <- 0..4 do %>
+                    <option value={level} selected={rule.min_trust_level == level}>
+                      TL{level}+
+                    </option>
+                  <% end %>
+                </select>
+              </div>
+            </label>
+          <% end %>
+        </div>
+
+        <div class="flex justify-end">
+          <button type="submit" class="btn btn-primary btn-sm">
+            <.icon name="hero-check" class="h-4 w-4" /> <span>Save Module Access</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card panel-card">
+    <div class="card-body p-4 sm:p-5">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 class="font-semibold">Registration Mode</h2>

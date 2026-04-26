@@ -12,40 +12,47 @@ defmodule ElektrineVPNWeb.API.VPNController do
   def index(conn, _params) do
     user = conn.assigns[:current_user]
 
-    # Get user's trust level
-    user_trust_level = Map.get(user, :trust_level, 0)
+    if VPN.user_can_access?(user) do
+      # Get user's trust level
+      user_trust_level = Map.get(user, :trust_level, 0)
 
-    # Get servers user has access to
-    servers = VPN.list_active_servers_for_user(user_trust_level)
+      # Get servers user has access to
+      servers =
+        if user.is_admin,
+          do: VPN.list_active_servers(),
+          else: VPN.list_active_servers_for_user(user_trust_level)
 
-    # Get user's configs to mark which servers they're already configured for
-    user_configs = VPN.list_user_configs(user.id)
-    configured_server_ids = Enum.map(user_configs, & &1.vpn_server_id)
+      # Get user's configs to mark which servers they're already configured for
+      user_configs = VPN.list_user_configs(user.id)
+      configured_server_ids = Enum.map(user_configs, & &1.vpn_server_id)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      servers:
-        Enum.map(servers, fn server ->
-          %{
-            id: server.id,
-            protocol: VPN.server_protocol(server),
-            protocol_label: VPN.server_protocol_label(server),
-            name: server.name,
-            location: server.location,
-            country_code: server.country_code,
-            public_ip: server.public_ip,
-            endpoint_host: endpoint_host(server),
-            endpoint_port: server.endpoint_port,
-            client_mtu: server.client_mtu,
-            status: server.status,
-            current_users: server.current_users,
-            max_users: server.max_users,
-            minimum_trust_level: server.minimum_trust_level,
-            is_configured: server.id in configured_server_ids
-          }
-        end)
-    })
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        servers:
+          Enum.map(servers, fn server ->
+            %{
+              id: server.id,
+              protocol: VPN.server_protocol(server),
+              protocol_label: VPN.server_protocol_label(server),
+              name: server.name,
+              location: server.location,
+              country_code: server.country_code,
+              public_ip: server.public_ip,
+              endpoint_host: endpoint_host(server),
+              endpoint_port: server.endpoint_port,
+              client_mtu: server.client_mtu,
+              status: server.status,
+              current_users: server.current_users,
+              max_users: server.max_users,
+              minimum_trust_level: server.minimum_trust_level,
+              is_configured: server.id in configured_server_ids
+            }
+          end)
+      })
+    else
+      vpn_locked(conn)
+    end
   end
 
   @doc """
@@ -55,13 +62,17 @@ defmodule ElektrineVPNWeb.API.VPNController do
   def list_configs(conn, _params) do
     user = conn.assigns[:current_user]
 
-    configs = VPN.list_user_configs(user.id)
+    if VPN.user_can_access?(user) do
+      configs = VPN.list_user_configs(user.id)
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      configs: Enum.map(configs, &format_config/1)
-    })
+      conn
+      |> put_status(:ok)
+      |> json(%{
+        configs: Enum.map(configs, &format_config/1)
+      })
+    else
+      vpn_locked(conn)
+    end
   end
 
   @doc """
@@ -71,24 +82,31 @@ defmodule ElektrineVPNWeb.API.VPNController do
   def show_config(conn, %{"id" => id}) do
     user = conn.assigns[:current_user]
 
-    case VPN.get_user_config!(id) do
-      config when config.user_id == user.id ->
-        # Generate WireGuard configuration file
-        config_file = VPN.generate_config_file(config)
+    if VPN.user_can_access?(user) do
+      case VPN.get_user_config!(id) do
+        config when config.user_id == user.id ->
+          # Generate WireGuard configuration file
+          config_file = VPN.generate_config_file(config)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          config: format_config(config),
-          config_content: config_file,
-          wireguard_config:
-            if(VPN.server_protocol(config.vpn_server) == "wireguard", do: config_file, else: nil)
-        })
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            config: format_config(config),
+            config_content: config_file,
+            wireguard_config:
+              if(VPN.server_protocol(config.vpn_server) == "wireguard",
+                do: config_file,
+                else: nil
+              )
+          })
 
-      _ ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{error: "Access denied"})
+        _ ->
+          conn
+          |> put_status(:forbidden)
+          |> json(%{error: "Access denied"})
+      end
+    else
+      vpn_locked(conn)
     end
   rescue
     Ecto.NoResultsError ->
@@ -105,72 +123,76 @@ defmodule ElektrineVPNWeb.API.VPNController do
   def create_config(conn, %{"server_id" => server_id}) do
     user = conn.assigns[:current_user]
 
-    # Check if user already has a config for this server
-    case VPN.get_user_config_by_user_and_server(user.id, server_id) do
-      nil ->
-        # Create new config
-        case VPN.create_user_config(user.id, server_id) do
-          {:ok, config} ->
-            # Generate a client configuration payload
-            config_file = VPN.generate_config_file(config)
+    if VPN.user_can_access?(user) do
+      # Check if user already has a config for this server
+      case VPN.get_user_config_by_user_and_server(user.id, server_id) do
+        nil ->
+          # Create new config
+          case VPN.create_user_config(user.id, server_id) do
+            {:ok, config} ->
+              # Generate a client configuration payload
+              config_file = VPN.generate_config_file(config)
 
-            conn
-            |> put_status(:created)
-            |> json(%{
-              message: "VPN configuration created successfully",
-              config: format_config(config),
-              config_content: config_file,
-              wireguard_config:
-                if(VPN.server_protocol(config.vpn_server) == "wireguard",
-                  do: config_file,
-                  else: nil
-                )
-            })
+              conn
+              |> put_status(:created)
+              |> json(%{
+                message: "VPN configuration created successfully",
+                config: format_config(config),
+                config_content: config_file,
+                wireguard_config:
+                  if(VPN.server_protocol(config.vpn_server) == "wireguard",
+                    do: config_file,
+                    else: nil
+                  )
+              })
 
-          {:error, :server_not_found} ->
-            conn
-            |> put_status(:not_found)
-            |> json(%{error: "VPN server not found"})
+            {:error, :server_not_found} ->
+              conn
+              |> put_status(:not_found)
+              |> json(%{error: "VPN server not found"})
 
-          {:error, :server_not_active} ->
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "VPN server is not active"})
+            {:error, :server_not_active} ->
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "VPN server is not active"})
 
-          {:error, :insufficient_trust_level} ->
-            conn
-            |> put_status(:forbidden)
-            |> json(%{error: "You do not have access to this VPN server"})
+            {:error, :insufficient_trust_level} ->
+              conn
+              |> put_status(:forbidden)
+              |> json(%{error: "You do not have access to this VPN server"})
 
-          {:error, %Ecto.Changeset{} = changeset} ->
-            errors =
-              Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-                Enum.reduce(opts, msg, fn {key, value}, acc ->
-                  String.replace(acc, "%{#{key}}", to_string(value))
+            {:error, %Ecto.Changeset{} = changeset} ->
+              errors =
+                Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+                  Enum.reduce(opts, msg, fn {key, value}, acc ->
+                    String.replace(acc, "%{#{key}}", to_string(value))
+                  end)
                 end)
-              end)
 
-            conn
-            |> put_status(:unprocessable_entity)
-            |> json(%{error: "Failed to create configuration", errors: errors})
-        end
+              conn
+              |> put_status(:unprocessable_entity)
+              |> json(%{error: "Failed to create configuration", errors: errors})
+          end
 
-      existing_config ->
-        # User already has a config for this server
-        config_file = VPN.generate_config_file(existing_config)
+        existing_config ->
+          # User already has a config for this server
+          config_file = VPN.generate_config_file(existing_config)
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          message: "Configuration already exists",
-          config: format_config(existing_config),
-          config_content: config_file,
-          wireguard_config:
-            if(VPN.server_protocol(existing_config.vpn_server) == "wireguard",
-              do: config_file,
-              else: nil
-            )
-        })
+          conn
+          |> put_status(:ok)
+          |> json(%{
+            message: "Configuration already exists",
+            config: format_config(existing_config),
+            config_content: config_file,
+            wireguard_config:
+              if(VPN.server_protocol(existing_config.vpn_server) == "wireguard",
+                do: config_file,
+                else: nil
+              )
+          })
+      end
+    else
+      vpn_locked(conn)
     end
   end
 
@@ -214,6 +236,12 @@ defmodule ElektrineVPNWeb.API.VPNController do
   end
 
   # Private helper to format config for JSON response
+  defp vpn_locked(conn) do
+    conn
+    |> put_status(:forbidden)
+    |> json(%{error: "VPN unlocks at trust level #{VPN.minimum_trust_level()}"})
+  end
+
   defp format_config(config) do
     %{
       id: config.id,

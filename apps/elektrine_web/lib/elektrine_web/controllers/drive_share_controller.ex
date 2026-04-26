@@ -7,6 +7,7 @@ defmodule ElektrineWeb.DriveShareController do
 
   def show(conn, %{"token" => token}) do
     with %Drive.FileShare{} = share <- Drive.get_active_share(token),
+         true <- Drive.share_owner_can_access?(share),
          true <- password_authorized?(conn, share),
          :ok <- Drive.reserve_share_download(share),
          %Drive.StoredFile{} = file <- share.stored_file,
@@ -23,28 +24,32 @@ defmodule ElektrineWeb.DriveShareController do
   def authorize(conn, %{"token" => token, "password" => password}) do
     case Drive.get_active_share(token) do
       %Drive.FileShare{} = share ->
-        rate_limit_key = share_rate_limit_key(conn, token)
+        if Drive.share_owner_can_access?(share) do
+          rate_limit_key = share_rate_limit_key(conn, token)
 
-        case RateLimiter.check_rate_limit(rate_limit_key) do
-          {:ok, :allowed} ->
-            if Drive.verify_share_password(share, password) do
-              RateLimiter.record_successful_attempt(rate_limit_key)
+          case RateLimiter.check_rate_limit(rate_limit_key) do
+            {:ok, :allowed} ->
+              if Drive.verify_share_password(share, password) do
+                RateLimiter.record_successful_attempt(rate_limit_key)
 
-              conn
-              |> put_session("drive_share_access", grant_token_access(conn, token))
-              |> redirect(to: ~p"/drive/share/#{token}")
-            else
-              RateLimiter.record_failed_attempt(rate_limit_key)
-              render_password_prompt(conn, token, 401, "Password was incorrect")
-            end
+                conn
+                |> put_session("drive_share_access", grant_token_access(conn, token))
+                |> redirect(to: ~p"/drive/share/#{token}")
+              else
+                RateLimiter.record_failed_attempt(rate_limit_key)
+                render_password_prompt(conn, token, 401, "Password was incorrect")
+              end
 
-          {:error, {:rate_limited, retry_after, _reason}} ->
-            render_password_prompt(
-              conn,
-              token,
-              429,
-              "Too many attempts. Try again in #{retry_after} seconds."
-            )
+            {:error, {:rate_limited, retry_after, _reason}} ->
+              render_password_prompt(
+                conn,
+                token,
+                429,
+                "Too many attempts. Try again in #{retry_after} seconds."
+              )
+          end
+        else
+          send_resp(conn, 404, "Not found")
         end
 
       _ ->

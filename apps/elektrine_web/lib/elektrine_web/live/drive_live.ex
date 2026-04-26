@@ -10,41 +10,55 @@ defmodule ElektrineWeb.DriveLive do
         {:ok, redirect(socket, to: Elektrine.Paths.login_path())}
 
       user ->
-        {:ok,
-         socket
-         |> assign(:page_title, "Drive")
-         |> assign(:folder_path, "")
-         |> assign(:current_folder, "")
-         |> assign(:breadcrumbs, [%{name: "My Drive", path: ""}])
-         |> assign(:folders, [])
-         |> assign(:files, [])
-         |> assign(:search_query, "")
-         |> assign(:active_filter, "all")
-         |> assign(:sort_by, "updated_desc")
-         |> assign(:sort_options, Drive.sort_options())
-         |> assign(:quick_filter_options, Drive.quick_filter_options())
-         |> assign(:share_expiry_options, Drive.share_expiry_options())
-         |> assign(:share_access_options, Drive.share_access_options())
-         |> assign(:selected_items, MapSet.new())
-         |> assign(:rename_target, nil)
-         |> assign(:move_target, nil)
-         |> assign(:bulk_move_open, false)
-         |> assign(:bulk_move_path, "")
-         |> assign(:show_new_folder_form, false)
-         |> assign(:new_folder_name, "")
-         |> assign(:tree_expanded_paths, MapSet.new())
-         |> assign(:folder_tree, [])
-         |> assign(:context_menu, nil)
-         |> assign(:active_file, nil)
-         |> assign(:active_folder, nil)
-         |> assign(:storage_info, Storage.get_storage_info(user.id))
-         |> allow_upload(:files,
-           accept: :any,
-           max_entries: 10,
-           max_file_size: Drive.max_upload_size(),
-           auto_upload: true
-         )}
+        if Drive.user_can_access?(user) do
+          mount_drive(socket, user)
+        else
+          {:ok,
+           socket
+           |> put_flash(
+             :error,
+             "Drive unlocks at trust level #{Drive.minimum_trust_level()} to reduce abuse."
+           )
+           |> redirect(to: ~p"/portal")}
+        end
     end
+  end
+
+  defp mount_drive(socket, user) do
+    {:ok,
+     socket
+     |> assign(:page_title, "Drive")
+     |> assign(:folder_path, "")
+     |> assign(:current_folder, "")
+     |> assign(:breadcrumbs, [%{name: "My Drive", path: ""}])
+     |> assign(:folders, [])
+     |> assign(:files, [])
+     |> assign(:search_query, "")
+     |> assign(:active_filter, "all")
+     |> assign(:sort_by, "updated_desc")
+     |> assign(:sort_options, Drive.sort_options())
+     |> assign(:quick_filter_options, Drive.quick_filter_options())
+     |> assign(:share_expiry_options, Drive.share_expiry_options())
+     |> assign(:share_access_options, Drive.share_access_options())
+     |> assign(:selected_items, MapSet.new())
+     |> assign(:rename_target, nil)
+     |> assign(:move_target, nil)
+     |> assign(:bulk_move_open, false)
+     |> assign(:bulk_move_path, "")
+     |> assign(:show_new_folder_form, false)
+     |> assign(:new_folder_name, "")
+     |> assign(:tree_expanded_paths, MapSet.new())
+     |> assign(:folder_tree, [])
+     |> assign(:context_menu, nil)
+     |> assign(:active_file, nil)
+     |> assign(:active_folder, nil)
+     |> assign(:storage_info, Storage.get_storage_info(user.id))
+     |> allow_upload(:files,
+       accept: :any,
+       max_entries: 10,
+       max_file_size: Drive.max_upload_size(),
+       auto_upload: true
+     )}
   end
 
   @impl true

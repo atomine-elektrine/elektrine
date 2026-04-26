@@ -26,6 +26,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.CSRFErrorHandler)
     plug(:put_secure_browser_headers)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.Locale)
     plug(ElektrineWeb.Plugs.TimezonePlug)
     plug(ElektrineWeb.Plugs.NotificationCount)
@@ -44,6 +45,7 @@ defmodule ElektrineWeb.Router do
     plug(:put_secure_browser_headers)
     plug(ElektrineWeb.Plugs.ProfileCSP)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.Locale)
     plug(ElektrineWeb.Plugs.TimezonePlug)
     plug(ElektrineWeb.Plugs.NotificationCount)
@@ -84,12 +86,14 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.CSRFErrorHandler)
     plug(:put_secure_browser_headers)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 
   pipeline :api_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.APIAuth)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -98,6 +102,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -106,6 +111,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
@@ -218,6 +224,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["xml", "text", "json"])
     plug(ElektrineWeb.Plugs.WebDAVMethodOverride)
     plug(ElektrineWeb.Plugs.DAVAuth)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.DAVRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :dav)
   end
@@ -241,6 +248,8 @@ defmodule ElektrineWeb.Router do
       opts: [],
       module_name: :jmap_auth
     )
+
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 
   pipeline :jmap_discovery do
@@ -253,6 +262,8 @@ defmodule ElektrineWeb.Router do
       opts: [],
       module_name: :jmap_auth
     )
+
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 
   pipeline :autoconfig do
@@ -274,6 +285,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: false)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 
   pipeline :mastodon_api_authenticated do
@@ -281,6 +293,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: true)
+    plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 
   # Health check endpoint (no auth required)
@@ -671,6 +684,12 @@ defmodule ElektrineWeb.Router do
       "/invite-codes/self-service-trust-level",
       Admin.InviteCodesController,
       :update_self_service_trust_level
+    )
+
+    post(
+      "/invite-codes/module-access",
+      Admin.InviteCodesController,
+      :update_module_access
     )
 
     # Audit logs
@@ -1120,8 +1139,8 @@ defmodule ElektrineWeb.Router do
 
     live_session :main,
       on_mount: [
-        {ElektrineWeb.Live.Hooks.PlatformModuleHook, :default},
         {ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user},
+        {ElektrineWeb.Live.Hooks.PlatformModuleHook, :default},
         {ElektrineWeb.Live.Hooks.NotificationCountHook, :default},
         {ElektrineWeb.Live.Hooks.TimezoneHook, :default},
         {ElektrineWeb.Live.Hooks.PresenceHook, :default}

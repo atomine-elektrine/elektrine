@@ -486,14 +486,15 @@
                             <%= if has_media do %>
                               <% first_media = List.first(content_source.media_urls)
 
-                              full_url =
-                                Elektrine.Uploads.attachment_url(first_media, content_source)
+                              full_url = profile_attachment_url(first_media, content_source)
 
                               is_video =
-                                String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+                                is_binary(first_media) and
+                                  String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
 
                               is_audio =
-                                String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+                                is_binary(first_media) and
+                                  String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
 
                               media_count = length(content_source.media_urls) %>
                               <div class="mt-2 relative">
@@ -516,11 +517,13 @@
                                       </span>
                                     </div>
                                   <% else %>
-                                    <img
-                                      src={full_url}
-                                      alt=""
-                                      class="w-full h-20 object-cover rounded"
-                                    />
+                                    <%= if full_url do %>
+                                      <img
+                                        src={full_url}
+                                        alt=""
+                                        class="w-full h-20 object-cover rounded"
+                                      />
+                                    <% end %>
                                   <% end %>
                                 <% end %>
                                 <%= if media_count > 1 do %>
@@ -1798,9 +1801,16 @@
 
                       <%= if has_media do %>
                         <% first_media = List.first(content_source.media_urls)
-                        full_url = Elektrine.Uploads.attachment_url(first_media, content_source)
-                        is_video = String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
-                        is_audio = String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+                        full_url = profile_attachment_url(first_media, content_source)
+
+                        is_video =
+                          is_binary(first_media) and
+                            String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+
+                        is_audio =
+                          is_binary(first_media) and
+                            String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+
                         media_count = length(content_source.media_urls) %>
                         <div class="mt-2 relative">
                           <%= if is_video do %>
@@ -1822,7 +1832,13 @@
                                 </span>
                               </div>
                             <% else %>
-                              <img src={full_url} alt="" class="w-full h-20 object-cover rounded" />
+                              <%= if full_url do %>
+                                <img
+                                  src={full_url}
+                                  alt=""
+                                  class="w-full h-20 object-cover rounded"
+                                />
+                              <% end %>
                             <% end %>
                           <% end %>
                           <%= if media_count > 1 do %>

@@ -138,6 +138,8 @@ defmodule ElektrineVPNWeb.VPNAPIController do
 
       config ->
         user = config.user
+        server = VPN.get_server!(server_id)
+        required_trust_level = max(server.minimum_trust_level, VPN.minimum_trust_level())
 
         cond do
           # User is banned
@@ -155,6 +157,9 @@ defmodule ElektrineVPNWeb.VPNAPIController do
           # Config is suspended (quota exceeded)
           config.status == "suspended" ->
             json(conn, %{allowed: false, reason: "quota_exceeded"})
+
+          not user.is_admin and user.trust_level < required_trust_level ->
+            json(conn, %{allowed: false, reason: "insufficient_trust_level"})
 
           # Config is active
           config.status == "active" ->

@@ -20,5 +20,12 @@ defmodule ElektrineWeb.ProfileHTML do
 
   embed_templates "../live/profile_live/show.*"
 
+  defp profile_attachment_url(attachment, context) do
+    case Elektrine.Uploads.attachment_url(attachment, context) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
+
   defp lighten_color(hex, factor), do: Elektrine.Theme.lighten(hex, factor)
 end

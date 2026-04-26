@@ -19,9 +19,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    gallery_posts = get_gallery_feed("discover", user)
-    {user_likes, user_saved_posts} = load_gallery_engagement_state(user, gallery_posts)
-
     if connected?(socket) do
       PubSubTopics.subscribe(PubSubTopics.timeline_public())
 
@@ -35,19 +32,19 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     socket =
       socket
       |> assign(:page_title, "Gallery")
-      |> assign(:gallery_posts, gallery_posts)
+      |> assign(:gallery_posts, [])
       |> assign(:current_filter, "discover")
       |> assign(:gallery_search, "")
       |> assign(:gallery_sort, "fresh")
       |> assign(:software_filter, "all")
-      |> assign(:user_likes, user_likes)
-      |> assign(:user_saved_posts, user_saved_posts)
+      |> assign(:user_likes, MapSet.new())
+      |> assign(:user_saved_posts, MapSet.new())
       |> assign(:show_upload_modal, false)
       |> assign(:upload_title, "")
       |> assign(:upload_description, "")
       |> assign(:upload_category, "photography")
       |> assign(:upload_visibility, "public")
-      |> assign(:filtered_posts, gallery_posts)
+      |> assign(:filtered_posts, [])
       |> assign(:gallery_filter, "all")
       |> assign(:user_gallery_stats, nil)
       |> assign(:recent_uploads, [])
@@ -56,17 +53,16 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       |> assign(:trending_tags, [])
       |> assign(:uploading, false)
       |> assign(:loading_more, false)
-      |> assign(:loading_gallery, false)
+      |> assign(:loading_gallery, true)
       |> assign(:loading_gallery_insights, true)
-      |> assign(:end_of_feed, length(gallery_posts) < @gallery_page_size)
+      |> assign(:gallery_load_ref, nil)
+      |> assign(:end_of_feed, false)
       |> assign(:show_image_modal, false)
       |> assign(:modal_image_url, nil)
       |> assign(:modal_images, [])
       |> assign(:modal_image_index, 0)
       |> assign(:modal_post, nil)
       |> assign(:modal_is_liked, false)
-
-    socket = apply_gallery_filter(socket)
 
     socket =
       if user do
@@ -87,20 +83,13 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     if socket.assigns.current_filter == filter do
       {:noreply, socket}
     else
-      posts = get_gallery_feed(filter, socket.assigns.current_user)
-
-      {user_likes, user_saved_posts} =
-        load_gallery_engagement_state(socket.assigns[:current_user], posts)
-
       {:noreply,
        socket
        |> assign(:current_filter, filter)
-       |> assign(:gallery_posts, posts)
-       |> assign(:user_likes, user_likes)
-       |> assign(:user_saved_posts, user_saved_posts)
+       |> assign(:loading_gallery, true)
        |> assign(:loading_more, false)
-       |> assign(:end_of_feed, length(posts) < @gallery_page_size)
-       |> apply_gallery_filter()}
+       |> assign(:end_of_feed, false)
+       |> start_gallery_load(filter, include_insights: false)}
     end
   end
 
@@ -371,15 +360,22 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     photo = Enum.find(socket.assigns.filtered_posts, fn post -> post.id == photo_id end)
 
     if photo && photo.media_urls && photo.media_urls != [] do
-      images = Enum.map(photo.media_urls, &Elektrine.Uploads.attachment_url(&1, photo))
+      images =
+        photo.media_urls
+        |> Enum.map(&Elektrine.Uploads.attachment_url(&1, photo))
+        |> Enum.filter(&is_binary/1)
 
-      {:noreply,
-       socket
-       |> assign(:show_image_modal, true)
-       |> assign(:modal_image_url, hd(images))
-       |> assign(:modal_images, images)
-       |> assign(:modal_image_index, 0)
-       |> assign(:modal_post, photo)}
+      if images == [] do
+        {:noreply, socket}
+      else
+        {:noreply,
+         socket
+         |> assign(:show_image_modal, true)
+         |> assign(:modal_image_url, hd(images))
+         |> assign(:modal_images, images)
+         |> assign(:modal_image_index, 0)
+         |> assign(:modal_post, photo)}
+      end
     else
       {:noreply, socket}
     end
@@ -741,65 +737,134 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   def handle_info(:load_gallery_data, socket) do
-    user = socket.assigns[:current_user]
-    gallery_posts = get_gallery_feed("discover", user)
-    {user_likes, user_saved_posts} = load_gallery_engagement_state(user, gallery_posts)
+    {:noreply, start_gallery_load(socket, socket.assigns.current_filter, include_insights: true)}
+  end
 
-    {user_gallery_stats, recent_uploads, top_upload, suggested_photographers, trending_tags} =
-      if user do
-        stats_task = Task.async(fn -> get_user_gallery_stats(user.id) end)
-        highlights_task = Task.async(fn -> get_user_gallery_highlights(user.id) end)
-        photographers_task = Task.async(fn -> get_suggested_photographers(user.id, limit: 5) end)
+  def handle_info({:gallery_data_loaded, load_ref, data}, socket) do
+    cond do
+      load_ref != socket.assigns.gallery_load_ref ->
+        {:noreply, socket}
 
-        tags_task =
-          Task.async(fn ->
-            Social.get_trending_hashtags(limit: 8)
-            |> Enum.filter(fn hashtag ->
-              String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
-            end)
-          end)
+      data.filter != socket.assigns.current_filter ->
+        {:noreply,
+         start_gallery_load(socket, socket.assigns.current_filter, include_insights: false)}
 
-        stats = Task.await(stats_task, 5000)
-        {recent_uploads, top_upload} = Task.await(highlights_task, 5000)
-
-        photographers =
-          if !stats || stats.photo_count == 0 do
-            Task.await(photographers_task, 5000)
-          else
-            []
-          end
-
-        tags = Task.await(tags_task, 5000)
-        {stats, recent_uploads, top_upload, photographers, tags}
-      else
-        tags =
-          Social.get_trending_hashtags(limit: 8)
-          |> Enum.filter(fn hashtag ->
-            String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
-          end)
-
-        {nil, [], nil, [], tags}
-      end
-
-    {:noreply,
-     socket
-     |> assign(:gallery_posts, gallery_posts)
-     |> assign(:filtered_posts, gallery_posts)
-     |> assign(:user_likes, user_likes)
-     |> assign(:user_saved_posts, user_saved_posts)
-     |> assign(:user_gallery_stats, user_gallery_stats)
-     |> assign(:recent_uploads, recent_uploads)
-     |> assign(:top_upload, top_upload)
-     |> assign(:suggested_photographers, suggested_photographers)
-     |> assign(:trending_tags, trending_tags)
-     |> assign(:loading_gallery, false)
-     |> assign(:loading_gallery_insights, false)
-     |> assign(:end_of_feed, length(gallery_posts) < @gallery_page_size)
-     |> apply_gallery_filter()}
+      true ->
+        {:noreply, apply_gallery_data(socket, data)}
+    end
   end
 
   def handle_info(_info, socket) do
     {:noreply, socket}
+  end
+
+  defp start_gallery_load(socket, filter, opts) do
+    include_insights? = Keyword.get(opts, :include_insights, false)
+    load_ref = System.unique_integer([:positive, :monotonic])
+    user = socket.assigns[:current_user]
+    parent = self()
+
+    Task.start(fn ->
+      send(
+        parent,
+        {:gallery_data_loaded, load_ref, build_gallery_data(filter, user, include_insights?)}
+      )
+    end)
+
+    socket
+    |> assign(:gallery_load_ref, load_ref)
+    |> assign(:loading_gallery, true)
+    |> assign(
+      :loading_gallery_insights,
+      include_insights? || socket.assigns.loading_gallery_insights
+    )
+  end
+
+  defp build_gallery_data(filter, user, include_insights?) do
+    gallery_posts = get_gallery_feed(filter, user)
+    {user_likes, user_saved_posts} = load_gallery_engagement_state(user, gallery_posts)
+
+    insights =
+      if include_insights? do
+        if user do
+          stats_task = Task.async(fn -> get_user_gallery_stats(user.id) end)
+          highlights_task = Task.async(fn -> get_user_gallery_highlights(user.id) end)
+
+          photographers_task =
+            Task.async(fn -> get_suggested_photographers(user.id, limit: 5) end)
+
+          tags_task =
+            Task.async(fn ->
+              Social.get_trending_hashtags(limit: 8)
+              |> Enum.filter(fn hashtag ->
+                String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
+              end)
+            end)
+
+          stats = Task.await(stats_task, 5000)
+          {recent_uploads, top_upload} = Task.await(highlights_task, 5000)
+
+          photographers =
+            if !stats || stats.photo_count == 0 do
+              Task.await(photographers_task, 5000)
+            else
+              []
+            end
+
+          tags = Task.await(tags_task, 5000)
+
+          %{
+            user_gallery_stats: stats,
+            recent_uploads: recent_uploads,
+            top_upload: top_upload,
+            suggested_photographers: photographers,
+            trending_tags: tags
+          }
+        else
+          tags =
+            Social.get_trending_hashtags(limit: 8)
+            |> Enum.filter(fn hashtag ->
+              String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
+            end)
+
+          %{
+            user_gallery_stats: nil,
+            recent_uploads: [],
+            top_upload: nil,
+            suggested_photographers: [],
+            trending_tags: tags
+          }
+        end
+      else
+        %{}
+      end
+
+    %{
+      filter: filter,
+      gallery_posts: gallery_posts,
+      user_likes: user_likes,
+      user_saved_posts: user_saved_posts,
+      end_of_feed: length(gallery_posts) < @gallery_page_size,
+      insights: insights
+    }
+  end
+
+  defp apply_gallery_data(socket, data) do
+    socket =
+      socket
+      |> assign(:gallery_posts, data.gallery_posts)
+      |> assign(:filtered_posts, data.gallery_posts)
+      |> assign(:user_likes, data.user_likes)
+      |> assign(:user_saved_posts, data.user_saved_posts)
+      |> assign(:loading_gallery, false)
+      |> assign(:end_of_feed, data.end_of_feed)
+
+    socket =
+      Enum.reduce(data.insights, socket, fn {key, value}, socket -> assign(socket, key, value) end)
+
+    socket
+    |> assign(:loading_gallery_insights, false)
+    |> apply_gallery_filter()
   end
 
   defp error_to_string(:too_large) do
