@@ -86,16 +86,27 @@ Local uploads without S3-compatible object storage:
 - the container entrypoint links that volume into the release `priv/static/uploads` path so `/uploads/...` URLs keep working
 - keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
 
-To use a private S3-compatible service from another Compose project, set the
-Magpie/S3 variables in `.env.production`. If `S3_PUBLIC_URL` points at
-`media.<PRIMARY_DOMAIN>` and `CADDY_MEDIA_UPSTREAM` is `magpie:8090`, the deploy
-wrapper automatically attaches app, worker, and Caddy to the Magpie shared
-network and renders a media route.
+To use S3-compatible object storage, set the `S3_*` variables in
+`.env.production`. This can point at Magpie, MinIO, Garage, AWS S3, Cloudflare
+R2, Backblaze B2, or another compatible service. If `S3_PUBLIC_URL` points at a
+public CDN/object-storage URL, no extra Docker networking is needed.
 
-With a Magpie service on `app-shared`:
+Magpie is optional. If you run a private Magpie service in another Compose
+project and expose public media through Elektrine's Caddy route, set
+`S3_PUBLIC_URL` to `https://media.<PRIMARY_DOMAIN>` and
+`CADDY_MEDIA_UPSTREAM=magpie:8090`. The deploy wrapper automatically attaches
+app, worker, and Caddy to the configured shared network and renders a media
+route.
+
+With a Magpie service on `elektrine-magpie-shared` using the `magpie` network
+alias:
 
 ```bash
-docker network create app-shared
+docker network create elektrine-magpie-shared
+cd /path/to/magpie
+docker compose -f docker-compose.yml -f docker-compose.network.example.yml up -d --build
+
+cd /path/to/elektrine
 scripts/deploy/docker_deploy.sh \
 	--modules chat,social,vault \
 	--profile caddy
@@ -112,10 +123,11 @@ S3_SCHEME=http://
 S3_PORT=8090
 CADDY_MEDIA_HOST=media.example.com
 CADDY_MEDIA_UPSTREAM=magpie:8090
+MAGPIE_DOCKER_NETWORK=elektrine-magpie-shared
 ```
 
-If the shared network has a different name, set `MAGPIE_DOCKER_NETWORK` before
-deploying.
+If the shared network has a different name, set the same
+`MAGPIE_DOCKER_NETWORK` value for both Magpie and Elektrine before deploying.
 
 ## Deploy
 
