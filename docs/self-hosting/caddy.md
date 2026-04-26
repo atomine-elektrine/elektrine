@@ -47,12 +47,8 @@ For wildcard/external certificate mode, also set:
 - `CADDY_MANAGED_SITE_1_CERT_PATH`
 - `CADDY_MANAGED_SITE_1_KEY_PATH`
 
-For wildcard issuance directly in Caddy through Cloudflare DNS, set instead:
-
-- `CLOUDFLARE_API_TOKEN`
-
-If you are not on Cloudflare DNS, Elektrine can issue the wildcard cert with
-Elektrine DNS and use external certificate mode. The issuer loads `.env.production` and infers the domain/API base from
+Elektrine can issue the wildcard cert with Elektrine DNS and use external
+certificate mode. The issuer loads `.env.production` and infers the domain/API base from
 `PRIMARY_DOMAIN`, `PHX_HOST`, and `CADDY_MANAGED_SITE_1`. It uses the existing
 `PHOENIX_API_KEY` or `CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
 endpoint and saves that config into acme.sh. If needed, override with
@@ -73,7 +69,6 @@ automatic when all of these are true:
 
 - the `caddy` profile is enabled
 - `CADDY_MANAGED_SITE_*` contains a wildcard host
-- `CLOUDFLARE_API_TOKEN` is not set
 - `ACME_WILDCARD_RENEWAL_ENABLED=true`
 
 The script installs:
@@ -83,9 +78,7 @@ The script installs:
 
 When you deploy through `scripts/deploy/docker_deploy.sh`, you usually do not
 need to set `CADDY_CONFIG_PATH` manually. The deploy tooling auto-selects the
-wildcard Cloudflare Caddyfile when it sees wildcard site entries together with
-`CLOUDFLARE_API_TOKEN`, or the wildcard-external Caddyfile when it sees mounted
-cert/key paths.
+wildcard-external Caddyfile when it sees mounted cert/key paths.
 
 ## Deploy
 
@@ -109,14 +102,9 @@ paths inferred by `scripts/deploy/docker_deploy.sh`, so normally only
 `CADDY_MANAGED_SITE_1="example.com *.example.com"` and
 `CADDY_TLS_MOUNT_DIR=/opt/elektrine/certs` are needed for Caddy.
 
-If you use Cloudflare DNS challenge instead, set `CLOUDFLARE_API_TOKEN` and let
-the deploy wrapper select the wildcard Cloudflare Caddyfile automatically.
-
 If you bypass the deploy script and run raw `docker compose`, set
 `CADDY_CONFIG_PATH` yourself to one of:
 
-- `../caddy/Caddyfile.wildcard-cloudflare`
-- `../caddy/Caddyfile.baremetal.wildcard-cloudflare`
 - `../caddy/Caddyfile.wildcard-external`
 - `../caddy/Caddyfile.baremetal.wildcard-external`
 
@@ -132,7 +120,6 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 - wildcard external mode keeps certificate issuance outside Caddy
 - Elektrine DNS wildcard automation uses acme.sh DNS-01 and then feeds Caddy external cert files
 - Oban runs acme.sh renewal checks and acme.sh runs the saved Caddy reload command after renewal
-- wildcard Cloudflare mode lets Caddy issue and renew wildcard certs directly
 - wildcard external mode is the recommended path for high-volume username subdomains
 - stock on-demand TLS is still available in the default Caddyfile for explicit-host setups
 - `mta-sts.<domain>` is treated as a built-in host so MTA-STS policy delivery can use the same edge

@@ -83,7 +83,17 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "require_admin_host/2" do
-    test "returns 404 on the public apex", %{conn: conn} do
+    test "allows the public apex when NetBird is disabled", %{conn: conn} do
+      conn = %{conn | host: Elektrine.Domains.primary_profile_domain()}
+
+      conn = UserAuth.require_admin_host(conn, [])
+
+      refute conn.halted
+    end
+
+    test "returns 404 on the public apex when NetBird is enabled", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
+
       conn =
         conn
         |> fetch_query_params()
@@ -119,6 +129,62 @@ defmodule ElektrineWeb.UserAuthTest do
       conn = UserAuth.require_admin_host(conn, [])
 
       refute conn.halted
+    end
+  end
+
+  describe "admin_login_restricted?/2" do
+    test "does not restrict admin login when NetBird is disabled", %{conn: conn} do
+      user = %{is_admin: true}
+
+      conn = %{
+        conn
+        | host: Elektrine.Domains.primary_profile_domain(),
+          remote_ip: {203, 0, 113, 10}
+      }
+
+      refute UserAuth.admin_login_restricted?(conn, user)
+    end
+
+    test "restricts admin login on public host when NetBird is enabled", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
+
+      user = %{is_admin: true}
+
+      conn = %{
+        conn
+        | host: Elektrine.Domains.primary_profile_domain(),
+          remote_ip: {100, 90, 10, 50}
+      }
+
+      assert UserAuth.admin_login_restricted?(conn, user)
+    end
+
+    test "allows admin login on admin host over NetBird", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
+
+      user = %{is_admin: true}
+
+      conn = %{
+        conn
+        | host: "admin.#{Elektrine.Domains.primary_profile_domain()}",
+          remote_ip: {100, 90, 10, 50}
+      }
+
+      refute UserAuth.admin_login_restricted?(conn, user)
+    end
+
+    test "does not restrict non-admin login when NetBird is enabled", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
+
+      user = %{is_admin: false}
+
+      conn = %{
+        conn
+        | host: Elektrine.Domains.primary_profile_domain(),
+          remote_ip: {203, 0, 113, 10}
+      }
+
+      refute UserAuth.admin_login_restricted?(conn, user)
     end
   end
 

@@ -17,11 +17,10 @@ defmodule ElektrineWeb.Plugs.ActivityPubRateLimit do
   def call(conn, _opts) do
     if inbox_request?(conn) do
       ip = get_client_ip(conn)
-      actor_domain = actor_domain(conn.body_params)
 
-      case InboxRateLimiter.check_rate_limit(ip, actor_domain) do
+      case InboxRateLimiter.check_rate_limit(ip) do
         {:ok, :allowed} ->
-          assign(conn, :activitypub_rate_limit_checked, true)
+          conn
 
         {:error, :rate_limited} ->
           conn
@@ -39,16 +38,6 @@ defmodule ElektrineWeb.Plugs.ActivityPubRateLimit do
   end
 
   defp inbox_request?(_), do: false
-
-  defp actor_domain(%{"actor" => actor}) when is_binary(actor) do
-    case URI.parse(actor) do
-      %URI{host: host} when is_binary(host) and host != "" -> host
-      _ -> nil
-    end
-  end
-
-  defp actor_domain(%Plug.Conn.Unfetched{}), do: nil
-  defp actor_domain(_), do: nil
 
   defp get_client_ip(conn), do: ClientIP.client_ip(conn)
 end

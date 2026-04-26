@@ -162,7 +162,7 @@ defmodule Elektrine.DNS.Query do
 
         response_meta(query, response, zone, :noerror, true)
 
-      name_exists?(zone, query.qname) ->
+      name_exists?(zone, query.qname, opts) ->
         response =
           Packet.encode_response(query, [], :noerror,
             authority: authority,
@@ -212,7 +212,10 @@ defmodule Elektrine.DNS.Query do
           cname_records != [] ->
             cname_records
 
-          name_exists?(zone, fqdn) ->
+          name_exists?(zone, fqdn, opts) ->
+            []
+
+          private_name_exists?(zone, fqdn, opts) ->
             []
 
           true ->
@@ -318,9 +321,18 @@ defmodule Elektrine.DNS.Query do
     |> Enum.map(&with_record_host(zone, &1))
   end
 
-  defp name_exists?(zone, qname) do
+  defp name_exists?(zone, qname, opts) do
     fqdn = normalize_name(qname)
-    Enum.any?(all_zone_records(zone), &(record_name(zone, &1) == fqdn))
+    Enum.any?(zone_records(zone, opts), &(record_name(zone, &1) == fqdn))
+  end
+
+  defp private_name_exists?(zone, qname, opts) do
+    fqdn = normalize_name(qname)
+
+    not private_query?(opts) and
+      Enum.any?(all_zone_records(zone), fn record ->
+        Elektrine.DNS.Record.private?(record) and record_name(zone, record) == fqdn
+      end)
   end
 
   defp zone_records(zone, opts) do

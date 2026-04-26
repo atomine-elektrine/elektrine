@@ -860,7 +860,7 @@ defmodule Elektrine.Social.Message do
       String.starts_with?(url, "/uploads/") ->
         owned_public_media_key?(String.trim_leading(url, "/uploads/"), sender_id)
 
-      # Allow S3/R2 keys (paths starting with various attachment folders)
+      # Allow S3-compatible keys (paths starting with various attachment folders)
       String.starts_with?(url, "timeline-attachments/") or
         String.starts_with?(url, "discussion-attachments/") or
         String.starts_with?(url, "gallery-attachments/") or

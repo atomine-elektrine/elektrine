@@ -16,8 +16,8 @@ defmodule Elektrine.StaticSites do
   @max_files 1000
   # Maximum decompression ratio to prevent zip bombs (100:1)
   @max_decompression_ratio 100
-  # Maximum size of a single file (50MB)
-  @max_single_file_size 50_000_000
+  # Maximum size of a single file (10MB, aligned with StaticSiteFile changeset)
+  @max_single_file_size 10_000_000
 
   # Magic bytes for content type validation
   @magic_bytes %{
@@ -105,15 +105,23 @@ defmodule Elektrine.StaticSites do
       end
 
       # Create new file record
-      %StaticSiteFile{}
-      |> StaticSiteFile.changeset(%{
-        user_id: user.id,
-        path: path,
-        storage_key: storage_key,
-        content_type: content_type,
-        size: size
-      })
-      |> Repo.insert()
+      changeset =
+        StaticSiteFile.changeset(%StaticSiteFile{}, %{
+          user_id: user.id,
+          path: path,
+          storage_key: storage_key,
+          content_type: content_type,
+          size: size
+        })
+
+      case Repo.insert(changeset) do
+        {:ok, file} ->
+          {:ok, file}
+
+        {:error, _changeset} = error ->
+          delete_storage(storage_key)
+          error
+      end
     end
   end
 

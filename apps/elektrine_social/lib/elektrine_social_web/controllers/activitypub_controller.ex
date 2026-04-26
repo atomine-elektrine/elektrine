@@ -129,19 +129,14 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   defp handle_inbox_with_rate_limit(conn, activity, username) do
     require Logger
 
-    # The ActivityPubRateLimit plug runs before signature verification and marks
-    # inbox requests it already checked, so we can avoid double counting here.
+    # Older requests may already be checked by the pre-controller plug.
     if conn.assigns[:activitypub_rate_limit_checked] do
       handle_inbox_activity(conn, activity, username)
     else
       # Get client IP and actor domain for rate limiting
       ip = get_client_ip(conn)
 
-      actor_domain =
-        case activity["actor"] do
-          actor when is_binary(actor) -> URI.parse(actor).host
-          _ -> nil
-        end
+      actor_domain = verified_signature_actor_domain(conn)
 
       rate_limit_start = System.monotonic_time(:millisecond)
 
@@ -365,6 +360,14 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   end
 
   defp signing_key_actor_uri(_), do: nil
+
+  defp verified_signature_actor_domain(conn) do
+    case conn.assigns[:signature_actor] do
+      %{uri: uri} when is_binary(uri) -> actor_domain(uri)
+      %Elektrine.Accounts.User{} -> ActivityPub.instance_url() |> actor_domain()
+      _ -> nil
+    end
+  end
 
   defp signing_key_id(%Elektrine.ActivityPub.SigningKey{key_id: key_id}), do: key_id
   defp signing_key_id(_), do: nil

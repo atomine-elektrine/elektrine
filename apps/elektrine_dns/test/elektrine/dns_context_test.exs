@@ -300,7 +300,7 @@ defmodule Elektrine.DNSContextTest do
   end
 
   test "scan_existing_zone returns observed delegation and common records" do
-    put_lookup("scanme.com", :ns, 5_000, [~c"ns1.cloudflare.com", ~c"ns2.cloudflare.com"])
+    put_lookup("scanme.com", :ns, 5_000, [~c"ns1.example-dns.net", ~c"ns2.example-dns.net"])
     put_lookup("scanme.com", :a, 3_000, [{198, 51, 100, 10}])
     put_lookup("scanme.com", :mx, 3_000, [{10, ~c"mail.scanme.com"}])
     put_lookup("www.scanme.com", :cname, 3_000, [~c"proxy.other.net"])
@@ -308,9 +308,9 @@ defmodule Elektrine.DNSContextTest do
     scan = DNS.scan_existing_zone("scanme.com")
 
     assert scan.domain == "scanme.com"
-    assert scan.provider_hint == "Cloudflare"
+    assert scan.provider_hint == "ns1.example-dns.net"
     refute scan.delegated_to_elektrine
-    assert scan.nameservers == ["ns1.cloudflare.com", "ns2.cloudflare.com"]
+    assert scan.nameservers == ["ns1.example-dns.net", "ns2.example-dns.net"]
     assert %{host: "@", type: "A", values: ["198.51.100.10"]} in scan.records
     assert %{host: "@", type: "MX", values: ["10 mail.scanme.com"]} in scan.records
     assert %{host: "www", type: "CNAME", values: ["proxy.other.net"]} in scan.records

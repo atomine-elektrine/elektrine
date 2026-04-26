@@ -1,6 +1,6 @@
 defmodule Elektrine.Jobs.AttachmentUploader do
   @moduledoc """
-  Background job to upload email attachments to S3/R2 asynchronously.
+  Background job to upload email attachments to S3-compatible storage asynchronously.
   This prevents SMTP connections from being held open during slow S3 uploads.
   """
 
@@ -109,7 +109,7 @@ defmodule Elektrine.Jobs.AttachmentUploader do
       end
 
     if content do
-      # Upload to S3/R2
+      # Upload to S3-compatible storage
       AttachmentStorage.upload_attachment(
         mailbox_id,
         message_id,

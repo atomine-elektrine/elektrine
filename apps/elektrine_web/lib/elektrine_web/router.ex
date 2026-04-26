@@ -235,14 +235,13 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
 
     plug(ElektrineWeb.Plugs.OptionalDelegate,
       resolver: {ElektrineWeb.Platform.ModuleDelegates, :optional_delegate},
       opts: [],
       module_name: :jmap_auth
     )
-
-    plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
   pipeline :jmap_discovery do
@@ -329,7 +328,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api", ElektrineWeb do
-    pipe_through([ElektrineWeb.Plugs.RequirePlatformModule])
+    pipe_through([:browser_api, :require_authenticated_user])
 
     ElektrineWeb.Routes.Chat.private_attachment_routes()
   end

@@ -34,7 +34,7 @@ defmodule Elektrine.Email.AttachmentStorage do
   end
 
   @doc """
-  Downloads an attachment from S3/R2.
+  Downloads an attachment from S3-compatible storage.
   """
   def download_attachment(storage_metadata) when is_map(storage_metadata) do
     case storage_metadata do
@@ -74,7 +74,7 @@ defmodule Elektrine.Email.AttachmentStorage do
           ExAws.S3.presigned_url(config, :get, bucket, key,
             expires_in: expires_in,
             virtual_host: false,
-            query_params: [{"response-content-disposition", "inline"}]
+            query_params: [{"response-content-disposition", "attachment"}]
           )
 
         Events.upload(:email_attachment_presigned_url, :success, nil, %{source: "s3"})
@@ -327,7 +327,7 @@ defmodule Elektrine.Email.AttachmentStorage do
 
     endpoint =
       Application.get_env(:elektrine, :uploads)[:endpoint] ||
-        raise "R2_ENDPOINT not configured"
+        raise "S3_ENDPOINT not configured"
 
     "https://#{bucket}.#{endpoint}/#{s3_key}"
   end
@@ -338,6 +338,6 @@ defmodule Elektrine.Email.AttachmentStorage do
 
   defp get_bucket do
     Application.get_env(:elektrine, :uploads)[:bucket] ||
-      raise "S3/R2 bucket not configured"
+      raise "S3 bucket not configured"
   end
 end

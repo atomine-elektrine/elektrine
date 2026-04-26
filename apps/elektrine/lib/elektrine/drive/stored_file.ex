@@ -1,6 +1,6 @@
 defmodule Elektrine.Drive.StoredFile do
   @moduledoc """
-  Metadata for a user-owned file stored in local or R2-backed object storage.
+  Metadata for a user-owned file stored in local or S3-compatible object storage.
   """
 
   use Ecto.Schema

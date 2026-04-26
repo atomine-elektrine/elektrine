@@ -431,11 +431,10 @@ defmodule Elektrine.Profiles.UserProfile do
         changeset
 
       url when is_binary(url) ->
-        # Allow URLs from our storage system or S3/R2
+        # Allow URLs from our storage system or S3-compatible storage
         # Storage keys don't start with http, or they're from our configured domains
         is_safe =
           !String.starts_with?(url, "http") ||
-            String.contains?(url, ".r2.cloudflarestorage.com") ||
             String.contains?(url, ".s3.") ||
             String.starts_with?(url, "/uploads/")
 

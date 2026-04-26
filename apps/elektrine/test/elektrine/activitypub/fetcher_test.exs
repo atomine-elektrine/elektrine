@@ -412,36 +412,5 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert actor.inbox_url == "https://startrek.website/inbox"
       assert actor.public_key == "-----BEGIN PUBLIC KEY-----\nSITEKEY\n-----END PUBLIC KEY-----"
     end
-
-    test "does not retry signed fetch when Cloudflare blocks the actor URL" do
-      actor_uri = "https://example.com/u/blocked"
-      host = "example.com"
-      calls = :counters.new(1, [])
-
-      Elektrine.HTTP.Backoff.clear_backoff(host)
-
-      request_fun = fn ^actor_uri, _headers, _opts ->
-        :counters.add(calls, 1, 1)
-
-        {:ok,
-         %Finch.Response{
-           status: 403,
-           headers: [
-             {"content-type", "text/html; charset=UTF-8"},
-             {"server", "cloudflare"}
-           ],
-           body:
-             "<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head><body>Sorry, you have been blocked. Cloudflare Ray ID: 123</body></html>"
-         }}
-      end
-
-      assert {:error, :fetch_failed} =
-               ActivityPub.fetch_and_cache_actor(actor_uri, request_fun: request_fun)
-
-      assert :counters.get(calls, 1) == 1
-      assert Elektrine.HTTP.Backoff.should_backoff?(host)
-
-      Elektrine.HTTP.Backoff.clear_backoff(host)
-    end
   end
 end

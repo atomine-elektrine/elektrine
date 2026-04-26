@@ -3,9 +3,9 @@ defmodule Elektrine.Repo.Migrations.MigrateEmailAttachmentsToS3 do
 
   def change do
     # This migration doesn't change the database schema
-    # It's a marker for when we started using S3/R2 for attachments
+    # It's a marker for when we started using S3-compatible storage for attachments
     # Existing attachments will continue to work with fallback to database storage
-    # New attachments will be stored in S3/R2
+    # New attachments will be stored in S3-compatible object storage
 
     # Optional: Add a column to track migration status per message
     # This is commented out by default to avoid locking the messages table

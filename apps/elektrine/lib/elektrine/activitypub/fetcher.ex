@@ -190,18 +190,8 @@ defmodule Elektrine.ActivityPub.Fetcher do
       {:ok, %Finch.Response{} = response}
       when response.status in [401, 403] and sign_fetches == false ->
         # Instance requires signed fetches - retry with signature
-        if cloudflare_blocked_response?(response) do
-          maybe_backoff_blocked_host(uri)
-
-          Logger.warning(
-            "Cloudflare blocked ActivityPub fetch from #{uri}, skipping signed retry"
-          )
-
-          {:error, :fetch_failed}
-        else
-          Logger.debug("Instance #{uri} requires signed fetch, retrying...")
-          do_signed_fetch(uri, Keyword.put(opts, :sign, true))
-        end
+        Logger.debug("Instance #{uri} requires signed fetch, retrying...")
+        do_signed_fetch(uri, Keyword.put(opts, :sign, true))
 
       {:ok, %Finch.Response{status: status, body: _body}} when status in [404, 410] ->
         if allow_recovery do
@@ -975,42 +965,8 @@ defmodule Elektrine.ActivityPub.Fetcher do
   end
 
   defp log_failed_fetch(uri, %Finch.Response{} = response) do
-    if cloudflare_blocked_response?(response) do
-      maybe_backoff_blocked_host(uri)
-
-      Logger.warning(
-        "Cloudflare blocked ActivityPub fetch from #{uri} with status #{response.status}"
-      )
-    else
-      Logger.warning(
-        "Failed to fetch from #{uri}, status: #{response.status}, body: #{String.slice(response.body || "", 0, 200)}"
-      )
-    end
+    Logger.warning(
+      "Failed to fetch from #{uri}, status: #{response.status}, body: #{String.slice(response.body || "", 0, 200)}"
+    )
   end
-
-  defp cloudflare_blocked_response?(%Finch.Response{status: 403, headers: headers, body: body}) do
-    server =
-      headers
-      |> Enum.find_value(fn {key, value} ->
-        if String.downcase(key) == "server", do: String.downcase(value), else: nil
-      end)
-
-    body_text = String.downcase(body || "")
-
-    server == "cloudflare" &&
-      (String.contains?(body_text, "attention required") ||
-         String.contains?(body_text, "sorry, you have been blocked") ||
-         String.contains?(body_text, "cloudflare ray id"))
-  end
-
-  defp cloudflare_blocked_response?(_), do: false
-
-  defp maybe_backoff_blocked_host(uri) when is_binary(uri) do
-    case URI.parse(uri) do
-      %URI{host: host} when is_binary(host) and host != "" -> Backoff.set_backoff(host)
-      _ -> :ok
-    end
-  end
-
-  defp maybe_backoff_blocked_host(_), do: :ok
 end

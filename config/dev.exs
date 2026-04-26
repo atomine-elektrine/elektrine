@@ -202,14 +202,37 @@ else
   # Use Postal API configuration from config.exs
 end
 
-# Use S3/R2 in development if configured, otherwise use local storage
-if System.get_env("R2_ACCESS_KEY_ID") do
+s3_scheme_env = System.get_env("S3_SCHEME") || "https://"
+
+s3_scheme =
+  if String.ends_with?(s3_scheme_env, "://"), do: s3_scheme_env, else: s3_scheme_env <> "://"
+
+s3_endpoint = System.get_env("S3_ENDPOINT") || System.get_env("MAGPIE_ENDPOINT")
+
+s3_uri =
+  if is_binary(s3_endpoint) and String.contains?(s3_endpoint, "://") do
+    URI.parse(s3_endpoint)
+  else
+    URI.parse("#{s3_scheme}#{s3_endpoint}")
+  end
+
+s3_host = s3_uri.host || s3_endpoint
+
+s3_port =
+  case System.get_env("S3_PORT") do
+    nil -> s3_uri.port || if(s3_scheme == "http://", do: 80, else: 443)
+    value -> String.to_integer(value)
+  end
+
+# Use S3-compatible storage in development if configured, otherwise use local storage
+if System.get_env("S3_ACCESS_KEY_ID") || System.get_env("MAGPIE_S3_ACCESS_KEY_ID") do
   config :elektrine, :uploads,
     adapter: :s3,
-    bucket: System.get_env("R2_BUCKET_NAME") || "elektrine-uploads-dev",
-    endpoint: System.get_env("R2_ENDPOINT"),
-    # Optional: Custom domain for R2
-    public_url: System.get_env("R2_PUBLIC_URL"),
+    bucket:
+      System.get_env("S3_BUCKET_NAME") || System.get_env("MAGPIE_BUCKET_NAME") ||
+        "elektrine-uploads-dev",
+    endpoint: s3_host,
+    public_url: System.get_env("S3_PUBLIC_URL") || System.get_env("MAGPIE_PUBLIC_URL"),
     # Upload security limits
     max_file_size: 5 * 1024 * 1024,
     max_background_size: 10 * 1024 * 1024,
@@ -226,17 +249,18 @@ else
     max_image_height: 8192
 end
 
-# Configure ExAws for R2 in development:
+# Configure ExAws for S3-compatible storage in development:
 config :ex_aws,
-  access_key_id: System.get_env("R2_ACCESS_KEY_ID"),
-  secret_access_key: System.get_env("R2_SECRET_ACCESS_KEY"),
+  access_key_id: System.get_env("S3_ACCESS_KEY_ID") || System.get_env("MAGPIE_S3_ACCESS_KEY_ID"),
+  secret_access_key:
+    System.get_env("S3_SECRET_ACCESS_KEY") || System.get_env("MAGPIE_S3_SECRET_ACCESS_KEY"),
   region: "auto",
   json_codec: Jason,
   s3: [
-    scheme: "https://",
-    host: System.get_env("R2_ENDPOINT"),
+    scheme: s3_scheme,
+    host: s3_host,
     region: "auto",
-    port: 443
+    port: s3_port
   ]
 
 # Cloudflare Turnstile test keys for development

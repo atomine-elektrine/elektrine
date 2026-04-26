@@ -23,7 +23,7 @@ defmodule Elektrine.Accounts.Passkeys do
         origin: origin,
         rp_id: rp_id,
         attestation: "none",
-        user_verification: "preferred",
+        user_verification: "required",
         timeout: div(@challenge_timeout, 1000)
       ]
 
@@ -40,7 +40,7 @@ defmodule Elektrine.Accounts.Passkeys do
          user_display_name: user.display_name || user.username,
          timeout: @challenge_timeout,
          attestation: "none",
-         authenticator_selection: %{resident_key: "preferred", user_verification: "preferred"},
+         authenticator_selection: %{resident_key: "preferred", user_verification: "required"},
          exclude_credentials:
            Enum.map(exclude_credentials, fn cred_id ->
              %{type: "public-key", id: Base.url_encode64(cred_id, padding: false)}
@@ -127,7 +127,7 @@ defmodule Elektrine.Accounts.Passkeys do
     challenge_opts = [
       origin: origin,
       rp_id: rp_id,
-      user_verification: "preferred",
+      user_verification: "required",
       timeout: div(@challenge_timeout, 1000),
       allow_credentials: allowed_credentials
     ]
@@ -159,7 +159,7 @@ defmodule Elektrine.Accounts.Passkeys do
        challenge_b64: Base.url_encode64(challenge.bytes, padding: false),
        rp_id: rp_id,
        timeout: @challenge_timeout,
-       user_verification: "preferred",
+       user_verification: "required",
        allow_credentials: allow_credentials_for_client
      }}
   end
@@ -342,12 +342,29 @@ defmodule Elektrine.Accounts.Passkeys do
 
   defp get_origin(host) when is_binary(host) do
     rp_id = get_rp_id(host)
+    origin_host = normalize_host(host)
 
-    if rp_id == "localhost" do
-      "http://localhost:4000"
-    else
-      "https://#{rp_id}"
+    cond do
+      rp_id == "localhost" ->
+        "http://localhost:4000"
+
+      valid_origin_host?(origin_host, rp_id) ->
+        "https://#{origin_host}"
+
+      true ->
+        Application.get_env(:elektrine, :passkey_origin, "http://localhost:4000")
     end
+  end
+
+  defp valid_origin_host?(host, rp_id) do
+    host == rp_id or String.ends_with?(host, ".#{rp_id}")
+  end
+
+  defp normalize_host(host) when is_binary(host) do
+    host
+    |> String.downcase()
+    |> String.split(":", parts: 2)
+    |> List.first()
   end
 
   defp extract_registrable_domain(host) do

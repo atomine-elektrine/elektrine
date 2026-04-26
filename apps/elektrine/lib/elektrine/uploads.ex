@@ -400,7 +400,7 @@ defmodule Elektrine.Uploads do
 
   defp upload_binary_s3(binary, filename, mime_type, user_id, folder) do
     bucket = get_config(:bucket)
-    _endpoint = get_config(:endpoint) || raise "R2_ENDPOINT not configured"
+    _endpoint = get_config(:endpoint) || raise "S3_ENDPOINT not configured"
     safe_filename = sanitize_filename(filename)
     unique_filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
     key = "#{folder}/#{unique_filename}"
@@ -680,7 +680,7 @@ defmodule Elektrine.Uploads do
 
   defp upload_s3(%Plug.Upload{} = upload, user_id, folder) do
     bucket = get_config(:bucket)
-    _endpoint = get_config(:endpoint) || raise "R2_ENDPOINT not configured"
+    _endpoint = get_config(:endpoint) || raise "S3_ENDPOINT not configured"
     safe_filename = sanitize_filename(upload.filename)
     filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
     key = "#{folder}/#{filename}"
@@ -1060,8 +1060,8 @@ defmodule Elektrine.Uploads do
   defp public_storage_url(key) do
     case get_config(:public_url) do
       nil ->
-        bucket = get_config(:bucket) || raise "R2_BUCKET_NAME not configured"
-        endpoint = get_config(:endpoint) || raise "R2_ENDPOINT not configured"
+        bucket = get_config(:bucket) || raise "S3_BUCKET_NAME not configured"
+        endpoint = get_config(:endpoint) || raise "S3_ENDPOINT not configured"
         "https://#{bucket}.#{endpoint}/#{key}"
 
       public_url ->
@@ -1092,7 +1092,7 @@ defmodule Elektrine.Uploads do
           case ExAws.S3.presigned_url(config, :get, bucket, key,
                  expires_in: 3600,
                  virtual_host: false,
-                 query_params: [{"response-content-disposition", "inline"}]
+                 query_params: [{"response-content-disposition", "attachment"}]
                ) do
             {:ok, url} -> url
             _ -> attachment_url_direct(attachment)

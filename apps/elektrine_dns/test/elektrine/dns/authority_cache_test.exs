@@ -11,6 +11,8 @@ end
 defmodule Elektrine.DNS.AuthorityCacheTest do
   use Elektrine.DataCase, async: false
 
+  import Ecto.Query
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.DNS
   alias Elektrine.DNS.Query
@@ -65,6 +67,8 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
   test "new zones are served authoritatively without a restart" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    Repo.update_all(from(z in Zone, where: z.id == ^zone.id), set: [status: "verified"])
+    ZoneCache.refresh()
 
     response = Query.answer(build_query(zone.domain, 2))
 
@@ -76,6 +80,8 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
   test "managed mail records are served authoritatively right after apply" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    Repo.update_all(from(z in Zone, where: z.id == ^zone.id), set: [status: "verified"])
+    ZoneCache.refresh()
     assert {:ok, _config} = DNS.apply_zone_service(zone, "mail")
 
     response = Query.answer(build_query("_dmarc." <> zone.domain, 16))
@@ -88,6 +94,8 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
   test "managed service disable refreshes authority cache immediately" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    Repo.update_all(from(z in Zone, where: z.id == ^zone.id), set: [status: "verified"])
+    ZoneCache.refresh()
     assert {:ok, _config} = DNS.apply_zone_service(zone, "mail")
 
     qname = "_dmarc." <> zone.domain
@@ -107,7 +115,7 @@ defmodule Elektrine.DNS.AuthorityCacheTest do
     zone =
       Repo.insert!(%Zone{
         domain: unique_domain(),
-        status: "provisioning",
+        status: "verified",
         kind: "native",
         default_ttl: 300,
         user_id: user.id
