@@ -1,6 +1,5 @@
 // Global notification system for reliable notifications
 
-import { FlashMessageManager } from './flash_message_manager'
 import { spinnerSvg } from './utils/spinner'
 
 function appendHtml(parent, html) {
@@ -9,23 +8,27 @@ function appendHtml(parent, html) {
   parent.appendChild(template.content)
 }
 
-function notificationToneVars(type) {
-  const tone = {
-    success: 'var(--color-success)',
-    info: 'var(--color-info)',
-    warning: 'var(--color-warning)',
-    error: 'var(--color-error)',
-    loading: 'var(--color-info)'
-  }[type] || 'var(--color-info)'
-
+function notificationToneClass(type) {
   return {
-    '--flash-accent': `color-mix(in srgb, ${tone} 92%, transparent)`,
-    '--flash-accent-soft': `color-mix(in srgb, ${tone} 25%, transparent)`,
-    '--flash-tint-start': `color-mix(in srgb, ${tone} 20%, transparent)`,
-    '--flash-tint-mid': `color-mix(in srgb, ${tone} 8%, transparent)`,
-    '--flash-border': `color-mix(in srgb, ${tone} 48%, transparent)`,
-    '--flash-icon': `color-mix(in srgb, ${tone} 72%, var(--color-base-content) 28%)`
+    success: 'app-flash--success',
+    info: 'app-flash--info',
+    warning: 'app-flash--warning',
+    error: 'app-flash--error',
+    loading: 'app-flash--loading'
+  }[type] || 'app-flash--info'
+}
+
+function flashGroup() {
+  let group = document.getElementById('flash-group')
+
+  if (!group) {
+    group = document.createElement('div')
+    group.id = 'flash-group'
+    group.className = 'fixed bottom-4 right-4 z-[1000] w-full max-w-sm px-4 sm:px-0 space-y-2 pointer-events-none'
+    document.body.appendChild(group)
   }
+
+  return group
 }
 
 /**
@@ -66,19 +69,10 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
     config.duration = 0
   }
 
-  // Map types to DaisyUI alert classes
-  const alertClass = {
-    'success': 'alert-success',
-    'info': 'alert-info',
-    'warning': 'alert-warning',
-    'error': 'alert-error',
-    'loading': 'alert-info'
-  }[type] || 'alert-info'
-
   // Map types to appropriate icons (using hero icons paths)
   const icons = {
     'success': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-    'info': 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    'info': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     'warning': 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z',
     'error': 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z',
     'loading': null // Will use spinner instead
@@ -98,7 +92,7 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
   // Build icon HTML - spinner for loading type
   const iconHtml = type === 'loading'
     ? spinnerSvg()
-    : `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    : `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}" />
        </svg>`
 
@@ -116,29 +110,31 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
 
   // Create notification element matching the LiveView flash structure
   const notification = document.createElement('div')
-  notification.className = `flash-message alert app-flash ${alertClass} shadow-xl rounded-lg relative transition-all duration-300 cursor-pointer overflow-hidden`
-  Object.entries(notificationToneVars(type)).forEach(([property, value]) => {
-    notification.style.setProperty(property, value)
-  })
-  const content = document.createElement('div')
-  content.className = 'flex items-center gap-3 w-full'
+  notification.setAttribute('role', 'alert')
+  notification.dataset.flashAutoDismiss = 'true'
+  notification.dataset.flashAutoDismissMs = String(config.duration || 0)
+  notification.dataset.flashExitMs = '260'
+  notification.dataset.flashKind = type
+  notification.className = `alert app-flash ${notificationToneClass(type)} shadow-lg pointer-events-auto w-full`
+  notification.style.setProperty('--flash-auto-dismiss', `${config.duration || 0}ms`)
+  notification.style.setProperty('--flash-exit', '260ms')
 
   const iconWrapper = document.createElement('div')
-  iconWrapper.className = 'flash-message__icon flex-shrink-0'
+  iconWrapper.className = 'flash-message__icon h-5 w-5 flex-shrink-0'
   appendHtml(iconWrapper, iconHtml)
 
   const body = document.createElement('div')
-  body.className = 'flex-grow min-w-0'
+  body.className = 'min-w-0'
 
   if (defaultTitle) {
-    const title = document.createElement('h3')
-    title.className = 'font-bold'
+    const title = document.createElement('p')
+    title.className = 'font-semibold leading-tight'
     title.textContent = defaultTitle
     body.appendChild(title)
   }
 
-  const messageEl = document.createElement('div')
-  messageEl.className = 'text-sm'
+  const messageEl = document.createElement('p')
+  messageEl.className = 'text-sm break-words'
   messageEl.textContent = message
   body.appendChild(messageEl)
 
@@ -158,17 +154,20 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
   }
 
   const closeBtn = document.createElement('button')
-  closeBtn.className = 'btn btn-ghost btn-sm btn-circle notification-close-btn flex-shrink-0'
+  closeBtn.type = 'button'
+  closeBtn.className = 'btn btn-ghost btn-xs app-flash__dismiss notification-close-btn'
+  closeBtn.dataset.flashDismiss = 'true'
+  closeBtn.setAttribute('aria-label', 'Dismiss notification')
   appendHtml(closeBtn, `
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <span class="sr-only">Dismiss</span>
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
     </svg>
   `)
 
-  content.appendChild(iconWrapper)
-  content.appendChild(body)
-  content.appendChild(closeBtn)
-  notification.appendChild(content)
+  notification.appendChild(iconWrapper)
+  notification.appendChild(body)
+  notification.appendChild(closeBtn)
 
   if (config.progress && config.duration > 0) {
     const progress = document.createElement('div')
@@ -178,13 +177,8 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
     notification.appendChild(progress)
   }
 
-  // Initialize flash manager if not exists
-  if (!window.flashManager) {
-    window.flashManager = new FlashMessageManager()
-  }
-
   // Add to DOM
-  document.body.appendChild(notification)
+  flashGroup().appendChild(notification)
 
   let autoRemoveTimer = null
 
@@ -193,17 +187,12 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
     if (autoRemoveTimer) {
       clearTimeout(autoRemoveTimer)
     }
-    notification.style.transition = 'all 0.3s ease-out'
-    notification.style.opacity = '0'
-    notification.style.transform = 'translateX(-100%)'
+    notification.classList.add('is-dismissing')
     setTimeout(() => {
       if (notification.parentNode) {
         notification.remove()
       }
-      if (window.flashManager) {
-        window.flashManager.removeMessage(notification)
-      }
-    }, 300)
+    }, 260)
   }
 
   // Add event listener to close button
@@ -241,10 +230,6 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
   }
 
   // Use the flash manager for consistent positioning and animation
-  window.flashManager.addMessage(notification, {
-    hide: removeNotification
-  })
-
   // Start progress bar animation
   if (config.progress && config.duration > 0) {
     const progressBar = notification.querySelector('.notification-progress')
