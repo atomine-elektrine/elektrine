@@ -238,7 +238,7 @@ if [[ "${#DOCKER_BIN[@]}" -gt 0 ]]; then
   fi
 
   if present "$S3_PUBLIC" && [[ "$(url_host "$S3_PUBLIC")" == "$MEDIA_HOST" ]] && [[ "${CADDY_MEDIA_UPSTREAM:-magpie:8090}" == magpie:* ]]; then
-    network_name="${MAGPIE_DOCKER_NETWORK:-app-shared}"
+    network_name="${MAGPIE_DOCKER_NETWORK:-elektrine-magpie-shared}"
 
     if "${DOCKER_BIN[@]}" network inspect "$network_name" >/dev/null 2>&1; then
       check_ok "Magpie shared network exists: $network_name"

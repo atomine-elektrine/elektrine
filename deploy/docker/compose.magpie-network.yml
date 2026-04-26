@@ -14,4 +14,4 @@ services:
 networks:
   magpie_shared:
     external: true
-    name: ${MAGPIE_DOCKER_NETWORK:-app-shared}
+    name: ${MAGPIE_DOCKER_NETWORK:-elektrine-magpie-shared}
