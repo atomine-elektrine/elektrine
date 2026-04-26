@@ -9,6 +9,25 @@ function appendHtml(parent, html) {
   parent.appendChild(template.content)
 }
 
+function notificationToneVars(type) {
+  const tone = {
+    success: 'var(--color-success)',
+    info: 'var(--color-info)',
+    warning: 'var(--color-warning)',
+    error: 'var(--color-error)',
+    loading: 'var(--color-info)'
+  }[type] || 'var(--color-info)'
+
+  return {
+    '--flash-accent': `color-mix(in srgb, ${tone} 92%, transparent)`,
+    '--flash-accent-soft': `color-mix(in srgb, ${tone} 25%, transparent)`,
+    '--flash-tint-start': `color-mix(in srgb, ${tone} 20%, transparent)`,
+    '--flash-tint-mid': `color-mix(in srgb, ${tone} 8%, transparent)`,
+    '--flash-border': `color-mix(in srgb, ${tone} 48%, transparent)`,
+    '--flash-icon': `color-mix(in srgb, ${tone} 72%, var(--color-base-content) 28%)`
+  }
+}
+
 /**
  * Show a toast notification with various options
  * @param {string} message - The notification message
@@ -97,12 +116,15 @@ export function showNotification(message, type = 'info', titleOrOptions = null, 
 
   // Create notification element matching the LiveView flash structure
   const notification = document.createElement('div')
-  notification.className = `flash-message alert ${alertClass} shadow-xl rounded-lg relative transition-all duration-300 cursor-pointer overflow-hidden`
+  notification.className = `flash-message alert app-flash ${alertClass} shadow-xl rounded-lg relative transition-all duration-300 cursor-pointer overflow-hidden`
+  Object.entries(notificationToneVars(type)).forEach(([property, value]) => {
+    notification.style.setProperty(property, value)
+  })
   const content = document.createElement('div')
   content.className = 'flex items-center gap-3 w-full'
 
   const iconWrapper = document.createElement('div')
-  iconWrapper.className = 'flex-shrink-0'
+  iconWrapper.className = 'flash-message__icon flex-shrink-0'
   appendHtml(iconWrapper, iconHtml)
 
   const body = document.createElement('div')

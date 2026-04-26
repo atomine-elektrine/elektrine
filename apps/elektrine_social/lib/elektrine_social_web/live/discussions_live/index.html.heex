@@ -284,6 +284,12 @@
       <div class="card panel-card overflow-hidden">
         <div class="p-5 sm:p-6 border-b border-base-300">
           <div class="flex flex-col gap-4">
+            <ElektrineWeb.Components.Platform.ENav.product_header
+              eyebrow="Communities"
+              title="Community Discussions"
+              description="Discover communities, follow active threads, and keep up with your discussion feed."
+            />
+
             <%= if @current_view == "communities" do %>
               <div class="space-y-3">
                 <.form

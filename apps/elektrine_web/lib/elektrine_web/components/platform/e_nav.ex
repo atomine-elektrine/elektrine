@@ -45,6 +45,40 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     ENavComponent.render(assigns)
   end
 
+  attr :eyebrow, :string, default: nil
+  attr :title, :string, required: true
+  attr :description, :string, default: nil
+  attr :header_class, :string, default: nil
+  slot :actions
+
+  def product_header(assigns) do
+    ~H"""
+    <div class={[
+      "product-page-header flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between",
+      @header_class
+    ]}>
+      <div class="min-w-0">
+        <p
+          :if={@eyebrow}
+          class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45"
+        >
+          {@eyebrow}
+        </p>
+        <h1 class="mt-0.5 text-xl font-semibold tracking-tight text-base-content sm:text-2xl">
+          {@title}
+        </h1>
+        <p :if={@description} class="mt-1 max-w-2xl text-sm leading-5 text-base-content/60">
+          {@description}
+        </p>
+      </div>
+
+      <div :if={@actions != []} class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+        {render_slot(@actions)}
+      </div>
+    </div>
+    """
+  end
+
   defp nav_items do
     PlatformENav.primary_items()
     |> Enum.map(

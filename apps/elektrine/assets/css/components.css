@@ -97,6 +97,9 @@ html[data-theme="dark"] .btn:focus-visible,
 } @keyframes flash-slide-in { from { opacity: 0; transform: translateX(1rem); } to { opacity: 1; transform: translateX(0); }
 } .alert { border: 1px solid color-mix(in srgb, var(--color-base-300) 68%, white 32%); background-color: color-mix(in srgb, var(--color-base-200) 84%, var(--color-base-100) 16%); color: var(--color-base-content); box-shadow: none; flex-wrap: wrap; min-width: 0; overflow-wrap: anywhere;
 } .alert > * { min-width: 0;
+} .alert.app-flash { border-color: var(--flash-border); background-color: color-mix(in srgb, var(--flash-tint-start) 72%, var(--color-base-200) 28%); color: color-mix(in srgb, var(--flash-accent) 38%, var(--color-base-content) 62%);
+} .alert.app-flash > svg,
+.alert.app-flash .flash-message__icon { color: var(--flash-icon);
 } .alert-info { border-color: color-mix(in srgb, var(--color-info) 22%, var(--color-base-300) 78%); background-color: color-mix(in srgb, var(--color-info) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-info) 36%, var(--color-base-content) 64%);
 } .alert-success { border-color: color-mix(in srgb, var(--color-success) 24%, var(--color-base-300) 76%); background-color: color-mix(in srgb, var(--color-success) 10%, var(--color-base-200) 90%); color: color-mix(in srgb, var(--color-success) 34%, var(--color-base-content) 66%);
 } .alert-warning { border-color: color-mix(in srgb, var(--color-warning) 26%, var(--color-base-300) 74%); background-color: color-mix(in srgb, var(--color-warning) 11%, var(--color-base-200) 89%); color: color-mix(in srgb, var(--color-warning) 38%, var(--color-base-content) 62%);
