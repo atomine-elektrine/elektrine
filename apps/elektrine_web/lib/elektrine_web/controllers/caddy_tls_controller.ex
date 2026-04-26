@@ -4,6 +4,7 @@ defmodule ElektrineWeb.CaddyTLSController do
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
   alias Elektrine.Domains
+  alias Elektrine.InternalAPI
   alias Elektrine.Profiles
 
   @cache_table :caddy_tls_domain_cache
@@ -34,6 +35,28 @@ defmodule ElektrineWeb.CaddyTLSController do
     conn
     |> put_resp_content_type("text/plain")
     |> send_resp(:bad_request, "missing domain")
+  end
+
+  def allow_with_token(conn, %{"edge_token" => edge_token} = params) do
+    case InternalAPI.api_key(["CADDY_EDGE_API_KEY"]) do
+      expected_key when is_binary(expected_key) ->
+        if byte_size(edge_token) == byte_size(expected_key) and
+             Plug.Crypto.secure_compare(edge_token, expected_key) do
+          params = Map.delete(params, "edge_token")
+          allow(conn, params)
+        else
+          unauthorized(conn)
+        end
+
+      _ ->
+        unauthorized(conn)
+    end
+  end
+
+  defp unauthorized(conn) do
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(:unauthorized, "unauthorized")
   end
 
   defp allowed_domain(domain) when is_binary(domain) do

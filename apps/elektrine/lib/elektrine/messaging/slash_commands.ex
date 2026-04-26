@@ -3,8 +3,6 @@ defmodule Elektrine.Messaging.SlashCommands do
   Parses and resolves chat slash commands.
   """
 
-  alias Elektrine.Giphy
-
   @type result :: {:send, String.t()} | {:noop, String.t()} | {:error, String.t()}
 
   @spec process(String.t(), keyword()) :: result
@@ -26,7 +24,7 @@ defmodule Elektrine.Messaging.SlashCommands do
     case command do
       "/help" ->
         {:noop,
-         "Commands: /help, /me <action>, /shrug [text], /tableflip [text], /unflip [text], /giphy <query>, /invite"}
+         "Commands: /help, /me <action>, /shrug [text], /tableflip [text], /unflip [text], /invite"}
 
       "/me" ->
         format_me(arg_text, opts)
@@ -39,9 +37,6 @@ defmodule Elektrine.Messaging.SlashCommands do
 
       "/unflip" ->
         {:send, append_tail(arg_text, "┬─┬ ノ( ゜-゜ノ)")}
-
-      "/giphy" ->
-        resolve_giphy(arg_text, opts)
 
       "/invite" ->
         build_invite_link(opts)
@@ -65,25 +60,6 @@ defmodule Elektrine.Messaging.SlashCommands do
 
   defp append_tail("", suffix), do: suffix
   defp append_tail(prefix, suffix), do: "#{prefix} #{suffix}"
-
-  defp resolve_giphy("", _opts), do: {:error, "Usage: /giphy <search terms>"}
-
-  defp resolve_giphy(query, opts) do
-    giphy_search_fun = opts[:giphy_search_fun] || (&Giphy.search_gifs/2)
-
-    case giphy_search_fun.(query, limit: 1) do
-      {:ok, [%{url: url} | _]} when is_binary(url) ->
-        if Elektrine.Strings.present?(url),
-          do: {:send, url},
-          else: {:noop, "No GIFs found for \"#{query}\"."}
-
-      {:ok, _} ->
-        {:noop, "No GIFs found for \"#{query}\"."}
-
-      {:error, _} ->
-        {:error, "Unable to fetch GIFs right now. Try again in a bit."}
-    end
-  end
 
   defp build_invite_link(opts) do
     conversation = opts[:conversation]

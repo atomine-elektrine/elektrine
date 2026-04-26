@@ -330,15 +330,12 @@ defmodule ElektrineWeb.StorageLive do
     |> Elektrine.Repo.all()
     |> Enum.flat_map(fn message ->
       metadata = message.media_metadata || %{}
-      # Filter out Giphy URLs - only show uploaded media
-      uploaded_urls = Enum.reject(message.media_urls, &String.contains?(&1, "giphy.com"))
 
-      # Skip messages with no uploaded media (only Giphy)
-      if Enum.empty?(uploaded_urls) do
+      if Enum.empty?(message.media_urls) do
         []
       else
         total_size =
-          Enum.reduce(uploaded_urls, 0, fn url, acc ->
+          Enum.reduce(message.media_urls, 0, fn url, acc ->
             case Map.get(metadata, url) do
               %{"size" => size} when is_integer(size) -> acc + size
               %{size: size} when is_integer(size) -> acc + size
@@ -348,7 +345,7 @@ defmodule ElektrineWeb.StorageLive do
 
         # Generate presigned URL for first image
         preview_url =
-          case Enum.take(uploaded_urls, 1) do
+          case Enum.take(message.media_urls, 1) do
             [media_key] ->
               Elektrine.Uploads.attachment_url(media_key, message.conversation)
 
@@ -358,7 +355,7 @@ defmodule ElektrineWeb.StorageLive do
 
         # Extract filename from first URL
         filename =
-          case uploaded_urls do
+          case message.media_urls do
             [url | _] ->
               url
               |> String.split("/")
@@ -374,7 +371,7 @@ defmodule ElektrineWeb.StorageLive do
           %{
             message_id: message.id,
             conversation_name: message.conversation.name,
-            file_count: length(uploaded_urls),
+            file_count: length(message.media_urls),
             total_size: total_size,
             date: message.inserted_at,
             preview_url: preview_url,
@@ -449,9 +446,7 @@ defmodule ElektrineWeb.StorageLive do
   defp profile_image_url(%{url: url}), do: url
 
   defp maybe_delete_chat_media_storage(media_urls) when is_list(media_urls) do
-    media_urls
-    |> Enum.reject(&String.contains?(&1, "giphy.com"))
-    |> Enum.each(&maybe_delete_uploaded_file/1)
+    Enum.each(media_urls, &maybe_delete_uploaded_file/1)
   end
 
   defp maybe_delete_chat_media_storage(_), do: :ok

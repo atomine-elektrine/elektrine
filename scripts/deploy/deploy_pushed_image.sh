@@ -9,9 +9,9 @@ DEPLOY_HOST="${DEPLOY_HOST:-}"
 DEPLOY_USER="${DEPLOY_USER:-}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/elektrine}"
-ENABLED_MODULES="${ELEKTRINE_ENABLED_MODULES:-${ELEKTRINE_RELEASE_MODULES:-all}}"
+ENABLED_MODULES="${ELEKTRINE_ENABLED_MODULES:-${ELEKTRINE_RELEASE_MODULES:-chat,social,vault}}"
 RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES:-}"
-DOCKER_PROFILES_VALUE="${DOCKER_PROFILES:-caddy dns email tor turn bluesky}"
+DOCKER_PROFILES_VALUE="${DOCKER_PROFILES:-caddy}"
 
 usage() {
   cat <<'EOF'
@@ -58,14 +58,15 @@ if [[ -z "$DEPLOY_USER" ]]; then
   exit 1
 fi
 
-PROFILE_ARGS=""
-for profile in $DOCKER_PROFILES_VALUE; do
-  PROFILE_ARGS="$PROFILE_ARGS --profile $profile"
-done
-
 ssh -p "$DEPLOY_PORT" "$DEPLOY_USER" \
-  "DEPLOY_PATH='$DEPLOY_PATH' TARGET_IMAGE='$TARGET_IMAGE' ELEKTRINE_ENABLED_MODULES='$ENABLED_MODULES' ELEKTRINE_RELEASE_MODULES='$RELEASE_MODULES' PROFILE_ARGS='$PROFILE_ARGS' bash -s" <<'EOF'
+  bash -s -- "$DEPLOY_PATH" "$TARGET_IMAGE" "$ENABLED_MODULES" "$RELEASE_MODULES" "$DOCKER_PROFILES_VALUE" <<'EOF'
 set -euo pipefail
+
+DEPLOY_PATH="$1"
+TARGET_IMAGE="$2"
+ELEKTRINE_ENABLED_MODULES="$3"
+ELEKTRINE_RELEASE_MODULES="$4"
+DOCKER_PROFILES_VALUE="$5"
 
 if docker info >/dev/null 2>&1; then
   :
@@ -93,7 +94,12 @@ services:
     image: ${TARGET_IMAGE}
 OVERRIDE
 
-COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" \
+PROFILE_ARGS=()
+for profile in $DOCKER_PROFILES_VALUE; do
+  PROFILE_ARGS+=(--profile "$profile")
+done
+
+COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$DEPLOY_PATH/deploy/docker/generated.Caddyfile" \
   bash scripts/deploy/docker_deploy.sh \
   --modules "$ELEKTRINE_ENABLED_MODULES" \
   --env-file "$DEPLOY_PATH/.env.production" \
@@ -101,7 +107,7 @@ COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/doc
   --pull \
   --skip-build \
   --compose-override "$override_file" \
-  $PROFILE_ARGS
+  "${PROFILE_ARGS[@]}"
 EOF
 
 echo "Deployed $TARGET_IMAGE"

@@ -1,9 +1,14 @@
 defmodule Elektrine.Uploads do
   @moduledoc "Handles file uploads with support for both local storage and S3.\n\nConfiguration determines which adapter to use:\n- :local for development (stores files locally)\n- :s3 for production (stores files in S3)\n"
   require Logger
+  import Bitwise
+  import Ecto.Query
+
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Storage
   alias Elektrine.Constants
+  alias Elektrine.Messaging.{ChatConversationMember, ChatMessage}
+  alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   @default_max_file_size 5 * 1024 * 1024
   @default_max_background_size 10 * 1024 * 1024
@@ -109,8 +114,16 @@ defmodule Elektrine.Uploads do
     "image/gif" => ["GIF87a", "GIF89a"],
     "image/webp" => ["RIFF"],
     "application/pdf" => [<<37, 80, 68, 70>>],
-    "video/mp4" => [<<0, 0, 0>>, "ftyp"],
-    "video/webm" => [<<26, 69, 223, 163>>]
+    "application/msword" => [<<208, 207, 17, 224, 161, 177, 26, 225>>],
+    "application/vnd.ms-excel" => [<<208, 207, 17, 224, 161, 177, 26, 225>>],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ["PK\x03\x04"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ["PK\x03\x04"],
+    "video/webm" => [<<26, 69, 223, 163>>],
+    "audio/webm" => [<<26, 69, 223, 163>>],
+    "audio/ogg" => ["OggS"],
+    "video/ogg" => ["OggS"],
+    "audio/wav" => ["RIFF"],
+    "audio/flac" => ["fLaC"]
   }
   @doc "Checks if user has enough storage quota for an upload.\nReturns :ok or {:error, :storage_limit_exceeded}\nAdmins bypass storage limits.\n"
   def check_user_storage_limit(user_id, file_size) do
@@ -618,28 +631,94 @@ defmodule Elektrine.Uploads do
     normalized_type =
       case content_type do
         "image/jpg" -> "image/jpeg"
+        "audio/mp3" -> "audio/mpeg"
+        "audio/m4a" -> "audio/mp4"
         type -> type
       end
 
-    case Map.get(@magic_bytes, normalized_type) do
-      nil ->
-        :ok
-
-      expected_signatures ->
-        matches =
-          Enum.any?(expected_signatures, fn signature ->
-            byte_size(content) >= byte_size(signature) and
-              :binary.part(content, 0, byte_size(signature)) == signature
-          end)
-
-        if matches do
-          :ok
-        else
-          {:error,
-           {:invalid_file_format, "File content does not match declared type #{content_type}"}}
-        end
+    if magic_bytes_match?(content, normalized_type) do
+      :ok
+    else
+      {:error,
+       {:invalid_file_format, "File content does not match declared type #{content_type}"}}
     end
   end
+
+  defp magic_bytes_match?(content, type) when type in ["video/mp4", "video/quicktime"] do
+    iso_base_media_match?(content, ["isom", "iso2", "mp41", "mp42", "qt  "])
+  end
+
+  defp magic_bytes_match?(content, type) when type in ["image/heic", "image/heif"] do
+    iso_base_media_match?(content, ["heic", "heix", "hevc", "hevx", "mif1", "msf1"])
+  end
+
+  defp magic_bytes_match?(content, "image/avif") do
+    iso_base_media_match?(content, ["avif", "avis"])
+  end
+
+  defp magic_bytes_match?(content, type) when type in ["audio/mp4", "audio/aac"] do
+    iso_base_media_match?(content, ["M4A ", "mp42", "isom"]) or aac_adts_match?(content)
+  end
+
+  defp magic_bytes_match?(content, "audio/mpeg") do
+    starts_with_any?(content, ["ID3"]) or mp3_frame_sync_match?(content)
+  end
+
+  defp magic_bytes_match?(content, "image/webp") do
+    starts_with_any?(content, ["RIFF"]) and binary_at?(content, 8, "WEBP")
+  end
+
+  defp magic_bytes_match?(content, "audio/wav") do
+    starts_with_any?(content, ["RIFF"]) and binary_at?(content, 8, "WAVE")
+  end
+
+  defp magic_bytes_match?(content, "text/plain") do
+    :binary.match(content, <<0>>) == :nomatch
+  end
+
+  defp magic_bytes_match?(content, type) do
+    case Map.get(@magic_bytes, type) do
+      nil -> true
+      expected_signatures -> starts_with_any?(content, expected_signatures)
+    end
+  end
+
+  defp iso_base_media_match?(content, allowed_brands) do
+    byte_size(content) >= 12 and binary_at?(content, 4, "ftyp") and
+      allowed_brands
+      |> Enum.any?(fn brand ->
+        binary_at?(content, 8, brand) or binary_part_present?(content, brand, 16)
+      end)
+  end
+
+  defp starts_with_any?(content, signatures) do
+    Enum.any?(signatures, fn signature ->
+      byte_size(content) >= byte_size(signature) and
+        :binary.part(content, 0, byte_size(signature)) == signature
+    end)
+  end
+
+  defp binary_at?(content, offset, expected) do
+    byte_size(content) >= offset + byte_size(expected) and
+      :binary.part(content, offset, byte_size(expected)) == expected
+  end
+
+  defp binary_part_present?(content, expected, max_offset) do
+    search_size = min(byte_size(content), max_offset)
+
+    content
+    |> :binary.part(0, search_size)
+    |> :binary.match(expected)
+    |> Kernel.!==(:nomatch)
+  end
+
+  defp aac_adts_match?(<<255, second, _rest::binary>>) when second in [241, 249], do: true
+  defp aac_adts_match?(_), do: false
+
+  defp mp3_frame_sync_match?(<<255, second, _rest::binary>>) when (second &&& 224) == 224,
+    do: true
+
+  defp mp3_frame_sync_match?(_), do: false
 
   defp scan_for_malicious_content(content) do
     scan_content =
@@ -687,7 +766,10 @@ defmodule Elektrine.Uploads do
 
     case File.read(upload.path) do
       {:ok, file_content} ->
-        case ExAws.S3.put_object(bucket, key, file_content) |> ExAws.request() do
+        content_type = upload.content_type || MIME.from_path(upload.filename)
+
+        case ExAws.S3.put_object(bucket, key, file_content, content_type: content_type)
+             |> ExAws.request() do
           {:ok, _response} -> {:ok, key}
           {:error, reason} -> {:error, "Upload failed: #{inspect(reason)}"}
         end
@@ -999,7 +1081,7 @@ defmodule Elektrine.Uploads do
   defp local_attachment_url(attachment) do
     cond do
       String.starts_with?(attachment, "http") ->
-        attachment
+        {:error, :private_attachment_url_not_allowed}
 
       String.starts_with?(attachment, "/") ->
         attachment
@@ -1123,6 +1205,28 @@ defmodule Elektrine.Uploads do
   end
 
   def verify_private_attachment_token(_token), do: {:error, :invalid_token}
+
+  def private_attachment_accessible_by_user?(key, user_id)
+      when is_binary(key) and is_integer(user_id) do
+    normalized_upload_path = "/uploads/#{key}"
+
+    query =
+      from(message in ChatMessage,
+        join: member in ChatConversationMember,
+        on:
+          member.conversation_id == message.conversation_id and member.user_id == ^user_id and
+            is_nil(member.left_at),
+        where:
+          fragment("? = ANY(?)", ^key, message.media_urls) or
+            fragment("? = ANY(?)", ^normalized_upload_path, message.media_urls),
+        select: 1,
+        limit: 1
+      )
+
+    Repo.exists?(query)
+  end
+
+  def private_attachment_accessible_by_user?(_, _), do: false
 
   def private_attachment_local_path(key) when is_binary(key) do
     if get_config(:adapter) != :local do

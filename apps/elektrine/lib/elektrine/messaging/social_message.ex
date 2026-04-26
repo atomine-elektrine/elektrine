@@ -611,7 +611,7 @@ defmodule Elektrine.Social.Message do
       # Check for Discord CDN images
       # Check for GitHub user content
       String.match?(url, image_extensions) ||
-        String.contains?(url, ["imgur.com", "i.imgur.com", "giphy.com", "tenor.com"]) ||
+        String.contains?(url, ["imgur.com", "i.imgur.com", "tenor.com"]) ||
         String.contains?(url, "cdn.discordapp.com/attachments") ||
         String.contains?(url, "user-images.githubusercontent.com")
     end)
@@ -627,7 +627,7 @@ defmodule Elektrine.Social.Message do
     image_extensions = ~r/\.(jpg|jpeg|png|gif|webp|heic|heif|avif|svg|bmp|ico)(\?.*)?$/i
 
     String.match?(url, image_extensions) ||
-      String.contains?(url, ["imgur.com", "i.imgur.com", "giphy.com", "tenor.com"]) ||
+      String.contains?(url, ["imgur.com", "i.imgur.com", "tenor.com"]) ||
       String.contains?(url, "cdn.discordapp.com/attachments") ||
       String.contains?(url, "user-images.githubusercontent.com")
   end
@@ -871,13 +871,6 @@ defmodule Elektrine.Social.Message do
       # Allow HTTPS URLs from trusted domains
       true ->
         trusted_domains = [
-          "media.giphy.com",
-          "media0.giphy.com",
-          "media1.giphy.com",
-          "media2.giphy.com",
-          "media3.giphy.com",
-          "media4.giphy.com",
-          "i.giphy.com",
           "avatars.githubusercontent.com",
           "user-images.githubusercontent.com",
           "raw.githubusercontent.com",

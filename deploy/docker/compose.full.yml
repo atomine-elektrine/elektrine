@@ -198,10 +198,10 @@ services:
     networks:
       - elektrine_network
     ports:
-      - "${SMTP_BIND:-587:2587}"
+      - "${SMTP_BIND:-127.0.0.1:587:2587}"
       - "${SMTPS_BIND:-465:2465}"
-      - "${IMAP_BIND:-143:2143}"
-      - "${POP3_BIND:-110:2110}"
+      - "${IMAP_BIND:-127.0.0.1:143:2143}"
+      - "${POP3_BIND:-127.0.0.1:110:2110}"
       - "${IMAP_TLS_BIND:-993:2993}"
       - "${POP3_TLS_BIND:-995:2995}"
     restart: unless-stopped
@@ -236,7 +236,7 @@ services:
       ELEKTRINE_ENABLE_MAIL: "false"
       ELEKTRINE_ENABLE_TOR: "false"
       DNS_AUTHORITY_ENABLED: "true"
-      DNS_RECURSIVE_ENABLED: ${DNS_RECURSIVE_ENABLED:-true}
+      DNS_RECURSIVE_ENABLED: ${DNS_RECURSIVE_ENABLED:-false}
     ports:
       - "${DNS_UDP_BIND:-53:5300/udp}"
       - "${DNS_TCP_BIND:-53:5300/tcp}"
@@ -306,9 +306,9 @@ services:
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
-      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-${PHOENIX_API_KEY:-}}
+      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-}
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
-      NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-0.0.0.0/0 ::/0}
+      NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-192.0.2.0/32}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"

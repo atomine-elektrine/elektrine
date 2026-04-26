@@ -5,6 +5,8 @@ defmodule ElektrineWeb.PrivateAttachmentController do
 
   def show(conn, %{"token" => token}) do
     with {:ok, key} <- Uploads.verify_private_attachment_token(token),
+         %{id: user_id} <- conn.assigns[:current_user],
+         true <- Uploads.private_attachment_accessible_by_user?(key, user_id),
          {:ok, filepath} <- Uploads.private_attachment_local_path(key) do
       filename = sanitize_filename(Path.basename(filepath))
       content_type = MIME.from_path(filepath)
@@ -27,6 +29,9 @@ defmodule ElektrineWeb.PrivateAttachmentController do
         send_resp(conn, 404, "Not found")
 
       {:error, _reason} ->
+        send_resp(conn, 404, "Not found")
+
+      _ ->
         send_resp(conn, 404, "Not found")
     end
   end

@@ -262,10 +262,22 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   end
 
   defp validate_signature_constraints(conn, headers_list, signature_params) do
-    with :ok <- validate_signature_timing(conn, headers_list, signature_params) do
+    with :ok <- validate_required_signed_headers(conn, headers_list),
+         :ok <- validate_signature_timing(conn, headers_list, signature_params) do
       validate_request_digest(conn, headers_list)
     end
   end
+
+  defp validate_required_signed_headers(%Plug.Conn{method: method}, headers_list)
+       when method in ["POST", "PUT", "PATCH"] do
+    cond do
+      "(request-target)" not in headers_list -> {:error, :missing_signed_request_target}
+      "host" not in headers_list -> {:error, :missing_signed_host}
+      true -> :ok
+    end
+  end
+
+  defp validate_required_signed_headers(_conn, _headers_list), do: :ok
 
   defp validate_signature_timing(conn, headers_list, signature_params) do
     cond do

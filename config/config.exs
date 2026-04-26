@@ -245,11 +245,6 @@ config :elektrine, :haraka_async_ingest, true
 # Can be overridden with EMAIL_AUTO_SUPPRESSION at runtime.
 config :elektrine, :email_auto_suppression, true
 
-# Configure Giphy API
-config :elektrine, :giphy,
-  api_key: System.get_env("GIPHY_API_KEY"),
-  base_url: "https://api.giphy.com/v1"
-
 # Export directory for user data exports - in production uses /data/exports/, in dev uses tmp
 config :elektrine, :export_dir, "/tmp/elektrine/exports"
 

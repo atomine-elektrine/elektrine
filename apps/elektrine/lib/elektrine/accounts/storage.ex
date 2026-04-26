@@ -175,14 +175,11 @@ defmodule Elektrine.Accounts.Storage do
         )
       )
 
-    # Calculate total size from metadata (excluding Giphy URLs)
     Enum.reduce(messages, 0, fn message, acc ->
       metadata = message.media_metadata || %{}
 
-      # Sum sizes from metadata for all URLs in this message (exclude Giphy)
       message_size =
         message.media_urls
-        |> Enum.reject(&String.contains?(&1, "giphy.com"))
         |> Enum.reduce(0, fn url, url_acc ->
           case Map.get(metadata, url) do
             %{"size" => size} when is_integer(size) -> url_acc + size

@@ -9,12 +9,12 @@ set -eu
 #   ELEKTRINE_API_BASE as https://$PHX_HOST or https://$ACME_DOMAIN
 #   CERT_DIR           from CADDY_TLS_MOUNT_DIR
 #
-# Uses PHOENIX_API_KEY or CADDY_EDGE_API_KEY for the internal DNS-01 endpoint.
+# Uses CADDY_EDGE_API_KEY for the internal DNS-01 endpoint.
 #
 # Optional environment:
 #   ACME_DOMAIN                e.g. elektrine.com
 #   ELEKTRINE_API_BASE         e.g. https://elektrine.com
-#   ELEKTRINE_INTERNAL_API_KEY defaults to CADDY_EDGE_API_KEY or PHOENIX_API_KEY
+#   ELEKTRINE_INTERNAL_API_KEY defaults to CADDY_EDGE_API_KEY
 #   ACME_EMAIL           ACME account email, usually from .env.production
 #   ACME_HOME            defaults to $HOME/.acme.sh
 #   CERT_DIR             defaults to /opt/elektrine/certs
@@ -31,7 +31,30 @@ for arg in "$@"; do
   esac
 done
 
+validate_env_file() {
+  env_file="$1"
+  line_no=0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line_no=$((line_no + 1))
+    case "$line" in
+      "" | "#"*) continue ;;
+    esac
+    if ! printf '%s\n' "$line" | grep -Eq '^[A-Za-z_][A-Za-z0-9_]*='; then
+      echo "Invalid env syntax at $env_file:$line_no" >&2
+      return 1
+    fi
+    case "$line" in
+      *'$('* | *'`'* | *';'* | *'&&'* | *'||'*)
+        echo "Unsafe shell syntax in env file at $env_file:$line_no" >&2
+        return 1
+        ;;
+    esac
+  done < "$env_file"
+}
+
 if [ -f "$ENV_FILE" ]; then
+  validate_env_file "$ENV_FILE"
   set +u
   set -a
   . "$ENV_FILE"
@@ -92,10 +115,10 @@ if [ -z "${ELEKTRINE_API_BASE:-}" ]; then
   ELEKTRINE_API_BASE="https://${PHX_HOST:-$ACME_DOMAIN}"
 fi
 
-ELEKTRINE_INTERNAL_API_KEY="${ELEKTRINE_INTERNAL_API_KEY:-${CADDY_EDGE_API_KEY:-${PHOENIX_API_KEY:-}}}"
+ELEKTRINE_INTERNAL_API_KEY="${ELEKTRINE_INTERNAL_API_KEY:-${CADDY_EDGE_API_KEY:-}}"
 
 if [ -z "$ELEKTRINE_INTERNAL_API_KEY" ]; then
-  echo "PHOENIX_API_KEY or CADDY_EDGE_API_KEY is required in $ENV_FILE. You can also pass --token=<internal-api-key>." >&2
+  echo "CADDY_EDGE_API_KEY is required in $ENV_FILE. You can also pass --token=<internal-api-key>." >&2
   exit 1
 fi
 

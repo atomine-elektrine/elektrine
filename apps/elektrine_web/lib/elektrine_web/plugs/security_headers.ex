@@ -64,7 +64,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
-      # Images: allow self, data URIs, HTTPS (for S3-compatible storage, Giphy, avatars)
+      # Images: allow self, data URIs, HTTPS (for S3-compatible storage and remote avatars)
       "img-src 'self' data: https: blob:",
       # Fonts: allow self and data URIs
       "font-src 'self' data:",

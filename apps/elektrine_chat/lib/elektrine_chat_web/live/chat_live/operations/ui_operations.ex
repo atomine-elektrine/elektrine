@@ -25,15 +25,6 @@ defmodule ElektrineChatWeb.ChatLive.Operations.UIOperations do
      )}
   end
 
-  def handle_event("toggle_gif_picker", _params, socket) do
-    {:noreply,
-     assign(
-       socket,
-       :ui,
-       Map.put(socket.assigns.ui, :show_gif_picker, !socket.assigns.ui.show_gif_picker)
-     )}
-  end
-
   def handle_event("stop_event", _params, socket) do
     {:noreply, socket}
   end

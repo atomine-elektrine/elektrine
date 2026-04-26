@@ -68,8 +68,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :caddy_internal_api do
     plug(ElektrineWeb.Plugs.InternalAPIAuth,
-      env_names: ["CADDY_EDGE_API_KEY", "PHOENIX_API_KEY"],
-      param_names: ["token"]
+      env_names: ["CADDY_EDGE_API_KEY"]
     )
   end
 
@@ -304,6 +303,12 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api, :caddy_internal_api])
 
     get("/allow", CaddyTLSController, :allow)
+  end
+
+  scope "/_edge/tls/v1", ElektrineWeb do
+    pipe_through(:api)
+
+    get("/allow/:edge_token", CaddyTLSController, :allow_with_token)
   end
 
   # Internal DNS-01 automation endpoint used by acme.sh for wildcard certs.

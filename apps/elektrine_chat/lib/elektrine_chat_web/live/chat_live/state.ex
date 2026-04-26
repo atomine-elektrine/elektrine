@@ -21,7 +21,6 @@ defmodule ElektrineChatWeb.ChatLive.State do
               show_add_members_modal: false,
               show_message_search_modal: false,
               show_emoji_picker: false,
-              show_gif_picker: false,
               show_profile_modal: false,
               show_member_management: false,
               show_moderation_log: false,
@@ -31,15 +30,13 @@ defmodule ElektrineChatWeb.ChatLive.State do
 
   defmodule Search do
     @moduledoc """
-    Search-related state for users, messages, and GIFs.
+    Search-related state for users, messages, and emojis.
     """
     defstruct query: "",
               results: [],
               conversation_query: "",
               message_query: "",
               message_results: [],
-              gif_query: "",
-              gif_results: [],
               browse_query: "",
               user_results: [],
               emoji_query: "",
