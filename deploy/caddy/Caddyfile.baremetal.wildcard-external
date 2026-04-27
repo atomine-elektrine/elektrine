@@ -28,8 +28,8 @@
 	reverse_proxy {$CADDY_MEDIA_UPSTREAM:magpie:8090} {
 		header_up Host {upstream_hostport}
 		header_up X-Forwarded-Proto https
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {client_ip}
+			header_up X-Real-IP {client_ip}
 	}
 }
 # elektrine:media:end
@@ -43,16 +43,16 @@
 		reverse_proxy bluesky_pds:3000 {
 			header_up Host {host}
 			header_up X-Forwarded-Proto https
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
 		}
 	}
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
 	}
 }
 
@@ -64,8 +64,8 @@
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
 	}
 }
 # elektrine:site2:end
@@ -79,8 +79,8 @@ https:// {
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
 		header_up X-Forwarded-Proto https
-		header_up +X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Real-IP {client_ip}
 	}
 }
 

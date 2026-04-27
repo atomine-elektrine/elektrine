@@ -37,6 +37,22 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "require_admin_access/2" do
+    test "records forwarded public IP when logging in through trusted Caddy", %{conn: conn} do
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.12/32"])
+      user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> Map.put(:remote_ip, {172, 30, 0, 12})
+        |> put_req_header("x-forwarded-for", "203.0.113.88")
+        |> UserAuth.log_in_user(user)
+
+      assert redirected_to(conn)
+      assert Accounts.get_user!(user.id).last_login_ip == "203.0.113.88"
+    end
+
     test "allows admin access with a valid elevated session", %{conn: conn} do
       user = user_fixture()
       {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})
