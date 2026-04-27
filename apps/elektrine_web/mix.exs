@@ -124,7 +124,8 @@ defmodule ElektrineWeb.MixProject do
   defp deps do
     [
       internal_dep(:elektrine),
-      internal_dep(:elektrine_password_manager)
+      internal_dep(:elektrine_password_manager),
+      {:posthog, "~> 2.5"}
     ]
   end
 
