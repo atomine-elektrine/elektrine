@@ -18,8 +18,6 @@ defmodule Elektrine.Developer.Webhook do
     follow.new
     export.completed
   )
-  @allow_http_localhost Application.compile_env(:elektrine, :environment, :prod) in [:dev, :test]
-
   schema "developer_webhooks" do
     field :name, :string
     field :url, :string
@@ -126,7 +124,7 @@ defmodule Elektrine.Developer.Webhook do
   defp webhook_url_error(_), do: "must be a valid public HTTPS URL"
 
   defp localhost_http_allowed?(host) do
-    @allow_http_localhost and host in ["localhost", "127.0.0.1", "::1"]
+    Elektrine.RuntimeEnv.dev_or_test?() and host in ["localhost", "127.0.0.1", "::1"]
   end
 
   defp normalize_host(host) when is_binary(host) do
