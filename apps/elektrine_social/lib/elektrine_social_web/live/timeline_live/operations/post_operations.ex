@@ -1063,6 +1063,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp timeline_path(socket, filter, view) do
+    view = if filter == "rss", do: "all", else: view
     params = %{"filter" => filter, "view" => view}
 
     params =

@@ -1,5 +1,5 @@
 defmodule ElektrineWeb.Plugs.ProfileCustomDomainTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   import Elektrine.AccountsFixtures
 
@@ -46,5 +46,40 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomainTest do
 
     assert conn.status in [301, 302]
     assert get_resp_header(conn, "location") == ["https://#{custom_domain}/posts?page=2"]
+  end
+
+  test "does not loop force-https redirects when Caddy already forwarded HTTPS" do
+    previous_trusted_proxy_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs, [])
+
+    on_exit(fn ->
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_proxy_cidrs)
+    end)
+
+    Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.12/32"])
+
+    user = user_fixture(%{username: "dnsforwardedhttps"})
+    custom_domain = "forwarded-https-#{System.unique_integer([:positive])}.example.test"
+
+    Repo.insert!(%CustomDomain{
+      domain: custom_domain,
+      verification_token: "verify-forwarded-https",
+      status: "verified",
+      verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      user_id: user.id
+    })
+
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => custom_domain})
+    {:ok, _zone} = DNS.update_zone(zone, %{"force_https" => true})
+
+    conn =
+      Plug.Test.conn(:get, "/")
+      |> Map.put(:scheme, :http)
+      |> Map.put(:remote_ip, {172, 30, 0, 12})
+      |> Map.put(:host, custom_domain)
+      |> Plug.Conn.put_req_header("x-forwarded-proto", "https")
+      |> ProfileCustomDomain.call([])
+
+    refute conn.status in [301, 302]
+    assert conn.assigns[:profile_custom_domain] == custom_domain
   end
 end

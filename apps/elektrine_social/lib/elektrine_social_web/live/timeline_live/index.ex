@@ -160,10 +160,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   @impl true
   def handle_params(params, _uri, socket) do
     filter = normalize_source_filter(params["filter"], socket.assigns[:current_user])
-    timeline_view = normalize_timeline_view(params["view"] || socket.assigns.timeline_filter)
+
+    timeline_view =
+      filter
+      |> timeline_view_for_source(params["view"] || socket.assigns.timeline_filter)
 
     timeline_sort =
-      TimelineHelpers.normalize_timeline_sort(params["sort"] || socket.assigns.timeline_sort)
+      TimelineHelpers.normalize_timeline_sort(params["sort"] || "new")
 
     search_query = normalize_search_query(params["q"] || socket.assigns.search_query)
     composer_intent = normalize_composer_intent(params["composer"])
@@ -222,8 +225,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
 
       timeline_sort != socket.assigns.timeline_sort ->
-        {:noreply,
-         params_socket |> assign(:loading_timeline, false) |> apply_timeline_filter(true)}
+        if filter == "rss" do
+          {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+        else
+          {:noreply,
+           params_socket |> assign(:loading_timeline, false) |> apply_timeline_filter(true)}
+        end
 
       true ->
         {:noreply, socket}
@@ -237,6 +244,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       search_query: socket.assigns.search_query,
       session_context: socket.assigns[:session_context] || %{},
       current_filter: socket.assigns.current_filter,
+      timeline_sort: socket.assigns.timeline_sort,
       special_view_cache: socket.assigns[:special_view_cache] || %{},
       base_timeline_key: socket.assigns.base_timeline_key,
       base_timeline_posts: socket.assigns.base_timeline_posts || []
@@ -249,6 +257,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     timeline_view = context.timeline_view
     search_query = context.search_query
     session_context = context.session_context
+    timeline_sort = context.timeline_sort
     filter_changed = filter != context.current_filter
     special_view_cache = context.special_view_cache
     cache_key = {filter, timeline_view, search_query}
@@ -298,7 +307,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     special_view_cache =
       Map.put(special_view_cache, cache_key, %{posts: posts, post_replies: cached_post_replies})
 
-    {rss_items, rss_saves} = load_rss_timeline_state(filter, user, search_query)
+    {rss_items, rss_saves} = load_rss_timeline_state(filter, user, search_query, timeline_sort)
 
     %{
       filter: filter,
@@ -316,10 +325,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     }
   end
 
-  defp load_rss_timeline_state("rss", user, search_query) when not is_nil(user) do
+  defp load_rss_timeline_state("rss", user, search_query, timeline_sort) when not is_nil(user) do
     items =
       user.id
-      |> RSS.get_timeline_items(limit: 20)
+      |> RSS.get_timeline_items(limit: 20, sort: timeline_sort)
       |> filter_rss_items_by_query(search_query)
 
     item_ids = Enum.map(items, & &1.id)
@@ -327,7 +336,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     {items, Enum.into(saves, %{}, fn id -> {id, true} end)}
   end
 
-  defp load_rss_timeline_state("saved", user, search_query) when not is_nil(user) do
+  defp load_rss_timeline_state("saved", user, search_query, _timeline_sort)
+       when not is_nil(user) do
     items =
       user.id
       |> Social.get_saved_rss_items(limit: 20)
@@ -336,7 +346,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     {items, Enum.into(items, %{}, fn item -> {item.id, true} end)}
   end
 
-  defp load_rss_timeline_state(_filter, _user, _search_query), do: {[], %{}}
+  defp load_rss_timeline_state(_filter, _user, _search_query, _timeline_sort), do: {[], %{}}
 
   defp apply_timeline_load_state(socket, load_state) do
     socket
@@ -1482,7 +1492,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp timeline_sort_path(filter, view, sort, query) do
-    params = %{"filter" => filter, "view" => view}
+    params = %{"filter" => filter, "view" => timeline_view_for_source(filter, view)}
 
     params = if sort == "new", do: params, else: Map.put(params, "sort", sort)
 
@@ -2121,6 +2131,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   defp normalize_timeline_view(_) do
     "all"
   end
+
+  defp timeline_view_for_source("rss", _view), do: "all"
+  defp timeline_view_for_source(_filter, view), do: normalize_timeline_view(view)
 
   defp normalize_composer_intent(intent) when intent in ["post", "note"], do: intent
   defp normalize_composer_intent(_intent), do: nil

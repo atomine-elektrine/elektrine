@@ -356,6 +356,44 @@ defmodule Elektrine.RSSTest do
       assert item.feed_url == feed.url
     end
 
+    test "get_timeline_items respects sort option", %{user: user, feed: feed} do
+      {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+      older = ~U[2024-01-01 00:00:00Z]
+      newer = ~U[2024-01-02 00:00:00Z]
+
+      {:ok, _older_item} =
+        RSS.upsert_item(feed.id, %{
+          guid: "older-timeline-item",
+          title: "Older Article",
+          published_at: older
+        })
+
+      {:ok, _newer_item} =
+        RSS.upsert_item(feed.id, %{
+          guid: "newer-timeline-item",
+          title: "Newer Article",
+          published_at: newer
+        })
+
+      {:ok, _undated_item} =
+        RSS.upsert_item(feed.id, %{
+          guid: "undated-timeline-item",
+          title: "Undated Article"
+        })
+
+      assert Enum.map(RSS.get_timeline_items(user.id, sort: "new"), & &1.title) == [
+               "Newer Article",
+               "Older Article",
+               "Undated Article"
+             ]
+
+      assert Enum.map(RSS.get_timeline_items(user.id, sort: "old"), & &1.title) == [
+               "Older Article",
+               "Newer Article",
+               "Undated Article"
+             ]
+    end
+
     test "count_user_items counts all items in subscriptions", %{user: user, feed: feed} do
       {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
 

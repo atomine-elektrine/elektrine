@@ -95,6 +95,26 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     assert "conflicts with an existing profile host" in errors_on(changeset).domain
   end
 
+  test "rejects the configured profile routing edge target" do
+    System.put_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET", "profiles.edge.example")
+    user = user_fixture(%{username: "reservedprofileedge"})
+
+    assert {:error, changeset} =
+             Profiles.create_custom_domain(user, %{"domain" => "profiles.edge.example"})
+
+    assert "is reserved for profile routing" in errors_on(changeset).domain
+  end
+
+  test "rejects the www alias of the profile routing edge target" do
+    System.put_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET", "profiles.edge.example")
+    user = user_fixture(%{username: "reservedprofileedgewww"})
+
+    assert {:error, changeset} =
+             Profiles.create_custom_domain(user, %{"domain" => "www.profiles.edge.example"})
+
+    assert "is reserved for profile routing" in errors_on(changeset).domain
+  end
+
   test "dns_records_for_custom_domain uses a stable hostname target instead of edge IPs" do
     System.put_env("PROFILE_CUSTOM_DOMAIN_EDGE_TARGET", "profiles.edge.example")
     System.put_env("PROFILE_CUSTOM_DOMAIN_EDGE_IPV4", "203.0.113.10")
