@@ -73,36 +73,18 @@ defmodule ElektrineWeb.SessionConfig do
   end
 
   defp default_signing_salt do
-    cond do
-      Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) ->
-        case Mix.env() do
-          :prod -> "compile_time_placeholder_signing"
-          :test -> "test_signing_salt"
-          _ -> "dev_signing_salt"
-        end
-
-      RuntimeEnv.environment() == :prod ->
-        "chat_auth_signing_salt"
-
-      true ->
-        "dev_signing_salt"
+    case RuntimeEnv.environment() do
+      :prod -> "chat_auth_signing_salt"
+      :test -> "test_signing_salt"
+      _ -> "dev_signing_salt"
     end
   end
 
   defp default_encryption_salt do
-    cond do
-      Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) ->
-        case Mix.env() do
-          :prod -> "compile_time_placeholder_encryption"
-          :test -> "test_encryption_salt"
-          _ -> "dev_encryption_salt"
-        end
-
-      RuntimeEnv.environment() == :prod ->
-        nil
-
-      true ->
-        "dev_encryption_salt"
+    case RuntimeEnv.environment() do
+      :prod -> nil
+      :test -> "test_encryption_salt"
+      _ -> "dev_encryption_salt"
     end
   end
 end

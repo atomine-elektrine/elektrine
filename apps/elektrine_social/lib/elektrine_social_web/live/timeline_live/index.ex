@@ -480,7 +480,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp test_env? do
-    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :test
+    Elektrine.RuntimeEnv.environment() == :test
   end
 
   defp build_timeline_hydrated_state(posts, user_id) do

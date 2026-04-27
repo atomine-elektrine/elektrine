@@ -98,7 +98,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "message:#{post_id}")
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
 
-                  if Mix.env() != :test do
+                  if Elektrine.RuntimeEnv.environment() != :test do
                     send(self(), {:load_replies, post_id, community_id})
                   end
                 end
@@ -199,7 +199,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:mod_status_target_user, nil)
                    |> assign(:user_mod_data, %{})
                    |> assign(:expanded_threads, MapSet.new())
-                   |> assign(:replies_loading, connected?(socket) && Mix.env() != :test)
+                   |> assign(
+                     :replies_loading,
+                     connected?(socket) && Elektrine.RuntimeEnv.environment() != :test
+                   )
                    |> assign(:show_image_modal, false)
                    |> assign(:modal_image_url, nil)
                    |> assign(:modal_images, [])
@@ -426,7 +429,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
   end
 
   defp initial_threaded_replies(post_id, community_id) do
-    if Mix.env() == :test do
+    if Elektrine.RuntimeEnv.environment() == :test do
       get_threaded_replies_with_expansion(post_id, community_id, 0, MapSet.new())
     else
       []

@@ -326,6 +326,22 @@ defmodule Elektrine.DNS.RecursiveTest do
              Elektrine.DNS.TestRecursiveTransport.calls()
   end
 
+  test "upstream UDP timeouts return servfail instead of raising" do
+    put_dns_config(recursive_upstreams: [{{9, 9, 9, 9}, 53}])
+
+    Elektrine.DNS.TestRecursiveTransport.set_handler(fn _ip, _port, _packet, _timeout, _query ->
+      {:error, :timeout}
+    end)
+
+    packet = Packet.encode_query(%{id: 557, rd: 1, qname: "timeout.example", qtype: :a})
+    response = Query.answer(packet, client_ip: {127, 0, 0, 1})
+
+    assert header(response).rcode == 2
+
+    assert [{{9, 9, 9, 9}, 53, _id, "timeout.example", :a}] =
+             Elektrine.DNS.TestRecursiveTransport.calls()
+  end
+
   test "allows dnssec record lookups when forwarding upstreams are configured" do
     put_dns_config(recursive_upstreams: [{{9, 9, 9, 9}, 53}])
 

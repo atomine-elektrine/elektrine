@@ -2,7 +2,7 @@ defmodule ElektrineWeb.PageController do
   use ElektrineWeb, :controller
 
   # Development-only error page test routes
-  if Mix.env() == :dev do
+  if Application.compile_env(:elektrine, :dev_routes, false) do
     def flash_test_controller(conn, %{"kind" => kind}) do
       {flash_kind, message} =
         case kind do
