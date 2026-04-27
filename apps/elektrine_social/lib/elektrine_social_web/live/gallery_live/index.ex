@@ -19,7 +19,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    if connected?(socket) && Mix.env() != :test do
+    if connected?(socket) && Elektrine.RuntimeEnv.environment() != :test do
       PubSubTopics.subscribe(PubSubTopics.timeline_public())
 
       if user do
@@ -76,7 +76,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       end
 
     socket =
-      if Mix.env() == :test do
+      if Elektrine.RuntimeEnv.environment() == :test do
         start_gallery_load(socket, socket.assigns.current_filter, include_insights: true)
       else
         socket
@@ -780,7 +780,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
         include_insights? || socket.assigns.loading_gallery_insights
       )
 
-    if Mix.env() == :test do
+    if Elektrine.RuntimeEnv.environment() == :test do
       apply_gallery_data(socket, build_gallery_data(filter, user, include_insights?))
     else
       Task.start(fn ->
@@ -800,7 +800,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
 
     insights =
       if include_insights? do
-        if user && Mix.env() == :test do
+        if user && Elektrine.RuntimeEnv.environment() == :test do
           stats = get_user_gallery_stats(user.id)
           {recent_uploads, top_upload} = get_user_gallery_highlights(user.id)
 

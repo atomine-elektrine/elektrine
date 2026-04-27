@@ -18,7 +18,7 @@ defmodule Elektrine.Developer.Webhook do
     follow.new
     export.completed
   )
-  @allow_http_localhost Mix.env() in [:dev, :test]
+  @allow_http_localhost Application.compile_env(:elektrine, :environment, :prod) in [:dev, :test]
 
   schema "developer_webhooks" do
     field :name, :string

@@ -1693,13 +1693,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
 
         cond do
-          Mix.env() == :test && is_local_post ->
+          Elektrine.RuntimeEnv.environment() == :test && is_local_post ->
             {:noreply, socket} =
               handle_info({:load_local_post, String.to_integer(decoded_post_id)}, socket)
 
             socket
 
-          Mix.env() == :test ->
+          Elektrine.RuntimeEnv.environment() == :test ->
             load_cached_remote_post_socket(socket, decoded_post_id) ||
               (send(self(), {:load_remote_post, decoded_post_id}) && socket)
 
@@ -4729,7 +4729,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp latest_local_message_for_post(_), do: nil
 
   defp local_message_by_activitypub_ref(post_id) when is_binary(post_id) do
-    if Mix.env() == :test do
+    if Elektrine.RuntimeEnv.environment() == :test do
       import Ecto.Query
 
       from(m in Elektrine.Social.Message,

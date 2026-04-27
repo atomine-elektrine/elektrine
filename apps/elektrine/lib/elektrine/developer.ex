@@ -571,7 +571,7 @@ defmodule Elektrine.Developer do
         receive_timeout: 5_000,
         pool_timeout: 5_000,
         max_body_bytes: 256_000,
-        allow_localhost: Mix.env() in [:dev, :test]
+        allow_localhost: Elektrine.RuntimeEnv.dev_or_test?()
       )
     end
   end
@@ -609,7 +609,7 @@ defmodule Elektrine.Developer do
   end
 
   defp test_env? do
-    Code.ensure_loaded?(Mix) and function_exported?(Mix, :env, 0) and Mix.env() == :test
+    Elektrine.RuntimeEnv.environment() == :test
   end
 
   # =============================================================================

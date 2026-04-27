@@ -10,6 +10,7 @@ defmodule Elektrine.DNS.RecursiveTransport do
                true <- host == ip and recv_port == port do
             {:ok, response}
           else
+            {:error, _reason} = error -> error
             false -> {:error, :unexpected_upstream}
           end
 
@@ -28,6 +29,8 @@ defmodule Elektrine.DNS.RecursiveTransport do
           with :ok <- :gen_tcp.send(socket, <<byte_size(packet)::16, packet::binary>>),
                {:ok, <<length::16>>} <- :gen_tcp.recv(socket, 2, timeout) do
             :gen_tcp.recv(socket, length, timeout)
+          else
+            {:error, _reason} = error -> error
           end
 
         :gen_tcp.close(socket)

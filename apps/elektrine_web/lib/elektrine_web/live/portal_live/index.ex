@@ -43,7 +43,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "gallery:all")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussions:all")
 
-        if Mix.env() != :test do
+        if Elektrine.RuntimeEnv.environment() != :test do
           send(self(), :load_feed_data)
         end
 
@@ -104,7 +104,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_remote_replies, MapSet.new())
 
       socket =
-        if connected?(socket) and Mix.env() == :test do
+        if connected?(socket) and Elektrine.RuntimeEnv.environment() == :test do
           load_feed_data(socket, @portal_feed_limit)
         else
           socket
@@ -1727,7 +1727,9 @@ defmodule ElektrineWeb.PortalLive.Index do
     vpn_configs = Integrations.vpn_user_configs(user.id)
 
     recent_posts =
-      if Mix.env() == :test, do: [], else: Integrations.portal_recent_posts(user.id, limit: 3)
+      if Elektrine.RuntimeEnv.environment() == :test,
+        do: [],
+        else: Integrations.portal_recent_posts(user.id, limit: 3)
 
     pending_friend_requests_count = length(pending_friend_requests)
     pending_follow_requests_count = length(pending_follow_requests)
@@ -3246,7 +3248,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
-    if Mix.env() == :test do
+    if Elektrine.RuntimeEnv.environment() == :test do
       {:ok, loader.()}
     else
       load_with_timeout_task(key, loader, timeout_ms)
