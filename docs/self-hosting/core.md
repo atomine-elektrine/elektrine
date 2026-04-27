@@ -3,9 +3,10 @@
 `core` is the default self-host profile. It includes the Phoenix app and
 Postgres only.
 
-This doc refers to the plain app-plus-Postgres baseline in
-`deploy/docker/compose.core.yml`. If you use `scripts/deploy/docker_deploy.sh`
-without overriding profiles, that wrapper defaults to `caddy`.
+This guide covers the plain app-plus-Postgres baseline in
+`deploy/docker/compose.core.yml`. For a normal public Docker host, use
+`docs/self-hosting/docker.md`; the wrapper renders the larger stack and defaults
+to the `caddy` profile unless you override profiles.
 
 It does not include:
 
@@ -24,9 +25,9 @@ It does not include:
 docker compose --env-file .env.production -f deploy/docker/compose.core.yml up -d --build
 ```
 
-4. If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
-That path is for the generated multi-service stack and defaults to `caddy`
-unless you override profiles.
+If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
+That path is for the generated multi-service stack and defaults to `caddy` unless
+you override profiles.
 
 ## Add-ons
 

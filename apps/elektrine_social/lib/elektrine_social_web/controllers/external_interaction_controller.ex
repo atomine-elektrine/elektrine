@@ -1,7 +1,7 @@
 defmodule ElektrineSocialWeb.ExternalInteractionController do
   use ElektrineSocialWeb, :controller
 
-  alias Elektrine.Paths
+  alias Elektrine.{Domains, Paths}
 
   @community_prefixes ["c", "m"]
   @user_prefixes ["u", "users"]
@@ -96,7 +96,20 @@ defmodule ElektrineSocialWeb.ExternalInteractionController do
   end
 
   defp remote_profile_path(handle) do
-    Paths.profile_path(handle) || "/remote/#{URI.encode_www_form(handle)}"
+    local_activitypub_profile_path(handle) || Paths.profile_path(handle) ||
+      "/remote/#{URI.encode_www_form(handle)}"
+  end
+
+  defp local_activitypub_profile_path(handle) do
+    case String.split(handle, "@", parts: 2) do
+      [username, domain] when username != "" and domain != "" ->
+        if Domains.local_activitypub_domain?(domain) do
+          Paths.local_profile_path(username, domain)
+        end
+
+      _ ->
+        nil
+    end
   end
 
   defp remote_post_path(uri), do: Paths.post_path(uri)

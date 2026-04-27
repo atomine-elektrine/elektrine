@@ -8,12 +8,12 @@ Email domain and protocol services for the Elektrine umbrella.
 - Alias, filter, template, folder, and label management
 - IMAP, POP3, SMTP, and JMAP server modules
 - Email processing, categorization, and outbound delivery workers
-- Mailbox, contacts, admin mail, CardDAV, JMAP, WKD, unsubscribe, and Haraka webhook surfaces
+- Mailbox, contacts, admin mail, CardDAV, JMAP, WKD, unsubscribe routes, and Haraka webhooks
 
 ## Notes
 
 - Uses shared persistence/runtime from `elektrine`.
-- API surface is exposed via `Elektrine.Email`.
+- Public domain API is exposed via `Elektrine.Email`.
 - Primary outbound queueing uses Oban (`Elektrine.Email.SendEmailWorker`).
 - Router-mounted controllers and LiveViews in this app still use `ElektrineWeb.*`; shared entrypoints live in `ElektrineEmailWeb`.
 
@@ -26,7 +26,7 @@ Email domain and protocol services for the Elektrine umbrella.
 
 ## Shell Integration
 
-- `elektrine_web` still owns the host shell and shared account/admin pages.
+- `elektrine_web` still owns shared account/admin pages and the outer layout.
 - Email-specific controllers and LiveViews live in `apps/elektrine_email` even when they keep the `ElektrineWeb.*` namespace.
 
 ## License

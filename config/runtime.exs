@@ -620,7 +620,7 @@ if config_env() != :test and :email in enabled_platform_modules do
     timeout: 30_000
 
   # Enable API client for Haraka
-  config :swoosh, :api_client, Swoosh.ApiClient.Hackney
+  config :swoosh, :api_client, Swoosh.ApiClient.Finch
 end
 
 # Configure encryption.
@@ -698,14 +698,28 @@ if config_env() == :prod do
   # Production paths - use persistent /data volume
   config :elektrine, :export_dir, "/data/exports"
 
-  # Configure Sentry at runtime so releases read the deploy-time DSN.
-  config :sentry,
-    dsn: System.get_env("SENTRY_DSN"),
-    environment_name: config_env(),
-    enable_source_code_context: true,
-    root_source_code_paths: [File.cwd!()],
-    # Filter out benign errors that don't indicate actual problems
-    before_send: {Elektrine.SentryFilter, :filter_event}
+  posthog_api_key = System.get_env("POSTHOG_API_KEY")
+  posthog_enabled = is_binary(posthog_api_key) and String.trim(posthog_api_key) != ""
+
+  config :posthog,
+    enable: posthog_enabled,
+    enable_error_tracking: posthog_enabled,
+    api_key: posthog_api_key,
+    api_host: System.get_env("POSTHOG_HOST", "https://us.i.posthog.com"),
+    in_app_otp_apps: [
+      :elektrine,
+      :elektrine_web,
+      :elektrine_email,
+      :elektrine_chat,
+      :elektrine_dns,
+      :elektrine_social,
+      :elektrine_vpn
+    ],
+    capture_level: :error,
+    metadata: [:request_id, :user_id],
+    global_properties: %{environment: :prod},
+    enable_source_code_context: posthog_enabled,
+    context_lines: 5
 
   database_url =
     System.get_env("DATABASE_URL") ||

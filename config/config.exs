@@ -336,7 +336,17 @@ config :elektrine, ElektrineWeb.Gettext,
   locales: ~w(en zh)
 
 # Configure Swoosh API client
-config :swoosh, :api_client, Swoosh.ApiClient.Hackney
+config :swoosh, :api_client, Swoosh.ApiClient.Finch
+
+# Error tracking is enabled in production runtime config when POSTHOG_API_KEY is set.
+config :posthog,
+  enable: false,
+  enable_error_tracking: false,
+  api_key: nil,
+  api_host: "https://us.i.posthog.com",
+  enable_source_code_context: false,
+  root_source_code_paths: [File.cwd!()],
+  context_lines: 5
 
 # S3-compatible storage configuration (Magpie or any S3-compatible endpoint)
 # Configure in runtime.exs for production

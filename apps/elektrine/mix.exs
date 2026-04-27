@@ -113,7 +113,7 @@ defmodule Elektrine.MixProject do
       {:eqrcode, "== 0.2.1"},
       {:cachex, "== 4.1.1"},
       {:earmark, "== 1.4.48"},
-      {:sentry, "== 12.0.3"},
+      {:posthog, "~> 2.5"},
       {:tzdata, "== 1.1.3"},
       {:image, "== 0.66.0"},
       {:html_entities, "~> 0.5"},

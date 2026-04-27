@@ -25,6 +25,7 @@ Accepted aliases:
 
 Operational rules:
 
-- use `scripts/release/deploy_release.sh` for hoster builds
-- use `deploy/docker/compose.core.yml` as the default self-host path
-- treat `email`, `dns`, `vpn`, `onion`, and client artifacts as add-ons around the default self-host image
+- use `scripts/release/deploy_release.sh` for hosted or subset builds
+- use `scripts/deploy/docker_deploy.sh` for normal Docker self-hosts
+- use `deploy/docker/compose.core.yml` only when you want the app-plus-Postgres baseline
+- treat `email`, `dns`, `vpn`, `onion`, TURN, and client artifacts as add-ons around the default self-host image

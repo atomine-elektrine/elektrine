@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.MentionsTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Mentions

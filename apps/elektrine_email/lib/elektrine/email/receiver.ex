@@ -9,7 +9,6 @@ defmodule Elektrine.Email.Receiver do
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
   require Logger
-  require Sentry
 
   @doc "Processes an incoming email from a webhook.\n\nThis function is designed to be called by a webhook controller\nthat receives POST requests from the email server when a new\nemail is received.\n\n## Parameters\n\n  * `params` - The webhook payload from the email server\n\n## Returns\n\n  * `{:ok, message}` - If the email was processed successfully\n  * `{:error, reason}` - If there was an error\n"
   def process_incoming_email(params) do
@@ -60,10 +59,7 @@ defmodule Elektrine.Email.Receiver do
                :user_not_found,
                :sender_blocked
              ] do
-            Sentry.capture_message("Failed to process incoming email",
-              level: :error,
-              extra: %{reason: inspect(reason), from: params["from"], to: params["to"]}
-            )
+            Logger.error("Failed to process incoming email: #{inspect(reason)}")
           end
 
           duration = System.monotonic_time(:millisecond) - started_at
@@ -82,11 +78,6 @@ defmodule Elektrine.Email.Receiver do
           reason: :exception,
           source: :receiver
         })
-
-        Sentry.capture_exception(e,
-          stacktrace: __STACKTRACE__,
-          extra: %{context: "email_receiver_processing", from: params["from"], to: params["to"]}
-        )
 
         {:error, :processing_exception}
     end

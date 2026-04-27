@@ -7,8 +7,6 @@ defmodule Elektrine.Application do
 
   @impl true
   def start(_type, _args) do
-    add_sentry_handler()
-
     children =
       core_children() ++
         jobs_children() ++
@@ -26,17 +24,6 @@ defmodule Elektrine.Application do
     end
 
     :ok
-  end
-
-  defp add_sentry_handler do
-    case :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
-           config: %{metadata: [:file, :line]}
-         }) do
-      :ok -> :ok
-      {:error, {:already_exist, _}} -> :ok
-      {:error, {:already_exists, _}} -> :ok
-      _ -> :ok
-    end
   end
 
   defp core_children do

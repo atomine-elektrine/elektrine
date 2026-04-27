@@ -705,11 +705,11 @@ if Mix.env() == :dev do
           seed_encrypted_payload.("Check container health after the screenshot deploy")
       },
       %{
-        title: "Sentry",
+        title: "PostHog",
         login_username: "alerts@#{local_mail_domain}",
-        website: "https://sentry.io",
-        encrypted_password: seed_encrypted_payload.("sentry-demo-password"),
-        encrypted_notes: seed_encrypted_payload.("Use this for the demo error inbox capture")
+        website: "https://posthog.com",
+        encrypted_password: seed_encrypted_payload.("posthog-demo-password"),
+        encrypted_notes: seed_encrypted_payload.("Use this for the demo product event capture")
       }
     ],
     fn entry_attrs ->

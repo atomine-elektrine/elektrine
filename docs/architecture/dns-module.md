@@ -4,7 +4,7 @@ Elektrine DNS is a first-party DNS service implemented inside the umbrella.
 
 Current layout:
 
-- `apps/elektrine_dns` contains the DNS runtime, schemas, and LiveView surface
+- `apps/elektrine_dns` contains the DNS runtime, schemas, and LiveViews
 - the main `elektrine` release includes the DNS module for account/UI access
 - the dedicated DNS container runs the `elektrine_dns` release for authoritative service
 - zone and record state live in Postgres

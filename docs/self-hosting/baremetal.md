@@ -1,4 +1,4 @@
 # Bare-metal deploy
 
-`docs/self-hosting/docker.md` is now the canonical guide for the Docker-based
-self-hosting flow.
+This file exists to point old bare-metal links at the current Docker guide:
+`docs/self-hosting/docker.md`.
