@@ -567,7 +567,7 @@
               show_reply_form={@show_reply_form}
               current_user={@current_user}
               quick_reply_recent_replies={@quick_reply_recent_replies}
-              show_recent_replies_preview={Enum.empty?(@threaded_replies)}
+              show_recent_replies_preview={true}
               reply_content={@reply_content}
               reply_content_domain={nil}
               replying_to_comment_id={@replying_to_comment_id}
@@ -1564,7 +1564,7 @@
                   displayed_reply_count,
                   loaded_reply_count,
                   @replies_loading,
-                  @reply_sync_checked
+                  assigns[:reply_sync_checked] || false
                 ) %>
               <%= if displayed_reply_count > 0 do %>
                 <div class="mb-6">

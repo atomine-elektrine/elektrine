@@ -15,7 +15,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     "HARAKA_API_KEY",
     "INTERNAL_API_KEY"
   ]
-  @derived_secret_roots ["ELEKTRINE_MASTER_SECRET", "SECRET_KEY_BASE"]
+  @derived_secret_roots ["ELEKTRINE_MASTER_SECRET"]
 
   def validate!(opts \\ []) do
     case validate(opts) do
@@ -59,12 +59,12 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     |> require_any(
       env,
       ["SESSION_SIGNING_SALT" | @derived_secret_roots],
-      "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances"
+      "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET so LiveView and cookie sessions stay consistent across instances"
     )
     |> require_any(
       env,
       ["SESSION_ENCRYPTION_SALT" | @derived_secret_roots],
-      "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances"
+      "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET so cookie sessions can be decrypted consistently across instances"
     )
   end
 

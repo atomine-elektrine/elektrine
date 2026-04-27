@@ -92,6 +92,7 @@ defmodule ElektrineWeb.Router do
   pipeline :api_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
     plug(ElektrineWeb.Plugs.APIAuth)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
@@ -101,7 +102,8 @@ defmodule ElektrineWeb.Router do
   pipeline :api_pat_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.PATAuth)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
+    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
@@ -110,6 +112,7 @@ defmodule ElektrineWeb.Router do
   pipeline :api_vault_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
     plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
@@ -223,6 +226,7 @@ defmodule ElektrineWeb.Router do
     # CalDAV/CardDAV pipeline
     plug(:accepts, ["xml", "text", "json"])
     plug(ElektrineWeb.Plugs.WebDAVMethodOverride)
+    plug(ElektrineWeb.Plugs.DAVRateLimit, key_prefix: "preauth", ip_only: true)
     plug(ElektrineWeb.Plugs.DAVAuth)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.DAVRateLimit)
@@ -284,16 +288,20 @@ defmodule ElektrineWeb.Router do
     # Mastodon-compatible API pipeline
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "mastodon", ip_only: true)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: false)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
   pipeline :mastodon_api_authenticated do
     # Mastodon-compatible API pipeline (authentication required)
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "mastodon", ip_only: true)
     plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: true)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
+    plug(ElektrineWeb.Plugs.APIRateLimit)
   end
 
   # Health check endpoint (no auth required)

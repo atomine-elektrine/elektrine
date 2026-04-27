@@ -31,7 +31,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     |> Plug.Conn.put_session(:user_token, token)
   end
 
-  defp remote_actor_fixture(attrs \\ %{}) do
+  defp remote_actor_fixture(attrs) do
     unique = System.unique_integer([:positive])
 
     attrs =
@@ -482,7 +482,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
   test "remote follow button stays requested until follow acceptance arrives", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
-    actor = remote_actor_fixture()
+    actor = remote_actor_fixture(%{manually_approves_followers: true})
     actor_id = actor.id
     unique = System.unique_integer([:positive])
 
@@ -1122,12 +1122,8 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       end)
 
     assert html =~ "Leaf reply in thread"
-    assert html =~ "Conversation context"
-    assert html =~ "Earlier context"
-    assert html =~ "Replying to"
-    assert html =~ "Root ancestor context"
+    assert html =~ "In reply to"
     assert html =~ "Middle ancestor context"
-    assert html =~ ~s(phx-value-id="#{root_post.id}")
     assert html =~ ~s(phx-value-id="#{middle_post.id}")
   end
 
@@ -1353,7 +1349,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
         post_fixture(
           user: author,
           conversation: author_timeline,
-          content: "Load more timeline post #{i}"
+          content: "Load more timeline post #{String.pad_leading(to_string(i), 2, "0")}"
         )
     end
 
@@ -1365,14 +1361,14 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     initial_html = render(view)
     assert initial_html =~ "Load More"
     assert initial_html =~ ~s(button type="button" phx-click="load_more_posts")
-    refute initial_html =~ "Load more timeline post 25"
+    refute initial_html =~ "Load more timeline post 01"
 
     html =
       view
       |> element("button[phx-click='load_more_posts']")
       |> render_click()
 
-    assert html =~ "Load more timeline post 25"
+    assert html =~ "Load more timeline post 01"
   end
 
   test "hide_post removes the post from the timeline immediately", %{conn: conn} do

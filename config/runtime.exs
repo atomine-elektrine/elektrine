@@ -885,8 +885,8 @@ if config_env() == :prod do
   secret_key_base =
     RuntimeSecrets.secret_key_base(runtime_env) ||
       raise """
-      one of ELEKTRINE_MASTER_SECRET or SECRET_KEY_BASE must be set.
-      ELEKTRINE_MASTER_SECRET is recommended for deriving internal runtime secrets.
+      one of SECRET_KEY_BASE or ELEKTRINE_MASTER_SECRET must be set.
+      ELEKTRINE_MASTER_SECRET is required when deriving internal runtime secrets.
       """
 
   session_signing_salt =

@@ -20,7 +20,7 @@ defmodule ElektrineWeb.Plugs.ActivityPubRateLimit do
 
       case InboxRateLimiter.check_rate_limit(ip) do
         {:ok, :allowed} ->
-          conn
+          assign(conn, :activitypub_rate_limit_checked, true)
 
         {:error, :rate_limited} ->
           conn

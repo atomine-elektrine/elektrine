@@ -21,6 +21,7 @@ defmodule Elektrine.Search do
 
   import Ecto.Query, warn: false
   alias Elektrine.{AuditLog, Notifications}
+  alias Elektrine.Platform.Modules
   alias Elektrine.Repo
 
   @doc """
@@ -49,34 +50,90 @@ defmodule Elektrine.Search do
           results
         else
           results
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_people(user, search_patterns, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:chat"], fn ->
-            search_chat_messages(user, search_term, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_timeline_posts(user, search_term, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_discussions(user, search_term, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_communities(user, search_term, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:social"], fn ->
-            search_federated_posts(search_patterns, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:email"], fn ->
-            search_emails(user, search_term, limit)
-          end)
-          |> maybe_append_search_results(scopes, strict_scopes?, ["read:email"], fn ->
-            search_files(user, search_term, limit)
-          end)
+          |> maybe_append_module_search_results(
+            user,
+            :friends,
+            scopes,
+            strict_scopes?,
+            ["read:social"],
+            fn ->
+              search_people(user, search_patterns, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :chat,
+            scopes,
+            strict_scopes?,
+            ["read:chat"],
+            fn ->
+              search_chat_messages(user, search_term, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :timeline,
+            scopes,
+            strict_scopes?,
+            ["read:social"],
+            fn ->
+              search_timeline_posts(user, search_term, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :communities,
+            scopes,
+            strict_scopes?,
+            ["read:social"],
+            fn ->
+              search_discussions(user, search_term, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :communities,
+            scopes,
+            strict_scopes?,
+            ["read:social"],
+            fn ->
+              search_communities(user, search_term, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :timeline,
+            scopes,
+            strict_scopes?,
+            ["read:social"],
+            fn ->
+              search_federated_posts(search_patterns, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :email,
+            scopes,
+            strict_scopes?,
+            ["read:email"],
+            fn ->
+              search_emails(user, search_term, limit)
+            end
+          )
+          |> maybe_append_module_search_results(
+            user,
+            :email,
+            scopes,
+            strict_scopes?,
+            ["read:email"],
+            fn ->
+              search_files(user, search_term, limit)
+            end
+          )
         end
 
-      results = results ++ search_settings(command_query, limit, scopes, strict_scopes?)
-      results = results ++ search_actions(command_query, limit, scopes, strict_scopes?)
+      results = results ++ search_settings(user, command_query, limit, scopes, strict_scopes?)
+      results = results ++ search_actions(user, command_query, limit, scopes, strict_scopes?)
 
       # Sort by relevance and limit results
       sorted_results =
@@ -489,22 +546,22 @@ defmodule Elektrine.Search do
     end
   end
 
-  defp search_settings(query, limit, scopes, strict_scopes?) do
+  defp search_settings(user, query, limit, scopes, strict_scopes?) do
     query = normalize_command_query(query)
 
     if scope_allowed?(scopes, strict_scopes?, ["read:account"]) do
       setting_entries()
-      |> Enum.filter(&entry_matches?(&1, query))
+      |> Enum.filter(&(entry_module_allowed?(user, &1) and entry_matches?(&1, query)))
       |> Enum.take(max(div(limit, 6), 4))
     else
       []
     end
   end
 
-  defp search_actions(query, limit, scopes, strict_scopes?) do
+  defp search_actions(user, query, limit, scopes, strict_scopes?) do
     query = normalize_command_query(query)
 
-    list_actions(scopes: scopes, enforce_scopes: strict_scopes?)
+    list_actions(scopes: scopes, enforce_scopes: strict_scopes?, current_user: user)
     |> Enum.filter(&entry_matches?(&1, query))
     |> Enum.take(max(div(limit, 6), 4))
   end
@@ -524,12 +581,15 @@ defmodule Elektrine.Search do
 
       if String.starts_with?(trimmed_query, ">") do
         action_entries()
-        |> Enum.filter(&entry_matches?(&1, normalize_command_query(trimmed_query)))
+        |> Enum.filter(
+          &(entry_module_allowed?(user, &1) and
+              entry_matches?(&1, normalize_command_query(trimmed_query)))
+        )
         |> Enum.take(limit)
         |> Enum.map(fn action -> %{text: action.title, type: "action"} end)
       else
         email_domains =
-          if Elektrine.Platform.Modules.compiled?(:email) do
+          if Elektrine.Platform.Modules.compiled?(:email) and module_allowed?(user, :email) do
             from(m in Elektrine.Email.Message,
               join: mb in Elektrine.Email.Mailbox,
               on: m.mailbox_id == mb.id,
@@ -552,20 +612,27 @@ defmodule Elektrine.Search do
         people_filter = person_match_dynamic(search_patterns)
 
         people =
-          from(u in Elektrine.Accounts.User,
-            where: u.id != ^user.id,
-            where: ^people_filter,
-            select: %{
-              text: fragment("CONCAT('@', COALESCE(?, ?))", u.handle, u.username),
-              type: "person"
-            },
-            limit: ^max(div(limit, 2), 2)
-          )
-          |> Repo.all()
+          if module_allowed?(user, :friends) do
+            from(u in Elektrine.Accounts.User,
+              where: u.id != ^user.id,
+              where: ^people_filter,
+              select: %{
+                text: fragment("CONCAT('@', COALESCE(?, ?))", u.handle, u.username),
+                type: "person"
+              },
+              limit: ^max(div(limit, 2), 2)
+            )
+            |> Repo.all()
+          else
+            []
+          end
 
         commands =
           (action_entries() ++ setting_entries())
-          |> Enum.filter(&entry_matches?(&1, normalize_command_query(trimmed_query)))
+          |> Enum.filter(
+            &(entry_module_allowed?(user, &1) and
+                entry_matches?(&1, normalize_command_query(trimmed_query)))
+          )
           |> Enum.take(max(div(limit, 2), 2))
           |> Enum.map(fn entry -> %{text: entry.title, type: entry.type} end)
 
@@ -586,8 +653,11 @@ defmodule Elektrine.Search do
     search_term = "%#{String.trim(safe_query)}%"
 
     case category do
-      "emails" -> search_emails(user, search_term, limit)
-      _ -> []
+      "emails" ->
+        if module_allowed?(user, :email), do: search_emails(user, search_term, limit), else: []
+
+      _ ->
+        []
     end
   end
 
@@ -598,8 +668,12 @@ defmodule Elektrine.Search do
     scopes = Keyword.get(opts, :scopes, []) |> normalize_scopes()
     strict_scopes? = Keyword.get(opts, :enforce_scopes, false)
 
+    current_user = Keyword.get(opts, :current_user)
+
     action_entries()
-    |> Enum.filter(&action_allowed?(&1, scopes, strict_scopes?))
+    |> Enum.filter(
+      &(entry_module_allowed?(current_user, &1) and action_allowed?(&1, scopes, strict_scopes?))
+    )
     |> Enum.sort_by(&(-&1.relevance))
   end
 
@@ -626,7 +700,8 @@ defmodule Elektrine.Search do
           {:error, :unknown_action}
 
         action ->
-          if action_allowed?(action, scopes, strict_scopes?) do
+          if action_allowed?(action, scopes, strict_scopes?) and
+               entry_module_allowed?(user, action) do
             result = run_action(user, action)
             audit_action_execution(user, action, result, opts)
             result
@@ -666,6 +741,45 @@ defmodule Elektrine.Search do
     end
   end
 
+  defp maybe_append_module_search_results(
+         results,
+         user,
+         module,
+         scopes,
+         strict_scopes?,
+         required_scopes,
+         fun
+       )
+       when is_function(fun, 0) do
+    if module_allowed?(user, module) do
+      maybe_append_search_results(results, scopes, strict_scopes?, required_scopes, fun)
+    else
+      results
+    end
+  end
+
+  defp entry_module_allowed?(user, entry) do
+    case entry[:module] do
+      nil -> true
+      module -> module_allowed?(user, module)
+    end
+  end
+
+  defp module_allowed?(user, module) do
+    platform_module = platform_module_for_access_module(module)
+
+    Modules.enabled?(platform_module) and Elektrine.System.user_can_access_module?(user, module)
+  end
+
+  defp platform_module_for_access_module(module)
+       when module in [:timeline, :communities, :gallery, :lists, :friends],
+       do: :social
+
+  defp platform_module_for_access_module(module) when module in [:portal, :storage, :notes],
+    do: nil
+
+  defp platform_module_for_access_module(module), do: module
+
   defp scope_allowed?(scopes, strict_scopes?, required_scopes) do
     cond do
       required_scopes == [] ->
@@ -699,6 +813,7 @@ defmodule Elektrine.Search do
         command: "compose email",
         aliases: ["new email", "send email"],
         execution: :navigate,
+        module: :email,
         required_scopes: ["write:email"],
         content: "Start a new email message",
         url: Elektrine.Paths.email_compose_path(return_to: "search"),
@@ -713,6 +828,7 @@ defmodule Elektrine.Search do
         command: "open chat",
         aliases: ["chat"],
         execution: :navigate,
+        module: :chat,
         required_scopes: ["read:chat"],
         content: "Jump into your conversations",
         url: Elektrine.Paths.chat_root_path(),
@@ -727,6 +843,7 @@ defmodule Elektrine.Search do
         command: "open notifications",
         aliases: ["notifications", "alerts"],
         execution: :navigate,
+        module: :portal,
         required_scopes: ["read:account"],
         content: "Review unread alerts",
         url: Elektrine.Paths.notifications_path(),
@@ -756,6 +873,7 @@ defmodule Elektrine.Search do
         command: "open vpn",
         aliases: ["vpn"],
         execution: :navigate,
+        module: :vpn,
         required_scopes: ["read:account"],
         content: "Manage your WireGuard profiles",
         url: Elektrine.Paths.vpn_path(),
@@ -903,6 +1021,7 @@ defmodule Elektrine.Search do
         type: "settings",
         title: "Email Settings",
         content: "Configure signatures, aliases, and inbox behavior",
+        module: :email,
         url: Elektrine.Paths.email_index_path() <> "/settings",
         updated_at: DateTime.utc_now(),
         relevance: 0.98,
@@ -913,6 +1032,7 @@ defmodule Elektrine.Search do
         type: "settings",
         title: "Storage",
         content: "View usage and storage limits",
+        module: :storage,
         url: "/account/storage",
         updated_at: DateTime.utc_now(),
         relevance: 0.97,

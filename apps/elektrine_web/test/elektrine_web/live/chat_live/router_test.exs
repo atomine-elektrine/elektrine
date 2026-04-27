@@ -33,7 +33,7 @@ defmodule ElektrineChatWeb.ChatLive.RouterTest do
   test "event_handlers/0 contains the full chat event surface" do
     handlers = Router.event_handlers()
 
-    assert map_size(handlers) == 122
+    assert map_size(handlers) == 119
     assert Map.fetch!(handlers, "send_message") == MessageOperations
     assert Map.fetch!(handlers, "emoji_tab") == EmojiGifOperations
   end

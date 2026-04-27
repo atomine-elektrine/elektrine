@@ -8,7 +8,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   - Allow /profiles/* API calls for follow actions
   - Allow asset-like paths (e.g., *.jpg, *.css, *.js) through so static sites can serve assets on subdomains
   """
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   import Elektrine.AccountsFixtures
 

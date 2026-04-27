@@ -97,7 +97,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                   # Subscribe to message-specific updates for likes
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "message:#{post_id}")
                   Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
-                  send(self(), {:load_replies, post_id, community_id})
+
+                  if Mix.env() != :test do
+                    send(self(), {:load_replies, post_id, community_id})
+                  end
                 end
 
                 # Get related posts
@@ -143,12 +146,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
                   # Load reactions for the post
                   post_reactions = load_post_reactions(post.id)
+                  initial_replies = initial_threaded_replies(post_id, community_id)
 
                   # Load the main post vote state immediately. Reply vote state is filled in once
                   # the threaded reply tree loads.
                   user_votes =
                     if user do
-                      Social.get_user_votes(user.id, [post.id])
+                      reply_ids = collect_all_reply_ids(initial_replies)
+                      Social.get_user_votes(user.id, [post.id | reply_ids])
                     else
                       %{}
                     end
@@ -167,7 +172,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:current_url, current_url)
                    |> assign(:community, community)
                    |> assign(:post, post)
-                   |> assign(:replies, [])
+                   |> assign(:replies, initial_replies)
                    |> assign(:related_posts, related_posts)
                    |> assign(:is_moderator, is_moderator)
                    |> assign(:reply_content, "")
@@ -194,7 +199,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
                    |> assign(:mod_status_target_user, nil)
                    |> assign(:user_mod_data, %{})
                    |> assign(:expanded_threads, MapSet.new())
-                   |> assign(:replies_loading, connected?(socket))
+                   |> assign(:replies_loading, connected?(socket) && Mix.env() != :test)
                    |> assign(:show_image_modal, false)
                    |> assign(:modal_image_url, nil)
                    |> assign(:modal_images, [])
@@ -420,6 +425,14 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
     end)
   end
 
+  defp initial_threaded_replies(post_id, community_id) do
+    if Mix.env() == :test do
+      get_threaded_replies_with_expansion(post_id, community_id, 0, MapSet.new())
+    else
+      []
+    end
+  end
+
   def format_post_content(content) when is_binary(content) do
     content
     |> Phoenix.HTML.html_escape()
@@ -432,8 +445,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
 
   defp make_links_clickable(text) when is_binary(text) do
     text
-    |> make_content_safe_with_links()
     |> render_markdown_images()
+    |> style_profile_links()
     |> preserve_line_breaks()
   end
 

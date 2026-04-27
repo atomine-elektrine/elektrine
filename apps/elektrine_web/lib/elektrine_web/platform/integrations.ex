@@ -483,6 +483,16 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
+  def social_vote_on_message(user_id, message_id, vote_type) do
+    call_optional(
+      :social,
+      @social_module,
+      :vote_on_message,
+      [user_id, message_id, vote_type],
+      {:error, :unavailable}
+    )
+  end
+
   def social_boost_post(user_id, message_id) do
     call_optional(
       :social,

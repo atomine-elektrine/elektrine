@@ -79,10 +79,12 @@ defmodule Elektrine.AccountsPrivacyTest do
       # Owner can always view their own profile
       assert {:ok, :allowed} = Accounts.can_view_profile?(user, user)
 
-      # After following, viewer can see the profile
-      # Note: This assumes a follow_user function exists in Profiles
-      # You may need to adjust based on your actual implementation
-      {:ok, _} = Elektrine.Profiles.follow_user(viewer.id, user.id)
+      # After an approved follow exists, viewer can see the profile.
+      {:ok, _} =
+        %Elektrine.Profiles.Follow{}
+        |> Elektrine.Profiles.Follow.changeset(%{follower_id: viewer.id, followed_id: user.id})
+        |> Elektrine.Repo.insert()
+
       assert {:ok, :allowed} = Accounts.can_view_profile?(user, viewer)
     end
   end

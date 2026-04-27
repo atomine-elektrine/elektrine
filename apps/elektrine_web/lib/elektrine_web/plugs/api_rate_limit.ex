@@ -19,8 +19,16 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
 
   def init(opts), do: opts
 
-  def call(conn, _opts) do
-    identifier = get_identifier(conn)
+  def call(conn, opts) do
+    if Application.get_env(:elektrine, :environment) == :test do
+      conn
+    else
+      do_call(conn, opts)
+    end
+  end
+
+  defp do_call(conn, opts) do
+    identifier = get_identifier(conn, opts)
 
     case RateLimiter.check_rate_limit(identifier) do
       {:ok, :allowed} ->
@@ -67,16 +75,26 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
   end
 
   # Use user_id if authenticated, otherwise fall back to IP
-  defp get_identifier(conn) do
-    case conn.assigns do
-      %{federation_peer_domain: domain} when is_binary(domain) ->
-        "federation:#{String.downcase(domain)}"
-
-      %{current_user: %{id: user_id}} ->
-        "user:#{user_id}"
-
-      _ ->
+  defp get_identifier(conn, opts) do
+    identifier =
+      if Keyword.get(opts, :ip_only, false) do
         "ip:#{get_client_ip(conn)}"
+      else
+        case conn.assigns do
+          %{federation_peer_domain: domain} when is_binary(domain) ->
+            "federation:#{String.downcase(domain)}"
+
+          %{current_user: %{id: user_id}} ->
+            "user:#{user_id}"
+
+          _ ->
+            "ip:#{get_client_ip(conn)}"
+        end
+      end
+
+    case Keyword.get(opts, :key_prefix) do
+      prefix when is_binary(prefix) and prefix != "" -> "#{prefix}:#{identifier}"
+      _ -> identifier
     end
   end
 

@@ -778,6 +778,15 @@ defmodule Elektrine.Notifications do
   end
 
   defp build_message_notification_url(
+         %Message{federated: true} = message,
+         %Message{} = parent,
+         notification_type
+       )
+       when notification_type in ["reply", "mention", "comment", "discussion_reply"] do
+    Elektrine.Paths.remote_post_path(parent.id) <> threaded_message_anchor(parent, message)
+  end
+
+  defp build_message_notification_url(
          %Message{} = message,
          %Message{} = parent,
          notification_type
@@ -806,6 +815,9 @@ defmodule Elektrine.Notifications do
        when is_binary(name) and name != "" do
     Elektrine.Paths.discussion_post_path(name, id)
   end
+
+  defp build_message_path(%Message{federated: true, id: id}),
+    do: Elektrine.Paths.remote_post_path(id)
 
   defp build_message_path(%Message{} = message), do: Elektrine.Paths.post_path(message)
 

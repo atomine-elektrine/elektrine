@@ -3,8 +3,9 @@ defmodule ElektrineChatWeb.Admin.ChatMessagesControllerTest do
 
   import Ecto.Query
 
-  alias Elektrine.{Accounts, AuditLog, Messaging, Repo}
+  alias Elektrine.{Accounts, AuditLog, Repo}
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, ChatMessages}
 
   describe "admin arblarg chat message views" do
     test "renders message console and logs list view", %{conn: conn} do
@@ -66,14 +67,25 @@ defmodule ElektrineChatWeb.Admin.ChatMessagesControllerTest do
     admin = AccountsFixtures.user_fixture() |> make_admin()
     sender = AccountsFixtures.user_fixture()
 
-    {:ok, conversation} =
-      Messaging.create_group_conversation(sender.id, %{
+    conversation =
+      %ChatConversation{}
+      |> ChatConversation.group_changeset(%{
+        creator_id: sender.id,
         name: "arbp-test-#{System.unique_integer([:positive])}",
         description: "Arblarg test conversation"
       })
+      |> Repo.insert!()
+
+    %ChatConversationMember{}
+    |> ChatConversationMember.changeset(%{
+      conversation_id: conversation.id,
+      user_id: sender.id,
+      role: "admin"
+    })
+    |> Repo.insert!()
 
     {:ok, message} =
-      Messaging.create_chat_text_message(
+      ChatMessages.create_text_message(
         conversation.id,
         sender.id,
         "Arblarg test message #{System.unique_integer([:positive])}"

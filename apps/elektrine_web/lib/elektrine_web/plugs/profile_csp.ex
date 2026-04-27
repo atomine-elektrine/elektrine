@@ -11,13 +11,13 @@ defmodule ElektrineWeb.Plugs.ProfileCSP do
     csp =
       [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://open.spotify.com https://www.youtube.com https://s.ytimg.com",
+        "script-src 'self' 'nonce-#{ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}' https://open.spotify.com https://www.youtube.com https://s.ytimg.com",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: https: blob:",
         "media-src 'self' https: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' wss: https:",
-        "frame-src 'self' https:",
+        "connect-src 'self' wss: https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com",
+        "frame-src 'self' https://open.spotify.com https://www.youtube.com https://www.youtube-nocookie.com",
         "object-src 'none'",
         "base-uri 'self'"
       ]

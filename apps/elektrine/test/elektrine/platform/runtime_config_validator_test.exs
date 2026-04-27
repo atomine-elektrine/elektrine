@@ -21,9 +21,9 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                environment: :prod
              )
 
-    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances" in errors
+    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET so LiveView and cookie sessions stay consistent across instances" in errors
 
-    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances" in errors
+    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET so cookie sessions can be decrypted consistently across instances" in errors
 
     assert "email module requires PRIMARY_DOMAIN" in errors
     assert "email module requires HARAKA_BASE_URL" in errors
@@ -56,9 +56,9 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                environment: :prod
              )
 
-    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so LiveView and cookie sessions stay consistent across instances" in errors
+    assert "production requires SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET so LiveView and cookie sessions stay consistent across instances" in errors
 
-    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET (SECRET_KEY_BASE also works) so cookie sessions can be decrypted consistently across instances" in errors
+    assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET so cookie sessions can be decrypted consistently across instances" in errors
 
     assert "vpn module requires either VPN_FLEET_REGISTRATION_KEY or self-hosted WireGuard credentials via VPN_SELFHOST_PRIVATE_KEY/VPN_SELFHOST_PUBLIC_KEY; set VPN_SELFHOST_ENDPOINT_HOST or VPN_SELFHOST_PUBLIC_IP to avoid endpoint autodetection" in errors
   end

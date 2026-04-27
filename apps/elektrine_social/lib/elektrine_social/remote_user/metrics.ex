@@ -50,11 +50,11 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
   end
 
   def cached_community_stats(actor_id) when is_integer(actor_id) do
-    persisted_stats = persisted_community_stats(actor_id)
-
-    case AppCache.get_remote_user_community_stats(actor_id, fn -> persisted_stats end) do
-      {:ok, value} -> merge_community_stats(persisted_stats, value)
-      _ -> persisted_stats
+    case AppCache.get_remote_user_community_stats(actor_id, fn ->
+           persisted_community_stats(actor_id)
+         end) do
+      {:ok, value} -> merge_community_stats(%{members: 0, posts: 0}, value)
+      _ -> %{members: 0, posts: 0}
     end
   end
 

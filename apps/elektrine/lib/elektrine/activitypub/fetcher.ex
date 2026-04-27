@@ -110,7 +110,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp expand_uri_candidates(value) when is_map(value) do
     value
-    |> Map.take(["id", "url", "href"])
+    |> Map.take(["id", "url", "href", "_source_url"])
     |> Map.values()
     |> Enum.flat_map(&expand_uri_candidates/1)
   end
@@ -699,6 +699,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
        "id" => object_id,
        "type" => "Note",
        "url" => object_id,
+       "_source_url" => requested_uri,
        "content" => comment["content"] || "",
        "published" => comment["published"],
        "updated" => comment["updated"],

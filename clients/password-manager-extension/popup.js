@@ -388,6 +388,8 @@ async function fillEntry(entry) {
     throw new Error("Open a normal website tab before autofill.")
   }
 
+  confirmEntryOrigin(entry)
+
   const { password } = await loadDecryptedEntry(entry.id)
   const response = await sendMessageToTab(state.currentTab.id, {
     type: "fill_credentials",
@@ -419,6 +421,25 @@ async function fillEntry(entry) {
   }
 
   setFeedback(message, "success")
+}
+
+function confirmEntryOrigin(entry) {
+  const currentHost = safeHost(state.currentTab?.url)
+  const entryHost = safeHost(entry.website)
+
+  if (!currentHost || !entryHost) {
+    throw new Error("This entry does not have a website that can be matched to the current tab.")
+  }
+
+  if (currentHost === entryHost) {
+    return
+  }
+
+  const related = currentHost.endsWith(`.${entryHost}`) || entryHost.endsWith(`.${currentHost}`)
+
+  if (!related || !window.confirm(`Fill ${entryHost} credentials on ${currentHost}?`)) {
+    throw new Error("Autofill cancelled for this site.")
+  }
 }
 
 async function copyEntryPassword(entry) {

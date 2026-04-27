@@ -410,8 +410,21 @@ defmodule ElektrineSocialWeb.ActivityPubController do
   defp signature_actor_matches?(sig_actor_uri, actor_uri, sig_actor) do
     comparable_uri(sig_actor_uri) == comparable_uri(actor_uri) ||
       signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor) ||
+      signature_actor_moved_to_match?(actor_uri, sig_actor) ||
       signature_actor_reciprocal_alias_match?(sig_actor_uri, actor_uri, sig_actor)
   end
+
+  defp signature_actor_moved_to_match?(actor_uri, %{metadata: metadata})
+       when is_binary(actor_uri) do
+    normalized_actor_uri = comparable_uri(actor_uri)
+
+    metadata
+    |> extract_uri_candidates("movedTo")
+    |> Enum.map(&comparable_uri/1)
+    |> Enum.member?(normalized_actor_uri)
+  end
+
+  defp signature_actor_moved_to_match?(_, _), do: false
 
   defp signature_actor_username_alias_match?(sig_actor_uri, actor_uri, sig_actor)
        when is_binary(sig_actor_uri) and is_binary(actor_uri) do

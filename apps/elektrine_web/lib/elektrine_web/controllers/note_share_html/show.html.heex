@@ -91,10 +91,14 @@
           class="min-h-[18rem] overflow-x-auto whitespace-pre-wrap break-words rounded-box border border-base-300/60 bg-base-100/50 p-4 font-sans text-sm leading-7 text-base-content sm:text-[0.95rem]"
         ></pre>
       </div>
-      <script id="encrypted-note-payload" type="application/json">
+      <script
+        nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}
+        id="encrypted-note-payload"
+        type="application/json"
+      >
         <%= Phoenix.HTML.raw(Jason.encode!(@share.encrypted_payload)) %>
       </script>
-      <script>
+      <script nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}>
         (() => {
           const statusEl = document.querySelector("[data-note-status]")
           const titleEl = document.querySelector("[data-note-title]")

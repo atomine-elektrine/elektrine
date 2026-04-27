@@ -53,4 +53,6 @@ defmodule ElektrineWeb.Scrubbers.RemoteContent do
     "width",
     "height"
   ])
+
+  @before_compile HtmlSanitizeEx.ScrubberCompiler
 end

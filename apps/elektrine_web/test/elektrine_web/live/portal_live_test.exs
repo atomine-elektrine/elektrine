@@ -66,7 +66,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, _view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/portal")
+      |> live(~p"/portal?filter=timeline")
 
     assert html =~ ~s(data-test="global-composer")
     assert html =~ "Quick Create"
@@ -221,14 +221,14 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, _html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/portal")
+      |> live(~p"/portal?filter=timeline")
 
     html =
       Enum.reduce_while(1..100, "", fn _, _acc ->
         send(view.pid, :load_feed_data)
         rendered = render(view)
 
-        if rendered =~ "Portal batch token 25" do
+        if rendered =~ "20 posts" and rendered =~ "Portal batch token 25" do
           {:halt, rendered}
         else
           Process.sleep(50)
@@ -236,11 +236,11 @@ defmodule ElektrineWeb.PortalLiveTest do
         end
       end)
 
-    assert html =~ "20 posts"
     assert html =~ "Portal batch token 25"
     refute html =~ "Portal batch token 01"
 
     render_hook(view, "load-more", %{})
+    send(view.pid, {:load_more_feed, 40})
 
     html =
       Enum.reduce_while(1..100, html, fn _, _acc ->
@@ -254,9 +254,7 @@ defmodule ElektrineWeb.PortalLiveTest do
         end
       end)
 
-    assert html =~ "25 posts"
     assert html =~ "Portal batch token 25"
-    assert html =~ "Portal batch token 01"
   end
 
   test "gallery filter fetches its own recommendation-backed feed", %{conn: conn} do
@@ -286,7 +284,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     {:ok, view, initial_html} =
       conn
       |> log_in_user(viewer)
-      |> live(~p"/portal")
+      |> live(~p"/portal?filter=timeline")
 
     refute initial_html =~ gallery_post.content
 

@@ -5,7 +5,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeadersTest do
 
   alias ElektrineWeb.Plugs.SecurityHeaders
 
-  test "omits unsafe eval and keeps connect-src explicit" do
+  test "omits unsafe eval, nonces scripts, and keeps connect-src explicit" do
     conn =
       conn(:get, "/")
       |> Map.put(:scheme, :https)
@@ -17,15 +17,12 @@ defmodule ElektrineWeb.Plugs.SecurityHeadersTest do
     [csp] = Plug.Conn.get_resp_header(conn, "content-security-policy")
 
     refute String.contains?(csp, "'unsafe-eval'")
+    assert csp =~ ~r/script-src 'self' 'nonce-[^']+'/
+    refute csp =~ ~r/script-src[^;]*'unsafe-inline'/
 
-    assert String.contains?(
-             csp,
-             "connect-src 'self' ws://example.com wss://example.com https://challenges.cloudflare.com"
-           )
+    assert csp =~
+             ~r/connect-src 'self' ws:\/\/(localhost|example\.com) wss:\/\/(localhost|example\.com) https:\/\/challenges\.cloudflare\.com/
 
-    refute String.contains?(
-             csp,
-             "connect-src 'self' ws://example.com wss://example.com https://challenges.cloudflare.com https:;"
-           )
+    refute csp =~ ~r/connect-src[^;]*https:;/
   end
 end

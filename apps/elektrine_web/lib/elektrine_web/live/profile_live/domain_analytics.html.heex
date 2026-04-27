@@ -64,12 +64,14 @@
                         </span>
                       </div>
                     </div>
-                    <span class="badge badge-outline">{domain.views}</span>
+                    <span class="badge badge-outline shrink-0 tabular-nums" title={domain.views}>
+                      {format_count(domain.views)}
+                    </span>
                   </div>
 
                   <div class="mt-3 flex items-center gap-4 text-xs text-base-content/60">
-                    <span>{domain.unique_visitors} visitors</span>
-                    <span>{domain.views_today} today</span>
+                    <span>{format_count(domain.unique_visitors)} visitors</span>
+                    <span>{format_count(domain.views_today)} today</span>
                   </div>
                 </.link>
               <% end %>
@@ -83,25 +85,45 @@
           <div class="card panel-card">
             <div class="card-body p-4">
               <div class="text-sm text-base-content/65">Page Views</div>
-              <div class="text-3xl font-bold">{@stats.total_views}</div>
+              <div
+                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                title={@stats.total_views}
+              >
+                {format_count(@stats.total_views)}
+              </div>
             </div>
           </div>
           <div class="card panel-card">
             <div class="card-body p-4">
               <div class="text-sm text-base-content/65">Unique Visitors</div>
-              <div class="text-3xl font-bold">{@stats.unique_visitors}</div>
+              <div
+                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                title={@stats.unique_visitors}
+              >
+                {format_count(@stats.unique_visitors)}
+              </div>
             </div>
           </div>
           <div class="card panel-card">
             <div class="card-body p-4">
               <div class="text-sm text-base-content/65">Views Today</div>
-              <div class="text-3xl font-bold">{@stats.views_today}</div>
+              <div
+                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                title={@stats.views_today}
+              >
+                {format_count(@stats.views_today)}
+              </div>
             </div>
           </div>
           <div class="card panel-card">
             <div class="card-body p-4">
               <div class="text-sm text-base-content/65">This Week</div>
-              <div class="text-3xl font-bold">{@stats.views_this_week}</div>
+              <div
+                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                title={@stats.views_this_week}
+              >
+                {format_count(@stats.views_this_week)}
+              </div>
             </div>
           </div>
         </div>
@@ -130,25 +152,45 @@
                 <div class="card bg-base-200/60">
                   <div class="card-body p-4">
                     <div class="text-sm text-base-content/65">Total Queries</div>
-                    <div class="text-3xl font-bold">{@dns_stats.total_queries}</div>
+                    <div
+                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                      title={@dns_stats.total_queries}
+                    >
+                      {format_count(@dns_stats.total_queries)}
+                    </div>
                   </div>
                 </div>
                 <div class="card bg-base-200/60">
                   <div class="card-body p-4">
                     <div class="text-sm text-base-content/65">Queries Today</div>
-                    <div class="text-3xl font-bold">{@dns_stats.queries_today}</div>
+                    <div
+                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                      title={@dns_stats.queries_today}
+                    >
+                      {format_count(@dns_stats.queries_today)}
+                    </div>
                   </div>
                 </div>
                 <div class="card bg-base-200/60">
                   <div class="card-body p-4">
                     <div class="text-sm text-base-content/65">This Week</div>
-                    <div class="text-3xl font-bold">{@dns_stats.queries_this_week}</div>
+                    <div
+                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                      title={@dns_stats.queries_this_week}
+                    >
+                      {format_count(@dns_stats.queries_this_week)}
+                    </div>
                   </div>
                 </div>
                 <div class="card bg-base-200/60">
                   <div class="card-body p-4">
                     <div class="text-sm text-base-content/65">NXDOMAIN</div>
-                    <div class="text-3xl font-bold">{@dns_stats.nxdomain_queries}</div>
+                    <div
+                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                      title={@dns_stats.nxdomain_queries}
+                    >
+                      {format_count(@dns_stats.nxdomain_queries)}
+                    </div>
                     <div class="mt-1 text-xs text-base-content/50">
                       <% nxdomain_rate =
                         if @dns_stats.total_queries > 0,
@@ -184,7 +226,12 @@
                             do: max(hour.count / @max_dns_hourly_queries * 100, 3),
                             else: 3 %>
                         <div class="flex min-w-8 flex-1 flex-col items-center justify-end gap-2">
-                          <div class="text-[10px] text-base-content/45">{hour.count}</div>
+                          <div
+                            class="max-w-10 truncate text-[10px] text-base-content/45"
+                            title={hour.count}
+                          >
+                            {format_count(hour.count)}
+                          </div>
                           <div
                             class="w-full rounded-t-md bg-secondary/85"
                             style={"height: #{height}%"}
@@ -230,7 +277,7 @@
                               >
                               </div>
                               <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                                {day.count}
+                                {format_count(day.count)}
                               </span>
                             </div>
                           </div>
@@ -254,7 +301,12 @@
                           <%= for item <- @dns_query_types do %>
                             <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
                               <span class="font-medium">{item.qtype}</span>
-                              <span class="badge badge-outline">{item.count}</span>
+                              <span
+                                class="badge badge-outline shrink-0 tabular-nums"
+                                title={item.count}
+                              >
+                                {format_count(item.count)}
+                              </span>
                             </div>
                           <% end %>
                         </div>
@@ -275,7 +327,12 @@
                           <%= for item <- @dns_rcode_breakdown do %>
                             <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
                               <span class="font-medium">{item.rcode}</span>
-                              <span class="badge badge-outline">{item.count}</span>
+                              <span
+                                class="badge badge-outline shrink-0 tabular-nums"
+                                title={item.count}
+                              >
+                                {format_count(item.count)}
+                              </span>
                             </div>
                           <% end %>
                         </div>
@@ -296,7 +353,12 @@
                           <%= for item <- @dns_transport_breakdown do %>
                             <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
                               <span class="font-medium uppercase">{item.transport}</span>
-                              <span class="badge badge-outline">{item.count}</span>
+                              <span
+                                class="badge badge-outline shrink-0 tabular-nums"
+                                title={item.count}
+                              >
+                                {format_count(item.count)}
+                              </span>
                             </div>
                           <% end %>
                         </div>
@@ -322,7 +384,12 @@
                             <div class="min-w-0">
                               <p class="truncate font-medium">{item.qname}</p>
                             </div>
-                            <span class="badge badge-secondary">{item.count}</span>
+                            <span
+                              class="badge badge-secondary shrink-0 tabular-nums"
+                              title={item.count}
+                            >
+                              {format_count(item.count)}
+                            </span>
                           </div>
                         <% end %>
                       </div>
@@ -345,7 +412,12 @@
                             <div class="min-w-0">
                               <p class="truncate font-medium">{item.qname}</p>
                             </div>
-                            <span class="badge badge-error badge-outline">{item.count}</span>
+                            <span
+                              class="badge badge-error badge-outline shrink-0 tabular-nums"
+                              title={item.count}
+                            >
+                              {format_count(item.count)}
+                            </span>
                           </div>
                         <% end %>
                       </div>
@@ -386,7 +458,7 @@
                         <div class="h-full rounded-full bg-primary" style={"width: #{width}%"}>
                         </div>
                         <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                          {day.count}
+                          {format_count(day.count)}
                         </span>
                       </div>
                     </div>
@@ -411,8 +483,8 @@
                       <div class="rounded-lg bg-base-200 px-4 py-3">
                         <div class="font-mono text-sm break-all">{page.path}</div>
                         <div class="mt-2 flex items-center gap-3 text-xs text-base-content/60">
-                          <span>{page.views} views</span>
-                          <span>{page.unique_visitors} visitors</span>
+                          <span>{format_count(page.views)} views</span>
+                          <span>{format_count(page.unique_visitors)} visitors</span>
                         </div>
                       </div>
                     <% end %>
@@ -440,7 +512,7 @@
                           {referrer.referer}
                         </div>
                         <div class="mt-2 text-xs text-base-content/60">
-                          {referrer.count} visits
+                          {format_count(referrer.count)} visits
                         </div>
                       </div>
                     <% end %>

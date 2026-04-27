@@ -87,6 +87,7 @@ defmodule ElektrineWeb.UserSettingsLive do
      )
      |> assign(:changeset, Accounts.change_user(user, %{}))
      |> assign(:handle_changeset, Accounts.User.handle_changeset(user, %{}))
+     |> assign(:profile_notice, nil)
      |> assign(:loading_profile, true)
      |> assign(:loading_security, true)
      |> assign(:loading_timeline, true)
@@ -1040,6 +1041,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:handle_changeset, Accounts.User.handle_changeset(final_user, %{}))
          |> assign(:mailboxes, mailboxes)
          |> assign(:aliases, aliases)
+         |> assign(:profile_notice, message)
          |> notify_info(message)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -1058,6 +1060,7 @@ defmodule ElektrineWeb.UserSettingsLive do
          |> assign(:handle_changeset, Accounts.User.handle_changeset(updated_user, %{}))
          |> assign(:mailboxes, mailboxes)
          |> assign(:aliases, aliases)
+         |> assign(:profile_notice, "Settings updated")
          |> notify_info("Settings updated")}
     end
   end

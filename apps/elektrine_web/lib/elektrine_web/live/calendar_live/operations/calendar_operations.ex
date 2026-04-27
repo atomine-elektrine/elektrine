@@ -282,9 +282,9 @@ defmodule ElektrineWeb.CalendarLive.Operations.CalendarOperations do
   end
 
   # Catch-all
-  def handle_calendar_event(event, params, socket) do
+  def handle_calendar_event(event, _params, socket) do
     require Logger
-    Logger.warning("Unhandled calendar event: #{event} with params: #{inspect(params)}")
+    Logger.warning("Unhandled calendar event: #{event}")
     {:noreply, socket}
   end
 

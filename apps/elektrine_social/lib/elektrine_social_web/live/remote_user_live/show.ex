@@ -99,13 +99,13 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
     case cached_remote_actor_from_params(params) do
       {:ok, remote_actor} ->
-        socket = prime_cached_remote_profile(socket, remote_actor)
-
         if connected?(socket) do
+          socket = prime_cached_remote_profile(socket, remote_actor)
           send(self(), :load_timeline)
+          {:ok, socket}
+        else
+          {:ok, socket}
         end
-
-        {:ok, socket}
 
       :error ->
         if connected?(socket) do
@@ -2792,8 +2792,9 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp thread_group_key(post, ids_in_feed, local_parent_ids, remote_parent_refs) do
     cond do
-      is_integer(Map.get(post, :reply_to_id)) and MapSet.member?(ids_in_feed, post.reply_to_id) ->
-        {:local_thread, post.reply_to_id}
+      is_integer(Map.get(post, :reply_to_id)) and
+          MapSet.member?(ids_in_feed, Map.get(post, :reply_to_id)) ->
+        {:local_thread, Map.get(post, :reply_to_id)}
 
       is_binary(normalized_in_reply_to(post)) ->
         {:remote_thread, normalized_in_reply_to(post)}

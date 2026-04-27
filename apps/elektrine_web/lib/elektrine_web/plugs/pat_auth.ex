@@ -67,36 +67,40 @@ defmodule ElektrineWeb.Plugs.PATAuth do
         end
 
       _ ->
-        token = extract_token(conn)
+        if opts.allow_api_token and conn.assigns[:auth_method] == :api_token do
+          conn
+        else
+          token = extract_token(conn)
 
-        cond do
-          # No token provided
-          is_nil(token) and opts.optional ->
-            conn
+          cond do
+            # No token provided
+            is_nil(token) and opts.optional ->
+              conn
 
-          is_nil(token) ->
-            auth_error(conn, :missing_token)
+            is_nil(token) ->
+              auth_error(conn, :missing_token)
 
-          # Token doesn't have correct prefix
-          not String.starts_with?(token, "ekt_") ->
-            handle_non_pat_token(conn, token, opts)
+            # Token doesn't have correct prefix
+            not String.starts_with?(token, "ekt_") ->
+              handle_non_pat_token(conn, token, opts)
 
-          # Verify token
-          true ->
-            case verify_and_authorize(token, opts, conn) do
-              {:ok, api_token} ->
-                conn
-                |> assign(:current_user, api_token.user)
-                |> assign(:api_token, api_token)
-                |> assign(:auth_method, :pat)
-
-              {:error, reason} ->
-                if opts.optional do
+            # Verify token
+            true ->
+              case verify_and_authorize(token, opts, conn) do
+                {:ok, api_token} ->
                   conn
-                else
-                  auth_error(conn, reason)
-                end
-            end
+                  |> assign(:current_user, api_token.user)
+                  |> assign(:api_token, api_token)
+                  |> assign(:auth_method, :pat)
+
+                {:error, reason} ->
+                  if opts.optional do
+                    conn
+                  else
+                    auth_error(conn, reason)
+                  end
+              end
+          end
         end
     end
   end

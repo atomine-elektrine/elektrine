@@ -22,7 +22,7 @@ defmodule Elektrine.Social.Recommendations do
       filter == "my_posts" ->
         get_recommended_own_posts(user_id, limit)
 
-      recommendations_enabled?() ->
+      recommendations_enabled?() or session_context != %{} ->
         user_profile = build_user_profile(user_id, session_context)
 
         recommended_posts =
@@ -36,11 +36,38 @@ defmodule Elektrine.Social.Recommendations do
         else
           recommended_posts
         end
+        |> prioritize_session_context(session_context)
 
       true ->
         fallback_posts_for_filter(user_id, filter, limit)
+        |> prioritize_session_context(session_context)
     end
   end
+
+  defp prioritize_session_context(posts, session_context)
+       when is_list(posts) and is_map(session_context) do
+    local_creators =
+      Map.get(
+        session_context,
+        :liked_local_creators,
+        Map.get(session_context, :liked_creators, [])
+      )
+
+    legacy_creators = Map.get(session_context, :liked_creators, [])
+    remote_creators = Map.get(session_context, :liked_remote_creators, [])
+
+    Enum.sort_by(posts, fn post ->
+      cond do
+        post.federated and post.remote_actor_id in remote_creators -> 0
+        post.federated and post.remote_actor_id in legacy_creators -> 0
+        not post.federated and post.sender_id in local_creators -> 0
+        not post.federated and post.sender_id in legacy_creators -> 0
+        true -> 1
+      end
+    end)
+  end
+
+  defp prioritize_session_context(posts, _), do: posts
 
   defp recommend_posts(user_id, limit, user_profile) do
     candidates = get_candidate_posts_fast(user_id, limit * 10)
@@ -82,7 +109,24 @@ defmodule Elektrine.Social.Recommendations do
 
     main_feed
     |> interleave_posts(explore_posts)
+    |> prioritize_session_creators(user_profile)
     |> diversify_feed()
+  end
+
+  defp prioritize_session_creators(posts, user_profile) do
+    Enum.sort_by(posts, fn post ->
+      if session_creator_match?(post, user_profile), do: 0, else: 1
+    end)
+  end
+
+  defp session_creator_match?(post, user_profile) do
+    if post.federated do
+      post.remote_actor_id in user_profile.session_liked_remote_creators or
+        post.remote_actor_id in user_profile.session_liked_creators
+    else
+      post.sender_id in user_profile.session_liked_local_creators or
+        post.sender_id in user_profile.session_liked_creators
+    end
   end
 
   defp expanded_limit("all", limit), do: limit
@@ -233,15 +277,11 @@ defmodule Elektrine.Social.Recommendations do
         {:dismissed_hashtags, fn -> get_frequently_dismissed_hashtags(user_id) end},
         {:creator_satisfaction, fn -> get_creator_satisfaction_scores(user_id) end}
       ]
-      |> Task.async_stream(fn {key, loader} -> {key, loader.()} end,
-        ordered: false,
+      |> maybe_async_map(fn {key, loader} -> {key, loader.()} end,
         timeout: 15_000,
         max_concurrency: 8
       )
-      |> Enum.reduce(%{}, fn
-        {:ok, {key, value}}, acc -> Map.put(acc, key, value)
-        {:exit, _reason}, acc -> acc
-      end)
+      |> Enum.reduce(%{}, fn {key, value}, acc -> Map.put(acc, key, value) end)
 
     Map.merge(profile_data, %{
       followed_users: followed_users,
@@ -493,15 +533,25 @@ defmodule Elektrine.Social.Recommendations do
   defp load_candidate_pools(queries, preloads) do
     queries
     |> Enum.reject(&is_nil/1)
-    |> Task.async_stream(&load_candidate_pool(&1, preloads),
-      ordered: false,
-      timeout: 15_000,
-      max_concurrency: 6
-    )
-    |> Enum.flat_map(fn
-      {:ok, posts} -> posts
-      {:exit, _reason} -> []
-    end)
+    |> maybe_async_map(&load_candidate_pool(&1, preloads), timeout: 15_000, max_concurrency: 6)
+    |> Enum.flat_map(& &1)
+  end
+
+  defp maybe_async_map(enum, fun, opts) do
+    if Application.get_env(:elektrine, :environment) == :test do
+      Enum.map(enum, fun)
+    else
+      enum
+      |> Task.async_stream(fun,
+        ordered: false,
+        timeout: Keyword.fetch!(opts, :timeout),
+        max_concurrency: Keyword.fetch!(opts, :max_concurrency)
+      )
+      |> Enum.flat_map(fn
+        {:ok, value} -> [value]
+        {:exit, _reason} -> []
+      end)
+    end
   end
 
   defp candidate_pool_limit(limit, ratio, min_size) do
@@ -650,10 +700,14 @@ defmodule Elektrine.Social.Recommendations do
   defp score_novelty(post, user_profile) do
     creator_known =
       if post.federated do
-        post.remote_actor_id in user_profile.followed_remote_actors
+        post.remote_actor_id in user_profile.followed_remote_actors or
+          post.remote_actor_id in user_profile.session_liked_remote_creators or
+          post.remote_actor_id in user_profile.session_liked_creators
       else
         post.sender_id in user_profile.followed_users or
-          post.sender_id in user_profile.viewed_creators
+          post.sender_id in user_profile.viewed_creators or
+          post.sender_id in user_profile.session_liked_local_creators or
+          post.sender_id in user_profile.session_liked_creators
       end
 
     post_has_been_seen =
@@ -806,7 +860,7 @@ defmodule Elektrine.Social.Recommendations do
     score =
       score +
         if creator_match do
-          10
+          50
         else
           0
         end
@@ -818,7 +872,7 @@ defmodule Elektrine.Social.Recommendations do
         score
       end
 
-    min(score, 20)
+    min(score, 60)
   end
 
   defp score_creator_satisfaction(post, user_profile) do

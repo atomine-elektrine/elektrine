@@ -463,12 +463,15 @@ defmodule Elektrine.StaticSites do
             {:ok, file_list} ->
               # Calculate total uncompressed size from file list
               # file_list contains {:zip_comment, _} and {:zip_file, Name, FileInfo, Comment, Offset, CompSize}
-              total_uncompressed =
+              zip_entries =
                 file_list
                 |> Enum.filter(fn
                   {:zip_file, _, _, _, _, _} -> true
                   _ -> false
                 end)
+
+              total_uncompressed =
+                zip_entries
                 |> Enum.reduce(0, fn {:zip_file, _name, file_info, _comment, _offset, _comp_size},
                                      acc ->
                   # file_info is a :file_info record - size is the first field (index 1 after record tag)
@@ -480,6 +483,10 @@ defmodule Elektrine.StaticSites do
               decompression_ratio = if zip_size > 0, do: total_uncompressed / zip_size, else: 0
 
               cond do
+                length(zip_entries) > @max_files ->
+                  Logger.warning("Zip contains too many entries: #{length(zip_entries)}")
+                  {:error, :file_limit_exceeded}
+
                 decompression_ratio > @max_decompression_ratio ->
                   Logger.warning(
                     "Zip bomb detected: ratio #{decompression_ratio}:1 exceeds limit"
