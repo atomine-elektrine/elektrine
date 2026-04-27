@@ -250,7 +250,7 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp maybe_restrict_admin_user_to_vpn(conn, %{is_admin: true} = user) do
-    if netbird_enabled?() and not on_netbird_vpn?(conn) do
+    if netbird_enabled?() and not admin_host?(conn.host) and not on_netbird_vpn?(conn) do
       {nil,
        conn
        |> delete_session(:user_token)
