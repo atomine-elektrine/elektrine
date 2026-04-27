@@ -675,8 +675,8 @@
               </h3>
 
               <p class="text-xs sm:text-sm text-base-content/70 mb-4">
-                Elektrine uses different encryption models by product area. This matrix shows what is
-                browser-encrypted before reaching the server today.
+                Current encryption coverage by feature, including whether client-side encryption is
+                already available or planned.
               </p>
 
               <div class="overflow-x-auto rounded-box border border-base-300/70">
@@ -684,46 +684,118 @@
                   <thead>
                     <tr>
                       <th>Area</th>
-                      <th>Status</th>
-                      <th>Notes</th>
+                      <th>Encrypted before upload?</th>
+                      <th>Can the server read it?</th>
+                      <th>Client-side encryption plan</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td>Vault</td>
-                      <td><span class="badge badge-success badge-sm">Browser encrypted</span></td>
-                      <td>Secrets are stored as encrypted client-side envelopes.</td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Already live
+                        </span>
+                      </td>
                     </tr>
                     <tr>
-                      <td>Encrypted note shares</td>
-                      <td><span class="badge badge-success badge-sm">Browser encrypted</span></td>
-                      <td>Share keys live in the URL fragment and are not sent to the server.</td>
+                      <td>Encrypted shared notes</td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Already live
+                        </span>
+                      </td>
                     </tr>
                     <tr>
                       <td>Private mailbox storage</td>
                       <td>
-                        <span class="badge badge-info badge-sm">Optional private storage</span>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Optional
+                        </span>
                       </td>
                       <td>
-                        Protected mailbox payloads use client-side private-storage keys where enabled.
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Available now
+                        </span>
                       </td>
                     </tr>
                     <tr>
                       <td>Drive files</td>
                       <td>
-                        <span class="badge badge-warning badge-sm">Server-side storage</span>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
                       </td>
                       <td>
-                        Drive sharing supports password and expiry, but file contents are not universally client-side encrypted yet.
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Planned
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>Chat messages</td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Planned
+                        </span>
                       </td>
                     </tr>
                     <tr>
                       <td>Regular notes</td>
                       <td>
-                        <span class="badge badge-warning badge-sm">Server-side storage</span>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
                       </td>
                       <td>
-                        Saved note contents are stored normally; encrypted sharing creates a separate encrypted payload.
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Planned
+                        </span>
                       </td>
                     </tr>
                   </tbody>
