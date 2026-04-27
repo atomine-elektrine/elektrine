@@ -50,6 +50,9 @@ defmodule Elektrine.Profiles.CustomDomain do
 
   defp validate_profile_domain(:domain, domain) when is_binary(domain) do
     cond do
+      reserved_profile_edge_domain?(domain) ->
+        [domain: "is reserved for profile routing"]
+
       String.starts_with?(domain, "www.") ->
         [domain: "must be the root domain without www"]
 
@@ -65,6 +68,12 @@ defmodule Elektrine.Profiles.CustomDomain do
   end
 
   defp validate_profile_domain(_field, _value), do: []
+
+  defp reserved_profile_edge_domain?(domain) do
+    edge_target = Elektrine.Domains.profile_custom_domain_edge_target()
+
+    is_binary(edge_target) and domain in [edge_target, "www.#{edge_target}"]
+  end
 
   defp normalize_domain(nil), do: nil
 

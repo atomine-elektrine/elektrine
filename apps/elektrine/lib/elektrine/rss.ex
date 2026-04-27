@@ -203,6 +203,8 @@ defmodule Elektrine.RSS do
   def get_timeline_items(user_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 20)
     before = Keyword.get(opts, :before)
+    sort = Keyword.get(opts, :sort, "new")
+    order_by = timeline_order_by(sort)
 
     query =
       from(i in Item,
@@ -210,7 +212,7 @@ defmodule Elektrine.RSS do
         on: s.feed_id == i.feed_id and s.user_id == ^user_id and s.show_in_timeline == true,
         join: f in Feed,
         on: f.id == i.feed_id,
-        order_by: [desc: i.published_at, desc: i.inserted_at],
+        order_by: ^order_by,
         limit: ^limit,
         select: %{
           id: i.id,
@@ -281,4 +283,7 @@ defmodule Elektrine.RSS do
     |> Feed.changeset(%{url: url})
     |> add_error(:url, "must be a public http or https URL")
   end
+
+  defp timeline_order_by("old"), do: [asc_nulls_last: :published_at, asc: :inserted_at]
+  defp timeline_order_by(_sort), do: [desc_nulls_last: :published_at, desc: :inserted_at]
 end

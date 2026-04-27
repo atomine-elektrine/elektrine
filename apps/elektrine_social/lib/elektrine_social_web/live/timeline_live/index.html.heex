@@ -936,166 +936,173 @@
           <% end %>
           <!-- Feed View Chips -->
           <div class="mx-4 mb-4 pt-4">
-            <div class="flex items-center justify-between gap-2 mb-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
-                View Mode
-              </p>
+            <%= if @current_filter != "rss" do %>
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                  View Mode
+                </p>
 
-              <p class="text-xs text-base-content/60">{length(@filtered_posts)} shown</p>
-            </div>
+                <p class="text-xs text-base-content/60">{length(@filtered_posts)} shown</p>
+              </div>
 
-            <div
-              class="flex flex-wrap items-center gap-2"
-              role="tablist"
-              aria-label="Timeline view filters"
-            >
-              <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="all"
-                role="tab"
-                aria-selected={@timeline_filter == "all"}
-                class={[
-                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                  if(@timeline_filter == "all",
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
-                  )
-                ]}
+              <div
+                class="flex flex-wrap items-center gap-2"
+                role="tablist"
+                aria-label="Timeline view filters"
               >
-                <.icon name="hero-squares-2x2" class="w-4 h-4 mr-1" /> All
-              </button>
-              <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="posts"
-                role="tab"
-                aria-selected={@timeline_filter == "posts"}
-                class={[
-                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                  if(@timeline_filter == "posts",
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
-                  )
-                ]}
-              >
-                <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Posts
-              </button>
-              <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="replies"
-                role="tab"
-                aria-selected={@timeline_filter == "replies"}
-                class={[
-                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                  if(@timeline_filter == "replies",
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
-                  )
-                ]}
-              >
-                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Replies
-              </button>
-              <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="media"
-                role="tab"
-                aria-selected={@timeline_filter == "media"}
-                class={[
-                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                  if(@timeline_filter == "media",
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
-                  )
-                ]}
-              >
-                <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
-              </button>
-              <button
-                type="button"
-                phx-click="filter_timeline"
-                phx-value-filter="communities"
-                role="tab"
-                aria-selected={@timeline_filter == "communities"}
-                class={[
-                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                  if(@timeline_filter == "communities",
-                    do: "btn-secondary border-secondary",
-                    else: "bg-base-200 text-base-content hover:bg-base-300"
-                  )
-                ]}
-              >
-                <.icon name="hero-users" class="w-4 h-4 mr-1" /> Communities
-              </button>
-              <%= if @current_filter != "federated" && @current_user do %>
-                <div class="h-6 w-px bg-base-300 mx-1"></div>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="all"
+                  role="tab"
+                  aria-selected={@timeline_filter == "all"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_filter == "all",
+                      do: "btn-secondary border-secondary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-squares-2x2" class="w-4 h-4 mr-1" /> All
+                </button>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="posts"
+                  role="tab"
+                  aria-selected={@timeline_filter == "posts"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_filter == "posts",
+                      do: "btn-secondary border-secondary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-document-text" class="w-4 h-4 mr-1" /> Posts
+                </button>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="replies"
+                  role="tab"
+                  aria-selected={@timeline_filter == "replies"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_filter == "replies",
+                      do: "btn-secondary border-secondary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Replies
+                </button>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="media"
+                  role="tab"
+                  aria-selected={@timeline_filter == "media"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_filter == "media",
+                      do: "btn-secondary border-secondary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-photo" class="w-4 h-4 mr-1" /> Media
+                </button>
+                <button
+                  type="button"
+                  phx-click="filter_timeline"
+                  phx-value-filter="communities"
+                  role="tab"
+                  aria-selected={@timeline_filter == "communities"}
+                  class={[
+                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                    if(@timeline_filter == "communities",
+                      do: "btn-secondary border-secondary",
+                      else: "bg-base-200 text-base-content hover:bg-base-300"
+                    )
+                  ]}
+                >
+                  <.icon name="hero-users" class="w-4 h-4 mr-1" /> Communities
+                </button>
+                <%= if @current_filter != "federated" && @current_user do %>
+                  <div class="h-6 w-px bg-base-300 mx-1"></div>
 
-                <%= if length(@friends) > 0 do %>
+                  <%= if length(@friends) > 0 do %>
+                    <button
+                      type="button"
+                      phx-click="filter_timeline"
+                      phx-value-filter="friends"
+                      role="tab"
+                      aria-selected={@timeline_filter == "friends"}
+                      class={[
+                        "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                        if(@timeline_filter == "friends",
+                          do: "btn-secondary border-secondary",
+                          else: "bg-base-200 text-base-content hover:bg-base-300"
+                        )
+                      ]}
+                    >
+                      <.icon name="hero-user-group" class="w-4 h-4 mr-1" /> Friends
+                    </button>
+                  <% end %>
+
                   <button
                     type="button"
                     phx-click="filter_timeline"
-                    phx-value-filter="friends"
+                    phx-value-filter="my_posts"
                     role="tab"
-                    aria-selected={@timeline_filter == "friends"}
+                    aria-selected={@timeline_filter == "my_posts"}
                     class={[
                       "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                      if(@timeline_filter == "friends",
+                      if(@timeline_filter == "my_posts",
                         do: "btn-secondary border-secondary",
                         else: "bg-base-200 text-base-content hover:bg-base-300"
                       )
                     ]}
                   >
-                    <.icon name="hero-user-group" class="w-4 h-4 mr-1" /> Friends
+                    <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
+                  </button>
+                  <button
+                    type="button"
+                    phx-click="filter_timeline"
+                    phx-value-filter="trusted"
+                    role="tab"
+                    aria-selected={@timeline_filter == "trusted"}
+                    class={[
+                      "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                      if(@timeline_filter == "trusted",
+                        do: "btn-secondary border-secondary",
+                        else: "bg-base-200 text-base-content hover:bg-base-300"
+                      )
+                    ]}
+                  >
+                    <.icon name="hero-shield-check" class="w-4 h-4 mr-1" /> Trusted
                   </button>
                 <% end %>
-
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="my_posts"
-                  role="tab"
-                  aria-selected={@timeline_filter == "my_posts"}
-                  class={[
-                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                    if(@timeline_filter == "my_posts",
-                      do: "btn-secondary border-secondary",
-                      else: "bg-base-200 text-base-content hover:bg-base-300"
-                    )
-                  ]}
-                >
-                  <.icon name="hero-user-circle" class="w-4 h-4 mr-1" /> My Posts
-                </button>
-                <button
-                  type="button"
-                  phx-click="filter_timeline"
-                  phx-value-filter="trusted"
-                  role="tab"
-                  aria-selected={@timeline_filter == "trusted"}
-                  class={[
-                    "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
-                    if(@timeline_filter == "trusted",
-                      do: "btn-secondary border-secondary",
-                      else: "bg-base-200 text-base-content hover:bg-base-300"
-                    )
-                  ]}
-                >
-                  <.icon name="hero-shield-check" class="w-4 h-4 mr-1" /> Trusted
-                </button>
-              <% end %>
-            </div>
+              </div>
+            <% end %>
 
             <div class="mt-4 flex flex-wrap items-center gap-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mr-1">
                 Sort
               </p>
 
-              <%= for {value, label, icon} <- [
-                {"new", "Newest", "hero-clock"},
-                {"old", "Oldest", "hero-arrow-uturn-left"},
-                {"likes", "Likes", "hero-heart"}
-              ] do %>
+              <%= for {value, label, icon} <- if(@current_filter == "rss",
+                    do: [
+                      {"new", "Newest", "hero-clock"},
+                      {"old", "Oldest", "hero-arrow-uturn-left"}
+                    ],
+                    else: [
+                      {"new", "Newest", "hero-clock"},
+                      {"old", "Oldest", "hero-arrow-uturn-left"},
+                      {"likes", "Likes", "hero-heart"}
+                    ]) do %>
                 <.link
                   patch={
                     timeline_sort_path(@current_filter, @timeline_filter, value, @search_query)
