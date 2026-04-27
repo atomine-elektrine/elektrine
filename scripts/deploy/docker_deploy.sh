@@ -511,7 +511,10 @@ done
 remove_caddy_with_stale_config_mount
 
 if [[ "$DO_UP" -eq 1 ]]; then
-  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d postgres
+  # Do not let the partial postgres bootstrap recreate the shared project network
+  # while other profile services are still attached. The full stack is converged
+  # after migrations below.
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-recreate postgres
 
   if [[ -n "$POSTGRES_EXTENSIONS_RAW" ]]; then
     IFS=',' read -r -a POSTGRES_EXTENSIONS <<< "$POSTGRES_EXTENSIONS_RAW"

@@ -54,7 +54,7 @@ services:
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
       PHX_SERVER: "true"
       PORT: ${PORT:-8080}
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.18.0.12/32}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.0.12/32}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
@@ -69,7 +69,10 @@ services:
       - app_data:/data
       - uploads:/data/uploads
     networks:
-      - elektrine_network
+      elektrine_network:
+      caddy_proxy_network:
+        aliases:
+          - app_proxy
     restart: unless-stopped
 
   worker:
@@ -306,11 +309,11 @@ services:
       - ../../.env.production
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
-      CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app:8080/_edge/tls/v1/allow}
+      CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app_proxy:8080/_edge/tls/v1/allow}
       CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-}
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
       NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-192.0.2.0/32}
-      ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app:8080}
+      ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app_proxy:8080}
     ports:
       - "${CADDY_HTTP_BIND:-80:80}"
       - "${CADDY_HTTPS_BIND:-443:443}"
@@ -320,7 +323,8 @@ services:
       - caddy_data:/data
     networks:
       elektrine_network:
-        ipv4_address: ${CADDY_DOCKER_IPV4:-172.18.0.12}
+      caddy_proxy_network:
+        ipv4_address: ${CADDY_DOCKER_IPV4:-172.30.0.12}
     restart: unless-stopped
 
   bluesky_pds:
@@ -361,6 +365,8 @@ volumes:
 networks:
   elektrine_network:
     driver: bridge
+  caddy_proxy_network:
+    driver: bridge
     ipam:
       config:
-        - subnet: ${ELEKTRINE_DOCKER_SUBNET:-172.18.0.0/16}
+        - subnet: ${CADDY_PROXY_DOCKER_SUBNET:-172.30.0.0/24}
