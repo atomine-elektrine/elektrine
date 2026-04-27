@@ -6,6 +6,7 @@ defmodule ElektrineWeb.TwoFactorController do
   alias Elektrine.Accounts.TrustedDevice
   alias Elektrine.Auth.RateLimiter
   alias Elektrine.Telemetry.Events
+  alias ElektrineWeb.ClientIP
   alias ElektrineWeb.UserAuth
 
   def new(conn, _params) do
@@ -171,7 +172,7 @@ defmodule ElektrineWeb.TwoFactorController do
   defp create_trusted_device(conn, user) do
     # Get device information
     user_agent = get_req_header(conn, "user-agent") |> List.first()
-    ip_address = to_string(:inet_parse.ntoa(conn.remote_ip))
+    ip_address = ClientIP.client_ip(conn)
 
     # Generate device name from user agent
     device_name = parse_device_name(user_agent)

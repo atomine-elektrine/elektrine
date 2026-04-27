@@ -2,6 +2,7 @@ defmodule ElektrineWeb.LocaleController do
   use ElektrineWeb, :controller
 
   alias Elektrine.Accounts
+  alias ElektrineWeb.ClientIP
 
   def switch(conn, %{"locale" => locale}) do
     supported_locales = ~w(en es fr de zh ja)
@@ -35,7 +36,7 @@ defmodule ElektrineWeb.LocaleController do
   # Handle missing locale parameter (bots, invalid requests)
   def switch(conn, _params) do
     require Logger
-    ip_address = to_string(:inet_parse.ntoa(conn.remote_ip))
+    ip_address = ClientIP.client_ip(conn)
     Logger.warning("Invalid locale switch attempt from #{ip_address} without locale parameter")
 
     # Redirect to homepage with error
