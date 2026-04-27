@@ -82,10 +82,18 @@ defmodule Elektrine.DNS.ZoneCache do
      Zone
      |> where([z], z.status == "verified")
      |> preload(:records)
-     |> Repo.all(repo_opts)}
+     |> Repo.all(repo_opts)
+     |> Enum.map(&repair_builtin_zone_records/1)}
   rescue
     error in [Postgrex.Error, DBConnection.OwnershipError] ->
       {:error, error}
+  end
+
+  defp repair_builtin_zone_records(%Zone{} = zone) do
+    case Elektrine.DNS.repair_builtin_user_zone_records(zone) do
+      {:ok, zone} -> zone
+      _ -> zone
+    end
   end
 
   defp schedule_refresh(refresh_interval_ms)

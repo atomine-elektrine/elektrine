@@ -128,6 +128,16 @@ defmodule Elektrine.DNS do
 
   def builtin_user_zone?(_), do: false
 
+  def repair_builtin_user_zone_records(%Zone{} = zone) do
+    if builtin_user_zone?(zone) do
+      ensure_builtin_user_zone_records(zone, refresh_cache?: false)
+    else
+      {:ok, zone}
+    end
+  end
+
+  def repair_builtin_user_zone_records(_), do: {:error, :invalid_zone}
+
   def list_zone_records(zone_id) when is_integer(zone_id) do
     Record
     |> where(zone_id: ^zone_id)
@@ -1314,7 +1324,7 @@ defmodule Elektrine.DNS do
     end
   end
 
-  defp ensure_builtin_user_zone_records(%Zone{} = zone) do
+  defp ensure_builtin_user_zone_records(%Zone{} = zone, opts \\ []) do
     zone = Repo.preload(zone, [:records, :service_configs], force: true)
 
     if builtin_user_zone_records_current?(zone) do
@@ -1327,7 +1337,10 @@ defmodule Elektrine.DNS do
       end)
       |> case do
         {:ok, zone} ->
-          refresh_authority_cache()
+          if Keyword.get(opts, :refresh_cache?, true) do
+            refresh_authority_cache()
+          end
+
           {:ok, zone}
 
         other ->

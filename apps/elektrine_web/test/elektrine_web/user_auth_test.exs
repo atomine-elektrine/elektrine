@@ -211,6 +211,20 @@ defmodule ElektrineWeb.UserAuthTest do
       refute conn.halted
     end
 
+    test "allows admin host without duplicating Caddy NetBird check", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
+
+      conn = %{
+        conn
+        | host: "admin.#{Elektrine.Domains.primary_profile_domain()}",
+          remote_ip: {203, 0, 113, 10}
+      }
+
+      conn = UserAuth.require_vpn_when_netbird_enabled(conn, [])
+
+      refute conn.halted
+    end
+
     test "returns 404 for public clients when NetBird is enabled", %{conn: conn} do
       Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
       conn = %{conn | remote_ip: {203, 0, 113, 10}}
