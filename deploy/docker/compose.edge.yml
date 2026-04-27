@@ -26,7 +26,8 @@ services:
       - ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
       - caddy_data:/data
     networks:
-      - elektrine_network
+      elektrine_network:
+        ipv4_address: ${CADDY_DOCKER_IPV4:-172.18.0.12}
     restart: unless-stopped
 
 volumes:
@@ -35,3 +36,6 @@ volumes:
 networks:
   elektrine_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${ELEKTRINE_DOCKER_SUBNET:-172.18.0.0/16}

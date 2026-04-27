@@ -51,9 +51,10 @@ services:
       DATABASE_URL: ecto://elektrine:${DB_PASSWORD:?set DB_PASSWORD}@postgres/elektrine_prod
       POOL_SIZE: ${APP_POOL_SIZE:-10}
       PHX_HOST: ${PHX_HOST:-example.com}
+      CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
       PHX_SERVER: "true"
       PORT: ${PORT:-8080}
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.18.0.12/32}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
@@ -318,7 +319,8 @@ services:
       - ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}:/opt/elektrine/certs:ro
       - caddy_data:/data
     networks:
-      - elektrine_network
+      elektrine_network:
+        ipv4_address: ${CADDY_DOCKER_IPV4:-172.18.0.12}
     restart: unless-stopped
 
   bluesky_pds:
@@ -359,3 +361,6 @@ volumes:
 networks:
   elektrine_network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${ELEKTRINE_DOCKER_SUBNET:-172.18.0.0/16}
