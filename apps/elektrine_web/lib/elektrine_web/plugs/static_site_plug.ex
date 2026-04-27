@@ -8,6 +8,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   import Phoenix.Controller, only: [redirect: 2]
   alias Elektrine.{Accounts, Profiles, StaticSites}
   alias Elektrine.Accounts.User
+  alias ElektrineWeb.ClientIP
   alias ElektrineWeb.UserAuth
 
   # Allowed content types for static sites (validated on upload, but double-check here)
@@ -247,7 +248,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         Profiles.track_profile_site_visit(profile_user_id,
           viewer_user_id: viewer_user_id,
           visitor_id: visitor_id,
-          ip_address: remote_ip_string(conn.remote_ip),
+          ip_address: ClientIP.client_ip(conn),
           user_agent: get_req_header(conn, "user-agent") |> List.first(),
           referer: get_req_header(conn, "referer") |> List.first(),
           request_host: conn.host,
@@ -278,11 +279,6 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         {conn, Ecto.UUID.generate()}
     end
   end
-
-  defp remote_ip_string(tuple) when is_tuple(tuple),
-    do: tuple |> :inet_parse.ntoa() |> to_string()
-
-  defp remote_ip_string(_), do: nil
 
   defp static_site_lookup_candidates(asset_path) when is_binary(asset_path) do
     trimmed_path = String.trim(asset_path)

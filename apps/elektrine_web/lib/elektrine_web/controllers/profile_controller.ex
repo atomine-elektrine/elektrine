@@ -46,6 +46,7 @@ defmodule ElektrineWeb.ProfileController do
 
   alias Elektrine.Accounts.User
 
+  alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Platform.Integrations
 
   # Reserved usernames that conflict with routes
@@ -128,7 +129,7 @@ defmodule ElektrineWeb.ProfileController do
 
                                 Profiles.track_profile_view(user.id,
                                   viewer_user_id: viewer_user_id,
-                                  ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                                  ip_address: ClientIP.client_ip(conn),
                                   user_agent: get_req_header(conn, "user-agent") |> List.first(),
                                   referer: get_req_header(conn, "referer") |> List.first()
                                 )
@@ -136,7 +137,7 @@ defmodule ElektrineWeb.ProfileController do
                                 Profiles.track_profile_site_visit(user.id,
                                   viewer_user_id: viewer_user_id,
                                   visitor_id: visitor_id,
-                                  ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                                  ip_address: ClientIP.client_ip(conn),
                                   user_agent: get_req_header(conn, "user-agent") |> List.first(),
                                   referer: get_req_header(conn, "referer") |> List.first(),
                                   request_host: conn.host,
@@ -180,7 +181,7 @@ defmodule ElektrineWeb.ProfileController do
 
                       Profiles.track_profile_view(profile.user_id,
                         viewer_user_id: viewer_user_id,
-                        ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                        ip_address: ClientIP.client_ip(conn),
                         user_agent: get_req_header(conn, "user-agent") |> List.first(),
                         referer: get_req_header(conn, "referer") |> List.first()
                       )
@@ -188,7 +189,7 @@ defmodule ElektrineWeb.ProfileController do
                       Profiles.track_profile_site_visit(profile.user_id,
                         viewer_user_id: viewer_user_id,
                         visitor_id: visitor_id,
-                        ip_address: to_string(:inet_parse.ntoa(conn.remote_ip)),
+                        ip_address: ClientIP.client_ip(conn),
                         user_agent: get_req_header(conn, "user-agent") |> List.first(),
                         referer: get_req_header(conn, "referer") |> List.first(),
                         request_host: conn.host,

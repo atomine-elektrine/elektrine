@@ -74,17 +74,14 @@ defmodule ElektrineWeb.ClientIP do
   end
 
   defp x_forwarded_for_ip(conn) do
-    conn
-    |> get_req_header("x-forwarded-for")
-    |> List.first()
-    |> case do
-      nil ->
+    case get_req_header(conn, "x-forwarded-for") do
+      [] ->
         nil
 
-      value ->
+      values ->
         parsed_ips =
-          value
-          |> String.split(",")
+          values
+          |> Enum.flat_map(&String.split(&1, ","))
           |> Enum.map(&parse_ip_string/1)
           |> Enum.flat_map(fn
             {:ok, ip} -> [ip]

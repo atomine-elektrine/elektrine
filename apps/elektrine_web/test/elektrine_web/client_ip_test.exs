@@ -39,6 +39,26 @@ defmodule ElektrineWeb.ClientIPTest do
 
       assert ClientIP.client_ip(conn) == "203.0.113.9"
     end
+
+    test "uses public IP from later x-forwarded-for header values", %{conn: conn} do
+      previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_cidrs)
+      end)
+
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["10.0.0.0/8"])
+
+      conn =
+        conn
+        |> Map.put(:remote_ip, {10, 20, 30, 40})
+        |> Map.put(:req_headers, [
+          {"x-forwarded-for", "172.18.0.12"},
+          {"x-forwarded-for", "198.51.100.15"}
+        ])
+
+      assert ClientIP.client_ip(conn) == "198.51.100.15"
+    end
   end
 
   describe "forwarded_as_https?/1" do
