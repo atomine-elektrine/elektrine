@@ -11,7 +11,7 @@ If you run it without explicit profiles, it defaults to `caddy`.
 - `app`
 - `worker`
 - `postgres`
-- optional `mail` service when the `email` profile is enabled
+- optional `mail` protocol container when the `email` profile is enabled
 - optional `dns` service when the `dns` profile is enabled
 - optional `turn` service when the `turn` profile is enabled
 - optional `vpn` service when the `vpn` module is enabled
@@ -20,6 +20,10 @@ If you run it without explicit profiles, it defaults to `caddy`.
 - optional onion hosting inside the `app` container when the `tor` profile is enabled
 
 See `docs/self-hosting/caddy.md` for Caddy details.
+
+The Docker `email` profile starts Elektrine's mail protocol container. It is not
+the Haraka SMTP edge; use `docs/self-hosting/mail.md` before exposing production
+mail.
 
 ## Model
 
@@ -40,15 +44,15 @@ runs in the same stack.
 
 ## Host Layout
 
-1. clone this repo to `/opt/elektrine/app`
-2. copy `.env.example` or one of the smaller files under `env/` to `/opt/elektrine/app/.env.production`
-3. install Docker Engine with the Compose plugin
-4. install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts
+1. Clone this repo to `/opt/elektrine/app`.
+2. Copy `.env.example` or one of the smaller files under `env/` to `/opt/elektrine/app/.env.production`.
+3. Install Docker Engine with the Compose plugin.
+4. Install `deploy/docker/elektrine-compose.service` as a systemd unit if you want boot-time restarts.
 
 ## Environment Files
 
 For a first deploy, generate a minimal `.env.production` instead of starting from
-the full kitchen-sink example:
+the full root example:
 
 ```bash
 scripts/deploy/generate_env.sh --domain example.com --email admin@example.com
@@ -221,7 +225,7 @@ scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --m
 
 ## Optional Services
 
-Enable the separate mail protocol service with:
+Enable Elektrine's separate mail protocol container with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,email,vault --profile caddy --profile email

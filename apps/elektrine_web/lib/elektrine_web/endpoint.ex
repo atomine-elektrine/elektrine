@@ -1,5 +1,4 @@
 defmodule ElektrineWeb.Endpoint do
-  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :elektrine
 
   alias Elektrine.Constants
@@ -74,7 +73,6 @@ defmodule ElektrineWeb.Endpoint do
     # 25MB limit for all requests including email attachments
     length: 25 * 1024 * 1024
 
-  plug Sentry.PlugContext
   plug Plug.MethodOverride
   plug Plug.Head
   plug ElektrineWeb.Plugs.EnforceHTTPS
@@ -82,5 +80,6 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.ProfileSubdomain
   plug ElektrineWeb.Plugs.SecurityHeaders
   plug ElektrineWeb.Plugs.ProfileCustomDomain
+  plug PostHog.Integrations.Plug
   plug ElektrineWeb.Router
 end

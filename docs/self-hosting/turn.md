@@ -3,7 +3,7 @@
 Use the `turn` Docker profile when you want Elektrine chat calls to use your own
 STUN/TURN service instead of public infrastructure.
 
-The deploy flow is intentionally small:
+Minimum setup:
 
 1. set `PRIMARY_DOMAIN`
 2. set `ELEKTRINE_MASTER_SECRET`

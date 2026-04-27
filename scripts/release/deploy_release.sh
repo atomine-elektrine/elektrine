@@ -64,6 +64,10 @@ mix phx.digest ../apps/elektrine/priv/static --no-compile
 rm -rf ../_build/release_builder
 mix clean
 mix compile
+mix posthog.package_source_code \
+  --root-path "$ROOT_DIR/apps" \
+  --root-path "$ROOT_DIR/config" \
+  --root-path "$ROOT_DIR/release_builder"
 mix release "$RELEASE_NAME" --overwrite
 
 RELEASE_DIR="$ROOT_DIR/_build/release_builder/$BUILD_SLUG/$MIX_ENV/rel/$RELEASE_NAME"

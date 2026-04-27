@@ -9,7 +9,7 @@ Standalone umbrella app for password-vault domain logic.
 - Domain tests for create/list/retrieve/delete flows
 - Vault LiveView, external API controller, and route macros under `ElektrinePasswordManagerWeb.*`
 
-## Current integration
+## Current Integration
 
 - Uses `Elektrine.Repo` for persistence.
 - Requires explicit vault setup with a browser-encrypted verifier payload.
@@ -17,7 +17,7 @@ Standalone umbrella app for password-vault domain logic.
 - `elektrine_web` imports route macros from this app instead of owning the vault UI/API modules directly.
 - The deploy scripts use the module id `vault`; `password-manager` and `password_manager` are accepted aliases.
 
-## Path to external open-source extraction
+## If This Splits Out Later
 
 1. Replace `Elektrine.Repo` references with a configurable repo behaviour.
 2. Move migration ownership into this app/repo package.

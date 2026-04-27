@@ -1,18 +1,22 @@
 # Mail Self-hosting
 
-Elektrine mail can run either as a single deployment or alongside Haraka.
+For production internet mail, treat Elektrine and Haraka as two pieces:
 
-- this repo owns mailbox UI, storage, JMAP, WKD, SMTP submission, and Haraka-facing webhooks
-- `elektrine-haraka` can own inbound SMTP edge, outbound delivery, and queueing
+- Elektrine owns mailbox UI, storage, JMAP, WKD, IMAP/POP3, SMTP submission, and
+  webhooks that Haraka calls
+- `elektrine-haraka` owns inbound SMTP on port 25, outbound delivery, and queueing
 
-You can run both deployments on the same bare-metal server.
+You can run both deployments on the same bare-metal server. The Docker `email`
+profile starts Elektrine's mail protocol container; it is not a replacement for
+Haraka when you need normal inbound and outbound internet mail.
 
 To enable mail:
 
-1. add the `email` module in `ELEKTRINE_ENABLED_MODULES`
-2. fill in the mail section already present in `.env.example` / `.env.production`
-3. optionally deploy Haraka separately for inbound/outbound relay
-4. when using Haraka, connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted
+1. Add the `email` module in `ELEKTRINE_ENABLED_MODULES`.
+2. Fill in the mail section already present in `.env.example` / `.env.production`.
+3. Enable the Docker `email` profile if this host should expose Elektrine's IMAP/POP3/SMTP submission listeners.
+4. Deploy Haraka for production inbound/outbound relay.
+5. Connect the two systems with `HARAKA_BASE_URL`; internal API and webhook secrets are derived automatically from `ELEKTRINE_MASTER_SECRET` if omitted.
 
 Managed DNS for mail also provisions:
 
@@ -122,4 +126,6 @@ POP3_TLS_CERT_PATH=/opt/elektrine/certs/pop.crt
 POP3_TLS_KEY_PATH=/opt/elektrine/certs/pop.key
 ```
 
-If you do not want to run a second deployment, do not enable the `email` module.
+If you are not ready to run Haraka, keep the `email` module off for production
+hosts. Enabling only Elektrine's `email` module/profile gives you mailbox and
+protocol pieces, not a complete internet mail service.

@@ -22,4 +22,4 @@ config :logger, :console,
   metadata: [:request_id, :user_id]
 
 # Runtime production configuration, including reading
-# of environment variables (including Sentry DSN), is done on config/runtime.exs.
+# of environment variables, is done on config/runtime.exs.

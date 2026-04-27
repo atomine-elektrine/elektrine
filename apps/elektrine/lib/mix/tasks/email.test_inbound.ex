@@ -93,16 +93,15 @@ defmodule Mix.Tasks.Email.TestInbound do
 
     Mix.shell().info("Sending test email to #{url}...")
 
-    # Start HTTP client if not started
-    Application.ensure_all_started(:hackney)
-
     # Make the HTTP request
-    case :hackney.post(url, headers, body, [:with_body]) do
-      {:ok, 200, _headers, _body} ->
+    request = Finch.build(:post, url, headers, body)
+
+    case Finch.request(request, Elektrine.Finch) do
+      {:ok, %{status: 200}} ->
         Mix.shell().info("Test email processed successfully!")
         Mix.shell().info("Check the inbox for an email from 'sender@example.com'")
 
-      {:ok, status, _headers, response_body} ->
+      {:ok, %{status: status, body: response_body}} ->
         Mix.shell().error("Request failed with status #{status}")
         Mix.shell().error("Response: #{response_body}")
 

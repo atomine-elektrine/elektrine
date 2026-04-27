@@ -18,13 +18,13 @@ product areas are split into their own umbrella apps.
 ## Main apps
 
 - `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts, uploads, notifications, calendar, and module selection
-- `apps/elektrine_web`: endpoint, router, plugs, layouts, shared components, and the host shell
-- `apps/elektrine_chat`: chat facade plus chat LiveView and API surface
-- `apps/elektrine_social`: timeline, communities, federation, and social web surface
-- `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and email web surface
+- `apps/elektrine_web`: endpoint, router, plugs, layouts, shared components, and account/admin shell
+- `apps/elektrine_chat`: chat facade plus LiveViews, JSON APIs, and PAT APIs
+- `apps/elektrine_social`: timeline, communities, federation, social controllers, and LiveViews
+- `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and mail web routes
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
 - `apps/elektrine_password_manager`: password vault domain and extracted vault routes
-- `apps/elektrine_dns`: managed DNS runtime, DNS API, and DNS LiveView surface
+- `apps/elektrine_dns`: managed DNS runtime, DNS API routes, and DNS LiveViews
 
 Requests enter through `ElektrineWeb.Router`, pass through shared plugs and
 module guards, and then land in the controller or LiveView mounted for the
@@ -128,39 +128,41 @@ peer state in-app.
 The self-hosting docs are split by profile:
 
 - `core`: Phoenix app and Postgres only
-- `mail`: Haraka deployment layered on top of the `email` module
+- `mail`: Elektrine mail protocols plus Haraka for production SMTP edge/delivery
 - `dns`: optional authoritative DNS service enabled through the Docker `dns` profile
 - `vpn`: optional Docker-managed WireGuard on the same stack, with optional fleet mode
-- `addons`: Caddy edge, Bluesky PDS, onion hosting, and client artifacts
+- `addons`: Caddy edge, TURN, Bluesky PDS, onion hosting, and client artifacts
 
 Start with:
 
 - `docs/self-hosting/README.md`
 - `docs/self-hosting/docker.md`
 - `docs/self-hosting/core.md`
+- `docs/self-hosting/caddy.md`
 - `docs/self-hosting/mail.md`
 - `docs/architecture/dns-module.md`
+- `docs/self-hosting/turn.md`
 - `docs/self-hosting/vpn.md`
 - `docs/addons/onion.md`
 - `docs/clients/password-manager-extension.md`
 
 ## Email Deployment
 
-The `email` module in this repo is only part of the mail stack. Mail transport
-lives in
+The `email` module in this repo is the mailbox/product side of the mail stack.
+Production internet mail also needs
 [`atomine-elektrine/elektrine-haraka`](https://github.com/atomine-elektrine/elektrine-haraka),
-and a production email deployment needs both repositories.
+which owns the SMTP edge and delivery pipeline.
 
 This repo owns the mailbox product: UI, aliases, contacts, JMAP, WKD, message
-storage, and the Phoenix endpoints that receive mail webhooks.
-`elektrine-haraka` owns the SMTP edge and delivery pipeline: inbound SMTP,
-authenticated submission, outbound send API, Redis-backed queueing, and the
-worker that posts cleaned inbound message data back into Phoenix.
+storage, optional IMAP/POP3/SMTP submission listeners, and the Phoenix endpoints
+that receive mail webhooks. `elektrine-haraka` owns inbound SMTP on port 25,
+outbound delivery, Redis-backed queueing, and the worker that posts cleaned
+inbound message data back into Phoenix.
 
-If you enable the `email` module, deploy `elektrine-haraka` alongside it and
-configure `HARAKA_BASE_URL`, an outbound Haraka API key, and an inbound webhook
-key. Both deployments can live on the same bare-metal server as separate Docker
-projects.
+If you enable the `email` module for production, deploy `elektrine-haraka`
+alongside it and configure `HARAKA_BASE_URL`, an outbound Haraka API key, and an
+inbound webhook key. Both deployments can live on the same bare-metal server as
+separate Docker projects.
 
 ## Bluesky Integration
 

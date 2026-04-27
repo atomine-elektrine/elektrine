@@ -26,6 +26,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.CSRFErrorHandler)
     plug(:put_secure_browser_headers)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.PostHogContext)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.Locale)
     plug(ElektrineWeb.Plugs.TimezonePlug)
@@ -45,6 +46,7 @@ defmodule ElektrineWeb.Router do
     plug(:put_secure_browser_headers)
     plug(ElektrineWeb.Plugs.ProfileCSP)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.PostHogContext)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.Locale)
     plug(ElektrineWeb.Plugs.TimezonePlug)
@@ -86,6 +88,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.CSRFErrorHandler)
     plug(:put_secure_browser_headers)
     plug(:fetch_current_user)
+    plug(ElektrineWeb.Plugs.PostHogContext)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
   end
 

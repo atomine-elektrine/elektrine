@@ -154,26 +154,17 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                   end
 
                 unless forwarding_failure_reason?(reason) do
-                  Sentry.capture_message("Failed to process inbound email",
-                    level:
-                      if no_mailbox_reason?(reason) do
-                        :warning
-                      else
-                        :error
-                      end,
-                    extra: %{
-                      reason: inspect(reason),
-                      duration_ms: duration,
-                      to_domain: email_domain(params["to"]),
-                      rcpt_to_domain: email_domain(params["rcpt_to"]),
-                      from_domain: email_domain(params["from"]),
-                      to_hash: pii_hash(params["to"]),
-                      rcpt_to_hash: pii_hash(params["rcpt_to"]),
-                      from_hash: pii_hash(params["from"]),
-                      attachment_info: attachment_info,
-                      subject_hash: pii_hash(params["subject"]),
-                      subject_length: string_length(params["subject"])
-                    }
+                  Logger.error(
+                    "Failed to process inbound email: #{inspect(reason)} duration_ms=#{duration} " <>
+                      "to_domain=#{inspect(email_domain(params["to"]))} " <>
+                      "rcpt_to_domain=#{inspect(email_domain(params["rcpt_to"]))} " <>
+                      "from_domain=#{inspect(email_domain(params["from"]))} " <>
+                      "to_hash=#{inspect(pii_hash(params["to"]))} " <>
+                      "rcpt_to_hash=#{inspect(pii_hash(params["rcpt_to"]))} " <>
+                      "from_hash=#{inspect(pii_hash(params["from"]))} " <>
+                      "attachment_info=#{inspect(attachment_info)} " <>
+                      "subject_hash=#{inspect(pii_hash(params["subject"]))} " <>
+                      "subject_length=#{inspect(string_length(params["subject"]))}"
                   )
                 end
               end
@@ -212,18 +203,14 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                   %{format: "unknown", count: 0}
               end
 
-            Sentry.capture_exception(e,
-              stacktrace: __STACKTRACE__,
-              extra: %{
-                context: "haraka_webhook_processing",
-                attachment_info: attachment_info,
-                to_domain: email_domain(params["to"]),
-                from_domain: email_domain(params["from"]),
-                to_hash: pii_hash(params["to"]),
-                from_hash: pii_hash(params["from"]),
-                subject_hash: pii_hash(params["subject"]),
-                subject_length: string_length(params["subject"])
-              }
+            Logger.error(
+              "Haraka webhook processing context: attachment_info=#{inspect(attachment_info)} " <>
+                "to_domain=#{inspect(email_domain(params["to"]))} " <>
+                "from_domain=#{inspect(email_domain(params["from"]))} " <>
+                "to_hash=#{inspect(pii_hash(params["to"]))} " <>
+                "from_hash=#{inspect(pii_hash(params["from"]))} " <>
+                "subject_hash=#{inspect(pii_hash(params["subject"]))} " <>
+                "subject_length=#{inspect(string_length(params["subject"]))}"
             )
 
             conn |> put_status(:internal_server_error) |> json(%{error: "Internal server error"})
@@ -327,19 +314,16 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
         queue: :email_inbound
       })
 
-      Sentry.capture_exception(e,
-        stacktrace: __STACKTRACE__,
-        extra: %{
-          context: "haraka_webhook_enqueue",
-          to_domain: email_domain(params["to"]),
-          rcpt_to_domain: email_domain(params["rcpt_to"]),
-          from_domain: email_domain(params["from"]),
-          to_hash: pii_hash(params["to"]),
-          rcpt_to_hash: pii_hash(params["rcpt_to"]),
-          from_hash: pii_hash(params["from"]),
-          subject_hash: pii_hash(params["subject"]),
-          subject_length: string_length(params["subject"])
-        }
+      Logger.error(
+        "Haraka webhook enqueue context: " <>
+          "to_domain=#{inspect(email_domain(params["to"]))} " <>
+          "rcpt_to_domain=#{inspect(email_domain(params["rcpt_to"]))} " <>
+          "from_domain=#{inspect(email_domain(params["from"]))} " <>
+          "to_hash=#{inspect(pii_hash(params["to"]))} " <>
+          "rcpt_to_hash=#{inspect(pii_hash(params["rcpt_to"]))} " <>
+          "from_hash=#{inspect(pii_hash(params["from"]))} " <>
+          "subject_hash=#{inspect(pii_hash(params["subject"]))} " <>
+          "subject_length=#{inspect(string_length(params["subject"]))}"
       )
 
       conn |> put_status(:internal_server_error) |> json(%{error: "Internal server error"})
@@ -518,7 +502,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                   Logger.error(log_line)
                 end
 
-                capture_forwarding_failure_sentry(
+                log_forwarding_failure(
                   reason,
                   alias_email,
                   target_email,
@@ -671,10 +655,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
       Logger.error("Error processing Haraka email: #{inspect(e)}")
       Logger.error("Stack trace: #{Exception.format_stacktrace()}")
 
-      Sentry.capture_exception(e,
-        stacktrace: __STACKTRACE__,
-        extra: %{context: "haraka_email_parsing"}
-      )
+      Logger.error("Haraka email parsing context: context=haraka_email_parsing")
 
       {:error, :parsing_error}
   catch
@@ -1806,7 +1787,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     {text_body, html_body, %{}}
   end
 
-  defp capture_forwarding_failure_sentry(
+  defp log_forwarding_failure(
          reason,
          alias_email,
          target_email,
@@ -1815,29 +1796,17 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
          forward_duration,
          forwarding_reason
        ) do
-    sentry_extra = %{
-      forward_reason: inspect(reason),
-      forwarding_reason: inspect(forwarding_reason),
-      alias_email: alias_email,
-      target_email: target_email,
-      original_from: from,
-      subject: subject,
-      forward_duration_ms: forward_duration,
-      dashboard_url: admin_dashboard_url()
-    }
+    message =
+      "Email forwarding failed: forward_reason=#{inspect(reason)} " <>
+        "forwarding_reason=#{inspect(forwarding_reason)} " <>
+        "alias_email=#{inspect(alias_email)} target_email=#{inspect(target_email)} " <>
+        "original_from=#{inspect(from)} subject=#{inspect(subject)} " <>
+        "forward_duration_ms=#{forward_duration} dashboard_url=#{admin_dashboard_url()}"
 
     if no_mailbox_reason?(forwarding_reason) do
-      Sentry.capture_message("Email forwarding rejected: mailbox does not exist",
-        level: :warning,
-        extra: sentry_extra
-      )
+      Logger.warning(message)
     else
-      sentry_exception = RuntimeError.exception("Email forwarding failed: #{inspect(reason)}")
-
-      Sentry.capture_exception(sentry_exception,
-        stacktrace: current_stacktrace(),
-        extra: sentry_extra
-      )
+      Logger.error(message)
     end
   end
 
@@ -1875,13 +1844,6 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
       _ ->
         false
-    end
-  end
-
-  defp current_stacktrace do
-    case Process.info(self(), :current_stacktrace) do
-      {:current_stacktrace, stacktrace} -> Enum.drop(stacktrace, 1)
-      _ -> []
     end
   end
 

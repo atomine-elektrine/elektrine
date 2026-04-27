@@ -1,6 +1,6 @@
 # Elektrine Social
 
-Social domain and extracted social web surface for the Elektrine umbrella.
+Social domain code and social web routes for the Elektrine umbrella.
 
 ## What lives here
 
@@ -15,9 +15,9 @@ Social domain and extracted social web surface for the Elektrine umbrella.
 ## Notes
 
 - Builds on shared messaging/accounts contexts from `elektrine`.
-- Main API surface is `Elektrine.Social`.
-- `elektrine_web` mounts these modules as the host shell and keeps shared layout/auth/navigation concerns.
-- Router-mounted modules in this app still use `ElektrineWeb.*`; shared entrypoints for extracted surfaces live in `ElektrineSocialWeb`.
+- Main domain API is `Elektrine.Social`.
+- `elektrine_web` mounts these modules and keeps shared layout/auth/navigation concerns.
+- Router-mounted modules in this app still use `ElektrineWeb.*`; extracted social entrypoints live in `ElektrineSocialWeb`.
 
 ## License
 

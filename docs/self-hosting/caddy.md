@@ -1,7 +1,6 @@
 # Caddy edge
 
-Elektrine ships with a Docker-friendly Caddy edge that stays self-hosting
-friendly:
+Elektrine ships with a Caddy edge meant for self-hosted Docker installs:
 
 - stock app containers behind one reverse proxy
 - automatic HTTPS for your owned domains
@@ -47,10 +46,10 @@ For wildcard/external certificate mode, also set:
 - `CADDY_MANAGED_SITE_1_CERT_PATH`
 - `CADDY_MANAGED_SITE_1_KEY_PATH`
 
-Elektrine can issue the wildcard cert with Elektrine DNS and use external
-certificate mode. The issuer loads `.env.production` and infers the domain/API base from
-`PRIMARY_DOMAIN`, `PHX_HOST`, and `CADDY_MANAGED_SITE_1`. It uses the existing
-`CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
+Elektrine can issue the wildcard cert through Elektrine DNS, then run Caddy in
+external-certificate mode. The issuer loads `.env.production` and infers the
+domain/API base from `PRIMARY_DOMAIN`, `PHX_HOST`, and `CADDY_MANAGED_SITE_1`.
+It uses the existing `CADDY_EDGE_API_KEY` against Elektrine's internal DNS-01
 endpoint and saves that config into acme.sh. If needed, override with
 `--domain=example.com` or `--api-base=https://example.com`.
 
