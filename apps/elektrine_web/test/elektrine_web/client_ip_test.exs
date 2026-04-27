@@ -59,6 +59,23 @@ defmodule ElektrineWeb.ClientIPTest do
 
       assert ClientIP.client_ip(conn) == "198.51.100.15"
     end
+
+    test "resolves from trusted socket peer data and x-headers" do
+      previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_cidrs)
+      end)
+
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.12/32"])
+
+      headers = [
+        {"x-forwarded-for", "172.18.0.12"},
+        {"x-forwarded-for", "203.0.113.44"}
+      ]
+
+      assert ClientIP.client_ip({172, 30, 0, 12}, headers) == "203.0.113.44"
+    end
   end
 
   describe "forwarded_as_https?/1" do

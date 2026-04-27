@@ -8,6 +8,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   import ElektrineWeb.Components.User.VerificationBadge
   import ElektrineWeb.HtmlHelpers
   alias Elektrine.{AccountIdentifiers, Accounts, Domains, Messaging, Profiles}
+  alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Platform.Integrations
   @impl true
   def mount(%{"handle" => handle}, session, socket) do
@@ -720,8 +721,7 @@ defmodule ElektrineWeb.ProfileLive.Show do
   defp get_connection_metadata(socket) do
     connect_params = get_connect_params(socket) || %{}
 
-    ip_address =
-      connect_params["remote_ip"] || connect_params["x_real_ip"] || "unknown"
+    ip_address = connection_client_ip(socket)
 
     user_agent =
       connect_params["user_agent"] || connect_params["_user_agent"] || "unknown"
@@ -741,6 +741,18 @@ defmodule ElektrineWeb.ProfileLive.Show do
       end
 
     {to_string(ip_address), to_string(user_agent), referer, request_host, request_path}
+  end
+
+  defp connection_client_ip(socket) do
+    remote_ip =
+      case get_connect_info(socket, :peer_data) do
+        %{address: address} when is_tuple(address) -> address
+        _ -> nil
+      end
+
+    headers = get_connect_info(socket, :x_headers) || []
+
+    ClientIP.client_ip(remote_ip, headers)
   end
 
   defp group_reply_chains(posts) when is_list(posts) do

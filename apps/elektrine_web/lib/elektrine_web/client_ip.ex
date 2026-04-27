@@ -19,6 +19,18 @@ defmodule ElektrineWeb.ClientIP do
     |> format_ip()
   end
 
+  @spec client_ip(ip_tuple() | nil, [{String.t(), String.t()}]) :: String.t()
+  def client_ip(remote_ip, headers) when is_list(headers) do
+    remote_ip = normalize_ip_tuple(remote_ip)
+
+    if trusted_proxy?(remote_ip) do
+      forwarded_ip(headers) || remote_ip
+    else
+      remote_ip
+    end
+    |> format_ip()
+  end
+
   @spec rate_limit_ip(Plug.Conn.t()) :: String.t()
   def rate_limit_ip(conn) do
     conn
@@ -74,7 +86,7 @@ defmodule ElektrineWeb.ClientIP do
   end
 
   defp x_forwarded_for_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
+    case header_values(conn, "x-forwarded-for") do
       [] ->
         nil
 
@@ -94,7 +106,7 @@ defmodule ElektrineWeb.ClientIP do
 
   defp header_ip(conn, header_name) do
     conn
-    |> get_req_header(header_name)
+    |> header_values(header_name)
     |> List.first()
     |> parse_ip_string()
     |> case do
@@ -145,7 +157,7 @@ defmodule ElektrineWeb.ClientIP do
   end
 
   defp header_forwarded_as_https?(conn) do
-    case get_req_header(conn, "x-forwarded-proto") do
+    case header_values(conn, "x-forwarded-proto") do
       [value | _] ->
         value
         |> String.split(",")
@@ -156,6 +168,21 @@ defmodule ElektrineWeb.ClientIP do
       _ ->
         false
     end
+  end
+
+  defp header_values(%Plug.Conn{} = conn, header_name), do: get_req_header(conn, header_name)
+
+  defp header_values(headers, header_name) when is_list(headers) do
+    normalized_name = String.downcase(header_name)
+
+    headers
+    |> Enum.flat_map(fn
+      {name, value} when is_binary(name) and is_binary(value) ->
+        if String.downcase(name) == normalized_name, do: [value], else: []
+
+      _ ->
+        []
+    end)
   end
 
   defp parse_cidr(value) when is_binary(value) do
