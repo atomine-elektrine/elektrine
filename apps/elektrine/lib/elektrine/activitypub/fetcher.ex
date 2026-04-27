@@ -305,8 +305,16 @@ defmodule Elektrine.ActivityPub.Fetcher do
                   {:error, :invalid_json}
               end
 
+            {:ok, %Finch.Response{status: 404}} ->
+              Logger.debug("WebFinger lookup not found: #{acct}")
+              {:error, :not_found}
+
+            {:ok, %Finch.Response{status: status}} when status in [400, 410] ->
+              Logger.debug("WebFinger lookup rejected for #{acct}, status: #{status}")
+              {:error, :webfinger_failed}
+
             {:ok, %Finch.Response{status: status}} ->
-              Logger.error("WebFinger lookup failed, status: #{status}")
+              Logger.warning("WebFinger lookup failed for #{acct}, status: #{status}")
               {:error, :webfinger_failed}
 
             {:error, :backoff} ->

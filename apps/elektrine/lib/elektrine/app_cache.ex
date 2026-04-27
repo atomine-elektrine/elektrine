@@ -24,6 +24,7 @@ defmodule Elektrine.AppCache do
   @activitypub_ref_negative_ttl :timer.seconds(15)
   # WebFinger lookups cached longer since they rarely change
   @webfinger_ttl :timer.hours(6)
+  @webfinger_negative_ttl :timer.minutes(15)
   # Instance metadata (nodeinfo) cached for a day
   @instance_ttl :timer.hours(24)
   # Passkey challenges - short TTL for security (5 minutes)
@@ -361,6 +362,7 @@ defmodule Elektrine.AppCache do
     case fetch_with_telemetry(key, fn _key ->
            case fetch_fn.() do
              {:ok, result} -> {:commit, {:ok, result}, ttl: @webfinger_ttl}
+             {:error, :not_found} -> {:commit, {:error, :not_found}, ttl: @webfinger_negative_ttl}
              {:error, reason} -> {:ignore, {:error, reason}}
            end
          end) do
