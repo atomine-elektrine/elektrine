@@ -365,6 +365,8 @@ defmodule Elektrine.Accounts do
   defdelegate create_app_password(user_id, attrs), to: Authentication
   defdelegate delete_app_password(app_password_id, user_id), to: Authentication
   defdelegate authenticate_with_app_password(username, token), to: Authentication
+  defdelegate authenticate_with_app_password_info(username, token), to: Authentication
+  defdelegate app_password_exists?(app_password_id, user_id), to: Authentication
   defdelegate mail_auth_subject(identifier), to: Authentication
   defdelegate verify_app_password(user_id, token, ip_address \\ nil), to: Authentication
 

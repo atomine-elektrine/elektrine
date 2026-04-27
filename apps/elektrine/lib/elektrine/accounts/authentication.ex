@@ -185,6 +185,7 @@ defmodule Elektrine.Accounts.Authentication do
                 {:ok, updated_user} ->
                   Elektrine.Accounts.invalidate_auth_sessions(updated_user)
                   invalidate_long_lived_credentials(updated_user)
+                  broadcast_mail_auth_changed(updated_user.id)
 
                   case Repo.reload(updated_user) do
                     nil ->
@@ -379,9 +380,19 @@ defmodule Elektrine.Accounts.Authentication do
   end
 
   def revoke_all_app_passwords(user_id) do
-    AppPassword
-    |> where(user_id: ^user_id)
-    |> Repo.delete_all()
+    app_passwords =
+      AppPassword
+      |> where(user_id: ^user_id)
+      |> Repo.all()
+
+    {count, _} =
+      AppPassword
+      |> where(user_id: ^user_id)
+      |> Repo.delete_all()
+
+    Enum.each(app_passwords, &broadcast_app_password_revoked/1)
+
+    {count, nil}
   end
 
   @doc ~s|Creates a new app password for a user.\nReturns {:ok, app_password} with the raw token attached, or {:error, changeset}.\n|
@@ -405,13 +416,30 @@ defmodule Elektrine.Accounts.Authentication do
     |> where(id: ^app_password_id, user_id: ^user_id)
     |> Repo.one()
     |> case do
-      nil -> {:error, :not_found}
-      app_password -> Repo.delete(app_password)
+      nil ->
+        {:error, :not_found}
+
+      app_password ->
+        case Repo.delete(app_password) do
+          {:ok, deleted_app_password} = result ->
+            broadcast_app_password_revoked(deleted_app_password)
+            result
+
+          error ->
+            error
+        end
     end
   end
 
   @doc ~s|Authenticates a user with an app password.\nReturns:\n  - {:ok, user} if valid\n  - {:error, :user_not_found} if user doesn't exist\n  - {:error, {:invalid_token, user}} if user exists but token is invalid\n|
   def authenticate_with_app_password(username, token) do
+    case authenticate_with_app_password_info(username, token) do
+      {:ok, user, _app_password} -> {:ok, user}
+      error -> error
+    end
+  end
+
+  def authenticate_with_app_password_info(username, token) do
     clean_token = String.replace(token, ~r/[\s-]/, "")
 
     case get_user_by_username_or_email(username) do
@@ -419,7 +447,7 @@ defmodule Elektrine.Accounts.Authentication do
         case ensure_user_active(user) do
           :ok ->
             case verify_app_password(user.id, clean_token) do
-              {:ok, _app_password} -> {:ok, user}
+              {:ok, app_password} -> {:ok, user, app_password}
               {:error, _} -> {:error, {:invalid_token, user}}
             end
 
@@ -430,6 +458,13 @@ defmodule Elektrine.Accounts.Authentication do
       {:error, _} ->
         {:error, :user_not_found}
     end
+  end
+
+  def app_password_exists?(app_password_id, user_id) do
+    AppPassword
+    |> where(id: ^app_password_id, user_id: ^user_id)
+    |> where([ap], is_nil(ap.expires_at) or ap.expires_at > ^DateTime.utc_now())
+    |> Repo.exists?()
   end
 
   @doc "Returns a stable mail-auth subject for username or mailbox email identifiers."
@@ -486,6 +521,22 @@ defmodule Elektrine.Accounts.Authentication do
     revoke_all_app_passwords(user.id)
     Elektrine.Developer.revoke_all_api_tokens(user.id)
     ElektrineWeb.Endpoint.broadcast("user_socket:#{user.id}", "disconnect", %{})
+  end
+
+  defp broadcast_app_password_revoked(%AppPassword{id: id, user_id: user_id}) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "mail_auth:app_password:#{id}",
+      {:app_password_revoked, user_id, id}
+    )
+  end
+
+  defp broadcast_mail_auth_changed(user_id) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "mail_auth:user:#{user_id}",
+      {:mail_auth_changed, user_id}
+    )
   end
 
   defp get_user_by_username_or_email(identifier) do

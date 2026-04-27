@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication
+  alias Elektrine.Accounts.TwoFactor
   alias Elektrine.Domains
   alias ElektrineWeb.Plugs.DAVAuth
 
@@ -22,8 +23,21 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
 
   # Helper to create app password for user
   defp create_app_password(user) do
+    create_app_password_struct(user).token
+  end
+
+  defp create_app_password_struct(user) do
     {:ok, app_password} = Authentication.create_app_password(user.id, %{name: "Test App"})
-    app_password.token
+    app_password
+  end
+
+  defp enable_two_factor(user) do
+    secret = TwoFactor.generate_secret()
+    {_plain_backup_codes, hashed_backup_codes} = TwoFactor.generate_backup_codes()
+    code = NimbleTOTP.verification_code(secret)
+
+    {:ok, user} = Accounts.enable_two_factor(user, secret, hashed_backup_codes, code)
+    user
   end
 
   # Helper to encode Basic auth header
@@ -120,6 +134,38 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
       user = create_test_user()
       _token = create_app_password(user)
       auth = basic_auth_header(user.username, "wrong-token")
+
+      conn =
+        conn(:get, "/")
+        |> put_req_header("authorization", auth)
+        |> DAVAuth.call([])
+
+      assert conn.status == 401
+      assert conn.halted == true
+    end
+
+    test "returns 401 with deleted app password" do
+      user = create_test_user()
+      app_password = create_app_password_struct(user)
+      {:ok, _deleted_app_password} = Authentication.delete_app_password(app_password.id, user.id)
+
+      auth = basic_auth_header(user.username, app_password.token)
+
+      conn =
+        conn(:get, "/")
+        |> put_req_header("authorization", auth)
+        |> DAVAuth.call([])
+
+      assert conn.status == 401
+      assert conn.halted == true
+    end
+
+    test "returns 401 with account password when 2FA is enabled" do
+      user =
+        create_test_user(%{password: "mypassword123", password_confirmation: "mypassword123"})
+        |> enable_two_factor()
+
+      auth = basic_auth_header(user.username, "mypassword123")
 
       conn =
         conn(:get, "/")
