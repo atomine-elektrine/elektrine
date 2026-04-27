@@ -95,9 +95,13 @@ defmodule ElektrineWeb.UserRegistrationController do
         end
 
       {:error, reason} ->
-        # Log the error for debugging
         require Logger
-        Logger.error("Turnstile verification failed: #{inspect(reason)}")
+
+        if reason in [:missing_token, :missing_captcha] do
+          Logger.warning("Captcha verification missing: #{inspect(reason)}")
+        else
+          Logger.error("Captcha verification failed: #{inspect(reason)}")
+        end
 
         changeset =
           %User{}

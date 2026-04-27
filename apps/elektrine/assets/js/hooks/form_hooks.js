@@ -12,6 +12,8 @@ import { spinnerSvg } from '../utils/spinner'
 export const FormSubmit = {
   mounted() {
     this.el.addEventListener('submit', (e) => {
+      if (e.defaultPrevented) return
+
       const submitBtn = this.el.querySelector('button[type="submit"], button:not([type])')
       if (submitBtn) {
         // Store original content
@@ -128,6 +130,19 @@ export const VPNDownload = {
  */
 export const Turnstile = {
   mounted() {
+    this.form = this.el.closest('form') || document.getElementById('register-form')
+    this.handleSubmit = (event) => {
+      const input = this.responseInput()
+      if (!input || !input.value) {
+        event.preventDefault()
+        this.showError('Please complete the security verification before submitting.')
+      }
+    }
+
+    if (this.form) {
+      this.form.addEventListener('submit', this.handleSubmit, true)
+    }
+
     this.renderWidget()
   },
 
@@ -144,7 +159,7 @@ export const Turnstile = {
     const size = this.el.dataset.size || 'normal'
 
     // Find the form element to append hidden input
-    let form = this.el.closest('form')
+    let form = this.form || this.el.closest('form')
     if (!form) {
       form = document.getElementById('register-form')
     }
@@ -180,10 +195,7 @@ export const Turnstile = {
           size: size,
           callback: (token) => {
             // Find the hidden input (should exist in the template)
-            let input = document.getElementById('cf-turnstile-response')
-            if (!input) {
-              input = form.querySelector('input[name="cf-turnstile-response"]')
-            }
+            let input = this.responseInput()
             if (!input) {
               // Fallback: create it
               input = document.createElement('input')
@@ -194,30 +206,19 @@ export const Turnstile = {
             }
             input.value = token
 
-            const existingError = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
-            if (existingError) {
-              existingError.remove()
-            }
+            this.clearError()
           },
           'error-callback': (errorCode) => {
             console.error('Turnstile error:', errorCode)
 
-            const input = form.querySelector('input[name="cf-turnstile-response"]')
+            const input = this.responseInput()
             if (input) input.value = ''
 
-            const existingError = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
-            if (!existingError) {
-              // Show user-friendly error once to avoid repeated messages on retry loops
-              const errorDiv = document.createElement('div')
-              errorDiv.className = 'text-warning text-xs mt-1'
-              errorDiv.dataset.turnstileError = 'true'
-              errorDiv.textContent = 'Verification unavailable. You may still submit the form.'
-              this.el.parentElement.appendChild(errorDiv)
-            }
+            this.showError('Verification unavailable. Please try again or refresh the page.')
           },
           'expired-callback': () => {
             // Token expired, clear the hidden input
-            const input = form.querySelector('input[name="cf-turnstile-response"]')
+            const input = this.responseInput()
             if (input) input.value = ''
           }
         })
@@ -237,7 +238,31 @@ export const Turnstile = {
     }
   },
 
+  responseInput() {
+    return this.form?.querySelector('input[name="cf-turnstile-response"]')
+  },
+
+  showError(message) {
+    let error = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+    if (!error && this.el.parentElement) {
+      error = document.createElement('div')
+      error.className = 'text-warning text-xs mt-1'
+      error.dataset.turnstileError = 'true'
+      this.el.parentElement.appendChild(error)
+    }
+    if (error) error.textContent = message
+  },
+
+  clearError() {
+    const error = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+    if (error) error.remove()
+  },
+
   destroyed() {
+    if (this.form && this.handleSubmit) {
+      this.form.removeEventListener('submit', this.handleSubmit, true)
+    }
+
     if (typeof window.turnstile !== 'undefined' && this.widgetId) {
       window.turnstile.remove(this.widgetId)
     }

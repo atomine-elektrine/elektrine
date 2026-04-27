@@ -232,6 +232,19 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert {:error, :invalid_acct} = Fetcher.webfinger_lookup("@example.com", skip_cache: true)
       assert {:error, :invalid_acct} = Fetcher.webfinger_lookup("alice@", skip_cache: true)
     end
+
+    test "treats remote 404 responses as not found" do
+      request_fun = fn _url, _headers, _opts ->
+        {:ok, %Finch.Response{status: 404, body: "not found"}}
+      end
+
+      assert {:error, :not_found} =
+               Fetcher.webfinger_lookup("missing@example.com",
+                 skip_cache: true,
+                 validate_url: false,
+                 request_fun: request_fun
+               )
+    end
   end
 
   describe "fetch_and_cache_actor/2" do

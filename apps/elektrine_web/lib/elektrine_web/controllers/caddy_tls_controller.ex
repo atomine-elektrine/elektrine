@@ -74,7 +74,6 @@ defmodule ElektrineWeb.CaddyTLSController do
   defp allowed_domain(_), do: nil
 
   defp cached_allowed_domain(domain) do
-    ensure_cache_table()
     now = System.monotonic_time(:millisecond)
 
     case :ets.lookup(@cache_table, domain) do
@@ -101,24 +100,6 @@ defmodule ElektrineWeb.CaddyTLSController do
       true ->
         Profiles.get_verified_custom_domain_for_host(domain)
     end
-  end
-
-  defp ensure_cache_table do
-    case :ets.whereis(@cache_table) do
-      :undefined ->
-        :ets.new(@cache_table, [
-          :named_table,
-          :public,
-          :set,
-          {:read_concurrency, true},
-          {:write_concurrency, true}
-        ])
-
-      _table ->
-        :ok
-    end
-  rescue
-    ArgumentError -> :ok
   end
 
   defp normalize_domain(domain) do

@@ -62,7 +62,7 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   def admin_login_restricted?(conn, %{is_admin: true}) do
-    netbird_enabled?() and (not on_netbird_vpn?(conn) or not admin_host?(conn.host))
+    netbird_enabled?() and (not admin_host?(conn.host) or not on_admin_private_network?(conn))
   end
 
   def admin_login_restricted?(_conn, _user), do: false
@@ -529,6 +529,14 @@ defmodule ElektrineWeb.UserAuth do
   end
 
   defp admin_host?(_), do: false
+
+  defp on_admin_private_network?(conn) do
+    on_netbird_vpn?(conn) or admin_host_forwarded_by_trusted_proxy?(conn)
+  end
+
+  defp admin_host_forwarded_by_trusted_proxy?(conn) do
+    admin_host?(conn.host) and ClientIP.trusted_proxy?(conn.remote_ip)
+  end
 
   defp configured_admin_host do
     case System.get_env("CADDY_ADMIN_HOST") do

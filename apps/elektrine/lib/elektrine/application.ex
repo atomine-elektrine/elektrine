@@ -71,6 +71,7 @@ defmodule Elektrine.Application do
         Elektrine.Webhook.RateLimiter,
         Elektrine.DAV.RateLimiter,
         Elektrine.SecurityAlerts.Cache,
+        Elektrine.CaddyTLSDomainCache,
         ElektrineWeb.Presence
       ] ++ ModuleProviders.web_children() ++ [ElektrineWeb.Endpoint]
     else

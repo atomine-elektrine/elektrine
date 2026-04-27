@@ -9,6 +9,7 @@ defmodule ElektrineWeb.UserAuthTest do
   setup do
     previous = Application.get_env(:elektrine, :admin_security, [])
     previous_netbird = Application.get_env(:elektrine, :netbird, [])
+    previous_trusted_proxy_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs, [])
 
     Application.put_env(
       :elektrine,
@@ -24,10 +25,12 @@ defmodule ElektrineWeb.UserAuthTest do
     )
 
     Application.put_env(:elektrine, :netbird, enabled: false, allowed_cidrs: [])
+    Application.put_env(:elektrine, :trusted_proxy_cidrs, [])
 
     on_exit(fn ->
       Application.put_env(:elektrine, :admin_security, previous)
       Application.put_env(:elektrine, :netbird, previous_netbird)
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_proxy_cidrs)
     end)
 
     :ok
@@ -169,6 +172,21 @@ defmodule ElektrineWeb.UserAuthTest do
         | host: "admin.#{Elektrine.Domains.primary_profile_domain()}",
           remote_ip: {100, 90, 10, 50}
       }
+
+      refute UserAuth.admin_login_restricted?(conn, user)
+    end
+
+    test "allows admin login on admin host through trusted Caddy proxy", %{conn: conn} do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.16.0.0/12"])
+
+      user = %{is_admin: true}
+
+      conn =
+        conn
+        |> put_req_header("x-forwarded-for", "203.0.113.10")
+        |> Map.put(:host, "admin.#{Elektrine.Domains.primary_profile_domain()}")
+        |> Map.put(:remote_ip, {172, 18, 0, 3})
 
       refute UserAuth.admin_login_restricted?(conn, user)
     end
