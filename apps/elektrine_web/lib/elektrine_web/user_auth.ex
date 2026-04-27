@@ -459,7 +459,7 @@ defmodule ElektrineWeb.UserAuth do
   Requires clients to be on the NetBird VPN when NetBird protection is enabled.
   """
   def require_vpn_when_netbird_enabled(conn, _opts) do
-    if netbird_enabled?() and not on_netbird_vpn?(conn) do
+    if netbird_enabled?() and not admin_host?(conn.host) and not on_netbird_vpn?(conn) do
       conn
       |> send_resp(:not_found, "Not Found")
       |> halt()
