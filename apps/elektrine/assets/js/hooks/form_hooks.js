@@ -132,8 +132,7 @@ export const Turnstile = {
   mounted() {
     this.form = this.el.closest('form') || document.getElementById('register-form')
     this.handleSubmit = (event) => {
-      const input = this.responseInput()
-      if (!input || !input.value) {
+      if (!this.responseToken()) {
         event.preventDefault()
         this.showError('Please complete the security verification before submitting.')
       }
@@ -189,37 +188,29 @@ export const Turnstile = {
 
       // Render new widget
       try {
+        this.ensureResponseInput(form)
+        this.setResponseToken('')
+
         this.widgetId = window.turnstile.render(this.el, {
           sitekey: sitekey,
           theme: theme,
           size: size,
           callback: (token) => {
-            // Find the hidden input (should exist in the template)
-            let input = this.responseInput()
-            if (!input) {
-              // Fallback: create it
-              input = document.createElement('input')
-              input.type = 'hidden'
-              input.name = 'cf-turnstile-response'
-              input.id = 'cf-turnstile-response'
-              form.appendChild(input)
-            }
-            input.value = token
+            this.ensureResponseInput(form)
+            this.setResponseToken(token)
 
             this.clearError()
           },
           'error-callback': (errorCode) => {
             console.error('Turnstile error:', errorCode)
 
-            const input = this.responseInput()
-            if (input) input.value = ''
+            this.setResponseToken('')
 
             this.showError('Verification unavailable. Please try again or refresh the page.')
           },
           'expired-callback': () => {
             // Token expired, clear the hidden input
-            const input = this.responseInput()
-            if (input) input.value = ''
+            this.setResponseToken('')
           }
         })
       } catch (e) {
@@ -240,6 +231,34 @@ export const Turnstile = {
 
   responseInput() {
     return this.form?.querySelector('input[name="cf-turnstile-response"]')
+  },
+
+  responseInputs() {
+    return Array.from(this.form?.querySelectorAll('input[name="cf-turnstile-response"]') || [])
+  },
+
+  responseToken() {
+    return this.responseInputs().find((input) => input.value)?.value || ''
+  },
+
+  setResponseToken(token) {
+    this.responseInputs().forEach((input) => {
+      input.value = token
+    })
+  },
+
+  ensureResponseInput(form) {
+    let input = form.querySelector('input[name="cf-turnstile-response"]')
+
+    if (!input) {
+      input = document.createElement('input')
+      input.type = 'hidden'
+      input.name = 'cf-turnstile-response'
+      form.appendChild(input)
+    }
+
+    input.id = 'cf-turnstile-response'
+    return input
   },
 
   showError(message) {

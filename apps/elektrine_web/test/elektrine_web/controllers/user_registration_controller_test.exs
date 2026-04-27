@@ -98,6 +98,8 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
       response = html_response(conn, 422)
       assert response =~ "should be at least 2 character(s)"
       assert response =~ ~s(value="a")
+      assert response =~ "Username should be at least 2 character(s)"
+      assert length(Regex.scan(~r/app-navbar/, response)) <= 1
     end
   end
 

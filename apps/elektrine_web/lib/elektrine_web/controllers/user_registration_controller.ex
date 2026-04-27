@@ -14,57 +14,83 @@ defmodule ElektrineWeb.UserRegistrationController do
     captcha_token = Map.get(params, "cf-turnstile-response")
     captcha_answer = Map.get(params, "captcha_answer")
     via_tor = conn.assigns[:via_tor] || false
+
+    user_params_with_ip = registration_user_params(user_params, registration_ip, via_tor)
+    preliminary_changeset = User.registration_changeset(%User{}, user_params_with_ip)
+
+    if preliminary_changeset.valid? do
+      captcha_result = verify_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor)
+      complete_registration(conn, user_params_with_ip, captcha_result)
+    else
+      render_registration(conn,
+        changeset: preliminary_changeset,
+        invite_codes_enabled: Elektrine.System.invite_codes_enabled?()
+      )
+    end
+  end
+
+  # Catch-all for malformed/empty requests (bots, etc.)
+  def create(conn, _params) do
+    changeset = Accounts.change_user_registration(%User{})
+    invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
+
+    conn
+    |> put_flash(:error, "Invalid registration request. Please fill out the form.")
+    |> render_registration(changeset: changeset, invite_codes_enabled: invite_codes_enabled)
+  end
+
+  defp verify_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor) do
     require Logger
 
-    # Check if captcha should be skipped (dev/test mode)
     turnstile_config = Application.get_env(:elektrine, :turnstile) || []
-    skip_captcha = Keyword.get(turnstile_config, :skip_verification, false)
 
-    # Different captcha verification for Tor vs clearnet
-    captcha_result =
-      if skip_captcha do
-        Logger.debug("Captcha verification skipped (dev/test mode)")
-        {:ok, :verified}
-      else
-        if via_tor do
-          # Verify server-side image captcha for Tor users
-          token = get_session(conn, :captcha_token)
+    if Keyword.get(turnstile_config, :skip_verification, false) do
+      Logger.debug("Captcha verification skipped (dev/test mode)")
+      {:ok, :verified}
+    else
+      verify_required_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor)
+    end
+  end
 
-          Logger.info(
-            "Tor captcha check: token_present=#{not is_nil(token)}, answer_present=#{not is_nil(captcha_answer)}"
-          )
+  defp verify_required_captcha(conn, _captcha_token, captcha_answer, _remote_ip, true) do
+    require Logger
 
-          if token && captcha_answer do
-            case Elektrine.Captcha.verify(token, captcha_answer) do
-              :ok -> {:ok, :verified}
-              error -> error
-            end
-          else
-            {:error, :missing_captcha}
-          end
-        else
-          # Use Turnstile for clearnet users
-          Logger.info(
-            "Turnstile check: token_present=#{not is_nil(captcha_token)}, ip_present=#{not is_nil(remote_ip)}"
-          )
+    token = get_session(conn, :captcha_token)
 
-          result = Turnstile.verify(captcha_token)
+    Logger.info(
+      "Tor captcha check: token_present=#{not is_nil(token)}, answer_present=#{not is_nil(captcha_answer)}"
+    )
 
-          verification_status =
-            if match?({:ok, :verified}, result), do: "verified", else: "failed"
-
-          Logger.info("Turnstile result: #{verification_status}")
-          result
-        end
+    if token && captcha_answer do
+      case Elektrine.Captcha.verify(token, captcha_answer) do
+        :ok -> {:ok, :verified}
+        error -> error
       end
+    else
+      {:error, :missing_captcha}
+    end
+  end
 
-    # Verify captcha
+  defp verify_required_captcha(_conn, captcha_token, _captcha_answer, remote_ip, false) do
+    require Logger
+
+    Logger.info(
+      "Turnstile check: token_present=#{not is_nil(captcha_token)}, ip_present=#{not is_nil(remote_ip)}"
+    )
+
+    result = Turnstile.verify(captcha_token, turnstile_remote_ip(remote_ip))
+
+    verification_status =
+      if match?({:ok, :verified}, result), do: "verified", else: "failed"
+
+    Logger.info("Turnstile result: #{verification_status}")
+    result
+  end
+
+  defp complete_registration(conn, user_params_with_ip, captcha_result) do
     case captcha_result do
       {:ok, :verified} ->
         if Elektrine.System.invite_codes_enabled?() do
-          user_params_with_ip =
-            registration_user_params(user_params, registration_ip, via_tor)
-
           case Accounts.register_user_with_access(user_params_with_ip) do
             {:ok, user} ->
               UserAuth.log_in_user(conn, user, %{}, flash: {:info, "User created successfully."})
@@ -78,8 +104,6 @@ defmodule ElektrineWeb.UserRegistrationController do
               )
           end
         else
-          user_params_with_ip = registration_user_params(user_params, registration_ip, via_tor)
-
           case Accounts.create_user(user_params_with_ip) do
             {:ok, user} ->
               UserAuth.log_in_user(conn, user, %{}, flash: {:info, "User created successfully."})
@@ -105,8 +129,8 @@ defmodule ElektrineWeb.UserRegistrationController do
 
         changeset =
           %User{}
-          |> Accounts.change_user_registration(user_params)
-          |> Ecto.Changeset.add_error(:captcha, "Please complete the captcha verification")
+          |> Accounts.change_user_registration(user_params_with_ip)
+          |> Ecto.Changeset.add_error(:captcha, captcha_error_message(reason))
 
         invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
 
@@ -117,21 +141,12 @@ defmodule ElektrineWeb.UserRegistrationController do
     end
   end
 
-  # Catch-all for malformed/empty requests (bots, etc.)
-  def create(conn, _params) do
-    changeset = Accounts.change_user_registration(%User{})
-    invite_codes_enabled = Elektrine.System.invite_codes_enabled?()
-
-    conn
-    |> put_flash(:error, "Invalid registration request. Please fill out the form.")
-    |> render_registration(changeset: changeset, invite_codes_enabled: invite_codes_enabled)
-  end
-
   defp render_registration(conn, assigns) do
     case Keyword.get(assigns, :changeset) do
       %Ecto.Changeset{} = changeset ->
         conn
         |> put_status(:unprocessable_entity)
+        |> put_layout(false)
         |> Phoenix.LiveView.Controller.live_render(ElektrineWeb.AuthLive.Register,
           session: registration_live_session(conn, changeset)
         )
@@ -171,6 +186,47 @@ defmodule ElektrineWeb.UserRegistrationController do
       opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
     end)
   end
+
+  defp captcha_error_message({:verification_failed, error_codes}) when is_list(error_codes) do
+    cond do
+      "timeout-or-duplicate" in error_codes ->
+        "The captcha expired. Please complete a fresh captcha verification."
+
+      "invalid-input-response" in error_codes or "missing-input-response" in error_codes ->
+        "Please complete the captcha verification."
+
+      true ->
+        "Captcha verification failed. Please try again."
+    end
+  end
+
+  defp captcha_error_message(:missing_token), do: "Please complete the captcha verification"
+  defp captcha_error_message(:missing_captcha), do: "Please complete the captcha verification"
+  defp captcha_error_message(_reason), do: "Captcha verification failed. Please try again."
+
+  defp turnstile_remote_ip(ip) when is_binary(ip) do
+    with false <- ip in ["", "unknown"],
+         {:ok, parsed_ip} <- :inet.parse_address(String.to_charlist(ip)),
+         true <- public_ip?(parsed_ip) do
+      ip
+    else
+      _ -> nil
+    end
+  end
+
+  defp turnstile_remote_ip(_ip), do: nil
+
+  defp public_ip?({10, _, _, _}), do: false
+  defp public_ip?({a, b, _, _}) when a == 100 and b >= 64 and b <= 127, do: false
+  defp public_ip?({127, _, _, _}), do: false
+  defp public_ip?({169, 254, _, _}), do: false
+  defp public_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: false
+  defp public_ip?({192, 168, _, _}), do: false
+  defp public_ip?({_, _, _, _}), do: true
+  defp public_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: false
+  defp public_ip?({a, _, _, _, _, _, _, _}) when Bitwise.band(a, 0xFE00) == 0xFC00, do: false
+  defp public_ip?({a, _, _, _, _, _, _, _}) when Bitwise.band(a, 0xFFC0) == 0xFE80, do: false
+  defp public_ip?({_, _, _, _, _, _, _, _}), do: true
 
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)
