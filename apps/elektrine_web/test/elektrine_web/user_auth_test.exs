@@ -223,6 +223,32 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "fetch_current_user/2" do
+    test "keeps admin sessions on admin host without duplicating Caddy NetBird check", %{
+      conn: conn
+    } do
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
+
+      user = user_fixture()
+      {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})
+
+      token =
+        Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+          "user_id" => admin.id,
+          "password_changed_at" => DateTime.to_unix(admin.last_password_change),
+          "auth_valid_after" => admin.auth_valid_after && DateTime.to_unix(admin.auth_valid_after)
+        })
+
+      conn =
+        conn
+        |> init_test_session(user_token: token)
+        |> Map.put(:host, "admin.#{Elektrine.Domains.primary_profile_domain()}")
+        |> Map.put(:remote_ip, {203, 0, 113, 50})
+        |> UserAuth.fetch_current_user([])
+
+      assert conn.assigns.current_user.id == admin.id
+      assert get_session(conn, :user_token) == token
+    end
+
     test "rejects sessions issued before the last password change", %{conn: conn} do
       user = user_fixture()
 
