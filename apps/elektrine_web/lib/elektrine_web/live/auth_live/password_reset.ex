@@ -88,12 +88,6 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                       >
                       </div>
                     </div>
-                    <input
-                      type="hidden"
-                      name="cf-turnstile-response"
-                      id="cf-turnstile-response"
-                      value=""
-                    />
                   <% end %>
                 <% end %>
               </div>

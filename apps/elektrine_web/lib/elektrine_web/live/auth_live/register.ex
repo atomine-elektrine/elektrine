@@ -211,6 +211,16 @@ defmodule ElektrineWeb.AuthLive.Register do
             {gettext("Oops, something went wrong! Please check the errors below.")}
           </.error>
 
+          <%= if @changeset.action && @changeset.errors != [] do %>
+            <div class="alert alert-error mb-4">
+              <ul class="list-disc list-inside text-sm">
+                <%= for {field, {message, _opts}} <- @changeset.errors do %>
+                  <li>{registration_error_label(field)} {message}</li>
+                <% end %>
+              </ul>
+            </div>
+          <% end %>
+
           <.input
             field={f[:username]}
             type="text"
@@ -346,7 +356,6 @@ defmodule ElektrineWeb.AuthLive.Register do
                   >
                   </div>
                 </div>
-                <input type="hidden" name="cf-turnstile-response" id="cf-turnstile-response" value="" />
                 <%= if captcha_errors = @changeset.errors[:captcha] do %>
                   <div class="text-center">
                     <span class="text-error text-sm">
@@ -402,4 +411,13 @@ defmodule ElektrineWeb.AuthLive.Register do
     </div>
     """
   end
+
+  defp registration_error_label(:username), do: gettext("Username")
+  defp registration_error_label(:password), do: gettext("Password")
+  defp registration_error_label(:password_confirmation), do: gettext("Password confirmation")
+  defp registration_error_label(:invite_code), do: gettext("Invite code")
+  defp registration_error_label(:registration_access_token), do: gettext("Registration access")
+  defp registration_error_label(:agree_to_terms), do: gettext("Terms")
+  defp registration_error_label(:captcha), do: gettext("Captcha")
+  defp registration_error_label(_field), do: gettext("Registration")
 end
