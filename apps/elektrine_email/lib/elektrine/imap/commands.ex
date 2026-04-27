@@ -80,6 +80,22 @@ defmodule Elektrine.IMAP.Commands do
 
   @doc "Process IMAP command"
   def process_command(tag, cmd, args, state) do
+    case mail_auth_revoked_reason(state) do
+      nil ->
+        process_valid_command(tag, cmd, args, state)
+
+      reason ->
+        Helpers.send_response(state.socket, revocation_bye(reason))
+        {:logout, state}
+    end
+  end
+
+  defp revocation_bye(:app_password_revoked), do: "* BYE App password revoked"
+
+  defp revocation_bye(:two_factor_requires_app_password),
+    do: "* BYE 2FA now requires an app password"
+
+  defp process_valid_command(tag, cmd, args, state) do
     case String.upcase(cmd) do
       "CAPABILITY" ->
         handle_capability(tag, state)
@@ -194,6 +210,25 @@ defmodule Elektrine.IMAP.Commands do
     end
   end
 
+  defp mail_auth_revoked_reason(%{user: %{id: user_id}, auth_app_password_id: app_password_id})
+       when is_integer(app_password_id) do
+    if Elektrine.Accounts.app_password_exists?(app_password_id, user_id) do
+      nil
+    else
+      :app_password_revoked
+    end
+  end
+
+  defp mail_auth_revoked_reason(%{user: %{id: user_id}, auth_method: :account_password}) do
+    if Elektrine.Accounts.get_user!(user_id).two_factor_enabled do
+      :two_factor_requires_app_password
+    end
+  rescue
+    Ecto.NoResultsError -> :two_factor_requires_app_password
+  end
+
+  defp mail_auth_revoked_reason(_state), do: nil
+
   defp handle_capability(tag, state) do
     Helpers.send_response(state.socket, "* CAPABILITY #{capability_string(state)}")
     Helpers.send_response(state.socket, "#{tag} OK CAPABILITY completed")
@@ -241,6 +276,8 @@ defmodule Elektrine.IMAP.Commands do
                  message_flags: %{},
                  idle_session_id: nil,
                  idle_start: nil,
+                 auth_method: nil,
+                 auth_app_password_id: nil,
                  initial_data: nil,
                  state: :not_authenticated
              }}
@@ -1585,6 +1622,10 @@ defmodule Elektrine.IMAP.Commands do
       try do
         result =
           case idle_loop(idle_state, idle_start) do
+            {:revoked, reason, new_state} ->
+              Helpers.send_response(state.socket, revocation_bye(reason))
+              {:logout, new_state}
+
             {:done, new_state} ->
               Helpers.send_response(state.socket, "#{tag} OK IDLE terminated")
               {:continue, %{new_state | idle_start: nil, idle_session_id: nil}}
@@ -1846,7 +1887,7 @@ defmodule Elektrine.IMAP.Commands do
     case check_auth_rate_limits(ip_string, username) do
       :ok ->
         case authenticate_user(username, password) do
-          {:ok, user, mailbox} ->
+          {:ok, user, mailbox, auth} ->
             Elektrine.IMAP.RateLimiter.clear_attempts(ip_string)
             MailAuthRateLimiter.clear_attempts(:imap, username)
             MailTelemetry.auth(:imap, :success, %{source: :login})
@@ -1856,17 +1897,20 @@ defmodule Elektrine.IMAP.Commands do
               "#{tag} OK [CAPABILITY #{capability_string(%{state | state: :authenticated})}] Logged in"
             )
 
-            {:continue,
-             Map.merge(state, %{
-               authenticated: true,
-               user: user,
-               username: username,
-               mailbox: mailbox,
-               uid_validity: mailbox.id,
-               recent_message_ids: MapSet.new(),
-               folder_key: nil,
-               state: :authenticated
-             })}
+            authenticated_state =
+              Map.merge(state, %{
+                authenticated: true,
+                user: user,
+                username: username,
+                mailbox: mailbox,
+                uid_validity: mailbox.id,
+                recent_message_ids: MapSet.new(),
+                folder_key: nil,
+                state: :authenticated
+              })
+              |> put_mail_auth_state(auth)
+
+            {:continue, authenticated_state}
 
           {:error, reason} ->
             Elektrine.IMAP.RateLimiter.record_failure(ip_string)
@@ -1946,12 +1990,12 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp authenticate_user(username, password) do
-    case Elektrine.Accounts.authenticate_with_app_password(username, password) do
-      {:ok, user} ->
+    case Elektrine.Accounts.authenticate_with_app_password_info(username, password) do
+      {:ok, user, app_password} ->
         Elektrine.Accounts.record_imap_access(user.id)
 
         case get_or_create_mailbox(user) do
-          {:ok, mailbox} -> {:ok, user, mailbox}
+          {:ok, mailbox} -> {:ok, user, mailbox, {:app_password, app_password.id}}
           _ -> {:error, :mailbox_error}
         end
 
@@ -1972,7 +2016,7 @@ defmodule Elektrine.IMAP.Commands do
           Elektrine.Accounts.record_imap_access(user.id)
 
           case get_or_create_mailbox(user) do
-            {:ok, mailbox} -> {:ok, user, mailbox}
+            {:ok, mailbox} -> {:ok, user, mailbox, :account_password}
             _ -> {:error, :mailbox_error}
           end
 
@@ -1991,6 +2035,22 @@ defmodule Elektrine.IMAP.Commands do
       {:ok, mailbox} -> {:ok, mailbox}
       _ -> {:error, :mailbox_error}
     end
+  end
+
+  defp put_mail_auth_state(state, {:app_password, app_password_id}) do
+    Phoenix.PubSub.subscribe(Elektrine.PubSub, "mail_auth:app_password:#{app_password_id}")
+
+    state
+    |> Map.put(:auth_method, :app_password)
+    |> Map.put(:auth_app_password_id, app_password_id)
+  end
+
+  defp put_mail_auth_state(state, :account_password) do
+    Phoenix.PubSub.subscribe(Elektrine.PubSub, "mail_auth:user:#{state.user.id}")
+
+    state
+    |> Map.put(:auth_method, :account_password)
+    |> Map.put(:auth_app_password_id, nil)
   end
 
   defp load_folder_messages(mailbox, folder) do
@@ -2706,6 +2766,14 @@ defmodule Elektrine.IMAP.Commands do
     Socket.setopts(state.socket, active: :once)
 
     receive do
+      {:app_password_revoked, _user_id, _app_password_id} ->
+        Socket.setopts(state.socket, active: false)
+        {:revoked, :app_password_revoked, state}
+
+      {:mail_auth_changed, _user_id} ->
+        Socket.setopts(state.socket, active: false)
+        {:revoked, :two_factor_requires_app_password, state}
+
       {:tcp, _socket, data} ->
         command = data |> to_string() |> String.trim() |> String.upcase()
         Socket.setopts(state.socket, active: false)

@@ -169,6 +169,89 @@ defmodule Elektrine.IMAP.CommandsTest do
     :gen_tcp.close(server_socket)
   end
 
+  test "authenticated app password sessions are logged out after token deletion" do
+    user = user_fixture()
+    {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "IMAP test"})
+
+    encoded = Base.encode64("\u0000#{user.username}\u0000#{app_password.token}", padding: false)
+
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :not_authenticated,
+      authenticated: false,
+      user: nil,
+      username: nil,
+      mailbox: nil,
+      uid_validity: nil,
+      selected_folder: nil,
+      messages: [],
+      client_ip: "127.0.0.5"
+    }
+
+    assert {:continue, authenticated_state} =
+             Commands.process_command("A008", "AUTHENTICATE", "PLAIN #{encoded}", state)
+
+    assert authenticated_state.auth_app_password_id == app_password.id
+    assert read_until(client_socket, "A008 OK") =~ "Logged in"
+
+    assert {:ok, _deleted_app_password} =
+             Elektrine.Accounts.delete_app_password(app_password.id, user.id)
+
+    assert {:logout, _state} = Commands.process_command("A009", "NOOP", nil, authenticated_state)
+    assert read_until(client_socket, "App password revoked") =~ "* BYE App password revoked"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
+  test "authenticated account password sessions are logged out after 2FA is enabled" do
+    user = user_fixture()
+
+    encoded =
+      Base.encode64("\u0000#{user.username}\u0000#{valid_user_password()}", padding: false)
+
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :not_authenticated,
+      authenticated: false,
+      user: nil,
+      username: nil,
+      mailbox: nil,
+      uid_validity: nil,
+      selected_folder: nil,
+      messages: [],
+      client_ip: "127.0.0.6"
+    }
+
+    assert {:continue, authenticated_state} =
+             Commands.process_command("A010", "AUTHENTICATE", "PLAIN #{encoded}", state)
+
+    assert authenticated_state.auth_method == :account_password
+    assert read_until(client_socket, "A010 OK") =~ "Logged in"
+
+    secret = Elektrine.Accounts.TwoFactor.generate_secret()
+
+    {_plain_backup_codes, hashed_backup_codes} =
+      Elektrine.Accounts.TwoFactor.generate_backup_codes()
+
+    code = NimbleTOTP.verification_code(secret)
+
+    assert {:ok, _updated_user} =
+             Elektrine.Accounts.enable_two_factor(user, secret, hashed_backup_codes, code)
+
+    assert {:logout, _state} = Commands.process_command("A011", "NOOP", nil, authenticated_state)
+
+    assert read_until(client_socket, "2FA now requires an app password") =~
+             "* BYE 2FA now requires an app password"
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
   test "GETQUOTA returns dynamic user storage values in RFC 2087 units" do
     user = user_fixture()
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
