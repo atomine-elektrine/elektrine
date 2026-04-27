@@ -1,5 +1,5 @@
 defmodule ElektrineWeb.AutoconfigControllerTest do
-  use ElektrineWeb.ConnCase, async: true
+  use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Domains
 

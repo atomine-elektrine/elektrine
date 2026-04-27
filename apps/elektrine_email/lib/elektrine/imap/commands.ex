@@ -2429,9 +2429,7 @@ defmodule Elektrine.IMAP.Commands do
     {headers, body, message}
   rescue
     e in MatchError ->
-      data_preview = String.slice(data, 0, 200)
-      Logger.error("Failed to parse email data. Preview: #{inspect(data_preview)}")
-      Logger.error("Parse error: #{inspect(e)}")
+      Logger.error("Failed to parse email data. size=#{byte_size(data)} error=#{inspect(e)}")
       {%{"subject" => "(Parse Error)", "from" => "", "to" => ""}, data, nil}
   end
 

@@ -1090,21 +1090,48 @@ defmodule Elektrine.VPN do
   end
 
   defp encrypt_private_key(private_key) do
-    # Use application secret to encrypt the private key
-    # In production, use a proper encryption library
-    secret =
-      Application.get_env(:elektrine, ElektrineWeb.Endpoint)[:secret_key_base]
-      |> binary_part(0, 32)
-
-    iv = :crypto.strong_rand_bytes(16)
+    iv = :crypto.strong_rand_bytes(12)
 
     {ciphertext, tag} =
-      :crypto.crypto_one_time_aead(:aes_256_gcm, secret, iv, private_key, "", true)
+      :crypto.crypto_one_time_aead(
+        :aes_256_gcm,
+        vpn_private_key_secret(),
+        iv,
+        private_key,
+        vpn_private_key_aad(),
+        true
+      )
 
-    iv <> tag <> ciphertext
+    "vpn:v1:" <> Base.url_encode64(iv <> tag <> ciphertext, padding: false)
+  end
+
+  defp decrypt_private_key("vpn:v1:" <> payload) do
+    with {:ok, binary} <- Base.url_decode64(payload, padding: false),
+         true <- byte_size(binary) > 28,
+         <<iv::binary-12, tag::binary-16, ciphertext::binary>> <- binary,
+         plaintext when is_binary(plaintext) <-
+           :crypto.crypto_one_time_aead(
+             :aes_256_gcm,
+             vpn_private_key_secret(),
+             iv,
+             ciphertext,
+             vpn_private_key_aad(),
+             tag,
+             false
+           ) do
+      plaintext
+    else
+      _ -> nil
+    end
   end
 
   defp decrypt_private_key(encrypted_data) when is_binary(encrypted_data) do
+    decrypt_legacy_private_key(encrypted_data)
+  end
+
+  defp decrypt_private_key(nil), do: nil
+
+  defp decrypt_legacy_private_key(encrypted_data) do
     secret =
       Application.get_env(:elektrine, ElektrineWeb.Endpoint)[:secret_key_base]
       |> binary_part(0, 32)
@@ -1112,9 +1139,18 @@ defmodule Elektrine.VPN do
     <<iv::binary-16, tag::binary-16, ciphertext::binary>> = encrypted_data
 
     :crypto.crypto_one_time_aead(:aes_256_gcm, secret, iv, ciphertext, "", tag, false)
+  rescue
+    _ -> nil
   end
 
-  defp decrypt_private_key(nil), do: nil
+  defp vpn_private_key_secret do
+    master_secret = Application.fetch_env!(:elektrine, :encryption_master_secret)
+    key_salt = Application.fetch_env!(:elektrine, :encryption_key_salt)
+
+    :crypto.pbkdf2_hmac(:sha256, master_secret, key_salt <> "vpn_private_keys", 100_000, 32)
+  end
+
+  defp vpn_private_key_aad, do: "ElektrineVPNPrivateKeyV1"
 
   defp server_endpoint_host(%Server{endpoint_host: endpoint_host, public_ip: public_ip}) do
     case normalize_optional_string(endpoint_host) do

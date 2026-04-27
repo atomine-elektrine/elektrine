@@ -30,7 +30,8 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp assign_domain_analytics(socket, user, active_domain) do
     active_host = active_domain && active_domain.host
-    domain_hosts = Enum.map(socket.assigns[:domains] || [], & &1.host)
+    domains = socket.assigns[:domains] || []
+    domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
     domain_breakdown = Profiles.get_site_domain_breakdown(user.id, domain_hosts)
     daily_views = Profiles.get_site_daily_view_counts(user.id, 30, active_site_scope)
@@ -43,7 +44,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     |> assign(:stats, Profiles.get_site_view_stats(user.id, active_site_scope))
     |> assign(
       :domain_breakdown,
-      merge_domain_breakdown(socket.assigns[:domains] || [], domain_breakdown)
+      merge_domain_breakdown(domains, domain_breakdown)
     )
     |> assign(:top_pages, Profiles.get_site_top_pages(user.id, active_site_scope, 10))
     |> assign(:top_referrers, Profiles.get_site_top_referrers(user.id, active_site_scope, 10))
@@ -68,27 +69,37 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   end
 
   defp domain_targets(user) do
-    built_in_host =
+    built_in_hosts =
       user
-      |> profile_host_url()
-      |> parse_host()
+      |> profile_host_urls()
+      |> Enum.map(&parse_host/1)
+      |> Enum.filter(&is_binary/1)
 
     custom_hosts =
       user.id
       |> Profiles.verified_domains_for_user()
       |> Enum.map(& &1.domain)
 
-    tracked_hosts = Profiles.get_tracked_site_hosts(user.id)
     dns_zones = DNS.list_user_zones(user)
+    dns_zone_hosts = Enum.map(dns_zones, & &1.domain)
+
+    tracked_hosts =
+      user.id
+      |> Profiles.get_tracked_site_hosts()
+      |> Enum.reject(&platform_infrastructure_host?/1)
+      |> Enum.filter(fn host ->
+        host in built_in_hosts or host in custom_hosts or
+          host_matches_any_zone?(host, dns_zone_hosts)
+      end)
 
     site_domains =
-      ([built_in_host] ++ custom_hosts ++ tracked_hosts)
+      (built_in_hosts ++ custom_hosts ++ tracked_hosts)
       |> Enum.filter(&is_binary/1)
       |> Enum.uniq()
       |> Enum.map(fn host ->
         %{
           host: host,
-          kind: domain_kind(host, built_in_host, custom_hosts),
+          kind: domain_kind(host, built_in_hosts, custom_hosts),
           dns_zone_id: nil,
           dns_zone_status: nil
         }
@@ -108,6 +119,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     |> Enum.reduce(%{}, fn domain, acc ->
       Map.update(acc, domain.host, domain, fn existing ->
         existing
+        |> Map.put(:kind, merged_domain_kind(existing.kind, domain.kind))
         |> Map.put(:dns_zone_id, domain.dns_zone_id || existing.dns_zone_id)
         |> Map.put(:dns_zone_status, domain.dns_zone_status || existing.dns_zone_status)
       end)
@@ -116,9 +128,17 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     |> Enum.sort_by(& &1.host)
   end
 
-  defp profile_host_url(user) do
-    Domains.default_profile_url_for_user(user)
+  defp profile_host_urls(%{handle: handle, username: username} = user) do
+    handle_or_username = handle || username
+
+    if Elektrine.Accounts.User.built_in_subdomain_hosted_by_platform?(user) do
+      Domains.profile_urls_for_handle(handle_or_username)
+    else
+      []
+    end
   end
+
+  defp profile_host_urls(_), do: []
 
   defp parse_host(url) when is_binary(url) do
     case URI.parse(url) do
@@ -129,13 +149,25 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp parse_host(_), do: nil
 
-  defp domain_kind(host, built_in_host, custom_hosts) do
+  defp domain_kind(host, built_in_hosts, custom_hosts) do
     cond do
-      host == built_in_host -> :built_in
+      host in built_in_hosts -> :built_in
       host in custom_hosts -> :custom
       true -> :tracked
     end
   end
+
+  defp merged_domain_kind(existing_kind, new_kind) do
+    if domain_kind_rank(new_kind) > domain_kind_rank(existing_kind),
+      do: new_kind,
+      else: existing_kind
+  end
+
+  defp domain_kind_rank(:built_in), do: 4
+  defp domain_kind_rank(:custom), do: 3
+  defp domain_kind_rank(:dns_only), do: 2
+  defp domain_kind_rank(:tracked), do: 1
+  defp domain_kind_rank(_), do: 0
 
   defp select_active_domain(domains, requested_host, requested_zone_id) do
     requested_zone_id = normalize_zone_id(requested_zone_id)
@@ -160,12 +192,39 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     rows_by_host = Map.new(rows, &{&1.host, &1})
 
     Enum.map(domains, fn domain ->
-      stats = Map.get(rows_by_host, domain.host, %{views: 0, unique_visitors: 0, views_today: 0})
+      stats = domain_stats(domain, domains, rows_by_host)
       Map.merge(domain, stats)
     end)
   end
 
-  defp active_site_scope(%{host: host, dns_zone_id: zone_id}, domain_hosts)
+  defp domain_stats(%{host: host, kind: :dns_only}, domains, rows_by_host) when is_binary(host) do
+    suffix = ".#{host}"
+
+    domains
+    |> Enum.filter(fn domain ->
+      is_binary(domain.host) and (domain.host == host or String.ends_with?(domain.host, suffix))
+    end)
+    |> Enum.map(&Map.get(rows_by_host, &1.host, empty_domain_stats()))
+    |> sum_domain_stats()
+  end
+
+  defp domain_stats(%{host: host}, _domains, rows_by_host) do
+    Map.get(rows_by_host, host, empty_domain_stats())
+  end
+
+  defp empty_domain_stats, do: %{views: 0, unique_visitors: 0, views_today: 0}
+
+  defp sum_domain_stats(rows) do
+    Enum.reduce(rows, empty_domain_stats(), fn row, acc ->
+      %{
+        views: acc.views + Map.get(row, :views, 0),
+        unique_visitors: acc.unique_visitors + Map.get(row, :unique_visitors, 0),
+        views_today: acc.views_today + Map.get(row, :views_today, 0)
+      }
+    end)
+  end
+
+  defp active_site_scope(%{host: host, kind: :dns_only, dns_zone_id: zone_id}, domain_hosts)
        when is_binary(host) and is_integer(zone_id) do
     suffix = ".#{host}"
 
@@ -177,6 +236,54 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp active_site_scope(%{host: host}, _domain_hosts), do: host
   defp active_site_scope(_, _domain_hosts), do: nil
+
+  defp host_matches_any_zone?(host, zone_hosts) when is_binary(host) do
+    Enum.any?(zone_hosts, fn zone_host ->
+      is_binary(zone_host) and (host == zone_host or String.ends_with?(host, ".#{zone_host}"))
+    end)
+  end
+
+  defp host_matches_any_zone?(_, _), do: false
+
+  defp platform_infrastructure_host?(host) when is_binary(host) do
+    host = normalize_host(host)
+
+    host in platform_infrastructure_hosts() or String.starts_with?(host || "", "admin.") or
+      String.starts_with?(host || "", "www.")
+  end
+
+  defp platform_infrastructure_host?(_), do: false
+
+  defp platform_infrastructure_hosts do
+    admin_host = System.get_env("CADDY_ADMIN_HOST") || "admin.#{Domains.primary_profile_domain()}"
+
+    (Domains.app_hosts() ++
+       [
+         admin_host,
+         Domains.mail_base_url() |> parse_host(),
+         Domains.profile_custom_domain_edge_target()
+       ])
+    |> Enum.map(&normalize_host/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp format_count(value) when is_integer(value) and value >= 1_000_000,
+    do: "#{format_decimal(value / 1_000_000)}M"
+
+  defp format_count(value) when is_integer(value) and value >= 1_000,
+    do: "#{format_decimal(value / 1_000)}K"
+
+  defp format_count(value) when is_number(value), do: to_string(value)
+  defp format_count(_), do: "0"
+
+  defp format_decimal(value) do
+    value
+    |> Float.round(1)
+    |> then(fn rounded ->
+      if rounded == Float.round(rounded, 0), do: trunc(rounded), else: rounded
+    end)
+  end
 
   defp max_daily_views([]), do: 0
   defp max_daily_views(daily_views), do: Enum.max_by(daily_views, & &1.count).count

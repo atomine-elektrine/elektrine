@@ -65,31 +65,42 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
     if account_id != expected_account_id do
       conn |> put_status(403) |> json(%{"type" => "forbidden"})
     else
-      {:ok, body, conn} = Plug.Conn.read_body(conn, length: @max_upload_size)
+      case Plug.Conn.read_body(conn, length: @max_upload_size) do
+        {:ok, body, conn} ->
+          content_type =
+            case get_req_header(conn, "content-type") do
+              [ct | _] -> sanitize_content_type(ct)
+              [] -> "application/octet-stream"
+            end
 
-      content_type =
-        case get_req_header(conn, "content-type") do
-          [ct | _] -> sanitize_content_type(ct)
-          [] -> "application/octet-stream"
-        end
+          blob_id = "blob-#{:crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)}"
 
-      blob_id = "blob-#{:crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower)}"
+          case store_blob(blob_id, body, content_type, user) do
+            {:ok, _key} ->
+              conn
+              |> put_status(201)
+              |> json(%{
+                "accountId" => account_id,
+                "blobId" => blob_id,
+                "type" => content_type,
+                "size" => byte_size(body)
+              })
 
-      case store_blob(blob_id, body, content_type, user) do
-        {:ok, _key} ->
+            {:error, _reason} ->
+              conn
+              |> put_status(500)
+              |> json(%{"type" => "serverFail", "description" => "Upload failed"})
+          end
+
+        {:more, _partial, conn} ->
           conn
-          |> put_status(201)
-          |> json(%{
-            "accountId" => account_id,
-            "blobId" => blob_id,
-            "type" => content_type,
-            "size" => byte_size(body)
-          })
+          |> put_status(:payload_too_large)
+          |> json(%{"type" => "tooLarge", "description" => "Upload exceeds maximum size"})
 
         {:error, _reason} ->
           conn
-          |> put_status(500)
-          |> json(%{"type" => "serverFail", "description" => "Upload failed"})
+          |> put_status(:bad_request)
+          |> json(%{"type" => "invalidRequest", "description" => "Unable to read upload body"})
       end
     end
   end

@@ -4,7 +4,7 @@ defmodule Elektrine.RuntimeSecrets do
   @type env_map :: %{optional(String.t()) => String.t()}
 
   def master_secret(env \\ System.get_env()) do
-    env_value(env, "ELEKTRINE_MASTER_SECRET") || env_value(env, "SECRET_KEY_BASE")
+    env_value(env, "ELEKTRINE_MASTER_SECRET")
   end
 
   def secret_key_base(env \\ System.get_env()),

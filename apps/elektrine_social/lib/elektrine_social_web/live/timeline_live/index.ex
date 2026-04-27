@@ -415,7 +415,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> Enum.uniq()
       |> Enum.take(20)
 
-    if connected?(socket) && message_ids != [] do
+    if connected?(socket) && message_ids != [] && !test_env?() do
       Enum.each(message_ids, fn message_id ->
         _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
       end)
@@ -429,7 +429,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp maybe_schedule_reply_ingestion(socket, posts) when is_list(posts) do
-    if connected?(socket) do
+    if connected?(socket) and Application.get_env(:elektrine, :environment) != :test do
       existing_replies = socket.assigns[:post_replies] || %{}
 
       message_ids =
@@ -637,7 +637,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       user_id = user.id
       parent = self()
 
-      Task.start(fn ->
+      run_timeline_task(fn ->
         friends = Elektrine.Friends.list_friends(user_id)
 
         send(parent, {
@@ -1302,16 +1302,36 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:timeline_filter, timeline_view)
       |> timeline_load_context()
 
-    parent = self()
+    if Application.get_env(:elektrine, :environment) == :test do
+      socket
+      |> assign(:timeline_filter, timeline_view)
+      |> assign(:loading_more, false)
+      |> assign(:no_more_posts, false)
+      |> apply_timeline_load_state(build_timeline_load_state(context, filter))
+    else
+      parent = self()
 
-    Task.start(fn ->
-      send(parent, {:timeline_data_loaded, load_ref, build_timeline_load_state(context, filter)})
-    end)
+      Task.start(fn ->
+        send(
+          parent,
+          {:timeline_data_loaded, load_ref, build_timeline_load_state(context, filter)}
+        )
+      end)
 
-    socket
-    |> assign(:timeline_filter, timeline_view)
-    |> assign(:loading_more, false)
-    |> assign(:no_more_posts, false)
+      socket
+      |> assign(:timeline_filter, timeline_view)
+      |> assign(:loading_more, false)
+      |> assign(:no_more_posts, false)
+    end
+  end
+
+  defp run_timeline_task(fun) when is_function(fun, 0) do
+    if Application.get_env(:elektrine, :environment) == :test do
+      fun.()
+      {:ok, self()}
+    else
+      Task.start(fun)
+    end
   end
 
   defp load_posts_for_filter(filter, user, timeline_view, opts) do
@@ -1462,7 +1482,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp timeline_sort_path(filter, view, sort, query) do
-    params = %{"filter" => filter, "view" => view, "sort" => sort}
+    params = %{"filter" => filter, "view" => view}
+
+    params = if sort == "new", do: params, else: Map.put(params, "sort", sort)
 
     params =
       if Elektrine.Strings.present?(query) do

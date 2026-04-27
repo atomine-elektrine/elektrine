@@ -289,9 +289,9 @@ defmodule ElektrineEmailWeb.ContactsLive.Operations.ContactOperations do
   end
 
   # Catch-all
-  def handle_contact_event(event, params, socket) do
+  def handle_contact_event(event, _params, socket) do
     require Logger
-    Logger.warning("Unhandled contact event: #{event} with params: #{inspect(params)}")
+    Logger.warning("Unhandled contact event: #{event}")
     {:noreply, socket}
   end
 

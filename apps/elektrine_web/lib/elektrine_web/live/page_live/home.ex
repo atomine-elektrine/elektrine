@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.PageLive.Home do
   use ElektrineWeb, :live_view
 
+  require Logger
+
   alias Elektrine.Platform.Modules
 
   on_mount({ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user})
@@ -11,7 +13,7 @@ defmodule ElektrineWeb.PageLive.Home do
 
   def render(assigns) do
     ~H"""
-    <script type="application/ld+json">
+    <script nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()} type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "WebSite",
@@ -47,9 +49,8 @@ defmodule ElektrineWeb.PageLive.Home do
                       Software for sovereignty.
                     </h1>
                     <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
-                      Run your own platform instead of renting one. Elektrine brings
-                      communications, identity, and infrastructure together in a modular system
-                      you control.
+                      Elektrine is a modular platform for people who want to run communications,
+                      identity, and infrastructure under their own control.
                     </p>
                   </div>
                 </div>
@@ -200,4 +201,25 @@ defmodule ElektrineWeb.PageLive.Home do
   defp github_releases_url, do: "https://github.com/atomine-elektrine/elektrine/releases"
 
   defp github_issues_url, do: "https://github.com/atomine-elektrine/elektrine/issues"
+
+  def load_platform_stats(cache_fetch \\ &Elektrine.AppCache.get_platform_stats/1) do
+    case cache_fetch.(fn -> default_platform_stats() end) do
+      {:ok, stats} ->
+        stats
+
+      stats when is_map(stats) ->
+        stats
+
+      {:error, reason} ->
+        Logger.warning("Home platform stats cache fetch failed: #{Exception.message(reason)}")
+        default_platform_stats()
+    end
+  end
+
+  defp default_platform_stats do
+    %{
+      stats: %{users: 0, emails: 0, posts: 0},
+      federation: %{remote_actors: 0, instances: 0}
+    }
+  end
 end

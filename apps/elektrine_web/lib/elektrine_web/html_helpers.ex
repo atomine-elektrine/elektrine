@@ -621,10 +621,12 @@ defmodule ElektrineWeb.HtmlHelpers do
     |> linkify_plain_text_hashtags()
     |> rewrite_mention_links_to_local(instance_domain, mention_domain_hints)
     |> linkify_plain_text_urls()
+    |> render_linkified_markdown_images()
     |> add_link_styles()
     |> render_custom_emojis(instance_domain)
     |> add_paragraph_spacing()
     |> trim_leading_post_spacing()
+    |> normalize_remote_render_output()
   rescue
     _ -> fallback_remote_post_html(content, instance_domain, mention_domain_hints)
   end
@@ -683,6 +685,14 @@ defmodule ElektrineWeb.HtmlHelpers do
   end
 
   defp trim_leading_post_spacing(content), do: content
+
+  defp normalize_remote_render_output(html) when is_binary(html) do
+    html
+    |> String.replace(~r/<br\s*\/?>/i, "<br>")
+    |> String.replace("'", "&#39;")
+  end
+
+  defp normalize_remote_render_output(content), do: content
 
   defp strip_mastodon_link_spans(html) when is_binary(html) do
     html
@@ -785,6 +795,19 @@ defmodule ElektrineWeb.HtmlHelpers do
   def linkify_plain_text_urls(content) do
     content
   end
+
+  defp render_linkified_markdown_images(html) when is_binary(html) do
+    Regex.replace(
+      ~r/!\[([^\]]*)\]\(<a\s+[^>]*href="([^"]+)"[^>]*>.*?<\/a>\)/,
+      html,
+      fn _, alt, url ->
+        clean_url = url |> String.trim_trailing(")") |> HtmlEntities.decode()
+        render_image_tag(alt, clean_url)
+      end
+    )
+  end
+
+  defp render_linkified_markdown_images(content), do: content
 
   @doc ~s|Styles all anchor tags in HTML with consistent hover effects.\nAdds classes to both existing anchor tags and linkifies plain text URLs.\n\nIMPORTANT: Should be called on already-sanitized HTML!\n|
   def style_profile_links(html) when is_binary(html) do

@@ -135,8 +135,11 @@ defmodule Elektrine.ActivityPub.Publisher do
             "Failed to deliver to #{inbox_url}, status: #{status}, body: #{inspect(error_body)}"
           )
 
-          Logger.debug("Failed delivery - Activity: #{inspect(activity, limit: :infinity)}")
-          Logger.debug("Failed delivery - Headers: #{inspect(all_headers)}")
+          Logger.debug(
+            "Failed delivery activity_type=#{activity["type"] || activity[:type]} " <>
+              "activity_id=#{activity["id"] || activity[:id]}"
+          )
+
           {:error, "HTTP #{status}"}
 
         {:error, reason} ->

@@ -29,6 +29,23 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
 
   def fetch_previews(_), do: %{}
 
+  def fetch_previews(refs, fetch_fun) when is_list(refs) and is_function(fetch_fun, 1) do
+    Enum.reduce(refs, %{}, fn ref, acc ->
+      case fetch_fun.(ref) do
+        {:ok, object} when is_map(object) ->
+          case preview_map(object["content"], object["attributedTo"] || object["actor"]) do
+            nil -> acc
+            preview -> Map.put(acc, ref, preview)
+          end
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  def fetch_previews(_, _), do: %{}
+
   def fetch_local_previews(refs) when is_list(refs) do
     fetch_previews(refs)
   end

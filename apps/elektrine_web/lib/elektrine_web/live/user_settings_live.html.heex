@@ -67,6 +67,13 @@
                 <.icon name="hero-user" class="w-5 h-5" /> {gettext("Profile Information")}
               </h2>
 
+              <%= if @profile_notice do %>
+                <div class="alert alert-info mb-4">
+                  <.icon name="hero-information-circle" class="w-5 h-5" />
+                  <span>{@profile_notice}</span>
+                </div>
+              <% end %>
+
               <.form
                 for={@changeset}
                 id="profile-form"

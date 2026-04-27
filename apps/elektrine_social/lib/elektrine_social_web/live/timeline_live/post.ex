@@ -396,7 +396,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
         cond do
           can_view ->
             # Keep timeline visibility checks, but render with the canonical post detail view.
-            {:ok, redirect(socket, to: Elektrine.Paths.post_path(post_id))}
+            {:ok, redirect(socket, to: Elektrine.Paths.remote_post_path(post_id))}
 
           user ->
             # User is authenticated but doesn't have access

@@ -127,6 +127,12 @@ defmodule Elektrine.Secrets.Backfill do
         column: "bluesky_app_password"
       },
       %{
+        name: :users_two_factor_secret,
+        table: "users",
+        pk: "id",
+        column: "two_factor_secret"
+      },
+      %{
         name: :signing_keys_private_key,
         table: "signing_keys",
         pk: "key_id",

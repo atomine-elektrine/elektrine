@@ -571,7 +571,8 @@
     try {
       const response = await runtimeMessage({
         type: MESSAGE_TYPES.FILL_ENTRY,
-        entryId
+        entryId,
+        pageUrl: location.href
       })
 
       if (!response.ok) {

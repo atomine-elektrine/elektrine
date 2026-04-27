@@ -123,7 +123,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
               if reason == :security_rejection do
                 Logger.debug(
-                  "Security rejection for email from #{params["from"]} (#{duration}ms)"
+                  "Security rejection for inbound email sender_domain=#{email_domain(params["from"])} (#{duration}ms)"
                 )
               else
                 if no_mailbox_reason?(reason) do
@@ -164,11 +164,15 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                     extra: %{
                       reason: inspect(reason),
                       duration_ms: duration,
-                      to: params["to"],
-                      rcpt_to: params["rcpt_to"],
-                      from: params["from"],
+                      to_domain: email_domain(params["to"]),
+                      rcpt_to_domain: email_domain(params["rcpt_to"]),
+                      from_domain: email_domain(params["from"]),
+                      to_hash: pii_hash(params["to"]),
+                      rcpt_to_hash: pii_hash(params["rcpt_to"]),
+                      from_hash: pii_hash(params["from"]),
                       attachment_info: attachment_info,
-                      subject: params["subject"]
+                      subject_hash: pii_hash(params["subject"]),
+                      subject_length: string_length(params["subject"])
                     }
                   )
                 end
@@ -213,9 +217,12 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
               extra: %{
                 context: "haraka_webhook_processing",
                 attachment_info: attachment_info,
-                to: params["to"],
-                from: params["from"],
-                subject: params["subject"]
+                to_domain: email_domain(params["to"]),
+                from_domain: email_domain(params["from"]),
+                to_hash: pii_hash(params["to"]),
+                from_hash: pii_hash(params["from"]),
+                subject_hash: pii_hash(params["subject"]),
+                subject_length: string_length(params["subject"])
               }
             )
 
@@ -324,10 +331,14 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
         stacktrace: __STACKTRACE__,
         extra: %{
           context: "haraka_webhook_enqueue",
-          to: params["to"],
-          rcpt_to: params["rcpt_to"],
-          from: params["from"],
-          subject: params["subject"]
+          to_domain: email_domain(params["to"]),
+          rcpt_to_domain: email_domain(params["rcpt_to"]),
+          from_domain: email_domain(params["from"]),
+          to_hash: pii_hash(params["to"]),
+          rcpt_to_hash: pii_hash(params["rcpt_to"]),
+          from_hash: pii_hash(params["from"]),
+          subject_hash: pii_hash(params["subject"]),
+          subject_length: string_length(params["subject"])
         }
       )
 
@@ -1637,6 +1648,43 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   defp sanitize_metadata_field(value) do
     value
   end
+
+  defp email_domain(value) do
+    value
+    |> extract_email_like_string()
+    |> case do
+      nil -> nil
+      email -> email |> String.split("@") |> List.last() |> String.downcase()
+    end
+  end
+
+  defp pii_hash(value) do
+    case extract_email_like_string(value) do
+      nil ->
+        nil
+
+      value ->
+        :sha256
+        |> :crypto.hash(String.downcase(value))
+        |> Base.encode16(case: :lower)
+    end
+  end
+
+  defp string_length(value) do
+    case extract_email_like_string(value) do
+      nil -> 0
+      value -> String.length(value)
+    end
+  end
+
+  defp extract_email_like_string([value | _]), do: extract_email_like_string(value)
+
+  defp extract_email_like_string(value) when is_binary(value) do
+    value = String.trim(value)
+    if value == "", do: nil, else: value
+  end
+
+  defp extract_email_like_string(_), do: nil
 
   defp sanitize_haraka_email_data(email_data) when is_map(email_data) do
     email_data |> Sanitizer.sanitize_incoming_email() |> ensure_all_utf8_valid()

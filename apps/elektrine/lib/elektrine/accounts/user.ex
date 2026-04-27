@@ -33,7 +33,7 @@ defmodule Elektrine.Accounts.User do
     field :trust_level_locked, :boolean, default: false
     field :promoted_at, :utc_datetime
     field :two_factor_enabled, :boolean, default: false
-    field :two_factor_secret, :string
+    field :two_factor_secret, Elektrine.Secrets.EncryptedString
     field :two_factor_backup_codes, {:array, :string}
     field :two_factor_enabled_at, :utc_datetime
     field :registration_ip, :string

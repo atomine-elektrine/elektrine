@@ -43,12 +43,12 @@ defmodule Elektrine.Paths do
     chat_message_path(conversation_id, id)
   end
 
-  def post_path(%{id: id}) when is_integer(id), do: post_path(id)
-
   def post_path(%{activitypub_id: activitypub_id})
       when is_binary(activitypub_id) and activitypub_id != "" do
     remote_post_path(activitypub_id)
   end
+
+  def post_path(%{id: id}) when is_integer(id), do: post_path(id)
 
   def post_path(ref) when is_integer(ref), do: "/post/#{ref}"
 
@@ -76,7 +76,7 @@ defmodule Elektrine.Paths do
       |> decode_remote_post_ref()
 
     case Integer.parse(normalized_ref) do
-      {id, ""} -> post_path(id)
+      {id, ""} -> remote_post_path(id)
       _ when normalized_ref == "" -> nil
       _ -> canonical_remote_post_path(normalized_ref)
     end

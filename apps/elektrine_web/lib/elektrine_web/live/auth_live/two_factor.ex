@@ -9,73 +9,71 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
 
   def render(assigns) do
     ~H"""
-    <div class="flex justify-center p-4 pt-8">
-      <div id="two-factor-card" class="card panel-card w-full max-w-md">
-        <div class="card-body">
-          <h1 class="card-title text-2xl justify-center mb-2">
-            Two-Factor Authentication
-          </h1>
-          <p class="text-center text-base-content/70 mb-6">
-            Enter the authentication code from your authenticator app
+    <div id="two-factor-card" class="card panel-card max-w-md mx-auto">
+      <div class="card-body">
+        <h1 class="card-title text-2xl justify-center mb-2">
+          Two-Factor Authentication
+        </h1>
+        <p class="text-center text-base-content/70 mb-6">
+          Enter the authentication code from your authenticator app
+        </p>
+
+        <.form for={%{}} as={:two_factor} action={~p"/two_factor"}>
+          <div>
+            <label class="label">
+              <span>Authentication Code</span>
+            </label>
+            <input
+              id="code"
+              name="two_factor[code]"
+              type="text"
+              autocomplete="off"
+              autofocus
+              required
+              class="input input-bordered font-medium text-2xl text-center tracking-widest w-full"
+              placeholder="000000"
+              maxlength="8"
+              pattern="[0-9A-Z]{6,8}"
+            />
+            <label class="label">
+              <span class="label-text-alt">Enter your 6-digit code or 8-character backup code</span>
+            </label>
+          </div>
+
+          <div class="form-control mt-4">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input
+                type="checkbox"
+                name="two_factor[trust_device]"
+                value="true"
+                class="checkbox checkbox-sm"
+              />
+              <span class="label-text">Trust this device for 30 days</span>
+            </label>
+            <label class="label">
+              <span class="label-text-alt opacity-70">
+                You won't need to enter a code on this device
+              </span>
+            </label>
+          </div>
+
+          <div class="mt-6">
+            <button type="submit" class="btn btn-primary w-full">
+              Verify
+            </button>
+          </div>
+        </.form>
+
+        <div class="divider">OR</div>
+
+        <div class="text-center">
+          <p class="text-sm text-base-content/70 mb-4">
+            Lost your authenticator device? You can use a backup code instead.
           </p>
 
-          <.form for={%{}} as={:two_factor} action={~p"/two_factor"}>
-            <div>
-              <label class="label">
-                <span>Authentication Code</span>
-              </label>
-              <input
-                id="code"
-                name="two_factor[code]"
-                type="text"
-                autocomplete="off"
-                autofocus
-                required
-                class="input input-bordered font-medium text-2xl text-center tracking-widest w-full"
-                placeholder="000000"
-                maxlength="8"
-                pattern="[0-9A-Z]{6,8}"
-              />
-              <label class="label">
-                <span class="label-text-alt">Enter your 6-digit code or 8-character backup code</span>
-              </label>
-            </div>
-
-            <div class="form-control mt-4">
-              <label class="label cursor-pointer justify-start gap-3">
-                <input
-                  type="checkbox"
-                  name="two_factor[trust_device]"
-                  value="true"
-                  class="checkbox checkbox-sm"
-                />
-                <span class="label-text">Trust this device for 30 days</span>
-              </label>
-              <label class="label">
-                <span class="label-text-alt opacity-70">
-                  You won't need to enter a code on this device
-                </span>
-              </label>
-            </div>
-
-            <div class="mt-6">
-              <button type="submit" class="btn btn-primary w-full">
-                Verify
-              </button>
-            </div>
-          </.form>
-
-          <div class="divider">OR</div>
-
-          <div class="text-center">
-            <p class="text-sm text-base-content/70 mb-4">
-              Lost your authenticator device? You can use a backup code instead.
-            </p>
-
-            <.link href={Elektrine.Paths.login_path()} class="link link-primary">
-              <.icon name="hero-arrow-left" class="w-4 h-4 inline" /> Back to login
-            </.link>
-          </div>
+          <.link href={Elektrine.Paths.login_path()} class="link link-primary">
+            <.icon name="hero-arrow-left" class="w-4 h-4 inline" /> Back to login
+          </.link>
         </div>
       </div>
     </div>

@@ -206,7 +206,8 @@ defmodule Elektrine.Social.Votes do
         where: m.id == ^message_id,
         select: %{
           inserted_at: m.inserted_at,
-          reply_count: fragment("(SELECT COUNT(*) FROM messages WHERE reply_to_id = ?)", m.id),
+          reply_count:
+            fragment("(SELECT COUNT(*) FROM social_messages WHERE reply_to_id = ?)", m.id),
           content_length: fragment("LENGTH(?)", m.content),
           has_link: fragment("? LIKE '%http%'", m.content)
         }
@@ -359,7 +360,7 @@ defmodule Elektrine.Social.Votes do
             m.post_type == "discussion" and
             m.inserted_at > ^seven_days_ago and
             (m.upvotes > 0 or m.downvotes > 0 or
-               fragment("(SELECT COUNT(*) FROM messages WHERE reply_to_id = ?)", m.id) > 0),
+               fragment("(SELECT COUNT(*) FROM social_messages WHERE reply_to_id = ?)", m.id) > 0),
         select: %{id: m.id, upvotes: m.upvotes, downvotes: m.downvotes}
       )
       |> Repo.all()

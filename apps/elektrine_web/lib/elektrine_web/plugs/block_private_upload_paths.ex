@@ -10,7 +10,10 @@ defmodule ElektrineWeb.Plugs.BlockPrivateUploadPaths do
     "/uploads/email-attachments/",
     "/uploads/timeline-attachments/",
     "/uploads/discussion-attachments/",
-    "/uploads/gallery-attachments/"
+    "/uploads/gallery-attachments/",
+    "/uploads/cloud-files/",
+    "/uploads/static_sites/",
+    "/uploads/jmap-blobs/"
   ]
 
   def init(opts), do: opts

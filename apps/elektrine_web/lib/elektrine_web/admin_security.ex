@@ -435,17 +435,10 @@ defmodule ElektrineWeb.AdminSecurity do
     end
   end
 
-  defp handle_controller_security_failure(%{method: "GET"} = conn, user, reason) do
-    return_to = derive_return_to(conn)
-
+  defp handle_controller_security_failure(%{method: "GET"} = conn, _user, reason) do
     conn
     |> maybe_put_error_flash(error_message(reason))
-    |> put_layout(html: {ElektrineWeb.Layouts, :admin})
-    |> put_view(html: ElektrineWeb.AdminHTML)
-    |> render(:elevate,
-      return_to: return_to,
-      has_passkeys: Passkeys.has_passkeys?(user)
-    )
+    |> redirect(to: elevation_redirect_path(derive_return_to(conn)))
     |> halt()
   end
 

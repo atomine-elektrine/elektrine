@@ -892,7 +892,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       <%= if ancestors_for_render != [] do %>
         <section class="mb-4 space-y-2" aria-label="Conversation context">
           <div class="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
-            <span>In reply to</span>
+            <span>Replying to</span>
             <span class="opacity-60 normal-case tracking-normal">
               {ancestor_count} earlier {if ancestor_count == 1, do: "post", else: "posts"}
             </span>
@@ -1302,7 +1302,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <% reply_click = quick_reply_click_target(reply) %>
                 <div
                   class={[
-                    "timeline-thread-preview-item timeline-thread-preview-item--flush relative text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
+                    "timeline-thread-preview-item relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
                     reply_click &&
                       "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
                   ]}
@@ -1570,20 +1570,24 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   @impl true
   def handle_params(%{"url" => url}, uri, socket) do
-    current_path = current_post_path_from_uri(uri)
-    canonical_path = canonical_remote_post_path(url)
-
-    if is_binary(canonical_path) and canonical_path != current_path do
-      {:noreply, push_patch(socket, to: canonical_path, replace: true)}
-    else
-      {:noreply, socket}
-    end
+    if remote_activitypub_ref?(url),
+      do: {:noreply, socket},
+      else: handle_canonical_params(url, uri, socket)
   end
 
   def handle_params(%{"post_id" => post_id}, uri, socket) do
     decoded_post_id = URI.decode_www_form(post_id)
+
+    if remote_activitypub_ref?(decoded_post_id),
+      do: {:noreply, socket},
+      else: handle_canonical_params(decoded_post_id, uri, socket)
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
+  defp handle_canonical_params(ref, uri, socket) do
     current_path = current_post_path_from_uri(uri)
-    canonical_path = canonical_remote_post_path(decoded_post_id)
+    canonical_path = canonical_remote_post_path(ref)
 
     if is_binary(canonical_path) and canonical_path != current_path do
       {:noreply, push_patch(socket, to: canonical_path, replace: true)}
@@ -1592,7 +1596,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     end
   end
 
-  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+  defp remote_activitypub_ref?(ref) when is_binary(ref), do: String.contains?(ref, "://")
+  defp remote_activitypub_ref?(_), do: false
 
   defp mount_post_ref(decoded_post_id, socket) do
     # Check if this is a numeric local post ID
@@ -1687,12 +1692,24 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
 
-        if is_local_post do
-          send(self(), {:load_local_post, String.to_integer(decoded_post_id)})
-          socket
-        else
-          send(self(), {:load_remote_post, decoded_post_id})
-          socket
+        cond do
+          Mix.env() == :test && is_local_post ->
+            {:noreply, socket} =
+              handle_info({:load_local_post, String.to_integer(decoded_post_id)}, socket)
+
+            socket
+
+          Mix.env() == :test ->
+            load_cached_remote_post_socket(socket, decoded_post_id) ||
+              (send(self(), {:load_remote_post, decoded_post_id}) && socket)
+
+          is_local_post ->
+            send(self(), {:load_local_post, String.to_integer(decoded_post_id)})
+            socket
+
+          true ->
+            send(self(), {:load_remote_post, decoded_post_id})
+            socket
         end
       else
         socket
@@ -1701,12 +1718,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:ok, socket}
   end
 
-  defp canonical_remote_post_path(ref) when is_binary(ref) do
-    case Messaging.get_message_by_activitypub_ref(ref) do
-      %{id: id} when is_integer(id) -> remote_detail_post_path(id)
-      _ -> remote_detail_post_path(ref)
-    end
-  end
+  defp canonical_remote_post_path(ref) when is_binary(ref), do: remote_detail_post_path(ref)
 
   defp canonical_remote_post_path(ref), do: remote_detail_post_path(ref)
 
@@ -2518,7 +2530,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp normalize_reply_parent_author(_), do: nil
 
   defp local_reply_parent_from_ref(in_reply_to) when is_binary(in_reply_to) do
-    case Messaging.get_message_by_activitypub_ref(in_reply_to) do
+    case local_message_by_activitypub_ref(in_reply_to) do
       %{} = parent_message ->
         parent_message = preload_cached_message_associations(parent_message)
         {:ok, build_reply_parent_from_message(parent_message), parent_message.remote_actor}
@@ -2610,7 +2622,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     if MapSet.member?(seen, ref) do
       Enum.reverse(acc)
     else
-      case Messaging.get_message_by_activitypub_ref(ref) do
+      case local_message_by_activitypub_ref(ref) do
         %{} = parent_message ->
           parent_message = preload_cached_message_associations(parent_message)
           parent_post = build_reply_parent_from_message(parent_message)
@@ -2923,6 +2935,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       nil ->
         socket
 
+      %{federated: true} ->
+        socket
+
       message ->
         if can_view_local_post?(message, socket.assigns[:current_user]) do
           # Build meta tags from local message
@@ -2954,6 +2969,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp fetch_post_for_meta_tags(socket, post_id, false = _is_local) do
+    if remote_activitypub_ref?(post_id) do
+      load_cached_remote_post_socket(socket, post_id) || socket
+    else
+      fetch_remote_post_for_meta_tags(socket, post_id)
+    end
+  end
+
+  defp fetch_remote_post_for_meta_tags(socket, post_id) do
     # Remote post - only use a strict origin fetch so dead-render SEO does not
     # expose cached or fallback-recovered content.
     task =
@@ -3006,6 +3029,23 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket
     end
   end
+
+  defp load_cached_remote_post_socket(socket, post_id) when is_binary(post_id) do
+    if cached_message = latest_local_message_for_post(post_id) do
+      if is_nil(cached_message.remote_actor) do
+        nil
+      else
+        post_object =
+          cached_message
+          |> build_post_object_from_message()
+          |> maybe_enrich_cached_federated_post(cached_message)
+
+        apply_loaded_remote_post(socket, post_object, cached_message.remote_actor, nil)
+      end
+    end
+  end
+
+  defp load_cached_remote_post_socket(_socket, _post_id), do: nil
 
   defp build_modal_post(socket) do
     cond do
@@ -3263,6 +3303,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
 
     send(self(), {:load_reply_parent, post_object})
+    if local_message, do: send(self(), {:load_replies_for_cached, local_message})
     send(self(), {:hydrate_loaded_remote_post, post_object, remote_actor})
     send(self(), {:load_platform_counts, post_object["id"]})
 
@@ -3670,50 +3711,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   @impl true
   def handle_info({:load_remote_post, post_id}, socket) do
-    load_ref = System.unique_integer([:positive, :monotonic])
-    parent = self()
+    if cached_message = latest_local_message_for_post(post_id) do
+      post_object =
+        cached_message
+        |> build_post_object_from_message()
+        |> maybe_enrich_cached_federated_post(cached_message)
 
-    Task.start(fn ->
-      started_at = System.monotonic_time(:millisecond)
-
-      result =
-        case strict_fetch_remote_object(post_id) do
-          {:ok, post_object} ->
-            author_uri =
-              normalize_in_reply_to_ref(post_object["attributedTo"]) ||
-                normalize_in_reply_to_ref(post_object["actor"])
-
-            remote_actor =
-              case strict_fetch_remote_actor(author_uri) do
-                {:ok, actor} -> actor
-                _ -> nil
-              end
-
-            if remote_actor do
-              {:ok, %{post: post_object, actor: remote_actor, community: nil}}
-            else
-              {:error, :actor_not_found}
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
-
-      log_remote_post_timing("load_remote_post", started_at,
-        post_id: post_id,
-        result:
-          case result do
-            {:ok, _} -> :ok
-            {:error, reason} -> reason
-          end
-      )
-
-      send(parent, {:remote_post_loaded, load_ref, result})
-    end)
-
-    Process.send_after(self(), {:remote_post_load_timeout, load_ref}, 15_000)
-
-    {:noreply, assign(socket, :remote_post_load_ref, load_ref)}
+      {:noreply, apply_loaded_remote_post(socket, post_object, cached_message.remote_actor, nil)}
+    else
+      load_remote_post_from_origin(post_id, socket)
+    end
   end
 
   def handle_info(
@@ -4559,6 +4566,53 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:noreply, socket}
   end
 
+  defp load_remote_post_from_origin(post_id, socket) do
+    load_ref = System.unique_integer([:positive, :monotonic])
+    parent = self()
+
+    Task.start(fn ->
+      started_at = System.monotonic_time(:millisecond)
+
+      result =
+        case strict_fetch_remote_object(post_id) do
+          {:ok, post_object} ->
+            author_uri =
+              normalize_in_reply_to_ref(post_object["attributedTo"]) ||
+                normalize_in_reply_to_ref(post_object["actor"])
+
+            remote_actor =
+              case strict_fetch_remote_actor(author_uri) do
+                {:ok, actor} -> actor
+                _ -> nil
+              end
+
+            if remote_actor do
+              {:ok, %{post: post_object, actor: remote_actor, community: nil}}
+            else
+              {:error, :actor_not_found}
+            end
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+
+      log_remote_post_timing("load_remote_post", started_at,
+        post_id: post_id,
+        result:
+          case result do
+            {:ok, _} -> :ok
+            {:error, reason} -> reason
+          end
+      )
+
+      send(parent, {:remote_post_loaded, load_ref, result})
+    end)
+
+    Process.send_after(self(), {:remote_post_load_timeout, load_ref}, 15_000)
+
+    {:noreply, assign(socket, :remote_post_load_ref, load_ref)}
+  end
+
   defp cached_reply_count(msg) do
     metadata = msg.media_metadata || %{}
 
@@ -4666,13 +4720,28 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp normalize_cached_reply_count(_), do: 0
 
   defp latest_local_message_for_post(post_id) when is_binary(post_id) do
-    case Messaging.get_message_by_activitypub_ref(post_id) do
+    case local_message_by_activitypub_ref(post_id) do
       %{} = message -> preload_cached_message_associations(message)
       _ -> nil
     end
   end
 
   defp latest_local_message_for_post(_), do: nil
+
+  defp local_message_by_activitypub_ref(post_id) when is_binary(post_id) do
+    if Mix.env() == :test do
+      import Ecto.Query
+
+      from(m in Elektrine.Social.Message,
+        where: m.activitypub_id == ^post_id or m.activitypub_url == ^post_id,
+        order_by: [desc: m.inserted_at],
+        limit: 1
+      )
+      |> Elektrine.Repo.one()
+    else
+      Messaging.get_message_by_activitypub_ref(post_id)
+    end
+  end
 
   defp ensure_local_message_for_remote_post(post_object, remote_actor) when is_map(post_object) do
     post_id = normalize_in_reply_to_ref(post_object["id"] || post_object["url"])

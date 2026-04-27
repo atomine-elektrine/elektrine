@@ -13,9 +13,15 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
 
   import Plug.Conn
 
+  alias ElektrineWeb.{ClientIP, Endpoint}
+
+  @script_nonce_key {__MODULE__, :script_nonce}
+
   def init(opts), do: opts
 
   def call(conn, _opts) do
+    Process.put(@script_nonce_key, nonce())
+
     conn
     |> put_csp_header()
     |> put_hsts_header()
@@ -35,11 +41,15 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
     # |> put_resp_header("cross-origin-resource-policy", "cross-origin")
   end
 
+  def script_nonce do
+    Process.get(@script_nonce_key) || nonce()
+  end
+
   # HTTP Strict Transport Security (HSTS)
   # Forces HTTPS connections for 2 years (recommended for preload list)
   defp put_hsts_header(conn) do
     # Only add HSTS header when using HTTPS
-    if conn.scheme == :https do
+    if https_request?(conn) do
       put_resp_header(
         conn,
         "strict-transport-security",
@@ -54,14 +64,13 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
   # Tailored for Phoenix LiveView applications
   defp put_csp_header(conn) do
     # Get the host for websocket connections
-    host = get_host(conn)
+    host = websocket_host(conn)
 
     # Build CSP directives
     base_directives = [
       "default-src 'self'",
-      # Scripts: allow self and Turnstile
-      # Note: 'unsafe-inline' needed for LiveView's inline event handlers
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com blob:",
+      # Scripts: inline scripts must carry this request nonce.
+      "script-src 'self' 'nonce-#{script_nonce()}' https://challenges.cloudflare.com blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
       # Images: allow self, data URIs, HTTPS (for S3-compatible storage and remote avatars)
@@ -73,7 +82,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       # Media: allow self and HTTPS (for video backgrounds from S3-compatible storage)
       "media-src 'self' https: blob:",
       # Frames: allow Turnstile and any HTTPS embeds (for emails/chat/profiles)
-      "frame-src 'self' https://challenges.cloudflare.com https:",
+      "frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com",
       # Child/Worker: allow Turnstile workers
       "child-src 'self' https://challenges.cloudflare.com blob:",
       "worker-src 'self' https://challenges.cloudflare.com blob:",
@@ -89,7 +98,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
 
     # Add upgrade-insecure-requests in production HTTPS
     directives =
-      if conn.scheme == :https do
+      if https_request?(conn) do
         base_directives ++ ["upgrade-insecure-requests"]
       else
         base_directives
@@ -100,10 +109,54 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
     put_resp_header(conn, "content-security-policy", csp)
   end
 
-  defp get_host(conn) do
+  defp nonce do
+    16
+    |> :crypto.strong_rand_bytes()
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp websocket_host(conn) do
+    conn
+    |> request_host()
+    |> normalize_host()
+    |> allowed_host()
+  end
+
+  defp request_host(conn) do
     case get_req_header(conn, "host") do
       [host | _] -> host
-      [] -> "localhost:4000"
+      [] -> nil
     end
   end
+
+  defp allowed_host(host) when is_binary(host) do
+    if host in allowed_hosts() do
+      host
+    else
+      default_host()
+    end
+  end
+
+  defp allowed_host(_), do: default_host()
+
+  defp allowed_hosts do
+    ([default_host(), System.get_env("CADDY_ADMIN_HOST")] ++ Elektrine.Domains.app_hosts())
+    |> Enum.map(&normalize_host/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp default_host,
+    do: normalize_host(Endpoint.config(:url)[:host]) || Elektrine.Domains.primary_profile_domain()
+
+  defp normalize_host(host) when is_binary(host) do
+    host
+    |> String.downcase()
+    |> String.split(":", parts: 2)
+    |> List.first()
+  end
+
+  defp normalize_host(_), do: nil
+
+  defp https_request?(conn), do: conn.scheme == :https or ClientIP.forwarded_as_https?(conn)
 end

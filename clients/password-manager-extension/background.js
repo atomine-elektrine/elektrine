@@ -12,7 +12,10 @@ import {
 
 const PENDING_SAVE_EXPIRY_MS = 5 * 60 * 1000
 const STAGED_FILL_EXPIRY_MS = 3 * 60 * 1000
+const VAULT_SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
 let sessionPassphrase = ""
+let sessionPassphraseExpiresAt = 0
+let sessionPassphraseTimer = null
 
 const MESSAGE_TYPES = {
   OPEN_OPTIONS: "ui:open-options",
@@ -58,7 +61,7 @@ async function handleMessage(message, sender) {
       return suggestions(message.pageUrl, message.query)
 
     case MESSAGE_TYPES.FILL_ENTRY:
-      return fillEntry(message.entryId)
+      return fillEntry(message.entryId, message.pageUrl)
 
     case MESSAGE_TYPES.STAGE_ENTRY_FILL:
       return stageEntryFill(sender.tab?.id, message.payload || {})
@@ -84,14 +87,16 @@ async function handleMessage(message, sender) {
       return { dismissed: true }
 
     case MESSAGE_TYPES.GET_SESSION_PASSPHRASE:
+      expireSessionPassphraseIfNeeded()
       return { passphrase: sessionPassphrase }
 
     case MESSAGE_TYPES.SET_SESSION_PASSPHRASE:
       sessionPassphrase = typeof message.passphrase === "string" ? message.passphrase : ""
+      scheduleSessionPassphraseExpiry()
       return { stored: true }
 
     case MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE:
-      sessionPassphrase = ""
+      clearSessionPassphrase()
       return { cleared: true }
 
     default:
@@ -128,11 +133,21 @@ async function suggestions(pageUrl, query = "") {
   }
 }
 
-async function fillEntry(entryId) {
+async function fillEntry(entryId, pageUrl = "") {
   const session = await getVaultSession()
 
   if (session.status !== "ready") {
     throw new Error(fillBlockedMessage(session.status))
+  }
+
+  const entry = session.entries.find((candidate) => candidate.id === entryId)
+
+  if (!entry) {
+    throw new Error("The selected entry is not available.")
+  }
+
+  if (!entryAllowedForPage(entry, pageUrl)) {
+    throw new Error("This vault entry is not saved for the current site.")
   }
 
   return {
@@ -320,6 +335,7 @@ async function getVaultSession() {
     return { status: "unconfigured", settings, entries }
   }
 
+  expireSessionPassphraseIfNeeded()
   const passphrase = sessionPassphrase
 
   if (!passphrase) {
@@ -340,11 +356,44 @@ async function getVaultSession() {
     }
   }
 
+  scheduleSessionPassphraseExpiry()
+
   return {
     status: "ready",
     settings,
     passphrase,
     entries
+  }
+}
+
+function scheduleSessionPassphraseExpiry() {
+  if (!sessionPassphrase) {
+    clearSessionPassphrase()
+    return
+  }
+
+  sessionPassphraseExpiresAt = Date.now() + VAULT_SESSION_IDLE_TIMEOUT_MS
+
+  if (sessionPassphraseTimer) {
+    clearTimeout(sessionPassphraseTimer)
+  }
+
+  sessionPassphraseTimer = setTimeout(clearSessionPassphrase, VAULT_SESSION_IDLE_TIMEOUT_MS)
+}
+
+function expireSessionPassphraseIfNeeded() {
+  if (sessionPassphrase && sessionPassphraseExpiresAt > 0 && Date.now() >= sessionPassphraseExpiresAt) {
+    clearSessionPassphrase()
+  }
+}
+
+function clearSessionPassphrase() {
+  sessionPassphrase = ""
+  sessionPassphraseExpiresAt = 0
+
+  if (sessionPassphraseTimer) {
+    clearTimeout(sessionPassphraseTimer)
+    sessionPassphraseTimer = null
   }
 }
 
@@ -436,6 +485,13 @@ function rankEntries(entries, pageUrl, query) {
 
       return left.entry.title.localeCompare(right.entry.title)
     })
+}
+
+function entryAllowedForPage(entry, pageUrl) {
+  const pageHost = safeHost(pageUrl)
+  const entryHost = safeHost(entry.website)
+
+  return Boolean(pageHost && entryHost && hostsRelated(pageHost, entryHost))
 }
 
 function fillBlockedMessage(status) {

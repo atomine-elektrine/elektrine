@@ -458,7 +458,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec lemmy_vote_post?(map()) :: boolean()
   def lemmy_vote_post?(post) do
-    community_post_url_match?(post) || post.post_type == "discussion" ||
+    community_post_url_match?(post) || Map.get(post, :post_type) == "discussion" ||
       explicit_vote_totals?(post)
   end
 

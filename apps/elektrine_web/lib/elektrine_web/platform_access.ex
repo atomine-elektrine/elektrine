@@ -66,6 +66,9 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/vpn/policy") ->
         nil
 
+      path_matches?(path, "/api/ext/v1/search") or path_matches?(path, "/api/ext/search") ->
+        :portal
+
       path_matches?(path, "/portal") ->
         :portal
 

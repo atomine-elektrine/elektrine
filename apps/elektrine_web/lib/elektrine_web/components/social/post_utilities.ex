@@ -144,4 +144,20 @@ defmodule ElektrineWeb.Components.Social.PostUtilities do
         [post, lemmy_counts, post_replies],
         %{}
       )
+
+  def get_post_click_event(post) do
+    OptionalModule.call(
+      :social,
+      @component_module,
+      :get_post_click_event,
+      [post],
+      fallback_post_click_event(post)
+    )
+  end
+
+  defp fallback_post_click_event(%{federated: true, activitypub_id: id})
+       when is_binary(id) and id != "",
+       do: "navigate_to_remote_post"
+
+  defp fallback_post_click_event(_), do: "navigate_to_post"
 end

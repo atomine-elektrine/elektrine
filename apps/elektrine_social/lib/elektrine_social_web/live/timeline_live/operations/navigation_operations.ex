@@ -23,7 +23,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     reply_thread_path = reply_thread_path(post, id)
 
     path =
-      if is_binary(reply_thread_path), do: reply_thread_path, else: Paths.post_path(post || id)
+      if is_binary(reply_thread_path), do: reply_thread_path, else: timeline_post_path(post || id)
 
     {:noreply, push_navigate(socket, to: path)}
   end
@@ -63,12 +63,25 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   # Navigate to remote post view by ActivityPub ID (passed as url).
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    {:noreply, push_navigate(socket, to: Paths.post_path(activitypub_id))}
+    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(activitypub_id)}")}
   end
 
   # Navigate to remote post view by post_id.
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
+    post =
+      Enum.find(socket.assigns[:timeline_posts] || [], &(to_string(&1.id) == to_string(post_id)))
+
+    path =
+      case post do
+        %{activitypub_id: activitypub_id}
+        when is_binary(activitypub_id) and activitypub_id != "" ->
+          "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+
+        _ ->
+          timeline_post_path(post_id)
+      end
+
+    {:noreply, push_navigate(socket, to: path)}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -118,7 +131,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   defp reply_thread_path(post, id) do
     cond do
       parent_id = local_reply_parent_id(post) ->
-        Paths.anchored_post_path(parent_id, id)
+        parent_path = Paths.remote_post_path(parent_id)
+        parent_path <> Paths.post_anchor(id)
 
       in_reply_to = metadata_in_reply_to(post) ->
         Paths.anchored_post_path(in_reply_to, id)
@@ -180,6 +194,22 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
       _ -> nil
     end
   end
+
+  defp timeline_post_path(%{federated: true, activitypub_id: activitypub_id})
+       when is_binary(activitypub_id) and activitypub_id != "",
+       do: "/remote/post/#{URI.encode_www_form(activitypub_id)}"
+
+  defp timeline_post_path(%{id: id}) when is_integer(id), do: timeline_post_path(id)
+  defp timeline_post_path(id) when is_integer(id), do: "/timeline/post/#{id}"
+
+  defp timeline_post_path(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> timeline_post_path(int)
+      _ -> Paths.post_path(id)
+    end
+  end
+
+  defp timeline_post_path(value), do: Paths.post_path(value)
 
   defp redirect_to_external_url(socket, url) do
     case SafeExternalURL.normalize(url) do

@@ -1005,7 +1005,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       |> Enum.uniq()
       |> Enum.take(20)
 
-    if message_ids != [] do
+    if message_ids != [] && Application.get_env(:elektrine, :environment) != :test do
       Enum.each(message_ids, fn message_id ->
         _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
       end)
@@ -1063,11 +1063,13 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp timeline_path(socket, filter, view) do
-    params = %{
-      "filter" => filter,
-      "view" => view,
-      "sort" => socket.assigns[:timeline_sort] || "new"
-    }
+    params = %{"filter" => filter, "view" => view}
+
+    params =
+      case socket.assigns[:timeline_sort] || "new" do
+        "new" -> params
+        sort -> Map.put(params, "sort", sort)
+      end
 
     params =
       case socket.assigns[:search_query] do

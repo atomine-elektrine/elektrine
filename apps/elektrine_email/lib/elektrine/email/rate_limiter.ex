@@ -50,11 +50,11 @@ defmodule Elektrine.Email.RateLimiter do
   # Tier definitions: {minute_limit, hour_limit, day_limit, recipient_limit}
   @tier_limits %{
     # Warmup tiers for TL0 accounts (very restrictive initially)
-    day_1: {1, 5, 5, 3},
-    days_2_3: {2, 8, 5, 5},
-    days_4_7: {2, 15, 5, 10},
-    week_2: {3, 25, 5, 15},
-    weeks_3_4: {3, 35, 5, 20},
+    day_1: {1, 5, 1, 3},
+    days_2_3: {2, 8, 1, 5},
+    days_4_7: {2, 15, 1, 10},
+    week_2: {3, 25, 1, 15},
+    weeks_3_4: {3, 35, 1, 20},
     # Trust level tiers (override warmup)
     tl1: {5, 50, 200, 50},
     tl2: {10, 100, 500, 100},

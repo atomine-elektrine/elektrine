@@ -1,5 +1,5 @@
 defmodule Elektrine.AccountIdentifiersTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Elektrine.AccountIdentifiers
 

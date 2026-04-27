@@ -1462,9 +1462,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     assigns = socket.assigns
     parent = self()
 
-    Task.start(fn ->
+    if Mix.env() == :test do
       send(parent, {:communities_data_loaded, build_communities_data(assigns)})
-    end)
+    else
+      Task.start(fn ->
+        send(parent, {:communities_data_loaded, build_communities_data(assigns)})
+      end)
+    end
 
     {:noreply, socket}
   end

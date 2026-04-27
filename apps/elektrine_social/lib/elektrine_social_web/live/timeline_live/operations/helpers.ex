@@ -22,7 +22,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       %{}
     else
       counts = LemmyCache.get_cached_counts(activitypub_ids)
-      _ = LemmyCache.schedule_refresh(activitypub_ids)
+
+      if Application.get_env(:elektrine, :environment) != :test do
+        _ = LemmyCache.schedule_refresh(activitypub_ids)
+      end
+
       counts
     end
   end

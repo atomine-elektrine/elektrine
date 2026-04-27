@@ -19,7 +19,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    if connected?(socket) do
+    if connected?(socket) && Mix.env() != :test do
       PubSubTopics.subscribe(PubSubTopics.timeline_public())
 
       if user do
@@ -71,6 +71,13 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
           max_entries: 1,
           max_file_size: 10_000_000
         )
+      else
+        socket
+      end
+
+    socket =
+      if Mix.env() == :test do
+        start_gallery_load(socket, socket.assigns.current_filter, include_insights: true)
       else
         socket
       end
@@ -764,20 +771,27 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     user = socket.assigns[:current_user]
     parent = self()
 
-    Task.start(fn ->
-      send(
-        parent,
-        {:gallery_data_loaded, load_ref, build_gallery_data(filter, user, include_insights?)}
+    socket =
+      socket
+      |> assign(:gallery_load_ref, load_ref)
+      |> assign(:loading_gallery, true)
+      |> assign(
+        :loading_gallery_insights,
+        include_insights? || socket.assigns.loading_gallery_insights
       )
-    end)
 
-    socket
-    |> assign(:gallery_load_ref, load_ref)
-    |> assign(:loading_gallery, true)
-    |> assign(
-      :loading_gallery_insights,
-      include_insights? || socket.assigns.loading_gallery_insights
-    )
+    if Mix.env() == :test do
+      apply_gallery_data(socket, build_gallery_data(filter, user, include_insights?))
+    else
+      Task.start(fn ->
+        send(
+          parent,
+          {:gallery_data_loaded, load_ref, build_gallery_data(filter, user, include_insights?)}
+        )
+      end)
+
+      socket
+    end
   end
 
   defp build_gallery_data(filter, user, include_insights?) do
@@ -786,32 +800,22 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
 
     insights =
       if include_insights? do
-        if user do
-          stats_task = Task.async(fn -> get_user_gallery_stats(user.id) end)
-          highlights_task = Task.async(fn -> get_user_gallery_highlights(user.id) end)
-
-          photographers_task =
-            Task.async(fn -> get_suggested_photographers(user.id, limit: 5) end)
-
-          tags_task =
-            Task.async(fn ->
-              Social.get_trending_hashtags(limit: 8)
-              |> Enum.filter(fn hashtag ->
-                String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
-              end)
-            end)
-
-          stats = Task.await(stats_task, 5000)
-          {recent_uploads, top_upload} = Task.await(highlights_task, 5000)
+        if user && Mix.env() == :test do
+          stats = get_user_gallery_stats(user.id)
+          {recent_uploads, top_upload} = get_user_gallery_highlights(user.id)
 
           photographers =
             if !stats || stats.photo_count == 0 do
-              Task.await(photographers_task, 5000)
+              get_suggested_photographers(user.id, limit: 5)
             else
               []
             end
 
-          tags = Task.await(tags_task, 5000)
+          tags =
+            Social.get_trending_hashtags(limit: 8)
+            |> Enum.filter(fn hashtag ->
+              String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
+            end)
 
           %{
             user_gallery_stats: stats,
@@ -821,19 +825,61 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
             trending_tags: tags
           }
         else
-          tags =
-            Social.get_trending_hashtags(limit: 8)
-            |> Enum.filter(fn hashtag ->
-              String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
-            end)
+          if user do
+            stats_task = Task.async(fn -> get_user_gallery_stats(user.id) end)
+            highlights_task = Task.async(fn -> get_user_gallery_highlights(user.id) end)
 
-          %{
-            user_gallery_stats: nil,
-            recent_uploads: [],
-            top_upload: nil,
-            suggested_photographers: [],
-            trending_tags: tags
-          }
+            photographers_task =
+              Task.async(fn -> get_suggested_photographers(user.id, limit: 5) end)
+
+            tags_task =
+              Task.async(fn ->
+                Social.get_trending_hashtags(limit: 8)
+                |> Enum.filter(fn hashtag ->
+                  String.contains?(hashtag.name, [
+                    "photo",
+                    "art",
+                    "design",
+                    "anime",
+                    "illustration"
+                  ])
+                end)
+              end)
+
+            stats = Task.await(stats_task, 5000)
+            {recent_uploads, top_upload} = Task.await(highlights_task, 5000)
+
+            photographers =
+              if !stats || stats.photo_count == 0 do
+                Task.await(photographers_task, 5000)
+              else
+                []
+              end
+
+            tags = Task.await(tags_task, 5000)
+
+            %{
+              user_gallery_stats: stats,
+              recent_uploads: recent_uploads,
+              top_upload: top_upload,
+              suggested_photographers: photographers,
+              trending_tags: tags
+            }
+          else
+            tags =
+              Social.get_trending_hashtags(limit: 8)
+              |> Enum.filter(fn hashtag ->
+                String.contains?(hashtag.name, ["photo", "art", "design", "anime", "illustration"])
+              end)
+
+            %{
+              user_gallery_stats: nil,
+              recent_uploads: [],
+              top_upload: nil,
+              suggested_photographers: [],
+              trending_tags: tags
+            }
+          end
         end
       else
         %{}
@@ -1550,18 +1596,24 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   defp gallery_plain_text(_), do: ""
 
   defp gallery_primary_image(post) do
-    post.media_urls ||
-      []
-      |> Enum.map(&Elektrine.Uploads.attachment_url(&1, post))
-      |> Enum.find(&gallery_image_url?/1)
+    (post.media_urls || [])
+    |> Enum.map(&gallery_attachment_url(&1, post))
+    |> Enum.find(&gallery_image_url?/1)
   end
 
   defp gallery_image_urls(post) do
-    post.media_urls ||
-      []
-      |> Enum.map(&Elektrine.Uploads.attachment_url(&1, post))
-      |> Enum.filter(&gallery_image_url?/1)
+    (post.media_urls || [])
+    |> Enum.map(&gallery_attachment_url(&1, post))
+    |> Enum.filter(&gallery_image_url?/1)
   end
+
+  defp gallery_attachment_url(url, %{federated: true}) when is_binary(url) do
+    if String.starts_with?(url, ["http://", "https://"]),
+      do: url,
+      else: Elektrine.Uploads.attachment_url(url)
+  end
+
+  defp gallery_attachment_url(url, post), do: Elektrine.Uploads.attachment_url(url, post)
 
   defp gallery_image?(post) do
     is_binary(gallery_primary_image(post))

@@ -134,6 +134,7 @@ defmodule ElektrineEmailWeb.AttachmentController do
 
         conn
         |> put_resp_content_type(content_type)
+        |> put_resp_header("x-content-type-options", "nosniff")
         |> put_resp_header(
           "content-disposition",
           "attachment; filename=\"#{safe_filename}\""

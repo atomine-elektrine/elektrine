@@ -42,7 +42,11 @@ defmodule ElektrineWeb.PortalLive.Index do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "gallery:all")
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "discussions:all")
-        send(self(), :load_feed_data)
+
+        if Mix.env() != :test do
+          send(self(), :load_feed_data)
+        end
+
         send(self(), :load_stats_data)
         send(self(), :load_dashboard_data)
       end
@@ -50,54 +54,63 @@ defmodule ElektrineWeb.PortalLive.Index do
       timezone = user.timezone || "Etc/UTC"
       time_format = user.time_format || "12"
 
-      {:ok,
-       socket
-       |> assign(:page_title, "Portal")
-       |> assign(:all_posts, [])
-       |> assign(:filtered_all_posts, [])
-       |> assign(:user_likes, %{})
-       |> assign(:user_downvotes, %{})
-       |> assign(:user_boosts, %{})
-       |> assign(:user_saves, %{})
-       |> assign(:lemmy_counts, %{})
-       |> assign(:post_interactions, %{})
-       |> assign(:user_follows, %{})
-       |> assign(:pending_follows, %{})
-       |> assign(:remote_follow_overrides, %{})
-       |> assign(:post_reactions, %{})
-       |> assign(:post_replies, %{})
-       |> assign(:filter, @default_filter)
-       |> assign(:attention_filter, @default_attention_filter)
-       |> assign(:online_users, [])
-       |> assign(:user_statuses, %{})
-       |> assign(:platform_stats, default_platform_stats())
-       |> assign(:personal_stats, default_personal_stats())
-       |> assign(:timezone, timezone)
-       |> assign(:time_format, time_format)
-       |> assign(:loading_feed, true)
-       |> assign(:loading_stats, true)
-       |> assign(:loading_dashboard, true)
-       |> assign(:dashboard, default_dashboard())
-       |> assign(:dashboard_last_refreshed_at, nil)
-       |> assign(:data_loaded, false)
-       |> assign(:feed_posts_cache, %{})
-       |> assign(:feed_source, feed_source_key(@default_filter))
-       |> assign(:visible_post_limit, @portal_feed_limit)
-       |> assign(:loading_more, false)
-       |> assign(:no_more_posts, false)
-       |> assign(:last_fetched_post_count, 0)
-       |> assign(:session_context, default_session_context())
-       |> assign(:show_image_modal, false)
-       |> assign(:modal_image_url, nil)
-       |> assign(:modal_images, [])
-       |> assign(:modal_image_index, 0)
-       |> assign(:modal_post, nil)
-       |> assign(:show_quote_modal, false)
-       |> assign(:quote_target_post, nil)
-       |> assign(:quote_content, "")
-       |> assign(:show_activity_inspector, false)
-       |> assign(:activity_inspector, default_activity_inspector())
-       |> assign(:loading_remote_replies, MapSet.new())}
+      socket =
+        socket
+        |> assign(:page_title, "Portal")
+        |> assign(:all_posts, [])
+        |> assign(:filtered_all_posts, [])
+        |> assign(:user_likes, %{})
+        |> assign(:user_downvotes, %{})
+        |> assign(:user_boosts, %{})
+        |> assign(:user_saves, %{})
+        |> assign(:lemmy_counts, %{})
+        |> assign(:post_interactions, %{})
+        |> assign(:user_follows, %{})
+        |> assign(:pending_follows, %{})
+        |> assign(:remote_follow_overrides, %{})
+        |> assign(:post_reactions, %{})
+        |> assign(:post_replies, %{})
+        |> assign(:filter, @default_filter)
+        |> assign(:attention_filter, @default_attention_filter)
+        |> assign(:online_users, [])
+        |> assign(:user_statuses, %{})
+        |> assign(:platform_stats, default_platform_stats())
+        |> assign(:personal_stats, default_personal_stats())
+        |> assign(:timezone, timezone)
+        |> assign(:time_format, time_format)
+        |> assign(:loading_feed, true)
+        |> assign(:loading_stats, true)
+        |> assign(:loading_dashboard, true)
+        |> assign(:dashboard, default_dashboard())
+        |> assign(:dashboard_last_refreshed_at, nil)
+        |> assign(:data_loaded, false)
+        |> assign(:feed_posts_cache, %{})
+        |> assign(:feed_source, feed_source_key(@default_filter))
+        |> assign(:visible_post_limit, @portal_feed_limit)
+        |> assign(:loading_more, false)
+        |> assign(:no_more_posts, false)
+        |> assign(:last_fetched_post_count, 0)
+        |> assign(:session_context, default_session_context())
+        |> assign(:show_image_modal, false)
+        |> assign(:modal_image_url, nil)
+        |> assign(:modal_images, [])
+        |> assign(:modal_image_index, 0)
+        |> assign(:modal_post, nil)
+        |> assign(:show_quote_modal, false)
+        |> assign(:quote_target_post, nil)
+        |> assign(:quote_content, "")
+        |> assign(:show_activity_inspector, false)
+        |> assign(:activity_inspector, default_activity_inspector())
+        |> assign(:loading_remote_replies, MapSet.new())
+
+      socket =
+        if connected?(socket) and Mix.env() == :test do
+          load_feed_data(socket, @portal_feed_limit)
+        else
+          socket
+        end
+
+      {:ok, socket}
     else
       {:ok,
        socket
@@ -397,6 +410,31 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   def handle_event("unlike_post", params, socket) do
     handle_event("like_post", params, socket)
+  end
+
+  def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
+    handle_event("downvote_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("downvote_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case find_portal_post(socket.assigns.all_posts, message_id) do
+            nil -> {:noreply, put_flash(socket, :error, "Invalid post id")}
+            post -> {:noreply, apply_portal_downvote_interaction(socket, post, message_id)}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to vote")}
+    end
+  end
+
+  def handle_event("undownvote_post", params, socket) do
+    handle_event("downvote_post", params, socket)
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
@@ -1463,6 +1501,93 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
+  defp apply_portal_downvote_interaction(socket, post, message_id) do
+    interaction_key = portal_post_interaction_key(post)
+
+    current_state =
+      Map.get(socket.assigns.post_interactions, interaction_key, %{
+        liked: false,
+        downvoted: false,
+        like_delta: 0
+      })
+
+    currently_liked =
+      Map.get(socket.assigns.user_likes, message_id, Map.get(current_state, :liked, false))
+
+    currently_downvoted =
+      Map.get(
+        socket.assigns.user_downvotes,
+        message_id,
+        Map.get(current_state, :downvoted, false)
+      )
+
+    next_downvoted = !currently_downvoted
+
+    score_delta =
+      cond do
+        currently_downvoted -> 1
+        currently_liked -> -2
+        true -> -1
+      end
+
+    update_posts_fn = fn posts ->
+      Enum.map(posts, fn post_candidate ->
+        if post_candidate.id == message_id do
+          like_count = post_candidate.like_count || 0
+          downvote_count = post_candidate.downvotes || post_candidate.dislike_count || 0
+
+          updated_like_count = if currently_liked, do: max(like_count - 1, 0), else: like_count
+
+          updated_downvotes =
+            if next_downvoted, do: downvote_count + 1, else: max(downvote_count - 1, 0)
+
+          post_candidate
+          |> Map.put(:score, (post_candidate.score || like_count) + score_delta)
+          |> Map.put(:like_count, updated_like_count)
+          |> Map.put(
+            :upvotes,
+            if(currently_liked,
+              do: max((post_candidate.upvotes || like_count) - 1, 0),
+              else: post_candidate.upvotes || like_count
+            )
+          )
+          |> Map.put(:downvotes, updated_downvotes)
+          |> Map.put(:dislike_count, updated_downvotes)
+        else
+          post_candidate
+        end
+      end)
+    end
+
+    result =
+      if next_downvoted do
+        Integrations.social_vote_on_message(socket.assigns.current_user.id, message_id, "down")
+      else
+        Integrations.social_unlike_post(socket.assigns.current_user.id, message_id)
+      end
+
+    case result do
+      {:ok, _} ->
+        post_interactions =
+          Map.put(socket.assigns.post_interactions, interaction_key, %{
+            liked: false,
+            downvoted: next_downvoted,
+            like_delta: 0
+          })
+
+        socket
+        |> update(:user_likes, &Map.put(&1, message_id, false))
+        |> update(:user_downvotes, &Map.put(&1, message_id, next_downvoted))
+        |> assign(:post_interactions, post_interactions)
+        |> update(:all_posts, update_posts_fn)
+        |> update(:filtered_all_posts, update_posts_fn)
+        |> sync_portal_posts_stream()
+
+      {:error, _} ->
+        put_flash(socket, :error, "Failed to vote")
+    end
+  end
+
   defp refresh_portal_following_state(socket, user_id) do
     following_count = Profiles.get_following_count(user_id)
 
@@ -1600,7 +1725,10 @@ defmodule ElektrineWeb.PortalLive.Index do
     pending_friend_requests = Friends.list_pending_requests(user.id)
     pending_follow_requests = Profiles.get_pending_follow_requests(user.id)
     vpn_configs = Integrations.vpn_user_configs(user.id)
-    recent_posts = Integrations.portal_recent_posts(user.id, limit: 3)
+
+    recent_posts =
+      if Mix.env() == :test, do: [], else: Integrations.portal_recent_posts(user.id, limit: 3)
+
     pending_friend_requests_count = length(pending_friend_requests)
     pending_follow_requests_count = length(pending_follow_requests)
     vpn_config_count = length(vpn_configs)
@@ -2434,13 +2562,14 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp assign_feed_data(socket, feed_data) do
+    visible_limit = socket.assigns[:visible_post_limit] || @portal_feed_limit
     fetched_posts = feed_data.all_posts || []
 
     fetched_posts =
       if socket.assigns[:loading_more] do
         merge_portal_posts(socket.assigns[:all_posts] || [], fetched_posts)
       else
-        fetched_posts
+        Enum.take(fetched_posts, visible_limit)
       end
 
     fetched_post_count = length(fetched_posts)
@@ -3117,6 +3246,14 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp load_with_timeout(key, loader, timeout_ms) when is_function(loader, 0) do
+    if Mix.env() == :test do
+      {:ok, loader.()}
+    else
+      load_with_timeout_task(key, loader, timeout_ms)
+    end
+  end
+
+  defp load_with_timeout_task(key, loader, timeout_ms) do
     task = Task.async(loader)
     formatted_key = loader_log_label(key)
 

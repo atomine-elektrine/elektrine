@@ -89,7 +89,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
           end
 
         {:reserved_subdomain, handle, base_domain} ->
-          case reserved_subdomain_path(handle) do
+          case reserved_subdomain_path(handle, conn.request_path || "") do
             :passthrough ->
               conn
 
@@ -216,7 +216,8 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
 
   defp subdomain_hosted_by_platform?(_), do: true
 
-  defp reserved_subdomain_path("admin"), do: :passthrough
-  defp reserved_subdomain_path("pripyat"), do: "/pripyat"
-  defp reserved_subdomain_path(_), do: "/"
+  defp reserved_subdomain_path("admin", _path), do: :passthrough
+  defp reserved_subdomain_path("www", path) when path not in ["", "/"], do: :passthrough
+  defp reserved_subdomain_path("pripyat", _path), do: "/pripyat"
+  defp reserved_subdomain_path(_, _path), do: "/"
 end

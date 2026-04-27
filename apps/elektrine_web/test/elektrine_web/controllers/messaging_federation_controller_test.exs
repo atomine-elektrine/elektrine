@@ -558,7 +558,7 @@ defmodule ElektrineWeb.MessagingFederationControllerTest do
         Repo.get_by(Server, federation_id: "https://remote.test/_arblarg/servers/77")
 
       mirror_channel =
-        Repo.get_by(Elektrine.Social.Conversation,
+        Repo.get_by(Elektrine.Messaging.ChatConversation,
           federated_source: "https://remote.test/_arblarg/channels/10"
         )
 
