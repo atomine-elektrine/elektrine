@@ -8,6 +8,7 @@ defmodule ElektrineWeb.ProfileControllerTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.{Profiles, StaticSites}
   alias Elektrine.Profiles.CustomDomain
+  alias Elektrine.Profiles.ProfileSiteVisit
   alias Elektrine.Repo
 
   setup do
@@ -54,6 +55,19 @@ defmodule ElektrineWeb.ProfileControllerTest do
 
       assert conn.status == 200
       assert conn.resp_body =~ "Test User"
+    end
+
+    test "records each profile page load in site analytics", %{conn: conn, user: user} do
+      conn = get(conn, "/#{user.handle}")
+
+      conn =
+        conn
+        |> recycle()
+        |> get("/#{user.handle}")
+
+      assert conn.status == 200
+      assert Repo.aggregate(ProfileSiteVisit, :count) == 2
+      assert Profiles.get_profile_view_count(user.id) == 1
     end
 
     test "renders builder profiles on verified custom root domains", %{conn: conn, user: user} do

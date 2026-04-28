@@ -121,27 +121,27 @@ defmodule ElektrineWeb.ProfileController do
                                  display_name: user.username
                                }) do
                             {:ok, prof} ->
-                              if should_increment_view?(conn, prof.id) do
-                                # Track profile view using the new accurate tracking system
-                                viewer_user_id = if current_user, do: current_user.id, else: nil
+                              viewer_user_id = if current_user, do: current_user.id, else: nil
+                              {updated_conn, visitor_id} = ensure_profile_site_visitor_id(conn)
 
-                                {updated_conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+                              Profiles.track_profile_site_visit(user.id,
+                                viewer_user_id: viewer_user_id,
+                                visitor_id: visitor_id,
+                                ip_address: ClientIP.client_ip(conn),
+                                user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                                referer: get_req_header(conn, "referer") |> List.first(),
+                                request_host: conn.host,
+                                request_path: conn.request_path
+                              )
 
+                              if should_increment_view?(updated_conn, prof.id) do
+                                # Track profile view using the deduped profile counter.
                                 Profiles.track_profile_view(user.id,
                                   viewer_user_id: viewer_user_id,
+                                  viewer_session_id: visitor_id,
                                   ip_address: ClientIP.client_ip(conn),
                                   user_agent: get_req_header(conn, "user-agent") |> List.first(),
                                   referer: get_req_header(conn, "referer") |> List.first()
-                                )
-
-                                Profiles.track_profile_site_visit(user.id,
-                                  viewer_user_id: viewer_user_id,
-                                  visitor_id: visitor_id,
-                                  ip_address: ClientIP.client_ip(conn),
-                                  user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                                  referer: get_req_header(conn, "referer") |> List.first(),
-                                  request_host: conn.host,
-                                  request_path: conn.request_path
                                 )
 
                                 updated_conn = record_profile_view(updated_conn, prof.id)
@@ -173,27 +173,27 @@ defmodule ElektrineWeb.ProfileController do
                 case Accounts.can_view_profile?(user, current_user) do
                   {:ok, :allowed} ->
                     # Show custom profile and increment view count (if unique)
+                    viewer_user_id = if current_user, do: current_user.id, else: nil
+                    {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
+
+                    Profiles.track_profile_site_visit(profile.user_id,
+                      viewer_user_id: viewer_user_id,
+                      visitor_id: visitor_id,
+                      ip_address: ClientIP.client_ip(conn),
+                      user_agent: get_req_header(conn, "user-agent") |> List.first(),
+                      referer: get_req_header(conn, "referer") |> List.first(),
+                      request_host: conn.host,
+                      request_path: conn.request_path
+                    )
+
                     if should_increment_view?(conn, profile.id) do
-                      # Track profile view using the new accurate tracking system
-                      viewer_user_id = if current_user, do: current_user.id, else: nil
-
-                      {conn, visitor_id} = ensure_profile_site_visitor_id(conn)
-
+                      # Track profile view using the deduped profile counter.
                       Profiles.track_profile_view(profile.user_id,
                         viewer_user_id: viewer_user_id,
+                        viewer_session_id: visitor_id,
                         ip_address: ClientIP.client_ip(conn),
                         user_agent: get_req_header(conn, "user-agent") |> List.first(),
                         referer: get_req_header(conn, "referer") |> List.first()
-                      )
-
-                      Profiles.track_profile_site_visit(profile.user_id,
-                        viewer_user_id: viewer_user_id,
-                        visitor_id: visitor_id,
-                        ip_address: ClientIP.client_ip(conn),
-                        user_agent: get_req_header(conn, "user-agent") |> List.first(),
-                        referer: get_req_header(conn, "referer") |> List.first(),
-                        request_host: conn.host,
-                        request_path: conn.request_path
                       )
 
                       # Record this view in session

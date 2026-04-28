@@ -28,26 +28,26 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
      |> assign_domain_analytics(user, active_domain)}
   end
 
-  defp assign_domain_analytics(socket, user, active_domain) do
+  defp assign_domain_analytics(socket, _user, active_domain) do
     active_host = active_domain && active_domain.host
     domains = socket.assigns[:domains] || []
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
-    domain_breakdown = Profiles.get_site_domain_breakdown(user.id, domain_hosts)
-    daily_views = Profiles.get_site_daily_view_counts(user.id, 30, active_site_scope)
+    domain_breakdown = Profiles.get_public_site_domain_breakdown(domain_hosts)
+    daily_views = Profiles.get_public_site_daily_view_counts(30, active_site_scope)
     dns_daily_queries = dns_daily_queries(active_domain)
     dns_hourly_queries = dns_hourly_queries(active_domain)
 
     socket
     |> assign(:active_domain, active_domain)
     |> assign(:active_host, active_host)
-    |> assign(:stats, Profiles.get_site_view_stats(user.id, active_site_scope))
+    |> assign(:stats, Profiles.get_public_site_view_stats(active_site_scope))
     |> assign(
       :domain_breakdown,
       merge_domain_breakdown(domains, domain_breakdown)
     )
-    |> assign(:top_pages, Profiles.get_site_top_pages(user.id, active_site_scope, 10))
-    |> assign(:top_referrers, Profiles.get_site_top_referrers(user.id, active_site_scope, 10))
+    |> assign(:top_pages, Profiles.get_public_site_top_pages(active_site_scope, 10))
+    |> assign(:top_referrers, Profiles.get_public_site_top_referrers(active_site_scope, 10))
     |> assign(:daily_views, daily_views)
     |> assign(:display_days, Enum.filter(daily_views, &(&1.count > 0)) |> Enum.reverse())
     |> assign(:max_daily_views, max_daily_views(daily_views))
