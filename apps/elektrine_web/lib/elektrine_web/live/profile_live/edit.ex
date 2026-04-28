@@ -11,18 +11,25 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   @max_links Constants.max_profile_links()
   @max_widgets Constants.max_profile_widgets()
   @profile_tabs [
-    {"basic", "hero-user", "Basic Info"},
-    {"appearance", "hero-paint-brush", "Appearance"},
-    {"avatar", "hero-photo", "Avatar Effects"},
-    {"username", "hero-sparkles", "Username Effects"},
-    {"links", "hero-link", "Links"},
-    {"widgets", "hero-squares-2x2", "Widgets"},
-    {"badges", "hero-check-badge", "Badges"},
-    {"advanced", "hero-cog-6-tooth", "Advanced"},
-    {"static_site", "hero-code-bracket", "Static Site"}
+    {"profile", "hero-user", "Profile"},
+    {"design", "hero-paint-brush", "Design"},
+    {"effects", "hero-sparkles", "Effects"},
+    {"content", "hero-squares-2x2", "Content"},
+    {"publish", "hero-rocket-launch", "Publish"}
   ]
   @valid_tabs Enum.map(@profile_tabs, fn {tab, _icon, _label} -> tab end)
-  @default_tab "basic"
+  @default_tab "profile"
+  @legacy_tab_map %{
+    "basic" => "profile",
+    "appearance" => "design",
+    "avatar" => "effects",
+    "username" => "effects",
+    "links" => "content",
+    "widgets" => "content",
+    "badges" => "content",
+    "advanced" => "design",
+    "static_site" => "publish"
+  }
 
   @impl true
   def mount(_params, _session, socket) do
@@ -70,6 +77,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:static_site_files, static_site_files)
      |> assign(:static_site_storage, static_site_storage)
      |> assign(:static_site_limit, user.storage_limit_bytes || 524_288_000)
+     |> assign(:profile_save_status, "Saved")
      |> assign(:drag_over, false)
      |> assign(:editing_file, nil)
      |> assign(:file_content, nil)
@@ -118,7 +126,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   @impl true
   def handle_event("validate_profile", %{"profile" => _profile_params}, socket) do
-    {:noreply, socket}
+    {:noreply, assign(socket, :profile_save_status, "Unsaved changes")}
   end
 
   def handle_event("validate_background_upload", _params, socket) do
@@ -203,7 +211,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
         case Profiles.update_user_profile(socket.assigns.profile, attrs) do
           {:ok, updated_profile} ->
-            {:noreply, assign(socket, :profile, updated_profile)}
+            {:noreply, mark_profile_saved(socket, updated_profile)}
 
           {:error, _changeset} ->
             {:noreply, socket}
@@ -263,7 +271,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
         case Profiles.update_user_profile(socket.assigns.profile, attrs) do
           {:ok, updated_profile} ->
-            {:noreply, assign(socket, :profile, updated_profile)}
+            {:noreply, mark_profile_saved(socket, updated_profile)}
 
           {:error, _changeset} ->
             {:noreply, socket}
@@ -290,7 +298,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
       case Profiles.update_user_profile(socket.assigns.profile, attrs) do
         {:ok, updated_profile} ->
-          {:noreply, assign(socket, :profile, updated_profile)}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, socket}
@@ -317,7 +325,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
         case Profiles.update_user_profile(socket.assigns.profile, attrs) do
           {:ok, updated_profile} ->
-            {:noreply, assign(socket, :profile, updated_profile)}
+            {:noreply, mark_profile_saved(socket, updated_profile)}
 
           {:error, _changeset} ->
             {:noreply, socket}
@@ -337,7 +345,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
       case Profiles.update_user_profile(socket.assigns.profile, %{font_family: font_value}) do
         {:ok, updated_profile} ->
-          {:noreply, assign(socket, :profile, updated_profile)}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, socket}
@@ -351,7 +359,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     if socket.assigns.profile do
       case Profiles.update_user_profile(socket.assigns.profile, %{cursor_style: cursor_style}) do
         {:ok, updated_profile} ->
-          {:noreply, assign(socket, :profile, updated_profile)}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, socket}
@@ -365,7 +373,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     if socket.assigns.profile do
       case Profiles.update_user_profile(socket.assigns.profile, %{link_display_style: style}) do
         {:ok, updated_profile} ->
-          {:noreply, assign(socket, :profile, updated_profile)}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, socket}
@@ -383,7 +391,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     if socket.assigns.profile do
       case Profiles.update_user_profile(socket.assigns.profile, %{link_highlight_effect: effect}) do
         {:ok, updated_profile} ->
-          {:noreply, assign(socket, :profile, updated_profile)}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, socket}
@@ -400,13 +408,46 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
       case Profiles.update_user_profile(socket.assigns.profile, palette) do
         {:ok, updated_profile} ->
-          {:noreply,
-           socket
-           |> assign(:profile, updated_profile)
-           |> notify_info("Color palette generated!")}
+          {:noreply, mark_profile_saved(socket, updated_profile)}
 
         {:error, _changeset} ->
           {:noreply, notify_error(socket, "Failed to update colors")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("apply_design_preset", %{"preset" => preset}, socket) do
+    if socket.assigns.profile do
+      case design_preset_attrs(preset) do
+        nil ->
+          {:noreply, socket}
+
+        attrs ->
+          case Profiles.update_user_profile(socket.assigns.profile, attrs) do
+            {:ok, updated_profile} ->
+              {:noreply, mark_profile_saved(socket, updated_profile)}
+
+            {:error, _changeset} ->
+              {:noreply, notify_error(socket, "Failed to apply preset")}
+          end
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("reset_design_section", %{"section" => section}, socket) do
+    if socket.assigns.profile do
+      attrs = design_reset_attrs(section)
+
+      case Profiles.update_user_profile(socket.assigns.profile, attrs) do
+        {:ok, updated_profile} ->
+          {:noreply, mark_profile_saved(socket, updated_profile)}
+
+        {:error, _changeset} ->
+          {:noreply, notify_error(socket, "Failed to reset design settings")}
       end
     else
       {:noreply, socket}
@@ -859,7 +900,7 @@ defmodule ElektrineWeb.ProfileLive.Edit do
         {:noreply,
          socket
          |> assign(:profile, refreshed_profile)
-         |> notify_info("Profile updated successfully!")
+         |> assign(:profile_save_status, "Saved")
          |> push_event("profile_updated", %{})}
 
       {:error, changeset} ->
@@ -1534,14 +1575,191 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   defp format_bytes(_), do: "0 B"
 
+  defp mark_profile_saved(socket, updated_profile) do
+    socket
+    |> assign(:profile, updated_profile)
+    |> assign(:profile_save_status, "Saved")
+  end
+
+  defp design_presets do
+    [
+      {"minimal", "Minimal", "Clean white card with a quiet blue accent"},
+      {"terminal", "Terminal", "Dark console-inspired profile"},
+      {"neon", "Neon", "High-energy dark theme with pink and cyan"},
+      {"soft", "Soft", "Warm pastel profile with gentle contrast"},
+      {"high_contrast", "High Contrast", "Sharp black, white, and yellow palette"},
+      {"creator", "Creator", "Card-forward theme for links and media"}
+    ]
+  end
+
+  defp design_preset_attrs("minimal") do
+    %{
+      accent_color: "#2563eb",
+      text_color: "#111827",
+      background_color: "#f8fafc",
+      icon_color: "#2563eb",
+      container_background_color: "#ffffff",
+      tick_color: "#2563eb",
+      container_pattern: "none",
+      background_type: "solid",
+      text_background: false,
+      profile_opacity: 1.0,
+      profile_blur: 0,
+      container_opacity: 0.92,
+      font_family: nil,
+      cursor_style: "default"
+    }
+  end
+
+  defp design_preset_attrs("terminal") do
+    %{
+      accent_color: "#22c55e",
+      text_color: "#d1fae5",
+      background_color: "#020617",
+      icon_color: "#22c55e",
+      container_background_color: "#07130f",
+      tick_color: "#22c55e",
+      container_pattern: "grid",
+      pattern_color: "#22c55e",
+      pattern_opacity: 0.12,
+      background_type: "solid",
+      text_background: false,
+      profile_opacity: 1.0,
+      profile_blur: 0,
+      container_opacity: 0.86,
+      font_family: "Consolas",
+      cursor_style: "text"
+    }
+  end
+
+  defp design_preset_attrs("neon") do
+    %{
+      accent_color: "#ec4899",
+      text_color: "#fdf2f8",
+      background_color: "#09090b",
+      icon_color: "#22d3ee",
+      container_background_color: "#181024",
+      tick_color: "#22d3ee",
+      container_pattern: "diagonal_lines",
+      pattern_color: "#ec4899",
+      pattern_opacity: 0.18,
+      background_type: "gradient",
+      text_background: true,
+      profile_opacity: 0.96,
+      profile_blur: 8,
+      container_opacity: 0.74,
+      font_family: "Inter",
+      cursor_style: "pointer"
+    }
+  end
+
+  defp design_preset_attrs("soft") do
+    %{
+      accent_color: "#d97706",
+      text_color: "#3f2a1d",
+      background_color: "#fff7ed",
+      icon_color: "#c2410c",
+      container_background_color: "#fffbeb",
+      tick_color: "#d97706",
+      container_pattern: "waves",
+      pattern_color: "#fed7aa",
+      pattern_opacity: 0.35,
+      background_type: "solid",
+      text_background: false,
+      profile_opacity: 1.0,
+      profile_blur: 0,
+      container_opacity: 0.9,
+      font_family: "Georgia",
+      cursor_style: "default"
+    }
+  end
+
+  defp design_preset_attrs("high_contrast") do
+    %{
+      accent_color: "#facc15",
+      text_color: "#ffffff",
+      background_color: "#000000",
+      icon_color: "#facc15",
+      container_background_color: "#111111",
+      tick_color: "#facc15",
+      container_pattern: "none",
+      background_type: "solid",
+      text_background: true,
+      profile_opacity: 1.0,
+      profile_blur: 0,
+      container_opacity: 0.95,
+      font_family: "Arial",
+      cursor_style: "default"
+    }
+  end
+
+  defp design_preset_attrs("creator") do
+    %{
+      accent_color: "#7c3aed",
+      text_color: "#f5f3ff",
+      background_color: "#1e1b4b",
+      icon_color: "#c4b5fd",
+      container_background_color: "#312e81",
+      tick_color: "#a78bfa",
+      container_pattern: "dots",
+      pattern_color: "#c4b5fd",
+      pattern_opacity: 0.16,
+      background_type: "gradient",
+      text_background: true,
+      profile_opacity: 0.98,
+      profile_blur: 4,
+      container_opacity: 0.82,
+      font_family: "Inter",
+      cursor_style: "pointer"
+    }
+  end
+
+  defp design_preset_attrs(_), do: nil
+
+  defp design_reset_attrs("colors") do
+    reset_defaults(
+      ~w(accent_color text_color background_color icon_color container_background_color tick_color pattern_color)a
+    )
+  end
+
+  defp design_reset_attrs("background") do
+    reset_defaults(~w(background_color background_type text_background)a)
+    |> Map.merge(%{background_url: nil, background_size: nil})
+  end
+
+  defp design_reset_attrs("container") do
+    reset_defaults(
+      ~w(container_background_color container_pattern pattern_color pattern_animated pattern_animation_speed pattern_opacity container_opacity profile_blur)a
+    )
+  end
+
+  defp design_reset_attrs("motion") do
+    reset_defaults(
+      ~w(profile_opacity profile_blur container_opacity pattern_opacity cursor_style)a
+    )
+  end
+
+  defp design_reset_attrs("all") do
+    reset_defaults(
+      ~w(accent_color text_color background_color icon_color container_background_color tick_color container_pattern pattern_color pattern_animated pattern_animation_speed pattern_opacity background_type text_background profile_opacity profile_blur container_opacity cursor_style)a
+    )
+    |> Map.merge(%{background_url: nil, background_size: nil, font_family: nil})
+  end
+
+  defp design_reset_attrs(_), do: %{}
+
+  defp reset_defaults(fields) do
+    Map.new(fields, fn field -> {field, UserProfile.default(field)} end)
+  end
+
   defp humanize_error(:too_large), do: "File is too large for this upload"
   defp humanize_error(:not_accepted), do: "This file type is not supported for this upload"
   defp humanize_error(:too_many_files), do: "Only one file can be uploaded at a time"
   defp humanize_error(err), do: "Upload error: #{inspect(err)}"
 
-  defp normalize_selected_tab(tab) when tab in @valid_tabs do
-    tab
-  end
+  defp normalize_selected_tab(tab) when tab in @valid_tabs, do: tab
+
+  defp normalize_selected_tab(tab) when is_map_key(@legacy_tab_map, tab), do: @legacy_tab_map[tab]
 
   defp normalize_selected_tab(_tab), do: @default_tab
 

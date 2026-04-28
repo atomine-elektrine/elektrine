@@ -142,6 +142,8 @@ defmodule ElektrineWeb.CoreComponents do
   attr :current_user, :any, default: nil
   attr :max_width, :string, default: nil
   attr :class, :string, default: nil
+  attr :shell_title, :string, default: nil
+  attr :shell_subtitle, :string, default: nil
   slot :sidebar
   slot :inner_block, required: true
 
@@ -156,10 +158,10 @@ defmodule ElektrineWeb.CoreComponents do
 
       <div class="mb-6 sm:mb-8">
         <h1 class="text-2xl sm:text-3xl font-bold text-base-content">
-          {gettext("Account Settings")}
+          {@shell_title || gettext("Account Settings")}
         </h1>
         <p class="text-base-content/70 mt-2">
-          {gettext("Manage your account preferences and security settings")}
+          {@shell_subtitle || gettext("Manage your account preferences and security settings")}
         </p>
       </div>
 
@@ -221,12 +223,6 @@ defmodule ElektrineWeb.CoreComponents do
               <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
             </.link>
             <.link
-              navigate="/account/profile/domains"
-              class={account_setting_secondary_link_class(@selected_link, "profile-domains")}
-            >
-              <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Profile Domains")}
-            </.link>
-            <.link
               navigate="/account/storage"
               class={account_setting_secondary_link_class(@selected_link, "storage")}
             >
@@ -249,16 +245,25 @@ defmodule ElektrineWeb.CoreComponents do
   attr :selected_section, :string, default: nil
   attr :sections, :list, default: []
   attr :profile_url, :string, default: nil
+  attr :save_status, :string, default: nil
 
   def profile_settings_sidebar(assigns) do
     ~H"""
     <div class="sticky top-24 self-start">
       <div class="card panel-card">
         <div class="card-body p-4">
-          <h3 class="mb-1 text-sm font-semibold">Profile</h3>
-          <p class="mb-4 text-xs text-base-content/60">
-            Manage your public profile and related pages.
-          </p>
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold">Profile Builder</h3>
+            <span
+              :if={@save_status}
+              class={[
+                "badge badge-sm border-0",
+                if(@save_status == "Unsaved changes", do: "badge-warning", else: "badge-success")
+              ]}
+            >
+              {@save_status}
+            </span>
+          </div>
 
           <ul class="menu menu-compact w-full p-0 space-y-1">
             <li>
@@ -294,10 +299,6 @@ defmodule ElektrineWeb.CoreComponents do
 
           <div :if={@sections != []} class="divider my-4"></div>
 
-          <h4 class="mb-3 text-xs font-semibold uppercase tracking-wide text-base-content/55">
-            {gettext("Profile Pages")}
-          </h4>
-
           <ul class="menu menu-compact w-full p-0 space-y-1">
             <li>
               <.link
@@ -305,32 +306,6 @@ defmodule ElektrineWeb.CoreComponents do
                 class={account_setting_secondary_link_class(@selected_page, "profile")}
               >
                 <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("Edit Profile")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate="/account/profile/domains"
-                class={account_setting_secondary_link_class(@selected_page, "profile-domains")}
-              >
-                <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Profile Domains")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate="/account/profile/analytics"
-                class={account_setting_secondary_link_class(@selected_page, "profile-analytics")}
-              >
-                <.icon name="hero-chart-bar" class="w-4 h-4" /> {gettext("Profile Analytics")}
-              </.link>
-            </li>
-            <li>
-              <.link
-                navigate="/account/profile/domains/analytics"
-                class={
-                  account_setting_secondary_link_class(@selected_page, "profile-domain-analytics")
-                }
-              >
-                <.icon name="hero-globe-alt" class="w-4 h-4" /> {gettext("Domain Analytics")}
               </.link>
             </li>
           </ul>

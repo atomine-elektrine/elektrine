@@ -69,52 +69,44 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
       current_user={@current_user}
     >
       <div class="space-y-4 sm:space-y-6">
-        <div
-          id="step1-card"
-          class="card panel-card border border-base-300 shadow-lg"
-        >
+        <div id="step1-card" class="card panel-card border border-base-300">
           <div class="card-body p-4 sm:p-6">
-            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
-              <span class="badge badge-primary badge-lg">1</span>
-              <.icon name="hero-device-phone-mobile" class="w-5 h-5" /> Install an authenticator app
-            </h2>
-            <p class="text-sm text-base-content/70 mb-4 sm:mb-6">
-              Download and install one of these apps on your mobile device:
-            </p>
+            <.section_header
+              title="Install an authenticator app"
+              description="Use any TOTP-compatible authenticator app on your phone or password manager."
+            >
+              <:actions>
+                <span class="badge badge-outline">Step 1</span>
+              </:actions>
+            </.section_header>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-              <div class="card bg-base-200 hover:bg-base-300/50 transition-colors">
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-center gap-3">
-                    <.brand_icon name="google" class="w-8 h-8 shrink-0" />
-                    <div>
-                      <h3 class="font-medium text-sm sm:text-base">Google Authenticator</h3>
-                      <p class="text-xs text-base-content/60">iOS & Android</p>
-                    </div>
+              <div class="rounded-lg bg-base-200/70 p-3 sm:p-4">
+                <div class="flex items-center gap-3">
+                  <.brand_icon name="google" class="w-8 h-8 shrink-0" />
+                  <div>
+                    <h3 class="font-medium text-sm sm:text-base">Google Authenticator</h3>
+                    <p class="text-xs text-base-content/60">iOS & Android</p>
                   </div>
                 </div>
               </div>
 
-              <div class="card bg-base-200 hover:bg-base-300/50 transition-colors">
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-center gap-3">
-                    <.brand_icon name="authy" class="w-8 h-8 shrink-0" />
-                    <div>
-                      <h3 class="font-medium text-sm sm:text-base">Authy</h3>
-                      <p class="text-xs text-base-content/60">iOS & Android</p>
-                    </div>
+              <div class="rounded-lg bg-base-200/70 p-3 sm:p-4">
+                <div class="flex items-center gap-3">
+                  <.brand_icon name="authy" class="w-8 h-8 shrink-0" />
+                  <div>
+                    <h3 class="font-medium text-sm sm:text-base">Authy</h3>
+                    <p class="text-xs text-base-content/60">iOS & Android</p>
                   </div>
                 </div>
               </div>
 
-              <div class="card bg-base-200 hover:bg-base-300/50 transition-colors">
-                <div class="card-body p-3 sm:p-4">
-                  <div class="flex items-center gap-3">
-                    <.brand_icon name="microsoft" class="w-8 h-8 shrink-0" />
-                    <div>
-                      <h3 class="font-medium text-sm sm:text-base">Microsoft Authenticator</h3>
-                      <p class="text-xs text-base-content/60">iOS & Android</p>
-                    </div>
+              <div class="rounded-lg bg-base-200/70 p-3 sm:p-4">
+                <div class="flex items-center gap-3">
+                  <.brand_icon name="microsoft" class="w-8 h-8 shrink-0" />
+                  <div>
+                    <h3 class="font-medium text-sm sm:text-base">Microsoft Authenticator</h3>
+                    <p class="text-xs text-base-content/60">iOS & Android</p>
                   </div>
                 </div>
               </div>
@@ -122,19 +114,20 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div
-          id="step2-card"
-          class="card panel-card border border-base-300 shadow-lg"
-        >
+        <div id="step2-card" class="card panel-card border border-base-300">
           <div class="card-body p-4 sm:p-6">
-            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
-              <span class="badge badge-primary badge-lg">2</span>
-              <.icon name="hero-qr-code" class="w-5 h-5" /> Scan the QR code
-            </h2>
+            <.section_header
+              title="Scan the QR code"
+              description="Open your authenticator app and add Elektrine as a new account."
+            >
+              <:actions>
+                <span class="badge badge-outline">Step 2</span>
+              </:actions>
+            </.section_header>
 
             <div class="flex flex-col items-center my-4 sm:my-6">
               <div
-                class="p-3 sm:p-4 rounded-lg shadow-lg"
+                class="rounded-xl border border-base-300 bg-base-100 p-3 sm:p-4"
                 style={"background-color: #{Elektrine.Theme.inverse_text_color()};"}
               >
                 <%= if @qr_code_data_uri do %>
@@ -149,10 +142,6 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                   </div>
                 <% end %>
               </div>
-              <p class="text-xs sm:text-sm mt-3 sm:mt-4 text-base-content/70 text-center px-4">
-                Open your authenticator app and scan this QR code
-              </p>
-
               <.link
                 href={~p"/account/two_factor/setup?refresh=true"}
                 class="btn btn-ghost btn-sm mt-2"
@@ -160,8 +149,8 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 <.icon name="hero-arrow-path" class="h-4 w-4 mr-1" /> Generate New QR Code
               </.link>
 
-              <div class="alert alert-warning mt-4 max-w-md">
-                <.icon name="hero-exclamation-triangle" class="h-5 w-5" />
+              <div class="rounded-lg border border-warning/20 bg-warning/10 p-4 mt-4 max-w-md flex gap-3">
+                <.icon name="hero-exclamation-triangle" class="h-5 w-5 shrink-0" />
                 <div>
                   <p class="text-sm font-medium">Getting "Invalid Code" errors?</p>
                   <p class="text-xs mt-1">
@@ -173,7 +162,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
                 </div>
               </div>
 
-              <div class="collapse collapse-arrow bg-base-200 mt-4 max-w-md mx-auto rounded-lg">
+              <div class="collapse collapse-arrow bg-base-200/70 mt-4 max-w-md mx-auto rounded-lg">
                 <input type="checkbox" class="checkbox" />
                 <div class="collapse-title text-xs sm:text-sm font-medium">
                   Can't scan? Enter this code manually
@@ -199,27 +188,28 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div
-          id="step3-card"
-          class="card panel-card border border-base-300 shadow-lg"
-        >
+        <div id="step3-card" class="card panel-card border border-base-300">
           <div class="card-body p-4 sm:p-6">
-            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
-              <span class="badge badge-primary badge-lg">3</span>
-              <.icon name="hero-document-text" class="w-5 h-5" /> Save your backup codes
-            </h2>
+            <.section_header
+              title="Save your backup codes"
+              description="These one-time codes can unlock your account if your authenticator is unavailable."
+            >
+              <:actions>
+                <span class="badge badge-outline">Step 3</span>
+              </:actions>
+            </.section_header>
 
-            <div class="alert alert-warning mb-4">
+            <div class="rounded-lg border border-warning/20 bg-warning/10 p-4 mb-4 flex gap-3">
               <.icon name="hero-exclamation-triangle" class="w-6 h-6 shrink-0" />
               <div>
-                <h3 class="font-bold">Important: Save these backup codes</h3>
+                <h3 class="font-semibold">Save these before continuing</h3>
                 <div class="text-sm">
                   Store these codes in a safe place. You can use them to access your account if you lose your phone.
                 </div>
               </div>
             </div>
 
-            <div class="bg-base-200 rounded-box p-4">
+            <div class="bg-base-200/70 rounded-box p-4">
               <div class="grid grid-cols-2 gap-3">
                 <%= for code <- @backup_codes || [] do %>
                   <div class="badge badge-lg badge-outline font-medium p-4 w-full justify-center">
@@ -231,15 +221,16 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorSetup do
           </div>
         </div>
 
-        <div
-          id="step4-card"
-          class="card panel-card border border-base-300 shadow-lg"
-        >
+        <div id="step4-card" class="card panel-card border border-base-300">
           <div class="card-body p-4 sm:p-6">
-            <h2 class="card-title text-lg sm:text-xl mb-4 sm:mb-6 flex items-center gap-2">
-              <span class="badge badge-primary badge-lg">4</span>
-              <.icon name="hero-shield-check" class="w-5 h-5" /> Verify your setup
-            </h2>
+            <.section_header
+              title="Verify your setup"
+              description="Enter the current six-digit code to finish enabling two-factor authentication."
+            >
+              <:actions>
+                <span class="badge badge-outline">Step 4</span>
+              </:actions>
+            </.section_header>
 
             <%= if @error do %>
               <div class="alert alert-error mb-4">

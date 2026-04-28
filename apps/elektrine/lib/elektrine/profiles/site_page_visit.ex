@@ -11,6 +11,7 @@ defmodule Elektrine.Profiles.SitePageVisit do
     field :ip_address, :string
     field :user_agent, :string
     field :referer, :string
+    field :session_id, :string
     field :request_host, :string
     field :request_path, :string
     field :status, :integer
@@ -29,11 +30,12 @@ defmodule Elektrine.Profiles.SitePageVisit do
       :ip_address,
       :user_agent,
       :referer,
+      :session_id,
       :request_host,
       :request_path,
       :status
     ])
-    |> validate_required([:request_host, :request_path, :status])
+    |> validate_required([:session_id, :request_host, :request_path, :status])
     |> validate_number(:status, greater_than_or_equal_to: 100, less_than: 600)
     |> validate_at_least_one_visitor_identifier()
     |> foreign_key_constraint(:viewer_user_id)

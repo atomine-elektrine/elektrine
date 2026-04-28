@@ -7,6 +7,7 @@ defmodule ElektrineWeb.API.AuthController do
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Endpoint
   alias ElektrineWeb.Plugs.APIAuth
+  alias ElektrineWeb.UserAuth
 
   action_fallback ElektrineWeb.FallbackController
 
@@ -42,39 +43,47 @@ defmodule ElektrineWeb.API.AuthController do
   defp attempt_login(conn, username, password, two_factor_code, identifiers) do
     case Accounts.Authentication.authenticate_user(username, password) do
       {:ok, user} ->
-        case verify_api_second_factor(user, two_factor_code) do
-          :ok ->
-            clear_login_rate_limits(identifiers)
-            {:ok, token} = APIAuth.generate_token(user.id)
+        if UserAuth.admin_login_restricted?(conn, user) do
+          record_login_rate_limit_attempts(identifiers)
 
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              token: token,
-              user: %{
-                id: user.id,
-                username: user.username,
-                email: EmailAddresses.primary_for_user(user),
-                avatar: user.avatar,
-                is_admin: user.is_admin,
-                inserted_at: user.inserted_at,
-                updated_at: user.updated_at
-              }
-            })
+          conn
+          |> put_status(:not_found)
+          |> json(%{error: "Not Found"})
+        else
+          case verify_api_second_factor(user, two_factor_code) do
+            :ok ->
+              clear_login_rate_limits(identifiers)
+              {:ok, token} = APIAuth.generate_token(user.id)
 
-          {:error, :two_factor_required} ->
-            record_login_rate_limit_attempts(identifiers)
+              conn
+              |> put_status(:ok)
+              |> json(%{
+                token: token,
+                user: %{
+                  id: user.id,
+                  username: user.username,
+                  email: EmailAddresses.primary_for_user(user),
+                  avatar: user.avatar,
+                  is_admin: user.is_admin,
+                  inserted_at: user.inserted_at,
+                  updated_at: user.updated_at
+                }
+              })
 
-            conn
-            |> put_status(:unauthorized)
-            |> json(%{error: "Two-factor code required", reason: "two_factor_required"})
+            {:error, :two_factor_required} ->
+              record_login_rate_limit_attempts(identifiers)
 
-          {:error, :invalid_two_factor_code} ->
-            record_login_rate_limit_attempts(identifiers)
+              conn
+              |> put_status(:unauthorized)
+              |> json(%{error: "Two-factor code required", reason: "two_factor_required"})
 
-            conn
-            |> put_status(:unauthorized)
-            |> json(%{error: "Invalid two-factor code", reason: "invalid_two_factor_code"})
+            {:error, :invalid_two_factor_code} ->
+              record_login_rate_limit_attempts(identifiers)
+
+              conn
+              |> put_status(:unauthorized)
+              |> json(%{error: "Invalid two-factor code", reason: "invalid_two_factor_code"})
+          end
         end
 
       {:error, :invalid_credentials} ->

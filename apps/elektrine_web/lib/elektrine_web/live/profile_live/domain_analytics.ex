@@ -277,6 +277,30 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp format_count(value) when is_number(value), do: to_string(value)
   defp format_count(_), do: "0"
 
+  defp format_duration(seconds) when is_number(seconds) do
+    seconds = round(seconds)
+    minutes = div(seconds, 60)
+    remaining_seconds = rem(seconds, 60)
+
+    cond do
+      minutes >= 60 ->
+        hours = div(minutes, 60)
+        remaining_minutes = rem(minutes, 60)
+        "#{hours}h #{remaining_minutes}m"
+
+      minutes > 0 ->
+        "#{minutes}m #{remaining_seconds}s"
+
+      true ->
+        "#{remaining_seconds}s"
+    end
+  end
+
+  defp format_duration(_), do: "0s"
+
+  defp format_percent(value) when is_number(value), do: "#{Float.round(value, 1)}%"
+  defp format_percent(_), do: "0.0%"
+
   defp format_decimal(value) do
     value
     |> Float.round(1)

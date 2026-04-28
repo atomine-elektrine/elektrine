@@ -3,6 +3,9 @@
   subtitle={ "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}" }
   nav_tab="profile"
   current_user={@current_user}
+  shell_title="Customize Your Profile"
+  shell_subtitle={ "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}" }
+  class="[&>header]:hidden"
 >
   <:sidebar>
     <div id="profile-settings-container">
@@ -10,15 +13,16 @@
         selected_page="profile"
         selected_section={@selected_tab}
         sections={profile_tabs()}
+        save_status={@profile_save_status}
         profile_url={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
       />
     </div>
   </:sidebar>
 
   <div class="space-y-4 sm:space-y-6">
-    <div>
+    <div class="space-y-4 sm:space-y-6">
       <!-- Basic Info Tab -->
-      <%= if @selected_tab == "basic" do %>
+      <%= if @selected_tab == "profile" do %>
         <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
@@ -128,12 +132,37 @@
                 />
                 <div class="label">
                   <span class="text-xs text-base-content/60">
-                    Custom browser tab title. Enable typewriter effect in Appearance tab.
+                    Custom browser tab title. Enable the typewriter effect in Effects.
                   </span>
                 </div>
               </div>
 
-              <div class="divider text-sm">Privacy Settings</div>
+              <button type="submit" class="btn btn-primary w-full"> Save Profile </button>
+            </.form>
+          </div>
+        </div>
+
+        <div class="card panel-card">
+          <div class="card-body p-4 sm:p-6">
+            <div class="mb-6">
+              <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                <.icon name="hero-eye-slash" class="w-6 h-6" /> Privacy
+              </h2>
+
+              <p class="text-sm text-base-content/60">
+                Decide what visitors can see on your public profile.
+              </p>
+            </div>
+
+            <.form
+              for={%{}}
+              phx-submit="update_profile"
+              phx-change="validate_profile"
+              class="space-y-4 sm:space-y-6"
+            >
+              <div class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                Social Counts
+              </div>
 
               <div class="space-y-4">
                 <div class="form-control">
@@ -155,6 +184,10 @@
                   </label>
                 </div>
 
+                <div class="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Identifiers
+                </div>
+
                 <div class="form-control">
                   <label class="cursor-pointer label justify-start gap-4">
                     <input type="hidden" name="profile[hide_uid]" value="false" />
@@ -172,6 +205,10 @@
                       </span>
                     </span>
                   </label>
+                </div>
+
+                <div class="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Social Graph
                 </div>
 
                 <div class="form-control">
@@ -193,6 +230,14 @@
                   </label>
                 </div>
 
+                <div class="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Visibility
+                </div>
+
+                <div class="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Sharing
+                </div>
+
                 <div class="form-control">
                   <label class="cursor-pointer label justify-start gap-4">
                     <input type="hidden" name="profile[hide_avatar]" value="false" />
@@ -210,6 +255,10 @@
                       </span>
                     </span>
                   </label>
+                </div>
+
+                <div class="pt-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+                  Layout
                 </div>
 
                 <div class="form-control">
@@ -288,615 +337,706 @@
                   </label>
                 </div>
               </div>
-              <button type="submit" class="btn btn-primary w-full"> Save Basic Info </button>
+              <button type="submit" class="btn btn-primary w-full"> Save Privacy </button>
             </.form>
           </div>
         </div>
       <% end %>
-      <!-- Appearance Tab -->
-      <%= if @selected_tab == "appearance" do %>
+      <!-- Design Tab -->
+      <%= if @selected_tab in ["design", "effects"] do %>
         <div class="space-y-4 sm:space-y-6">
-          <!-- Color Palette Generator -->
-          <div class="card panel-card border-2 border-primary/20">
-            <div class="card-body p-4 sm:p-6">
-              <div class="mb-6">
-                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
-                  <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
-                </h2>
+          <%= if @selected_tab == "design" do %>
+            <!-- Theme Presets -->
+            <div class="card panel-card border-2 border-primary/20">
+              <div class="card-body p-4 sm:p-6">
+                <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                      <.icon name="hero-swatch" class="w-6 h-6" /> Theme Presets
+                    </h2>
 
-                <p class="text-sm text-base-content/60">
-                  Pick one color and we'll generate a matching palette
-                </p>
-              </div>
-
-              <.form for={%{}} phx-submit="generate_palette" class="space-y-4 sm:space-y-6">
-                <div class="flex items-center gap-4">
-                  <input
-                    type="color"
-                    name="base_color"
-                    value={
-                      (@profile && @profile.accent_color) ||
-                        Elektrine.Profiles.UserProfile.default(:accent_color)
-                    }
-                    class="w-24 h-24 border-0 rounded-xl cursor-pointer"
-                  />
-                  <div class="flex-1">
-                    <p class="font-semibold text-lg">Base Color</p>
-
-                    <p class="text-sm text-base-content/70">
-                      We'll create a harmonious color scheme based on this
+                    <p class="text-sm text-base-content/60">
+                      Start with a complete look, then fine-tune the details below.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    phx-click="reset_design_section"
+                    phx-value-section="all"
+                    class="btn btn-ghost btn-sm"
+                  >
+                    Reset all design
+                  </button>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-full btn-lg">
-                  <.icon name="hero-sparkles" class="w-5 h-5 mr-2" /> Generate Matching Palette
-                </button>
-              </.form>
-            </div>
-          </div>
-          <!-- Colors & Theme -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
-              <div class="mb-6">
-                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
-                  <.icon name="hero-swatch" class="w-6 h-6" /> Individual Colors
-                </h2>
-
-                <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
-              </div>
-
-              <.form
-                for={%{}}
-                phx-submit="update_profile"
-                multipart
-                class="space-y-4 sm:space-y-6"
-              >
-                <div class="flex items-center gap-4">
-                  <input
-                    type="color"
-                    name="profile[accent_color]"
-                    value={
-                      (@profile && @profile.accent_color) ||
-                        Elektrine.Profiles.UserProfile.default(:accent_color)
-                    }
-                    phx-change="update_color"
-                    phx-value-field="accent_color"
-                    class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                  />
-                  <div>
-                    <p class="font-medium">Accent Color</p>
-
-                    <p class="text-sm text-base-content/70">Links, icons, and highlights</p>
-                  </div>
-                </div>
-                <!-- Additional Color Options -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[text_color]"
-                      value={
-                        (@profile && @profile.text_color) ||
-                          Elektrine.Profiles.UserProfile.default(:text_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="text_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Text Color</p>
-
-                      <p class="text-sm text-base-content/70">Color for main text</p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[background_color]"
-                      value={
-                        (@profile && @profile.background_color) ||
-                          Elektrine.Profiles.UserProfile.default(:background_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="background_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Page Background</p>
-
-                      <p class="text-sm text-base-content/70">
-                        Background behind the content box
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[icon_color]"
-                      value={
-                        (@profile && @profile.icon_color) ||
-                          Elektrine.Profiles.UserProfile.default(:icon_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="icon_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Icon Color</p>
-
-                      <p class="text-sm text-base-content/70">Color for social icons</p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[container_background_color]"
-                      value={
-                        (@profile && @profile.container_background_color) ||
-                          Elektrine.Profiles.UserProfile.default(:background_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="container_background_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Container Background</p>
-
-                      <p class="text-sm text-base-content/70">
-                        Background for the middle content box
-                      </p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[tick_color]"
-                      value={
-                        (@profile && @profile.tick_color) ||
-                          Elektrine.Profiles.UserProfile.default(:tick_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="tick_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Verified Badge Color</p>
-
-                      <p class="text-sm text-base-content/70">
-                        Color for your verified checkmark
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <!-- Container Pattern -->
-                <div>
-                  <label class="label">
-                    <span class="label-text font-medium">Container Pattern</span>
-                  </label>
-                  <div class="select select-bordered w-full">
-                    <select
-                      name="profile[container_pattern]"
-                      phx-change="update_effect"
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <%= for {preset_id, preset_name, preset_description} <- design_presets() do %>
+                    <button
+                      type="button"
+                      phx-click="apply_design_preset"
+                      phx-value-preset={preset_id}
+                      class="rounded-xl border border-base-content/10 bg-base-100 p-4 text-left transition hover:border-primary/40 hover:bg-primary/5"
                     >
-                      <option
-                        value="none"
-                        selected={(@profile && @profile.container_pattern) == "none"}
-                      >
-                        None
-                      </option>
-
-                      <option
-                        value="dots"
-                        selected={(@profile && @profile.container_pattern) == "dots"}
-                      >
-                        Dots
-                      </option>
-
-                      <option
-                        value="grid"
-                        selected={(@profile && @profile.container_pattern) == "grid"}
-                      >
-                        Grid
-                      </option>
-
-                      <option
-                        value="diagonal_lines"
-                        selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
-                      >
-                        Diagonal Lines
-                      </option>
-
-                      <option
-                        value="zigzag"
-                        selected={(@profile && @profile.container_pattern) == "zigzag"}
-                      >
-                        Zigzag
-                      </option>
-
-                      <option
-                        value="waves"
-                        selected={(@profile && @profile.container_pattern) == "waves"}
-                      >
-                        Waves
-                      </option>
-
-                      <option
-                        value="crosses"
-                        selected={(@profile && @profile.container_pattern) == "crosses"}
-                      >
-                        Crosses
-                      </option>
-
-                      <option
-                        value="houndstooth"
-                        selected={(@profile && @profile.container_pattern) == "houndstooth"}
-                      >
-                        Houndstooth
-                      </option>
-                    </select>
-                  </div>
-                </div>
-
-                <%= if @profile && @profile.container_pattern != "none" do %>
-                  <div class="flex items-center gap-4">
-                    <input
-                      type="color"
-                      name="profile[pattern_color]"
-                      value={
-                        (@profile && @profile.pattern_color) ||
-                          Elektrine.Profiles.UserProfile.default(:text_color)
-                      }
-                      phx-change="update_color"
-                      phx-value-field="pattern_color"
-                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
-                    />
-                    <div>
-                      <p class="font-medium">Pattern Color</p>
-
-                      <p class="text-sm text-base-content/70">Color for the pattern overlay</p>
-                    </div>
-                  </div>
-
-                  <div class="form-control">
-                    <label class="label cursor-pointer justify-start gap-3">
-                      <input type="hidden" name="profile[pattern_animated]" value="false" />
-                      <input
-                        type="checkbox"
-                        name="profile[pattern_animated]"
-                        value="true"
-                        checked={@profile && @profile.pattern_animated}
-                        class="checkbox checkbox-primary"
-                      />
-                      <span class="label-text">
-                        <span class="font-semibold">Animate Pattern</span>
-                        <span class="text-sm text-base-content/70 block">
-                          Add motion to your pattern
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-
-                  <%= if @profile && @profile.pattern_animated do %>
-                    <div>
-                      <label class="label">
-                        <span class="label-text font-medium">Animation Speed</span>
-                      </label>
-                      <div class="select select-bordered w-full">
-                        <select name="profile[pattern_animation_speed]">
-                          <option
-                            value="slow"
-                            selected={(@profile && @profile.pattern_animation_speed) == "slow"}
-                          >
-                            Slow
-                          </option>
-
-                          <option
-                            value="normal"
-                            selected={
-                              (@profile && @profile.pattern_animation_speed) == "normal" ||
-                                !@profile.pattern_animation_speed
-                            }
-                          >
-                            Normal
-                          </option>
-
-                          <option
-                            value="fast"
-                            selected={(@profile && @profile.pattern_animation_speed) == "fast"}
-                          >
-                            Fast
-                          </option>
-                        </select>
-                      </div>
-                    </div>
+                      <div class="font-semibold">{preset_name}</div>
+                      <p class="mt-1 text-sm text-base-content/60">{preset_description}</p>
+                    </button>
                   <% end %>
-                <% end %>
-                <!-- Background Type Selector -->
-                <div>
-                  <label class="label">
-                    <span class="label-text font-medium">Background Style</span>
-                  </label>
-                  <div class="select select-bordered w-full">
-                    <select
-                      name="profile[background_type]"
-                      phx-change="update_effect"
-                    >
-                      <option
-                        value="gradient"
-                        selected={(@profile && @profile.background_type) == "gradient"}
-                      >
-                        Gradient
-                      </option>
-
-                      <option
-                        value="solid"
-                        selected={(@profile && @profile.background_type) == "solid"}
-                      >
-                        Solid Color
-                      </option>
-
-                      <option
-                        value="image"
-                        selected={(@profile && @profile.background_type) == "image"}
-                      >
-                        Custom Image
-                      </option>
-
-                      <option
-                        value="video"
-                        selected={(@profile && @profile.background_type) == "video"}
-                      >
-                        Video (MP4/WebM)
-                      </option>
-                    </select>
-                  </div>
                 </div>
-                <!-- Text Background Toggle -->
-                <div class="form-control">
-                  <label class="label cursor-pointer justify-start gap-3">
-                    <input type="hidden" name="profile[text_background]" value="false" />
-                    <input
-                      type="checkbox"
-                      name="profile[text_background]"
-                      value="true"
-                      checked={@profile && @profile.text_background}
-                      class="checkbox checkbox-primary"
-                    />
-                    <span class="label-text">
-                      <span class="font-semibold">Text Background</span>
-                      <span class="text-sm text-base-content/70 block">
-                        Add semi-transparent background behind text for better readability
-                      </span>
-                    </span>
-                  </label>
-                </div>
-
-                <button type="submit" class="btn btn-primary w-full">
-                  Save Colors & Background
-                </button>
-              </.form>
+              </div>
             </div>
-          </div>
-          <!-- Background Upload -->
-          <%= if @profile && @profile.background_type in ["image", "video"] do %>
+            <!-- Color Palette Generator -->
             <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">
-                <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
-                  <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
-                </h2>
+                <div class="mb-6">
+                  <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                    <.icon name="hero-sparkles" class="w-6 h-6" /> Quick Color Palette
+                  </h2>
 
-                <p class="text-sm text-base-content/60 mb-4">
-                  <%= if @profile.background_type == "video" do %>
-                    Upload a video background (MP4 or WebM, max 10MB)
-                  <% else %>
-                    Upload an image background (JPG, PNG, GIF, or WebP, max 10MB)
-                  <% end %>
-                </p>
+                  <p class="text-sm text-base-content/60">
+                    Pick one color and we'll generate a matching palette
+                  </p>
+                </div>
+
+                <.form for={%{}} phx-submit="generate_palette" class="space-y-4 sm:space-y-6">
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="base_color"
+                      value={
+                        (@profile && @profile.accent_color) ||
+                          Elektrine.Profiles.UserProfile.default(:accent_color)
+                      }
+                      class="w-24 h-24 border-0 rounded-xl cursor-pointer"
+                    />
+                    <div class="flex-1">
+                      <p class="font-semibold text-lg">Base Color</p>
+
+                      <p class="text-sm text-base-content/70">
+                        We'll create a harmonious color scheme based on this
+                      </p>
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary w-full btn-lg">
+                    <.icon name="hero-sparkles" class="w-5 h-5 mr-2" /> Generate Matching Palette
+                  </button>
+                </.form>
+              </div>
+            </div>
+            <!-- Colors & Theme -->
+            <div class="card panel-card">
+              <div class="card-body p-4 sm:p-6">
+                <div class="mb-6">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                        <.icon name="hero-swatch" class="w-6 h-6" /> Colors
+                      </h2>
+
+                      <p class="text-sm text-base-content/60">Fine-tune each color separately</p>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="reset_design_section"
+                      phx-value-section="colors"
+                      class="btn btn-ghost btn-sm"
+                    >
+                      Reset colors
+                    </button>
+                  </div>
+                </div>
 
                 <.form
                   for={%{}}
                   phx-submit="update_profile"
-                  phx-change="validate_background_upload"
-                  class="space-y-4"
+                  multipart
+                  class="space-y-4 sm:space-y-6"
                 >
-                  <!-- Current Background Preview -->
-                  <%= if @profile.background_url do %>
-                    <div class="relative">
-                      <%= if @profile.background_type == "video" do %>
-                        <video
-                          src={Elektrine.Uploads.background_url(@profile.background_url)}
-                          class="w-full h-48 object-cover rounded-lg"
-                          autoplay
-                          loop
-                          muted
-                        >
-                        </video>
-                      <% else %>
-                        <img
-                          src={Elektrine.Uploads.background_url(@profile.background_url)}
-                          alt="Current background"
-                          class="w-full h-48 object-cover rounded-lg"
-                        />
-                      <% end %>
+                  <div class="flex items-center gap-4">
+                    <input
+                      type="color"
+                      name="profile[accent_color]"
+                      value={
+                        (@profile && @profile.accent_color) ||
+                          Elektrine.Profiles.UserProfile.default(:accent_color)
+                      }
+                      phx-change="update_color"
+                      phx-value-field="accent_color"
+                      class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                    />
+                    <div>
+                      <p class="font-medium">Accent Color</p>
 
-                      <button
-                        type="button"
-                        phx-click="remove_background"
-                        class="absolute top-2 right-2 btn btn-secondary btn-sm"
-                      >
-                        <.icon name="hero-trash" class="w-4 h-4" /> Remove
-                      </button>
+                      <p class="text-sm text-base-content/70">Links, icons, and highlights</p>
                     </div>
-                  <% end %>
-                  <!-- Upload Progress -->
-                  <%= for entry <- @uploads.background.entries do %>
-                    <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
-                      <.icon
-                        name={
-                          if @profile.background_type == "video",
-                            do: "hero-film",
-                            else: "hero-photo"
+                  </div>
+                  <!-- Additional Color Options -->
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[text_color]"
+                        value={
+                          (@profile && @profile.text_color) ||
+                            Elektrine.Profiles.UserProfile.default(:text_color)
                         }
-                        class="w-6 h-6 flex-shrink-0"
+                        phx-change="update_color"
+                        phx-value-field="text_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
                       />
-                      <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium truncate">{entry.client_name}</p>
+                      <div>
+                        <p class="font-medium">Text Color</p>
 
-                        <progress
-                          class="progress progress-primary w-full h-2 mt-1"
-                          value={entry.progress}
-                          max="100"
-                        >
-                        </progress>
+                        <p class="text-sm text-base-content/70">Color for main text</p>
                       </div>
-
-                      <button
-                        type="button"
-                        phx-click="cancel_background_upload"
-                        phx-value-ref={entry.ref}
-                        class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-                      >
-                        <.icon name="hero-x-mark" class="w-4 h-4" />
-                      </button>
                     </div>
+
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[background_color]"
+                        value={
+                          (@profile && @profile.background_color) ||
+                            Elektrine.Profiles.UserProfile.default(:background_color)
+                        }
+                        phx-change="update_color"
+                        phx-value-field="background_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium">Page Background</p>
+
+                        <p class="text-sm text-base-content/70">
+                          Background behind the content box
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[icon_color]"
+                        value={
+                          (@profile && @profile.icon_color) ||
+                            Elektrine.Profiles.UserProfile.default(:icon_color)
+                        }
+                        phx-change="update_color"
+                        phx-value-field="icon_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium">Icon Color</p>
+
+                        <p class="text-sm text-base-content/70">Color for social icons</p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[container_background_color]"
+                        value={
+                          (@profile && @profile.container_background_color) ||
+                            Elektrine.Profiles.UserProfile.default(:background_color)
+                        }
+                        phx-change="update_color"
+                        phx-value-field="container_background_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium">Card background</p>
+
+                        <p class="text-sm text-base-content/70">
+                          Background for the middle content box
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[tick_color]"
+                        value={
+                          (@profile && @profile.tick_color) ||
+                            Elektrine.Profiles.UserProfile.default(:tick_color)
+                        }
+                        phx-change="update_color"
+                        phx-value-field="tick_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium">Verified Badge Color</p>
+
+                        <p class="text-sm text-base-content/70">
+                          Color for your verified checkmark
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
+                    <div>
+                      <p class="font-semibold">Container</p>
+                      <p class="text-sm text-base-content/60">Card color, pattern, and texture</p>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="reset_design_section"
+                      phx-value-section="container"
+                      class="btn btn-ghost btn-sm"
+                    >
+                      Reset container
+                    </button>
+                  </div>
+                  <!-- Container Pattern -->
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Container Pattern</span>
+                    </label>
+                    <div class="select select-bordered w-full">
+                      <select
+                        name="profile[container_pattern]"
+                        phx-change="update_effect"
+                      >
+                        <option
+                          value="none"
+                          selected={(@profile && @profile.container_pattern) == "none"}
+                        >
+                          None
+                        </option>
+
+                        <option
+                          value="dots"
+                          selected={(@profile && @profile.container_pattern) == "dots"}
+                        >
+                          Dots
+                        </option>
+
+                        <option
+                          value="grid"
+                          selected={(@profile && @profile.container_pattern) == "grid"}
+                        >
+                          Grid
+                        </option>
+
+                        <option
+                          value="diagonal_lines"
+                          selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
+                        >
+                          Diagonal Lines
+                        </option>
+
+                        <option
+                          value="zigzag"
+                          selected={(@profile && @profile.container_pattern) == "zigzag"}
+                        >
+                          Zigzag
+                        </option>
+
+                        <option
+                          value="waves"
+                          selected={(@profile && @profile.container_pattern) == "waves"}
+                        >
+                          Waves
+                        </option>
+
+                        <option
+                          value="crosses"
+                          selected={(@profile && @profile.container_pattern) == "crosses"}
+                        >
+                          Crosses
+                        </option>
+
+                        <option
+                          value="houndstooth"
+                          selected={(@profile && @profile.container_pattern) == "houndstooth"}
+                        >
+                          Houndstooth
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <%= if @profile && @profile.container_pattern != "none" do %>
+                    <div class="flex items-center gap-4">
+                      <input
+                        type="color"
+                        name="profile[pattern_color]"
+                        value={
+                          (@profile && @profile.pattern_color) ||
+                            Elektrine.Profiles.UserProfile.default(:text_color)
+                        }
+                        phx-change="update_color"
+                        phx-value-field="pattern_color"
+                        class="w-16 h-16 border-0 rounded-lg cursor-pointer"
+                      />
+                      <div>
+                        <p class="font-medium">Pattern Color</p>
+
+                        <p class="text-sm text-base-content/70">Color for the pattern overlay</p>
+                      </div>
+                    </div>
+
+                    <div class="form-control">
+                      <label class="label cursor-pointer justify-start gap-3">
+                        <input type="hidden" name="profile[pattern_animated]" value="false" />
+                        <input
+                          type="checkbox"
+                          name="profile[pattern_animated]"
+                          value="true"
+                          checked={@profile && @profile.pattern_animated}
+                          class="checkbox checkbox-primary"
+                        />
+                        <span class="label-text">
+                          <span class="font-semibold">Animate Pattern</span>
+                          <span class="text-sm text-base-content/70 block">
+                            Add motion to your pattern
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+
+                    <%= if @profile && @profile.pattern_animated do %>
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">Animation Speed</span>
+                        </label>
+                        <div class="select select-bordered w-full">
+                          <select name="profile[pattern_animation_speed]">
+                            <option
+                              value="slow"
+                              selected={(@profile && @profile.pattern_animation_speed) == "slow"}
+                            >
+                              Slow
+                            </option>
+
+                            <option
+                              value="normal"
+                              selected={
+                                (@profile && @profile.pattern_animation_speed) == "normal" ||
+                                  !@profile.pattern_animation_speed
+                              }
+                            >
+                              Normal
+                            </option>
+
+                            <option
+                              value="fast"
+                              selected={(@profile && @profile.pattern_animation_speed) == "fast"}
+                            >
+                              Fast
+                            </option>
+                          </select>
+                        </div>
+                      </div>
+                    <% end %>
                   <% end %>
-                  <!-- Upload Button -->
-                  <label class="btn btn-ghost w-full">
-                    <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
-                    Choose {if @profile.background_type == "video", do: "Video", else: "Image"}
-                    <.live_file_input upload={@uploads.background} class="hidden" />
-                  </label>
-                  <button type="submit" class="btn btn-primary w-full"> Save Background </button>
+                  <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-4">
+                    <div>
+                      <p class="font-semibold">Background</p>
+                      <p class="text-sm text-base-content/60">Page backdrop and uploaded media</p>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="reset_design_section"
+                      phx-value-section="background"
+                      class="btn btn-ghost btn-sm"
+                    >
+                      Reset background
+                    </button>
+                  </div>
+                  <!-- Background Type Selector -->
+                  <div>
+                    <label class="label">
+                      <span class="label-text font-medium">Background Style</span>
+                    </label>
+                    <div class="select select-bordered w-full">
+                      <select
+                        name="profile[background_type]"
+                        phx-change="update_effect"
+                      >
+                        <option
+                          value="gradient"
+                          selected={(@profile && @profile.background_type) == "gradient"}
+                        >
+                          Gradient
+                        </option>
+
+                        <option
+                          value="solid"
+                          selected={(@profile && @profile.background_type) == "solid"}
+                        >
+                          Solid Color
+                        </option>
+
+                        <option
+                          value="image"
+                          selected={(@profile && @profile.background_type) == "image"}
+                        >
+                          Custom Image
+                        </option>
+
+                        <option
+                          value="video"
+                          selected={(@profile && @profile.background_type) == "video"}
+                        >
+                          Video (MP4/WebM)
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                  <!-- Text Background Toggle -->
+                  <div class="form-control">
+                    <label class="label cursor-pointer justify-start gap-3">
+                      <input type="hidden" name="profile[text_background]" value="false" />
+                      <input
+                        type="checkbox"
+                        name="profile[text_background]"
+                        value="true"
+                        checked={@profile && @profile.text_background}
+                        class="checkbox checkbox-primary"
+                      />
+                      <span class="label-text">
+                        <span class="font-semibold">Text Background</span>
+                        <span class="text-sm text-base-content/70 block">
+                          Add semi-transparent background behind text for better readability
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary w-full"> Save Design </button>
                 </.form>
               </div>
             </div>
-          <% end %>
-          <!-- Visual Effects -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
-              <div class="mb-6">
-                <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
-                  <.icon name="hero-adjustments-horizontal" class="w-6 h-6" /> Visual Effects
-                </h2>
+            <!-- Background Upload -->
+            <%= if @profile && @profile.background_type in ["image", "video"] do %>
+              <div class="card panel-card">
+                <div class="card-body p-4 sm:p-6">
+                  <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
+                    <.icon name="hero-photo" class="w-5 h-5" /> Upload Background
+                  </h2>
 
-                <p class="text-sm text-base-content/60">
-                  Adjust opacity, blur, and pattern visibility for your profile
-                </p>
+                  <p class="text-sm text-base-content/60 mb-4">
+                    <%= if @profile.background_type == "video" do %>
+                      Upload a video background (MP4 or WebM, max 10MB)
+                    <% else %>
+                      Upload an image background (JPG, PNG, GIF, or WebP, max 10MB)
+                    <% end %>
+                  </p>
+
+                  <.form
+                    for={%{}}
+                    phx-submit="update_profile"
+                    phx-change="validate_background_upload"
+                    class="space-y-4"
+                  >
+                    <!-- Current Background Preview -->
+                    <%= if @profile.background_url do %>
+                      <div class="relative">
+                        <%= if @profile.background_type == "video" do %>
+                          <video
+                            src={Elektrine.Uploads.background_url(@profile.background_url)}
+                            class="w-full h-48 object-cover rounded-lg"
+                            autoplay
+                            loop
+                            muted
+                          >
+                          </video>
+                        <% else %>
+                          <img
+                            src={Elektrine.Uploads.background_url(@profile.background_url)}
+                            alt="Current background"
+                            class="w-full h-48 object-cover rounded-lg"
+                          />
+                        <% end %>
+
+                        <button
+                          type="button"
+                          phx-click="remove_background"
+                          class="absolute top-2 right-2 btn btn-secondary btn-sm"
+                        >
+                          <.icon name="hero-trash" class="w-4 h-4" /> Remove
+                        </button>
+                      </div>
+                    <% end %>
+                    <!-- Upload Progress -->
+                    <%= for entry <- @uploads.background.entries do %>
+                      <div class="flex items-center gap-2 p-3 bg-base-200 rounded-lg">
+                        <.icon
+                          name={
+                            if @profile.background_type == "video",
+                              do: "hero-film",
+                              else: "hero-photo"
+                          }
+                          class="w-6 h-6 flex-shrink-0"
+                        />
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm font-medium truncate">{entry.client_name}</p>
+
+                          <progress
+                            class="progress progress-primary w-full h-2 mt-1"
+                            value={entry.progress}
+                            max="100"
+                          >
+                          </progress>
+                        </div>
+
+                        <button
+                          type="button"
+                          phx-click="cancel_background_upload"
+                          phx-value-ref={entry.ref}
+                          class="btn btn-ghost btn-sm btn-circle flex-shrink-0"
+                        >
+                          <.icon name="hero-x-mark" class="w-4 h-4" />
+                        </button>
+                      </div>
+                    <% end %>
+                    <!-- Upload Button -->
+                    <label class="btn btn-ghost w-full">
+                      <.icon name="hero-arrow-up-tray" class="w-5 h-5 mr-2" />
+                      Choose {if @profile.background_type == "video", do: "Video", else: "Image"}
+                      <.live_file_input upload={@uploads.background} class="hidden" />
+                    </label>
+                    <button type="submit" class="btn btn-primary w-full">
+                      Save Background
+                    </button>
+                  </.form>
+                </div>
               </div>
-
-              <.form
-                for={%{}}
-                phx-submit="update_profile"
-                multipart
-                class="space-y-4 sm:space-y-6"
-              >
-                <!-- Effect Sliders -->
-                <div class="space-y-4 sm:space-y-6">
+            <% end %>
+            <!-- Motion -->
+            <div class="card panel-card">
+              <div class="card-body p-4 sm:p-6">
+                <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <label class="label">
-                      <span class="label-text font-medium">Profile Opacity</span>
-                      <span class="label-text-alt">
-                        {round(((@profile && @profile.profile_opacity) || 1.0) * 100)}%
-                      </span>
-                    </label>
-                    <input
-                      type="range"
-                      name="profile[profile_opacity]"
-                      min="0.5"
-                      max="1"
-                      step="0.1"
-                      value={(@profile && @profile.profile_opacity) || 1.0}
-                      phx-change="update_effect"
-                      phx-value-field="profile_opacity"
-                      class="range range-primary w-full"
-                    />
-                    <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>50%</span> <span>75%</span> <span>100%</span>
-                    </div>
-                  </div>
+                    <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
+                      <.icon name="hero-adjustments-horizontal" class="w-6 h-6" />
+                      Motion & Transparency
+                    </h2>
 
-                  <div>
-                    <label class="label">
-                      <span class="label-text font-medium">Profile Blur</span>
-                      <span class="label-text-alt">
-                        {(@profile && @profile.profile_blur) || 0}px
-                      </span>
-                    </label>
-                    <input
-                      type="range"
-                      name="profile[profile_blur]"
-                      min="0"
-                      max="20"
-                      step="1"
-                      value={(@profile && @profile.profile_blur) || 0}
-                      phx-change="update_effect"
-                      phx-value-field="profile_blur"
-                      class="range range-primary w-full"
-                    />
-                    <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>0px</span> <span>10px</span> <span>20px</span>
-                    </div>
+                    <p class="text-sm text-base-content/60">
+                      Adjust transparency, blur, and pattern strength.
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    phx-click="reset_design_section"
+                    phx-value-section="motion"
+                    class="btn btn-ghost btn-sm"
+                  >
+                    Reset motion
+                  </button>
+                </div>
 
-                  <div>
-                    <label class="label">
-                      <span class="label-text font-medium">Container Opacity</span>
-                      <span class="label-text-alt">
-                        {round(((@profile && @profile.container_opacity) || 0.4) * 100)}%
-                      </span>
-                    </label>
-                    <input
-                      type="range"
-                      name="profile[container_opacity]"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={(@profile && @profile.container_opacity) || 0.4}
-                      phx-change="update_effect"
-                      phx-value-field="container_opacity"
-                      class="range range-primary w-full"
-                    />
-                    <div class="flex w-full justify-between text-xs text-base-content/60">
-                      <span>0%</span> <span>50%</span> <span>100%</span>
-                    </div>
-                  </div>
-
-                  <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
+                <.form
+                  for={%{}}
+                  phx-submit="update_profile"
+                  multipart
+                  class="space-y-4 sm:space-y-6"
+                >
+                  <!-- Effect Sliders -->
+                  <div class="space-y-4 sm:space-y-6">
                     <div>
                       <label class="label">
-                        <span class="label-text font-medium">Pattern Opacity</span>
+                        <span class="label-text font-medium">Card transparency</span>
                         <span class="label-text-alt">
-                          {round(((@profile && @profile.pattern_opacity) || 0.2) * 100)}%
+                          {round(((@profile && @profile.profile_opacity) || 1.0) * 100)}%
                         </span>
                       </label>
                       <input
                         type="range"
-                        name="profile[pattern_opacity]"
-                        min="0.0"
-                        max="1.0"
+                        name="profile[profile_opacity]"
+                        min="0.5"
+                        max="1"
                         step="0.1"
-                        value={(@profile && @profile.pattern_opacity) || 0.2}
+                        value={(@profile && @profile.profile_opacity) || 1.0}
                         phx-change="update_effect"
-                        phx-value-field="pattern_opacity"
+                        phx-value-field="profile_opacity"
+                        class="range range-primary w-full"
+                      />
+                      <div class="flex w-full justify-between text-xs text-base-content/60">
+                        <span>50%</span> <span>75%</span> <span>100%</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="label">
+                        <span class="label-text font-medium">Background blur</span>
+                        <span class="label-text-alt">
+                          {(@profile && @profile.profile_blur) || 0}px
+                        </span>
+                      </label>
+                      <input
+                        type="range"
+                        name="profile[profile_blur]"
+                        min="0"
+                        max="20"
+                        step="1"
+                        value={(@profile && @profile.profile_blur) || 0}
+                        phx-change="update_effect"
+                        phx-value-field="profile_blur"
+                        class="range range-primary w-full"
+                      />
+                      <div class="flex w-full justify-between text-xs text-base-content/60">
+                        <span>0px</span> <span>10px</span> <span>20px</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="label">
+                        <span class="label-text font-medium">Card background transparency</span>
+                        <span class="label-text-alt">
+                          {round(((@profile && @profile.container_opacity) || 0.4) * 100)}%
+                        </span>
+                      </label>
+                      <input
+                        type="range"
+                        name="profile[container_opacity]"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={(@profile && @profile.container_opacity) || 0.4}
+                        phx-change="update_effect"
+                        phx-value-field="container_opacity"
                         class="range range-primary w-full"
                       />
                       <div class="flex w-full justify-between text-xs text-base-content/60">
                         <span>0%</span> <span>50%</span> <span>100%</span>
                       </div>
                     </div>
-                  <% end %>
-                </div>
-                <button type="submit" class="btn btn-primary w-full"> Save Effects </button>
-              </.form>
+
+                    <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
+                      <div>
+                        <label class="label">
+                          <span class="label-text font-medium">Pattern strength</span>
+                          <span class="label-text-alt">
+                            {round(((@profile && @profile.pattern_opacity) || 0.2) * 100)}%
+                          </span>
+                        </label>
+                        <input
+                          type="range"
+                          name="profile[pattern_opacity]"
+                          min="0.0"
+                          max="1.0"
+                          step="0.1"
+                          value={(@profile && @profile.pattern_opacity) || 0.2}
+                          phx-change="update_effect"
+                          phx-value-field="pattern_opacity"
+                          class="range range-primary w-full"
+                        />
+                        <div class="flex w-full justify-between text-xs text-base-content/60">
+                          <span>0%</span> <span>50%</span> <span>100%</span>
+                        </div>
+                      </div>
+                    <% end %>
+                  </div>
+                  <button type="submit" class="btn btn-primary w-full"> Save motion </button>
+                </.form>
+              </div>
             </div>
-          </div>
+          <% end %>
           <!-- Typewriter Effect -->
-          <div class="card panel-card">
+          <div :if={@selected_tab == "effects"} class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <div class="mb-6">
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
@@ -922,7 +1062,7 @@
                     <span class="label-text">
                       <span class="font-semibold">Typewriter for Browser Tab Title</span>
                       <span class="text-sm text-base-content/70 block">
-                        Animate the page title in the browser tab (requires Page Title to be set in Basic Info)
+                        Animate the page title in the browser tab (requires Page Title to be set in Profile)
                       </span>
                     </span>
                   </label>
@@ -991,7 +1131,7 @@
         </div>
       <% end %>
       <!-- Avatar Effects Tab -->
-      <%= if @selected_tab == "avatar" do %>
+      <%= if @selected_tab == "effects" do %>
         <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
@@ -1081,7 +1221,7 @@
         </div>
       <% end %>
       <!-- Username Effects Tab -->
-      <%= if @selected_tab == "username" do %>
+      <%= if @selected_tab == "effects" do %>
         <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
@@ -1369,7 +1509,7 @@
         </div>
       <% end %>
       <!-- Links Tab -->
-      <%= if @selected_tab == "links" do %>
+      <%= if @selected_tab == "content" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Link Display Style -->
           <div class="card panel-card">
@@ -2018,7 +2158,7 @@
         </div>
       <% end %>
       <!-- Widgets Tab -->
-      <%= if @selected_tab == "widgets" do %>
+      <%= if @selected_tab == "content" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Add New Widget -->
           <div class="card panel-card">
@@ -2187,7 +2327,7 @@
         </div>
       <% end %>
       <!-- Badges Tab -->
-      <%= if @selected_tab == "badges" do %>
+      <%= if @selected_tab == "content" do %>
         <div class="card panel-card">
           <div class="card-body p-4 sm:p-6">
             <div class="mb-6">
@@ -2258,7 +2398,7 @@
         </div>
       <% end %>
       <!-- Advanced Tab -->
-      <%= if @selected_tab == "advanced" do %>
+      <%= if @selected_tab == "design" do %>
         <div class="space-y-4 sm:space-y-6">
           <!-- Text Fonts -->
           <div class="card panel-card">
@@ -2679,7 +2819,7 @@
         </div>
       <% end %>
       <!-- Static Site Tab -->
-      <%= if @selected_tab == "static_site" do %>
+      <%= if @selected_tab == "publish" do %>
         <% static_mode = @profile && @profile.profile_mode == "static" %> <% static_file_count =
           length(@static_site_files || []) %> <% has_static_files = static_file_count > 0 %> <% has_homepage =
           Enum.any?(@static_site_files || [], &(&1.path in ["index.html", "index.htm"])) %>
@@ -2738,7 +2878,7 @@
                     >
                       <.icon name="hero-arrow-top-right-on-square" class="h-4 w-4" /> Visit Site
                     </a>
-                    <.link navigate={~p"/account/profile/domains"} class="btn btn-ghost btn-sm">
+                    <.link navigate={~p"/domains"} class="btn btn-ghost btn-sm">
                       <.icon name="hero-globe-alt" class="h-4 w-4" /> Custom Domains
                     </.link>
                   </.action_toolbar>

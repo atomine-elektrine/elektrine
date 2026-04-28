@@ -113,14 +113,14 @@ defmodule Elektrine.Platform.ENav do
       %{
         id: "profile-analytics",
         label: "Analytics",
-        href: "/account/profile/analytics",
+        href: "/analytics/profile",
         icon: "hero-chart-bar",
         active_icon: "hero-chart-bar-solid"
       },
       %{
         id: "profile-domains",
         label: "Domains",
-        href: "/account/profile/domains",
+        href: "/domains",
         icon: "hero-globe-alt",
         active_icon: "hero-globe-alt-solid"
       },
