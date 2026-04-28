@@ -13,6 +13,7 @@ defmodule Elektrine.Profiles do
     ProfileSiteVisit,
     ProfileView,
     ProfileWidget,
+    SitePageVisit,
     UserBadge,
     UserProfile
   }
@@ -552,6 +553,161 @@ defmodule Elektrine.Profiles do
   end
 
   def get_site_domain_breakdown(_user_id, _hosts), do: []
+
+  @doc """
+  Tracks a site-wide HTML page visit for public app, profile, and static-site routes.
+  """
+  def track_site_page_visit(opts \\ []) do
+    attrs = %{
+      viewer_user_id: Keyword.get(opts, :viewer_user_id),
+      visitor_id: Keyword.get(opts, :visitor_id),
+      ip_address: Keyword.get(opts, :ip_address),
+      user_agent: Keyword.get(opts, :user_agent),
+      referer: Keyword.get(opts, :referer),
+      request_host: normalize_request_host(Keyword.get(opts, :request_host)),
+      request_path: normalize_request_path(Keyword.get(opts, :request_path)),
+      status: Keyword.get(opts, :status)
+    }
+
+    %SitePageVisit{}
+    |> SitePageVisit.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def get_public_site_view_stats(request_host \\ nil) do
+    now = DateTime.utc_now()
+    today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
+    week_ago = DateTime.add(now, -7, :day)
+
+    %{
+      total_views: get_public_site_view_count(request_host),
+      unique_visitors: get_public_site_unique_visitor_count(request_host),
+      views_today: get_public_site_views_since(today_start, request_host),
+      views_this_week: get_public_site_views_since(week_ago, request_host)
+    }
+  end
+
+  def get_public_site_view_count(request_host \\ nil) do
+    request_host
+    |> site_page_visits_query()
+    |> select([sv], count(sv.id))
+    |> Repo.one()
+  end
+
+  def get_public_site_unique_visitor_count(request_host \\ nil) do
+    request_host
+    |> site_page_visits_query()
+    |> select(
+      [sv],
+      count(
+        fragment(
+          "COALESCE(CAST(? AS text), ?, ?)",
+          sv.viewer_user_id,
+          sv.visitor_id,
+          sv.ip_address
+        ),
+        :distinct
+      )
+    )
+    |> Repo.one()
+  end
+
+  def get_public_site_views_since(since_datetime, request_host \\ nil) do
+    request_host
+    |> site_page_visits_query()
+    |> where([sv], sv.inserted_at > ^since_datetime)
+    |> select([sv], count(sv.id))
+    |> Repo.one()
+  end
+
+  def get_public_site_daily_view_counts(days \\ 30, request_host \\ nil) do
+    start_date = Date.utc_today() |> Date.add(-days + 1)
+    end_date = Date.utc_today()
+
+    actual_views =
+      request_host
+      |> site_page_visits_query()
+      |> where([sv], fragment("DATE(?)", sv.inserted_at) >= ^start_date)
+      |> group_by([sv], fragment("DATE(?)", sv.inserted_at))
+      |> select([sv], %{date: fragment("DATE(?)", sv.inserted_at), count: count(sv.id)})
+      |> Repo.all()
+      |> Map.new(fn %{date: date, count: count} -> {date, count} end)
+
+    Date.range(start_date, end_date)
+    |> Enum.map(fn date -> %{date: date, count: Map.get(actual_views, date, 0)} end)
+  end
+
+  def get_public_site_top_pages(request_host \\ nil, limit \\ 10) do
+    request_host
+    |> site_page_visits_query()
+    |> group_by([sv], [sv.request_host, sv.request_path])
+    |> order_by([sv], desc: count(sv.id))
+    |> limit(^limit)
+    |> select([sv], %{
+      host: sv.request_host,
+      path: sv.request_path,
+      views: count(sv.id),
+      unique_visitors:
+        count(
+          fragment(
+            "COALESCE(CAST(? AS text), ?, ?)",
+            sv.viewer_user_id,
+            sv.visitor_id,
+            sv.ip_address
+          ),
+          :distinct
+        )
+    })
+    |> Repo.all()
+  end
+
+  def get_public_site_top_referrers(request_host \\ nil, limit \\ 10) do
+    request_host
+    |> site_page_visits_query()
+    |> where([sv], not is_nil(sv.referer))
+    |> group_by([sv], sv.referer)
+    |> order_by([sv], desc: count(sv.id))
+    |> limit(^limit)
+    |> select([sv], %{referer: sv.referer, count: count(sv.id)})
+    |> Repo.all()
+  end
+
+  def get_public_site_domain_breakdown(hosts) when is_list(hosts) do
+    today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
+
+    site_page_visits_query(hosts)
+    |> group_by([sv], sv.request_host)
+    |> select([sv], %{
+      host: sv.request_host,
+      views: count(sv.id),
+      unique_visitors:
+        count(
+          fragment(
+            "COALESCE(CAST(? AS text), ?, ?)",
+            sv.viewer_user_id,
+            sv.visitor_id,
+            sv.ip_address
+          ),
+          :distinct
+        ),
+      views_today: fragment("COUNT(*) FILTER (WHERE ? >= ?)", sv.inserted_at, ^today_start)
+    })
+    |> Repo.all()
+  end
+
+  def get_public_site_domain_breakdown(_hosts), do: []
+
+  defp site_page_visits_query(request_host) do
+    base =
+      from(sv in SitePageVisit,
+        where: not is_nil(sv.request_host)
+      )
+
+    case normalize_request_hosts(request_host) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [sv], sv.request_host in ^hosts)
+      _ -> base
+    end
+  end
 
   defp profile_site_visits_query(user_id, request_host) do
     base =

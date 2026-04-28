@@ -19,6 +19,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(:fetch_session)
+    plug(ElektrineWeb.Plugs.SitePageTracking)
     plug(ElektrineWeb.Plugs.StaticSitePlug)
     plug(:fetch_live_flash)
     plug(:put_root_layout, html: {ElektrineWeb.Layouts, :root})
@@ -38,6 +39,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.TorAware)
     plug(:fetch_session)
+    plug(ElektrineWeb.Plugs.SitePageTracking)
     plug(ElektrineWeb.Plugs.StaticSitePlug)
     plug(:fetch_live_flash)
     plug(:put_root_layout, html: {ElektrineWeb.Layouts, :root})
@@ -528,7 +530,7 @@ defmodule ElektrineWeb.Router do
 
   # Two-factor authentication routes (accessible during login process)
   scope "/", ElektrineWeb do
-    pipe_through([:browser, :require_vpn_when_netbird_enabled])
+    pipe_through(:browser)
 
     live_session :two_factor,
       on_mount: [{ElektrineWeb.Live.AuthHooks, :maybe_authenticated_user}] do
