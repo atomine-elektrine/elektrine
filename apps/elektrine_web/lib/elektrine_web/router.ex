@@ -465,6 +465,10 @@ defmodule ElektrineWeb.Router do
     # SEO
     get("/sitemap.xml", SitemapController, :index)
     get("/robots.txt", SitemapController, :robots)
+    get("/canary", PageController, :canary)
+    get("/canary/current.md", PageController, :canary_current)
+    get("/canary/current.md.asc", PageController, :canary_signature)
+    get("/canary-key.asc", PageController, :canary_public_key)
 
     scope "/", alias: false do
       ElektrineWeb.Routes.Social.public_browser_routes()

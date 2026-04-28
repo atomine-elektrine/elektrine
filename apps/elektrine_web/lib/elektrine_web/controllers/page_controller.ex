@@ -1,6 +1,57 @@
 defmodule ElektrineWeb.PageController do
   use ElektrineWeb, :controller
 
+  @canary_dir Path.join(:code.priv_dir(:elektrine_web), "canary")
+
+  def canary(conn, _params) do
+    canary = read_canary_file("current.md")
+
+    render(conn, :canary,
+      page_title: "Warrant Canary",
+      canary: canary,
+      canary_html: Elektrine.Markdown.to_html(canary),
+      signature: read_canary_file("current.md.asc"),
+      public_key: read_canary_file("canary-public-key.asc")
+    )
+  end
+
+  def canary_current(conn, _params) do
+    send_canary_file(conn, "current.md", "text/markdown; charset=utf-8")
+  end
+
+  def canary_signature(conn, _params) do
+    send_canary_file(conn, "current.md.asc", "application/pgp-signature")
+  end
+
+  def canary_public_key(conn, _params) do
+    send_canary_file(conn, "canary-public-key.asc", "application/pgp-keys")
+  end
+
+  defp read_canary_file(filename) do
+    filename
+    |> canary_path()
+    |> File.read()
+    |> case do
+      {:ok, content} -> content
+      {:error, _reason} -> nil
+    end
+  end
+
+  defp send_canary_file(conn, filename, content_type) do
+    path = canary_path(filename)
+
+    if File.regular?(path) do
+      conn
+      |> put_resp_content_type(content_type)
+      |> put_resp_header("content-disposition", ~s(inline; filename="#{filename}"))
+      |> send_file(200, path)
+    else
+      send_resp(conn, 404, "not found")
+    end
+  end
+
+  defp canary_path(filename), do: Path.join(@canary_dir, filename)
+
   # Development-only error page test routes
   if Application.compile_env(:elektrine, :dev_routes, false) do
     def flash_test_controller(conn, %{"kind" => kind}) do

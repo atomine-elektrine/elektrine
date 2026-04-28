@@ -109,6 +109,13 @@ defmodule ElektrineWeb.PageLive.Home do
                     <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
                     <span>Issues</span>
                   </.link>
+                  <.link
+                    href={~p"/canary"}
+                    class="inline-flex items-center gap-2 hover:text-base-content"
+                  >
+                    <.icon name="hero-shield-check-mini" class="h-4 w-4" />
+                    <span>Canary</span>
+                  </.link>
                 </div>
               </div>
             </section>
