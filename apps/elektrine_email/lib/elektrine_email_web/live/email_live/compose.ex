@@ -190,6 +190,14 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   end
 
   @impl true
+  def handle_event("change_encryption_mode", params, socket) do
+    mode =
+      get_in(params, ["email", "encryption_mode"]) || params["encryption_mode"] || params["value"]
+
+    {:noreply, assign_encryption_state(socket, mode)}
+  end
+
+  @impl true
   def handle_event("clear_form", _params, socket) do
     {:noreply,
      socket

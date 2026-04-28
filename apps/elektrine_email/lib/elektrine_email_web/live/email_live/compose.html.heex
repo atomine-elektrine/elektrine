@@ -549,6 +549,7 @@
                       <select
                         name="email[encryption_mode]"
                         value={@encryption_mode}
+                        phx-change="change_encryption_mode"
                       >
                         <option value="off" selected={@encryption_mode == "off"}>
                           {gettext("Standard delivery")}

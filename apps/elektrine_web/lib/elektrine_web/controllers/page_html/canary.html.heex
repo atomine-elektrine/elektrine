@@ -1,0 +1,82 @@
+<div>
+  <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+    <.e_nav active_tab="" class="mb-6" current_user={@current_user} />
+
+    <div id="canary-card" class="card panel-card">
+      <div class="card-body">
+        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <h1 class="card-title text-3xl">Warrant Canary</h1>
+
+          <div class="flex flex-wrap gap-2 lg:justify-end">
+            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary/current.md"}>
+              current.md
+            </a>
+            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary/current.md.asc"}>
+              current.md.asc
+            </a>
+            <a class="btn btn-outline btn-sm h-9 min-h-9" href={~p"/canary-key.asc"}>
+              canary-key.asc
+            </a>
+          </div>
+        </div>
+
+        <div class="prose prose-lg max-w-none">
+          <p class="text-sm text-base-content/70 mb-6">
+            This page publishes Elektrine's current canary statement, detached signature, and public
+            signing key. Verify the signature before relying on the statement.
+          </p>
+
+          <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Current Statement</h2>
+            <div class="rounded-box border border-base-300/60 bg-base-100/50 p-4 leading-7 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_p]:mb-3 [&_ul]:mb-4 [&_ul]:mt-2 [&_li]:mb-1 [&_code]:rounded [&_code]:bg-base-200 [&_code]:px-1 [&_code]:py-0.5">
+              <%= if @canary_html != "" do %>
+                {raw(@canary_html)}
+              <% else %>
+                <p>No canary statement is available.</p>
+              <% end %>
+            </div>
+          </section>
+
+          <section class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4">Verification</h2>
+            <p class="mb-4 text-base-content/80">
+              Download the statement, signature, and public key. Then verify locally:
+            </p>
+            <pre class="overflow-x-auto rounded-box border border-base-300/60 bg-base-200/50 p-4 font-mono text-xs leading-6"><code><%= "gpg --import canary-key.asc\ngpg --verify current.md.asc current.md" %></code></pre>
+            <p class="mt-4 text-sm text-base-content/70">
+              A missing or expired update means the canary is stale. It does not, by itself, prove
+              that any specific legal demand or event occurred.
+            </p>
+          </section>
+
+          <section class="mb-8">
+            <details class="rounded-box border border-base-300/60 bg-base-100/50">
+              <summary class="cursor-pointer px-4 py-3 text-base font-semibold text-base-content">
+                Raw Statement
+              </summary>
+              <pre class="overflow-x-auto whitespace-pre-wrap border-t border-base-300/60 bg-base-200/30 p-4 font-mono text-xs leading-5"><%= @canary || "No canary statement is available." %></pre>
+            </details>
+          </section>
+
+          <section class="mb-8">
+            <details class="rounded-box border border-base-300/60 bg-base-100/50">
+              <summary class="cursor-pointer px-4 py-3 text-base font-semibold text-base-content">
+                Detached Signature
+              </summary>
+              <pre class="overflow-x-auto whitespace-pre-wrap border-t border-base-300/60 bg-base-200/30 p-4 font-mono text-xs leading-5"><%= @signature || "No signature is available." %></pre>
+            </details>
+          </section>
+
+          <section>
+            <details class="rounded-box border border-base-300/60 bg-base-100/50">
+              <summary class="cursor-pointer px-4 py-3 text-base font-semibold text-base-content">
+                Public Key
+              </summary>
+              <pre class="overflow-x-auto whitespace-pre-wrap border-t border-base-300/60 bg-base-200/30 p-4 font-mono text-xs leading-5"><%= @public_key || "No public key is available." %></pre>
+            </details>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
