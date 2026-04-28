@@ -1,8 +1,6 @@
 defmodule ElektrineWeb.PageController do
   use ElektrineWeb, :controller
 
-  @canary_dir Path.join(:code.priv_dir(:elektrine_web), "canary")
-
   def canary(conn, _params) do
     canary = read_canary_file("current.md")
 
@@ -50,7 +48,12 @@ defmodule ElektrineWeb.PageController do
     end
   end
 
-  defp canary_path(filename), do: Path.join(@canary_dir, filename)
+  defp canary_path(filename) do
+    :elektrine_web
+    |> :code.priv_dir()
+    |> Path.join("canary")
+    |> Path.join(filename)
+  end
 
   # Development-only error page test routes
   if Application.compile_env(:elektrine, :dev_routes, false) do
