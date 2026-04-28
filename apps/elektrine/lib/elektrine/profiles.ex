@@ -14,6 +14,7 @@ defmodule Elektrine.Profiles do
     ProfileView,
     ProfileWidget,
     SitePageVisit,
+    SiteSession,
     UserBadge,
     UserProfile
   }
@@ -558,9 +559,12 @@ defmodule Elektrine.Profiles do
   Tracks a site-wide HTML page visit for public app, profile, and static-site routes.
   """
   def track_site_page_visit(opts \\ []) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
     attrs = %{
       viewer_user_id: Keyword.get(opts, :viewer_user_id),
       visitor_id: Keyword.get(opts, :visitor_id),
+      session_id: Keyword.get(opts, :session_id),
       ip_address: Keyword.get(opts, :ip_address),
       user_agent: Keyword.get(opts, :user_agent),
       referer: Keyword.get(opts, :referer),
@@ -569,9 +573,16 @@ defmodule Elektrine.Profiles do
       status: Keyword.get(opts, :status)
     }
 
-    %SitePageVisit{}
-    |> SitePageVisit.changeset(attrs)
-    |> Repo.insert()
+    Repo.transaction(fn ->
+      {:ok, visit} =
+        %SitePageVisit{}
+        |> SitePageVisit.changeset(attrs)
+        |> Repo.insert()
+
+      {:ok, _session} = upsert_site_session(attrs, now)
+
+      visit
+    end)
   end
 
   def get_public_site_view_stats(request_host \\ nil) do
@@ -582,6 +593,9 @@ defmodule Elektrine.Profiles do
     %{
       total_views: get_public_site_view_count(request_host),
       unique_visitors: get_public_site_unique_visitor_count(request_host),
+      sessions: get_public_site_session_count(request_host),
+      avg_session_duration_seconds: get_public_site_avg_session_duration(request_host),
+      bounce_rate: get_public_site_bounce_rate(request_host),
       views_today: get_public_site_views_since(today_start, request_host),
       views_this_week: get_public_site_views_since(week_ago, request_host)
     }
@@ -618,6 +632,37 @@ defmodule Elektrine.Profiles do
     |> where([sv], sv.inserted_at > ^since_datetime)
     |> select([sv], count(sv.id))
     |> Repo.one()
+  end
+
+  def get_public_site_session_count(request_host \\ nil) do
+    request_host
+    |> site_sessions_query()
+    |> select([ss], count(ss.id))
+    |> Repo.one()
+  end
+
+  def get_public_site_avg_session_duration(request_host \\ nil) do
+    request_host
+    |> site_sessions_query()
+    |> select([ss], fragment("COALESCE(AVG(?)::float, 0)", ss.duration_seconds))
+    |> Repo.one()
+  end
+
+  def get_public_site_bounce_rate(request_host \\ nil) do
+    sessions = get_public_site_session_count(request_host)
+
+    if sessions > 0 do
+      bounces =
+        request_host
+        |> site_sessions_query()
+        |> where([ss], ss.page_views == 1)
+        |> select([ss], count(ss.id))
+        |> Repo.one()
+
+      bounces / sessions * 100
+    else
+      0.0
+    end
   end
 
   def get_public_site_daily_view_counts(days \\ 30, request_host \\ nil) do
@@ -697,6 +742,44 @@ defmodule Elektrine.Profiles do
 
   def get_public_site_domain_breakdown(_hosts), do: []
 
+  defp upsert_site_session(attrs, now) do
+    case Repo.get_by(SiteSession, session_id: attrs.session_id) do
+      nil ->
+        %SiteSession{}
+        |> SiteSession.changeset(%{
+          session_id: attrs.session_id,
+          viewer_user_id: attrs.viewer_user_id,
+          visitor_id: attrs.visitor_id,
+          ip_address: attrs.ip_address,
+          user_agent: attrs.user_agent,
+          referer: attrs.referer,
+          entry_host: attrs.request_host,
+          entry_path: attrs.request_path,
+          exit_host: attrs.request_host,
+          exit_path: attrs.request_path,
+          page_views: 1,
+          started_at: now,
+          last_seen_at: now,
+          duration_seconds: 0
+        })
+        |> Repo.insert()
+
+      session ->
+        duration_seconds = max(DateTime.diff(now, session.started_at), 0)
+
+        session
+        |> SiteSession.changeset(%{
+          viewer_user_id: attrs.viewer_user_id || session.viewer_user_id,
+          exit_host: attrs.request_host,
+          exit_path: attrs.request_path,
+          page_views: session.page_views + 1,
+          last_seen_at: now,
+          duration_seconds: duration_seconds
+        })
+        |> Repo.update()
+    end
+  end
+
   defp site_page_visits_query(request_host) do
     base =
       from(sv in SitePageVisit,
@@ -705,6 +788,18 @@ defmodule Elektrine.Profiles do
 
     case normalize_request_hosts(request_host) do
       hosts when is_list(hosts) and hosts != [] -> where(base, [sv], sv.request_host in ^hosts)
+      _ -> base
+    end
+  end
+
+  defp site_sessions_query(request_host) do
+    base =
+      from(ss in SiteSession,
+        where: not is_nil(ss.entry_host)
+      )
+
+    case normalize_request_hosts(request_host) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [ss], ss.entry_host in ^hosts)
       _ -> base
     end
   end

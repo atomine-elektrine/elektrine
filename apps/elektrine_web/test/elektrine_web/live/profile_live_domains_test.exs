@@ -11,18 +11,20 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
     {:ok, view, html} =
       conn
       |> log_in_user(user)
-      |> live(~p"/account/profile/domains")
+      |> live(~p"/domains")
 
+    assert html =~ "Domains"
     assert html =~ "Profile Domains"
+    assert html =~ "Email Domains"
     assert html =~ "Default Profile URL"
-    assert html =~ "Verified domains also publish a followable ActivityPub alias"
+    assert html =~ "publish a followable ActivityPub alias"
     assert html =~ "That keeps the domain portable if the underlying hosting IPs change"
 
     unique = System.unique_integer([:positive])
 
     html =
       view
-      |> form("form[phx-submit=create_custom_domain]", %{
+      |> form("form[phx-submit=create_profile_domain]", %{
         domain: "portfolio#{unique}.example.test"
       })
       |> render_submit()
@@ -35,6 +37,19 @@ defmodule ElektrineWeb.ProfileLiveDomainsTest do
     assert html =~ "Copy ActivityPub alias"
     assert html =~ "Copy TXT host"
     assert html =~ "Copy TXT value"
+
+    html =
+      view
+      |> form("form[phx-submit=create_email_domain]", %{
+        domain: "mail#{unique}.example.test"
+      })
+      |> render_submit()
+
+    assert html =~ "mail#{unique}.example.test"
+    assert html =~ "#{user.username}@mail#{unique}.example.test"
+    assert html =~ "Connected Email Domains"
+    assert html =~ "Copy primary email address"
+    assert html =~ "Sync DKIM"
   end
 
   defp log_in_user(conn, user) do

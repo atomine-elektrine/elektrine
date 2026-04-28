@@ -9,19 +9,22 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
 
   def render(assigns) do
     ~H"""
-    <div id="two-factor-card" class="card panel-card max-w-md mx-auto">
-      <div class="card-body">
-        <h1 class="card-title text-2xl justify-center mb-2">
-          Two-Factor Authentication
-        </h1>
-        <p class="text-center text-base-content/70 mb-6">
-          Enter the authentication code from your authenticator app
-        </p>
+    <div id="two-factor-card" class="card panel-card border border-base-300 max-w-md mx-auto">
+      <div class="card-body p-6">
+        <div class="mb-6 text-center">
+          <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+            <.icon name="hero-shield-check" class="h-6 w-6 text-primary" />
+          </div>
+          <h1 class="text-2xl font-semibold">Two-Factor Authentication</h1>
+          <p class="mt-2 text-sm text-base-content/70">
+            Enter the code from your authenticator app or one of your backup codes.
+          </p>
+        </div>
 
         <.form for={%{}} as={:two_factor} action={~p"/two_factor"}>
           <div>
             <label class="label">
-              <span>Authentication Code</span>
+              <span class="label-text">Authentication Code</span>
             </label>
             <input
               id="code"
@@ -35,9 +38,11 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
               maxlength="8"
               pattern="[0-9A-Z]{6,8}"
             />
-            <label class="label">
-              <span class="label-text-alt">Enter your 6-digit code or 8-character backup code</span>
-            </label>
+            <div class="label">
+              <span class="label-text-alt">
+                6-digit authenticator code or 8-character backup code
+              </span>
+            </div>
           </div>
 
           <div class="form-control mt-4">
@@ -64,14 +69,11 @@ defmodule ElektrineWeb.AuthLive.TwoFactor do
           </div>
         </.form>
 
-        <div class="divider">OR</div>
-
-        <div class="text-center">
-          <p class="text-sm text-base-content/70 mb-4">
-            Lost your authenticator device? You can use a backup code instead.
+        <div class="mt-6 border-t border-base-300 pt-4 text-center">
+          <p class="mb-3 text-sm text-base-content/70">
+            Lost your authenticator device? Use a backup code in the same field.
           </p>
-
-          <.link href={Elektrine.Paths.login_path()} class="link link-primary">
+          <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-sm">
             <.icon name="hero-arrow-left" class="w-4 h-4 inline" /> Back to login
           </.link>
         </div>

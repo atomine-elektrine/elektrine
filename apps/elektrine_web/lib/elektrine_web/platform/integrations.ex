@@ -190,6 +190,58 @@ defmodule ElektrineWeb.Platform.Integrations do
     call_optional(:email, @email_module, :custom_domain_admin_stats, [], default)
   end
 
+  def email_custom_domains(user_id) do
+    call_optional(:email, @email_module, :list_user_custom_domains, [user_id], [])
+  end
+
+  def email_custom_domain(id, user_id) do
+    call_optional(:email, @email_module, :get_custom_domain, [id, user_id], nil)
+  end
+
+  def create_email_custom_domain(user, attrs) do
+    call_optional(
+      :email,
+      @email_module,
+      :create_custom_domain,
+      [user, attrs],
+      {:error, :unavailable}
+    )
+  end
+
+  def verify_email_custom_domain(custom_domain) do
+    call_optional(
+      :email,
+      @email_module,
+      :verify_custom_domain,
+      [custom_domain],
+      {:error, :unavailable}
+    )
+  end
+
+  def sync_email_custom_domain_dkim(custom_domain) do
+    call_optional(
+      :email,
+      @email_module,
+      :sync_custom_domain_dkim,
+      [custom_domain],
+      {:error, :unavailable}
+    )
+  end
+
+  def delete_email_custom_domain(custom_domain) do
+    call_optional(
+      :email,
+      @email_module,
+      :delete_custom_domain,
+      [custom_domain],
+      {:error, :unavailable}
+    )
+  end
+
+  def email_custom_domain_dns_records(custom_domain) do
+    call_optional(:email, @email_module, :dns_records_for_custom_domain, [custom_domain], [])
+  end
+
   def admin_email_record_count(:mailboxes), do: aggregate_optional(@email_mailbox_module)
   def admin_email_record_count(:messages), do: aggregate_optional(@email_message_module)
   def admin_email_record_count(:aliases), do: aggregate_optional(@email_alias_module)

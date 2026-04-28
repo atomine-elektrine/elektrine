@@ -516,7 +516,7 @@ defmodule ElektrineWeb.Router do
 
   # Passkey authentication route (must be before authentication redirect)
   scope "/", ElektrineWeb do
-    pipe_through([:browser, :require_vpn_when_netbird_enabled])
+    pipe_through(:browser)
 
     post("/passkey/authenticate", PasskeyController, :authenticate)
   end
@@ -833,7 +833,7 @@ defmodule ElektrineWeb.Router do
 
   # Mobile app authentication - Always available for VPN access
   scope "/api", ElektrineWeb.API do
-    pipe_through([:api, :require_vpn_when_netbird_enabled])
+    pipe_through(:api)
 
     # Authentication endpoints (no auth required)
     post("/auth/login", AuthController, :login)
@@ -1203,9 +1203,9 @@ defmodule ElektrineWeb.Router do
 
       # Profile editing
       live("/account/profile/edit", ProfileLive.Edit, :edit)
-      live("/account/profile/domains", ProfileLive.Domains, :index)
-      live("/account/profile/domains/analytics", ProfileLive.DomainAnalytics, :analytics)
-      live("/account/profile/analytics", ProfileLive.Analytics, :analytics)
+      live("/domains", ProfileLive.Domains, :index)
+      live("/analytics/profile", ProfileLive.Analytics, :analytics)
+      live("/analytics/domains", ProfileLive.DomainAnalytics, :analytics)
       live("/account/storage", StorageLive)
       live("/account/drive", DriveLive)
       live("/account/notes", NotesLive)

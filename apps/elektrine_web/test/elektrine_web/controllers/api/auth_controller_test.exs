@@ -27,6 +27,24 @@ defmodule ElektrineWeb.API.AuthControllerTest do
       assert response["user"]["username"] == user.username
     end
 
+    test "hides admin API login outside the private admin network", %{conn: conn, user: user} do
+      previous_netbird = Application.get_env(:elektrine, :netbird, [])
+      Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
+      on_exit(fn -> Application.put_env(:elektrine, :netbird, previous_netbird) end)
+
+      {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})
+
+      conn =
+        %{conn | remote_ip: {203, 0, 113, 10}}
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth/login", %{
+          username: admin.username,
+          password: AccountsFixtures.valid_user_password()
+        })
+
+      assert %{"error" => "Not Found"} = json_response(conn, 404)
+    end
+
     test "requires a two-factor code when the account has 2FA enabled", %{conn: conn, user: user} do
       user = enable_two_factor_for_user(user)
 

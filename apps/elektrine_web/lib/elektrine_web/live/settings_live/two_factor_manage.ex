@@ -27,67 +27,84 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       sidebar_tab="security"
       current_user={@current_user}
     >
-      <div
-        id="2fa-manage-card"
-        class="card panel-card border border-base-300 shadow-xl"
-      >
+      <div id="2fa-manage-card" class="card panel-card border border-base-300">
         <div class="card-body">
-          <div class="flex items-center gap-4 mb-6">
-            <.icon name="hero-shield-check" class="w-12 h-12 text-success" />
-            <div>
-              <h2 class="text-xl font-bold">Two-Factor Authentication Enabled</h2>
-              <p class="text-base-content/70">Your account is protected with 2FA</p>
-            </div>
-          </div>
+          <.section_header
+            title="Two-factor is enabled"
+            description="Your account requires an authenticator code or backup code after password login."
+          >
+            <:actions>
+              <span class="badge badge-success badge-outline">Enabled</span>
+            </:actions>
+          </.section_header>
 
-          <div class="divider"></div>
-
-          <div class="space-y-4">
-            <h3 class="text-lg font-semibold">Backup Codes</h3>
-            <div class="alert">
-              <.icon name="hero-information-circle" class="w-6 h-6 shrink-0" />
-              <div>
-                <p>
-                  You have <span class="font-bold">{@backup_codes_count}</span>
-                  backup codes remaining.
-                </p>
-                <p class="text-sm">
-                  Use backup codes to access your account if you lose your authenticator device.
-                </p>
+          <div class="mt-6 space-y-6">
+            <div class="rounded-lg bg-base-200/70 p-4">
+              <div class="flex items-start gap-3">
+                <.icon name="hero-key" class="w-5 h-5 shrink-0 text-base-content/60 mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-semibold">Backup Codes</h3>
+                  <p class="mt-1 text-sm text-base-content/70">
+                    You have
+                    <span class="font-semibold text-base-content">{@backup_codes_count}</span>
+                    backup codes remaining. Generate a new set if these have been exposed or are running low.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-open-modal="regenerate_modal"
+                  class="btn btn-primary btn-sm shrink-0"
+                >
+                  <.icon name="hero-arrow-path" class="w-4 h-4" /> Generate Codes
+                </button>
               </div>
             </div>
 
-            <button
-              type="button"
-              data-open-modal="regenerate_modal"
-              class="btn btn-primary"
-            >
-              <.icon name="hero-arrow-path" class="w-4 h-4" /> Generate New Codes
-            </button>
+            <div class="rounded-lg border border-error/20 bg-error/5 p-4">
+              <div class="flex items-start gap-3">
+                <.icon name="hero-shield-exclamation" class="w-5 h-5 shrink-0 text-error mt-0.5" />
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-semibold text-error">Disable Two-Factor Authentication</h3>
+                  <p class="mt-1 text-sm text-base-content/70">
+                    Disabling 2FA will make your account less secure. You need your current password and an authenticator app code to confirm.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-open-modal="disable_modal"
+                  class="btn btn-ghost btn-sm text-error shrink-0"
+                >
+                  Disable 2FA
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div class="divider"></div>
-
-          <div class="space-y-4">
-            <h3 class="text-lg font-semibold text-error">Danger Zone</h3>
-            <p class="text-sm text-base-content/70">
-              Disabling 2FA will make your account less secure. You'll need your current password and a current code from your authenticator app to confirm. Backup codes cannot be used.
-            </p>
-
-            <button
-              type="button"
-              data-open-modal="disable_modal"
-              class="btn btn-secondary btn-ghost"
-            >
-              <.icon name="hero-shield-exclamation" class="w-4 h-4" /> Disable 2FA
-            </button>
+          <div class="mt-6 space-y-4">
+            <h3 class="text-lg font-semibold">About Two-Factor Authentication</h3>
+            <div class="prose prose-sm max-w-none text-base-content/70">
+              <ul class="space-y-2">
+                <li class="flex items-start gap-2">
+                  <.icon name="hero-shield-check" class="w-5 h-5 text-success shrink-0 mt-0.5" />
+                  <span>
+                    Authenticator codes protect your account even if your password is compromised.
+                  </span>
+                </li>
+                <li class="flex items-start gap-2">
+                  <.icon name="hero-document-text" class="w-5 h-5 text-warning shrink-0 mt-0.5" />
+                  <span>
+                    Backup codes are single-use. Store them somewhere private and recoverable.
+                  </span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
 
       <dialog id="regenerate_modal" class="modal">
         <div class="modal-box modal-surface max-w-md w-full mx-4">
-          <h3 class="font-bold text-lg mb-4">Generate New Backup Codes</h3>
+          <h3 class="font-semibold text-lg mb-2">Generate New Backup Codes</h3>
           <p class="text-sm text-base-content/70 mb-4 break-words">
             This will replace your existing backup codes. Make sure to save the new codes in a safe place.
           </p>
@@ -95,7 +112,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
           <.form for={%{}} as={:two_factor} action={~p"/account/two_factor/regenerate"}>
             <div>
               <label class="label">
-                <span>Enter a code from your authenticator app to confirm</span>
+                <span class="label-text">Authenticator App Code</span>
               </label>
               <input
                 id="regenerate_code"
@@ -103,7 +120,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
                 type="text"
                 autocomplete="off"
                 required
-                class="input font-medium text-center w-full"
+                class="input input-bordered font-medium text-center w-full"
                 placeholder="000000"
                 maxlength="6"
                 pattern="[0-9]{6}"
@@ -131,7 +148,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
 
       <dialog id="disable_modal" class="modal">
         <div class="modal-box modal-surface max-w-md w-full mx-4">
-          <h3 class="font-bold text-lg mb-4 text-error">Disable Two-Factor Authentication</h3>
+          <h3 class="font-semibold text-lg mb-2 text-error">Disable Two-Factor Authentication</h3>
           <p class="text-sm text-base-content/70 mb-4 break-words">
             Are you sure you want to disable 2FA? This will make your account less secure.
           </p>
@@ -139,20 +156,20 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
           <.form for={%{}} as={:two_factor} action={~p"/account/two_factor/disable"}>
             <div class="mb-4">
               <label class="label">
-                <span>Current Password</span>
+                <span class="label-text">Current Password</span>
               </label>
               <input
                 id="current_password"
                 name="two_factor[current_password]"
                 type="password"
                 required
-                class="input w-full"
+                class="input input-bordered w-full"
               />
             </div>
 
             <div>
               <label class="label">
-                <span>Authenticator App Code</span>
+                <span class="label-text">Authenticator App Code</span>
               </label>
               <input
                 id="disable_code"
@@ -160,7 +177,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
                 type="text"
                 autocomplete="off"
                 required
-                class="input font-medium text-center w-full"
+                class="input input-bordered font-medium text-center w-full"
                 placeholder="000000"
                 maxlength="6"
                 pattern="[0-9]{6}"

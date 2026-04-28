@@ -471,11 +471,22 @@ defmodule ElektrineWeb.Layouts do
     full_width_path? =
       is_binary(path) and
         Enum.any?(
-          ["/chat", "/timeline", "/gallery", "/email", "/communities", "/d/"],
+          [
+            "/chat",
+            "/timeline",
+            "/gallery",
+            "/email",
+            "/communities",
+            "/analytics",
+            "/d/"
+          ],
           &String.starts_with?(path, &1)
         )
 
-    full_width_path? or String.contains?(socket_view, "ChatLive")
+    full_width_path? or
+      String.contains?(socket_view, "ChatLive") or
+      String.contains?(socket_view, "ProfileLive.Analytics") or
+      String.contains?(socket_view, "ProfileLive.DomainAnalytics")
   end
 
   defp determine_grid_from_path(assigns) do

@@ -1,490 +1,513 @@
-<.account_page
-  title="Domain Analytics"
-  subtitle="Traffic and DNS query activity for your built-in profile host and connected domains."
-  nav_tab="profile-domains"
-  current_user={@current_user}
->
-  <:sidebar>
-    <.profile_settings_sidebar
-      selected_page="profile-domain-analytics"
-      profile_url={
-        Elektrine.Domains.profile_url_for_handle(@current_user.handle || @current_user.username)
-      }
-    />
-  </:sidebar>
+<div class="mx-auto flex w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content">
+  <ElektrineWeb.Components.Platform.ENav.e_nav
+    active_tab="profile-analytics"
+    current_user={@current_user}
+    class="mb-6"
+  />
 
-  <div class="space-y-6">
-    <div class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-      <div class="card panel-card">
-        <div class="card-body p-4 space-y-3">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-base-content/55">
-            Domains
-          </h2>
+  <div class="flex flex-1 flex-col items-start gap-4 md:flex-row xl:gap-6">
+    <aside class="card panel-card border border-base-300 md:sticky md:top-0 md:w-[280px] md:min-w-[280px] lg:w-[320px] lg:min-w-[320px] flex-shrink-0 self-start overflow-hidden">
+      <div class="card-body p-4">
+        <div class="space-y-2">
+          <.link
+            navigate={~p"/analytics/profile"}
+            class="flex items-center gap-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm font-medium hover:bg-base-200/60"
+          >
+            <.icon name="hero-user-circle" class="h-5 w-5" />
+            <span>Profile Analytics</span>
+          </.link>
+          <.link
+            navigate={~p"/analytics/domains"}
+            class="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-3 py-3 text-sm font-medium text-primary"
+          >
+            <.icon name="hero-globe-alt" class="h-5 w-5" />
+            <span>Domain Analytics</span>
+          </.link>
+        </div>
 
-          <%= if @domains == [] do %>
-            <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
-              No domains available yet.
-            </div>
-          <% else %>
-            <div class="space-y-2">
-              <%= for domain <- @domain_breakdown do %>
-                <.link
-                  navigate={
-                    if domain.dns_zone_id do
-                      ~p"/account/profile/domains/analytics?zone_id=#{domain.dns_zone_id}"
-                    else
-                      ~p"/account/profile/domains/analytics?host=#{domain.host}"
-                    end
-                  }
-                  class={[
-                    "block rounded-xl border px-3 py-3 transition-colors",
-                    if(@active_host == domain.host,
-                      do: "border-primary/30 bg-primary/8",
-                      else: "border-base-content/10 bg-base-100 hover:bg-base-200/60"
-                    )
-                  ]}
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="truncate font-medium">{domain.host}</div>
-                      <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
-                        <span>
-                          {case domain.kind do
-                            :built_in -> "Built-in"
-                            :custom -> "Custom domain"
-                            :dns_only -> "DNS zone"
-                            _ -> "Tracked host"
-                          end}
-                        </span>
-                        <span
-                          :if={domain.dns_zone_status}
-                          class="badge badge-outline badge-xs normal-case"
-                        >
-                          DNS {domain.dns_zone_status}
-                        </span>
-                      </div>
-                    </div>
-                    <span class="badge badge-outline shrink-0 tabular-nums" title={domain.views}>
-                      {format_count(domain.views)}
-                    </span>
-                  </div>
-
-                  <div class="mt-3 flex items-center gap-4 text-xs text-base-content/60">
-                    <span>{format_count(domain.unique_visitors)} visitors</span>
-                    <span>{format_count(domain.views_today)} today</span>
-                  </div>
-                </.link>
-              <% end %>
-            </div>
-          <% end %>
+        <div class="mt-5 border-t border-base-300 pt-4">
+          <.link
+            navigate={~p"/account/profile/edit"}
+            class="btn btn-ghost btn-sm w-full justify-start"
+          >
+            <.icon name="hero-pencil-square" class="h-4 w-4" /> Edit Profile
+          </.link>
+          <.link
+            navigate={~p"/domains"}
+            class="btn btn-ghost btn-sm mt-2 w-full justify-start"
+          >
+            <.icon name="hero-cog-6-tooth" class="h-4 w-4" /> Manage Domains
+          </.link>
         </div>
       </div>
+    </aside>
 
+    <main class="min-w-0 flex-1 pb-8">
       <div class="space-y-6">
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div class="card panel-card">
-            <div class="card-body p-4">
-              <div class="text-sm text-base-content/65">Page Views</div>
-              <div
-                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                title={@stats.total_views}
-              >
-                {format_count(@stats.total_views)}
-              </div>
-            </div>
-          </div>
-          <div class="card panel-card">
-            <div class="card-body p-4">
-              <div class="text-sm text-base-content/65">Unique Visitors</div>
-              <div
-                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                title={@stats.unique_visitors}
-              >
-                {format_count(@stats.unique_visitors)}
-              </div>
-            </div>
-          </div>
-          <div class="card panel-card">
-            <div class="card-body p-4">
-              <div class="text-sm text-base-content/65">Views Today</div>
-              <div
-                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                title={@stats.views_today}
-              >
-                {format_count(@stats.views_today)}
-              </div>
-            </div>
-          </div>
-          <div class="card panel-card">
-            <div class="card-body p-4">
-              <div class="text-sm text-base-content/65">This Week</div>
-              <div
-                class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                title={@stats.views_this_week}
-              >
-                {format_count(@stats.views_this_week)}
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="card panel-card">
-          <div class="card-body p-6 space-y-5">
-            <div class="flex items-start justify-between gap-4">
+          <div class="card-body p-4 space-y-3">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 class="card-title text-lg">DNS Queries</h2>
-                <p class="mt-1 text-sm text-base-content/60">
-                  Authoritative query volume for the managed DNS zone on this domain.
+                <h2 class="text-base font-semibold">Domains</h2>
+                <p class="text-sm text-base-content/60">
+                  Choose the host or zone to inspect.
                 </p>
               </div>
-
-              <.link
-                :if={@active_domain && @active_domain.dns_zone_id}
-                navigate={~p"/dns"}
-                class="btn btn-sm btn-outline"
-              >
-                Manage DNS
+              <.link navigate={~p"/analytics/profile"} class="btn btn-ghost btn-sm">
+                Profile Analytics
               </.link>
             </div>
 
-            <%= if @active_domain && @active_domain.dns_zone_id do %>
-              <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="card bg-base-200/60">
-                  <div class="card-body p-4">
-                    <div class="text-sm text-base-content/65">Total Queries</div>
-                    <div
-                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                      title={@dns_stats.total_queries}
-                    >
-                      {format_count(@dns_stats.total_queries)}
-                    </div>
-                  </div>
-                </div>
-                <div class="card bg-base-200/60">
-                  <div class="card-body p-4">
-                    <div class="text-sm text-base-content/65">Queries Today</div>
-                    <div
-                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                      title={@dns_stats.queries_today}
-                    >
-                      {format_count(@dns_stats.queries_today)}
-                    </div>
-                  </div>
-                </div>
-                <div class="card bg-base-200/60">
-                  <div class="card-body p-4">
-                    <div class="text-sm text-base-content/65">This Week</div>
-                    <div
-                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                      title={@dns_stats.queries_this_week}
-                    >
-                      {format_count(@dns_stats.queries_this_week)}
-                    </div>
-                  </div>
-                </div>
-                <div class="card bg-base-200/60">
-                  <div class="card-body p-4">
-                    <div class="text-sm text-base-content/65">NXDOMAIN</div>
-                    <div
-                      class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
-                      title={@dns_stats.nxdomain_queries}
-                    >
-                      {format_count(@dns_stats.nxdomain_queries)}
-                    </div>
-                    <div class="mt-1 text-xs text-base-content/50">
-                      <% nxdomain_rate =
-                        if @dns_stats.total_queries > 0,
-                          do: @dns_stats.nxdomain_queries / @dns_stats.total_queries * 100,
-                          else: 0.0 %>
-                      {Float.round(nxdomain_rate, 1)}% of total
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="card bg-base-200/40">
-                <div class="card-body p-6">
-                  <div class="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 class="card-title text-base">Last 24 Hours</h3>
-                      <p class="mt-1 text-sm text-base-content/55">
-                        Hourly authoritative DNS query volume.
-                      </p>
-                    </div>
-                    <span class="badge badge-outline">UTC</span>
-                  </div>
-
-                  <%= if @dns_display_hours == [] do %>
-                    <div class="py-8 text-center text-sm text-base-content/55">
-                      No hourly DNS query data yet.
-                    </div>
-                  <% else %>
-                    <div class="mt-5 flex h-48 items-end gap-1 overflow-x-auto rounded-xl bg-base-100 px-3 py-4">
-                      <%= for hour <- @dns_hourly_queries do %>
-                        <% height =
-                          if @max_dns_hourly_queries > 0,
-                            do: max(hour.count / @max_dns_hourly_queries * 100, 3),
-                            else: 3 %>
-                        <div class="flex min-w-8 flex-1 flex-col items-center justify-end gap-2">
-                          <div
-                            class="max-w-10 truncate text-[10px] text-base-content/45"
-                            title={hour.count}
-                          >
-                            {format_count(hour.count)}
-                          </div>
-                          <div
-                            class="w-full rounded-t-md bg-secondary/85"
-                            style={"height: #{height}%"}
-                          >
-                          </div>
-                          <div class="text-[10px] text-base-content/45">
-                            {Calendar.strftime(hour.hour, "%H")}
-                          </div>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-
-              <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                <div class="card bg-base-200/40">
-                  <div class="card-body p-6">
-                    <h3 class="card-title text-base">Daily Queries</h3>
-
-                    <%= if @dns_display_days == [] do %>
-                      <div class="py-8 text-center text-sm text-base-content/55">
-                        No DNS query data yet.
-                      </div>
-                    <% else %>
-                      <div
-                        class="mt-4 space-y-2 max-h-96 overflow-y-auto"
-                        style="scrollbar-gutter: stable"
-                      >
-                        <%= for day <- @dns_display_days do %>
-                          <div class="flex items-center gap-3">
-                            <span class="w-24 shrink-0 text-sm text-base-content/65">
-                              {Calendar.strftime(day.date, "%b %d")}
-                            </span>
-                            <% width =
-                              if @max_dns_daily_queries > 0,
-                                do: day.count / @max_dns_daily_queries * 100,
-                                else: 0 %>
-                            <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-300/70">
-                              <div
-                                class="h-full rounded-full bg-secondary"
-                                style={"width: #{width}%"}
-                              >
-                              </div>
-                              <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                                {format_count(day.count)}
-                              </span>
-                            </div>
-                          </div>
-                        <% end %>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-
-                <div class="space-y-6">
-                  <div class="card bg-base-200/40">
-                    <div class="card-body p-6">
-                      <h3 class="card-title text-base">Query Types</h3>
-
-                      <%= if @dns_query_types == [] do %>
-                        <div class="py-8 text-center text-sm text-base-content/55">
-                          No query type data yet.
-                        </div>
-                      <% else %>
-                        <div class="mt-4 space-y-3">
-                          <%= for item <- @dns_query_types do %>
-                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
-                              <span class="font-medium">{item.qtype}</span>
-                              <span
-                                class="badge badge-outline shrink-0 tabular-nums"
-                                title={item.count}
-                              >
-                                {format_count(item.count)}
-                              </span>
-                            </div>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    </div>
-                  </div>
-
-                  <div class="card bg-base-200/40">
-                    <div class="card-body p-6">
-                      <h3 class="card-title text-base">Response Codes</h3>
-
-                      <%= if @dns_rcode_breakdown == [] do %>
-                        <div class="py-8 text-center text-sm text-base-content/55">
-                          No response data yet.
-                        </div>
-                      <% else %>
-                        <div class="mt-4 space-y-3">
-                          <%= for item <- @dns_rcode_breakdown do %>
-                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
-                              <span class="font-medium">{item.rcode}</span>
-                              <span
-                                class="badge badge-outline shrink-0 tabular-nums"
-                                title={item.count}
-                              >
-                                {format_count(item.count)}
-                              </span>
-                            </div>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    </div>
-                  </div>
-
-                  <div class="card bg-base-200/40">
-                    <div class="card-body p-6">
-                      <h3 class="card-title text-base">Transport</h3>
-
-                      <%= if @dns_transport_breakdown == [] do %>
-                        <div class="py-8 text-center text-sm text-base-content/55">
-                          No transport data yet.
-                        </div>
-                      <% else %>
-                        <div class="mt-4 space-y-3">
-                          <%= for item <- @dns_transport_breakdown do %>
-                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
-                              <span class="font-medium uppercase">{item.transport}</span>
-                              <span
-                                class="badge badge-outline shrink-0 tabular-nums"
-                                title={item.count}
-                              >
-                                {format_count(item.count)}
-                              </span>
-                            </div>
-                          <% end %>
-                        </div>
-                      <% end %>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="grid gap-6 xl:grid-cols-2">
-                <div class="card bg-base-200/40">
-                  <div class="card-body p-6">
-                    <h3 class="card-title text-base">Top Queried Names</h3>
-
-                    <%= if @dns_top_names == [] do %>
-                      <div class="py-8 text-center text-sm text-base-content/55">
-                        No name-level query data yet.
-                      </div>
-                    <% else %>
-                      <div class="mt-4 space-y-3">
-                        <%= for item <- @dns_top_names do %>
-                          <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
-                            <div class="min-w-0">
-                              <p class="truncate font-medium">{item.qname}</p>
-                            </div>
-                            <span
-                              class="badge badge-secondary shrink-0 tabular-nums"
-                              title={item.count}
-                            >
-                              {format_count(item.count)}
-                            </span>
-                          </div>
-                        <% end %>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-
-                <div class="card bg-base-200/40">
-                  <div class="card-body p-6">
-                    <h3 class="card-title text-base">Top NXDOMAIN Names</h3>
-
-                    <%= if @dns_top_nxdomain_names == [] do %>
-                      <div class="py-8 text-center text-sm text-base-content/55">
-                        No NXDOMAIN names yet.
-                      </div>
-                    <% else %>
-                      <div class="mt-4 space-y-3">
-                        <%= for item <- @dns_top_nxdomain_names do %>
-                          <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
-                            <div class="min-w-0">
-                              <p class="truncate font-medium">{item.qname}</p>
-                            </div>
-                            <span
-                              class="badge badge-error badge-outline shrink-0 tabular-nums"
-                              title={item.count}
-                            >
-                              {format_count(item.count)}
-                            </span>
-                          </div>
-                        <% end %>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
+            <%= if @domains == [] do %>
+              <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
+                No domains available yet.
               </div>
             <% else %>
-              <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
-                No managed DNS zone is connected to this host yet.
+              <div class="flex gap-3 overflow-x-auto pb-1">
+                <%= for domain <- @domain_breakdown do %>
+                  <.link
+                    navigate={
+                      if domain.dns_zone_id do
+                        ~p"/analytics/domains?zone_id=#{domain.dns_zone_id}"
+                      else
+                        ~p"/analytics/domains?host=#{domain.host}"
+                      end
+                    }
+                    class={[
+                      "block min-w-64 rounded-xl border px-3 py-3 transition-colors",
+                      if(@active_host == domain.host,
+                        do: "border-primary/30 bg-primary/8",
+                        else: "border-base-content/10 bg-base-100 hover:bg-base-200/60"
+                      )
+                    ]}
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="truncate font-medium">{domain.host}</div>
+                        <div class="mt-1 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-base-content/45">
+                          <span>
+                            {case domain.kind do
+                              :built_in -> "Built-in"
+                              :custom -> "Custom domain"
+                              :dns_only -> "DNS zone"
+                              _ -> "Tracked host"
+                            end}
+                          </span>
+                          <span
+                            :if={domain.dns_zone_status}
+                            class="badge badge-outline badge-xs normal-case"
+                          >
+                            DNS {domain.dns_zone_status}
+                          </span>
+                        </div>
+                      </div>
+                      <span class="badge badge-outline shrink-0 tabular-nums" title={domain.views}>
+                        {format_count(domain.views)}
+                      </span>
+                    </div>
+
+                    <div class="mt-3 flex items-center gap-4 text-xs text-base-content/60">
+                      <span>{format_count(domain.unique_visitors)} visitors</span>
+                      <span>{format_count(domain.views_today)} today</span>
+                    </div>
+                  </.link>
+                <% end %>
               </div>
             <% end %>
           </div>
         </div>
 
-        <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-          <div class="card panel-card">
-            <div class="card-body p-6">
-              <h2 class="card-title text-lg">Traffic Over Time</h2>
-
-              <%= if @display_days == [] do %>
-                <div class="py-8 text-center text-sm text-base-content/55">
-                  No page view data yet.
-                </div>
-              <% else %>
+        <div class="space-y-6">
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="card panel-card">
+              <div class="card-body p-4">
+                <div class="text-sm text-base-content/65">Visitors</div>
                 <div
-                  class="mt-4 space-y-2 max-h-96 overflow-y-auto"
-                  style="scrollbar-gutter: stable"
+                  class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                  title={@stats.unique_visitors}
                 >
-                  <%= for day <- @display_days do %>
-                    <div class="flex items-center gap-3">
-                      <span class="w-24 shrink-0 text-sm text-base-content/65">
-                        {Calendar.strftime(day.date, "%b %d")}
-                      </span>
-                      <% width =
-                        if @max_daily_views > 0, do: day.count / @max_daily_views * 100, else: 0 %>
-                      <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-200">
-                        <div class="h-full rounded-full bg-primary" style={"width: #{width}%"}>
-                        </div>
-                        <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                          {format_count(day.count)}
-                        </span>
+                  {format_count(@stats.unique_visitors)}
+                </div>
+              </div>
+            </div>
+            <div class="card panel-card">
+              <div class="card-body p-4">
+                <div class="text-sm text-base-content/65">Page Views</div>
+                <div
+                  class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                  title={@stats.total_views}
+                >
+                  {format_count(@stats.total_views)}
+                </div>
+              </div>
+            </div>
+            <div class="card panel-card">
+              <div class="card-body p-4">
+                <div class="text-sm text-base-content/65">Sessions</div>
+                <div
+                  class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                  title={@stats.sessions}
+                >
+                  {format_count(@stats.sessions)}
+                </div>
+              </div>
+            </div>
+            <div class="card panel-card">
+              <div class="card-body p-4">
+                <div class="text-sm text-base-content/65">Session Duration</div>
+                <div
+                  class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                  title={@stats.avg_session_duration_seconds}
+                >
+                  {format_duration(@stats.avg_session_duration_seconds)}
+                </div>
+              </div>
+            </div>
+            <div class="card panel-card">
+              <div class="card-body p-4">
+                <div class="text-sm text-base-content/65">Bounce Rate</div>
+                <div
+                  class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                  title={@stats.bounce_rate}
+                >
+                  {format_percent(@stats.bounce_rate)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card panel-card">
+            <div class="card-body p-6 space-y-5">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <h2 class="card-title text-lg">DNS Queries</h2>
+                  <p class="mt-1 text-sm text-base-content/60">
+                    Authoritative query volume for the managed DNS zone on this domain.
+                  </p>
+                </div>
+
+                <.link
+                  :if={@active_domain && @active_domain.dns_zone_id}
+                  navigate={~p"/dns"}
+                  class="btn btn-sm btn-outline"
+                >
+                  Manage DNS
+                </.link>
+              </div>
+
+              <%= if @active_domain && @active_domain.dns_zone_id do %>
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div class="card bg-base-200/60">
+                    <div class="card-body p-4">
+                      <div class="text-sm text-base-content/65">Total Queries</div>
+                      <div
+                        class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                        title={@dns_stats.total_queries}
+                      >
+                        {format_count(@dns_stats.total_queries)}
                       </div>
                     </div>
-                  <% end %>
+                  </div>
+                  <div class="card bg-base-200/60">
+                    <div class="card-body p-4">
+                      <div class="text-sm text-base-content/65">Queries Today</div>
+                      <div
+                        class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                        title={@dns_stats.queries_today}
+                      >
+                        {format_count(@dns_stats.queries_today)}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card bg-base-200/60">
+                    <div class="card-body p-4">
+                      <div class="text-sm text-base-content/65">This Week</div>
+                      <div
+                        class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                        title={@dns_stats.queries_this_week}
+                      >
+                        {format_count(@dns_stats.queries_this_week)}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card bg-base-200/60">
+                    <div class="card-body p-4">
+                      <div class="text-sm text-base-content/65">NXDOMAIN</div>
+                      <div
+                        class="truncate text-2xl font-bold tabular-nums sm:text-3xl"
+                        title={@dns_stats.nxdomain_queries}
+                      >
+                        {format_count(@dns_stats.nxdomain_queries)}
+                      </div>
+                      <div class="mt-1 text-xs text-base-content/50">
+                        <% nxdomain_rate =
+                          if @dns_stats.total_queries > 0,
+                            do: @dns_stats.nxdomain_queries / @dns_stats.total_queries * 100,
+                            else: 0.0 %>
+                        {Float.round(nxdomain_rate, 1)}% of total
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card bg-base-200/40">
+                  <div class="card-body p-6">
+                    <div class="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 class="card-title text-base">Last 24 Hours</h3>
+                        <p class="mt-1 text-sm text-base-content/55">
+                          Hourly authoritative DNS query volume.
+                        </p>
+                      </div>
+                      <span class="badge badge-outline">UTC</span>
+                    </div>
+
+                    <%= if @dns_display_hours == [] do %>
+                      <div class="py-8 text-center text-sm text-base-content/55">
+                        No hourly DNS query data yet.
+                      </div>
+                    <% else %>
+                      <div class="mt-5 flex h-48 items-end gap-1 overflow-x-auto rounded-xl bg-base-100 px-3 py-4">
+                        <%= for hour <- @dns_hourly_queries do %>
+                          <% height =
+                            if @max_dns_hourly_queries > 0,
+                              do: max(hour.count / @max_dns_hourly_queries * 100, 3),
+                              else: 3 %>
+                          <div class="flex min-w-8 flex-1 flex-col items-center justify-end gap-2">
+                            <div
+                              class="max-w-10 truncate text-[10px] text-base-content/45"
+                              title={hour.count}
+                            >
+                              {format_count(hour.count)}
+                            </div>
+                            <div
+                              class="w-full rounded-t-md bg-secondary/85"
+                              style={"height: #{height}%"}
+                            >
+                            </div>
+                            <div class="text-[10px] text-base-content/45">
+                              {Calendar.strftime(hour.hour, "%H")}
+                            </div>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Daily Queries</h3>
+
+                      <%= if @dns_display_days == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No DNS query data yet.
+                        </div>
+                      <% else %>
+                        <div
+                          class="mt-4 space-y-2 max-h-96 overflow-y-auto"
+                          style="scrollbar-gutter: stable"
+                        >
+                          <%= for day <- @dns_display_days do %>
+                            <div class="flex items-center gap-3">
+                              <span class="w-24 shrink-0 text-sm text-base-content/65">
+                                {Calendar.strftime(day.date, "%b %d")}
+                              </span>
+                              <% width =
+                                if @max_dns_daily_queries > 0,
+                                  do: day.count / @max_dns_daily_queries * 100,
+                                  else: 0 %>
+                              <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-300/70">
+                                <div
+                                  class="h-full rounded-full bg-secondary"
+                                  style={"width: #{width}%"}
+                                >
+                                </div>
+                                <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                                  {format_count(day.count)}
+                                </span>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <div class="space-y-6">
+                    <div class="card bg-base-200/40">
+                      <div class="card-body p-6">
+                        <h3 class="card-title text-base">Query Types</h3>
+
+                        <%= if @dns_query_types == [] do %>
+                          <div class="py-8 text-center text-sm text-base-content/55">
+                            No query type data yet.
+                          </div>
+                        <% else %>
+                          <div class="mt-4 space-y-3">
+                            <%= for item <- @dns_query_types do %>
+                              <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                                <span class="font-medium">{item.qtype}</span>
+                                <span
+                                  class="badge badge-outline shrink-0 tabular-nums"
+                                  title={item.count}
+                                >
+                                  {format_count(item.count)}
+                                </span>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <div class="card bg-base-200/40">
+                      <div class="card-body p-6">
+                        <h3 class="card-title text-base">Response Codes</h3>
+
+                        <%= if @dns_rcode_breakdown == [] do %>
+                          <div class="py-8 text-center text-sm text-base-content/55">
+                            No response data yet.
+                          </div>
+                        <% else %>
+                          <div class="mt-4 space-y-3">
+                            <%= for item <- @dns_rcode_breakdown do %>
+                              <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                                <span class="font-medium">{item.rcode}</span>
+                                <span
+                                  class="badge badge-outline shrink-0 tabular-nums"
+                                  title={item.count}
+                                >
+                                  {format_count(item.count)}
+                                </span>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <div class="card bg-base-200/40">
+                      <div class="card-body p-6">
+                        <h3 class="card-title text-base">Transport</h3>
+
+                        <%= if @dns_transport_breakdown == [] do %>
+                          <div class="py-8 text-center text-sm text-base-content/55">
+                            No transport data yet.
+                          </div>
+                        <% else %>
+                          <div class="mt-4 space-y-3">
+                            <%= for item <- @dns_transport_breakdown do %>
+                              <div class="flex items-center justify-between rounded-lg bg-base-100 px-3 py-2 text-sm">
+                                <span class="font-medium uppercase">{item.transport}</span>
+                                <span
+                                  class="badge badge-outline shrink-0 tabular-nums"
+                                  title={item.count}
+                                >
+                                  {format_count(item.count)}
+                                </span>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="grid gap-6 xl:grid-cols-2">
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Top Queried Names</h3>
+
+                      <%= if @dns_top_names == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No name-level query data yet.
+                        </div>
+                      <% else %>
+                        <div class="mt-4 space-y-3">
+                          <%= for item <- @dns_top_names do %>
+                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
+                              <div class="min-w-0">
+                                <p class="truncate font-medium">{item.qname}</p>
+                              </div>
+                              <span
+                                class="badge badge-secondary shrink-0 tabular-nums"
+                                title={item.count}
+                              >
+                                {format_count(item.count)}
+                              </span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+
+                  <div class="card bg-base-200/40">
+                    <div class="card-body p-6">
+                      <h3 class="card-title text-base">Top NXDOMAIN Names</h3>
+
+                      <%= if @dns_top_nxdomain_names == [] do %>
+                        <div class="py-8 text-center text-sm text-base-content/55">
+                          No NXDOMAIN names yet.
+                        </div>
+                      <% else %>
+                        <div class="mt-4 space-y-3">
+                          <%= for item <- @dns_top_nxdomain_names do %>
+                            <div class="flex items-center justify-between rounded-lg bg-base-100 px-4 py-3">
+                              <div class="min-w-0">
+                                <p class="truncate font-medium">{item.qname}</p>
+                              </div>
+                              <span
+                                class="badge badge-error badge-outline shrink-0 tabular-nums"
+                                title={item.count}
+                              >
+                                {format_count(item.count)}
+                              </span>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+              <% else %>
+                <div class="rounded-xl border border-dashed border-base-content/15 px-4 py-6 text-sm text-base-content/60">
+                  No managed DNS zone is connected to this host yet.
                 </div>
               <% end %>
             </div>
           </div>
 
-          <div class="space-y-6">
+          <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div class="card panel-card">
               <div class="card-body p-6">
-                <h2 class="card-title text-lg">Top Pages</h2>
+                <h2 class="card-title text-lg">Traffic Over Time</h2>
 
-                <%= if @top_pages == [] do %>
+                <%= if @display_days == [] do %>
                   <div class="py-8 text-center text-sm text-base-content/55">
-                    No page data yet.
+                    No page view data yet.
                   </div>
                 <% else %>
-                  <div class="mt-4 space-y-3">
-                    <%= for page <- @top_pages do %>
-                      <div class="rounded-lg bg-base-200 px-4 py-3">
-                        <div class="font-mono text-sm break-all">{page.path}</div>
-                        <div class="mt-2 flex items-center gap-3 text-xs text-base-content/60">
-                          <span>{format_count(page.views)} views</span>
-                          <span>{format_count(page.unique_visitors)} visitors</span>
+                  <div
+                    class="mt-4 space-y-2 max-h-96 overflow-y-auto"
+                    style="scrollbar-gutter: stable"
+                  >
+                    <%= for day <- @display_days do %>
+                      <div class="flex items-center gap-3">
+                        <span class="w-24 shrink-0 text-sm text-base-content/65">
+                          {Calendar.strftime(day.date, "%b %d")}
+                        </span>
+                        <% width =
+                          if @max_daily_views > 0, do: day.count / @max_daily_views * 100, else: 0 %>
+                        <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-200">
+                          <div class="h-full rounded-full bg-primary" style={"width: #{width}%"}>
+                          </div>
+                          <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                            {format_count(day.count)}
+                          </span>
                         </div>
                       </div>
                     <% end %>
@@ -493,36 +516,62 @@
               </div>
             </div>
 
-            <div class="card panel-card">
-              <div class="card-body p-6">
-                <h2 class="card-title text-lg">Top Referrers</h2>
+            <div class="space-y-6">
+              <div class="card panel-card">
+                <div class="card-body p-6">
+                  <h2 class="card-title text-lg">Top Pages</h2>
 
-                <%= if @top_referrers == [] do %>
-                  <div class="py-8 text-center text-sm text-base-content/55">
-                    No referrer data yet.
-                  </div>
-                <% else %>
-                  <div class="mt-4 space-y-3">
-                    <%= for referrer <- @top_referrers do %>
-                      <div class="rounded-lg bg-base-200 px-4 py-3">
-                        <div class="truncate font-medium">
-                          {URI.parse(referrer.referer).host || referrer.referer}
+                  <%= if @top_pages == [] do %>
+                    <div class="py-8 text-center text-sm text-base-content/55">
+                      No page data yet.
+                    </div>
+                  <% else %>
+                    <div class="mt-4 space-y-3">
+                      <%= for page <- @top_pages do %>
+                        <div class="rounded-lg bg-base-200 px-4 py-3">
+                          <div class="font-mono text-sm break-all">{page.path}</div>
+                          <div class="mt-2 flex items-center gap-3 text-xs text-base-content/60">
+                            <span>{format_count(page.views)} views</span>
+                            <span>{format_count(page.unique_visitors)} visitors</span>
+                          </div>
                         </div>
-                        <div class="mt-1 truncate text-xs text-base-content/60">
-                          {referrer.referer}
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="card panel-card">
+                <div class="card-body p-6">
+                  <h2 class="card-title text-lg">Top Referrers</h2>
+
+                  <%= if @top_referrers == [] do %>
+                    <div class="py-8 text-center text-sm text-base-content/55">
+                      No referrer data yet.
+                    </div>
+                  <% else %>
+                    <div class="mt-4 space-y-3">
+                      <%= for referrer <- @top_referrers do %>
+                        <div class="rounded-lg bg-base-200 px-4 py-3">
+                          <div class="truncate font-medium">
+                            {URI.parse(referrer.referer).host || referrer.referer}
+                          </div>
+                          <div class="mt-1 truncate text-xs text-base-content/60">
+                            {referrer.referer}
+                          </div>
+                          <div class="mt-2 text-xs text-base-content/60">
+                            {format_count(referrer.count)} visits
+                          </div>
                         </div>
-                        <div class="mt-2 text-xs text-base-content/60">
-                          {format_count(referrer.count)} visits
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   </div>
-</.account_page>
+</div>
