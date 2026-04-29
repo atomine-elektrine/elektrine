@@ -222,21 +222,20 @@ export const SimpleChatInput = {
     this.valueBeforeUpdate = ""
     this.wasFocusedBeforeUpdate = false
 
-    // Get the natural single-line height
-    this.el.style.height = 'auto'
     this.el.rows = 1
-    this.baseHeight = this.el.scrollHeight
+    this.el.style.boxSizing = 'border-box'
+    this.baseHeight = Math.ceil(this.el.getBoundingClientRect().height || this.el.scrollHeight)
     this.el.style.height = this.baseHeight + 'px'
     this.el.style.overflowY = 'hidden'
 
     this.autoResize = () => {
       this.el.style.height = 'auto'
       const scrollHeight = this.el.scrollHeight
-      const newHeight = Math.min(scrollHeight, this.maxHeight)
+      const newHeight = scrollHeight <= this.baseHeight + 2
+        ? this.baseHeight
+        : Math.min(scrollHeight, this.maxHeight)
       this.el.style.height = newHeight + 'px'
       this.el.style.overflowY = scrollHeight > this.maxHeight ? 'auto' : 'hidden'
-      // Adjust border radius when expanded
-      this.el.style.borderRadius = newHeight > this.baseHeight + 10 ? '1rem' : '9999px'
     }
 
     this.handleInput = () => {
@@ -441,9 +440,16 @@ export const MessageList = {
       }
     }
 
-    // Add listeners to all current and future images
-    const addImageListeners = () => {
-      const images = container.querySelectorAll('img')
+    const imagesFromNode = (node) => {
+      if (node.nodeType !== Node.ELEMENT_NODE) return []
+
+      const images = node.tagName === 'IMG' ? [node] : []
+      return images.concat(Array.from(node.querySelectorAll?.('img') || []))
+    }
+
+    // Add listeners only within the changed subtree instead of rescanning the full chat.
+    const addImageListeners = (root = container) => {
+      const images = root === container ? container.querySelectorAll('img') : imagesFromNode(root)
       images.forEach(img => {
         if (!img.dataset.listenerAdded) {
           img.dataset.listenerAdded = 'true'
@@ -467,8 +473,10 @@ export const MessageList = {
     }
 
     // Add image listeners when new content is added
-    const imageObserver = new MutationObserver(() => {
-      addImageListeners()
+    const imageObserver = new MutationObserver((mutations) => {
+      mutations.forEach(mutation => {
+        mutation.addedNodes.forEach(node => addImageListeners(node))
+      })
     })
 
     imageObserver.observe(container, {
@@ -546,7 +554,9 @@ export const MessageList = {
 
       if (hasNewMessages) {
         // Add image listeners to any new images
-        addImageListeners()
+        mutations.forEach(mutation => {
+          mutation.addedNodes.forEach(node => addImageListeners(node))
+        })
 
         // Only auto-scroll if user is near bottom (standard messenger UX)
         if (isNearBottom()) {

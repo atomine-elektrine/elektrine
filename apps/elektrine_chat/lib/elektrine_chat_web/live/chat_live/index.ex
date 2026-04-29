@@ -1635,15 +1635,21 @@ defmodule ElektrineChatWeb.ChatLive.Index do
             <% end %>
             
     <!-- User Search -->
-            <input
-              type="text"
-              placeholder="Search users to add..."
-              value={@search.query}
-              phx-keyup="search_users"
-              phx-debounce="300"
-              class="input input-bordered w-full"
-              name="query"
-            />
+            <form
+              id="member-search-form"
+              phx-change="search_users"
+              phx-update="ignore"
+              class="relative"
+            >
+              <input
+                type="text"
+                placeholder="Search users to add..."
+                value={@search.query}
+                phx-debounce="300"
+                class="input input-bordered w-full"
+                name="query"
+              />
+            </form>
             
     <!-- Search Results -->
             <%= if @search.results != [] do %>
@@ -1711,15 +1717,21 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
           <div class="space-y-4">
             <!-- Message Search -->
-            <input
-              type="text"
-              placeholder="Search message content..."
-              value={@search.message_query}
-              phx-keyup="search_messages"
-              phx-debounce="300"
-              class="input input-bordered w-full"
-              name="query"
-            />
+            <form
+              id="message-search-form"
+              phx-change="search_messages"
+              phx-update="ignore"
+              class="relative"
+            >
+              <input
+                type="text"
+                placeholder="Search message content..."
+                value={@search.message_query}
+                phx-debounce="300"
+                class="input input-bordered w-full"
+                name="query"
+              />
+            </form>
             
     <!-- Search Results -->
             <%= if @search.message_results != [] do %>

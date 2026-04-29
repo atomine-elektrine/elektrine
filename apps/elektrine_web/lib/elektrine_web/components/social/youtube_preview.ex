@@ -21,6 +21,7 @@ defmodule ElektrineWeb.Components.Social.YoutubePreview do
           <iframe
             src={@embed_url}
             title={@title || "YouTube video"}
+            loading="lazy"
             frameborder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen

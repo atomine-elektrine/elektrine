@@ -19,7 +19,9 @@ defmodule ElektrineChatWeb.ChatLive.Operations.ConversationOperations do
     {:noreply, push_patch(socket, to: Elektrine.Paths.chat_path(conversation_id))}
   end
 
-  def handle_event("search_conversations", %{"value" => query}, socket) do
+  def handle_event("search_conversations", params, socket) do
+    query = Map.get(params, "query") || Map.get(params, "value") || ""
+
     scoped_conversations =
       ElektrineChatWeb.ChatLive.Operations.Helpers.scope_conversations_to_server(
         socket.assigns.conversation.list,

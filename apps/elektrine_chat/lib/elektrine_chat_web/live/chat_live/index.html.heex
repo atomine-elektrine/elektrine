@@ -94,15 +94,21 @@
         <!-- Header with Search -->
         <div class="flex-shrink-0 p-3 border-b border-base-300">
           <div class="flex items-center gap-2">
-            <input
-              type="text"
-              placeholder="Search chats, people, servers, or channels"
-              value={@search.conversation_query}
-              phx-keyup="search_conversations"
-              phx-debounce="300"
-              class="input hidden sm:block w-full h-10 text-sm"
-              name="query"
-            />
+            <form
+              id="conversation-search-form"
+              phx-change="search_conversations"
+              phx-update="ignore"
+              class="relative hidden sm:block flex-1"
+            >
+              <input
+                type="text"
+                placeholder="Search chats, people, servers, or channels"
+                value={@search.conversation_query}
+                phx-debounce="300"
+                class="input w-full h-10 text-sm"
+                name="query"
+              />
+            </form>
             <!-- Mobile Search Toggle -->
             <button
               class="btn btn-ghost btn-xs sm:hidden text-base-content"
@@ -114,15 +120,21 @@
           
 <!-- Mobile Search Input -->
           <div :if={@show_mobile_search} class="sm:hidden px-2 pb-2">
-            <input
-              type="text"
-              placeholder="Search chats..."
-              value={@search.conversation_query}
-              phx-keyup="search_conversations"
-              phx-debounce="300"
-              class="input w-full h-9 text-sm"
-              name="query"
-            />
+            <form
+              id="mobile-conversation-search-form"
+              phx-change="search_conversations"
+              phx-update="ignore"
+              class="relative"
+            >
+              <input
+                type="text"
+                placeholder="Search chats..."
+                value={@search.conversation_query}
+                phx-debounce="300"
+                class="input w-full h-9 text-sm"
+                name="query"
+              />
+            </form>
           </div>
 
           <div class="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1115,7 +1127,8 @@
                             <img
                               src={resolved_media_url}
                               alt="Uploaded image"
-                              loading="eager"
+                              loading="lazy"
+                              decoding="async"
                               class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
                             />
                           </button>
@@ -1160,7 +1173,8 @@
                               id={"chat-message-image-#{:erlang.phash2(image_url)}"}
                               src={image_url}
                               alt="Image preview"
-                              loading="eager"
+                              loading="lazy"
+                              decoding="async"
                               class="max-w-full rounded-lg object-contain hover:opacity-90 transition-opacity cursor-pointer bg-base-200 min-h-[100px] max-h-96"
                               phx-hook="ImageFallback"
                             />
@@ -1193,7 +1207,8 @@
                           <img
                             src={ensure_https(link_preview.image_url)}
                             alt={link_preview.title || "Link preview"}
-                            loading="eager"
+                            loading="lazy"
+                            decoding="async"
                             class="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         </div>
@@ -1215,6 +1230,8 @@
                               id={"chat-link-preview-favicon-#{:erlang.phash2(link_preview.favicon_url)}"}
                               src={ensure_https(link_preview.favicon_url)}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               class="w-4 h-4"
                               phx-hook="ImageFallback"
                             />
@@ -1507,7 +1524,7 @@
             <% end %>
             
 <!-- Jump to Bottom Button (hidden by default, shown when scrolled up with new messages) -->
-            <div class="relative -mt-2">
+            <div class="relative h-0">
               <button
                 id="jump-to-bottom"
                 phx-click="scroll_to_newest"
@@ -1594,7 +1611,7 @@
                     <textarea
                       name="message"
                       placeholder="Message..."
-                      class="flex-1 min-w-0 text-sm px-3 py-2 resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors sm:px-4 sm:py-2.5"
+                      class="flex-1 min-w-0 text-sm leading-5 px-3 py-[9px] resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors sm:px-4"
                       autocomplete="off"
                       phx-change="update_message"
                       phx-blur="stop_typing"
@@ -1607,7 +1624,7 @@
                     <textarea
                       disabled
                       placeholder="Cannot send messages"
-                      class="textarea textarea-bordered flex-1 min-w-0 resize-none opacity-50 cursor-not-allowed text-sm sm:text-base py-1.5 px-2 bg-base-200 border-base-300 text-base-content/70"
+                      class="textarea textarea-bordered flex-1 min-w-0 resize-none opacity-50 cursor-not-allowed text-sm sm:text-base leading-5 py-[9px] px-2 bg-base-200 border-base-300 text-base-content/70"
                       rows="1"
                     ></textarea>
                   <% end %>
@@ -1821,7 +1838,7 @@
                   </span>
                 </div>
 
-                <div class="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                <div class="space-y-1.5 pr-1">
                   <%= for member <- @conversation.selected.members do %>
                     <%= if member.left_at == nil do %>
                       <div class="flex items-center gap-2 p-2 rounded-lg hover:bg-base-300/60">
@@ -1866,7 +1883,7 @@
                               &(&1.user_id == @current_user.id and is_nil(&1.left_at))
                             ) %>
                           <%= if current_member && current_member.role == "admin" && member.user_id != @current_user.id do %>
-                            <div class="dropdown dropdown-end">
+                            <div class="dropdown dropdown-end dropdown-top">
                               <div tabindex="0" role="button" class="btn btn-xs btn-ghost">
                                 <.icon name="hero-ellipsis-vertical" class="w-3 h-3" />
                               </div>
@@ -2054,16 +2071,22 @@
         </div>
 
         <div class="space-y-4">
-          <input
-            type="text"
-            placeholder="Search users or enter user@domain..."
-            value={@search.query}
-            phx-keyup="search_users"
-            phx-debounce="300"
-            class="input input-bordered w-full"
-            name="query"
-            autofocus
-          />
+          <form
+            id="new-dm-search-form"
+            phx-change="search_users"
+            phx-update="ignore"
+            class="relative"
+          >
+            <input
+              type="text"
+              placeholder="Search users or enter user@domain..."
+              value={@search.query}
+              phx-debounce="300"
+              class="input input-bordered w-full"
+              name="query"
+              autofocus
+            />
+          </form>
           <p class="text-xs text-base-content/70">
             Search local users, or type a full remote handle for federated DMs.
           </p>
