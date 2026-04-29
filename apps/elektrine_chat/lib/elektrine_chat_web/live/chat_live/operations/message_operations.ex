@@ -560,7 +560,9 @@ defmodule ElektrineChatWeb.ChatLive.Operations.MessageOperations do
     {:noreply, socket |> push_event("scroll_to_message", %{message_id: message_id})}
   end
 
-  def handle_event("search_messages", %{"value" => query}, socket) do
+  def handle_event("search_messages", params, socket) do
+    query = Map.get(params, "query") || Map.get(params, "value") || ""
+
     if String.length(query) >= 2 and socket.assigns.conversation.selected do
       case Messaging.search_messages_in_conversation(
              socket.assigns.conversation.selected.id,

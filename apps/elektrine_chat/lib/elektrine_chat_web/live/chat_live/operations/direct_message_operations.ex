@@ -59,7 +59,9 @@ defmodule ElektrineChatWeb.ChatLive.Operations.DirectMessageOperations do
     end
   end
 
-  def handle_event("search_users", %{"value" => query}, socket) do
+  def handle_event("search_users", params, socket) do
+    query = Map.get(params, "query") || Map.get(params, "value") || ""
+
     results =
       if String.length(query) >= 2 do
         query
