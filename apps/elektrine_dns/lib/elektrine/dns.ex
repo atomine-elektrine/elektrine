@@ -1589,14 +1589,8 @@ defmodule Elektrine.DNS do
   end
 
   defp validate_record_mutation(%Record{} = record, action) do
-    if protected_builtin_zone_record?(record) do
-      message =
-        case action do
-          :delete -> "is managed by Elektrine and cannot be deleted"
-          _ -> "is managed by Elektrine and cannot be modified"
-        end
-
-      {:error, add_error(change(record), :name, message)}
+    if action == :delete and protected_builtin_zone_record?(record) do
+      {:error, add_error(change(record), :name, "is managed by Elektrine and cannot be deleted")}
     else
       :ok
     end

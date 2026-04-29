@@ -1012,19 +1012,15 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                               <td class="font-mono text-xs">{record.ttl}</td>
                               <td>
                                 <div class="flex gap-2">
-                                  <%= if record.managed do %>
-                                    <span class="text-xs text-base-content/60">
-                                      managed elsewhere
-                                    </span>
-                                  <% else %>
-                                    <button
-                                      type="button"
-                                      phx-click="record_edit"
-                                      phx-value-id={record.id}
-                                      class="btn btn-xs btn-outline"
-                                    >
-                                      Edit
-                                    </button>
+                                  <button
+                                    type="button"
+                                    phx-click="record_edit"
+                                    phx-value-id={record.id}
+                                    class="btn btn-xs btn-outline"
+                                  >
+                                    Edit
+                                  </button>
+                                  <%= unless record.managed do %>
                                     <button
                                       type="button"
                                       phx-click="record_delete"

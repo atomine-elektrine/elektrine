@@ -293,10 +293,15 @@ defmodule Elektrine.DNS.ManagedRecords do
     target = MailSecurity.mail_target(zone.domain, settings)
     default_target = MailSecurity.default_mail_target(zone)
 
-    if target == zone.domain and default_target != zone.domain and legacy_mail_alias?(zone) do
-      default_target
-    else
-      target
+    cond do
+      not Elektrine.DNS.public_hostname?(target) ->
+        default_target
+
+      target == zone.domain and default_target != zone.domain and legacy_mail_alias?(zone) ->
+        default_target
+
+      true ->
+        target
     end
   end
 
