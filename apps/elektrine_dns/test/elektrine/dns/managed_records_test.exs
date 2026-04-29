@@ -12,12 +12,14 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
   use Elektrine.DataCase, async: false
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.DNS
+  alias Elektrine.{DNS, Domains}
 
   setup do
     old_dkim = Application.get_env(:elektrine, :managed_dns_dkim_module)
     old_master = Application.get_env(:elektrine, :encryption_master_secret)
     old_salt = Application.get_env(:elektrine, :encryption_key_salt)
+    old_primary_domain = Application.get_env(:elektrine, :primary_domain)
+    old_email = Application.get_env(:elektrine, :email)
 
     Application.put_env(:elektrine, :managed_dns_dkim_module, Elektrine.DNS.TestDKIM)
     Application.put_env(:elektrine, :encryption_master_secret, "test-master-secret-0123456789")
@@ -27,6 +29,8 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
       restore_env(:managed_dns_dkim_module, old_dkim)
       restore_env(:encryption_master_secret, old_master)
       restore_env(:encryption_key_salt, old_salt)
+      restore_env(:primary_domain, old_primary_domain)
+      restore_env(:email, old_email)
     end)
 
     :ok
@@ -143,7 +147,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
         "name" => "@",
         "type" => "MX",
         "ttl" => 300,
-        "content" => zone.domain,
+        "content" => Domains.primary_email_domain(),
         "priority" => 10
       })
 
@@ -158,7 +162,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert adopted.managed_key == "mail:mx"
   end
 
-  test "prefers a dedicated mail host when apex addresses exist" do
+  test "defaults managed mail routing to the primary email domain" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
@@ -174,27 +178,51 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
              DNS.apply_zone_service(zone, "mail")
 
     assert config.status == "ok"
-    assert config.settings["mail_target"] == "mail.#{zone.domain}"
+    assert config.settings["mail_target"] == Domains.primary_email_domain()
 
     zone = DNS.get_zone(zone.id, user.id)
 
     assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.managed_key == "mail:mx" and
-               record.content == "mail.#{zone.domain}"
-           end)
-
-    assert Enum.any?(zone.records, fn record ->
-             record.service == "mail" and record.name == "mail" and record.type == "A" and
-               record.content == "66.42.127.87"
+               record.content == Domains.primary_email_domain()
            end)
 
     assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.name == "smtp" and record.type == "CNAME" and
-               record.content == "mail.#{zone.domain}"
+               record.content == Domains.primary_email_domain()
            end)
   end
 
-  test "repairs legacy apex-target mail configs to the dedicated mail host" do
+  test "defaults managed mail routing to the zone domain when configured primary domains are local" do
+    Application.put_env(:elektrine, :primary_domain, "localhost")
+    Application.put_env(:elektrine, :email, domain: "localhost")
+
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, config} = DNS.apply_zone_service(zone, "mail")
+
+    assert config.status == "ok"
+    assert config.settings["mail_target"] == zone.domain
+  end
+
+  test "repairs submitted local mail targets to a public default" do
+    Application.put_env(:elektrine, :primary_domain, "localhost")
+    Application.put_env(:elektrine, :email, domain: "localhost")
+
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{"mail_target" => "localhost"}
+             })
+
+    assert config.status == "ok"
+    assert config.settings["mail_target"] == zone.domain
+  end
+
+  test "repairs legacy apex-target mail configs to the primary email domain" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
 
@@ -218,13 +246,13 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
                "settings" => %{"mail_target" => zone.domain}
              })
 
-    assert repaired.settings["mail_target"] == "mail.#{zone.domain}"
+    assert repaired.settings["mail_target"] == Domains.primary_email_domain()
 
     zone = DNS.get_zone(zone.id, user.id)
 
     assert Enum.any?(zone.records, fn record ->
              record.service == "mail" and record.managed_key == "mail:mx" and
-               record.content == "mail.#{zone.domain}"
+               record.content == Domains.primary_email_domain()
            end)
   end
 
@@ -255,7 +283,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     refute config.settings["dkim_private_key"] == "PRIVATEKEY"
     assert String.contains?(config.settings["dkim_value"], "v=DKIM1")
     assert config.settings["caa_issue"] == "letsencrypt.org"
-    assert config.settings["mail_target"] == zone.domain
+    assert config.settings["mail_target"] == Domains.primary_email_domain()
 
     zone = DNS.get_zone(zone.id, user.id)
 
@@ -264,7 +292,8 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
 
     assert Enum.any?(
              zone.records,
-             &(&1.service == "mail" and &1.managed_key == "mail:mx" and &1.content == zone.domain)
+             &(&1.service == "mail" and &1.managed_key == "mail:mx" and
+                 &1.content == Domains.primary_email_domain())
            )
 
     assert Enum.any?(zone.records, &(&1.service == "mail" and &1.managed_key == "mail:dkim"))
@@ -300,6 +329,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     assert {:ok, config} =
              DNS.apply_zone_service(zone, "mail", %{
                "settings" => %{
+                 "mail_target" => zone.domain,
                  "tlsa_association_data" => "aabbccdd",
                  "tlsa_usage" => "3",
                  "tlsa_selector" => "0",
@@ -399,7 +429,7 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
   end
 
   defp unique_domain do
-    "zone#{System.unique_integer([:positive])}.example.com"
+    "zone#{System.unique_integer([:positive])}.elektrine.dev"
   end
 
   defp restore_env(key, nil), do: Application.delete_env(:elektrine, key)

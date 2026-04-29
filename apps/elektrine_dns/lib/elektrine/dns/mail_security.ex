@@ -38,12 +38,13 @@ defmodule Elektrine.DNS.MailSecurity do
     |> Kernel.<>("\n")
   end
 
-  def default_mail_target(%{domain: domain, records: records}) do
-    if apex_address_records(records, domain) == [] do
-      domain
-    else
-      "mail." <> domain
-    end
+  def default_mail_target(zone) do
+    [
+      Application.get_env(:elektrine, :primary_domain),
+      Elektrine.Domains.primary_email_domain(),
+      Map.get(zone, :domain)
+    ]
+    |> Enum.find(&public_hostname?/1) || Elektrine.Domains.primary_email_domain()
   end
 
   def mail_target(domain, settings) do
@@ -128,15 +129,19 @@ defmodule Elektrine.DNS.MailSecurity do
   defp default_if_empty([], fallback), do: fallback
   defp default_if_empty(values, _fallback), do: values
 
-  defp apex_address_records(records, domain) do
-    zone_domain = normalize_name(domain)
+  defp public_hostname?(value) when is_binary(value) do
+    value = value |> String.trim() |> String.trim_trailing(".") |> String.downcase()
 
-    records
-    |> List.wrap()
-    |> Enum.filter(fn record ->
-      normalize_type(Map.get(record, :type)) in ["A", "AAAA"] and
-        normalize_name(Map.get(record, :name)) in ["@", zone_domain]
-    end)
+    value != "" and String.contains?(value, ".") and
+      not String.contains?(value, ["/", "@", " "]) and
+      Enum.all?(String.split(value, "."), &valid_hostname_label?/1) and
+      not match?({:ok, _}, :inet.parse_address(String.to_charlist(value)))
+  end
+
+  defp public_hostname?(_), do: false
+
+  defp valid_hostname_label?(label) do
+    byte_size(label) in 1..63 and String.match?(label, ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
   end
 
   defp cleaned_binary(value) when is_binary(value) do
@@ -147,14 +152,6 @@ defmodule Elektrine.DNS.MailSecurity do
   end
 
   defp cleaned_binary(_), do: nil
-
-  defp normalize_name(nil), do: nil
-
-  defp normalize_name(value),
-    do: value |> String.trim() |> String.downcase() |> String.trim_trailing(".")
-
-  defp normalize_type(nil), do: nil
-  defp normalize_type(value), do: value |> to_string() |> String.trim() |> String.upcase()
 
   defp normalize_hex(nil), do: nil
 
