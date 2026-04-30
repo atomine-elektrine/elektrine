@@ -105,6 +105,48 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert {"content-type", "text/css; charset=utf-8"} in conn.resp_headers
     end
 
+    test "serves static assets from assets directories on subdomains", %{user: user} do
+      css = "body { color: rebeccapurple; }"
+      {:ok, _} = StaticSites.upload_file(user, "assets/site.css", css, "text/css")
+
+      conn =
+        Plug.Test.conn(:get, "/assets/site.css")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == css
+      assert {"content-type", "text/css; charset=utf-8"} in conn.resp_headers
+    end
+
+    test "serves common static generator paths on subdomains", %{user: user} do
+      tag_page = "<html><body>Tagged</body></html>"
+      sitemap = ~s(<?xml version="1.0"?><urlset></urlset>)
+      feed = ~s(<?xml version="1.0"?><rss></rss>)
+      manifest = ~s({"name":"Static Profile"})
+
+      {:ok, _} = StaticSites.upload_file(user, "tags/elixir/index.html", tag_page, "text/html")
+      {:ok, _} = StaticSites.upload_file(user, "sitemap.xml", sitemap, "application/xml")
+      {:ok, _} = StaticSites.upload_file(user, "index.xml", feed, "application/rss+xml")
+      {:ok, _} = StaticSites.upload_file(user, "site.webmanifest", manifest, "application/json")
+
+      for {path, body, content_type} <- [
+            {"/tags/elixir/", tag_page, "text/html; charset=utf-8"},
+            {"/sitemap.xml", sitemap, "application/xml; charset=utf-8"},
+            {"/index.xml", feed, "application/xml; charset=utf-8"},
+            {"/site.webmanifest", manifest, "application/manifest+json; charset=utf-8"}
+          ] do
+        conn =
+          Plug.Test.conn(:get, path)
+          |> Plug.Conn.assign(:subdomain_handle, user.handle)
+          |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+        assert conn.status == 200
+        assert conn.resp_body == body
+        assert {"content-type", content_type} in conn.resp_headers
+      end
+    end
+
     test "serves static sites on verified custom root domains", %{
       conn: conn,
       user: user,
@@ -196,6 +238,36 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert conn.status == 200
       assert conn.resp_body == robots
       assert {"content-type", "text/plain; charset=utf-8"} in conn.resp_headers
+    end
+
+    test "serves static assets from assets directories on custom domains", %{user: user} do
+      js = "console.log('static profile');"
+      {:ok, _} = StaticSites.upload_file(user, "assets/app.js", js, "application/javascript")
+
+      conn =
+        Plug.Test.conn(:get, "/assets/app.js")
+        |> Plug.Conn.assign(:profile_custom_domain, "brand.test")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == js
+      assert {"content-type", "application/javascript; charset=utf-8"} in conn.resp_headers
+    end
+
+    test "serves static generator section paths on custom domains", %{user: user} do
+      page = "<html><body>Post</body></html>"
+      {:ok, _} = StaticSites.upload_file(user, "c/post/index.html", page, "text/html")
+
+      conn =
+        Plug.Test.conn(:get, "/c/post/")
+        |> Plug.Conn.assign(:profile_custom_domain, "brand.test")
+        |> Plug.Conn.assign(:subdomain_handle, user.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == page
+      assert {"content-type", "text/html; charset=utf-8"} in conn.resp_headers
     end
 
     test "does not intercept app endpoints on subdomains", %{user: user} do

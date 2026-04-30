@@ -833,7 +833,7 @@ defmodule ElektrineChatWeb.ChatLive.Index do
 
   def handle_info(
         {:user_read_messages_in_conversation,
-         %{conversation_id: _conversation_id, reader_id: _reader_id}},
+         %{conversation_id: conversation_id, reader_id: _reader_id}},
         socket
       ) do
     # Someone read messages in a conversation - update conversation list read status
@@ -842,7 +842,26 @@ defmodule ElektrineChatWeb.ChatLive.Index do
     last_message_read_status =
       Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
 
-    {:noreply, assign(socket, :last_message_read_status, last_message_read_status)}
+    socket = assign(socket, :last_message_read_status, last_message_read_status)
+
+    socket =
+      if socket.assigns.conversation.selected &&
+           socket.assigns.conversation.selected.id == conversation_id do
+        message_ids = Enum.map(socket.assigns.messages, & &1.id)
+
+        read_status =
+          if message_ids != [] do
+            Messaging.get_read_status_for_messages(message_ids, conversation_id)
+          else
+            %{}
+          end
+
+        assign(socket, :message, %{socket.assigns.message | read_status: read_status})
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info({:cancel_reply}, socket) do

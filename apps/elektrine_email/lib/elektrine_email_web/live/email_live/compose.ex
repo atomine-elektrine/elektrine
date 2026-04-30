@@ -543,52 +543,59 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     mode = socket.assigns.mode
     original_message = Map.get(socket.assigns, :original_message)
 
-    {text_body, html_body} =
-      if mode in ["reply", "reply_all", "forward"] && email_params["new_message"] do
-        new_message = email_params["new_message"]
-        combined_text = email_params["body"]
+    if blank_reply?(mode, email_params) do
+      {:noreply,
+       socket
+       |> assign(:sending, false)
+       |> assign(:form, to_form(email_params))
+       |> notify_error("Type a reply before sending.")}
+    else
+      {text_body, html_body} =
+        if mode in ["reply", "reply_all", "forward"] && email_params["new_message"] do
+          new_message = normalize_message_body(email_params["new_message"])
+          combined_text = combine_reply_text(new_message, email_params["body"])
 
-        combined_html =
-          if original_message && Elektrine.Strings.present?(original_message.html_body) do
-            new_message_html = markdown_to_html(new_message)
+          combined_html =
+            if original_message && Elektrine.Strings.present?(original_message.html_body) do
+              new_message_html = markdown_to_html(new_message)
 
-            if mode == "reply" do
-              date_str = format_date_for_quote(original_message.inserted_at)
+              if mode == "reply" do
+                date_str = format_date_for_quote(original_message.inserted_at)
 
-              sender_text =
-                if original_message.status == "sent" do
-                  "you"
-                else
-                  original_message.from
-                end
+                sender_text =
+                  if original_message.status == "sent" do
+                    "you"
+                  else
+                    original_message.from
+                  end
 
-              new_message_html <> "<br><br>
+                new_message_html <> "<br><br>
 <div style=\"color: #666; border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px;\">
   On #{date_str}, #{sender_text} wrote:<br>
   #{original_message.html_body}
 </div>
 "
-            else
-              date_str = format_date_for_quote(original_message.inserted_at)
+              else
+                date_str = format_date_for_quote(original_message.inserted_at)
 
-              attachment_html =
-                if original_message.attachments && is_map(original_message.attachments) &&
-                     map_size(original_message.attachments) > 0 do
-                  attachment_list =
-                    original_message.attachments
-                    |> Enum.map(fn {_key, attachment} ->
-                      filename = Map.get(attachment, "filename", "unknown")
-                      size = Map.get(attachment, "size", "unknown")
-                      "<li>#{filename} (#{size} bytes)</li>"
-                    end)
-                    |> Enum.map_join("", & &1)
+                attachment_html =
+                  if original_message.attachments && is_map(original_message.attachments) &&
+                       map_size(original_message.attachments) > 0 do
+                    attachment_list =
+                      original_message.attachments
+                      |> Enum.map(fn {_key, attachment} ->
+                        filename = Map.get(attachment, "filename", "unknown")
+                        size = Map.get(attachment, "size", "unknown")
+                        "<li>#{filename} (#{size} bytes)</li>"
+                      end)
+                      |> Enum.map_join("", & &1)
 
-                  "<br><strong>Attachments:</strong><ul style='margin: 5px 0 10px 20px;'>#{attachment_list}</ul>"
-                else
-                  ""
-                end
+                    "<br><strong>Attachments:</strong><ul style='margin: 5px 0 10px 20px;'>#{attachment_list}</ul>"
+                  else
+                    ""
+                  end
 
-              new_message_html <> "<br><br>
+                new_message_html <> "<br><br>
 <div style=\"border: 1px solid #ccc; padding: 15px; margin: 10px 0; background-color: #f9f9f9;\">
   <div style=\"color: #666; margin-bottom: 10px;\">
     ---------- Forwarded message ----------<br>
@@ -602,286 +609,289 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   </div>
 </div>
 "
-            end
-          else
-            markdown_to_html(combined_text)
-          end
-
-        {combined_text, combined_html}
-      else
-        text = email_params["body"]
-        text_with_signature = append_signature(text, socket.assigns.current_user)
-        html = markdown_to_html(text_with_signature)
-        {text_with_signature, html}
-      end
-
-    email_attrs = %{
-      from: socket.assigns.from_address,
-      to: Enum.join(socket.assigns.to_tags, ", "),
-      cc: Enum.join(socket.assigns.cc_tags, ", "),
-      bcc: Enum.join(socket.assigns.bcc_tags, ", "),
-      subject: email_params["subject"],
-      text_body: text_body,
-      html_body: html_body,
-      encryption_mode: email_params["encryption_mode"] || socket.assigns.encryption_mode
-    }
-
-    temp_message_id = "temp_#{System.system_time(:millisecond)}"
-    mailbox_id = socket.assigns.mailbox.id
-
-    uploaded_attachments =
-      consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
-        file_content = File.read!(path)
-        attachment_id = "temp_#{System.system_time(:millisecond)}_#{:rand.uniform(999_999)}"
-
-        metadata = %{
-          "filename" => entry.client_name,
-          "content_type" => entry.client_type,
-          "size" => entry.client_size
-        }
-
-        s3_result =
-          try do
-            Task.await(
-              Task.async(fn ->
-                AttachmentStorage.upload_attachment(
-                  mailbox_id,
-                  temp_message_id,
-                  attachment_id,
-                  file_content,
-                  metadata
-                )
-              end),
-              5000
-            )
-          catch
-            :exit, _ -> {:error, :timeout}
-          end
-
-        case s3_result do
-          {:ok, s3_metadata} ->
-            attachment =
-              Map.merge(
-                %{
-                  "filename" => entry.client_name,
-                  "content_type" => entry.client_type,
-                  "size" => entry.client_size,
-                  "encoding" => "base64"
-                },
-                s3_metadata
-              )
-
-            attachment_with_data = Map.put(attachment, "data", Base.encode64(file_content))
-            {:ok, {attachment, attachment_with_data}}
-
-          {:error, reason} ->
-            Logger.warning("S3 upload failed (#{inspect(reason)}), using database storage")
-            base64_data = Base.encode64(file_content)
-
-            attachment = %{
-              "filename" => entry.client_name,
-              "content_type" => entry.client_type,
-              "size" => entry.client_size,
-              "encoding" => "base64",
-              "data" => base64_data
-            }
-
-            {:ok, {attachment, attachment}}
-        end
-      end)
-
-    successful_uploads =
-      Enum.filter(uploaded_attachments, fn
-        {_db, _email} -> true
-        _ -> false
-      end)
-
-    {db_attachments, email_attachments} =
-      if successful_uploads != [] do
-        Enum.unzip(successful_uploads)
-      else
-        {[], []}
-      end
-
-    private_forward_attachments = parse_private_forward_attachments(email_params)
-
-    {all_db_attachments, all_email_attachments} =
-      if mode == "forward" && original_message && original_message.attachments do
-        forwarded_with_data =
-          original_message.attachments
-          |> Map.values()
-          |> Enum.reject(&MailboxEncryption.attachment_encrypted?/1)
-          |> Enum.map(fn att ->
-            att_with_data =
-              if AttachmentStorage.stored_attachment?(att) do
-                case AttachmentStorage.download_attachment(att) do
-                  {:ok, content} ->
-                    Map.put(att, "data", Base.encode64(content))
-
-                  {:error, _} ->
-                    Logger.warning("Failed to download forwarded attachment from storage")
-                    att
-                end
-              else
-                att
               end
+            else
+              markdown_to_html(combined_text)
+            end
 
-            {att, att_with_data}
-          end)
+          {combined_text, combined_html}
+        else
+          text = email_params["body"]
+          text_with_signature = append_signature(text, socket.assigns.current_user)
+          html = markdown_to_html(text_with_signature)
+          {text_with_signature, html}
+        end
 
-        {fwd_db, fwd_email} =
-          if forwarded_with_data == [] do
-            {[], []}
-          else
-            Enum.unzip(forwarded_with_data)
+      email_attrs = %{
+        from: socket.assigns.from_address,
+        to: Enum.join(socket.assigns.to_tags, ", "),
+        cc: Enum.join(socket.assigns.cc_tags, ", "),
+        bcc: Enum.join(socket.assigns.bcc_tags, ", "),
+        subject: email_params["subject"],
+        text_body: text_body,
+        html_body: html_body,
+        encryption_mode: email_params["encryption_mode"] || socket.assigns.encryption_mode
+      }
+
+      temp_message_id = "temp_#{System.system_time(:millisecond)}"
+      mailbox_id = socket.assigns.mailbox.id
+
+      uploaded_attachments =
+        consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
+          file_content = File.read!(path)
+          attachment_id = "temp_#{System.system_time(:millisecond)}_#{:rand.uniform(999_999)}"
+
+          metadata = %{
+            "filename" => entry.client_name,
+            "content_type" => entry.client_type,
+            "size" => entry.client_size
+          }
+
+          s3_result =
+            try do
+              Task.await(
+                Task.async(fn ->
+                  AttachmentStorage.upload_attachment(
+                    mailbox_id,
+                    temp_message_id,
+                    attachment_id,
+                    file_content,
+                    metadata
+                  )
+                end),
+                5000
+              )
+            catch
+              :exit, _ -> {:error, :timeout}
+            end
+
+          case s3_result do
+            {:ok, s3_metadata} ->
+              attachment =
+                Map.merge(
+                  %{
+                    "filename" => entry.client_name,
+                    "content_type" => entry.client_type,
+                    "size" => entry.client_size,
+                    "encoding" => "base64"
+                  },
+                  s3_metadata
+                )
+
+              attachment_with_data = Map.put(attachment, "data", Base.encode64(file_content))
+              {:ok, {attachment, attachment_with_data}}
+
+            {:error, reason} ->
+              Logger.warning("S3 upload failed (#{inspect(reason)}), using database storage")
+              base64_data = Base.encode64(file_content)
+
+              attachment = %{
+                "filename" => entry.client_name,
+                "content_type" => entry.client_type,
+                "size" => entry.client_size,
+                "encoding" => "base64",
+                "data" => base64_data
+              }
+
+              {:ok, {attachment, attachment}}
           end
+        end)
 
-        {
-          db_attachments ++ fwd_db ++ private_forward_attachments,
-          email_attachments ++ fwd_email ++ private_forward_attachments
-        }
-      else
-        {db_attachments ++ private_forward_attachments,
-         email_attachments ++ private_forward_attachments}
-      end
+      successful_uploads =
+        Enum.filter(uploaded_attachments, fn
+          {_db, _email} -> true
+          _ -> false
+        end)
 
-    email_attrs =
-      if all_email_attachments != [] do
-        attachments_map =
-          all_email_attachments
+      {db_attachments, email_attachments} =
+        if successful_uploads != [] do
+          Enum.unzip(successful_uploads)
+        else
+          {[], []}
+        end
+
+      private_forward_attachments = parse_private_forward_attachments(email_params)
+
+      {all_db_attachments, all_email_attachments} =
+        if mode == "forward" && original_message && original_message.attachments do
+          forwarded_with_data =
+            original_message.attachments
+            |> Map.values()
+            |> Enum.reject(&MailboxEncryption.attachment_encrypted?/1)
+            |> Enum.map(fn att ->
+              att_with_data =
+                if AttachmentStorage.stored_attachment?(att) do
+                  case AttachmentStorage.download_attachment(att) do
+                    {:ok, content} ->
+                      Map.put(att, "data", Base.encode64(content))
+
+                    {:error, _} ->
+                      Logger.warning("Failed to download forwarded attachment from storage")
+                      att
+                  end
+                else
+                  att
+                end
+
+              {att, att_with_data}
+            end)
+
+          {fwd_db, fwd_email} =
+            if forwarded_with_data == [] do
+              {[], []}
+            else
+              Enum.unzip(forwarded_with_data)
+            end
+
+          {
+            db_attachments ++ fwd_db ++ private_forward_attachments,
+            email_attachments ++ fwd_email ++ private_forward_attachments
+          }
+        else
+          {db_attachments ++ private_forward_attachments,
+           email_attachments ++ private_forward_attachments}
+        end
+
+      email_attrs =
+        if all_email_attachments != [] do
+          attachments_map =
+            all_email_attachments
+            |> Enum.with_index()
+            |> Enum.into(%{}, fn {attachment, index} -> {to_string(index), attachment} end)
+
+          Map.put(email_attrs, :attachments, attachments_map)
+        else
+          email_attrs
+        end
+
+      email_attrs =
+        if mode in ["reply", "reply_all"] && original_message do
+          reply_to_id =
+            if original_message.metadata &&
+                 Map.has_key?(original_message.metadata, "original_message_id") do
+              original_message.metadata["original_message_id"]
+            else
+              original_message.message_id
+            end
+
+          references = build_reply_references(original_message, reply_to_id)
+
+          email_attrs
+          |> Map.put(:in_reply_to, reply_to_id)
+          |> maybe_put_reply_references(references)
+        else
+          email_attrs
+        end
+
+      db_attachments_map =
+        if all_db_attachments != [] do
+          all_db_attachments
           |> Enum.with_index()
           |> Enum.into(%{}, fn {attachment, index} -> {to_string(index), attachment} end)
-
-        Map.put(email_attrs, :attachments, attachments_map)
-      else
-        email_attrs
-      end
-
-    email_attrs =
-      if mode in ["reply", "reply_all"] && original_message do
-        reply_to_id =
-          if original_message.metadata &&
-               Map.has_key?(original_message.metadata, "original_message_id") do
-            original_message.metadata["original_message_id"]
-          else
-            original_message.message_id
-          end
-
-        references = build_reply_references(original_message, reply_to_id)
-
-        email_attrs
-        |> Map.put(:in_reply_to, reply_to_id)
-        |> maybe_put_reply_references(references)
-      else
-        email_attrs
-      end
-
-    db_attachments_map =
-      if all_db_attachments != [] do
-        all_db_attachments
-        |> Enum.with_index()
-        |> Enum.into(%{}, fn {attachment, index} -> {to_string(index), attachment} end)
-      else
-        nil
-      end
-
-    send_at = parse_scheduled_send_at(email_params["send_at"])
-
-    send_result =
-      if scheduled_send?(send_at) do
-        SendEmailWorker.enqueue(user.id, email_attrs, db_attachments_map, scheduled_for: send_at)
-      else
-        Sender.send_email(user.id, email_attrs, db_attachments_map)
-      end
-
-    case send_result do
-      {:ok, _message} ->
-        Elektrine.Accounts.Storage.update_user_storage(user.id)
-
-        if draft_id = socket.assigns[:draft_id] do
-          Email.delete_draft(draft_id, socket.assigns.mailbox.id)
+        else
+          nil
         end
 
-        updated_status = RateLimiter.get_rate_limit_status(user.id)
-        return_url = email_return_url(socket.assigns)
+      send_at = parse_scheduled_send_at(email_params["send_at"])
 
-        message =
-          if scheduled_send?(send_at) do
-            "Email scheduled for #{Calendar.strftime(send_at, "%b %-d, %Y %H:%M UTC")}."
-          else
-            "Email sent successfully!"
+      send_result =
+        if scheduled_send?(send_at) do
+          SendEmailWorker.enqueue(user.id, email_attrs, db_attachments_map,
+            scheduled_for: send_at
+          )
+        else
+          Sender.send_email(user.id, email_attrs, db_attachments_map)
+        end
+
+      case send_result do
+        {:ok, _message} ->
+          Elektrine.Accounts.Storage.update_user_storage(user.id)
+
+          if draft_id = socket.assigns[:draft_id] do
+            Email.delete_draft(draft_id, socket.assigns.mailbox.id)
           end
 
-        {:noreply,
-         socket
-         |> assign(:rate_limit_status, updated_status)
-         |> notify_info(message)
-         |> push_navigate(to: return_url)}
+          updated_status = RateLimiter.get_rate_limit_status(user.id)
+          return_url = email_return_url(socket.assigns)
 
-      {:error, :rate_limit_exceeded} ->
-        rate_limit_message = build_rate_limit_error_message(user.id)
+          message =
+            if scheduled_send?(send_at) do
+              "Email scheduled for #{Calendar.strftime(send_at, "%b %-d, %Y %H:%M UTC")}."
+            else
+              "Email sent successfully!"
+            end
 
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error(rate_limit_message)
-         |> assign(:form, to_form(email_params))}
+          {:noreply,
+           socket
+           |> assign(:rate_limit_status, updated_status)
+           |> notify_info(message)
+           |> push_navigate(to: return_url)}
 
-      {:error, :storage_limit_exceeded} ->
-        storage_limit =
-          case socket.assigns[:storage_info] do
-            %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
-              limit_formatted
+        {:error, :rate_limit_exceeded} ->
+          rate_limit_message = build_rate_limit_error_message(user.id)
 
-            _ ->
-              case Elektrine.Accounts.Storage.get_storage_info(user.id) do
-                %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
-                  limit_formatted
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error(rate_limit_message)
+           |> assign(:form, to_form(email_params))}
 
-                _ ->
-                  "configured limit"
-              end
-          end
+        {:error, :storage_limit_exceeded} ->
+          storage_limit =
+            case socket.assigns[:storage_info] do
+              %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
+                limit_formatted
 
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error(
-           "Cannot send email: your mailbox storage limit (#{storage_limit}) has been exceeded. Please delete some emails first."
-         )
-         |> assign(:form, to_form(email_params))}
+              _ ->
+                case Elektrine.Accounts.Storage.get_storage_info(user.id) do
+                  %{limit_formatted: limit_formatted} when is_binary(limit_formatted) ->
+                    limit_formatted
 
-      {:error, {:missing_pgp_keys, missing_recipients}} ->
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error(missing_pgp_keys_message(missing_recipients))
-         |> assign(:form, to_form(email_params))}
+                  _ ->
+                    "configured limit"
+                end
+            end
 
-      {:error, :pgp_attachments_unsupported} ->
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error(
-           "Required encryption cannot protect regular attachments yet. Remove attachments, attach already-encrypted .pgp/.gpg/.asc files, or switch to Encrypt when possible."
-         )
-         |> assign(:form, to_form(email_params))}
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error(
+             "Cannot send email: your mailbox storage limit (#{storage_limit}) has been exceeded. Please delete some emails first."
+           )
+           |> assign(:form, to_form(email_params))}
 
-      {:error, :gpg_unavailable} ->
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error("OpenPGP delivery is not available on this server right now.")
-         |> assign(:form, to_form(email_params))}
+        {:error, {:missing_pgp_keys, missing_recipients}} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error(missing_pgp_keys_message(missing_recipients))
+           |> assign(:form, to_form(email_params))}
 
-      {:error, reason} ->
-        {:noreply,
-         socket
-         |> assign(:sending, false)
-         |> notify_error(
-           UserErrorHelpers.reason_message(reason, "Failed to send email. Please try again.")
-         )
-         |> assign(:form, to_form(email_params))}
+        {:error, :pgp_attachments_unsupported} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error(
+             "Required encryption cannot protect regular attachments yet. Remove attachments, attach already-encrypted .pgp/.gpg/.asc files, or switch to Encrypt when possible."
+           )
+           |> assign(:form, to_form(email_params))}
+
+        {:error, :gpg_unavailable} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error("OpenPGP delivery is not available on this server right now.")
+           |> assign(:form, to_form(email_params))}
+
+        {:error, reason} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error(
+             UserErrorHelpers.reason_message(reason, "Failed to send email. Please try again.")
+           )
+           |> assign(:form, to_form(email_params))}
+      end
     end
   end
 
@@ -1357,6 +1367,35 @@ Subject: #{message.subject}#{attachment_info}
     |> String.replace(~r/^> (.*)$/m, "<blockquote>\\1</blockquote>")
     |> String.replace("\n", "<br>")
   end
+
+  defp blank_reply?(mode, email_params) when mode in ["reply", "reply_all"] do
+    email_params
+    |> Map.get("new_message", "")
+    |> meaningful_body?()
+    |> Kernel.not()
+  end
+
+  defp blank_reply?(_mode, _email_params), do: false
+
+  defp combine_reply_text(new_message, quoted_body) do
+    [normalize_message_body(new_message), normalize_message_body(quoted_body)]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n\n")
+  end
+
+  defp normalize_message_body(body) when is_binary(body) do
+    body
+    |> String.replace(<<0xC2, 0xA0>>, " ")
+    |> String.replace(<<0xE2, 0x80, 0x8B>>, "")
+    |> String.replace(<<0xE2, 0x80, 0x8C>>, "")
+    |> String.replace(<<0xE2, 0x80, 0x8D>>, "")
+    |> String.replace(<<0xEF, 0xBB, 0xBF>>, "")
+    |> String.trim()
+  end
+
+  defp normalize_message_body(_), do: ""
+
+  defp meaningful_body?(body), do: normalize_message_body(body) != ""
 
   defp extract_clean_email(nil) do
     nil
