@@ -5,6 +5,7 @@ defmodule Elektrine.StaticSitesTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Repo
   alias Elektrine.StaticSites
+  alias Elektrine.StaticSites.RequestResolver
 
   setup do
     user = AccountsFixtures.user_fixture()
@@ -164,6 +165,40 @@ defmodule Elektrine.StaticSitesTest do
 
       file = StaticSites.get_file(user.id, "index.html")
       assert {:ok, ^content} = StaticSites.get_file_content(file)
+    end
+  end
+
+  describe "request resolver" do
+    test "resolves root and directory indexes", %{user: user} do
+      index = "<html>home</html>"
+      page = "<html>tag</html>"
+
+      {:ok, _} = StaticSites.upload_file(user, "index.html", index, "text/html")
+      {:ok, tag_file} = StaticSites.upload_file(user, "tags/elixir/index.html", page, "text/html")
+
+      assert {:ok, %{path: "index.html"}} = RequestResolver.resolve(user.id, "/")
+      assert {:ok, ^tag_file} = RequestResolver.resolve(user.id, "/tags/elixir/")
+    end
+
+    test "resolves extensionless html fallbacks", %{user: user} do
+      {:ok, page_file} =
+        StaticSites.upload_file(user, "about.html", "<html>about</html>", "text/html")
+
+      assert {:ok, ^page_file} = RequestResolver.resolve(user.id, "/about")
+    end
+
+    test "reserves only platform runtime paths", %{user: user} do
+      {:ok, _} =
+        StaticSites.upload_file(user, "tags/elixir/index.html", "<html>tag</html>", "text/html")
+
+      assert {:ok, %{path: "tags/elixir/index.html"}} =
+               RequestResolver.resolve(user.id, "/tags/elixir/")
+
+      assert :reserved = RequestResolver.resolve(user.id, "/socket/websocket")
+      assert :reserved = RequestResolver.resolve(user.id, "/.well-known/webfinger")
+
+      assert :not_found =
+               RequestResolver.resolve(user.id, "/.well-known/webfinger", mode: :custom_domain)
     end
   end
 
@@ -425,6 +460,25 @@ defmodule Elektrine.StaticSitesTest do
 
       # Plain text
       assert {:ok, _} = StaticSites.upload_file(user, "readme.txt", "Hello", "text/plain")
+
+      assert {:ok, _} =
+               StaticSites.upload_file(user, "sitemap.xml", "<urlset></urlset>", "text/xml")
+
+      assert {:ok, manifest} =
+               StaticSites.upload_file(
+                 user,
+                 "site.webmanifest",
+                 ~s({"name":"Test"}),
+                 "application/json"
+               )
+
+      assert manifest.content_type == "application/manifest+json"
+
+      assert {:ok, _} =
+               StaticSites.upload_file(user, "app.mjs", "console.log('hi')", "text/javascript")
+
+      assert {:ok, _} =
+               StaticSites.upload_file(user, "app.wasm", <<0, 97, 115, 109>>, "application/wasm")
 
       # Images with valid headers
       valid_png = <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <> "fake png"

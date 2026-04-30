@@ -35,19 +35,36 @@ defmodule Elektrine.StaticSites do
     ".htm" => "text/html",
     ".css" => "text/css",
     ".js" => "application/javascript",
+    ".mjs" => "application/javascript",
     ".json" => "application/json",
+    ".webmanifest" => "application/manifest+json",
+    ".xml" => "application/xml",
+    ".rss" => "application/rss+xml",
+    ".atom" => "application/atom+xml",
+    ".map" => "application/json",
     ".txt" => "text/plain",
+    ".md" => "text/markdown",
     ".png" => "image/png",
     ".jpg" => "image/jpeg",
     ".jpeg" => "image/jpeg",
     ".gif" => "image/gif",
     ".webp" => "image/webp",
+    ".avif" => "image/avif",
     ".svg" => "image/svg+xml",
     ".ico" => "image/x-icon",
+    ".bmp" => "image/bmp",
     ".woff" => "font/woff",
     ".woff2" => "font/woff2",
     ".ttf" => "font/ttf",
-    ".otf" => "font/otf"
+    ".otf" => "font/otf",
+    ".eot" => "application/vnd.ms-fontobject",
+    ".wasm" => "application/wasm",
+    ".pdf" => "application/pdf",
+    ".mp3" => "audio/mpeg",
+    ".wav" => "audio/wav",
+    ".ogg" => "audio/ogg",
+    ".mp4" => "video/mp4",
+    ".webm" => "video/webm"
   }
 
   @doc """
@@ -89,12 +106,13 @@ defmodule Elektrine.StaticSites do
   @doc """
   Uploads a static site file.
   """
-  def upload_file(user, path, binary, content_type) do
+  def upload_file(user, path, binary, _content_type) do
     size = byte_size(binary)
 
     with {:ok, path} <- normalize_site_path(path),
          :ok <- validate_limits(user.id, size),
          :ok <- validate_file_extension(path),
+         content_type <- static_site_content_type(path),
          :ok <- validate_content_type(path, binary, content_type),
          storage_key <- generate_storage_key(user.id, path),
          :ok <- put_storage(storage_key, binary, content_type) do
@@ -168,6 +186,13 @@ defmodule Elektrine.StaticSites do
     end
   end
 
+  defp static_site_content_type(path) do
+    path
+    |> Path.extname()
+    |> String.downcase()
+    |> then(&Map.fetch!(@allowed_extensions, &1))
+  end
+
   # Validates that the content matches the declared MIME type
   defp validate_content_type(path, binary, _declared_content_type) do
     ext = Path.extname(path) |> String.downcase()
@@ -180,6 +205,11 @@ defmodule Elektrine.StaticSites do
         "text/css",
         "application/javascript",
         "application/json",
+        "application/manifest+json",
+        "application/xml",
+        "application/rss+xml",
+        "application/atom+xml",
+        "text/markdown",
         "text/plain"
       ] ->
         if String.valid?(binary) or valid_utf8_with_bom?(binary) do
@@ -223,7 +253,22 @@ defmodule Elektrine.StaticSites do
         end
 
       # Font files - basic validation (non-empty binary)
-      expected_mime in ["font/woff", "font/woff2", "font/ttf", "font/otf"] ->
+      expected_mime in [
+        "font/woff",
+        "font/woff2",
+        "font/ttf",
+        "font/otf",
+        "application/vnd.ms-fontobject",
+        "application/wasm",
+        "application/pdf",
+        "image/avif",
+        "image/bmp",
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        "video/mp4",
+        "video/webm"
+      ] ->
         if byte_size(binary) > 0 do
           :ok
         else
