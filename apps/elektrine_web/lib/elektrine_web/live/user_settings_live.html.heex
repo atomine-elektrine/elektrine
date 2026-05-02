@@ -15,46 +15,8 @@
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-    <!-- Sidebar Navigation -->
     <div class="lg:col-span-1">
-      <div class="sticky top-24 self-start">
-        <div class="card panel-card">
-          <div class="card-body p-4">
-            <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
-
-            <ul class="menu menu-compact w-full p-0 space-y-1">
-              <%= for {tab_id, tab_icon, tab_tone} <- setting_tabs() do %>
-                <li>
-                  <a
-                    phx-click="change_tab"
-                    phx-value-tab={tab_id}
-                    class={tab_link_class(@selected_tab, tab_id, tab_tone)}
-                  >
-                    <.icon name={tab_icon} class="w-4 h-4" /> {tab_label(tab_id)}
-                  </a>
-                </li>
-              <% end %>
-            </ul>
-
-            <div class="divider my-4"></div>
-
-            <div class="space-y-2">
-              <.link
-                navigate={~p"/account/profile/edit"}
-                class={tab_link_class(nil, nil, :default)}
-              >
-                <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
-              </.link>
-              <.link
-                navigate={~p"/account/storage"}
-                class={tab_link_class(nil, nil, :default)}
-              >
-                <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
-              </.link>
-            </div>
-          </div>
-        </div>
-      </div>
+      <.account_settings_sidebar selected_tab={@selected_tab} />
     </div>
     <!-- Main Content -->
     <div class="lg:col-span-3">

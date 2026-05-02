@@ -144,6 +144,7 @@ defmodule ElektrineWeb.CoreComponents do
   attr :class, :string, default: nil
   attr :shell_title, :string, default: nil
   attr :shell_subtitle, :string, default: nil
+  attr :show_header, :boolean, default: true
   slot :sidebar
   slot :inner_block, required: true
 
@@ -178,7 +179,7 @@ defmodule ElektrineWeb.CoreComponents do
           <% end %>
         </div>
         <section class={["w-full space-y-6 sm:space-y-8 lg:col-span-3", @max_width, @class]}>
-          <header class="space-y-3">
+          <header :if={@show_header} class="space-y-3">
             <h2 class="text-2xl font-bold text-base-content sm:text-3xl">{@title}</h2>
             <p :if={@subtitle} class="text-base-content/70">{@subtitle}</p>
           </header>
@@ -233,6 +234,12 @@ defmodule ElektrineWeb.CoreComponents do
               class={account_setting_secondary_link_class(@selected_link, "drive")}
             >
               <.icon name="hero-folder" class="w-4 h-4" /> {gettext("Drive")}
+            </.link>
+            <.link
+              navigate="/account/proofs"
+              class={account_setting_secondary_link_class(@selected_link, "proofs")}
+            >
+              <.icon name="hero-identification" class="w-4 h-4" /> {gettext("Proofs")}
             </.link>
           </div>
         </div>
@@ -503,7 +510,7 @@ defmodule ElektrineWeb.CoreComponents do
     <div
       id="flash-group"
       phx-hook="FlashAutoDismiss"
-      class="fixed bottom-4 right-4 z-[1000] w-full max-w-sm px-4 sm:px-0 space-y-2 pointer-events-none"
+      class="fixed bottom-4 left-1/2 z-[1000] w-full max-w-sm -translate-x-1/2 px-4 sm:left-auto sm:right-4 sm:translate-x-0 sm:px-0 space-y-2 pointer-events-none"
     >
       <.flash kind={:info} title="Success" flash={@flash} auto_dismiss_ms={5000} />
       <.flash kind={:error} title="Error" flash={@flash} auto_dismiss_ms={5000} />

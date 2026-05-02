@@ -50,7 +50,8 @@ defmodule Elektrine.Email.InboundRouting do
     matches_to = to_normalized && Mailbox.owns_email?(mailbox, to_normalized)
     matches_rcpt_to = rcpt_to_normalized && Mailbox.owns_email?(mailbox, rcpt_to_normalized)
 
-    matches_alias = check_alias_ownership(to_clean || rcpt_to_clean, mailbox)
+    matches_alias =
+      check_alias_ownership(to_clean, mailbox) || check_alias_ownership(rcpt_to_clean, mailbox)
 
     cond do
       matches_to ->

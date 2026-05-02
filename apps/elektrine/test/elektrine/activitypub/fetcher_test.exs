@@ -5,6 +5,8 @@ defmodule Elektrine.ActivityPub.FetcherTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Fetcher
 
+  import ExUnit.CaptureLog
+
   describe "fetch_object/2" do
     test "rejects unsafe URLs before making a request" do
       assert {:error, :unsafe_url} =
@@ -89,6 +91,29 @@ defmodule Elektrine.ActivityPub.FetcherTest do
                  allow_recovery: false,
                  request_fun: request_fun
                )
+    end
+
+    test "logs non-JSON upstream responses with a body preview" do
+      outbox_uri = "https://app.wafrn.net/fediverse/blog/sberson/outbox"
+
+      request_fun = fn ^outbox_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           headers: [{"content-type", "text/plain"}],
+           body: "OK"
+         }}
+      end
+
+      log =
+        capture_log(fn ->
+          assert {:error, :invalid_json} =
+                   Fetcher.fetch_object(outbox_uri, skip_cache: true, request_fun: request_fun)
+        end)
+
+      assert log =~ "Expected ActivityPub JSON"
+      assert log =~ "content_type=\"text/plain\""
+      assert log =~ "body_preview=\"OK\""
     end
 
     test "recovers Lemmy comments when the comment URL returns HTML" do

@@ -11,7 +11,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
   # These pages live in the shared :main live_session for seamless navigation,
   # so authentication must be enforced explicitly during on_mount.
   @authenticated_live_modules [
-    ElektrineChatWeb.ChatLive.Index,
+    ArblargWeb.ChatLive.Index,
     ElektrineEmailWeb.ContactsLive.Index,
     ElektrineEmailWeb.EmailLive.Compose,
     ElektrineEmailWeb.EmailLive.Index,

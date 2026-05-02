@@ -113,9 +113,11 @@ defmodule Elektrine.Notifications do
   """
   def list_grouped_notifications(user_id, opts \\ []) do
     filter = Keyword.get(opts, :filter, :all)
+    source_filter = Keyword.get(opts, :source_filter, "all")
 
     # Get raw notifications
-    notifications = list_notifications(user_id, filter: filter, limit: 200)
+    notifications =
+      list_notifications(user_id, filter: filter, source_filter: source_filter, limit: 200)
 
     # Group notifications
     groups =
@@ -231,6 +233,7 @@ defmodule Elektrine.Notifications do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
     filter = Keyword.get(opts, :filter, :all)
+    source_filter = Keyword.get(opts, :source_filter, "all")
 
     query =
       from(n in Notification,
@@ -248,9 +251,22 @@ defmodule Elektrine.Notifications do
         _ -> query
       end
 
+    query = apply_source_filter(query, source_filter)
+
     query
     |> Repo.all()
     |> resolve_legacy_message_notification_urls()
+  end
+
+  defp apply_source_filter(query, source_filter) do
+    case source_filter do
+      "chat" -> where(query, [n], n.type in ["new_message", "reply"])
+      "email" -> where(query, [n], n.type == "email_received")
+      "requests" -> where(query, [n], n.type == "follow")
+      "social" -> where(query, [n], n.type in ["mention", "like", "comment", "discussion_reply"])
+      "system" -> where(query, [n], n.type == "system")
+      _ -> query
+    end
   end
 
   @doc """

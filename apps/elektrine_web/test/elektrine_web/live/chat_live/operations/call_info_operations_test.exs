@@ -1,7 +1,7 @@
-defmodule ElektrineChatWeb.ChatLive.Operations.CallInfoOperationsTest do
+defmodule ArblargWeb.ChatLive.Operations.CallInfoOperationsTest do
   use ExUnit.Case, async: true
 
-  alias ElektrineChatWeb.ChatLive.Operations.CallInfoOperations
+  alias ArblargWeb.ChatLive.Operations.CallInfoOperations
 
   test "route_info/2 routes call terminal events and marks them as processed" do
     socket = socket_fixture()

@@ -17,7 +17,7 @@ apps depend on it for `Elektrine.Repo`, shared schemas, and shared services.
 
 - `elektrine` is the main dependency for the feature apps.
 - Migrations for core domain tables live under `apps/elektrine/priv/repo/migrations`.
-- Chat call sites should prefer `ElektrineChat` over reaching into `Elektrine.Messaging` directly.
+- Chat call sites should prefer `Arblarg` over reaching into `Elektrine.Messaging` directly.
 
 ## License
 

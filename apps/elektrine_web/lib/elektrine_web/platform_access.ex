@@ -146,7 +146,7 @@ defmodule ElektrineWeb.PlatformAccess do
       view == ElektrineWeb.PortalLive.Index ->
         :portal
 
-      view == ElektrineChatWeb.ChatLive.Index ->
+      view == ArblargWeb.ChatLive.Index ->
         :chat
 
       view in [

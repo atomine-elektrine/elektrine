@@ -1,4 +1,4 @@
-defmodule ElektrineChatWeb.Admin.ChatMessagesControllerTest do
+defmodule ArblargWeb.Admin.ChatMessagesControllerTest do
   use ElektrineWeb.ConnCase, async: true
 
   import Ecto.Query

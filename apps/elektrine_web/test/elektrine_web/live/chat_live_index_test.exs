@@ -1,8 +1,8 @@
 defmodule ElektrineWeb.ChatLiveIndexTest do
   use Elektrine.DataCase, async: true
 
+  alias ArblargWeb.ChatLive.Index
   alias Elektrine.AccountsFixtures
-  alias ElektrineChatWeb.ChatLive.Index
 
   test "user_read_messages updates visible message read status" do
     user = AccountsFixtures.user_fixture()

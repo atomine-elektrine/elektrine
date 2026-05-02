@@ -16,6 +16,7 @@ defmodule Elektrine.Accounts do
   import Ecto.Query, warn: false
   alias Elektrine.Repo
 
+  alias Elektrine.Accounts.ConnectedAccount
   alias Elektrine.Accounts.InviteCode
   alias Elektrine.Accounts.InviteCodeUse
   alias Elektrine.Accounts.User
@@ -42,6 +43,68 @@ defmodule Elektrine.Accounts do
   @activitypub_actor_update_fields [:avatar]
 
   ## Core User Management
+
+  @doc "Lists external OAuth/OIDC accounts connected to a user."
+  def list_connected_accounts(user_id) when is_integer(user_id) do
+    ConnectedAccount
+    |> where([account], account.user_id == ^user_id)
+    |> order_by([account], asc: account.provider, asc: account.username)
+    |> Repo.all()
+  end
+
+  def list_connected_accounts(_), do: []
+
+  @doc "Gets a connected account owned by a user."
+  def get_connected_account(user_id, id) when is_integer(user_id) and is_integer(id) do
+    Repo.get_by(ConnectedAccount, id: id, user_id: user_id)
+  end
+
+  @doc "Gets a connected account by provider identity."
+  def get_connected_account_by_provider(provider, provider_account_id)
+      when is_binary(provider) and is_binary(provider_account_id) do
+    Repo.get_by(ConnectedAccount,
+      provider: provider |> String.trim() |> String.downcase(),
+      provider_account_id: provider_account_id |> String.trim() |> String.downcase()
+    )
+  end
+
+  @doc "Creates or updates a user's connected provider account after OAuth succeeds."
+  def upsert_connected_account(%User{} = user, attrs) when is_map(attrs) do
+    user_id = user.id
+
+    attrs =
+      attrs
+      |> stringify_account_attrs()
+      |> Map.put("user_id", user_id)
+      |> Map.put_new("last_verified_at", DateTime.utc_now() |> DateTime.truncate(:second))
+
+    case get_connected_account_by_provider(attrs["provider"], attrs["provider_account_id"]) do
+      %ConnectedAccount{user_id: ^user_id} = connected_account ->
+        connected_account
+        |> ConnectedAccount.changeset(attrs)
+        |> Repo.update()
+
+      %ConnectedAccount{} ->
+        {:error, :provider_account_already_connected}
+
+      nil ->
+        %ConnectedAccount{}
+        |> ConnectedAccount.changeset(attrs)
+        |> Repo.insert()
+    end
+  end
+
+  @doc "Deletes a connected account owned by a user."
+  def delete_connected_account(%User{} = user, id) when is_integer(id) do
+    case get_connected_account(user.id, id) do
+      %ConnectedAccount{} = connected_account -> Repo.delete(connected_account)
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp stringify_account_attrs(attrs) do
+    Map.new(attrs, fn {key, value} -> {to_string(key), value} end)
+  end
 
   @doc """
   Returns the list of users.

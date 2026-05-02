@@ -9,7 +9,7 @@ under the same root `LICENSE`:
 
 - `apps/elektrine`
 - `apps/elektrine_web`
-- `apps/elektrine_chat`
+- `apps/arblarg`
 - `apps/elektrine_email`
 - `apps/elektrine_social`
 - `apps/elektrine_vpn`

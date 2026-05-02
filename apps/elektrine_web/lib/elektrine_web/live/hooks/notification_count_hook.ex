@@ -38,15 +38,12 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
     # Increment notification count
     new_count = (socket.assigns[:notification_count] || 0) + 1
 
-    # Show flash notification for federation notifications
     socket =
-      if notification.type in ["like", "reply", "follow", "reaction", "boost"] do
-        put_flash(socket, :info, notification.body || notification.title)
-      else
-        socket
-      end
+      socket
+      |> assign(:notification_count, new_count)
+      |> push_event("show_notification", notification_payload(notification))
 
-    {:cont, assign(socket, :notification_count, new_count)}
+    {:cont, socket}
   end
 
   defp handle_notification_info({:notification_read, _notification_id}, socket) do
@@ -69,4 +66,21 @@ defmodule ElektrineWeb.Live.Hooks.NotificationCountHook do
     # Pass through other messages
     {:cont, socket}
   end
+
+  defp notification_payload(notification) do
+    %{
+      title: notification.title || "New notification",
+      message: notification.body || notification.title || "You have a new notification",
+      type: notification_toast_type(notification),
+      duration: notification_duration(notification)
+    }
+  end
+
+  defp notification_toast_type(%{priority: priority}) when priority in ["high", "urgent"],
+    do: "warning"
+
+  defp notification_toast_type(_notification), do: "info"
+
+  defp notification_duration(%{priority: "urgent"}), do: 10_000
+  defp notification_duration(_notification), do: 6_000
 end

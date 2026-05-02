@@ -1,4 +1,4 @@
-defmodule ElektrineChatWeb.ChatLive.IndexTest do
+defmodule ArblargWeb.ChatLive.IndexTest do
   use ElektrineWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

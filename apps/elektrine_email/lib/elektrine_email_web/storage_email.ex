@@ -40,7 +40,7 @@ defmodule ElektrineEmailWeb.StorageEmail do
               message_id: message.id,
               attachment_id: key,
               filename: filename,
-              size: Map.get(attachment, "size", 0),
+              size: size_to_integer(Map.get(attachment, "size", 0)),
               date: message.inserted_at,
               from: message.from,
               is_image: is_image,
@@ -94,4 +94,15 @@ defmodule ElektrineEmailWeb.StorageEmail do
   end
 
   defp maybe_delete_email_attachment_storage(_), do: :ok
+
+  defp size_to_integer(size) when is_integer(size) and size > 0, do: size
+
+  defp size_to_integer(size) when is_binary(size) do
+    case Integer.parse(size) do
+      {size, ""} when size > 0 -> size
+      _ -> 0
+    end
+  end
+
+  defp size_to_integer(_), do: 0
 end

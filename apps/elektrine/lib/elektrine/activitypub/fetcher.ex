@@ -318,11 +318,11 @@ defmodule Elektrine.ActivityPub.Fetcher do
               {:error, :webfinger_failed}
 
             {:error, :backoff} ->
-              Logger.error("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
+              Logger.warning("WebFinger lookup deferred due to remote backoff: #{webfinger_url}")
               {:error, :webfinger_failed}
 
             {:error, reason} ->
-              Logger.error("HTTP error during WebFinger: #{inspect(reason)}")
+              Logger.warning("HTTP error during WebFinger: #{inspect(reason)}")
               {:error, :http_error}
           end
         end
@@ -349,13 +349,35 @@ defmodule Elektrine.ActivityPub.Fetcher do
         {:ok, object_data}
 
       _ ->
-        Logger.error("Failed to decode JSON from #{uri}: #{inspect(reason)}")
+        Logger.warning(
+          "Expected ActivityPub JSON from #{uri}, got non-JSON response: " <>
+            "content_type=#{inspect(response_content_type(response_headers))} " <>
+            "body_preview=#{inspect(body_preview(body))} decode_error=#{inspect(reason)}"
+        )
+
         {:error, :invalid_json}
     end
   end
 
   defp maybe_recover_object_from_html(_uri, _response, _reason, _opts),
     do: {:error, :invalid_json}
+
+  defp response_content_type(headers) when is_list(headers) do
+    headers
+    |> Enum.find_value(fn {key, value} ->
+      if String.downcase(to_string(key)) == "content-type", do: value
+    end)
+  end
+
+  defp response_content_type(_), do: nil
+
+  defp body_preview(body) when is_binary(body) do
+    body
+    |> String.replace(~r/\s+/, " ")
+    |> String.slice(0, 120)
+  end
+
+  defp body_preview(_), do: nil
 
   defp mastodon_status_fallback(uri, opts) when is_binary(uri) do
     with {:ok, domain, username, status_id} <- extract_mastodon_status_info(uri),

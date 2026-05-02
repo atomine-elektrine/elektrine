@@ -19,7 +19,7 @@ defmodule ElektrineWeb.MixProject do
 
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :atomine]
     ]
   end
 
@@ -44,25 +44,25 @@ defmodule ElektrineWeb.MixProject do
       Phoenix.LiveReloader.Socket,
       ElektrineSocialWeb.ActivityPubController,
       ElektrineEmailWeb.Admin.AliasesController,
-      ElektrineChatWeb.Admin.ChatMessagesController,
+      ArblargWeb.Admin.ChatMessagesController,
       ElektrineEmailWeb.Admin.CustomDomainsController,
       ElektrineEmailWeb.Admin.MailboxesController,
       ElektrineEmailWeb.Admin.MessagesController,
       ElektrineVPNWeb.Admin.VPNController,
       ElektrineEmailWeb.API.AliasController,
-      ElektrineChatWeb.API.ConversationController,
+      ArblargWeb.API.ConversationController,
       ElektrineEmailWeb.API.EmailController,
-      ElektrineChatWeb.API.ExtChatController,
+      ArblargWeb.API.ExtChatController,
       ElektrineEmailWeb.API.ExtContactsController,
       ElektrineEmailWeb.API.ExtEmailController,
       ElektrineSocialWeb.API.ExtSocialController,
       ElektrineEmailWeb.API.MailboxController,
-      ElektrineChatWeb.API.MessageController,
-      ElektrineChatWeb.API.ServerController,
+      ArblargWeb.API.MessageController,
+      ArblargWeb.API.ServerController,
       ElektrineSocialWeb.API.SocialController,
       ElektrineVPNWeb.API.VPNController,
       ElektrineEmailWeb.AttachmentController,
-      ElektrineChatWeb.ChatLive.Index,
+      ArblargWeb.ChatLive.Index,
       ElektrineEmailWeb.ContactsLive.Index,
       ElektrineEmailWeb.DAV.AddressBookController,
       ElektrineDNSWeb.API.DNSController,
@@ -124,6 +124,7 @@ defmodule ElektrineWeb.MixProject do
   defp deps do
     [
       internal_dep(:elektrine),
+      internal_dep(:atomine),
       internal_dep(:elektrine_password_manager),
       {:posthog, "~> 2.5"}
     ]

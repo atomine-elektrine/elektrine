@@ -6,7 +6,7 @@ Elektrine is organized as an Elixir umbrella project.
 
 - [`elektrine`](./elektrine/README.md) - Core domain logic, persistence, runtime services
 - [`elektrine_web`](./elektrine_web/README.md) - Phoenix endpoint, router, shared layout, and common components
-- [`elektrine_chat`](./elektrine_chat/README.md) - Chat facade, LiveViews, JSON APIs, and PAT APIs
+- [`arblarg`](./arblarg/README.md) - Chat facade, LiveViews, JSON APIs, and PAT APIs
 - [`elektrine_email`](./elektrine_email/README.md) - Mailbox domain, mail protocols, JMAP, WKD, and web routes
 - [`elektrine_social`](./elektrine_social/README.md) - Social/timeline features
 - [`elektrine_vpn`](./elektrine_vpn/README.md) - VPN features

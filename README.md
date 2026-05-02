@@ -19,7 +19,7 @@ product areas are split into their own umbrella apps.
 
 - `apps/elektrine`: shared domain logic, `Repo`, supervisors, accounts, uploads, notifications, calendar, and module selection
 - `apps/elektrine_web`: endpoint, router, plugs, layouts, shared components, and account/admin shell
-- `apps/elektrine_chat`: chat facade plus LiveViews, JSON APIs, and PAT APIs
+- `apps/arblarg`: chat facade plus LiveViews, JSON APIs, and PAT APIs
 - `apps/elektrine_social`: timeline, communities, federation, social controllers, and LiveViews
 - `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and mail web routes
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
