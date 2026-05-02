@@ -100,7 +100,9 @@ config :elektrine, Oban,
        # Archive/prune federation event/outbox data daily
        {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker},
        # Renew wildcard certificates through acme.sh when enabled
-       {"35 2 * * *", Elektrine.ACME.WildcardRenewalWorker}
+       {"35 2 * * *", Elektrine.ACME.WildcardRenewalWorker},
+       # Recheck live Atomine proofs whose next_check_at is due
+       {"25 * * * *", Atomine.LiveProofRecheckWorker}
      ]}
   ]
 

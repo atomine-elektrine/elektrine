@@ -195,21 +195,31 @@ defmodule ElektrineWeb.NotificationsLive do
   def handle_info(:load_notifications, socket) do
     user = socket.assigns.current_user
     filter = socket.assigns.filter
+    source_filter = socket.assigns.source_filter
 
     # Load notifications data in parallel
     notifications_task =
+      Task.async(fn ->
+        Notifications.list_grouped_notifications(user.id,
+          filter: filter,
+          source_filter: source_filter
+        )
+      end)
+
+    stats_task =
       Task.async(fn ->
         Notifications.list_grouped_notifications(user.id, filter: filter)
       end)
 
     unread_task = Task.async(fn -> Notifications.get_unread_count(user.id) end)
     grouped_notifications = Task.await(notifications_task)
+    stats_notifications = Task.await(stats_task)
     unread_count = Task.await(unread_task)
 
     {:noreply,
      socket
      |> assign(:loading_notifications, false)
-     |> assign_notification_data(grouped_notifications, unread_count)}
+     |> assign_notification_data(grouped_notifications, stats_notifications, unread_count)}
   end
 
   @impl true
@@ -246,25 +256,29 @@ defmodule ElektrineWeb.NotificationsLive do
     user_id = socket.assigns.current_user.id
 
     grouped_notifications =
+      Notifications.list_grouped_notifications(user_id,
+        filter: socket.assigns.filter,
+        source_filter: socket.assigns.source_filter
+      )
+
+    stats_notifications =
       Notifications.list_grouped_notifications(user_id, filter: socket.assigns.filter)
 
     unread_count = Notifications.get_unread_count(user_id)
-    assign_notification_data(socket, grouped_notifications, unread_count)
+    assign_notification_data(socket, grouped_notifications, stats_notifications, unread_count)
   end
 
-  defp assign_notification_data(socket, grouped_notifications, unread_count) do
+  defp assign_notification_data(socket, grouped_notifications, stats_notifications, unread_count) do
     enriched_groups = Enum.map(grouped_notifications, &decorate_group/1)
+    stats_groups = Enum.map(stats_notifications, &decorate_group/1)
 
     socket
     |> assign(:grouped_notifications, enriched_groups)
-    |> assign(
-      :filtered_notifications,
-      filter_groups(enriched_groups, socket.assigns.source_filter)
-    )
+    |> assign(:filtered_notifications, enriched_groups)
     |> assign(:unread_count, unread_count)
     |> assign(
       :notification_stats,
-      build_notification_stats(enriched_groups, unread_count)
+      build_notification_stats(stats_groups, unread_count)
     )
   end
 
@@ -285,11 +299,6 @@ defmodule ElektrineWeb.NotificationsLive do
     |> Map.put(:latest_notification, latest_notification)
     |> Map.put(:priority, (latest_notification && latest_notification.priority) || "normal")
   end
-
-  defp filter_groups(groups, "all"), do: groups
-
-  defp filter_groups(groups, source_filter),
-    do: Enum.filter(groups, &(&1.source == source_filter))
 
   defp build_notification_stats(groups, unread_count) do
     source_counts =

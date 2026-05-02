@@ -9,7 +9,7 @@ defmodule Atomine.Scoring do
 
   import Ecto.Query, warn: false
 
-  alias Atomine.Proof
+  alias Atomine.{Attestation, Proof}
   alias Elektrine.Accounts.User
   alias Elektrine.Repo
 
@@ -24,6 +24,8 @@ defmodule Atomine.Scoring do
     positive = %{
       proofs: proof_score(proofs),
       proof_diversity: proof_diversity_bonus(proofs),
+      portable_effort: portable_effort_score(user.id),
+      continuity: continuity_score(user.id),
       account_age: account_age_score(user),
       security: security_score(user),
       account_history: account_history_score(user),
@@ -100,6 +102,32 @@ defmodule Atomine.Scoring do
     |> Kernel.*(@diversity_bonus_per_kind)
     |> min(@max_diversity_bonus)
   end
+
+  defp portable_effort_score(user_id) do
+    user_id
+    |> active_attestations_query("pow_receipt")
+    |> Repo.all()
+    |> Enum.reduce(0, fn attestation, total -> total + effort_weight(attestation.difficulty) end)
+    |> min(15)
+  end
+
+  defp continuity_score(user_id) do
+    if Repo.exists?(active_attestations_query(user_id, "passkey_receipt")), do: 15, else: 0
+  end
+
+  defp active_attestations_query(user_id, kind) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from a in Attestation,
+      where:
+        a.user_id == ^user_id and a.kind == ^kind and a.status == "issued" and
+          a.expires_at >= ^now
+  end
+
+  defp effort_weight(difficulty) when is_integer(difficulty) and difficulty >= 24, do: 5
+  defp effort_weight(difficulty) when is_integer(difficulty) and difficulty >= 20, do: 3
+  defp effort_weight(difficulty) when is_integer(difficulty) and difficulty >= 16, do: 1
+  defp effort_weight(_), do: 0
 
   defp account_age_score(%User{inserted_at: inserted_at}) do
     days = account_age_days(inserted_at)

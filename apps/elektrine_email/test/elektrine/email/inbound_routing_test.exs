@@ -169,6 +169,59 @@ defmodule Elektrine.Email.InboundRoutingTest do
                )
     end
 
+    test "accepts alias recipient in rcpt_to when To header names a different address" do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      alias_local_part = "routealias#{System.unique_integer([:positive])}"
+      alias_email = "#{alias_local_part}@#{Domains.primary_email_domain()}"
+
+      assert {:ok, _alias} =
+               Email.create_alias(%{
+                 username: alias_local_part,
+                 domain: Domains.primary_email_domain(),
+                 delivery_mode: "deliver",
+                 user_id: user.id
+               })
+
+      assert :ok =
+               InboundRouting.validate_mailbox_route(
+                 "donotreply@sjsu.edu",
+                 alias_email,
+                 mailbox
+               )
+    end
+
+    test "accepts catch-all alias recipient in rcpt_to when To header names a different address" do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      domain = "routecatch#{System.unique_integer([:positive])}.example.net"
+
+      {:ok, custom_domain} = Email.create_custom_domain(user, %{"domain" => domain})
+
+      assert {:ok, _verified_domain} =
+               custom_domain
+               |> Ecto.Changeset.change(
+                 status: "verified",
+                 verified_at: DateTime.utc_now() |> DateTime.truncate(:second)
+               )
+               |> Elektrine.Repo.update()
+
+      assert {:ok, _alias} =
+               Email.create_alias(%{
+                 alias_email: "*@#{domain}",
+                 catch_all: true,
+                 delivery_mode: "deliver",
+                 user_id: user.id
+               })
+
+      assert :ok =
+               InboundRouting.validate_mailbox_route(
+                 "donotreply@sjsu.edu",
+                 "bn@#{domain}",
+                 mailbox
+               )
+    end
+
     test "rejects mismatched recipient to mailbox routing" do
       user = user_fixture()
 

@@ -574,14 +574,15 @@ defmodule Elektrine.Profiles do
     }
 
     Repo.transaction(fn ->
-      {:ok, visit} =
-        %SitePageVisit{}
-        |> SitePageVisit.changeset(attrs)
-        |> Repo.insert()
-
-      {:ok, _session} = upsert_site_session(attrs, now)
-
-      visit
+      with {:ok, visit} <-
+             %SitePageVisit{}
+             |> SitePageVisit.changeset(attrs)
+             |> Repo.insert(),
+           {:ok, _session} <- upsert_site_session(attrs, now) do
+        visit
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
     end)
   end
 

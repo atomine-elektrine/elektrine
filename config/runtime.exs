@@ -710,7 +710,7 @@ if config_env() == :prod do
       :elektrine,
       :elektrine_web,
       :elektrine_email,
-      :elektrine_chat,
+      :arblarg,
       :elektrine_dns,
       :elektrine_social,
       :elektrine_vpn

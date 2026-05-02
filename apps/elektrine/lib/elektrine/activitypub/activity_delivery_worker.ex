@@ -108,7 +108,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
 
           {:error, :backoff, remaining_ms} ->
             # Domain is in backoff due to failures
-            snooze_seconds = max(1, div(remaining_ms, 1000))
+            snooze_seconds = max(1, div(normalize_remaining_ms(remaining_ms), 1000))
             Logger.info("Domain #{domain} in backoff, snoozing delivery for #{snooze_seconds}s")
 
             Events.federation(
@@ -269,4 +269,12 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
   end
 
   defp inbox_domain(_), do: "unknown"
+
+  defp normalize_remaining_ms(remaining_ms) when is_integer(remaining_ms) and remaining_ms > 0,
+    do: remaining_ms
+
+  defp normalize_remaining_ms(remaining_ms) when is_float(remaining_ms) and remaining_ms > 0,
+    do: round(remaining_ms)
+
+  defp normalize_remaining_ms(_), do: 1_000
 end

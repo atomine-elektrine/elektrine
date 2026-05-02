@@ -1391,7 +1391,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
     %{
       message_id: message_id,
-      question: extract_poll_question_text(object),
+      question: extract_poll_question_text(object) |> String.slice(0, 300),
       total_votes: voters_count,
       voters_count: voters_count,
       closes_at: end_time,

@@ -24,7 +24,7 @@ function flashGroup() {
   if (!group) {
     group = document.createElement('div')
     group.id = 'flash-group'
-    group.className = 'fixed bottom-4 right-4 z-[1000] w-full max-w-sm px-4 sm:px-0 space-y-2 pointer-events-none'
+    group.className = 'fixed bottom-4 left-1/2 z-[1000] w-full max-w-sm -translate-x-1/2 px-4 sm:left-auto sm:right-4 sm:translate-x-0 sm:px-0 space-y-2 pointer-events-none'
     document.body.appendChild(group)
   }
 

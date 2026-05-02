@@ -47,111 +47,111 @@ defmodule ElektrineWeb.Routes.Chat do
   defmacro admin_routes do
     quote do
       scope "/", alias: false do
-        get("/arblarg/messages", ElektrineChatWeb.Admin.ChatMessagesController, :index)
-        get("/arblarg/messages/:id/view", ElektrineChatWeb.Admin.ChatMessagesController, :view)
-        get("/arblarg/messages/:id/raw", ElektrineChatWeb.Admin.ChatMessagesController, :view_raw)
+        get("/arblarg/messages", ArblargWeb.Admin.ChatMessagesController, :index)
+        get("/arblarg/messages/:id/view", ArblargWeb.Admin.ChatMessagesController, :view)
+        get("/arblarg/messages/:id/raw", ArblargWeb.Admin.ChatMessagesController, :view_raw)
       end
     end
   end
 
   defmacro authenticated_api_routes do
     quote do
-      get("/servers", ElektrineChatWeb.API.ServerController, :index)
-      post("/servers", ElektrineChatWeb.API.ServerController, :create)
-      get("/servers/:id", ElektrineChatWeb.API.ServerController, :show)
-      post("/servers/:server_id/join", ElektrineChatWeb.API.ServerController, :join)
-      post("/servers/:server_id/channels", ElektrineChatWeb.API.ServerController, :create_channel)
+      get("/servers", ArblargWeb.API.ServerController, :index)
+      post("/servers", ArblargWeb.API.ServerController, :create)
+      get("/servers/:id", ArblargWeb.API.ServerController, :show)
+      post("/servers/:server_id/join", ArblargWeb.API.ServerController, :join)
+      post("/servers/:server_id/channels", ArblargWeb.API.ServerController, :create_channel)
 
-      get("/conversations", ElektrineChatWeb.API.ConversationController, :index)
-      post("/conversations", ElektrineChatWeb.API.ConversationController, :create)
-      get("/conversations/:id", ElektrineChatWeb.API.ConversationController, :show)
-      put("/conversations/:id", ElektrineChatWeb.API.ConversationController, :update)
-      delete("/conversations/:id", ElektrineChatWeb.API.ConversationController, :delete)
+      get("/conversations", ArblargWeb.API.ConversationController, :index)
+      post("/conversations", ArblargWeb.API.ConversationController, :create)
+      get("/conversations/:id", ArblargWeb.API.ConversationController, :show)
+      put("/conversations/:id", ArblargWeb.API.ConversationController, :update)
+      delete("/conversations/:id", ArblargWeb.API.ConversationController, :delete)
 
       post(
         "/conversations/:conversation_id/join",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :join
       )
 
       post(
         "/conversations/:conversation_id/leave",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :leave
       )
 
       post(
         "/conversations/:conversation_id/read",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :mark_read
       )
 
       get(
         "/conversations/:conversation_id/members",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :members
       )
 
       post(
         "/conversations/:conversation_id/members",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :add_member
       )
 
       get(
         "/conversations/:conversation_id/remote-join-requests",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :pending_remote_join_requests
       )
 
       post(
         "/conversations/:conversation_id/remote-join-requests/approve",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :approve_remote_join_request
       )
 
       post(
         "/conversations/:conversation_id/remote-join-requests/decline",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :decline_remote_join_request
       )
 
       delete(
         "/conversations/:conversation_id/members/:user_id",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :remove_member
       )
 
       get(
         "/conversations/:conversation_id/messages",
-        ElektrineChatWeb.API.MessageController,
+        ArblargWeb.API.MessageController,
         :index
       )
 
       post(
         "/conversations/:conversation_id/messages",
-        ElektrineChatWeb.API.MessageController,
+        ArblargWeb.API.MessageController,
         :create
       )
 
-      put("/messages/:id", ElektrineChatWeb.API.MessageController, :update)
-      delete("/messages/:id", ElektrineChatWeb.API.MessageController, :delete)
+      put("/messages/:id", ArblargWeb.API.MessageController, :update)
+      delete("/messages/:id", ArblargWeb.API.MessageController, :delete)
 
       post(
         "/conversations/:conversation_id/upload",
-        ElektrineChatWeb.API.ConversationController,
+        ArblargWeb.API.ConversationController,
         :upload_media
       )
 
       post(
         "/messages/:message_id/reactions",
-        ElektrineChatWeb.API.MessageController,
+        ArblargWeb.API.MessageController,
         :add_reaction
       )
 
       delete(
         "/messages/:message_id/reactions/:emoji",
-        ElektrineChatWeb.API.MessageController,
+        ArblargWeb.API.MessageController,
         :remove_reaction
       )
     end
@@ -159,24 +159,24 @@ defmodule ElektrineWeb.Routes.Chat do
 
   defmacro ext_api_read_routes do
     quote do
-      get("/conversations", ElektrineChatWeb.API.ExtChatController, :index)
-      get("/conversations/:id", ElektrineChatWeb.API.ExtChatController, :show)
-      get("/conversations/:id/messages", ElektrineChatWeb.API.ExtChatController, :messages)
+      get("/conversations", ArblargWeb.API.ExtChatController, :index)
+      get("/conversations/:id", ArblargWeb.API.ExtChatController, :show)
+      get("/conversations/:id/messages", ArblargWeb.API.ExtChatController, :messages)
     end
   end
 
   defmacro ext_api_write_routes do
     quote do
-      post("/conversations/:id/messages", ElektrineChatWeb.API.ExtChatController, :create)
+      post("/conversations/:id/messages", ArblargWeb.API.ExtChatController, :create)
     end
   end
 
   defmacro main_live_routes do
     quote do
       scope "/", alias: false do
-        live("/chat", ElektrineChatWeb.ChatLive.Index, :index)
-        live("/chat/:conversation_id", ElektrineChatWeb.ChatLive.Index, :conversation)
-        live("/chat/join/:conversation_id", ElektrineChatWeb.ChatLive.Index, :join)
+        live("/chat", ArblargWeb.ChatLive.Index, :index)
+        live("/chat/:conversation_id", ArblargWeb.ChatLive.Index, :conversation)
+        live("/chat/join/:conversation_id", ArblargWeb.ChatLive.Index, :join)
       end
     end
   end
@@ -196,6 +196,6 @@ defmodule ElektrineWeb.Routes.Chat do
   end
 
   def view_modules do
-    [ElektrineChatWeb.ChatLive.Index, ElektrineWeb.FriendsLive]
+    [ArblargWeb.ChatLive.Index, ElektrineWeb.FriendsLive]
   end
 end

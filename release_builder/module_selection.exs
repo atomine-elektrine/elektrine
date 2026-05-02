@@ -3,7 +3,7 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
   @module_order @known_modules |> Enum.with_index() |> Map.new()
   @core_apps [:elektrine, :elektrine_web]
   @module_apps %{
-    chat: :elektrine_chat,
+    chat: :arblarg,
     social: :elektrine_social,
     email: :elektrine_email,
     vault: :elektrine_password_manager,

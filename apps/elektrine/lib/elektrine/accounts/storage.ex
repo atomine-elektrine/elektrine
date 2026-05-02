@@ -111,6 +111,10 @@ defmodule Elektrine.Accounts.Storage do
   # Public calculation functions for storage management page
 
   def calculate_email_storage(user_id) do
+    calculate_email_message_storage(user_id) + calculate_email_attachment_storage(user_id)
+  end
+
+  def calculate_email_message_storage(user_id) do
     if Modules.compiled?(:email) do
       # Get user's mailbox
       case Elektrine.Email.get_user_mailbox(user_id) do
@@ -118,28 +122,42 @@ defmodule Elektrine.Accounts.Storage do
           0
 
         mailbox ->
-          # Sum all text/html body sizes and actual attachment file sizes
-          messages =
-            Message
-            |> where([m], m.mailbox_id == ^mailbox.id)
-            |> select([m], %{
-              text_size: coalesce(fragment("length(?)", m.text_body), 0),
-              html_size: coalesce(fragment("length(?)", m.html_body), 0),
-              subject_size: coalesce(fragment("length(?)", m.subject), 0),
-              from_size: coalesce(fragment("length(?)", m.from), 0),
-              to_size: coalesce(fragment("length(?)", m.to), 0),
-              cc_size: coalesce(fragment("length(?)", m.cc), 0),
-              bcc_size: coalesce(fragment("length(?)", m.bcc), 0),
-              attachments: m.attachments
-            })
-            |> Repo.all()
-
-          Enum.reduce(messages, 0, fn row, acc ->
-            attachment_size = calculate_attachments_size(row.attachments)
-
+          # Sum stored mailbox content separately from attachment blobs so the UI can break them out.
+          Message
+          |> where([m], m.mailbox_id == ^mailbox.id)
+          |> select([m], %{
+            text_size: coalesce(fragment("length(?)", m.text_body), 0),
+            html_size: coalesce(fragment("length(?)", m.html_body), 0),
+            subject_size: coalesce(fragment("length(?)", m.subject), 0),
+            from_size: coalesce(fragment("length(?)", m.from), 0),
+            to_size: coalesce(fragment("length(?)", m.to), 0),
+            cc_size: coalesce(fragment("length(?)", m.cc), 0),
+            bcc_size: coalesce(fragment("length(?)", m.bcc), 0)
+          })
+          |> Repo.all()
+          |> Enum.reduce(0, fn row, acc ->
             acc + row.text_size + row.html_size + row.subject_size +
-              row.from_size + row.to_size + row.cc_size + row.bcc_size +
-              attachment_size
+              row.from_size + row.to_size + row.cc_size + row.bcc_size
+          end)
+      end
+    else
+      0
+    end
+  end
+
+  def calculate_email_attachment_storage(user_id) do
+    if Modules.compiled?(:email) do
+      case Elektrine.Email.get_user_mailbox(user_id) do
+        nil ->
+          0
+
+        mailbox ->
+          Message
+          |> where([m], m.mailbox_id == ^mailbox.id)
+          |> select([m], %{attachments: m.attachments})
+          |> Repo.all()
+          |> Enum.reduce(0, fn row, acc ->
+            acc + calculate_attachments_size(row.attachments)
           end)
       end
     else
@@ -156,12 +174,22 @@ defmodule Elektrine.Accounts.Storage do
     |> Enum.reduce(0, fn attachment, acc ->
       # Get size from attachment metadata (works for both S3 and DB storage)
       size = Map.get(attachment, "size", 0)
-      size_int = if is_integer(size), do: size, else: 0
-      acc + size_int
+      acc + size_to_integer(size)
     end)
   end
 
   defp calculate_attachments_size(_), do: 0
+
+  defp size_to_integer(size) when is_integer(size) and size > 0, do: size
+
+  defp size_to_integer(size) when is_binary(size) do
+    case Integer.parse(size) do
+      {size, ""} when size > 0 -> size
+      _ -> 0
+    end
+  end
+
+  defp size_to_integer(_), do: 0
 
   def calculate_chat_storage(user_id) do
     # Get all messages with media from the user (exclude deleted)

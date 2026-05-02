@@ -195,6 +195,7 @@ export const Turnstile = {
           sitekey: sitekey,
           theme: theme,
           size: size,
+          'response-field': false,
           callback: (token) => {
             this.ensureResponseInput(form)
             this.setResponseToken(token)

@@ -13,7 +13,7 @@ defmodule Atomine.Proof do
   @claim_types ~w(positive negative)
   @proof_modes ~w(snapshot live)
   @live_statuses ~w(active stale inactive)
-  @verification_methods ~w(page dns email manual none)
+  @verification_methods ~w(page dns github_gist email oauth manual none)
   @statuses ~w(pending asserted verified rejected revoked)
 
   schema "atomine_proofs" do
@@ -111,6 +111,10 @@ defmodule Atomine.Proof do
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:reviewed_by_user_id)
     |> unique_constraint(:subject,
+      name: :atomine_proofs_active_dns_subject_unique,
+      message: "domain already has an active DNS proof"
+    )
+    |> unique_constraint(:subject,
       name: :atomine_proofs_active_subject_unique,
       message: "already has an active proof for this subject"
     )
@@ -156,9 +160,17 @@ defmodule Atomine.Proof do
   end
 
   defp normalize_subject(changeset) do
+    kind = get_field(changeset, :kind)
+
     update_change(changeset, :subject, fn
-      value when is_binary(value) -> String.trim(value)
-      value -> value
+      value when is_binary(value) and kind == "dns" ->
+        value |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+      value when is_binary(value) ->
+        String.trim(value)
+
+      value ->
+        value
     end)
   end
 end

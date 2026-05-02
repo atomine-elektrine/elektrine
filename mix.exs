@@ -25,7 +25,7 @@ defmodule ElektrineUmbrella.MixProject do
       elektrine: [
         applications: [
           elektrine: :permanent,
-          elektrine_chat: :permanent,
+          arblarg: :permanent,
           elektrine_dns: :permanent,
           elektrine_web: :permanent,
           elektrine_email: :permanent,

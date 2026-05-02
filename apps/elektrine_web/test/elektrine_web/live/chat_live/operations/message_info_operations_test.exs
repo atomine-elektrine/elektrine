@@ -1,7 +1,7 @@
-defmodule ElektrineChatWeb.ChatLive.Operations.MessageInfoOperationsTest do
+defmodule ArblargWeb.ChatLive.Operations.MessageInfoOperationsTest do
   use ExUnit.Case, async: true
 
-  alias ElektrineChatWeb.ChatLive.Operations.MessageInfoOperations
+  alias ArblargWeb.ChatLive.Operations.MessageInfoOperations
 
   test "handle_chat_message_deleted/2 removes the message from assigns" do
     socket = socket_fixture()

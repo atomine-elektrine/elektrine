@@ -542,10 +542,12 @@
                   </div>
 
                   <label class="form-control w-full lg:max-w-xs">
-                    <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
-                      {gettext("Mode")}
+                    <span class="label px-0 pb-2 pt-0">
+                      <span class="label-text text-xs uppercase tracking-wide text-base-content/60">
+                        {gettext("Mode")}
+                      </span>
                     </span>
-                    <div class="select select-bordered select-sm">
+                    <div class="select select-bordered select-sm mt-2">
                       <select
                         name="email[encryption_mode]"
                         value={@encryption_mode}

@@ -13,14 +13,14 @@ defmodule ElektrineWeb.StorageLive do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
     end
 
-    storage_info = Storage.get_storage_info(user.id)
-    breakdown = get_storage_breakdown(user.id)
+    {storage_info, breakdown, breakdown_total} = load_storage_data(user.id, recalculate?: true)
 
     {:ok,
      socket
      |> assign(:page_title, "Storage Management")
      |> assign(:storage_info, storage_info)
      |> assign(:breakdown, breakdown)
+     |> assign(:breakdown_total, breakdown_total)
      |> assign(:active_tab, "overview")
      |> assign(:email_available, Integrations.email_available?())
      |> assign(:email_attachments, [])
@@ -91,13 +91,14 @@ defmodule ElektrineWeb.StorageLive do
            attachment_id
          ) do
       :ok ->
-        storage_info = Storage.get_storage_info(socket.assigns.current_user.id)
-        breakdown = get_storage_breakdown(socket.assigns.current_user.id)
+        {storage_info, breakdown, breakdown_total} =
+          load_storage_data(socket.assigns.current_user.id, recalculate?: true)
 
         {:noreply,
          socket
          |> assign(:storage_info, storage_info)
          |> assign(:breakdown, breakdown)
+         |> assign(:breakdown_total, breakdown_total)
          |> assign(
            :email_attachments,
            Integrations.storage_email_attachments(socket.assigns.current_user.id)
@@ -147,13 +148,14 @@ defmodule ElektrineWeb.StorageLive do
           Storage.update_user_storage(socket.assigns.current_user.id)
 
           # Refresh all storage data
-          storage_info = Storage.get_storage_info(socket.assigns.current_user.id)
-          breakdown = get_storage_breakdown(socket.assigns.current_user.id)
+          {storage_info, breakdown, breakdown_total} =
+            load_storage_data(socket.assigns.current_user.id, recalculate?: true)
 
           {:noreply,
            socket
            |> assign(:storage_info, storage_info)
            |> assign(:breakdown, breakdown)
+           |> assign(:breakdown_total, breakdown_total)
            |> assign(:chat_attachments, get_chat_attachments(socket.assigns.current_user.id))
            |> put_flash(:info, "Media deleted successfully")}
 
@@ -171,13 +173,13 @@ defmodule ElektrineWeb.StorageLive do
 
     with {parsed_id, ""} <- Integer.parse(file_id),
          :ok <- Drive.delete_file(user_id, parsed_id) do
-      storage_info = Storage.get_storage_info(user_id)
-      breakdown = get_storage_breakdown(user_id)
+      {storage_info, breakdown, breakdown_total} = load_storage_data(user_id, recalculate?: true)
 
       {:noreply,
        socket
        |> assign(:storage_info, storage_info)
        |> assign(:breakdown, breakdown)
+       |> assign(:breakdown_total, breakdown_total)
        |> assign(:files, get_files(user_id))
        |> put_flash(:info, "File deleted successfully")}
     else
@@ -244,14 +246,16 @@ defmodule ElektrineWeb.StorageLive do
         Storage.update_user_storage(user_id)
 
         # Refresh all storage data
-        storage_info = Storage.get_storage_info(user_id)
-        breakdown = get_storage_breakdown(user_id)
+        {storage_info, breakdown, breakdown_total} =
+          load_storage_data(user_id, recalculate?: true)
+
         fresh_user = Elektrine.Accounts.get_user!(user_id)
 
         {:noreply,
          socket
          |> assign(:storage_info, storage_info)
          |> assign(:breakdown, breakdown)
+         |> assign(:breakdown_total, breakdown_total)
          |> assign(:profile_images, get_profile_images(user_id))
          |> assign(:current_user, fresh_user)
          |> put_flash(:info, "Image deleted successfully")}
@@ -265,18 +269,21 @@ defmodule ElektrineWeb.StorageLive do
   def handle_info({:storage_updated, %{storage_used_bytes: _bytes}}, socket) do
     storage_info = Storage.get_storage_info(socket.assigns.current_user.id)
     breakdown = get_storage_breakdown(socket.assigns.current_user.id)
+    breakdown_total = breakdown_total(breakdown)
 
     {:noreply,
      socket
      |> assign(:storage_info, storage_info)
-     |> assign(:breakdown, breakdown)}
+     |> assign(:breakdown, breakdown)
+     |> assign(:breakdown_total, breakdown_total)}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp get_storage_breakdown(user_id) do
     # Calculate storage by category
-    email_storage = Storage.calculate_email_storage(user_id)
+    email_message_storage = Storage.calculate_email_message_storage(user_id)
+    email_attachment_storage = Storage.calculate_email_attachment_storage(user_id)
     chat_storage = Storage.calculate_chat_storage(user_id)
     profile_storage = Storage.calculate_profile_storage(user_id)
     static_site_storage = Storage.calculate_static_site_storage(user_id)
@@ -284,10 +291,16 @@ defmodule ElektrineWeb.StorageLive do
 
     [
       %{
-        category: "Email Attachments",
-        bytes: email_storage,
+        category: "Email Messages",
+        bytes: email_message_storage,
         icon: "hero-envelope",
         color: "text-primary"
+      },
+      %{
+        category: "Email Attachments",
+        bytes: email_attachment_storage,
+        icon: "hero-paper-clip",
+        color: "text-accent"
       },
       %{
         category: "Chat Attachments",
@@ -314,6 +327,21 @@ defmodule ElektrineWeb.StorageLive do
         color: "text-secondary"
       }
     ]
+  end
+
+  defp load_storage_data(user_id, recalculate?: true) do
+    {:ok, _total_bytes} = Storage.update_user_storage(user_id)
+    load_storage_data(user_id, recalculate?: false)
+  end
+
+  defp load_storage_data(user_id, recalculate?: false) do
+    storage_info = Storage.get_storage_info(user_id)
+    breakdown = get_storage_breakdown(user_id)
+    {storage_info, breakdown, breakdown_total(breakdown)}
+  end
+
+  defp breakdown_total(breakdown) do
+    Enum.reduce(breakdown, 0, fn item, acc -> acc + item.bytes end)
   end
 
   defp get_chat_attachments(user_id) do

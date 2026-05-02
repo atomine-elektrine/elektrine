@@ -362,6 +362,8 @@ defmodule ElektrineWeb.Router do
     pipe_through([:browser_api, :require_authenticated_user])
 
     ElektrineWeb.Routes.Chat.private_attachment_routes()
+    post("/atomine/account/pow/receipts", API.AtomineAttestationController, :pow_receipt)
+    post("/atomine/passkey-receipts", API.AtomineAttestationController, :passkey_receipt)
   end
 
   # Lightweight signed messaging federation endpoints (instance-to-instance)
@@ -589,6 +591,9 @@ defmodule ElektrineWeb.Router do
     delete("/account/developer/oidc/clients/:id", OIDCClientController, :delete)
     get("/account/developer/oidc/grants", OIDCGrantController, :index)
     delete("/account/developer/oidc/grants/:id", OIDCGrantController, :delete)
+
+    get("/account/connections/:provider/start", ConnectedAccountController, :start)
+    get("/account/connections/:provider/callback", ConnectedAccountController, :callback)
 
     # Announcement dismissal
     post("/announcements/:id/dismiss", UserSettingsController, :dismiss_announcement)
@@ -841,6 +846,19 @@ defmodule ElektrineWeb.Router do
 
     # Authentication endpoints (no auth required)
     post("/auth/login", AuthController, :login)
+
+    # Portable Atomine anti-bot attestations
+    post("/atomine/pow/challenge", AtomineAttestationController, :pow_challenge)
+    post("/atomine/pow/receipts", AtomineAttestationController, :pow_receipt)
+    post("/atomine/anonymous-tokens", AtomineAttestationController, :anonymous_token)
+
+    post(
+      "/atomine/anonymous-tokens/redeem",
+      AtomineAttestationController,
+      :redeem_anonymous_token
+    )
+
+    post("/atomine/artifacts/verify", AtomineAttestationController, :verify)
   end
 
   # Mobile app authenticated endpoints - Always available for VPN
@@ -1213,6 +1231,7 @@ defmodule ElektrineWeb.Router do
       live("/account/storage", StorageLive)
       live("/account/drive", DriveLive)
       live("/account/notes", NotesLive)
+      live("/account/proofs", ProofsLive)
 
       live("/friends", FriendsLive, :index)
 

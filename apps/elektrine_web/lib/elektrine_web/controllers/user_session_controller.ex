@@ -13,26 +13,31 @@ defmodule ElektrineWeb.UserSessionController do
   end
 
   # Handle login with or without captcha token (captcha removed from sign-in)
-  def create(conn, %{"user" => user_params}) do
-    %{"username" => username, "password" => password} = user_params
+  def create(conn, %{"user" => user_params}) when is_map(user_params) do
+    case user_params do
+      %{"username" => username, "password" => password}
+      when is_binary(username) and is_binary(password) ->
+        # Get IP address for rate limiting
+        ip_address = get_client_ip(conn)
 
-    # Get IP address for rate limiting
-    ip_address = get_client_ip(conn)
+        # Check rate limits for both IP and username
+        case check_rate_limits(ip_address, username) do
+          {:ok, :allowed} ->
+            authenticate_and_handle_result(conn, username, password, user_params, ip_address)
 
-    # Check rate limits for both IP and username
-    case check_rate_limits(ip_address, username) do
-      {:ok, :allowed} ->
-        authenticate_and_handle_result(conn, username, password, user_params, ip_address)
+          {:error, {:rate_limited, retry_after, _reason}} ->
+            Events.auth(:password_login, :rate_limited, %{reason: :rate_limit})
 
-      {:error, {:rate_limited, retry_after, _reason}} ->
-        Events.auth(:password_login, :rate_limited, %{reason: :rate_limit})
+            conn
+            |> put_flash(
+              :error,
+              "Too many login attempts. Please try again in #{format_retry_time(retry_after)}."
+            )
+            |> render_login()
+        end
 
-        conn
-        |> put_flash(
-          :error,
-          "Too many login attempts. Please try again in #{format_retry_time(retry_after)}."
-        )
-        |> render_login()
+      _ ->
+        create(conn, %{})
     end
   end
 

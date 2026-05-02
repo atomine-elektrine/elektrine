@@ -915,35 +915,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             parent_content =
               if is_map(parent_post), do: parent_post["content"], else: nil
 
-            interaction =
-              SurfaceHelpers.ancestor_interaction_target(parent_post, ancestor.in_reply_to)
-
-            post_state =
-              if interaction do
-                Map.get(@post_interactions, interaction.interaction_key, %{
-                  liked: false,
-                  boosted: false,
-                  like_delta: 0,
-                  boost_delta: 0
-                })
-              else
-                %{liked: false, boosted: false, like_delta: 0, boost_delta: 0}
-              end
-
-            is_liked = Map.get(post_state, :liked, false)
-            is_boosted = Map.get(post_state, :boosted, false)
-            like_count = SurfaceHelpers.ancestor_like_count(parent_post, post_state)
-            boost_count = SurfaceHelpers.ancestor_boost_count(parent_post, post_state)
-            reply_count = SurfaceHelpers.ancestor_reply_count(parent_post)
-
-            is_saved =
-              if interaction,
-                do: Map.get(@user_saves, interaction.interaction_key, false),
-                else: false
-
             local_parent_id = SurfaceHelpers.ancestor_local_message_id(parent_post)
             has_external_link = http_url?(parent_ref) %>
-            <div class="rounded-2xl border border-base-300/80 bg-base-200/45 px-3 py-2.5 transition-colors hover:bg-base-200/65">
+            <div class="card panel-card rounded-lg px-3 py-2.5 transition-colors hover:bg-base-200/60">
               <article>
                 <div class="flex items-start gap-2 min-w-0">
                   <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
@@ -984,139 +958,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   </div>
                 </div>
                 <%= if Elektrine.Strings.present?(parent_title) do %>
-                  <div class="mt-2 text-sm font-semibold line-clamp-2 break-words">
+                  <div class="mt-2 text-sm font-semibold line-clamp-1 break-words">
                     {parent_title}
                   </div>
                 <% end %>
                 <%= if Elektrine.Strings.present?(parent_content) do %>
-                  <div class="mt-1 text-sm opacity-80 line-clamp-4 break-words post-content">
+                  <div class="mt-1 text-sm opacity-75 line-clamp-2 break-words post-content">
                     {raw(render_remote_post_content(parent_content, parent_domain))}
-                  </div>
-                <% end %>
-                <%= if is_integer(local_parent_id) do %>
-                  <div class="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                    <.link
-                      navigate={Paths.post_path(local_parent_id)}
-                      class="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-                    >
-                      Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
-                    </.link>
-                    <%= if has_external_link do %>
-                      <a
-                        href={parent_ref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="inline-flex items-center gap-1 text-base-content/70 hover:text-primary hover:underline"
-                      >
-                        Original URL <.icon name="hero-arrow-top-right-on-square" class="w-3 h-3" />
-                      </a>
-                    <% end %>
-                  </div>
-                <% else %>
-                  <%= if has_external_link do %>
-                    <.link
-                      navigate={Paths.post_path(parent_ref)}
-                      class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                      Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
-                    </.link>
-                  <% else %>
-                    <div class="mt-2 text-xs opacity-60 break-all">
-                      {parent_ref}
-                    </div>
-                  <% end %>
-                <% end %>
-                <%= if interaction do %>
-                  <div class="mt-3 pt-3 border-t border-base-300/70 space-y-2">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <.post_actions
-                        post_id={
-                          if local_parent_id, do: local_parent_id, else: interaction.action_target
-                        }
-                        save_post_id={local_parent_id}
-                        save_value_name={
-                          if local_parent_id, do: "message_id", else: interaction.action_value_name
-                        }
-                        value_name={
-                          if local_parent_id, do: "message_id", else: interaction.action_value_name
-                        }
-                        current_user={@current_user}
-                        is_liked={is_liked}
-                        is_boosted={is_boosted}
-                        like_count={like_count}
-                        boost_count={boost_count}
-                        comment_count={reply_count}
-                        is_saved={is_saved}
-                        show_quote={false}
-                        show_comment={false}
-                        size={:sm}
-                      />
-
-                      <%= if @current_user do %>
-                        <button
-                          phx-click="toggle_comment_reply"
-                          phx-value-comment_id={interaction.comment_target}
-                          class={[
-                            "btn btn-ghost btn-sm px-2 h-8 min-h-8 gap-1",
-                            if(
-                              @replying_to_comment_id ==
-                                interaction.comment_target,
-                              do: "bg-secondary/10 text-secondary"
-                            )
-                          ]}
-                          type="button"
-                        >
-                          <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
-                          <span class="text-xs tabular-nums">
-                            <%= if reply_count > 0 do %>
-                              {reply_count}
-                            <% else %>
-                              Reply
-                            <% end %>
-                          </span>
-                        </button>
-                      <% else %>
-                        <div class="btn btn-ghost btn-sm px-2 h-8 min-h-8 gap-1 cursor-default opacity-60">
-                          <.icon name="hero-chat-bubble-left" class="w-4 h-4" />
-                          <span class="text-xs tabular-nums">{reply_count}</span>
-                        </div>
-                      <% end %>
-
-                      <.post_reactions
-                        post_id={interaction.action_target}
-                        value_name={interaction.action_value_name}
-                        reactions={Map.get(@post_reactions, interaction.reactions_key, [])}
-                        current_user={@current_user}
-                        size={:sm}
-                      />
-                    </div>
-
-                    <%= if @current_user &&
-                          @replying_to_comment_id == interaction.comment_target do %>
-                      <form phx-submit="submit_comment_reply" class="mt-2">
-                        <textarea
-                          name="content"
-                          phx-keyup="update_comment_reply_content"
-                          value={@comment_reply_content}
-                          placeholder="Write a reply..."
-                          class="textarea textarea-bordered textarea-sm w-full min-h-[70px]"
-                          rows="2"
-                        ></textarea>
-                        <div class="flex justify-end gap-2 mt-2">
-                          <button
-                            type="button"
-                            phx-click="toggle_comment_reply"
-                            phx-value-comment_id={interaction.comment_target}
-                            class="btn btn-ghost btn-xs"
-                          >
-                            Cancel
-                          </button>
-                          <button type="submit" class="btn btn-secondary btn-xs">
-                            Reply
-                          </button>
-                        </div>
-                      </form>
-                    <% end %>
                   </div>
                 <% end %>
               </article>
@@ -3303,8 +3151,20 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
 
     send(self(), {:load_reply_parent, post_object})
-    if local_message, do: send(self(), {:load_replies_for_cached, local_message})
+
+    socket =
+      if local_message do
+        assign(socket, :cached_replies_requested, true)
+      else
+        socket
+      end
+
+    if local_message do
+      send(self(), {:load_replies_for_cached, local_message})
+    end
+
     send(self(), {:hydrate_loaded_remote_post, post_object, remote_actor})
+
     send(self(), {:load_platform_counts, post_object["id"]})
 
     if community_actor && community_actor.actor_type == "Group" do
@@ -3794,7 +3654,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         end
 
       if local_message do
-        send(self(), {:load_replies, post_object})
+        unless socket.assigns[:cached_replies_requested] do
+          send(self(), {:load_replies, post_object})
+        end
+
         send(self(), {:load_reactions, post_object["id"]})
         Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(local_message.id)
         maybe_schedule_remote_poll_refresh(local_message)
@@ -4068,8 +3931,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         end
 
       expected_count = reply_sync_expected_count(refreshed_local_message, socket.assigns[:post])
-
-      socket = assign(socket, :local_message, refreshed_local_message)
 
       previous_reply_ids =
         socket.assigns[:replies]
@@ -4760,6 +4621,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
             {:ok, _} ->
               latest_local_message_for_post(post_id)
+
+            {:error, %Ecto.Changeset{errors: errors}} ->
+              if Keyword.has_key?(errors, :activitypub_id) do
+                latest_local_message_for_post(post_id)
+              else
+                nil
+              end
 
             _ ->
               nil
@@ -5688,7 +5556,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         %{"url" => url, "images" => images_json, "index" => index},
         socket
       ) do
-    images = Jason.decode!(images_json)
+    images =
+      case Jason.decode(images_json) do
+        {:ok, decoded} when is_list(decoded) -> decoded
+        _ -> []
+      end
+
+    modal_image_index =
+      case Integer.parse(to_string(index)) do
+        {parsed, _} when parsed >= 0 -> min(parsed, max(length(images) - 1, 0))
+        _ -> 0
+      end
 
     modal_post = build_modal_post(socket)
 
@@ -5697,7 +5575,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      |> assign(:show_image_modal, true)
      |> assign(:modal_image_url, url)
      |> assign(:modal_images, images)
-     |> assign(:modal_image_index, String.to_integer(index))
+     |> assign(:modal_image_index, modal_image_index)
      |> assign(:modal_post, modal_post)}
   end
 
@@ -5712,24 +5590,36 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("next_image", _params, socket) do
-    new_index = rem(socket.assigns.modal_image_index + 1, length(socket.assigns.modal_images))
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
+    images = socket.assigns.modal_images || []
 
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+    if images == [] do
+      {:noreply, socket}
+    else
+      new_index = rem(socket.assigns.modal_image_index + 1, length(images))
+      new_url = Enum.at(images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    end
   end
 
   def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-    new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
+    images = socket.assigns.modal_images || []
+    total = length(images)
 
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+    if total == 0 do
+      {:noreply, socket}
+    else
+      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
+      new_url = Enum.at(images, new_index)
+
+      {:noreply,
+       socket
+       |> assign(:modal_image_index, new_index)
+       |> assign(:modal_image_url, new_url)}
+    end
   end
 
   def handle_event("sort_comments", %{"sort" => sort}, socket) do
