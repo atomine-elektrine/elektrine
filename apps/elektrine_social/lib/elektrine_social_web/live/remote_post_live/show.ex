@@ -3506,15 +3506,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp platform_counts_from_result(_, _, _), do: nil
 
   defp nonzero_platform_counts(counts) when is_map(counts) do
-    if Enum.any?([:like_count, :reply_count, :share_count, :quote_count], fn key ->
-         count = Map.get(counts, key)
-         is_integer(count) and count > 0
-       end) do
+    if Enum.any?(
+         [:like_count, :reply_count, :share_count, :quote_count],
+         &positive_platform_count?(Map.get(counts, &1))
+       ) do
       counts
     end
   end
 
   defp nonzero_platform_counts(_), do: nil
+
+  defp positive_platform_count?(count), do: is_integer(count) and count > 0
 
   defp platform_metadata_from_result(mastodon_counts, _lemmy_counts, _fresh_post)
        when is_map(mastodon_counts) do

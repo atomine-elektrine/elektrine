@@ -3,11 +3,11 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   View module for rendering Mastodon API status (post) responses.
   """
 
+  alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
   alias Elektrine.Uploads
-  alias Elektrine.ActivityPub.Helpers, as: APHelpers
 
   import Ecto.Query
 

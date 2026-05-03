@@ -126,24 +126,22 @@ defmodule Elektrine.ActivityPub.MastodonApi do
 
   def fetch_favourited_by(status_url, limit, opts)
       when is_binary(status_url) and is_integer(limit) and is_list(opts) do
-    cond do
-      misskey_note_url?(status_url) ->
-        case extract_status_info(status_url) do
-          {:ok, domain, note_id} -> fetch_misskey_reactions(domain, note_id, limit, opts)
-          _ -> {:error, :invalid_url}
-        end
+    if misskey_note_url?(status_url) do
+      case extract_status_info(status_url) do
+        {:ok, domain, note_id} -> fetch_misskey_reactions(domain, note_id, limit, opts)
+        _ -> {:error, :invalid_url}
+      end
+    else
+      case status_endpoint_lookup(status_url, opts) do
+        {:ok, domain, status_id} ->
+          api_url =
+            "https://#{domain}/api/v1/statuses/#{status_id}/favourited_by?limit=#{limit}"
 
-      true ->
-        case status_endpoint_lookup(status_url, opts) do
-          {:ok, domain, status_id} ->
-            api_url =
-              "https://#{domain}/api/v1/statuses/#{status_id}/favourited_by?limit=#{limit}"
+          fetch_account_list(api_url, opts)
 
-            fetch_account_list(api_url, opts)
-
-          {:error, _reason} ->
-            {:error, :invalid_url}
-        end
+        {:error, _reason} ->
+          {:error, :invalid_url}
+      end
     end
   end
 
@@ -177,22 +175,20 @@ defmodule Elektrine.ActivityPub.MastodonApi do
 
   def fetch_reblogged_by(status_url, limit, opts)
       when is_binary(status_url) and is_integer(limit) and is_list(opts) do
-    cond do
-      misskey_note_url?(status_url) ->
-        case extract_status_info(status_url) do
-          {:ok, domain, note_id} -> fetch_misskey_renotes(domain, note_id, limit, opts)
-          _ -> {:error, :invalid_url}
-        end
+    if misskey_note_url?(status_url) do
+      case extract_status_info(status_url) do
+        {:ok, domain, note_id} -> fetch_misskey_renotes(domain, note_id, limit, opts)
+        _ -> {:error, :invalid_url}
+      end
+    else
+      case status_endpoint_lookup(status_url, opts) do
+        {:ok, domain, status_id} ->
+          api_url = "https://#{domain}/api/v1/statuses/#{status_id}/reblogged_by?limit=#{limit}"
+          fetch_account_list(api_url, opts)
 
-      true ->
-        case status_endpoint_lookup(status_url, opts) do
-          {:ok, domain, status_id} ->
-            api_url = "https://#{domain}/api/v1/statuses/#{status_id}/reblogged_by?limit=#{limit}"
-            fetch_account_list(api_url, opts)
-
-          {:error, _reason} ->
-            {:error, :invalid_url}
-        end
+        {:error, _reason} ->
+          {:error, :invalid_url}
+      end
     end
   end
 
