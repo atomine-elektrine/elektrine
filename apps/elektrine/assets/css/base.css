@@ -1,6 +1,6 @@
 /* ========================================================================== BASE - Reset, Fonts, Theme Variables ========================================================================== */ /* Dark mode only */
 :root { color-scheme: dark;
-} html { color-scheme: dark; overflow-x: hidden;
+} html { color-scheme: dark; overflow-x: clip;
 } body { color: var(--color-base-content, #e5e2e1); background-color: var(--color-base-100, #121214); isolation: isolate;
 } /* Selection highlight */
 ::selection { background: var(--theme-selection-bg, rgba(95, 135, 184, 0.28)); color: var(--theme-text-inverse, #ffffff);

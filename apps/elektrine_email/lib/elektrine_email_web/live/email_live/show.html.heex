@@ -148,10 +148,12 @@
                     <%= if @message.deleted do %>
                       <span class="badge badge-error badge-sm">{gettext("In Trash")}</span>
                     <% end %>
-                    <%= if @message.has_attachments and map_size(@message.attachments || %{}) > 0 do %>
+                    <%= if visible_attachment_count(@message) > 0 do %>
                       <span class="badge badge-outline badge-sm gap-1">
                         <.icon name="hero-paper-clip" class="h-3 w-3" />
-                        {gettext("%{count} attachments", count: map_size(@message.attachments))}
+                        {gettext("%{count} attachments",
+                          count: visible_attachment_count(@message)
+                        )}
                       </span>
                     <% end %>
                   </div>
@@ -189,6 +191,16 @@
                 class="btn btn-sm btn-ghost justify-start"
               >
                 <.icon name="hero-printer" class="h-4 w-4 mr-1" /> {gettext("Print")}
+              </.link>
+
+              <.link
+                href={~p"/email/#{@message.id}/original_html"}
+                target="_blank"
+                class="btn btn-sm btn-ghost justify-start"
+              >
+                <.icon name="hero-document-magnifying-glass" class="h-4 w-4 mr-1" /> {gettext(
+                  "Source"
+                )}
               </.link>
 
               <.link
@@ -457,16 +469,16 @@
           <% end %>
           
 <!-- Attachments -->
-          <%= if @message.has_attachments and map_size(@message.attachments || %{}) > 0 do %>
+          <%= if visible_attachment_count(@message) > 0 do %>
             <div class="bg-base-200/30 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border border-base-300">
               <div class="flex items-center space-x-2 mb-3">
                 <.icon name="hero-paper-clip" class="h-5 w-5 text-base-content/60" />
                 <span class="text-sm font-semibold">
-                  {gettext("Attachments (%{count})", count: map_size(@message.attachments))}
+                  {gettext("Attachments (%{count})", count: visible_attachment_count(@message))}
                 </span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <%= for {attachment_id, attachment} <- @message.attachments do %>
+                <%= for {attachment_id, attachment} <- visible_attachments(@message) do %>
                   <div class="bg-base-200 rounded-lg p-3 border border-base-300 hover:bg-base-200/50 transition-colors">
                     <div class="flex items-start space-x-3">
                       <div class="flex-shrink-0">

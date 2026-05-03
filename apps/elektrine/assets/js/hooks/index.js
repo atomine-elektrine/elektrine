@@ -48,6 +48,7 @@ import {
   TimelineReply,
   IframeAutoResize,
   ScrollToTop,
+  RemoteProfileStickyFollow,
   ImageFallback,
 } from "./ui_hooks";
 
@@ -153,6 +154,7 @@ export const Hooks = {
   TimelineReply,
   IframeAutoResize,
   ScrollToTop,
+  RemoteProfileStickyFollow,
   ImageFallback,
 
   // Calls

@@ -24,6 +24,25 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
       assert String.contains?(cleaned, "Application submitted")
     end
 
+    test "removes single-letter selector and font import preambles" do
+      body = """
+      p { display:block;margin:13px 0; }
+      @import url(https://fonts.googleapis.com/css2?family=Arvo);
+      @import url(https://fonts.googleapis.com/css2?family=Lato);
+      @media only screen and (max-width:600px){ .mj-column-per-100-0 { width:unset !important; max-width:unset; display:block !important; }}
+      .emphasis { color:#a33600;font-weight:700; }
+      .emphasis-2 { color:#537824;font-weight:700; }
+      .emphasis-3 { color:#005cb9;font-weight:700; }Hi Maxfield We are excited you are interested in joining FHI.
+      """
+
+      cleaned = Display.clean_plain_text_body(body)
+
+      refute String.contains?(cleaned, "display:block")
+      refute String.contains?(cleaned, "@import")
+      refute String.contains?(cleaned, ".emphasis")
+      assert cleaned == "Hi Maxfield We are excited you are interested in joining FHI."
+    end
+
     test "preserves regular plain text" do
       assert Display.clean_plain_text_body("Hello\n\nWorld") == "Hello\n\nWorld"
     end

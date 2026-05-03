@@ -88,8 +88,10 @@ defmodule ElektrineWeb.Routes.Email do
 
         delete("/email/:id", ElektrineEmailWeb.EmailController, :delete)
         get("/email/:id/print", ElektrineEmailWeb.EmailController, :print)
+        get("/email/:id/original_html", ElektrineEmailWeb.EmailController, :original_html)
         get("/email/:id/download_eml", ElektrineEmailWeb.EmailController, :download_eml)
         get("/email/:id/iframe_content", ElektrineEmailWeb.EmailController, :iframe_content)
+        get("/email/image_proxy", ElektrineEmailWeb.EmailController, :image_proxy)
         get("/email/export/download/:id", ElektrineEmailWeb.EmailController, :download_export)
       end
     end

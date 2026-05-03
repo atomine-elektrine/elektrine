@@ -316,7 +316,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
   defp admin_return_to_from_url(_url), do: "/pripyat"
 
-  defp admin_return_to_from_uri(%URI{path: path, query: query}) when is_binary(path) and path != "" do
+  defp admin_return_to_from_uri(%URI{path: path, query: query})
+       when is_binary(path) and path != "" do
     path
     |> maybe_with_query(query)
     |> AdminSecurity.normalize_return_to()

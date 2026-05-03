@@ -986,6 +986,79 @@ export const ScrollToTop = {
   }
 }
 
+export const RemoteProfileStickyFollow = {
+  mounted() {
+    this.panel = this.el.querySelector('.remote-user-sticky-follow-panel') || this.el
+    this.target = this.resolveTarget()
+    this.ticking = false
+
+    this.syncVisibility = this.syncVisibility.bind(this)
+    this.scheduleSync = this.scheduleSync.bind(this)
+
+    window.addEventListener('scroll', this.scheduleSync, { passive: true })
+    window.addEventListener('resize', this.scheduleSync, { passive: true })
+
+    if (this.target && 'IntersectionObserver' in window) {
+      this.observer = new IntersectionObserver(this.scheduleSync, { threshold: 0 })
+      this.observer.observe(this.target)
+    }
+
+    this.syncVisibility()
+  },
+
+  updated() {
+    const nextTarget = this.resolveTarget()
+
+    if (nextTarget !== this.target) {
+      if (this.observer && this.target) this.observer.unobserve(this.target)
+      this.target = nextTarget
+      if (this.observer && this.target) this.observer.observe(this.target)
+    }
+
+    this.panel = this.el.querySelector('.remote-user-sticky-follow-panel') || this.el
+    this.syncVisibility()
+  },
+
+  destroyed() {
+    window.removeEventListener('scroll', this.scheduleSync)
+    window.removeEventListener('resize', this.scheduleSync)
+    if (this.observer) this.observer.disconnect()
+  },
+
+  resolveTarget() {
+    const targetId = this.el.dataset.followTarget
+    return targetId ? document.getElementById(targetId) : null
+  },
+
+  scheduleSync() {
+    if (this.ticking) return
+
+    this.ticking = true
+    window.requestAnimationFrame(() => {
+      this.ticking = false
+      this.syncVisibility()
+    })
+  },
+
+  syncVisibility() {
+    if (!this.target || !this.panel) return
+
+    const targetRect = this.target.getBoundingClientRect()
+    const showOffset = Number.parseInt(this.el.dataset.showOffset || '0', 10) || 0
+    const shouldShow = targetRect.bottom <= -showOffset
+
+    this.el.setAttribute('aria-hidden', shouldShow ? 'false' : 'true')
+
+    if (shouldShow) {
+      this.panel.classList.remove('hidden', 'opacity-0', 'pointer-events-none')
+      this.panel.classList.add('flex', 'opacity-100', 'pointer-events-auto')
+    } else {
+      this.panel.classList.remove('flex', 'opacity-100', 'pointer-events-auto')
+      this.panel.classList.add('hidden', 'opacity-0', 'pointer-events-none')
+    }
+  }
+}
+
 /**
  * ImageFallback - Handles image load errors without inline event handlers
  * Hides the image and shows a fallback element when image fails to load

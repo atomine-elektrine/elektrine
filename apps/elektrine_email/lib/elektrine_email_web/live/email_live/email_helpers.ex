@@ -346,6 +346,47 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
 
   def private_attachment?(_attachment), do: false
 
+  def visible_attachments(%{attachments: attachments}) when is_map(attachments) do
+    attachments
+    |> Enum.reject(fn {_attachment_id, attachment} -> inline_attachment?(attachment) end)
+    |> Enum.into(%{})
+  end
+
+  def visible_attachments(_message), do: %{}
+
+  def visible_attachment_count(message), do: map_size(visible_attachments(message))
+
+  def inline_attachment?(attachment) when is_map(attachment) do
+    disposition = attachment_disposition(attachment)
+    content_id = attachment_content_id(attachment)
+    content_type = attachment_content_type(attachment)
+
+    disposition == "inline" or
+      (Elektrine.Strings.present?(content_id) and String.starts_with?(content_type, "image/"))
+  end
+
+  def inline_attachment?(_attachment), do: false
+
+  defp attachment_disposition(attachment) do
+    attachment
+    |> attachment_value("disposition", :disposition)
+    |> to_string()
+    |> String.downcase()
+  end
+
+  defp attachment_content_id(attachment),
+    do: attachment_value(attachment, "content_id", :content_id)
+
+  defp attachment_content_type(attachment) do
+    attachment
+    |> attachment_value("content_type", :content_type)
+    |> to_string()
+    |> String.downcase()
+  end
+
+  defp attachment_value(attachment, string_key, atom_key),
+    do: Map.get(attachment, string_key) || Map.get(attachment, atom_key) || ""
+
   defp ensure_valid_utf8(text) do
     if String.valid?(text) do
       text

@@ -76,9 +76,10 @@ html[data-theme="dark"] .btn:focus-visible,
 } /* -------------------------------------------------------------------------- CARDS -------------------------------------------------------------------------- */ .card { transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 } .panel-card { border-color: var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; position: relative;
 } .panel-card.sticky { contain: none; transform: none;
-} .timeline-sidebar-sticky { align-self: flex-start;
+} #timeline-session-continuity { --timeline-sidebar-gap: 1.5rem;
+} .timeline-sidebar-sticky { position: sticky !important; top: var(--timeline-sidebar-gap); align-self: flex-start;
 } .timeline-sidebar-sticky, .timeline-sidebar-sticky .panel-card, .timeline-sidebar-scroll { contain: none; transform: none;
-} .timeline-sidebar-scroll { max-height: calc(100vh - 11rem); overflow-y: auto; scrollbar-gutter: stable;
+} .timeline-sidebar-scroll { max-height: calc(100vh - var(--timeline-sidebar-gap)); overflow-y: auto; scrollbar-gutter: stable;
 } .panel-card > .card-body { position: relative;
 } .card-interactive:focus-visible,
 [data-post-id]:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(var(--p));

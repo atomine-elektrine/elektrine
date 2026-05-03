@@ -31,6 +31,7 @@ elektrine-*.tar
 /apps/*/priv/static/cache_manifest.json
 /apps/*/priv/static/uploads/
 /apps/*/priv/static/**/*.gz
+/apps/*/priv/static/**/*-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f].*
 
 # Node.js
 /apps/*/assets/node_modules/
@@ -102,3 +103,4 @@ _deploy_release
 /certs/
 /generated.mongooseim.toml
 _build_opencode/
+apps/elektrine/priv/static/robots-9e2c81b0855bbff2baa8371bc4a78186.txt.gz
