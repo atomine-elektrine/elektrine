@@ -63,6 +63,7 @@ defmodule Elektrine.Email.Folders do
   def list_inbox_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
     page = max(page, 1)
     offset = (page - 1) * per_page
+    excluded_categories = inbox_excluded_categories(mailbox_id)
 
     # Build base query once with common filters
     base_query =
@@ -71,7 +72,8 @@ defmodule Elektrine.Email.Folders do
       |> where(
         [m],
         (m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to) and
-          m.category not in ["feed", "ledger", "stack"] and is_nil(m.reply_later_at) and
+          (is_nil(m.category) or m.category not in ^excluded_categories) and
+          is_nil(m.reply_later_at) and
           is_nil(m.folder_id)
       )
 
@@ -316,6 +318,7 @@ defmodule Elektrine.Email.Folders do
   def list_unread_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
     page = max(page, 1)
     offset = (page - 1) * per_page
+    excluded_categories = inbox_excluded_categories(mailbox_id)
 
     # Build base query once with common filters
     base_query =
@@ -323,7 +326,7 @@ defmodule Elektrine.Email.Folders do
       |> where(mailbox_id: ^mailbox_id, read: false)
       |> where([m], not m.spam and not m.archived and not m.deleted)
       |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> where([m], m.category not in ["feed", "ledger", "stack"])
+      |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
       |> where([m], is_nil(m.reply_later_at))
       |> where([m], is_nil(m.folder_id))
 
@@ -362,6 +365,7 @@ defmodule Elektrine.Email.Folders do
   def list_read_messages_paginated(mailbox_id, page \\ 1, per_page \\ 20) do
     page = max(page, 1)
     offset = (page - 1) * per_page
+    excluded_categories = inbox_excluded_categories(mailbox_id)
 
     # Build base query once with common filters
     base_query =
@@ -369,7 +373,7 @@ defmodule Elektrine.Email.Folders do
       |> where(mailbox_id: ^mailbox_id, read: true)
       |> where([m], not m.spam and not m.archived and not m.deleted)
       |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> where([m], m.category not in ["feed", "ledger", "stack"])
+      |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
       |> where([m], is_nil(m.reply_later_at))
       |> where([m], is_nil(m.folder_id))
 
@@ -685,10 +689,12 @@ defmodule Elektrine.Email.Folders do
   Used for bulk operations.
   """
   def list_all_inbox_messages(mailbox_id) do
+    excluded_categories = inbox_excluded_categories(mailbox_id)
+
     Message
     |> where(mailbox_id: ^mailbox_id, spam: false, archived: false, deleted: false)
     |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-    |> where([m], m.category not in ["feed", "ledger", "stack"])
+    |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
     |> where([m], is_nil(m.reply_later_at))
     |> order_by(desc: :inserted_at)
     |> Repo.all()
@@ -993,5 +999,12 @@ defmodule Elektrine.Email.Folders do
         has_attachments: m.has_attachments
       }
     end)
+  end
+
+  defp inbox_excluded_categories(mailbox_id) do
+    mailbox_id
+    |> Elektrine.Email.Mailboxes.get_mailbox()
+    |> Mailbox.enabled_category_filter_categories()
+    |> Kernel.++(["stack"])
   end
 end

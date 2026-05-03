@@ -2,6 +2,7 @@ defmodule ElektrineWeb.SessionConfig do
   @moduledoc false
 
   alias Elektrine.RuntimeEnv
+  alias Elektrine.RuntimeSecrets
   alias ElektrineWeb.ClientIP
 
   def session_options(conn \\ nil) do
@@ -82,7 +83,7 @@ defmodule ElektrineWeb.SessionConfig do
 
   defp default_encryption_salt do
     case RuntimeEnv.environment() do
-      :prod -> nil
+      :prod -> RuntimeSecrets.session_encryption_salt()
       :test -> "test_encryption_salt"
       _ -> "dev_encryption_salt"
     end

@@ -693,6 +693,7 @@ if Mix.env() == :dev do
         title: "Figma",
         login_username: "platformdemo@#{local_mail_domain}",
         website: "https://figma.com",
+        encrypted_metadata: seed_encrypted_payload.("figma-demo-metadata"),
         encrypted_password: seed_encrypted_payload.("figma-demo-password"),
         encrypted_notes: seed_encrypted_payload.("Shared with Pixel Vera for mobile review")
       },
@@ -700,6 +701,7 @@ if Mix.env() == :dev do
         title: "Docker",
         login_username: "platform-ops@#{local_mail_domain}",
         website: "https://docker.com",
+        encrypted_metadata: seed_encrypted_payload.("docker-demo-metadata"),
         encrypted_password: seed_encrypted_payload.("docker-demo-password"),
         encrypted_notes:
           seed_encrypted_payload.("Check container health after the screenshot deploy")
@@ -708,6 +710,7 @@ if Mix.env() == :dev do
         title: "PostHog",
         login_username: "alerts@#{local_mail_domain}",
         website: "https://posthog.com",
+        encrypted_metadata: seed_encrypted_payload.("posthog-demo-metadata"),
         encrypted_password: seed_encrypted_payload.("posthog-demo-password"),
         encrypted_notes: seed_encrypted_payload.("Use this for the demo product event capture")
       }

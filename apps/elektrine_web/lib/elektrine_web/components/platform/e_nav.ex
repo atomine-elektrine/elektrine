@@ -28,6 +28,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
   attr :active_tab, :string, required: true
   attr :class, :string, default: "mb-6"
   attr :current_user, :any, default: nil
+  attr :badge_counts, :map, default: nil
 
   def z_nav(assigns), do: e_nav(assigns)
 
@@ -36,11 +37,15 @@ defmodule ElektrineWeb.Components.Platform.ENav do
       assigns
       |> assign_new(:class, fn -> "mb-6" end)
       |> assign_new(:current_user, fn -> nil end)
+      |> assign_new(:badge_counts, fn -> nil end)
+
+    badge_counts =
+      assigns.badge_counts || PlatformENav.notification_badge_counts(assigns.current_user)
 
     assigns =
       assigns
-      |> assign(:items, nav_items())
-      |> assign(:secondary_items, secondary_items(assigns.current_user))
+      |> assign(:items, nav_items(badge_counts))
+      |> assign(:secondary_items, secondary_items(assigns.current_user, badge_counts))
 
     ENavComponent.render(assigns)
   end
@@ -79,21 +84,23 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     """
   end
 
-  defp nav_items do
+  defp nav_items(badge_counts) do
     PlatformENav.primary_items()
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
     |> Enum.filter(&module_visible?/1)
+    |> PlatformENav.with_badge_counts(badge_counts)
   end
 
-  defp secondary_items(nil), do: []
+  defp secondary_items(nil, _badge_counts), do: []
 
-  defp secondary_items(_current_user) do
+  defp secondary_items(_current_user, badge_counts) do
     PlatformENav.secondary_items()
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
+    |> PlatformENav.with_badge_counts(badge_counts)
   end
 
   defp module_visible?(%{platform_module: nil}), do: true

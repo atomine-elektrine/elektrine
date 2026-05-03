@@ -1,8 +1,9 @@
-const ITERATIONS = 210000
-const VERSION = 1
+const ITERATIONS = 600000
+const VERSION = 2
 const ALGORITHM = "AES-GCM"
 const KDF = "PBKDF2-SHA256"
 const PASSWORD_LENGTH = 24
+export const MIN_PASSPHRASE_LENGTH = 14
 export const VERIFIER_TEXT = "elektrine-vault-verifier-v1"
 
 const encoder = new TextEncoder()
@@ -65,12 +66,49 @@ export function isClientPayload(payload) {
   )
 }
 
-export async function encryptValue(plaintext, passphrase) {
+function stableJson(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return JSON.stringify(value)
+
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = value[key]
+        return acc
+      }, {})
+  )
+}
+
+function aesGcmParams(iv, associatedData) {
+  if (!associatedData) return { name: ALGORITHM, iv }
+
+  return {
+    name: ALGORITHM,
+    iv,
+    additionalData: encoder.encode(stableJson(associatedData))
+  }
+}
+
+export function vaultEntryAssociatedData(entry, field) {
+  return {
+    purpose: "elektrine-password-vault-entry",
+    field,
+    title: (entry.title || "").trim(),
+    login_username: (entry.login_username || "").trim(),
+    website: (entry.website || "").trim()
+  }
+}
+
+export function vaultMetadataAssociatedData() {
+  return { purpose: "elektrine-password-vault-metadata" }
+}
+
+export async function encryptValue(plaintext, passphrase, associatedData = null) {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
   const key = await deriveAesKey(passphrase, salt, ITERATIONS)
   const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv },
+    aesGcmParams(iv, associatedData),
     key,
     encoder.encode(plaintext)
   )
@@ -86,7 +124,7 @@ export async function encryptValue(plaintext, passphrase) {
   }
 }
 
-export async function decryptValue(payload, passphrase) {
+export async function decryptValue(payload, passphrase, associatedData = null) {
   if (!isClientPayload(payload)) {
     throw new Error("Vault payload is not valid client-side ciphertext.")
   }
@@ -96,7 +134,7 @@ export async function decryptValue(payload, passphrase) {
   const ciphertext = base64ToBytes(payload.ciphertext)
   const key = await deriveAesKey(passphrase, salt, payload.iterations)
   const plaintextBuffer = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv },
+    Number(payload.version) >= 2 ? aesGcmParams(iv, associatedData) : { name: ALGORITHM, iv },
     key,
     ciphertext
   )
@@ -115,14 +153,20 @@ export function createPassword() {
   const digits = "0123456789"
   const symbols = "!@#$%^&*()-_=+"
   const all = lowercase + uppercase + digits + symbols
-  const cryptoValues = new Uint32Array(PASSWORD_LENGTH * 2)
-  crypto.getRandomValues(cryptoValues)
-  let randomIndex = 0
+
+  const randomInt = (max) => {
+    const values = new Uint32Array(1)
+    const limit = Math.floor(0x100000000 / max) * max
+
+    do {
+      crypto.getRandomValues(values)
+    } while (values[0] >= limit)
+
+    return values[0] % max
+  }
 
   const pick = (characters) => {
-    const value = cryptoValues[randomIndex]
-    randomIndex += 1
-    return characters[value % characters.length]
+    return characters[randomInt(characters.length)]
   }
 
   const chars = [
@@ -137,8 +181,7 @@ export function createPassword() {
   }
 
   for (let i = chars.length - 1; i > 0; i -= 1) {
-    const swapIndex = cryptoValues[randomIndex] % (i + 1)
-    randomIndex += 1
+    const swapIndex = randomInt(i + 1)
     ;[chars[i], chars[swapIndex]] = [chars[swapIndex], chars[i]]
   }
 

@@ -746,12 +746,13 @@ defmodule ArblargWeb.ChatLive.Index do
       user_id = socket.assigns.current_user.id
 
       # Update last read message ID to the last message in the conversation
-      if socket.assigns[:messages] && socket.assigns.messages != [] do
-        last_message = List.last(socket.assigns.messages)
-        Messaging.update_last_read_message(conversation_id, user_id, last_message.id)
-      else
-        Messaging.mark_as_read(conversation_id, user_id)
-      end
+      read_result =
+        if socket.assigns[:messages] && socket.assigns.messages != [] do
+          last_message = List.last(socket.assigns.messages)
+          Messaging.update_last_read_message(conversation_id, user_id, last_message.id)
+        else
+          Messaging.mark_as_read(conversation_id, user_id)
+        end
 
       # Mark any related notifications as read
       # Chat notifications use source_type "message", so clear all message notifications in this conversation
@@ -765,24 +766,9 @@ defmodule ArblargWeb.ChatLive.Index do
       updated_unread_counts =
         Map.put(socket.assigns.conversation.unread_counts, conversation_id, 0)
 
-      # Broadcast that we read messages (for read receipts)
-      Phoenix.PubSub.broadcast(
-        Elektrine.PubSub,
-        "conversation:#{conversation_id}",
-        {:user_read_messages, user_id}
-      )
-
-      # Also broadcast to all conversation members so their conversation list updates
-      members = Messaging.get_conversation_members(conversation_id)
-
-      Enum.each(members, fn member ->
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "user:#{member.user_id}",
-          {:user_read_messages_in_conversation,
-           %{conversation_id: conversation_id, reader_id: user_id}}
-        )
-      end)
+      if read_status_saved?(read_result) do
+        broadcast_chat_read_status(conversation_id, user_id)
+      end
 
       {:noreply,
        socket
@@ -812,7 +798,12 @@ defmodule ArblargWeb.ChatLive.Index do
     last_message_read_status =
       Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
 
-    socket = assign(socket, :last_message_read_status, last_message_read_status)
+    socket =
+      assign(
+        socket,
+        :conversation,
+        Map.put(socket.assigns.conversation, :last_message_read_status, last_message_read_status)
+      )
 
     # Also update message read status if viewing a conversation
     socket =
@@ -856,7 +847,12 @@ defmodule ArblargWeb.ChatLive.Index do
     last_message_read_status =
       Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
 
-    socket = assign(socket, :last_message_read_status, last_message_read_status)
+    socket =
+      assign(
+        socket,
+        :conversation,
+        Map.put(socket.assigns.conversation, :last_message_read_status, last_message_read_status)
+      )
 
     socket =
       if socket.assigns.conversation.selected &&
@@ -1183,7 +1179,12 @@ defmodule ArblargWeb.ChatLive.Index do
         # If this is not my message, mark it as read immediately
         if message.sender_id != socket.assigns.current_user.id do
           user_id = socket.assigns.current_user.id
-          Messaging.mark_chat_messages_read(message.conversation_id, user_id, message.id)
+
+          if read_status_saved?(
+               Messaging.mark_chat_messages_read(message.conversation_id, user_id, message.id)
+             ) do
+            broadcast_chat_read_status(message.conversation_id, user_id)
+          end
         end
 
         updated_unread_counts =
@@ -1791,10 +1792,14 @@ defmodule ArblargWeb.ChatLive.Index do
                         />
                       </span>
                     </div>
-                    <% client_encrypted_payload = Map.get(message, :client_encrypted_payload) %>
+                    <% client_encrypted_payload =
+                      Map.get(message, :client_encrypted_payload) ||
+                        Map.get(message, "client_encrypted_payload") %>
                     <%= if client_encrypted_payload do %>
                       <p
-                        class="text-sm opacity-80"
+                        id={"search-encrypted-message-content-#{message.id}"}
+                        phx-update="ignore"
+                        class="text-sm opacity-0"
                         data-chat-encrypted-message="true"
                         data-conversation-id={message.conversation_id}
                         data-key-uid={
@@ -2662,6 +2667,29 @@ defmodule ArblargWeb.ChatLive.Index do
 
   defp messages_with_date_separators(_), do: []
 
+  defp read_status_saved?(:ok), do: true
+  defp read_status_saved?({:ok, _}), do: true
+  defp read_status_saved?(_), do: false
+
+  defp broadcast_chat_read_status(conversation_id, user_id) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "conversation:#{conversation_id}",
+      {:user_read_messages, user_id}
+    )
+
+    conversation_id
+    |> Messaging.get_conversation_members()
+    |> Enum.each(fn member ->
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        "user:#{member.user_id}",
+        {:user_read_messages_in_conversation,
+         %{conversation_id: conversation_id, reader_id: user_id}}
+      )
+    end)
+  end
+
   defp message_inserted_date(%{inserted_at: %NaiveDateTime{} = inserted_at}),
     do: NaiveDateTime.to_date(inserted_at)
 
@@ -2898,10 +2926,14 @@ defmodule ArblargWeb.ChatLive.Index do
   defp fallback_message_text(content, _message), do: content
 
   defp fallback_message_label(message) do
+    client_encrypted_payload = map_message_value(message, :client_encrypted_payload)
     message_type = map_message_value(message, :message_type)
     media_urls = map_message_value(message, :media_urls) || []
 
     cond do
+      is_map(client_encrypted_payload) ->
+        "Encrypted message"
+
       message_type == "voice" ->
         "Voice message"
 

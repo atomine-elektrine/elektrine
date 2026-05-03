@@ -13,6 +13,8 @@ defmodule Elektrine.Email.Mailbox do
     field :username, :string
     field :forward_to, :string
     field :forward_enabled, :boolean, default: false
+    field :digest_filter_enabled, :boolean, default: true
+    field :ledger_filter_enabled, :boolean, default: true
     field :private_storage_enabled, :boolean, default: false
     field :private_storage_public_key, :string
     field :private_storage_wrapped_private_key, :map
@@ -60,7 +62,15 @@ defmodule Elektrine.Email.Mailbox do
   """
   def changeset(mailbox, attrs) do
     mailbox
-    |> cast(attrs, [:email, :username, :user_id, :forward_to, :forward_enabled])
+    |> cast(attrs, [
+      :email,
+      :username,
+      :user_id,
+      :forward_to,
+      :forward_enabled,
+      :digest_filter_enabled,
+      :ledger_filter_enabled
+    ])
     |> validate_length(:email, max: 160)
     |> validate_length(:username, min: 1, max: 30)
     |> validate_format(:username, ~r/^[a-zA-Z0-9]+$/, message: "only letters and numbers allowed")
@@ -79,6 +89,32 @@ defmodule Elektrine.Email.Mailbox do
     |> cast(attrs, [:forward_to, :forward_enabled])
     |> validate_forwarding()
   end
+
+  @doc """
+  Creates a changeset for optional inbox category filters.
+  """
+  def category_filter_changeset(mailbox, attrs) do
+    mailbox
+    |> cast(attrs, [:digest_filter_enabled, :ledger_filter_enabled])
+  end
+
+  def digest_filter_enabled?(%__MODULE__{digest_filter_enabled: enabled}), do: enabled != false
+  def digest_filter_enabled?(_mailbox), do: true
+
+  def ledger_filter_enabled?(%__MODULE__{ledger_filter_enabled: enabled}), do: enabled != false
+  def ledger_filter_enabled?(_mailbox), do: true
+
+  def enabled_category_filter_categories(%__MODULE__{} = mailbox) do
+    []
+    |> maybe_include_category(digest_filter_enabled?(mailbox), "feed")
+    |> maybe_include_category(ledger_filter_enabled?(mailbox), "ledger")
+    |> Enum.reverse()
+  end
+
+  def enabled_category_filter_categories(_mailbox), do: ["feed", "ledger"]
+
+  defp maybe_include_category(categories, true, category), do: [category | categories]
+  defp maybe_include_category(categories, false, _category), do: categories
 
   @doc """
   Creates a changeset for browser-managed private mailbox storage settings.
@@ -171,14 +207,14 @@ defmodule Elektrine.Email.Mailbox do
       enabled? && !valid_public_key?(public_key) ->
         add_error(changeset, :private_storage_public_key, "must be a valid RSA public key")
 
-      enabled? && !valid_wrapped_payload?(wrapped_private_key) ->
+      enabled? && !valid_wrapped_payload?(wrapped_private_key, "private_key") ->
         add_error(
           changeset,
           :private_storage_wrapped_private_key,
           "must be a valid wrapped private key payload"
         )
 
-      enabled? && !valid_wrapped_payload?(verifier) ->
+      enabled? && !valid_wrapped_payload?(verifier, "verifier") ->
         add_error(changeset, :private_storage_verifier, "must be a valid verifier payload")
 
       true ->
@@ -207,7 +243,7 @@ defmodule Elektrine.Email.Mailbox do
 
   defp valid_public_key?(_value), do: false
 
-  defp valid_wrapped_payload?(payload) when is_map(payload) do
+  defp valid_wrapped_payload?(payload, expected_kind) when is_map(payload) do
     version = payload_value(payload, "version", :version)
     algorithm = payload_value(payload, "algorithm", :algorithm)
     kdf = payload_value(payload, "kdf", :kdf)
@@ -219,22 +255,46 @@ defmodule Elektrine.Email.Mailbox do
     iv = payload_value(payload, "iv", :iv)
     ciphertext = payload_value(payload, "ciphertext", :ciphertext)
 
-    valid_version?(version) and algorithm == "AES-GCM" and kdf == "scrypt" and
+    valid_version?(version) and
+      valid_wrapped_aad_context?(payload, version, unlock_mode, expected_kind) and
+      algorithm == "AES-GCM" and kdf == "scrypt" and
       (is_nil(unlock_mode) or unlock_mode in ["account_password", "separate_passphrase"]) and
       is_integer(n) and n >= 16_384 and is_integer(r) and r >= 8 and is_integer(p) and p >= 1 and
       valid_base64_bytes?(salt, min_size: 16) and valid_base64_bytes?(iv, exact_size: 12) and
       valid_base64_bytes?(ciphertext, min_size: 1)
   end
 
-  defp valid_wrapped_payload?(_payload), do: false
+  defp valid_wrapped_payload?(_payload, _expected_kind), do: false
 
   defp payload_value(payload, string_key, atom_key) do
     Map.get(payload, string_key) || Map.get(payload, atom_key)
   end
 
-  defp valid_version?(version) when is_integer(version), do: version >= 1
-  defp valid_version?(version) when is_float(version), do: version >= 1
+  defp valid_version?(version) when is_integer(version), do: version in [1, 2]
+  defp valid_version?(version) when is_float(version), do: version in [1.0, 2.0]
   defp valid_version?(_version), do: false
+
+  defp valid_wrapped_aad_context?(_payload, version, _unlock_mode, _expected_kind)
+       when version in [1, 1.0],
+       do: true
+
+  defp valid_wrapped_aad_context?(payload, version, unlock_mode, expected_kind)
+       when version in [2, 2.0] do
+    case payload_value(payload, "aad_context", :aad_context) do
+      %{} = context ->
+        payload_value(context, "purpose", :purpose) == "elektrine-private-mailbox-key-wrap" and
+          payload_value(context, "version", :version) in [2, 2.0] and
+          payload_value(context, "kind", :kind) == expected_kind and
+          payload_value(context, "algorithm", :algorithm) == "AES-GCM" and
+          payload_value(context, "kdf", :kdf) == "scrypt" and
+          payload_value(context, "unlock_mode", :unlock_mode) == unlock_mode
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_wrapped_aad_context?(_payload, _version, _unlock_mode, _expected_kind), do: false
 
   defp valid_base64_bytes?(value, opts) when is_binary(value) do
     case Base.decode64(value) do

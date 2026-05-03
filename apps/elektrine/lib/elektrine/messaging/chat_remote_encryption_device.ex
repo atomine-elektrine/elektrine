@@ -9,6 +9,9 @@ defmodule Elektrine.Messaging.ChatRemoteEncryptionDevice do
     field :device_id, :string
     field :public_key, :map
     field :key_algorithm, :string, default: "RSA-OAEP-SHA256"
+    field :fingerprint, :string
+    field :signing_public_key, :map
+    field :device_signature, :map
     field :label, :string
     field :last_seen_at, :utc_datetime
     field :revoked_at, :utc_datetime
@@ -24,6 +27,9 @@ defmodule Elektrine.Messaging.ChatRemoteEncryptionDevice do
       :device_id,
       :public_key,
       :key_algorithm,
+      :fingerprint,
+      :signing_public_key,
+      :device_signature,
       :label,
       :last_seen_at,
       :revoked_at
@@ -38,6 +44,7 @@ defmodule Elektrine.Messaging.ChatRemoteEncryptionDevice do
     |> validate_length(:origin_domain, min: 3, max: 253)
     |> validate_length(:remote_handle, min: 3, max: 255)
     |> validate_length(:device_id, min: 8, max: 128)
+    |> validate_length(:fingerprint, min: 32, max: 128)
     |> validate_length(:label, max: 120)
     |> validate_inclusion(:key_algorithm, ["RSA-OAEP-SHA256"])
     |> validate_public_key()

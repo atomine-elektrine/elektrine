@@ -41,7 +41,7 @@ defmodule Elektrine.Messaging.ChatConversations do
       from(m in ChatMessage,
         where: m.conversation_id in ^conversation_ids and is_nil(m.deleted_at),
         distinct: m.conversation_id,
-        order_by: [asc: m.conversation_id, desc: m.inserted_at],
+        order_by: [asc: m.conversation_id, desc: m.inserted_at, desc: m.id],
         preload: [sender: [:profile]]
       )
       |> Repo.all()
@@ -131,9 +131,14 @@ defmodule Elektrine.Messaging.ChatConversations do
               {:ok, conversation}
 
             nil ->
-              RateLimiter.record_dm_creation(user1_id)
-
               Repo.transaction(fn ->
+                case spend_first_dm_credit(user1_id, user2_id) do
+                  :ok -> :ok
+                  {:error, reason} -> Repo.rollback(reason)
+                end
+
+                RateLimiter.record_dm_creation(user1_id)
+
                 {:ok, conversation} =
                   %ChatConversation{}
                   |> ChatConversation.dm_changeset(%{creator_id: user1_id})
@@ -174,9 +179,14 @@ defmodule Elektrine.Messaging.ChatConversations do
           {:ok, conversation}
 
         nil ->
-          RateLimiter.record_dm_creation(local_user_id)
-
           Repo.transaction(fn ->
+            case spend_first_dm_credit(local_user_id, "remote:#{recipient.handle}") do
+              :ok -> :ok
+              {:error, reason} -> Repo.rollback(reason)
+            end
+
+            RateLimiter.record_dm_creation(local_user_id)
+
             {:ok, conversation} =
               %ChatConversation{}
               |> ChatConversation.dm_changeset(%{
@@ -1389,6 +1399,14 @@ defmodule Elektrine.Messaging.ChatConversations do
 
   defp ensure_dm_creation_allowed(user_id),
     do: if(RateLimiter.can_create_dm?(user_id), do: :ok, else: {:error, :rate_limited})
+
+  defp spend_first_dm_credit(sender_id, recipient) do
+    if Code.ensure_loaded?(Atomine.CreditPolicy) do
+      Atomine.CreditPolicy.spend_first_dm_credit(sender_id, recipient)
+    else
+      :ok
+    end
+  end
 
   defp ensure_remote_recipient_domain(_local_user_id, recipient) do
     case local_recipient_user(recipient) do

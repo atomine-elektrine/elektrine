@@ -62,7 +62,11 @@ defmodule ElektrineWeb.Endpoint do
       "/_arblarg/ephemeral",
       "/_arblarg/sync"
     ],
-    suffixes: ["/inbox"]
+    suffixes: ["/inbox"],
+    max_length: 1 * 1024 * 1024,
+    max_lengths: %{
+      "/_arblarg/sync" => 5 * 1024 * 1024
+    }
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

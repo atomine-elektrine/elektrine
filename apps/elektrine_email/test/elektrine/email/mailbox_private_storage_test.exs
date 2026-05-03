@@ -4,6 +4,7 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Email
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Email.MailboxEncryption
   alias Elektrine.Repo
 
   test "create_message stores encrypted message and attachment payloads for private mailboxes" do
@@ -42,8 +43,18 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert payload_value(stored_message.client_encrypted_payload, "encrypted_key", :encrypted_key)
     assert stored_attachment["filename"] == "Encrypted attachment"
     assert stored_attachment["content_type"] == "application/octet-stream"
-    assert stored_attachment["size"] == 14
+    assert stored_attachment["size"] == 0
     assert is_map(stored_attachment["private_encrypted_payload"])
+    assert stored_message.client_encrypted_payload["version"] == 2
+    assert stored_message.client_encrypted_payload["aad_context"]["kind"] == "message"
+    assert stored_attachment["private_encrypted_payload"]["version"] == 2
+    assert stored_attachment["private_encrypted_payload"]["aad_context"]["kind"] == "attachment"
+
+    refute MailboxEncryption.valid_payload?(
+             stored_attachment["private_encrypted_payload"],
+             :message
+           )
+
     refute Map.has_key?(stored_attachment, "data")
   end
 
@@ -102,6 +113,74 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert Mailbox.private_storage_account_password?(account_password_mailbox)
   end
 
+  test "private storage changeset requires v2 wrapped payload AAD context" do
+    user = AccountsFixtures.user_fixture()
+
+    mailbox =
+      case Email.ensure_user_has_mailbox(user) do
+        {:ok, mailbox} -> mailbox
+        mailbox -> mailbox
+      end
+
+    invalid_v2_payload =
+      wrapped_payload()
+      |> Map.put("version", 2)
+      |> Map.put("unlock_mode", "account_password")
+
+    changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: invalid_v2_payload,
+        private_storage_verifier: invalid_v2_payload
+      })
+
+    refute changeset.valid?
+    assert changeset.errors[:private_storage_wrapped_private_key]
+  end
+
+  test "private storage changeset binds v2 wrapped payload AAD kind to each field" do
+    user = AccountsFixtures.user_fixture()
+
+    mailbox =
+      case Email.ensure_user_has_mailbox(user) do
+        {:ok, mailbox} -> mailbox
+        mailbox -> mailbox
+      end
+
+    valid_changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: v2_wrapped_payload("private_key"),
+        private_storage_verifier: v2_wrapped_payload("verifier")
+      })
+
+    assert valid_changeset.valid?
+
+    swapped_changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: v2_wrapped_payload("verifier"),
+        private_storage_verifier: v2_wrapped_payload("private_key")
+      })
+
+    refute swapped_changeset.valid?
+    assert swapped_changeset.errors[:private_storage_wrapped_private_key]
+
+    swapped_verifier_changeset =
+      Mailbox.private_storage_changeset(mailbox, %{
+        private_storage_enabled: true,
+        private_storage_public_key: public_key_pem(),
+        private_storage_wrapped_private_key: v2_wrapped_payload("private_key"),
+        private_storage_verifier: v2_wrapped_payload("private_key")
+      })
+
+    refute swapped_verifier_changeset.valid?
+    assert swapped_verifier_changeset.errors[:private_storage_verifier]
+  end
+
   defp private_mailbox_fixture(user) do
     mailbox =
       Email.get_user_mailbox(user.id) ||
@@ -133,6 +212,20 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
       "iv" => Base.encode64("123456789012"),
       "ciphertext" => Base.encode64("ciphertext-payload")
     }
+  end
+
+  defp v2_wrapped_payload(kind) do
+    wrapped_payload()
+    |> Map.put("version", 2)
+    |> Map.put("unlock_mode", "account_password")
+    |> Map.put("aad_context", %{
+      "purpose" => "elektrine-private-mailbox-key-wrap",
+      "version" => 2,
+      "kind" => kind,
+      "algorithm" => "AES-GCM",
+      "kdf" => "scrypt",
+      "unlock_mode" => "account_password"
+    })
   end
 
   defp public_key_pem do

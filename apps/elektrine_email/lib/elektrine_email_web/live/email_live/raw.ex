@@ -21,6 +21,7 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
     # Get storage info and unread count early (needed for sidebar in template)
     unread_count = Email.unread_count(mailbox.id)
     storage_info = Elektrine.Accounts.Storage.get_storage_info(user.id)
+    custom_folders = Email.list_custom_folders(user.id)
 
     # Try to find message by hash first, then by ID
     # Both lookups now validate ownership
@@ -48,6 +49,7 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
            |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
            |> assign(:unread_count, unread_count)
            |> assign(:storage_info, storage_info)
+           |> assign(:custom_folders, custom_folders)
            |> push_navigate(to: ~p"/email/#{verified_message.hash}/raw")}
         else
           {:ok,
@@ -57,7 +59,8 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
            |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
            |> assign(:message, verified_message)
            |> assign(:unread_count, unread_count)
-           |> assign(:storage_info, storage_info)}
+           |> assign(:storage_info, storage_info)
+           |> assign(:custom_folders, custom_folders)}
         end
 
       {:error, _} ->
@@ -67,6 +70,7 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
          |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
          |> assign(:unread_count, unread_count)
          |> assign(:storage_info, storage_info)
+         |> assign(:custom_folders, custom_folders)
          |> notify_error("Message not found")
          |> push_navigate(to: ~p"/email")}
     end

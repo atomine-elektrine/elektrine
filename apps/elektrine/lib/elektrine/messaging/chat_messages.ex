@@ -133,13 +133,19 @@ defmodule Elektrine.Messaging.ChatMessages do
     query =
       cond do
         before_id ->
-          from(m in base_query, where: m.id < ^before_id, order_by: [desc: m.inserted_at])
+          from(m in base_query,
+            where: m.id < ^before_id,
+            order_by: [desc: m.inserted_at, desc: m.id]
+          )
 
         after_id ->
-          from(m in base_query, where: m.id > ^after_id, order_by: [asc: m.inserted_at])
+          from(m in base_query,
+            where: m.id > ^after_id,
+            order_by: [asc: m.inserted_at, asc: m.id]
+          )
 
         true ->
-          from(m in base_query, order_by: [desc: m.inserted_at])
+          from(m in base_query, order_by: [desc: m.inserted_at, desc: m.id])
       end
 
     messages = Repo.all(query)
@@ -278,6 +284,10 @@ defmodule Elektrine.Messaging.ChatMessages do
       public_key: Map.get(attrs, "public_key") || Map.get(attrs, :public_key),
       key_algorithm:
         Map.get(attrs, "key_algorithm") || Map.get(attrs, :key_algorithm) || "RSA-OAEP-SHA256",
+      fingerprint: Map.get(attrs, "fingerprint") || Map.get(attrs, :fingerprint),
+      signing_public_key:
+        Map.get(attrs, "signing_public_key") || Map.get(attrs, :signing_public_key),
+      device_signature: Map.get(attrs, "device_signature") || Map.get(attrs, :device_signature),
       label: Map.get(attrs, "label") || Map.get(attrs, :label),
       last_seen_at: now,
       revoked_at: nil
@@ -290,6 +300,9 @@ defmodule Elektrine.Messaging.ChatMessages do
         set: [
           public_key: device_attrs.public_key,
           key_algorithm: device_attrs.key_algorithm,
+          fingerprint: device_attrs.fingerprint,
+          signing_public_key: device_attrs.signing_public_key,
+          device_signature: device_attrs.device_signature,
           label: device_attrs.label,
           last_seen_at: now,
           revoked_at: nil,
@@ -316,7 +329,10 @@ defmodule Elektrine.Messaging.ChatMessages do
           user_id: d.user_id,
           device_id: d.device_id,
           public_key: d.public_key,
-          key_algorithm: d.key_algorithm
+          key_algorithm: d.key_algorithm,
+          fingerprint: d.fingerprint,
+          signing_public_key: d.signing_public_key,
+          device_signature: d.device_signature
         }
       )
       |> Repo.all()
@@ -337,6 +353,9 @@ defmodule Elektrine.Messaging.ChatMessages do
         device_id: d.device_id,
         public_key: d.public_key,
         key_algorithm: d.key_algorithm,
+        fingerprint: d.fingerprint,
+        signing_public_key: d.signing_public_key,
+        device_signature: d.device_signature,
         label: d.label
       }
     )
@@ -368,6 +387,11 @@ defmodule Elektrine.Messaging.ChatMessages do
         key_algorithm:
           Map.get(device, "key_algorithm") || Map.get(device, :key_algorithm) ||
             "RSA-OAEP-SHA256",
+        fingerprint: Map.get(device, "fingerprint") || Map.get(device, :fingerprint),
+        signing_public_key:
+          Map.get(device, "signing_public_key") || Map.get(device, :signing_public_key),
+        device_signature:
+          Map.get(device, "device_signature") || Map.get(device, :device_signature),
         label: Map.get(device, "label") || Map.get(device, :label),
         last_seen_at: now,
         revoked_at: nil
@@ -380,6 +404,9 @@ defmodule Elektrine.Messaging.ChatMessages do
           set: [
             public_key: attrs.public_key,
             key_algorithm: attrs.key_algorithm,
+            fingerprint: attrs.fingerprint,
+            signing_public_key: attrs.signing_public_key,
+            device_signature: attrs.device_signature,
             label: attrs.label,
             last_seen_at: now,
             revoked_at: nil,
@@ -658,12 +685,7 @@ defmodule Elektrine.Messaging.ChatMessages do
           select: m.id
         )
 
-      query =
-        if up_to_message_id do
-          from(m in query, where: m.id <= ^up_to_message_id)
-        else
-          query
-        end
+      query = limit_read_query(query, conversation_id, up_to_message_id)
 
       message_ids = Repo.all(query)
 
@@ -689,6 +711,8 @@ defmodule Elektrine.Messaging.ChatMessages do
       |> Repo.update_all(set: [last_read_at: now, last_read_message_id: nil])
 
       Elektrine.AppCache.invalidate_chat_cache(user_id)
+      broadcast_chat_unread_count(user_id)
+      Elektrine.Notifications.mark_as_read_by_sources(user_id, "message", message_ids)
 
       :ok
     end
@@ -712,6 +736,22 @@ defmodule Elektrine.Messaging.ChatMessages do
       select: count(m.id)
     )
     |> Repo.one()
+  end
+
+  defp limit_read_query(query, _conversation_id, nil), do: query
+
+  defp limit_read_query(query, conversation_id, up_to_message_id) do
+    case Repo.get_by(ChatMessage, id: up_to_message_id, conversation_id: conversation_id) do
+      %ChatMessage{inserted_at: inserted_at} ->
+        from(m in query,
+          where:
+            m.inserted_at < ^inserted_at or
+              (m.inserted_at == ^inserted_at and m.id <= ^up_to_message_id)
+        )
+
+      nil ->
+        from(m in query, where: false)
+    end
   end
 
   @doc """
@@ -763,6 +803,20 @@ defmodule Elektrine.Messaging.ChatMessages do
     |> Map.values()
     |> Enum.sum()
   end
+
+  defp broadcast_chat_unread_count(user_id) when is_integer(user_id) do
+    count = get_total_unread_count(user_id)
+
+    Enum.each(["user:#{user_id}", "user:#{user_id}:notification_count"], fn topic ->
+      Phoenix.PubSub.broadcast(
+        Elektrine.PubSub,
+        topic,
+        {:chat_unread_count_updated, count}
+      )
+    end)
+  end
+
+  defp broadcast_chat_unread_count(_user_id), do: :ok
 
   @doc """
   Updates last read state up to a specific chat message.
@@ -1139,7 +1193,10 @@ defmodule Elektrine.Messaging.ChatMessages do
           origin_domain: d.origin_domain,
           device_id: d.device_id,
           public_key: d.public_key,
-          key_algorithm: d.key_algorithm
+          key_algorithm: d.key_algorithm,
+          fingerprint: d.fingerprint,
+          signing_public_key: d.signing_public_key,
+          device_signature: d.device_signature
         }
       )
       |> Repo.all()
@@ -1601,7 +1658,10 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   defp ensure_writable_conversation(conversation_id, sender_id)
        when is_integer(conversation_id) and is_integer(sender_id) do
-    RoomACL.authorize_local_user_action(conversation_id, sender_id, :write)
+    case RoomACL.authorize_local_user_action(conversation_id, sender_id, :write) do
+      :ok -> ensure_dm_privacy_allows_send(conversation_id, sender_id)
+      error -> error
+    end
   end
 
   defp ensure_writable_conversation(_conversation_id, _sender_id), do: {:error, :unauthorized}
@@ -1609,6 +1669,37 @@ defmodule Elektrine.Messaging.ChatMessages do
   defp ensure_writable_conversation(conversation_id) when is_integer(conversation_id), do: :ok
 
   defp ensure_writable_conversation(_conversation_id), do: :ok
+
+  defp ensure_dm_privacy_allows_send(conversation_id, sender_id) do
+    case Repo.get(ChatConversation, conversation_id) do
+      %ChatConversation{type: "dm", federated_source: nil} ->
+        conversation_id
+        |> local_dm_recipient_id(sender_id)
+        |> case do
+          nil ->
+            :ok
+
+          recipient_id ->
+            case Elektrine.Privacy.can_send_dm?(sender_id, recipient_id) do
+              {:ok, :allowed} -> :ok
+              {:error, reason} -> {:error, reason}
+            end
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp local_dm_recipient_id(conversation_id, sender_id) do
+    from(cm in ChatConversationMember,
+      where:
+        cm.conversation_id == ^conversation_id and cm.user_id != ^sender_id and is_nil(cm.left_at),
+      select: cm.user_id,
+      limit: 1
+    )
+    |> Repo.one()
+  end
 
   defp ensure_participating_conversation(conversation_id, user_id)
        when is_integer(conversation_id) and is_integer(user_id) do

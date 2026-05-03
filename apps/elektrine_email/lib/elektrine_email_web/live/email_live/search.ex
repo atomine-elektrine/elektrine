@@ -21,6 +21,7 @@ defmodule ElektrineEmailWeb.EmailLive.Search do
       end
 
     storage_info = Elektrine.Accounts.Storage.get_storage_info(current_user.id)
+    custom_folders = Email.list_custom_folders(current_user.id)
 
     socket =
       socket
@@ -33,6 +34,7 @@ defmodule ElektrineEmailWeb.EmailLive.Search do
       |> assign(:searching, false)
       |> assign(:unread_count, Cached.unread_count(mailbox.id))
       |> assign(:storage_info, storage_info)
+      |> assign(:custom_folders, custom_folders)
       |> assign(:recent_searches, SearchCached.get_recent_searches(current_user.id))
       |> assign(:popular_searches, SearchCached.get_popular_searches())
 

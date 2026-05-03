@@ -156,9 +156,6 @@ defmodule ElektrineEmailWeb.EmailScrubber do
     {tag, safe_attributes}
   end
 
-  # Catch-all for other content
-  def scrub(content), do: content
-
   # Block dangerous protocols - must be after scrub function definitions
   Meta.allow_tag_with_uri_attributes(
     "a",
@@ -196,5 +193,5 @@ defmodule ElektrineEmailWeb.EmailScrubber do
     ["http", "https"]
   )
 
-  # Note: We have a catch-all scrub/1 above, so no need for strip_everything_not_covered
+  @before_compile HtmlSanitizeEx.ScrubberCompiler
 end

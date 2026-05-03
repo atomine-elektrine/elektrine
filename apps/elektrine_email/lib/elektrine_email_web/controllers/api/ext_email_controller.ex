@@ -124,6 +124,14 @@ defmodule ElektrineEmailWeb.API.ExtEmailController do
           "Recipient limit exceeded"
         )
 
+      {:error, :insufficient_email_credits} ->
+        Response.error(
+          conn,
+          :forbidden,
+          "insufficient_email_credits",
+          "You need Atomine Credits to send external email"
+        )
+
       {:error, :storage_limit_exceeded} ->
         Response.error(
           conn,
@@ -170,14 +178,17 @@ defmodule ElektrineEmailWeb.API.ExtEmailController do
   defp apply_folder_filter(query, "all"), do: query
 
   defp apply_folder_filter(query, "inbox") do
-    from([message, _mailbox] in query,
+    from([message, mailbox] in query,
       where:
         not message.spam and
           not message.archived and
           not message.deleted and
           (message.status not in ["sent", "draft"] or is_nil(message.status) or
              message.from == message.to) and
-          message.category not in ["feed", "ledger", "stack"] and
+          (is_nil(message.category) or
+             (message.category != "stack" and
+                (message.category != "feed" or not mailbox.digest_filter_enabled) and
+                (message.category != "ledger" or not mailbox.ledger_filter_enabled))) and
           is_nil(message.reply_later_at) and
           is_nil(message.folder_id)
     )

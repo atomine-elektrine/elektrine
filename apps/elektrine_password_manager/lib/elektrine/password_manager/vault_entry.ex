@@ -11,6 +11,7 @@ defmodule Elektrine.PasswordManager.VaultEntry do
     field :title, :string
     field :login_username, :string
     field :website, :string
+    field :encrypted_metadata, :map
     field :encrypted_password, :map
     field :encrypted_notes, :map
 
@@ -50,6 +51,7 @@ defmodule Elektrine.PasswordManager.VaultEntry do
       :title,
       :login_username,
       :website,
+      :encrypted_metadata,
       :encrypted_password,
       :encrypted_notes,
       :user_id
@@ -59,14 +61,29 @@ defmodule Elektrine.PasswordManager.VaultEntry do
     |> normalize_string(:website)
     |> empty_to_nil(:login_username)
     |> empty_to_nil(:website)
-    |> validate_required([:title, :encrypted_password, :user_id])
+    |> protect_plaintext_metadata()
+    |> validate_required([:encrypted_password, :user_id])
     |> validate_length(:title, max: 120)
     |> validate_length(:login_username, max: 255)
     |> validate_length(:website, max: 255)
+    |> validate_encrypted_payload(:encrypted_metadata, required: true)
     |> validate_encrypted_payload(:encrypted_password, required: true)
     |> validate_encrypted_payload(:encrypted_notes, required: false)
     |> validate_website()
     |> foreign_key_constraint(:user_id)
+  end
+
+  defp protect_plaintext_metadata(changeset) do
+    case get_field(changeset, :encrypted_metadata) do
+      metadata when is_map(metadata) ->
+        changeset
+        |> put_change(:title, "Encrypted entry")
+        |> put_change(:login_username, nil)
+        |> put_change(:website, nil)
+
+      _ ->
+        changeset
+    end
   end
 
   defp validate_website(changeset) do

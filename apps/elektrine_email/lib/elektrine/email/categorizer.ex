@@ -43,9 +43,11 @@ defmodule Elektrine.Email.Categorizer do
 
     user_id = Keyword.get(opts, :user_id)
     learned_match = match_learned_preference(user_id, get_attr(message_attrs, "from", :from))
+    enabled_category_filters = Keyword.get(opts, :enabled_category_filters, ["feed", "ledger"])
 
     {category, confidence, source, reasons, fallback_applied} =
       determine_category(signals, learned_match)
+      |> maybe_apply_disabled_category_filter(enabled_category_filters)
 
     categorization_metadata = %{
       "category" => category,
@@ -635,6 +637,21 @@ defmodule Elektrine.Email.Categorizer do
       {category, confidence, Atom.to_string(source), Enum.reverse(reasons), false}
     end
   end
+
+  defp maybe_apply_disabled_category_filter(
+         {category, confidence, source, reasons, fallback_applied},
+         enabled_categories
+       )
+       when category in ["feed", "ledger"] do
+    if category in enabled_categories do
+      {category, confidence, source, reasons, fallback_applied}
+    else
+      {"inbox", confidence, "disabled_category_filter",
+       ["#{category} category filter disabled" | reasons], true}
+    end
+  end
+
+  defp maybe_apply_disabled_category_filter(result, _enabled_categories), do: result
 
   defp compute_confidence(:default, _primary_signal, _signals), do: 0.9
   defp compute_confidence(:notification, _primary_signal, _signals), do: 0.85

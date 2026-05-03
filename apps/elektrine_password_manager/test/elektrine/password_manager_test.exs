@@ -46,6 +46,7 @@ defmodule Elektrine.PasswordManagerTest do
         "title" => "GitHub",
         "login_username" => "dev@example.com",
         "website" => "https://github.com",
+        "encrypted_metadata" => encrypted_payload("metadata"),
         "encrypted_password" => encrypted_payload("SuperSecret123!"),
         "encrypted_notes" => encrypted_payload("MFA enabled")
       }
@@ -54,12 +55,56 @@ defmodule Elektrine.PasswordManagerTest do
 
       stored_entry = Repo.get!(VaultEntry, entry.id)
 
-      assert stored_entry.title == "GitHub"
+      assert stored_entry.title == "Encrypted entry"
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               attrs["encrypted_metadata"]["ciphertext"]
 
       assert stored_entry.encrypted_password["ciphertext"] ==
                attrs["encrypted_password"]["ciphertext"]
 
       assert stored_entry.encrypted_notes["ciphertext"] == attrs["encrypted_notes"]["ciphertext"]
+    end
+
+    test "create_entry/2 stores encrypted metadata without plaintext metadata", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "GitHub",
+        "login_username" => "dev@example.com",
+        "website" => "https://github.com",
+        "encrypted_metadata" => encrypted_payload("metadata"),
+        "encrypted_password" => encrypted_payload("SuperSecret123!")
+      }
+
+      assert {:ok, entry} = PasswordManager.create_entry(user.id, attrs)
+
+      stored_entry = Repo.get!(VaultEntry, entry.id)
+
+      assert stored_entry.title == "Encrypted entry"
+      assert is_nil(stored_entry.login_username)
+      assert is_nil(stored_entry.website)
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               attrs["encrypted_metadata"]["ciphertext"]
+    end
+
+    test "create_entry/2 requires encrypted metadata", %{user: user} do
+      assert {:ok, _settings} =
+               PasswordManager.setup_vault(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "GitHub",
+        "encrypted_password" => encrypted_payload("SuperSecret123!")
+      }
+
+      assert {:error, changeset} = PasswordManager.create_entry(user.id, attrs)
+      assert {"can't be blank", _opts} = changeset.errors[:encrypted_metadata]
     end
 
     test "create_entry/2 validates required encrypted payload", %{user: user} do
@@ -70,6 +115,7 @@ defmodule Elektrine.PasswordManagerTest do
 
       attrs = %{
         "title" => "Missing Ciphertext",
+        "encrypted_metadata" => encrypted_payload("metadata"),
         "encrypted_password" => nil
       }
 
@@ -85,6 +131,7 @@ defmodule Elektrine.PasswordManagerTest do
 
       attrs = %{
         "title" => "Bad Payload",
+        "encrypted_metadata" => encrypted_payload("metadata"),
         "encrypted_password" => %{"ciphertext" => "abc"}
       }
 
@@ -94,19 +141,14 @@ defmodule Elektrine.PasswordManagerTest do
                changeset.errors[:encrypted_password]
     end
 
-    test "create_entry/2 validates website protocol", %{user: user} do
-      assert {:ok, _settings} =
-               PasswordManager.setup_vault(user.id, %{
-                 "encrypted_verifier" => encrypted_payload("verifier")
-               })
+    test "form changeset validates website protocol", %{user: user} do
+      changeset =
+        VaultEntry.form_changeset(%VaultEntry{}, %{
+          "title" => "Bad Website",
+          "website" => "ftp://example.com",
+          "user_id" => user.id
+        })
 
-      attrs = %{
-        "title" => "Bad Website",
-        "website" => "ftp://example.com",
-        "encrypted_password" => encrypted_payload("password123")
-      }
-
-      assert {:error, changeset} = PasswordManager.create_entry(user.id, attrs)
       assert {"must start with http:// or https://", _opts} = changeset.errors[:website]
     end
 
@@ -124,19 +166,21 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, _entry_1} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Main Account",
+                 "encrypted_metadata" => encrypted_payload("metadata-user"),
                  "encrypted_password" => encrypted_payload("one")
                })
 
       assert {:ok, _entry_2} =
                PasswordManager.create_entry(other_user.id, %{
                  "title" => "Other Account",
+                 "encrypted_metadata" => encrypted_payload("metadata-other"),
                  "encrypted_password" => encrypted_payload("two")
                })
 
       entries = PasswordManager.list_entries(user.id)
 
       assert length(entries) == 1
-      assert hd(entries).title == "Main Account"
+      assert hd(entries).title == "Encrypted entry"
       refute Map.has_key?(hd(entries), :encrypted_password)
     end
 
@@ -149,6 +193,7 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, _entry} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Email",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("InboxSecret!")
                })
 
@@ -166,6 +211,7 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, entry} =
                PasswordManager.create_entry(other_user.id, %{
                  "title" => "Hidden",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("ShouldNotBeVisible")
                })
 
@@ -183,6 +229,7 @@ defmodule Elektrine.PasswordManagerTest do
                  "title" => "Email",
                  "login_username" => "old@example.com",
                  "website" => "https://mail.example.com",
+                 "encrypted_metadata" => encrypted_payload("old-metadata"),
                  "encrypted_password" => encrypted_payload("old-password")
                })
 
@@ -191,17 +238,21 @@ defmodule Elektrine.PasswordManagerTest do
                  "title" => "Email Account",
                  "login_username" => "new@example.com",
                  "website" => "https://mail.example.com",
+                 "encrypted_metadata" => encrypted_payload("new-metadata"),
                  "encrypted_password" => encrypted_payload("new-password"),
                  "encrypted_notes" => encrypted_payload("rotated")
                })
 
-      assert updated_entry.title == "Email Account"
-      assert updated_entry.login_username == "new@example.com"
+      assert updated_entry.title == "Encrypted entry"
+      assert is_nil(updated_entry.login_username)
 
       stored_entry = Repo.get!(VaultEntry, entry.id)
 
       assert stored_entry.encrypted_password["ciphertext"] ==
                encrypted_payload("new-password")["ciphertext"]
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               encrypted_payload("new-metadata")["ciphertext"]
 
       assert stored_entry.encrypted_notes["ciphertext"] ==
                encrypted_payload("rotated")["ciphertext"]
@@ -216,6 +267,7 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, entry} =
                PasswordManager.create_entry(other_user.id, %{
                  "title" => "Hidden",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("secret")
                })
 
@@ -235,6 +287,7 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, entry} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Delete Me",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("temporary")
                })
 
@@ -252,6 +305,7 @@ defmodule Elektrine.PasswordManagerTest do
       assert {:ok, _entry} =
                PasswordManager.create_entry(user.id, %{
                  "title" => "Wipe Me",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
                  "encrypted_password" => encrypted_payload("temporary")
                })
 

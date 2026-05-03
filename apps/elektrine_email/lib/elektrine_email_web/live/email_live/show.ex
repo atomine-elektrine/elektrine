@@ -78,6 +78,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
 
     # Get storage info
     storage_info = Elektrine.Accounts.Storage.get_storage_info(user.id)
+    custom_folders = Email.list_custom_folders(user.id)
 
     return_context = email_return_context(params)
 
@@ -90,6 +91,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
      |> assign(:thread_messages, thread_messages)
      |> assign(:unread_count, unread_count)
      |> assign(:storage_info, storage_info)
+     |> assign(:custom_folders, custom_folders)
      |> assign(:return_to, return_context.return_to)
      |> assign(:return_filter, return_context.return_filter)
      |> assign(:return_folder_id, return_context.return_folder_id)

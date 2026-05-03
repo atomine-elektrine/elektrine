@@ -344,10 +344,26 @@ defmodule Elektrine.Email.Mailboxes do
   end
 
   @doc """
+  Updates optional Digest/Ledger inbox category filters for a mailbox.
+  """
+  def update_mailbox_category_filters(%Mailbox{} = mailbox, attrs) do
+    mailbox
+    |> Mailbox.category_filter_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
   Returns an `%Ecto.Changeset{}` for tracking mailbox forwarding changes.
   """
   def change_mailbox_forwarding(%Mailbox{} = mailbox, attrs \\ %{}) do
     Mailbox.forwarding_changeset(mailbox, attrs)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking mailbox category filter changes.
+  """
+  def change_mailbox_category_filters(%Mailbox{} = mailbox, attrs \\ %{}) do
+    Mailbox.category_filter_changeset(mailbox, attrs)
   end
 
   @doc """

@@ -145,9 +145,19 @@ defmodule Elektrine.PasswordManager do
     key
   end
 
-  defp entry_fields(false), do: [:id, :title, :login_username, :website, :inserted_at]
+  defp entry_fields(false),
+    do: [:id, :title, :login_username, :website, :encrypted_metadata, :inserted_at]
 
   defp entry_fields(true) do
-    [:id, :title, :login_username, :website, :inserted_at, :encrypted_password, :encrypted_notes]
+    [
+      :id,
+      :title,
+      :login_username,
+      :website,
+      :encrypted_metadata,
+      :inserted_at,
+      :encrypted_password,
+      :encrypted_notes
+    ]
   end
 end

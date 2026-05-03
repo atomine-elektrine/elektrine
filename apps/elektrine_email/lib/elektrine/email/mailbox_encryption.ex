@@ -9,8 +9,6 @@ defmodule Elektrine.Email.MailboxEncryption do
   alias Elektrine.Email.AttachmentStorage
   alias Elektrine.Email.Mailbox
 
-  @message_aad "ElektrineMailboxStorageV1"
-  @attachment_aad "ElektrineMailboxAttachmentV1"
   @placeholder_subject "Encrypted message"
   @placeholder_attachment_filename "Encrypted attachment"
   @placeholder_attachment_content_type "application/octet-stream"
@@ -35,7 +33,7 @@ defmodule Elektrine.Email.MailboxEncryption do
   def attachment_encrypted?(attachment) when is_map(attachment) do
     attachment
     |> attachment_payload()
-    |> valid_payload?()
+    |> valid_payload?(:attachment)
   end
 
   def attachment_encrypted?(_attachment), do: false
@@ -64,7 +62,9 @@ defmodule Elektrine.Email.MailboxEncryption do
   @doc """
   Returns true when a stored message payload matches the mailbox-encryption envelope shape.
   """
-  def valid_payload?(payload) when is_map(payload) do
+  def valid_payload?(payload, expected_kind \\ nil)
+
+  def valid_payload?(payload, expected_kind) when is_map(payload) do
     version = payload_value(payload, "version", :version)
     content_algorithm = payload_value(payload, "content_algorithm", :content_algorithm)
     key_algorithm = payload_value(payload, "key_algorithm", :key_algorithm)
@@ -73,13 +73,14 @@ defmodule Elektrine.Email.MailboxEncryption do
     tag = payload_value(payload, "tag", :tag)
     ciphertext = payload_value(payload, "ciphertext", :ciphertext)
 
-    valid_version?(version) and content_algorithm == "AES-256-GCM" and
+    valid_version?(version) and valid_aad_context?(payload, version, expected_kind) and
+      content_algorithm == "AES-256-GCM" and
       key_algorithm == "RSA-OAEP-SHA256" and valid_base64_bytes?(encrypted_key, min_size: 32) and
       valid_base64_bytes?(iv, exact_size: 12) and valid_base64_bytes?(tag, exact_size: 16) and
       valid_base64_bytes?(ciphertext, min_size: 1)
   end
 
-  def valid_payload?(_payload), do: false
+  def valid_payload?(_payload, _expected_kind), do: false
 
   defp encrypt_payload(attrs, public_key_pem) do
     subject = get_attr(attrs, "subject", :subject)
@@ -122,7 +123,7 @@ defmodule Elektrine.Email.MailboxEncryption do
           "html_body" => html_body
         },
         public_key,
-        @message_aad
+        :message
       )
     end
   end
@@ -158,13 +159,13 @@ defmodule Elektrine.Email.MailboxEncryption do
              encrypt_json(
                attachment_payload_map(attachment, content),
                public_key,
-               @attachment_aad
+               :attachment
              ) do
         {:ok,
          %{
            "filename" => @placeholder_attachment_filename,
            "content_type" => @placeholder_attachment_content_type,
-           "size" => Map.get(attachment, "size") || byte_size(content),
+           "size" => 0,
            "private_encrypted" => true,
            "private_encrypted_payload" => envelope
          }}
@@ -189,10 +190,12 @@ defmodule Elektrine.Email.MailboxEncryption do
     |> Enum.into(%{})
   end
 
-  defp encrypt_json(map, public_key, aad) when is_map(map) do
+  defp encrypt_json(map, public_key, kind) when is_map(map) do
     payload = Jason.encode!(map)
     content_key = :crypto.strong_rand_bytes(32)
     iv = :crypto.strong_rand_bytes(12)
+    aad_context = aad_context(kind)
+    aad = canonical_json(aad_context)
 
     {ciphertext, tag} =
       :crypto.crypto_one_time_aead(:aes_256_gcm, content_key, iv, payload, aad, true)
@@ -208,9 +211,10 @@ defmodule Elektrine.Email.MailboxEncryption do
 
     {:ok,
      %{
-       version: 1,
+       version: 2,
        content_algorithm: "AES-256-GCM",
        key_algorithm: "RSA-OAEP-SHA256",
+       aad_context: aad_context,
        encrypted_key: Base.encode64(encrypted_key),
        iv: Base.encode64(iv),
        tag: Base.encode64(tag),
@@ -254,9 +258,49 @@ defmodule Elektrine.Email.MailboxEncryption do
     Map.get(payload, string_key) || Map.get(payload, atom_key)
   end
 
-  defp valid_version?(version) when is_integer(version), do: version >= 1
-  defp valid_version?(version) when is_float(version), do: version >= 1
+  defp valid_version?(version) when is_integer(version), do: version in [1, 2]
+  defp valid_version?(version) when is_float(version), do: version in [1.0, 2.0]
   defp valid_version?(_version), do: false
+
+  defp valid_aad_context?(_payload, version, _expected_kind) when version in [1, 1.0], do: true
+
+  defp valid_aad_context?(payload, version, expected_kind) when version in [2, 2.0] do
+    case payload_value(payload, "aad_context", :aad_context) do
+      %{} = context ->
+        kind = payload_value(context, "kind", :kind)
+
+        payload_value(context, "purpose", :purpose) == "elektrine-private-mailbox" and
+          payload_value(context, "version", :version) in [2, 2.0] and
+          kind in ["message", "attachment"] and
+          (is_nil(expected_kind) or kind == Atom.to_string(expected_kind)) and
+          payload_value(context, "content_algorithm", :content_algorithm) == "AES-256-GCM" and
+          payload_value(context, "key_algorithm", :key_algorithm) == "RSA-OAEP-SHA256"
+
+      _ ->
+        false
+    end
+  end
+
+  defp valid_aad_context?(_payload, _version, _expected_kind), do: false
+
+  defp aad_context(kind) when kind in [:message, :attachment] do
+    %{
+      "purpose" => "elektrine-private-mailbox",
+      "version" => 2,
+      "kind" => Atom.to_string(kind),
+      "content_algorithm" => "AES-256-GCM",
+      "key_algorithm" => "RSA-OAEP-SHA256"
+    }
+  end
+
+  defp canonical_json(%{} = map) do
+    map
+    |> Enum.sort_by(fn {key, _value} -> to_string(key) end)
+    |> Enum.map_join(",", fn {key, value} ->
+      Jason.encode!(to_string(key)) <> ":" <> Jason.encode!(value)
+    end)
+    |> then(&("{" <> &1 <> "}"))
+  end
 
   defp valid_base64_bytes?(value, opts) when is_binary(value) do
     case Base.decode64(value) do

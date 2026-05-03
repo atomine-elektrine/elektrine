@@ -169,8 +169,13 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "device_id" => device[:device_id] || device["device_id"],
       "public_key" => device[:public_key] || device["public_key"],
       "key_algorithm" => device[:key_algorithm] || device["key_algorithm"],
+      "fingerprint" => device[:fingerprint] || device["fingerprint"],
+      "signing_public_key" => device[:signing_public_key] || device["signing_public_key"],
+      "device_signature" => device[:device_signature] || device["device_signature"],
       "label" => device[:label] || device["label"]
     }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Enum.into(%{})
   end
 
   def truncate(nil) do

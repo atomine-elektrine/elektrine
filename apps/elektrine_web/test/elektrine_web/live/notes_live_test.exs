@@ -83,6 +83,7 @@ defmodule ElektrineWeb.NotesLiveTest do
     share = Notes.get_active_share_for_note(user.id, note.id)
 
     assert share.encrypted_payload["algorithm"] == "AES-GCM-256"
+    refute Map.has_key?(share.encrypted_payload, "key")
     assert share.burn_after_read
     assert DateTime.diff(share.expires_at, DateTime.utc_now(), :second) in 1..3600
     assert render(view) =~ "This note has an encrypted share"
@@ -97,6 +98,7 @@ defmodule ElektrineWeb.NotesLiveTest do
     assert html =~ "Expiration"
     assert html =~ "Raw view"
     assert html =~ "test-ciphertext"
+    refute html =~ "test-key"
     refute html =~ "hello world"
 
     conn

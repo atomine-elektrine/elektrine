@@ -37,12 +37,23 @@ defmodule ArblargWeb.ChatLive.Operations.MemberOperations do
     conversation = socket.assigns.conversation.selected
     user_id = String.to_integer(user_id)
 
-    case Messaging.add_member_to_conversation(conversation.id, user_id) do
+    case Messaging.add_member_to_conversation(
+           conversation.id,
+           user_id,
+           "member",
+           socket.assigns.current_user.id
+         ) do
       {:ok, _} ->
         {:noreply,
          socket
          |> assign(:ui, Map.put(socket.assigns.ui, :show_add_members_modal, false))
          |> notify_info("Member added")}
+
+      {:error, :blocked} ->
+        {:noreply, notify_error(socket, "You have blocked this user or they have blocked you")}
+
+      {:error, :privacy_restricted} ->
+        {:noreply, notify_error(socket, "This user's privacy settings prevent this action")}
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Failed to add member")}

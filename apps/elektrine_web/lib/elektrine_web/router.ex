@@ -118,7 +118,7 @@ defmodule ElektrineWeb.Router do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
-    plug(ElektrineWeb.Plugs.PATAuth, allow_api_token: true)
+    plug(ElektrineWeb.Plugs.PATAuth)
     plug(ElektrineWeb.Plugs.RequireModuleAccess)
     plug(ElektrineWeb.Plugs.APIRateLimit)
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
@@ -201,13 +201,12 @@ defmodule ElektrineWeb.Router do
   pipeline :api_pat_vault_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
       scopes: ["read:vault", "write:vault"],
-      any: true,
-      allow_api_token: true
+      any: true
     )
   end
 
   pipeline :api_pat_vault_write_scope do
-    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"], allow_api_token: true)
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"])
   end
 
   pipeline :api_pat_export_scope do
@@ -231,6 +230,7 @@ defmodule ElektrineWeb.Router do
 
   pipeline :messaging_federation do
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "federation_preauth", ip_only: true)
     plug(ElektrineWeb.Plugs.MessagingFederationAuth)
     plug(ElektrineWeb.Plugs.APIRateLimit)
   end

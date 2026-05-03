@@ -15,7 +15,7 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   import Plug.Conn
   require Logger
 
-  alias Elektrine.ActivityPub.SigningKey
+  alias Elektrine.ActivityPub.{RequestReplayCache, SigningKey}
 
   @default_signature_max_age_seconds 300
   @default_signature_clock_skew_seconds 300
@@ -72,13 +72,13 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
         if SigningKey.verify(signing_key, signing_string, signature) do
           case validate_signature_constraints(conn, headers_list, signature_params) do
             :ok ->
-              # Load the associated user or remote actor
-              actor = load_actor_for_key(signing_key)
-
-              conn
-              |> assign(:valid_signature, true)
-              |> assign(:signature_actor, actor)
-              |> assign(:signing_key, signing_key)
+              accept_verified_signature(
+                conn,
+                signing_key,
+                headers_list,
+                signature_params,
+                signature
+              )
 
             {:error, reason} ->
               conn
@@ -111,12 +111,13 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
             if SigningKey.verify(refreshed_key, signing_string, signature) do
               case validate_signature_constraints(conn, headers_list, signature_params) do
                 :ok ->
-                  actor = load_actor_for_key(refreshed_key)
-
-                  conn
-                  |> assign(:valid_signature, true)
-                  |> assign(:signature_actor, actor)
-                  |> assign(:signing_key, refreshed_key)
+                  accept_verified_signature(
+                    conn,
+                    refreshed_key,
+                    headers_list,
+                    signature_params,
+                    signature
+                  )
 
                 {:error, reason} ->
                   conn
@@ -162,6 +163,23 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlug do
   end
 
   defp load_actor_for_key(_), do: nil
+
+  defp accept_verified_signature(conn, signing_key, headers_list, signature_params, signature) do
+    case RequestReplayCache.claim(conn, signing_key, headers_list, signature_params, signature) do
+      :ok ->
+        actor = load_actor_for_key(signing_key)
+
+        conn
+        |> assign(:valid_signature, true)
+        |> assign(:signature_actor, actor)
+        |> assign(:signing_key, signing_key)
+
+      {:error, reason} ->
+        conn
+        |> assign(:valid_signature, false)
+        |> assign(:signature_error, reason)
+    end
+  end
 
   defp parse_signed_headers(headers_string) do
     headers_string

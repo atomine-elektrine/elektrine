@@ -37,6 +37,13 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     notification
   end
 
+  defp portal_nav_badges(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find(~s(nav.e-nav a[href="/portal"] span.absolute))
+    |> Enum.map(&(Floki.text(&1) |> String.trim()))
+  end
+
   test "redirects instead of crashing when mounted without current_user" do
     assert {:ok, socket} =
              ElektrineWeb.NotificationsLive.mount(%{}, %{}, %Phoenix.LiveView.Socket{})
@@ -157,6 +164,33 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     rendered = render(view)
     refute rendered =~ "Review access policy"
     assert rendered =~ "No unread system notifications."
+  end
+
+  test "mark_all_as_read clears the portal nav bubble immediately", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+
+    notification_fixture(viewer, %{
+      title: "Badge refresh target",
+      body: "Unread badge body",
+      source_type: "system",
+      source_id: 1,
+      url: "/portal"
+    })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications")
+
+    assert portal_nav_badges(html) == ["1"]
+
+    html =
+      view
+      |> element(~s(button[phx-click="mark_all_as_read"]))
+      |> render_click()
+
+    assert Notifications.get_unread_count(viewer.id) == 0
+    assert portal_nav_badges(html) == []
   end
 
   test "notification list does not auto-mark visible notifications", %{conn: conn} do

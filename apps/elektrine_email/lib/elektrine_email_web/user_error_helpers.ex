@@ -38,6 +38,10 @@ defmodule ElektrineEmailWeb.UserErrorHelpers do
     normalize_sentence(message)
   end
 
+  def reason_message(:insufficient_email_credits, _fallback) do
+    "You need Atomine Credits to send external email."
+  end
+
   def reason_message(_reason, fallback) do
     normalize_sentence(fallback)
   end

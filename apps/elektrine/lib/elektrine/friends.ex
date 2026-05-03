@@ -41,6 +41,7 @@ defmodule Elektrine.Friends do
             case result do
               {:ok, _} ->
                 Elektrine.AppCache.invalidate_friends_cache(recipient_id)
+                broadcast_friend_requests_updated(recipient_id)
 
               _ ->
                 :ok
@@ -99,6 +100,7 @@ defmodule Elektrine.Friends do
               {:ok, _} ->
                 Elektrine.AppCache.invalidate_friends_cache(request.requester_id)
                 Elektrine.AppCache.invalidate_friends_cache(request.recipient_id)
+                broadcast_friend_requests_updated(request.recipient_id)
 
               _ ->
                 :ok
@@ -135,6 +137,7 @@ defmodule Elektrine.Friends do
         case result do
           {:ok, _} ->
             Elektrine.AppCache.invalidate_friends_cache(user_id)
+            broadcast_friend_requests_updated(user_id)
 
           _ ->
             :ok
@@ -167,6 +170,7 @@ defmodule Elektrine.Friends do
         case result do
           {:ok, _} ->
             Elektrine.AppCache.invalidate_friends_cache(request.recipient_id)
+            broadcast_friend_requests_updated(request.recipient_id)
 
           _ ->
             :ok
@@ -322,6 +326,16 @@ defmodule Elektrine.Friends do
     )
     |> Repo.one()
   end
+
+  defp broadcast_friend_requests_updated(user_id) when is_integer(user_id) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "user:#{user_id}",
+      {:friend_requests_updated, get_pending_request_count(user_id)}
+    )
+  end
+
+  defp broadcast_friend_requests_updated(_user_id), do: :ok
 
   @doc """
   Gets the friendship and follow status between two users.

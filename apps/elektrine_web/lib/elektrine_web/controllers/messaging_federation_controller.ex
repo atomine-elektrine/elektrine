@@ -93,7 +93,7 @@ defmodule ElektrineWeb.MessagingFederationController do
   Public directory of local public servers for cross-instance discovery.
   """
   def public_servers(conn, params) do
-    limit = parse_int(params["limit"], 50)
+    limit = params["limit"] |> parse_int(50) |> max(1) |> min(100)
     query = normalize_search_query(params["query"])
 
     servers = Messaging.list_public_directory_servers(limit: limit, query: query)

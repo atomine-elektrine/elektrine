@@ -46,11 +46,30 @@ defmodule ElektrineEmailWeb.JMAP.BlobController do
     base_type =
       content_type |> String.split(";") |> List.first() |> String.trim() |> String.downcase()
 
-    if base_type in @allowed_content_types do
-      base_type
-    else
-      "application/octet-stream"
+    cond do
+      active_content_type?(base_type) ->
+        "application/octet-stream"
+
+      base_type in @allowed_content_types ->
+        base_type
+
+      true ->
+        "application/octet-stream"
     end
+  end
+
+  defp active_content_type?(content_type) do
+    content_type in [
+      "text/html",
+      "text/xml",
+      "text/javascript",
+      "text/css",
+      "application/javascript",
+      "application/ecmascript",
+      "application/xml",
+      "application/xhtml+xml",
+      "image/svg+xml"
+    ]
   end
 
   defp sanitize_filename(name) do

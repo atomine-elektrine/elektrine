@@ -47,7 +47,7 @@ defmodule Elektrine.Email.FiltersTest do
       assert "can't be blank" in errors_on(changeset).name
     end
 
-    test "fails to create filter without conditions", %{user: user} do
+    test "creates filter without conditions", %{user: user} do
       attrs = %{
         user_id: user.id,
         name: "Test Filter",
@@ -55,11 +55,11 @@ defmodule Elektrine.Email.FiltersTest do
         actions: %{"mark_as_read" => true}
       }
 
-      {:error, changeset} = Filters.create_filter(attrs)
-      assert errors_on(changeset).conditions != nil
+      assert {:ok, filter} = Filters.create_filter(attrs)
+      assert filter.conditions == %{}
     end
 
-    test "fails to create filter without actions", %{user: user} do
+    test "creates filter without actions", %{user: user} do
       attrs = %{
         user_id: user.id,
         name: "Test Filter",
@@ -70,8 +70,19 @@ defmodule Elektrine.Email.FiltersTest do
         actions: %{}
       }
 
-      {:error, changeset} = Filters.create_filter(attrs)
-      assert errors_on(changeset).actions != nil
+      assert {:ok, filter} = Filters.create_filter(attrs)
+      assert filter.actions == %{}
+    end
+
+    test "defaults omitted optional filter conditions and actions", %{user: user} do
+      attrs = %{
+        user_id: user.id,
+        name: "Optional Filter"
+      }
+
+      assert {:ok, filter} = Filters.create_filter(attrs)
+      assert filter.conditions == %{}
+      assert filter.actions == %{}
     end
 
     test "fails to create filter with regex operators", %{user: user} do

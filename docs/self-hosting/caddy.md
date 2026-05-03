@@ -116,6 +116,8 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 - raw server IP access is expected to work over `http://` for first-run bootstrap
 - raw server IP access is not expected to work over `https://`
 - for full browser interactivity over raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>`
+- the stock Docker+Caddy stack trusts `TRUSTED_PROXY_CIDRS=172.30.0.0/24`; this covers Caddy and Docker's bridge gateway `172.30.0.1` for app IP capture
+- if you customize `CADDY_PROXY_DOCKER_SUBNET`, set `TRUSTED_PROXY_CIDRS` to that proxy subnet too
 - wildcard external mode keeps certificate issuance outside Caddy
 - Elektrine DNS wildcard automation uses acme.sh DNS-01 and then feeds Caddy external cert files
 - Oban runs acme.sh renewal checks and acme.sh runs the saved Caddy reload command after renewal

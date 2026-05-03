@@ -10,6 +10,8 @@ defmodule Elektrine.Email.MessageOperationsTest do
   alias Elektrine.Email.CustomFolders
   alias Elektrine.Email.Labels
   alias Elektrine.Email.Messages
+  alias Elektrine.Notifications
+  alias Elektrine.Platform.ENav
 
   describe "message flag updates" do
     setup do
@@ -24,6 +26,19 @@ defmodule Elektrine.Email.MessageOperationsTest do
       {:ok, updated} = Messages.update_message_flags(message.id, %{read: true})
 
       assert updated.read == true
+    end
+
+    test "mark_as_read broadcasts email unread updates to e-nav topic", %{
+      user: user,
+      mailbox: mailbox
+    } do
+      message = create_test_message(mailbox.id, %{read: false})
+
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}:notification_count")
+
+      assert {:ok, _updated} = Email.mark_as_read(message)
+
+      assert_receive {:email_unread_count_updated, 0}
     end
 
     test "marks message as unread", %{mailbox: mailbox} do
@@ -187,6 +202,42 @@ defmodule Elektrine.Email.MessageOperationsTest do
       {:ok, _updated} = Email.mark_as_unread(message)
 
       assert Cached.unread_inbox_count(mailbox.id) == 1
+    end
+
+    test "e-nav email badge counts unread inbox messages only", %{
+      user: user,
+      mailbox: mailbox,
+      folder: folder
+    } do
+      create_test_message(mailbox.id, %{read: false, folder_id: folder.id})
+      create_test_message(mailbox.id, %{read: false, folder_id: nil})
+
+      assert ENav.notification_badge_counts(user)["email"] == 1
+    end
+
+    test "notification mark_all_as_read clears linked email unread sources", %{
+      user: user,
+      mailbox: mailbox
+    } do
+      assert {:ok, _message} =
+               Email.create_message(%{
+                 mailbox_id: mailbox.id,
+                 from: "sender@example.com",
+                 to: mailbox.email,
+                 subject: "Portal read sync",
+                 text_body: "Unread from notification center",
+                 message_id: "portal-sync-#{System.unique_integer([:positive])}@example.com",
+                 status: "received",
+                 read: false
+               })
+
+      assert Email.unread_inbox_count(mailbox.id) == 1
+      assert Notifications.get_unread_count(user.id) == 1
+
+      assert :ok = Notifications.mark_all_as_read(user.id)
+
+      assert Email.unread_inbox_count(mailbox.id) == 0
+      assert Notifications.get_unread_count(user.id) == 0
     end
 
     test "mark_as_not_spam invalidates cached unread inbox counts", %{mailbox: mailbox} do
@@ -389,6 +440,49 @@ defmodule Elektrine.Email.MessageOperationsTest do
       inbox_messages = Messages.list_inbox_messages(mailbox.id)
 
       refute Enum.any?(inbox_messages, &(&1.id == message.id))
+    end
+
+    test "disabled digest filter keeps feed messages in inbox", %{mailbox: mailbox} do
+      {:ok, mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{digest_filter_enabled: false})
+
+      message = create_test_message(mailbox.id, %{category: "feed"})
+
+      inbox_messages = Messages.list_inbox_messages(mailbox.id)
+
+      assert Enum.any?(inbox_messages, &(&1.id == message.id))
+      assert Email.unread_feed_count(mailbox.id) == 0
+    end
+
+    test "disabled digest filter prevents automatic feed categorization", %{mailbox: mailbox} do
+      {:ok, mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{digest_filter_enabled: false})
+
+      {:ok, message} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "marketing@store.example",
+          to: mailbox.email,
+          subject: "Special offer",
+          message_id: "marketing-#{System.unique_integer([:positive])}@store.example",
+          text_body: "Limited time offer. Click here to shop now. Unsubscribe.",
+          html_body: "<a href='unsubscribe'>Unsubscribe</a>",
+          metadata: %{"headers" => %{"list-unsubscribe" => "<mailto:unsubscribe@store.example>"}}
+        })
+
+      assert message.category == "inbox"
+    end
+
+    test "disabled ledger filter keeps ledger messages in inbox", %{mailbox: mailbox} do
+      {:ok, mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{ledger_filter_enabled: false})
+
+      message = create_test_message(mailbox.id, %{category: "ledger"})
+
+      inbox_messages = Messages.list_inbox_messages(mailbox.id)
+
+      assert Enum.any?(inbox_messages, &(&1.id == message.id))
+      assert Email.unread_ledger_count(mailbox.id) == 0
     end
 
     test "message in stack is excluded from inbox", %{mailbox: mailbox} do

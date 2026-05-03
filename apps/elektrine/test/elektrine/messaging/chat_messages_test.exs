@@ -170,6 +170,130 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
       assert ChatMessages.get_last_read_message_id(conversation.id, bob.id) == second.id
       assert ChatMessages.get_unread_count(conversation.id, bob.id) == 0
     end
+
+    test "marks group messages read by time when ids are not chronological" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+      charlie = AccountsFixtures.user_fixture()
+
+      {:ok, group} =
+        Messaging.create_chat_group_conversation(alice.id, %{name: "Team"}, [bob.id, charlie.id])
+
+      {:ok, newest} = Messaging.create_chat_text_message(group.id, alice.id, "newest")
+
+      {:ok, older_with_higher_id} =
+        Messaging.create_chat_text_message(group.id, charlie.id, "older")
+
+      older_inserted_at = NaiveDateTime.add(newest.inserted_at, -60, :second)
+
+      from(m in ChatMessage, where: m.id == ^older_with_higher_id.id)
+      |> Repo.update_all(set: [inserted_at: older_inserted_at])
+
+      assert ChatMessages.get_unread_count(group.id, bob.id) == 2
+
+      assert :ok = ChatMessages.mark_messages_read(group.id, bob.id, newest.id)
+      assert ChatMessages.get_unread_count(group.id, bob.id) == 0
+    end
+
+    test "marks latest same-timestamp chat messages read" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, first} = Messaging.create_chat_text_message(conversation.id, alice.id, "first")
+      {:ok, second} = Messaging.create_chat_text_message(conversation.id, alice.id, "second")
+
+      same_inserted_at = ~N[2026-05-03 02:11:38]
+
+      from(m in ChatMessage, where: m.id in ^[first.id, second.id])
+      |> Repo.update_all(set: [inserted_at: same_inserted_at])
+
+      data = Messaging.get_conversation_messages(conversation.id, bob.id, limit: 2)
+      assert Enum.map(data.messages, & &1.id) == [second.id, first.id]
+
+      assert {:ok, :read} = Messaging.mark_as_read(conversation.id, bob.id)
+      assert ChatMessages.get_unread_count(conversation.id, bob.id) == 0
+      assert ChatMessages.get_last_read_message_id(conversation.id, bob.id) == second.id
+    end
+
+    test "broadcasts chat unread count for nav badges after marking read" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, message} = Messaging.create_chat_text_message(conversation.id, alice.id, "hello")
+
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{bob.id}:notification_count")
+
+      assert :ok = ChatMessages.mark_messages_read(conversation.id, bob.id, message.id)
+      assert_receive {:chat_unread_count_updated, 0}
+    end
+
+    test "clears matching portal notifications when chat messages are read" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, message} = Messaging.create_chat_text_message(conversation.id, alice.id, "hello")
+
+      {:ok, notification} =
+        Elektrine.Notifications.create_notification(%{
+          user_id: bob.id,
+          actor_id: alice.id,
+          type: "new_message",
+          title: "New message",
+          body: "hello",
+          source_type: "message",
+          source_id: message.id,
+          url: Elektrine.Paths.chat_message_path(conversation.id, message.id)
+        })
+
+      Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{bob.id}:notification_count")
+
+      assert :ok = ChatMessages.mark_messages_read(conversation.id, bob.id, message.id)
+      assert_receive {:notification_count_updated, 0}
+
+      assert %{read_at: %DateTime{}} =
+               Repo.get!(Elektrine.Notifications.Notification, notification.id)
+    end
+  end
+
+  describe "blocked direct messages" do
+    test "rejects new messages in an existing local DM after a block" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+
+      assert {:ok, _message} =
+               Messaging.create_chat_text_message(conversation.id, alice.id, "before")
+
+      assert {:ok, _block} = Elektrine.Accounts.block_user(bob.id, alice.id)
+
+      assert {:error, :blocked} =
+               Messaging.create_chat_text_message(conversation.id, alice.id, "after")
+
+      assert {:error, :blocked} =
+               Messaging.create_chat_text_message(conversation.id, bob.id, "also blocked")
+
+      data = Messaging.get_conversation_messages(conversation.id, bob.id, limit: 10)
+      assert Enum.map(data.messages, &ChatMessage.display_content/1) == ["before"]
+    end
+
+    test "rejects client-encrypted messages in an existing local DM after a block" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      assert {:ok, _block} = Elektrine.Accounts.block_user(bob.id, alice.id)
+
+      assert {:error, :blocked} =
+               Messaging.create_client_encrypted_chat_text_message(conversation.id, alice.id, %{
+                 "encrypted_payload" => encrypted_payload("key-blocked-123"),
+                 "key_packages" => [key_package(alice.id, "alice-device")],
+                 "search_index" => ["blocked-token"]
+               })
+    end
   end
 
   describe "clear history" do

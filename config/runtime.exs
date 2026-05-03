@@ -141,6 +141,10 @@ oban_queue_override = fn env_name, default ->
   parse_int_env.(env_name, default)
 end
 
+config :atomine, :credits,
+  dm_gate_enabled: parse_bool_env.("ATOMINE_DM_CREDIT_GATE_ENABLED", false),
+  email_gate_enabled: parse_bool_env.("ATOMINE_EMAIL_CREDIT_GATE_ENABLED", false)
+
 oban_queues =
   cond do
     oban_db_pool_size <= 5 ->

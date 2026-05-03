@@ -1,8 +1,7 @@
 defmodule Atomine.PersonhoodTest do
   use Elektrine.DataCase, async: true
 
-  alias Atomine.Personhood
-  alias Atomine.Proof
+  alias Atomine.{Credits, Personhood, Proof}
   alias Elektrine.Accounts
   alias Elektrine.Repo
 
@@ -160,6 +159,22 @@ defmodule Atomine.PersonhoodTest do
       assert revoked.status == "revoked"
       assert revoked.revoked_at
       assert Personhood.personhood_score(user) == 0
+    end
+
+    test "verified proofs grant Atomine Credits once" do
+      user = user_fixture()
+
+      {:ok, proof} = Personhood.create_proof(user, %{kind: "dns", subject: "example.com"})
+      assert Credits.balance(user.id, :atomine_credit) == 0
+
+      assert {:ok, verified} = Personhood.verify_proof(proof)
+      assert Credits.balance(user.id, :atomine_credit) == 10
+
+      assert {:ok, _verified_again} = Personhood.verify_proof(verified)
+      assert Credits.balance(user.id, :atomine_credit) == 10
+
+      assert [%{amount: 10, reason: "verified_proof:dns"}] =
+               Credits.list_ledger_entries(user.id, limit: 1)
     end
 
     test "live proofs can become active, stale, and inactive" do

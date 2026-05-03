@@ -67,12 +67,13 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
         "title" => "GitHub",
         "login_username" => "coder@example.com",
         "website" => "https://github.com",
+        "encrypted_metadata" => Jason.encode!(encrypted_payload("metadata")),
         "encrypted_password" => Jason.encode!(encrypted_payload("SuperSecret123!")),
         "encrypted_notes" => Jason.encode!(encrypted_payload("2FA enabled"))
       }
     })
 
-    assert render(view) =~ "GitHub"
+    assert render(view) =~ "Encrypted entry"
 
     [entry] = PasswordManager.list_entries(user.id, include_secrets: true)
     assert entry.encrypted_password["algorithm"] == "AES-GCM"
@@ -90,6 +91,7 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     {:ok, entry} =
       PasswordManager.create_entry(user.id, %{
         "title" => "Disposable",
+        "encrypted_metadata" => encrypted_payload("metadata"),
         "encrypted_password" => encrypted_payload("temp-password")
       })
 
@@ -98,13 +100,13 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/password-manager")
 
-    assert render(view) =~ "Disposable"
+    assert render(view) =~ "Encrypted entry"
 
     view
     |> element("#entry-#{entry.id} button[phx-click='delete']")
     |> render_click()
 
-    refute render(view) =~ "Disposable"
+    refute render(view) =~ "Encrypted entry"
   end
 
   test "can delete a vault and start over", %{conn: conn} do
@@ -118,6 +120,7 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     {:ok, _entry} =
       PasswordManager.create_entry(user.id, %{
         "title" => "Disposable",
+        "encrypted_metadata" => encrypted_payload("metadata"),
         "encrypted_password" => encrypted_payload("temp-password")
       })
 

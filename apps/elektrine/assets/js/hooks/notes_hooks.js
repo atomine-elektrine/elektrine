@@ -58,19 +58,19 @@ export const EncryptedNoteShare = {
         this.pushEvent("create_encrypted_share", {
           id: noteId,
           payload: envelope,
-          key,
           expires_in: expiresInInput?.value || "1d",
           burn_after_read: Boolean(burnAfterReadInput?.checked),
         }, (reply) => {
           if (reply?.url) {
+            const shareUrl = `${reply.url}#${key}`
             const output = document.getElementById(this.el.dataset.outputId)
 
             if (output) {
-              output.value = reply.url
+              output.value = shareUrl
               output.closest("[data-encrypted-share-output]")?.classList.remove("hidden")
             }
 
-            navigator.clipboard?.writeText(reply.url).catch(() => {})
+            navigator.clipboard?.writeText(shareUrl).catch(() => {})
             window.showNotification?.("Encrypted share link copied.", "success")
           } else {
             window.showNotification?.(reply?.error || "Could not create encrypted share link.", "error")

@@ -67,6 +67,23 @@ defmodule Elektrine.ActivityPub.MastodonApiTest do
            )
   end
 
+  test "display status URLs are count API compatible" do
+    status_url = "https://mastodon.example/@alice/123456789"
+
+    assert MastodonApi.count_api_compatible?(%{activitypub_id: status_url})
+    assert MastodonApi.mastodon_compatible?(%{activitypub_id: status_url})
+  end
+
+  test "activitypub_url can make an object id count API compatible" do
+    post = %{
+      activitypub_id: "https://mastodon.example/objects/123e4567-e89b-12d3-a456-426614174000",
+      activitypub_url: "https://mastodon.example/@alice/123456789"
+    }
+
+    assert MastodonApi.count_api_compatible?(post)
+    assert MastodonApi.mastodon_compatible?(post)
+  end
+
   defp mastodon_account do
     %{
       "id" => "alice",

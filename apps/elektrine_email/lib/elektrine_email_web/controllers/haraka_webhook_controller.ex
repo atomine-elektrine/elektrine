@@ -823,7 +823,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
           {:error, :unauthorized}
 
         provided_key ->
-          if Plug.Crypto.secure_compare(provided_key, webhook_api_key) do
+          if byte_size(provided_key) == byte_size(webhook_api_key) and
+               Plug.Crypto.secure_compare(provided_key, webhook_api_key) do
             :ok
           else
             {:error, :unauthorized}

@@ -1684,19 +1684,48 @@ defmodule Elektrine.Profiles do
   Accepts a pending follow request.
   """
   def accept_follow_request(follow_id) do
-    Follow
-    |> where([f], f.id == ^follow_id)
-    |> Repo.update_all(set: [pending: false])
+    followed_id = pending_follow_owner_id(follow_id)
+
+    result =
+      Follow
+      |> where([f], f.id == ^follow_id)
+      |> Repo.update_all(set: [pending: false])
+
+    broadcast_follow_requests_updated(followed_id)
+    result
   end
 
   @doc """
   Rejects and deletes a pending follow request.
   """
   def reject_follow_request(follow_id) do
+    followed_id = pending_follow_owner_id(follow_id)
+
+    result =
+      Follow
+      |> where([f], f.id == ^follow_id)
+      |> Repo.delete_all()
+
+    broadcast_follow_requests_updated(followed_id)
+    result
+  end
+
+  defp pending_follow_owner_id(follow_id) do
     Follow
     |> where([f], f.id == ^follow_id)
-    |> Repo.delete_all()
+    |> select([f], f.followed_id)
+    |> Repo.one()
   end
+
+  defp broadcast_follow_requests_updated(user_id) when is_integer(user_id) do
+    Phoenix.PubSub.broadcast(
+      Elektrine.PubSub,
+      "user:#{user_id}",
+      {:friend_requests_updated, length(get_pending_follow_requests(user_id))}
+    )
+  end
+
+  defp broadcast_follow_requests_updated(_user_id), do: :ok
 
   @doc """
   Accepts a follow request by activity ID.
@@ -1722,6 +1751,10 @@ defmodule Elektrine.Profiles do
       )
     end
 
+    if follow do
+      broadcast_follow_requests_updated(follow.followed_id)
+    end
+
     result
   end
 
@@ -1729,9 +1762,21 @@ defmodule Elektrine.Profiles do
   Deletes a follow by activity ID.
   """
   def delete_follow_by_activity_id(activity_id) do
-    Follow
-    |> where([f], f.activitypub_id == ^activity_id)
-    |> Repo.delete_all()
+    follow =
+      Follow
+      |> where([f], f.activitypub_id == ^activity_id)
+      |> Repo.one()
+
+    result =
+      Follow
+      |> where([f], f.activitypub_id == ^activity_id)
+      |> Repo.delete_all()
+
+    if follow do
+      broadcast_follow_requests_updated(follow.followed_id)
+    end
+
+    result
   end
 
   @doc """

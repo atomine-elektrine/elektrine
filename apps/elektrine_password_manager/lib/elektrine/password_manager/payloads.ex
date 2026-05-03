@@ -10,9 +10,15 @@ defmodule Elektrine.PasswordManager.Payloads do
   def decode_setup_params(_params), do: {:error, :invalid_payload}
 
   def decode_encrypted_entry_params(params) when is_map(params) do
-    case decode_payload_field(params, "encrypted_password", required: true) do
+    case decode_payload_field(params, "encrypted_metadata", required: true) do
       {:ok, decoded_params} ->
-        decode_payload_field(decoded_params, "encrypted_notes", required: false)
+        case decode_payload_field(decoded_params, "encrypted_password", required: true) do
+          {:ok, decoded_params} ->
+            decode_payload_field(decoded_params, "encrypted_notes", required: false)
+
+          error ->
+            error
+        end
 
       error ->
         error

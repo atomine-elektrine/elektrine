@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.NotificationsLive do
   use ElektrineWeb, :live_view
   alias Elektrine.Notifications
+  alias Elektrine.Platform.ENav, as: PlatformENav
   import ElektrineWeb.Components.Platform.ENav
   import ElektrineWeb.Components.User.Avatar
 
@@ -276,6 +277,11 @@ defmodule ElektrineWeb.NotificationsLive do
     |> assign(:grouped_notifications, enriched_groups)
     |> assign(:filtered_notifications, enriched_groups)
     |> assign(:unread_count, unread_count)
+    |> assign(:notification_count, unread_count)
+    |> assign(
+      :e_nav_badge_counts,
+      PlatformENav.notification_badge_counts(socket.assigns.current_user)
+    )
     |> assign(
       :notification_stats,
       build_notification_stats(stats_groups, unread_count)

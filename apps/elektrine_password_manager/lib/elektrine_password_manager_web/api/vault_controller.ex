@@ -210,6 +210,7 @@ defmodule ElektrinePasswordManagerWeb.API.VaultController do
       title: entry.title,
       login_username: entry.login_username,
       website: entry.website,
+      encrypted_metadata: entry.encrypted_metadata,
       encrypted_password: if(include_ciphertext?, do: entry.encrypted_password, else: nil),
       encrypted_notes: if(include_ciphertext?, do: entry.encrypted_notes, else: nil),
       inserted_at: entry.inserted_at,
