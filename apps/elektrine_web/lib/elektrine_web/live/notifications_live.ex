@@ -502,7 +502,7 @@ defmodule ElektrineWeb.NotificationsLive do
   defp notification_source_badge_class(_source), do: "badge badge-ghost badge-xs"
 
   defp notification_state_badge_class(0), do: "badge badge-ghost badge-xs"
-  defp notification_state_badge_class(_count), do: "badge badge-primary badge-xs"
+  defp notification_state_badge_class(_count), do: "badge badge-secondary badge-xs"
 
   defp notification_priority_badge_class("urgent"), do: "badge badge-error badge-xs"
   defp notification_priority_badge_class("high"), do: "badge badge-warning badge-xs"
@@ -511,9 +511,10 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp group_card_class(group) do
     [
-      "panel-card rounded-lg p-4 shadow-sm transition-colors",
+      "panel-card rounded-lg border bg-base-200 p-4 shadow-sm transition-colors",
       if(group.unread_count > 0,
-        do: "border-l-4 border-l-primary hover:border-primary/40",
+        do:
+          "border-base-300 border-l-4 border-l-secondary bg-secondary/5 hover:border-secondary/45",
         else: "hover:border-base-content/15"
       )
     ]

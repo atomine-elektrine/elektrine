@@ -848,9 +848,16 @@ defmodule ElektrineWeb.Router do
     post("/auth/login", AuthController, :login)
 
     # Portable Atomine anti-bot attestations
+    get("/atomine/issuer", AtomineAttestationController, :issuer)
     post("/atomine/pow/challenge", AtomineAttestationController, :pow_challenge)
     post("/atomine/pow/receipts", AtomineAttestationController, :pow_receipt)
     post("/atomine/anonymous-tokens", AtomineAttestationController, :anonymous_token)
+
+    post(
+      "/atomine/anonymous-tokens/spend",
+      AtomineAttestationController,
+      :spend_anonymous_token
+    )
 
     post(
       "/atomine/anonymous-tokens/redeem",

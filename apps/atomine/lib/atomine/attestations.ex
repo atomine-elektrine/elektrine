@@ -25,6 +25,30 @@ defmodule Atomine.Attestations do
   @default_receipt_ttl_seconds 7 * 24 * 60 * 60
   @default_token_ttl_seconds 24 * 60 * 60
 
+  @doc "Returns public issuer metadata for external verifiers."
+  def issuer_metadata(endpoint_base \\ nil) do
+    endpoint_base = normalize_endpoint_base(endpoint_base)
+
+    %{
+      issuer: issuer(),
+      protocol: "atomine-attestations",
+      version: "v1",
+      signing_alg: "hmac-sha256-dev",
+      artifacts: ["pow_receipt", "anonymous_effort_token", "passkey_receipt"],
+      privacy: %{
+        anonymous_effort_token: "bearer-token-mvp",
+        blind_tokens: "planned"
+      },
+      endpoints: %{
+        pow_challenge: endpoint(endpoint_base, "/api/atomine/pow/challenge"),
+        pow_receipts: endpoint(endpoint_base, "/api/atomine/pow/receipts"),
+        anonymous_tokens: endpoint(endpoint_base, "/api/atomine/anonymous-tokens"),
+        spend_anonymous_token: endpoint(endpoint_base, "/api/atomine/anonymous-tokens/spend"),
+        verify_artifact: endpoint(endpoint_base, "/api/atomine/artifacts/verify")
+      }
+    }
+  end
+
   @doc "Issues a stateless browser proof-of-work challenge."
   def issue_pow_challenge(opts \\ []) do
     now = now()
@@ -128,9 +152,12 @@ defmodule Atomine.Attestations do
   end
 
   @doc "Redeems an anonymous effort token once."
-  def redeem_anonymous_effort_token(token) when is_binary(token) do
+  def redeem_anonymous_effort_token(token, attrs \\ %{})
+
+  def redeem_anonymous_effort_token(token, attrs) when is_binary(token) and is_map(attrs) do
     with {:ok, payload} <- parse_statement(token, @anonymous_token_prefix),
          :ok <- ensure_not_expired(payload),
+         :ok <- validate_token_spend_attrs(attrs),
          %Attestation{} = attestation <-
            Repo.get_by(Attestation, artifact_hash: artifact_hash(token)) do
       cond do
@@ -143,7 +170,11 @@ defmodule Atomine.Attestations do
 
         true ->
           attestation
-          |> Attestation.changeset(%{status: "redeemed", redeemed_at: now()})
+          |> Attestation.changeset(%{
+            status: "redeemed",
+            redeemed_at: now(),
+            metadata: spend_metadata(attestation.metadata, attrs, payload)
+          })
           |> Repo.update()
       end
     else
@@ -152,7 +183,7 @@ defmodule Atomine.Attestations do
     end
   end
 
-  def redeem_anonymous_effort_token(_), do: {:error, :invalid_token}
+  def redeem_anonymous_effort_token(_, _), do: {:error, :invalid_token}
 
   @doc "Issues a passkey-bound continuity receipt for an authenticated user."
   def issue_passkey_receipt(%User{id: user_id}, passkey_credential_id) do
@@ -259,6 +290,55 @@ defmodule Atomine.Attestations do
     |> Repo.update()
   end
 
+  defp validate_token_spend_attrs(attrs) do
+    audience = Map.get(attrs, "audience")
+    nonce = Map.get(attrs, "nonce")
+
+    cond do
+      not is_nil(audience) and not valid_spend_field?(audience, 500) ->
+        {:error, :invalid_audience}
+
+      not is_nil(nonce) and not valid_spend_field?(nonce, 200) ->
+        {:error, :invalid_nonce}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp valid_spend_field?(value, max_length) when is_binary(value) do
+    value = String.trim(value)
+    value != "" and String.length(value) <= max_length
+  end
+
+  defp valid_spend_field?(_value, _max_length), do: false
+
+  defp spend_metadata(metadata, attrs, payload) do
+    spend =
+      %{
+        "token_id" => payload["id"],
+        "spent_at" => encode_time(now())
+      }
+      |> maybe_put_trimmed("audience", Map.get(attrs, "audience"))
+      |> maybe_put_trimmed("nonce", Map.get(attrs, "nonce"))
+
+    metadata
+    |> ensure_map()
+    |> Map.put("spend", spend)
+  end
+
+  defp maybe_put_trimmed(map, key, value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> map
+      trimmed -> Map.put(map, key, trimmed)
+    end
+  end
+
+  defp maybe_put_trimmed(map, _key, _value), do: map
+
+  defp ensure_map(value) when is_map(value), do: value
+  defp ensure_map(_value), do: %{}
+
   defp valid_pow_solution?(challenge, solution, difficulty) do
     bits = normalize_difficulty(difficulty)
 
@@ -346,6 +426,15 @@ defmodule Atomine.Attestations do
   end
 
   defp normalize_difficulty(_), do: @default_pow_difficulty
+
+  defp normalize_endpoint_base(nil), do: nil
+
+  defp normalize_endpoint_base(""), do: nil
+  defp normalize_endpoint_base(value) when is_binary(value), do: String.trim_trailing(value, "/")
+  defp normalize_endpoint_base(_), do: nil
+
+  defp endpoint(nil, path), do: path
+  defp endpoint(base, path), do: base <> path
 
   defp public_id(prefix), do: prefix <> "_" <> random_token(18)
 
