@@ -1,4 +1,4 @@
-import { scryptAsync } from "@noble/hashes/scrypt"
+import { scryptAsync } from "@noble/hashes/scrypt.js"
 import { submitFormPreservingEvents } from "../utils/form_submission"
 
 const WRAP_ALGORITHM = "AES-GCM"
