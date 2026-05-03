@@ -58,6 +58,7 @@ echo "Building ${RELEASE_NAME} via release_builder for modules: ${ELEKTRINE_RELE
 
 cd "$ROOT_DIR/release_builder"
 
+mix deps.get --only "$MIX_ENV"
 mix tailwind elektrine --minify
 mix esbuild elektrine --minify
 mix phx.digest ../apps/elektrine/priv/static --no-compile
