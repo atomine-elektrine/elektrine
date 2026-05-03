@@ -751,8 +751,7 @@ defmodule ElektrineWeb.ProofsLive do
   defp planned_earning_path_labels(paths) do
     paths
     |> Enum.filter(&(&1.status != :active))
-    |> Enum.map(&String.replace_prefix(&1.label, "Proof of ", ""))
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &String.replace_prefix(&1.label, "Proof of ", ""))
   end
 
   defp checkable_proof?(proof) do
