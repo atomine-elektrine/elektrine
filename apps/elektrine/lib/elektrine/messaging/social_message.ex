@@ -695,13 +695,13 @@ defmodule Elektrine.Social.Message do
   Returns updated attrs with encrypted_content and search_index.
   Clears the plaintext content field to avoid storing unencrypted data.
 
-  IMPORTANT: Chat conversations (dm/group/channel) are stored in plaintext.
-  Email encryption is handled separately in Elektrine.Email.Message.
+  Chat-specific storage is handled by `Elektrine.Messaging.ChatMessage`.
+  Email encryption is handled separately in `Elektrine.Email.Message`.
   """
   def encrypt_content(attrs, user_id, conversation_type \\ nil) do
     is_chat_conversation = conversation_type in ["dm", "group", "channel"]
 
-    # Messaging posts are plaintext for timeline/community/chat.
+    # Social timeline/community posts are plaintext for federation and discovery.
     # Keep encryption enabled only for unknown callers that don't pass a conversation type.
     should_encrypt =
       case conversation_type do
@@ -732,7 +732,7 @@ defmodule Elektrine.Social.Message do
           |> Map.put(:content, nil)
       end
     else
-      # Keep chat content plaintext, but maintain blind-search index for message search.
+      # Legacy chat rows stay readable here; current chat writes use ChatMessage.
       if is_chat_conversation do
         case Map.get(attrs, :content) do
           nil ->
@@ -760,7 +760,7 @@ defmodule Elektrine.Social.Message do
   Decrypts message content if encrypted.
   Returns the message with decrypted content in the :content field.
 
-  OPTIMIZATION: Timeline/community/chat posts are stored as plaintext, so this is usually a no-op.
+  OPTIMIZATION: Timeline/community posts are stored as plaintext, so this is usually a no-op.
   """
   def decrypt_content(%__MODULE__{content: content} = message) when not is_nil(content) do
     # Already has plaintext content - no decryption needed

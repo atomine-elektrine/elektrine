@@ -10,6 +10,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
   require Logger
 
+  import Ecto.Query
+
   alias Elektrine.ActivityPub
 
   alias Elektrine.ActivityPub.{
@@ -90,10 +92,18 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
       message ->
         if message.activitypub_id do
-          case Fetcher.fetch_object(message.activitypub_id) do
+          case Fetcher.fetch_object(message.activitypub_id, fetch_object_opts(opts)) do
             {:ok, post_object} ->
               case fetch_and_store_replies(post_object, opts) do
-                {:ok, 0} ->
+                {:ok, stored_count} ->
+                  maybe_fetch_missing_replies_via_fallback(
+                    post_object,
+                    message.id,
+                    opts,
+                    stored_count
+                  )
+
+                {:error, _reason} ->
                   fetch_and_store_replies_via_fallback(post_object, message.id, opts)
 
                 result ->
@@ -202,13 +212,26 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     max_pages = Keyword.get(opts, :max_pages, @max_pages)
 
     cond do
-      is_binary(post_ref) && LemmyApi.fetch_post_counts(post_ref) != nil ->
-        replies = LemmyApi.fetch_post_comments(post_ref, max_replies)
+      lemmy_comment_api_candidate?(post_ref) ->
+        case LemmyApi.fetch_post_comments(post_ref, max_replies) do
+          [] ->
+            fetch_activitypub_replies_fallback(
+              post_object,
+              parent_message_id,
+              max_replies,
+              max_depth,
+              max_pages
+            )
 
-        {stored_count, _remaining} =
-          process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
-
-        {:ok, stored_count}
+          replies ->
+            process_fetched_reply_items(
+              replies,
+              parent_message_id,
+              max_replies,
+              max_depth,
+              max_pages
+            )
+        end
 
       is_binary(post_ref) && MastodonApi.mastodon_compatible?(%{activitypub_id: post_ref}) ->
         case MastodonApi.fetch_status_context(post_ref) do
@@ -240,16 +263,13 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         end
 
       true ->
-        case ActivityPub.fetch_remote_post_replies(post_object, limit: max_replies) do
-          {:ok, replies} when is_list(replies) ->
-            {stored_count, _remaining} =
-              process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
-
-            {:ok, stored_count}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        fetch_activitypub_replies_fallback(
+          post_object,
+          parent_message_id,
+          max_replies,
+          max_depth,
+          max_pages
+        )
     end
   end
 
@@ -260,13 +280,10 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     max_pages = Keyword.get(opts, :max_pages, @max_pages)
 
     cond do
-      LemmyApi.fetch_post_counts(post_ref) != nil ->
+      lemmy_comment_api_candidate?(post_ref) ->
         replies = LemmyApi.fetch_post_comments(post_ref, max_replies)
 
-        {stored_count, _remaining} =
-          process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
-
-        {:ok, stored_count}
+        process_fetched_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
 
       MastodonApi.mastodon_compatible?(%{activitypub_id: post_ref}) ->
         case MastodonApi.fetch_status_context(post_ref) do
@@ -316,6 +333,149 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
       end
     end)
   end
+
+  defp process_fetched_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+       when is_list(replies) do
+    {stored_count, _remaining} =
+      process_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+    {:ok, stored_count}
+  end
+
+  defp process_fetched_reply_items(_, _parent_message_id, _max_replies, _max_depth, _max_pages),
+    do: {:ok, 0}
+
+  defp fetch_activitypub_replies_fallback(
+         post_object,
+         parent_message_id,
+         max_replies,
+         max_depth,
+         max_pages
+       ) do
+    case ActivityPub.fetch_remote_post_replies(post_object, limit: max_replies) do
+      {:ok, replies} when is_list(replies) ->
+        process_fetched_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp maybe_fetch_missing_replies_via_fallback(
+         post_object,
+         parent_message_id,
+         opts,
+         stored_count
+       ) do
+    if stored_count == 0 || reply_count_below_expected?(post_object, parent_message_id) do
+      case fetch_and_store_replies_via_fallback(post_object, parent_message_id, opts) do
+        {:ok, fallback_count} ->
+          {:ok, stored_count + fallback_count}
+
+        {:error, reason} when stored_count > 0 ->
+          Logger.debug(
+            "Reply fallback failed after storing #{stored_count} replies for #{parent_message_id}: #{inspect(reason)}"
+          )
+
+          {:ok, stored_count}
+
+        error ->
+          error
+      end
+    else
+      {:ok, stored_count}
+    end
+  end
+
+  defp reply_count_below_expected?(post_object, parent_message_id) do
+    expected_count = expected_reply_count(post_object)
+
+    expected_count > 0 &&
+      stored_reply_descendant_count(parent_message_id, expected_count) < expected_count
+  end
+
+  defp expected_reply_count(post_object) when is_map(post_object) do
+    [
+      post_object["reply_count"],
+      post_object["repliesCount"],
+      collection_total_items(post_object["replies"]),
+      collection_total_items(post_object["comments"])
+    ]
+    |> Enum.map(&normalize_count/1)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp expected_reply_count(_), do: 0
+
+  defp collection_total_items(%{"totalItems" => total}), do: total
+  defp collection_total_items(%{totalItems: total}), do: total
+  defp collection_total_items(_), do: nil
+
+  defp normalize_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, _} -> max(parsed, 0)
+      :error -> 0
+    end
+  end
+
+  defp normalize_count(_), do: 0
+
+  defp stored_reply_descendant_count(parent_message_id, expected_count)
+       when is_integer(parent_message_id) do
+    max_scan = max(expected_count, 1) |> min(5000)
+    do_stored_reply_descendant_count([parent_message_id], MapSet.new(), 0, max_scan)
+  end
+
+  defp stored_reply_descendant_count(_, _), do: 0
+
+  defp do_stored_reply_descendant_count(_parent_ids, _seen_ids, count, max_scan)
+       when count >= max_scan,
+       do: count
+
+  defp do_stored_reply_descendant_count(parent_ids, seen_ids, count, max_scan)
+       when is_list(parent_ids) do
+    pending_parent_ids =
+      parent_ids
+      |> Enum.filter(&is_integer/1)
+      |> Enum.uniq()
+
+    if pending_parent_ids == [] do
+      count
+    else
+      reply_ids =
+        Elektrine.Social.Message
+        |> where([m], m.reply_to_id in ^pending_parent_ids and is_nil(m.deleted_at))
+        |> select([m], m.id)
+        |> Repo.all()
+
+      new_reply_ids = Enum.reject(reply_ids, &MapSet.member?(seen_ids, &1))
+      new_count = min(count + length(new_reply_ids), max_scan)
+      next_seen_ids = Enum.reduce(new_reply_ids, seen_ids, &MapSet.put(&2, &1))
+
+      do_stored_reply_descendant_count(new_reply_ids, next_seen_ids, new_count, max_scan)
+    end
+  end
+
+  defp fetch_object_opts(opts) do
+    opts
+    |> Keyword.take([:request_fun, :skip_cache, :sign, :validate_url])
+    |> case do
+      fetch_opts ->
+        case Keyword.get(fetch_opts, :request_fun) do
+          request_fun when is_function(request_fun, 3) -> fetch_opts
+          nil -> fetch_opts
+          _ -> Keyword.delete(fetch_opts, :request_fun)
+        end
+    end
+  end
+
+  defp lemmy_comment_api_candidate?(post_ref) when is_binary(post_ref) do
+    LemmyApi.community_post_url?(post_ref) || LemmyApi.fetch_post_counts(post_ref) != nil
+  end
+
+  defp lemmy_comment_api_candidate?(_), do: false
 
   defp process_reply_item(nil, _parent_message_id, remaining_budget, _max_depth, _max_pages),
     do: {0, remaining_budget}

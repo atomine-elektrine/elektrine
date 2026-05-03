@@ -28,6 +28,18 @@ defmodule Elektrine.Email.PGPTest do
   -----END PGP PUBLIC KEY BLOCK-----
   """
 
+  @valid_pgp_key """
+  -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+  mDMEafbW0RYJKwYBBAHaRw8BAQdAATPQUyy/7ayrAWmVILjSspgtruSPNSGMVufZ
+  jqlJYJa0H1BHUCBUZXN0IDxwZ3AtdGVzdEBleGFtcGxlLmNvbT6IlgQTFgoAPhYh
+  BHCCYtk0aDiHVygIbEZcaamxBDXuBQJp9tbRAhsDBQkB4TOABQsJCAcCBhUKCQgL
+  AgQWAgMBAh4BAheAAAoJEEZcaamxBDXukTcA/31o8yRditZv4lVF3cGeMaZR7Ols
+  YhlLTInAZ2Jy6Cm8AP9jSVRBr7Vr0TRgv8Sc8jKzOsHGYnx7ntglYTLM2qKlDA==
+  =/sey
+  -----END PGP PUBLIC KEY BLOCK-----
+  """
+
   @sample_pgp_message """
   -----BEGIN PGP MESSAGE-----
 
@@ -272,19 +284,13 @@ defmodule Elektrine.Email.PGPTest do
     end
 
     test "stores key with valid input", %{user: user} do
-      # We need a key that can be parsed - using a simple structure
-      # For now, test the error case since we don't have a truly valid key
-      result = PGP.store_user_key(user, @sample_pgp_key)
+      assert {:ok, updated_user} = PGP.store_user_key(user, @valid_pgp_key)
 
-      case result do
-        {:ok, updated_user} ->
-          assert updated_user.pgp_public_key == @sample_pgp_key
-          assert updated_user.pgp_key_uploaded_at != nil
-
-        {:error, _reason} ->
-          # Expected if key parsing fails, which is fine for this test
-          assert true
-      end
+      assert updated_user.pgp_public_key == @valid_pgp_key
+      assert updated_user.pgp_key_uploaded_at != nil
+      assert String.length(updated_user.pgp_fingerprint) in [40, 64]
+      assert updated_user.pgp_key_id == String.slice(updated_user.pgp_fingerprint, -16, 16)
+      assert updated_user.pgp_wkd_hash == PGP.wkd_hash(user.username)
     end
 
     test "store_user_key accepts user struct", %{user: user} do

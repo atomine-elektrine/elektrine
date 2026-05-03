@@ -13,6 +13,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
      socket
      |> assign(:page_title, "Domain Analytics")
      |> assign(:domains, domains)
+     |> assign(:analytics_cache, %{})
      |> assign_pending_domain_analytics(active_domain)}
   end
 
@@ -40,6 +41,89 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   def handle_info(_message, socket), do: {:noreply, socket}
 
+  attr :active_host, :string, default: nil
+
+  def domain_analytics_skeleton(assigns) do
+    ~H"""
+    <div class="space-y-6" aria-busy="true" aria-label="Loading analytics">
+      <div class="card panel-card border border-base-300">
+        <div class="card-body p-4">
+          <div class="flex items-center gap-3 text-sm text-base-content/60">
+            <span class="loading loading-spinner loading-sm"></span>
+            <span>Loading analytics{if @active_host, do: " for #{@active_host}"}...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <%= for _index <- 1..5 do %>
+          <div class="card panel-card">
+            <div class="card-body p-4 space-y-3">
+              <.skeleton type="text" class="w-24" />
+              <.skeleton type="text" class="h-8 w-32" />
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="card panel-card">
+        <div class="card-body p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4">
+            <div class="space-y-2">
+              <.skeleton type="text" class="h-5 w-32" />
+              <.skeleton type="text" class="w-72 max-w-full" />
+            </div>
+            <.skeleton type="button" class="hidden sm:block" />
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <%= for _index <- 1..4 do %>
+              <div class="card bg-base-200/60">
+                <div class="card-body p-4 space-y-3">
+                  <.skeleton type="text" class="w-28" />
+                  <.skeleton type="text" class="h-8 w-24" />
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+          <div class="card bg-base-200/40">
+            <div class="card-body p-6 space-y-4">
+              <.skeleton type="text" class="h-5 w-32" />
+              <.skeleton type="text" class="h-72 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div class="card panel-card">
+          <div class="card-body p-6 space-y-4">
+            <.skeleton type="text" class="h-5 w-36" />
+            <.skeleton type="text" class="h-72 w-full rounded-xl" />
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <%= for _index <- 1..2 do %>
+            <div class="card panel-card">
+              <div class="card-body p-6 space-y-4">
+                <.skeleton type="text" class="h-5 w-32" />
+                <%= for _row <- 1..3 do %>
+                  <div class="rounded-lg bg-base-200 px-4 py-3 space-y-2">
+                    <.skeleton type="text" class="w-4/5" />
+                    <.skeleton type="text" class="w-2/5" />
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   defp maybe_load_domain_analytics(socket, domains, nil) do
     socket
     |> assign(:analytics_loading, false)
@@ -59,35 +143,64 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp assign_pending_domain_analytics(socket, active_domain) do
     domains = socket.assigns[:domains] || []
+    analytics_cache = socket.assigns[:analytics_cache] || %{}
+    load_key = domain_load_key(active_domain)
+    cached_analytics = Map.get(analytics_cache, load_key)
+
+    analytics_data =
+      cached_analytics ||
+        empty_domain_analytics_data(domains, socket.assigns[:domain_breakdown])
 
     socket
-    |> assign(:analytics_load_key, domain_load_key(active_domain))
+    |> assign(:analytics_cache, analytics_cache)
+    |> assign(:analytics_load_key, load_key)
     |> assign(:analytics_loading, not is_nil(active_domain))
+    |> assign(:analytics_cached, not is_nil(cached_analytics))
     |> assign(:active_domain, active_domain)
     |> assign(:active_host, active_domain && active_domain.host)
-    |> assign(:stats, empty_public_site_stats())
-    |> assign(:domain_breakdown, merge_domain_breakdown(domains, []))
-    |> assign(:top_pages, [])
-    |> assign(:top_referrers, [])
-    |> assign(:daily_views, [])
-    |> assign(:display_days, [])
-    |> assign(:max_daily_views, 0)
-    |> assign(:dns_stats, empty_dns_stats())
-    |> assign(:dns_query_types, [])
-    |> assign(:dns_top_names, [])
-    |> assign(:dns_top_nxdomain_names, [])
-    |> assign(:dns_rcode_breakdown, [])
-    |> assign(:dns_transport_breakdown, [])
-    |> assign(:dns_hourly_queries, [])
-    |> assign(:dns_display_hours, [])
-    |> assign(:max_dns_hourly_queries, 0)
-    |> assign(:dns_daily_queries, [])
-    |> assign(:dns_display_days, [])
-    |> assign(:max_dns_daily_queries, 0)
+    |> assign(analytics_data)
   end
 
   defp assign_domain_analytics(socket, domains, active_domain) do
+    load_key = domain_load_key(active_domain)
     active_host = active_domain && active_domain.host
+    analytics_data = domain_analytics_data(domains, active_domain)
+    analytics_cache = socket.assigns[:analytics_cache] || %{}
+
+    socket
+    |> assign(:analytics_cache, Map.put(analytics_cache, load_key, analytics_data))
+    |> assign(:analytics_loading, false)
+    |> assign(:analytics_cached, true)
+    |> assign(:active_domain, active_domain)
+    |> assign(:active_host, active_host)
+    |> assign(analytics_data)
+  end
+
+  defp empty_domain_analytics_data(domains, existing_domain_breakdown) do
+    %{
+      stats: empty_public_site_stats(),
+      domain_breakdown: existing_domain_breakdown || merge_domain_breakdown(domains, []),
+      top_pages: [],
+      top_referrers: [],
+      daily_views: [],
+      display_days: [],
+      max_daily_views: 0,
+      dns_stats: empty_dns_stats(),
+      dns_query_types: [],
+      dns_top_names: [],
+      dns_top_nxdomain_names: [],
+      dns_rcode_breakdown: [],
+      dns_transport_breakdown: [],
+      dns_hourly_queries: [],
+      dns_display_hours: [],
+      max_dns_hourly_queries: 0,
+      dns_daily_queries: [],
+      dns_display_days: [],
+      max_dns_daily_queries: 0
+    }
+  end
+
+  defp domain_analytics_data(domains, active_domain) do
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
     domain_breakdown = Profiles.get_public_site_domain_breakdown(domain_hosts)
@@ -95,35 +208,27 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     dns_daily_queries = dns_daily_queries(active_domain)
     dns_hourly_queries = dns_hourly_queries(active_domain)
 
-    socket
-    |> assign(:analytics_loading, false)
-    |> assign(:active_domain, active_domain)
-    |> assign(:active_host, active_host)
-    |> assign(:stats, Profiles.get_public_site_view_stats(active_site_scope))
-    |> assign(
-      :domain_breakdown,
-      merge_domain_breakdown(domains, domain_breakdown)
-    )
-    |> assign(:top_pages, Profiles.get_public_site_top_pages(active_site_scope, 10))
-    |> assign(:top_referrers, Profiles.get_public_site_top_referrers(active_site_scope, 10))
-    |> assign(:daily_views, daily_views)
-    |> assign(:display_days, Enum.filter(daily_views, &(&1.count > 0)) |> Enum.reverse())
-    |> assign(:max_daily_views, max_daily_views(daily_views))
-    |> assign(:dns_stats, dns_stats(active_domain))
-    |> assign(:dns_query_types, dns_query_types(active_domain))
-    |> assign(:dns_top_names, dns_top_names(active_domain))
-    |> assign(:dns_top_nxdomain_names, dns_top_nxdomain_names(active_domain))
-    |> assign(:dns_rcode_breakdown, dns_rcode_breakdown(active_domain))
-    |> assign(:dns_transport_breakdown, dns_transport_breakdown(active_domain))
-    |> assign(:dns_hourly_queries, dns_hourly_queries)
-    |> assign(:dns_display_hours, Enum.filter(dns_hourly_queries, &(&1.count > 0)))
-    |> assign(:max_dns_hourly_queries, max_hourly_queries(dns_hourly_queries))
-    |> assign(:dns_daily_queries, dns_daily_queries)
-    |> assign(
-      :dns_display_days,
-      Enum.filter(dns_daily_queries, &(&1.count > 0)) |> Enum.reverse()
-    )
-    |> assign(:max_dns_daily_queries, max_daily_views(dns_daily_queries))
+    %{
+      stats: Profiles.get_public_site_view_stats(active_site_scope),
+      domain_breakdown: merge_domain_breakdown(domains, domain_breakdown),
+      top_pages: Profiles.get_public_site_top_pages(active_site_scope, 10),
+      top_referrers: Profiles.get_public_site_top_referrers(active_site_scope, 10),
+      daily_views: daily_views,
+      display_days: Enum.filter(daily_views, &(&1.count > 0)) |> Enum.reverse(),
+      max_daily_views: max_daily_views(daily_views),
+      dns_stats: dns_stats(active_domain),
+      dns_query_types: dns_query_types(active_domain),
+      dns_top_names: dns_top_names(active_domain),
+      dns_top_nxdomain_names: dns_top_nxdomain_names(active_domain),
+      dns_rcode_breakdown: dns_rcode_breakdown(active_domain),
+      dns_transport_breakdown: dns_transport_breakdown(active_domain),
+      dns_hourly_queries: dns_hourly_queries,
+      dns_display_hours: Enum.filter(dns_hourly_queries, &(&1.count > 0)),
+      max_dns_hourly_queries: max_hourly_queries(dns_hourly_queries),
+      dns_daily_queries: dns_daily_queries,
+      dns_display_days: Enum.filter(dns_daily_queries, &(&1.count > 0)) |> Enum.reverse(),
+      max_dns_daily_queries: max_daily_views(dns_daily_queries)
+    }
   end
 
   defp domain_targets(user) do

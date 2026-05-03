@@ -1617,7 +1617,26 @@ defmodule Elektrine.Social.Messages do
       error ->
         error
     end
+  rescue
+    error in Postgrex.Error ->
+      activitypub_id = activitypub_id_from_attrs(attrs)
+
+      if unique_activitypub_violation?(error) && is_binary(activitypub_id) do
+        case get_message_by_activitypub_id(activitypub_id) do
+          %Message{} = message -> {:ok, message}
+          nil -> reraise error, __STACKTRACE__
+        end
+      else
+        reraise error, __STACKTRACE__
+      end
   end
+
+  defp unique_activitypub_violation?(%Postgrex.Error{postgres: postgres}) when is_map(postgres) do
+    postgres[:code] in [:unique_violation, "unique_violation", "23505"] &&
+      to_string(postgres[:constraint] || "") == "messages_activitypub_id_index"
+  end
+
+  defp unique_activitypub_violation?(_), do: false
 
   defp activitypub_id_from_attrs(attrs) when is_map(attrs) do
     Map.get(attrs, :activitypub_id) || Map.get(attrs, "activitypub_id")

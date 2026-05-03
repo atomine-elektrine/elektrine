@@ -161,7 +161,19 @@ defmodule ElektrineEmailWeb.UserSettingsEmail do
          |> notify_info("PGP key uploaded successfully")}
 
       {:error, reason}
-      when reason in [:not_pgp_key, :invalid_base64, :parse_error, :invalid_input] ->
+      when reason in [
+             :not_pgp_key,
+             :invalid_base64,
+             :invalid_input,
+             :invalid_pgp_key,
+             :invalid_armor,
+             :invalid_packet_format,
+             :no_public_key_packet,
+             :no_fingerprint,
+             :parse_error,
+             :expired_key,
+             :revoked_key
+           ] ->
         {:handled,
          socket
          |> notify_error("Invalid PGP key format. Please paste a valid ASCII-armored public key.")}

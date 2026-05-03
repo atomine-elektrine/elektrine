@@ -3,6 +3,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
 
   alias Elektrine.Domains
   alias Elektrine.Messaging.ArblargSDK
+  alias Elektrine.Messaging.ChatMessages
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
@@ -70,6 +71,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "deleted_at" => format_created_at(message.deleted_at),
       "sender" => message_sender_payload(message)
     }
+    |> maybe_put_client_encryption(message)
   end
 
   def event_message_payload(message) do
@@ -82,6 +84,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "edited_at" => format_created_at(message.edited_at),
       "sender" => message_sender_payload(message)
     }
+    |> maybe_put_client_encryption(message)
   end
 
   def attachment_payloads(message) do
@@ -130,6 +133,43 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "display_name" => user.display_name || user.username,
       "domain" => domain,
       "handle" => handle
+    }
+    |> maybe_put_chat_encryption_devices(user)
+  end
+
+  defp maybe_put_client_encryption(payload, %{client_encrypted_payload: encrypted_payload})
+       when is_map(payload) and is_map(encrypted_payload) do
+    payload
+    |> Map.put("client_encrypted_payload", encrypted_payload)
+    |> Map.put("e2ee", %{
+      "version" => 1,
+      "payload" => encrypted_payload,
+      "key_packages" =>
+        encrypted_payload["federated_key_packages"] || encrypted_payload[:federated_key_packages] ||
+          []
+    })
+  end
+
+  defp maybe_put_client_encryption(payload, _message), do: payload
+
+  defp maybe_put_chat_encryption_devices(payload, %{id: user_id}) when is_integer(user_id) do
+    case ChatMessages.list_chat_encryption_devices_for_user(user_id) do
+      [] ->
+        payload
+
+      devices ->
+        Map.put(payload, "chat_encryption_devices", Enum.map(devices, &string_key_device/1))
+    end
+  end
+
+  defp maybe_put_chat_encryption_devices(payload, _user), do: payload
+
+  defp string_key_device(device) when is_map(device) do
+    %{
+      "device_id" => device[:device_id] || device["device_id"],
+      "public_key" => device[:public_key] || device["public_key"],
+      "key_algorithm" => device[:key_algorithm] || device["key_algorithm"],
+      "label" => device[:label] || device["label"]
     }
   end
 
@@ -321,6 +361,7 @@ defmodule Elektrine.Messaging.Federation.Utils do
       "domain" => local_domain(),
       "handle" => handle
     }
+    |> maybe_put_chat_encryption_devices(sender)
   end
 
   def message_sender_payload(message) when is_map(message) do

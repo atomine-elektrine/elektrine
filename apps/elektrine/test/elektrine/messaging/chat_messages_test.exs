@@ -7,7 +7,10 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
   alias Elektrine.Messaging.{
     ArblargSDK,
     ChatConversation,
+    ChatConversationEncryptionKey,
+    ChatConversationKeyRecipient,
     ChatConversationMember,
+    ChatEncryptionDevice,
     ChatMessage,
     ChatMessages,
     Federation,
@@ -16,6 +19,139 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
   }
 
   alias Elektrine.Repo
+
+  describe "client-side encrypted messages" do
+    test "registers devices and lists active devices for conversation members" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+      outsider = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+
+      assert {:ok, _} =
+               Messaging.register_chat_encryption_device(alice.id, device_attrs("alice-device"))
+
+      assert {:ok, _} =
+               Messaging.register_chat_encryption_device(bob.id, device_attrs("bob-device"))
+
+      assert {:ok, _} =
+               Messaging.register_chat_encryption_device(
+                 outsider.id,
+                 device_attrs("outsider-device")
+               )
+
+      devices = Messaging.list_chat_encryption_devices_for_conversation(conversation.id)
+
+      assert Enum.map(devices, & &1.device_id) == ["alice-device", "bob-device"]
+      assert Enum.map(devices, & &1.user_id) == [alice.id, bob.id]
+    end
+
+    test "stores browser-encrypted payload, recipients, and client search tokens" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, _} = Messaging.register_chat_encryption_device(alice.id, device_attrs("alice-device"))
+      {:ok, _} = Messaging.register_chat_encryption_device(bob.id, device_attrs("bob-device"))
+
+      key_uid = "key-test-123456"
+      payload = encrypted_payload(key_uid)
+      alice_package = key_package(alice.id, "alice-device")
+      bob_package = key_package(bob.id, "bob-device")
+      bob_wrapped_key = bob_package.wrapped_key
+
+      assert {:ok, message} =
+               Messaging.create_client_encrypted_chat_text_message(conversation.id, alice.id, %{
+                 "encrypted_payload" => payload,
+                 "key_packages" => [alice_package, bob_package],
+                 "search_index" => ["client-token"]
+               })
+
+      db_message = Repo.get!(ChatMessage, message.id)
+      assert db_message.content == nil
+      assert db_message.encrypted_content == nil
+      assert db_message.client_encrypted_payload == payload
+      assert db_message.search_index == ["client-token"]
+
+      encryption_key =
+        Repo.get_by!(ChatConversationEncryptionKey,
+          conversation_id: conversation.id,
+          key_uid: key_uid
+        )
+
+      assert encryption_key.algorithm == "AES-256-GCM"
+
+      assert Repo.aggregate(
+               from(r in ChatConversationKeyRecipient,
+                 where: r.conversation_key_id == ^encryption_key.id
+               ),
+               :count
+             ) == 2
+
+      assert {:ok, ^bob_wrapped_key} =
+               Messaging.get_wrapped_chat_key(conversation.id, bob.id, "bob-device", key_uid)
+
+      assert {:ok, results} =
+               Messaging.search_messages_in_conversation(conversation.id, bob.id, "zz",
+                 search_tokens: ["client-token"]
+               )
+
+      assert Enum.map(results, & &1.id) == [message.id]
+    end
+
+    test "rejects key packages for devices outside the conversation" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+      outsider = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, _} = Messaging.register_chat_encryption_device(alice.id, device_attrs("alice-device"))
+      {:ok, _} = Messaging.register_chat_encryption_device(bob.id, device_attrs("bob-device"))
+
+      assert {:ok, _} =
+               Messaging.register_chat_encryption_device(
+                 outsider.id,
+                 device_attrs("outsider-device")
+               )
+
+      assert {:error, :invalid_key_recipient} =
+               Messaging.create_client_encrypted_chat_text_message(conversation.id, alice.id, %{
+                 "encrypted_payload" => encrypted_payload("key-test-123456"),
+                 "key_packages" => [key_package(outsider.id, "outsider-device")],
+                 "search_index" => ["client-token"]
+               })
+    end
+
+    test "does not return wrapped keys for revoked devices" do
+      alice = AccountsFixtures.user_fixture()
+      bob = AccountsFixtures.user_fixture()
+
+      {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+      {:ok, _} = Messaging.register_chat_encryption_device(alice.id, device_attrs("alice-device"))
+
+      {:ok, device} =
+        Messaging.register_chat_encryption_device(bob.id, device_attrs("bob-device"))
+
+      key_uid = "key-test-123456"
+
+      assert {:ok, _message} =
+               Messaging.create_client_encrypted_chat_text_message(conversation.id, alice.id, %{
+                 "encrypted_payload" => encrypted_payload(key_uid),
+                 "key_packages" => [
+                   key_package(alice.id, "alice-device"),
+                   key_package(bob.id, "bob-device")
+                 ],
+                 "search_index" => ["client-token"]
+               })
+
+      device
+      |> ChatEncryptionDevice.changeset(%{revoked_at: Elektrine.Time.utc_now()})
+      |> Repo.update!()
+
+      assert {:error, :not_found} =
+               Messaging.get_wrapped_chat_key(conversation.id, bob.id, "bob-device", key_uid)
+    end
+  end
 
   describe "read state" do
     test "tracks chat last read message using chat read receipts" do
@@ -208,6 +344,41 @@ defmodule Elektrine.Messaging.ChatMessagesTest do
       assert {:error, :unauthorized} =
                ChatMessages.create_text_message(channel.id, user.id, "blocked by overwrite")
     end
+  end
+
+  defp device_attrs(device_id) do
+    %{
+      "device_id" => device_id,
+      "public_key" => %{
+        "version" => 1,
+        "algorithm" => "RSA-OAEP-SHA256",
+        "key" => Base.encode64(:crypto.strong_rand_bytes(64))
+      },
+      "key_algorithm" => "RSA-OAEP-SHA256",
+      "label" => "test browser"
+    }
+  end
+
+  defp encrypted_payload(key_uid) do
+    %{
+      "version" => 1,
+      "content_algorithm" => "AES-256-GCM",
+      "key_uid" => key_uid,
+      "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+      "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(48))
+    }
+  end
+
+  defp key_package(user_id, device_id) do
+    %{
+      user_id: user_id,
+      device_id: device_id,
+      wrapped_key: %{
+        "version" => 1,
+        "key_algorithm" => "RSA-OAEP-SHA256",
+        "encrypted_key" => Base.encode64(:crypto.strong_rand_bytes(48))
+      }
+    }
   end
 
   defp mirrored_channel_fixture do

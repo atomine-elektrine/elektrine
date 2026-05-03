@@ -231,6 +231,7 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
           conversation_id: channel.id,
           sender_id: nil,
           content: payload["content"],
+          client_encrypted_payload: client_encrypted_payload(payload),
           message_type: normalize_message_type(payload["message_type"]),
           media_urls: Enum.map(attachments, & &1["url"]),
           media_metadata: media_metadata,
@@ -265,6 +266,7 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
 
             attrs = %{
               content: payload["content"],
+              client_encrypted_payload: client_encrypted_payload(payload),
               message_type: normalize_message_type(payload["message_type"]),
               media_urls: Enum.map(attachments, & &1["url"]),
               media_metadata: media_metadata,
@@ -289,6 +291,15 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
 
   def upsert_or_update_mirror_message(_channel, _payload, _remote_domain, _context),
     do: {:error, :invalid_event_payload}
+
+  defp client_encrypted_payload(payload) when is_map(payload) do
+    case payload["client_encrypted_payload"] || get_in(payload, ["e2ee", "payload"]) do
+      encrypted_payload when is_map(encrypted_payload) -> encrypted_payload
+      _ -> nil
+    end
+  end
+
+  defp client_encrypted_payload(_), do: nil
 
   def soft_delete_mirror_message(channel, federation_message_id, deleted_at, remote_domain)
       when is_map(channel) and is_binary(federation_message_id) and is_binary(remote_domain) do

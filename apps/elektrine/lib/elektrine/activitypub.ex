@@ -2092,106 +2092,10 @@ defmodule Elektrine.ActivityPub do
 
   # Fetch comments from a specific instance
   defp fetch_lemmy_comments_from_instance(domain, post_id, post_url, limit) do
-    page_size = limit |> max(1) |> min(100)
-
-    replies =
-      domain
-      |> fetch_lemmy_comment_pages(post_id, page_size, limit, 1, [])
-      |> Enum.map(fn comment_data ->
-        comment = comment_data["comment"] || %{}
-        creator = comment_data["creator"] || %{}
-        counts = comment_data["counts"] || %{}
-
-        %{
-          "id" => comment["ap_id"],
-          "type" => "Note",
-          "content" => comment["content"],
-          "attributedTo" => creator["actor_id"],
-          "published" => comment["published"],
-          "inReplyTo" => parse_lemmy_reply_path(comment["path"], post_url),
-          # Store extra Lemmy-specific data including counts
-          "_lemmy" => %{
-            "creator_name" => creator["name"],
-            "creator_avatar" => creator["avatar"],
-            "path" => comment["path"],
-            "score" => counts["score"] || 0,
-            "upvotes" => counts["upvotes"] || 0,
-            "downvotes" => counts["downvotes"] || 0,
-            "child_count" => counts["child_count"] || 0
-          }
-        }
-      end)
+    replies = LemmyApi.fetch_post_comments_from_instance(domain, post_id, post_url, limit)
 
     {:ok, replies}
   end
-
-  defp fetch_lemmy_comment_pages(_domain, _post_id, _page_size, limit, _page, acc)
-       when length(acc) >= limit do
-    Enum.take(acc, limit)
-  end
-
-  defp fetch_lemmy_comment_pages(domain, post_id, page_size, limit, page, acc) do
-    api_url =
-      "https://#{domain}/api/v4/comment/list?post_id=#{post_id}&limit=#{page_size}&page=#{page}&sort=Top"
-
-    case safe_get_lemmy_api(api_url, [{"Accept", "application/json"}], receive_timeout: 10_000) do
-      {:ok, %Finch.Response{status: 200, body: body}} ->
-        case Jason.decode(body) do
-          {:ok, %{"comments" => comments}} when is_list(comments) ->
-            updated_acc = acc ++ comments
-
-            cond do
-              comments == [] ->
-                Enum.take(updated_acc, limit)
-
-              length(updated_acc) >= limit ->
-                Enum.take(updated_acc, limit)
-
-              length(comments) < page_size ->
-                updated_acc
-
-              true ->
-                fetch_lemmy_comment_pages(
-                  domain,
-                  post_id,
-                  page_size,
-                  limit,
-                  page + 1,
-                  updated_acc
-                )
-            end
-
-          _ ->
-            Enum.take(acc, limit)
-        end
-
-      _ ->
-        Enum.take(acc, limit)
-    end
-  end
-
-  # Parse comment path to determine inReplyTo
-  defp parse_lemmy_reply_path(path, post_url) when is_binary(path) do
-    parts = String.split(path, ".")
-
-    case parts do
-      # Top-level comment: "0.commentId" - replies to post
-      ["0", _comment_id] ->
-        post_url
-
-      # Nested comment: "0.parentId.commentId..." - replies to parent
-      ["0" | rest] when length(rest) >= 2 ->
-        # The second-to-last element is the parent comment ID
-        # But we need the AP ID, which we don't have here
-        # Fall back to the post URL until comment-thread mapping is available.
-        post_url
-
-      _ ->
-        post_url
-    end
-  end
-
-  defp parse_lemmy_reply_path(_, post_url), do: post_url
 
   # Fetch replies using context API (Mastodon/Pleroma/Akkoma)
   defp fetch_pleroma_replies(post_ap_id, limit) do

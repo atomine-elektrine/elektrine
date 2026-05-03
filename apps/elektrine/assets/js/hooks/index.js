@@ -13,8 +13,10 @@ import {
   MessageList,
   ContextMenu,
   MessageContextMenu,
+  ChatKeyboardShortcuts,
   CopyChatMessage,
   VoiceRecorder,
+  ChatE2EE,
 } from "./chat_hooks";
 
 // Email hooks
@@ -122,8 +124,10 @@ export const Hooks = {
   MessageList,
   ContextMenu,
   MessageContextMenu,
+  ChatKeyboardShortcuts,
   CopyChatMessage,
   VoiceRecorder,
+  ChatE2EE,
 
   // Email
   KeyboardShortcuts,

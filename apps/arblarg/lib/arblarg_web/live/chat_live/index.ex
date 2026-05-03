@@ -697,6 +697,20 @@ defmodule ArblargWeb.ChatLive.Index do
     end
   end
 
+  def handle_info({:chat_e2ee_devices_changed, conversation_id}, socket) do
+    if socket.assigns.conversation.selected &&
+         socket.assigns.conversation.selected.id == conversation_id do
+      {:noreply,
+       assign(
+         socket,
+         :chat_e2ee_devices,
+         Messaging.list_chat_encryption_devices_for_conversation(conversation_id)
+       )}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info({:scroll_to_unread, _message_id}, socket) do
     # Send event to scroll to the unread indicator
     {:noreply,
@@ -1777,7 +1791,23 @@ defmodule ArblargWeb.ChatLive.Index do
                         />
                       </span>
                     </div>
-                    <p class="text-sm">{message.content}</p>
+                    <% client_encrypted_payload = Map.get(message, :client_encrypted_payload) %>
+                    <%= if client_encrypted_payload do %>
+                      <p
+                        class="text-sm opacity-80"
+                        data-chat-encrypted-message="true"
+                        data-conversation-id={message.conversation_id}
+                        data-key-uid={
+                          Map.get(client_encrypted_payload, "key_uid") ||
+                            Map.get(client_encrypted_payload, :key_uid)
+                        }
+                        data-payload={Jason.encode!(client_encrypted_payload)}
+                      >
+                        Decrypting encrypted message...
+                      </p>
+                    <% else %>
+                      <p class="text-sm">{message.content}</p>
+                    <% end %>
                   </div>
                 <% end %>
               </div>
@@ -2564,6 +2594,10 @@ defmodule ArblargWeb.ChatLive.Index do
       })
       |> assign(:active_server_id, active_server_id)
       |> assign(:federation_presence, federation_presence)
+      |> assign(
+        :chat_e2ee_devices,
+        Messaging.list_chat_encryption_devices_for_conversation(conversation_id)
+      )
       |> assign(:messages, [])
       |> assign(:message, %{
         socket.assigns.message

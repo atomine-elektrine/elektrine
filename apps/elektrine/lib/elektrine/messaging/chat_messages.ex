@@ -14,9 +14,13 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   alias Elektrine.Messaging.{
     ChatConversation,
+    ChatConversationEncryptionKey,
+    ChatConversationKeyRecipient,
     ChatConversationMember,
+    ChatEncryptionDevice,
     ChatMessage,
     ChatMessageReaction,
+    ChatRemoteEncryptionDevice,
     ChatUserHiddenMessage,
     Federation,
     FederationReadCursor,
@@ -257,6 +261,200 @@ defmodule Elektrine.Messaging.ChatMessages do
       ChatMessage.text_changeset(conversation_id, sender_id, content, reply_to_id, encrypt?)
       |> Repo.insert()
       |> handle_message_created(conversation_id)
+    end
+  end
+
+  @doc """
+  Registers or refreshes a browser chat encryption device for a user.
+  """
+  def register_chat_encryption_device(user_id, attrs)
+      when is_integer(user_id) and is_map(attrs) do
+    now = Elektrine.Time.utc_now()
+    updated_at = DateTime.to_naive(now)
+
+    device_attrs = %{
+      user_id: user_id,
+      device_id: Map.get(attrs, "device_id") || Map.get(attrs, :device_id),
+      public_key: Map.get(attrs, "public_key") || Map.get(attrs, :public_key),
+      key_algorithm:
+        Map.get(attrs, "key_algorithm") || Map.get(attrs, :key_algorithm) || "RSA-OAEP-SHA256",
+      label: Map.get(attrs, "label") || Map.get(attrs, :label),
+      last_seen_at: now,
+      revoked_at: nil
+    }
+
+    %ChatEncryptionDevice{}
+    |> ChatEncryptionDevice.changeset(device_attrs)
+    |> Repo.insert(
+      on_conflict: [
+        set: [
+          public_key: device_attrs.public_key,
+          key_algorithm: device_attrs.key_algorithm,
+          label: device_attrs.label,
+          last_seen_at: now,
+          revoked_at: nil,
+          updated_at: updated_at
+        ]
+      ],
+      conflict_target: [:user_id, :device_id]
+    )
+  end
+
+  @doc """
+  Lists active chat encryption devices for local and known remote conversation participants.
+  """
+  def list_chat_encryption_devices_for_conversation(conversation_id)
+      when is_integer(conversation_id) do
+    local_devices =
+      from(d in ChatEncryptionDevice,
+        join: cm in ChatConversationMember,
+        on: cm.user_id == d.user_id,
+        where:
+          cm.conversation_id == ^conversation_id and is_nil(cm.left_at) and is_nil(d.revoked_at),
+        order_by: [asc: d.user_id, asc: d.device_id],
+        select: %{
+          user_id: d.user_id,
+          device_id: d.device_id,
+          public_key: d.public_key,
+          key_algorithm: d.key_algorithm
+        }
+      )
+      |> Repo.all()
+
+    local_devices ++ list_remote_chat_encryption_devices_for_conversation(conversation_id)
+  end
+
+  def list_chat_encryption_devices_for_conversation(_), do: []
+
+  @doc """
+  Lists active chat encryption devices for a local user.
+  """
+  def list_chat_encryption_devices_for_user(user_id) when is_integer(user_id) do
+    from(d in ChatEncryptionDevice,
+      where: d.user_id == ^user_id and is_nil(d.revoked_at),
+      order_by: [asc: d.device_id],
+      select: %{
+        device_id: d.device_id,
+        public_key: d.public_key,
+        key_algorithm: d.key_algorithm,
+        label: d.label
+      }
+    )
+    |> Repo.all()
+  end
+
+  def list_chat_encryption_devices_for_user(_), do: []
+
+  @doc """
+  Stores chat encryption devices advertised by a remote actor.
+  """
+  def register_remote_chat_encryption_devices(remote_actor, remote_domain)
+      when is_map(remote_actor) and is_binary(remote_domain) do
+    remote_handle = remote_actor_handle(remote_actor, remote_domain)
+    origin_domain = String.downcase(remote_domain)
+    now = Elektrine.Time.utc_now()
+    updated_at = DateTime.to_naive(now)
+
+    remote_actor
+    |> Map.get("chat_encryption_devices", Map.get(remote_actor, :chat_encryption_devices, []))
+    |> List.wrap()
+    |> Enum.take(64)
+    |> Enum.each(fn device ->
+      attrs = %{
+        origin_domain: origin_domain,
+        remote_handle: remote_handle,
+        device_id: Map.get(device, "device_id") || Map.get(device, :device_id),
+        public_key: Map.get(device, "public_key") || Map.get(device, :public_key),
+        key_algorithm:
+          Map.get(device, "key_algorithm") || Map.get(device, :key_algorithm) ||
+            "RSA-OAEP-SHA256",
+        label: Map.get(device, "label") || Map.get(device, :label),
+        last_seen_at: now,
+        revoked_at: nil
+      }
+
+      %ChatRemoteEncryptionDevice{}
+      |> ChatRemoteEncryptionDevice.changeset(attrs)
+      |> Repo.insert(
+        on_conflict: [
+          set: [
+            public_key: attrs.public_key,
+            key_algorithm: attrs.key_algorithm,
+            label: attrs.label,
+            last_seen_at: now,
+            revoked_at: nil,
+            updated_at: updated_at
+          ]
+        ],
+        conflict_target: [:origin_domain, :remote_handle, :device_id]
+      )
+    end)
+
+    :ok
+  end
+
+  def register_remote_chat_encryption_devices(_, _), do: :ok
+
+  @doc """
+  Creates a browser-encrypted text message.
+
+  The server stores only the encrypted payload and client-generated search tokens.
+  Conversation keys are stored once per recipient device instead of once per message.
+  """
+  def create_client_encrypted_text_message(conversation_id, sender_id, attrs, opts \\ [])
+      when is_integer(conversation_id) and is_integer(sender_id) and is_map(attrs) do
+    with :ok <- ensure_writable_conversation(conversation_id, sender_id) do
+      reply_to_id = Keyword.get(opts, :reply_to_id)
+
+      Repo.transaction(fn ->
+        with {:ok, encryption_key} <-
+               ensure_conversation_encryption_key(conversation_id, sender_id, attrs),
+             :ok <- upsert_conversation_key_recipients(encryption_key, attrs),
+             {:ok, message} <-
+               ChatMessage.client_encrypted_text_changeset(
+                 conversation_id,
+                 sender_id,
+                 encrypted_payload(attrs),
+                 encryption_key.id,
+                 search_index(attrs),
+                 reply_to_id
+               )
+               |> Repo.insert() do
+          message
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+      |> case do
+        {:ok, message} -> handle_message_created({:ok, message}, conversation_id)
+        {:error, reason} -> {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Returns the wrapped conversation key for a user's device.
+  """
+  def get_wrapped_chat_key(conversation_id, user_id, device_id, key_uid)
+      when is_integer(conversation_id) and is_integer(user_id) and is_binary(device_id) and
+             is_binary(key_uid) do
+    from(r in ChatConversationKeyRecipient,
+      join: k in ChatConversationEncryptionKey,
+      on: k.id == r.conversation_key_id,
+      join: d in ChatEncryptionDevice,
+      on: d.user_id == r.user_id and d.device_id == r.device_id,
+      join: cm in ChatConversationMember,
+      on: cm.conversation_id == k.conversation_id and cm.user_id == ^user_id,
+      where:
+        k.conversation_id == ^conversation_id and k.key_uid == ^key_uid and r.user_id == ^user_id and
+          r.device_id == ^device_id and is_nil(cm.left_at) and is_nil(d.revoked_at),
+      select: r.wrapped_key,
+      limit: 1
+    )
+    |> Repo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      wrapped_key -> {:ok, wrapped_key}
     end
   end
 
@@ -885,21 +1083,25 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   @doc """
   Searches messages in a conversation.
-  Uses `search_index` tokens derived from plaintext chat content.
+  Uses blind `search_index` tokens derived before content is encrypted.
   """
   def search_messages(conversation_id, query, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     user_id = Keyword.get(opts, :user_id)
 
+    search_tokens =
+      Keyword.get(opts, :search_tokens, []) |> List.wrap() |> Enum.filter(&is_binary/1)
+
     keywords = Elektrine.Encryption.extract_keywords(query)
 
-    if is_nil(user_id) or Enum.empty?(keywords) do
+    if is_nil(user_id) or (Enum.empty?(keywords) and search_tokens == []) do
       []
     else
       keyword_hashes =
-        Enum.map(keywords, fn keyword ->
-          Elektrine.Encryption.hash_keyword(keyword, user_id)
-        end)
+        keywords
+        |> Enum.map(fn keyword -> Elektrine.Encryption.hash_keyword(keyword, user_id) end)
+        |> Kernel.++(search_tokens)
+        |> Enum.uniq()
 
       from(m in ChatMessage,
         left_join: h in ChatUserHiddenMessage,
@@ -921,8 +1123,187 @@ defmodule Elektrine.Messaging.ChatMessages do
 
   # Private helpers
 
-  # Chat content is stored in plaintext. Email encryption remains in Elektrine.Email.* modules.
-  defp should_encrypt?(_conversation_id), do: false
+  # Existing plaintext rows still decrypt as-is; new local chat content is stored encrypted.
+  defp should_encrypt?(_conversation_id), do: true
+
+  defp list_remote_chat_encryption_devices_for_conversation(conversation_id) do
+    with %ChatConversation{type: "dm", federated_source: source} <-
+           Repo.get(ChatConversation, conversation_id),
+         handle when is_binary(handle) <-
+           Elektrine.Messaging.Federation.DirectMessageState.remote_dm_handle_from_source(source) do
+      from(d in ChatRemoteEncryptionDevice,
+        where: d.remote_handle == ^handle and is_nil(d.revoked_at),
+        order_by: [asc: d.origin_domain, asc: d.device_id],
+        select: %{
+          recipient_handle: d.remote_handle,
+          origin_domain: d.origin_domain,
+          device_id: d.device_id,
+          public_key: d.public_key,
+          key_algorithm: d.key_algorithm
+        }
+      )
+      |> Repo.all()
+    else
+      _ -> []
+    end
+  end
+
+  defp remote_actor_handle(remote_actor, remote_domain) do
+    handle = Map.get(remote_actor, "handle") || Map.get(remote_actor, :handle)
+
+    if is_binary(handle) and String.contains?(handle, "@") do
+      handle
+    else
+      username = Map.get(remote_actor, "username") || Map.get(remote_actor, :username) || "remote"
+      domain = Map.get(remote_actor, "domain") || Map.get(remote_actor, :domain) || remote_domain
+      "#{username}@#{domain}"
+    end
+  end
+
+  defp ensure_conversation_encryption_key(conversation_id, sender_id, attrs) do
+    key_uid = key_uid(attrs)
+
+    existing_key =
+      Repo.get_by(ChatConversationEncryptionKey,
+        conversation_id: conversation_id,
+        key_uid: key_uid
+      )
+
+    cond do
+      not is_binary(key_uid) or String.trim(key_uid) == "" ->
+        {:error, :invalid_encrypted_payload}
+
+      existing_key ->
+        {:ok, existing_key}
+
+      key_packages(attrs) == [] ->
+        {:error, :missing_key_packages}
+
+      true ->
+        %ChatConversationEncryptionKey{}
+        |> ChatConversationEncryptionKey.changeset(%{
+          conversation_id: conversation_id,
+          key_uid: key_uid,
+          created_by_id: sender_id,
+          algorithm: "AES-256-GCM",
+          active: true,
+          metadata: %{"source" => "browser"}
+        })
+        |> Repo.insert()
+    end
+  end
+
+  defp upsert_conversation_key_recipients(%ChatConversationEncryptionKey{} = key, attrs) do
+    packages = key_packages(attrs)
+
+    entries =
+      packages
+      |> Enum.map(&normalize_key_package(key.id, &1))
+      |> Enum.reject(&is_nil/1)
+
+    active_device_keys = active_conversation_device_keys(key.conversation_id)
+
+    cond do
+      packages == [] ->
+        :ok
+
+      length(entries) != length(packages) ->
+        {:error, :invalid_key_package}
+
+      Enum.any?(entries, fn entry ->
+        not MapSet.member?(active_device_keys, {entry.user_id, entry.device_id})
+      end) ->
+        {:error, :invalid_key_recipient}
+
+      true ->
+        {_count, _rows} =
+          Repo.insert_all(ChatConversationKeyRecipient, entries,
+            on_conflict: {:replace, [:wrapped_key, :updated_at]},
+            conflict_target: [:conversation_key_id, :user_id, :device_id]
+          )
+
+        :ok
+    end
+  end
+
+  defp active_conversation_device_keys(conversation_id) do
+    from(d in ChatEncryptionDevice,
+      join: cm in ChatConversationMember,
+      on: cm.user_id == d.user_id,
+      where:
+        cm.conversation_id == ^conversation_id and is_nil(cm.left_at) and is_nil(d.revoked_at),
+      select: {d.user_id, d.device_id}
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  defp normalize_key_package(conversation_key_id, package) when is_map(package) do
+    user_id = Map.get(package, "user_id") || Map.get(package, :user_id)
+    device_id = Map.get(package, "device_id") || Map.get(package, :device_id)
+    wrapped_key = Map.get(package, "wrapped_key") || Map.get(package, :wrapped_key)
+    now = Elektrine.Time.utc_now() |> DateTime.to_naive()
+
+    if is_integer(user_id) and is_binary(device_id) and valid_wrapped_key?(wrapped_key) do
+      %{
+        conversation_key_id: conversation_key_id,
+        user_id: user_id,
+        device_id: device_id,
+        wrapped_key: wrapped_key,
+        inserted_at: now,
+        updated_at: now
+      }
+    end
+  end
+
+  defp normalize_key_package(_, _), do: nil
+
+  defp valid_wrapped_key?(%{} = wrapped_key) do
+    version = Map.get(wrapped_key, "version") || Map.get(wrapped_key, :version)
+    key_algorithm = Map.get(wrapped_key, "key_algorithm") || Map.get(wrapped_key, :key_algorithm)
+    encrypted_key = Map.get(wrapped_key, "encrypted_key") || Map.get(wrapped_key, :encrypted_key)
+
+    version in [1, "1"] and key_algorithm == "RSA-OAEP-SHA256" and
+      valid_base64_size?(encrypted_key, 17)
+  end
+
+  defp valid_wrapped_key?(_), do: false
+
+  defp valid_base64_size?(value, min_size) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, decoded} -> byte_size(decoded) >= min_size
+      :error -> false
+    end
+  end
+
+  defp valid_base64_size?(_, _), do: false
+
+  defp encrypted_payload(attrs) do
+    Map.get(attrs, "encrypted_payload") || Map.get(attrs, :encrypted_payload) ||
+      Map.get(attrs, "client_encrypted_payload") || Map.get(attrs, :client_encrypted_payload)
+  end
+
+  defp key_uid(attrs) do
+    payload = encrypted_payload(attrs) || %{}
+
+    Map.get(attrs, "key_uid") || Map.get(attrs, :key_uid) || Map.get(payload, "key_uid") ||
+      Map.get(payload, :key_uid)
+  end
+
+  defp key_packages(attrs) do
+    attrs
+    |> Map.get("key_packages", Map.get(attrs, :key_packages, []))
+    |> List.wrap()
+  end
+
+  defp search_index(attrs) do
+    attrs
+    |> Map.get("search_index", Map.get(attrs, :search_index, []))
+    |> List.wrap()
+    |> Enum.filter(&(is_binary(&1) and byte_size(&1) <= 256))
+    |> Enum.uniq()
+    |> Enum.take(128)
+  end
 
   defp handle_message_created({:ok, message}, conversation_id) do
     # Preload associations

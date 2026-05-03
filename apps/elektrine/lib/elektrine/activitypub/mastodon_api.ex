@@ -27,6 +27,9 @@ defmodule Elektrine.ActivityPub.MastodonApi do
       {:ok, domain, status_id} ->
         fetch_from_api(domain, status_id)
 
+      {:search, _domain, _status_url} ->
+        nil
+
       :error ->
         nil
     end
@@ -72,60 +75,22 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   Fetch replies to a status from a Mastodon-compatible instance.
   Returns a list of reply statuses with their counts.
   """
-  def fetch_status_context(status_url) when is_binary(status_url) do
+  def fetch_status_context(status_url, opts \\ [])
+
+  def fetch_status_context(status_url, opts) when is_binary(status_url) and is_list(opts) do
     case extract_status_info(status_url) do
       {:ok, domain, status_id} ->
-        api_url = "https://#{domain}/api/v1/statuses/#{status_id}/context"
-        headers = build_headers()
+        fetch_context_from_api(domain, status_id, status_url, opts)
 
-        case safe_request(:get, api_url, headers, nil, receive_timeout: 10_000) do
-          {:ok, %Finch.Response{status: 200, body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"descendants" => descendants} = context} ->
-                ancestors = context["ancestors"] || []
-
-                # Mastodon context returns local status IDs in `in_reply_to_id`. Build a
-                # lookup map so we can expose ActivityPub URIs for reply threading.
-                id_to_uri_map =
-                  build_status_id_to_uri_map(status_id, status_url, ancestors, descendants)
-
-                {:ok,
-                 Enum.map(descendants, fn status ->
-                   parent_id = normalize_status_id(status["in_reply_to_id"])
-
-                   %{
-                     id: status["id"],
-                     uri: status["uri"],
-                     url: status["url"],
-                     content: status["content"],
-                     account: extract_account_info(status["account"]),
-                     favourites_count: status["favourites_count"] || 0,
-                     reblogs_count: status["reblogs_count"] || 0,
-                     replies_count: status["replies_count"] || 0,
-                     created_at: status["created_at"],
-                     in_reply_to_id: status["in_reply_to_id"],
-                     in_reply_to_uri:
-                       if(parent_id, do: Map.get(id_to_uri_map, parent_id, status_url), else: nil)
-                   }
-                 end)}
-
-              _ ->
-                {:error, :parse_error}
-            end
-
-          {:ok, %Finch.Response{status: status}} ->
-            {:error, {:http_error, status}}
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+      {:search, domain, search_url} ->
+        fetch_status_context_via_search(domain, search_url, opts)
 
       :error ->
         {:error, :invalid_url}
     end
   end
 
-  def fetch_status_context(_), do: {:error, :invalid_url}
+  def fetch_status_context(_, _), do: {:error, :invalid_url}
 
   @doc """
   Fetch who favourited a status (likers).
@@ -136,6 +101,9 @@ defmodule Elektrine.ActivityPub.MastodonApi do
       {:ok, domain, status_id} ->
         api_url = "https://#{domain}/api/v1/statuses/#{status_id}/favourited_by?limit=#{limit}"
         fetch_account_list(api_url)
+
+      {:search, _domain, _status_url} ->
+        {:error, :invalid_url}
 
       :error ->
         {:error, :invalid_url}
@@ -151,6 +119,9 @@ defmodule Elektrine.ActivityPub.MastodonApi do
       {:ok, domain, status_id} ->
         api_url = "https://#{domain}/api/v1/statuses/#{status_id}/reblogged_by?limit=#{limit}"
         fetch_account_list(api_url)
+
+      {:search, _domain, _status_url} ->
+        {:error, :invalid_url}
 
       :error ->
         {:error, :invalid_url}
@@ -278,16 +249,133 @@ defmodule Elektrine.ActivityPub.MastodonApi do
         [_, domain, status_id] = match
         {:ok, domain, status_id}
 
+      # Pleroma/Akkoma/Friendica object URLs need API search to resolve an internal status ID.
+      match = Regex.run(~r{https?://([^/]+)/objects/[a-f0-9-]+$}i, url) ->
+        [_, domain] = match
+        {:search, domain, url}
+
       true ->
         :error
     end
   end
 
-  defp build_status_id_to_uri_map(root_status_id, root_status_url, ancestors, descendants) do
+  defp fetch_context_from_api(domain, status_id, root_status_url, opts, root_status \\ nil) do
+    api_url = "https://#{domain}/api/v1/statuses/#{status_id}/context"
+    headers = build_headers()
+
+    case safe_request(:get, api_url, headers, nil, Keyword.merge([receive_timeout: 10_000], opts)) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"descendants" => descendants} = context} ->
+            ancestors = context["ancestors"] || []
+
+            # Mastodon context returns local status IDs in `in_reply_to_id`. Build a
+            # lookup map so we can expose ActivityPub URIs for reply threading.
+            id_to_uri_map =
+              build_status_id_to_uri_map(
+                status_id,
+                root_status_url,
+                ancestors,
+                descendants,
+                root_status
+              )
+
+            {:ok,
+             Enum.map(descendants, fn status ->
+               parent_id = normalize_status_id(status["in_reply_to_id"])
+
+               %{
+                 id: status["id"],
+                 uri: status["uri"],
+                 url: status["url"],
+                 content: status["content"],
+                 account: extract_account_info(status["account"]),
+                 favourites_count: status["favourites_count"] || 0,
+                 reblogs_count: status["reblogs_count"] || 0,
+                 replies_count: status["replies_count"] || 0,
+                 created_at: status["created_at"],
+                 in_reply_to_id: status["in_reply_to_id"],
+                 in_reply_to_uri:
+                   if(parent_id,
+                     do: Map.get(id_to_uri_map, parent_id, root_status_url),
+                     else: nil
+                   )
+               }
+             end)}
+
+          _ ->
+            {:error, :parse_error}
+        end
+
+      {:ok, %Finch.Response{status: 404}} ->
+        maybe_fetch_status_context_via_search(domain, root_status_url, opts)
+
+      {:ok, %Finch.Response{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp maybe_fetch_status_context_via_search(domain, status_url, opts) do
+    if Keyword.get(opts, :skip_context_search, false) do
+      {:error, {:http_error, 404}}
+    else
+      fetch_status_context_via_search(domain, status_url, opts)
+    end
+  end
+
+  defp fetch_status_context_via_search(domain, status_url, opts) do
+    api_url =
+      "https://#{domain}/api/v2/search?q=#{URI.encode_www_form(status_url)}&type=statuses&resolve=true&limit=1"
+
+    case safe_request(
+           :get,
+           api_url,
+           build_headers(),
+           nil,
+           Keyword.merge([receive_timeout: 15_000], opts)
+         ) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"statuses" => [%{"id" => status_id} = root_status | _]}} ->
+            root_status_url = root_status["uri"] || root_status["url"] || status_url
+
+            fetch_context_from_api(
+              domain,
+              status_id,
+              root_status_url,
+              Keyword.put(opts, :skip_context_search, true),
+              root_status
+            )
+
+          _ ->
+            {:error, :not_found}
+        end
+
+      {:ok, %Finch.Response{status: status}} ->
+        {:error, {:http_error, status}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp build_status_id_to_uri_map(
+         root_status_id,
+         root_status_url,
+         ancestors,
+         descendants,
+         root_status
+       ) do
     root_id = normalize_status_id(root_status_id)
 
     statuses =
-      ([%{"id" => root_id, "uri" => root_status_url}] ++ ancestors ++ descendants)
+      ([%{"id" => root_id, "uri" => root_status_url}] ++
+         List.wrap(root_status) ++
+         ancestors ++
+         descendants)
       |> Enum.filter(&is_map/1)
 
     Enum.reduce(statuses, %{}, fn status, acc ->
@@ -394,6 +482,7 @@ defmodule Elektrine.ActivityPub.MastodonApi do
       acct: account["acct"],
       display_name: account["display_name"],
       url: account["url"],
+      uri: account["uri"] || account["url"],
       avatar: account["avatar"]
     }
   end
@@ -408,8 +497,14 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   end
 
   defp safe_request(method, url, headers, body, opts) do
-    request = Finch.build(method, url, headers, body || "")
-    SafeFetch.request(request, Elektrine.Finch, opts)
+    case Keyword.get(opts, :request_fun) do
+      request_fun when is_function(request_fun, 5) ->
+        request_fun.(method, url, headers, body, opts)
+
+      _ ->
+        request = Finch.build(method, url, headers, body || "")
+        SafeFetch.request(request, Elektrine.Finch, opts)
+    end
   end
 
   defp get_activitypub_id(%{activitypub_id: id}) when is_binary(id), do: id

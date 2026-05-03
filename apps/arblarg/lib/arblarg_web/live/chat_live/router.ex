@@ -20,6 +20,10 @@ defmodule ArblargWeb.ChatLive.Router do
 
   @event_handlers %{
     "send_message" => MessageOperations,
+    "send_client_encrypted_message" => MessageOperations,
+    "register_chat_encryption_device" => MessageOperations,
+    "chat_e2ee_key" => MessageOperations,
+    "chat_typing" => MessageOperations,
     "update_message" => MessageOperations,
     "stop_typing" => MessageOperations,
     "handle_keydown" => MessageOperations,
@@ -115,6 +119,7 @@ defmodule ArblargWeb.ChatLive.Router do
     "call_rejected" => CallOperations,
     "close_dropdown" => UIOperations,
     "toggle_mobile_search" => UIOperations,
+    "close_chat_overlay" => UIOperations,
     "stop_event" => UIOperations,
     "navigate_to_origin" => UIOperations,
     "navigate_to_embedded_post" => UIOperations,

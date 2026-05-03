@@ -6,7 +6,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   community discussions, and ActivityPub federation.
 
   Chat messages are:
-  - Stored as plaintext (email encryption is handled in Elektrine.Email.*)
+  - Stored encrypted at rest when they have a local sender
   - High-volume and ephemeral
   - Optimized for real-time delivery
   - Simple: text, images, files, voice, system messages
@@ -17,6 +17,7 @@ defmodule Elektrine.Messaging.ChatMessage do
   schema "chat_messages" do
     field :content, :string
     field :encrypted_content, :map
+    field :client_encrypted_payload, :map
     field :search_index, {:array, :string}, default: []
     field :message_type, :string, default: "text"
     field :media_urls, {:array, :string}, default: []
@@ -34,6 +35,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     belongs_to :conversation, Elektrine.Messaging.ChatConversation
     belongs_to :sender, Elektrine.Accounts.User
     belongs_to :reply_to, __MODULE__
+    belongs_to :client_encryption_key, Elektrine.Messaging.ChatConversationEncryptionKey
 
     belongs_to :link_preview, Elektrine.Social.LinkPreview
 
@@ -51,6 +53,8 @@ defmodule Elektrine.Messaging.ChatMessage do
       :sender_id,
       :content,
       :encrypted_content,
+      :client_encrypted_payload,
+      :client_encryption_key_id,
       :search_index,
       :message_type,
       :media_urls,
@@ -70,6 +74,7 @@ defmodule Elektrine.Messaging.ChatMessage do
     |> validate_inclusion(:message_type, ["text", "image", "file", "voice", "system"])
     |> validate_length(:content, max: 4000)
     |> validate_content_or_media()
+    |> validate_client_encrypted_payload()
     |> validate_content_security()
     |> validate_media_urls_security()
     |> foreign_key_constraint(:conversation_id)
@@ -142,6 +147,29 @@ defmodule Elektrine.Messaging.ChatMessage do
   end
 
   @doc """
+  Creates a changeset for a browser-encrypted text message.
+  """
+  def client_encrypted_text_changeset(
+        conversation_id,
+        sender_id,
+        encrypted_payload,
+        client_encryption_key_id,
+        search_index \\ [],
+        reply_to_id \\ nil
+      ) do
+    %__MODULE__{}
+    |> changeset(%{
+      conversation_id: conversation_id,
+      sender_id: sender_id,
+      client_encrypted_payload: encrypted_payload,
+      client_encryption_key_id: client_encryption_key_id,
+      search_index: search_index,
+      message_type: "text",
+      reply_to_id: reply_to_id
+    })
+  end
+
+  @doc """
   Creates a changeset for a system message.
   """
   def system_changeset(conversation_id, content) do
@@ -203,6 +231,10 @@ defmodule Elektrine.Messaging.ChatMessage do
 
   def display_content(%__MODULE__{content: content, message_type: "system"}) do
     content
+  end
+
+  def display_content(%__MODULE__{client_encrypted_payload: payload}) when is_map(payload) do
+    "Encrypted message"
   end
 
   def display_content(%__MODULE__{content: content, message_type: "text"}) do
@@ -295,22 +327,66 @@ defmodule Elektrine.Messaging.ChatMessage do
   defp validate_content_or_media(changeset) do
     content = get_field(changeset, :content)
     encrypted_content = get_field(changeset, :encrypted_content)
+    client_encrypted_payload = get_field(changeset, :client_encrypted_payload)
     media_urls = get_field(changeset, :media_urls) || []
     message_type = get_field(changeset, :message_type)
     deleted_at = get_field(changeset, :deleted_at)
 
     has_content = Elektrine.Strings.present?(content)
     has_encrypted = !is_nil(encrypted_content)
+    has_client_encrypted = !is_nil(client_encrypted_payload)
     has_media = !Enum.empty?(media_urls)
 
     cond do
       not is_nil(deleted_at) -> changeset
       message_type == "system" -> changeset
       message_type == "voice" && has_media -> changeset
-      has_content or has_encrypted or has_media -> changeset
+      has_content or has_encrypted or has_client_encrypted or has_media -> changeset
       true -> add_error(changeset, :content, "must have either content or media")
     end
   end
+
+  defp validate_client_encrypted_payload(changeset) do
+    case get_field(changeset, :client_encrypted_payload) do
+      nil ->
+        changeset
+
+      %{} = payload ->
+        version = payload_value(payload, "version", :version)
+        content_algorithm = payload_value(payload, "content_algorithm", :content_algorithm)
+        key_uid = payload_value(payload, "key_uid", :key_uid)
+        iv = payload_value(payload, "iv", :iv)
+        ciphertext = payload_value(payload, "ciphertext", :ciphertext)
+
+        if version in [1, "1"] and content_algorithm == "AES-256-GCM" and
+             is_binary(key_uid) and byte_size(key_uid) <= 128 and valid_base64_bytes?(iv, 12) and
+             valid_base64_bytes?(ciphertext, 1) do
+          changeset
+        else
+          add_error(
+            changeset,
+            :client_encrypted_payload,
+            "must be a valid encrypted chat payload"
+          )
+        end
+
+      _ ->
+        add_error(changeset, :client_encrypted_payload, "must be a valid encrypted chat payload")
+    end
+  end
+
+  defp payload_value(payload, string_key, atom_key) do
+    Map.get(payload, string_key) || Map.get(payload, atom_key)
+  end
+
+  defp valid_base64_bytes?(value, min_size) when is_binary(value) do
+    case Base.decode64(value) do
+      {:ok, decoded} -> byte_size(decoded) >= min_size
+      :error -> false
+    end
+  end
+
+  defp valid_base64_bytes?(_, _), do: false
 
   defp validate_content_security(changeset) do
     case get_change(changeset, :content) do

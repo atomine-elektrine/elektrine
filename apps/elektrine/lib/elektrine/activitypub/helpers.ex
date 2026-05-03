@@ -444,7 +444,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   end
 
   defp store_or_resolve_remote_post(post_object, actor_uri) do
-    case Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri) do
+    case store_remote_post_safely(post_object, actor_uri) do
       {:ok, %Elektrine.Social.Message{} = message} ->
         {:ok, message}
 
@@ -458,6 +458,24 @@ defmodule Elektrine.ActivityPub.Helpers do
         {:error, reason}
     end
   end
+
+  defp store_remote_post_safely(post_object, actor_uri) do
+    Elektrine.ActivityPub.Handler.store_remote_post(post_object, actor_uri)
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        {:ok, :already_exists}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp unique_activitypub_violation?(%Postgrex.Error{postgres: postgres}) when is_map(postgres) do
+    postgres[:code] in [:unique_violation, "unique_violation", "23505"] &&
+      to_string(postgres[:constraint] || "") == "messages_activitypub_id_index"
+  end
+
+  defp unique_activitypub_violation?(_), do: false
 
   defp resolve_cached_remote_post(post_object) when is_map(post_object) do
     refs =

@@ -161,15 +161,18 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
     attachments = call(context, :normalize_message_attachments, [message_payload])
     media_urls = Enum.map(attachments, & &1["url"])
     content = normalize_optional_string(message_payload["content"])
+    client_encrypted_payload = client_encrypted_payload(message_payload)
 
     cond do
       !is_binary(federation_message_id) ->
         {:error, :invalid_event_payload}
 
-      !is_binary(content) and media_urls == [] ->
+      !is_binary(content) and media_urls == [] and is_nil(client_encrypted_payload) ->
         {:error, :invalid_event_payload}
 
       true ->
+        ChatMessages.register_remote_chat_encryption_devices(remote_sender, remote_domain)
+
         case Repo.get_by(ChatMessage,
                conversation_id: conversation.id,
                federated_source: federation_message_id
@@ -184,6 +187,7 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
               conversation_id: conversation.id,
               sender_id: nil,
               content: content,
+              client_encrypted_payload: client_encrypted_payload,
               message_type: normalize_message_type(message_payload["message_type"]),
               media_urls: media_urls,
               media_metadata:
@@ -217,6 +221,16 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
         _context
       ),
       do: {:error, :invalid_event_payload}
+
+  defp client_encrypted_payload(message_payload) when is_map(message_payload) do
+    case message_payload["client_encrypted_payload"] ||
+           get_in(message_payload, ["e2ee", "payload"]) do
+      payload when is_map(payload) -> payload
+      _ -> nil
+    end
+  end
+
+  defp client_encrypted_payload(_), do: nil
 
   def maybe_broadcast_remote_dm_message_created(
         _conversation,
@@ -323,7 +337,9 @@ defmodule Elektrine.Messaging.Federation.DirectMessageState do
            normalize_optional_string(
              payload["avatar_url"] || payload[:avatar_url] || payload["avatar"] ||
                payload[:avatar]
-           )
+           ),
+         chat_encryption_devices:
+           payload["chat_encryption_devices"] || payload[:chat_encryption_devices] || []
        }}
     else
       false ->

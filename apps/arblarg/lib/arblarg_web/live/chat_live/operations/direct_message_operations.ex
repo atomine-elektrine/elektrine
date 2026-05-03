@@ -23,7 +23,10 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
       {:ok, conversation} ->
         {:noreply,
          socket
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
+         |> assign(
+           :ui,
+           Map.merge(socket.assigns.ui, %{show_new_chat: false, show_profile_modal: false})
+         )
          |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, :invalid_remote_handle} ->
@@ -51,7 +54,10 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
       {:ok, conversation} ->
         {:noreply,
          socket
-         |> assign(:ui, Map.put(socket.assigns.ui, :show_new_chat, false))
+         |> assign(
+           :ui,
+           Map.merge(socket.assigns.ui, %{show_new_chat: false, show_profile_modal: false})
+         )
          |> push_patch(to: Elektrine.Paths.chat_path(conversation))}
 
       {:error, _} ->

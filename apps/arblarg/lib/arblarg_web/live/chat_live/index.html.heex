@@ -15,22 +15,112 @@
   else
     nil
   end %>
+<% chat_e2ee_member_ids =
+  case @conversation.selected do
+    %{members: members, type: type} when type in ["dm", "group"] ->
+      members
+      |> Enum.filter(&is_nil(&1.left_at))
+      |> Enum.map(& &1.user_id)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    _ ->
+      []
+  end %>
+<% chat_e2ee_devices = @chat_e2ee_devices || [] %>
+<% chat_e2ee_device_user_ids =
+  chat_e2ee_devices
+  |> Enum.map(& &1.user_id)
+  |> Enum.uniq() %>
+<% chat_e2ee_remote_devices = Enum.filter(chat_e2ee_devices, &Map.get(&1, :recipient_handle)) %>
+<% chat_e2ee_local_ready =
+  @conversation.selected && @conversation.selected.type in ["dm", "group"] &&
+    is_nil(@conversation.selected.federated_source) && chat_e2ee_member_ids != [] &&
+    Enum.all?(chat_e2ee_member_ids, &(&1 in chat_e2ee_device_user_ids)) %>
+<% chat_e2ee_remote_dm_ready =
+  @conversation.selected && @conversation.selected.type == "dm" &&
+    is_binary(@conversation.selected.federated_source) &&
+    @current_user && @current_user.id in chat_e2ee_device_user_ids &&
+    chat_e2ee_remote_devices != [] %>
+<% chat_e2ee_ready =
+  (chat_e2ee_local_ready || chat_e2ee_remote_dm_ready) && chat_e2ee_devices != [] &&
+    length(chat_e2ee_devices) <= 64 %>
+<% chat_e2ee_status =
+  cond do
+    is_nil(@conversation.selected) ->
+      "no_conversation"
+
+    @conversation.selected.type not in ["dm", "group"] ->
+      "not_applicable"
+
+    length(chat_e2ee_devices) > 64 ->
+      "too_many_devices"
+
+    @current_user && @current_user.id not in chat_e2ee_device_user_ids ->
+      "registering_device"
+
+    @conversation.selected.type == "dm" && is_binary(@conversation.selected.federated_source) &&
+        chat_e2ee_remote_devices == [] ->
+      "waiting_for_remote_keys"
+
+    is_binary(@conversation.selected.federated_source) ->
+      "ready"
+
+    not Enum.all?(chat_e2ee_member_ids, &(&1 in chat_e2ee_device_user_ids)) ->
+      "waiting_for_member_keys"
+
+    true ->
+      "ready"
+  end %>
+<% chat_overlay_active =
+  @show_image_modal || @show_report_modal || @show_mobile_search || @context_menu.conversation ||
+    @context_menu.message ||
+    Enum.any?(
+      [
+        :show_new_chat,
+        :show_create_group,
+        :show_create_channel,
+        :show_group_modal,
+        :show_channel_modal,
+        :show_server_modal,
+        :show_browse_channels,
+        :show_settings_modal,
+        :show_edit_modal,
+        :show_add_members_modal,
+        :show_message_search_modal,
+        :show_emoji_picker,
+        :show_profile_modal,
+        :show_member_management,
+        :show_moderation_log,
+        :show_browse_modal
+      ],
+      &Map.get(@ui, &1)
+    ) %>
 <div
   class="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content md:h-[calc(100dvh-8.5rem)] md:min-h-0"
   id="chat-container"
+  phx-hook="ChatE2EE"
+  data-user-id={@current_user && @current_user.id}
+  data-conversation-id={@conversation.selected && @conversation.selected.id}
+  data-conversation-type={@conversation.selected && @conversation.selected.type}
+  data-chat-e2ee-devices={Jason.encode!(chat_e2ee_devices)}
+  data-chat-e2ee-member-ids={Jason.encode!(chat_e2ee_member_ids)}
+  data-chat-e2ee-ready={if chat_e2ee_ready, do: "true", else: "false"}
+  data-chat-e2ee-status={chat_e2ee_status}
 >
   <!-- Z Platform Navigation -->
   <.e_nav active_tab="chat" class="mb-6" current_user={@current_user} />
-
-  <div class="mb-3 flex justify-end">
-    <span class="badge badge-outline badge-lg text-xs uppercase tracking-[0.18em] text-base-content/70">
-      Powered by Arblarg
-    </span>
-  </div>
   
 <!-- Hidden elements for call hooks -->
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
   <div id="call-receiver" phx-hook="CallReceiver" class="hidden"></div>
+  <div
+    id="chat-keyboard-shortcuts"
+    phx-hook="ChatKeyboardShortcuts"
+    data-active-overlay={if chat_overlay_active, do: "true", else: "false"}
+    class="hidden"
+  >
+  </div>
 
   <div class="flex flex-1 flex-row gap-0 sm:min-h-0 sm:overflow-hidden sm:gap-2 xl:gap-6">
     <!-- Server Rail -->
@@ -99,6 +189,18 @@
       <div class="card panel-card border border-base-300 flex flex-shrink-0 flex-col overflow-hidden">
         <!-- Header with Search -->
         <div class="flex-shrink-0 p-3 border-b border-base-300">
+          <div class="mb-3 flex items-center justify-between gap-2">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-base-content/55">
+                Chat
+              </p>
+              <p class="text-[11px] text-base-content/50">Conversations and servers</p>
+            </div>
+            <span class="badge badge-outline badge-sm shrink-0 text-[10px] uppercase tracking-[0.14em] text-base-content/60">
+              Powered by Arblarg
+            </span>
+          </div>
+
           <div class="flex items-center gap-2">
             <form
               id="conversation-search-form"
@@ -403,6 +505,7 @@
               <% is_selected =
                 @conversation.selected && @conversation.selected.id == conversation.id %>
               <% remote_conversation = remote_conversation?(conversation) %>
+              <% unread_count = Map.get(@conversation.unread_counts, conversation.id, 0) %>
               <div
                 phx-hook="ContextMenu"
                 id={"conversation-#{conversation.id}"}
@@ -414,7 +517,12 @@
                     "flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all relative outline-none focus:outline-none focus-visible:outline-none active:opacity-90 select-none [&:active]:!outline-none [&:focus]:!outline-none border-b overflow-visible",
                     if(is_selected,
                       do: "bg-secondary/10 text-base-content border-secondary/30",
-                      else: "hover:bg-base-200 border-base-300 text-base-content"
+                      else:
+                        if(unread_count > 0,
+                          do:
+                            "bg-base-200/70 hover:bg-base-200 border-base-300 text-base-content",
+                          else: "hover:bg-base-200 border-base-300 text-base-content"
+                        )
                     )
                   ]}
                 >
@@ -441,16 +549,20 @@
                       <p class={
                         if(is_selected,
                           do: "font-semibold text-sm truncate",
-                          else: "font-medium text-sm truncate text-base-content"
+                          else:
+                            if(unread_count > 0,
+                              do: "font-semibold text-sm truncate text-base-content",
+                              else: "font-medium text-sm truncate text-base-content"
+                            )
                         )
                       }>
                         {route_label(conversation, @current_user.id)}
                       </p>
                       <!-- Mobile timestamp and unread (always visible) -->
                       <div class="flex items-center gap-1 lg:hidden">
-                        <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
+                        <%= if unread_count > 0 do %>
                           <div class="badge badge-secondary badge-sm">
-                            {Map.get(@conversation.unread_counts, conversation.id)}
+                            {unread_count}
                           </div>
                         <% end %>
                         <%= if conversation.last_message_at do %>
@@ -490,7 +602,12 @@
                             do:
                               "text-xs sm:text-sm text-base-content/80 flex items-center gap-1 min-w-0",
                             else:
-                              "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
+                              if(unread_count > 0,
+                                do:
+                                  "text-xs sm:text-sm text-base-content flex items-center gap-1 min-w-0 font-medium",
+                                else:
+                                  "text-xs sm:text-sm text-base-content/70 flex items-center gap-1 min-w-0"
+                              )
                           )
                         }>
                           <%= if read_status && read_status.is_read do %>
@@ -510,7 +627,11 @@
                         <p class={
                           if(is_selected,
                             do: "text-xs sm:text-sm text-base-content/80 truncate",
-                            else: "text-xs sm:text-sm text-base-content/70 truncate"
+                            else:
+                              if(unread_count > 0,
+                                do: "text-xs sm:text-sm text-base-content truncate font-medium",
+                                else: "text-xs sm:text-sm text-base-content/70 truncate"
+                              )
                           )
                         }>
                           {message_display_content(last_message)}
@@ -541,9 +662,9 @@
                     <% end %>
                     
 <!-- Desktop timestamp and unread -->
-                    <%= if Map.get(@conversation.unread_counts, conversation.id, 0) > 0 do %>
+                    <%= if unread_count > 0 do %>
                       <div class="badge badge-secondary badge-sm">
-                        {Map.get(@conversation.unread_counts, conversation.id)}
+                        {unread_count}
                       </div>
                     <% end %>
                     <%= if conversation.last_message_at do %>
@@ -928,7 +1049,7 @@
               <div
                 id={"message-#{message.id}"}
                 class={[
-                  "chat",
+                  "chat group/message rounded-xl px-1 py-1 transition-colors hover:bg-base-100/45",
                   if(message.sender_id == @current_user.id, do: "chat-end", else: "chat-start")
                 ]}
               >
@@ -1057,7 +1178,22 @@
                   <% end %>
                   
 <!-- Message Content -->
-                  <%= if message.content && message.content != "" do %>
+                  <% client_encrypted_payload = Map.get(message, :client_encrypted_payload) %>
+                  <%= if client_encrypted_payload do %>
+                    <p
+                      class="text-sm sm:text-base break-words cursor-text select-text opacity-80"
+                      data-chat-encrypted-message="true"
+                      data-conversation-id={message.conversation_id}
+                      data-key-uid={
+                        Map.get(client_encrypted_payload, "key_uid") ||
+                          Map.get(client_encrypted_payload, :key_uid)
+                      }
+                      data-payload={Jason.encode!(client_encrypted_payload)}
+                    >
+                      Decrypting encrypted message...
+                    </p>
+                  <% end %>
+                  <%= if is_nil(client_encrypted_payload) && message.content && message.content != "" do %>
                     <p class="text-sm sm:text-base break-words cursor-text select-text">
                       {Phoenix.HTML.raw(linkify_urls(message_display_content(message)))}
                     </p>
@@ -1282,7 +1418,7 @@
                 <div class="chat-footer">
                   <div class="flex items-center gap-2 flex-wrap">
                     <!-- Message Actions -->
-                    <div class="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
+                    <div class="flex items-center gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover/message:opacity-100 sm:focus-within:opacity-100">
                       <button
                         phx-click="reply_to_message"
                         phx-value-message_id={message.id}
@@ -1563,6 +1699,22 @@
               </div>
             <% end %>
 
+            <%= if @conversation.selected.type in ["dm", "group"] do %>
+              <div class="mb-2 flex items-center justify-end gap-2 text-xs text-base-content/70">
+                <button
+                  type="button"
+                  id="chat-e2ee-toggle"
+                  data-chat-e2ee-toggle="true"
+                  data-chat-e2ee-capable={if chat_e2ee_ready, do: "true", else: "false"}
+                  class="btn btn-xs btn-ghost gap-1"
+                  title="Client-side encrypted chat is optional for this browser"
+                >
+                  <.icon name="hero-lock-open" class="w-3.5 h-3.5" />
+                  <span data-chat-e2ee-toggle-label>Encrypted chat off</span>
+                </button>
+              </div>
+            <% end %>
+
             <%= if @current_user && Map.get(@moderation.user_timeout_status, @current_user.id, false) do %>
               <div class="p-3 bg-warning/20 border border-warning rounded-lg text-center">
                 <.icon name="hero-clock" class="w-5 h-5 mx-auto mb-2 text-warning" />
@@ -1577,6 +1729,10 @@
                 phx-submit="send_message"
                 phx-change="validate_upload"
                 class="space-y-2"
+                data-chat-e2ee-ready={if chat_e2ee_ready, do: "true", else: "false"}
+                data-has-uploads={
+                  if @uploads.chat_attachments.entries == [], do: "false", else: "true"
+                }
               >
                 <!-- Active Upload Previews -->
                 <%= for entry <- @uploads.chat_attachments.entries do %>
@@ -1616,7 +1772,8 @@
                   <%= if @can_send_messages do %>
                     <textarea
                       name="message"
-                      placeholder="Message..."
+                      placeholder={"Message #{route_label(@conversation.selected, @current_user.id)}"}
+                      aria-label={"Message #{route_label(@conversation.selected, @current_user.id)}"}
                       class="flex-1 min-w-0 text-sm leading-5 px-3 py-[9px] resize-none rounded-xl border border-base-300 bg-base-200 text-base-content placeholder:text-base-content/70 focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors sm:px-4"
                       autocomplete="off"
                       phx-change="update_message"
@@ -1696,6 +1853,12 @@
                     </button>
                   <% end %>
                 </div>
+                <div class="hidden items-center justify-between px-1 text-[11px] text-base-content/45 sm:flex">
+                  <span>Enter to send. Shift+Enter for a new line.</span>
+                  <%= if @message.new_message && String.length(@message.new_message) > 3600 do %>
+                    <span>{String.length(@message.new_message)}/4000</span>
+                  <% end %>
+                </div>
               </.form>
             <% end %>
           </div>
@@ -1703,17 +1866,24 @@
       <% else %>
         <!-- No Conversation Selected -->
         <div class="flex-1 flex items-center justify-center text-center bg-base-200">
-          <div class="max-w-lg">
-            <.icon
-              name="hero-chat-bubble-left-right"
-              class="w-16 h-16 mx-auto text-base-content/70 mb-4"
-            />
+          <div class="max-w-lg rounded-2xl border border-base-300 bg-base-100/70 p-8 shadow-sm">
+            <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-secondary/10 text-secondary">
+              <.icon name="hero-chat-bubble-left-right" class="w-8 h-8" />
+            </div>
             <h3 class="text-lg font-semibold text-base-content mb-2">
               Select a chat to start messaging
             </h3>
             <p class="text-base-content/70">
               Choose a channel, group, or direct message from the sidebar.
             </p>
+            <div class="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+              <button phx-click="toggle_new_chat" class="btn btn-secondary btn-sm">
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" /> New DM
+              </button>
+              <button phx-click="show_browse_modal" class="btn btn-surface btn-sm">
+                <.icon name="hero-globe-alt" class="w-4 h-4" /> Explore Servers
+              </button>
+            </div>
           </div>
         </div>
       <% end %>

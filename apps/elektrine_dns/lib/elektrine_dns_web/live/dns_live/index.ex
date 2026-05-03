@@ -464,7 +464,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <ElektrineWeb.Components.Platform.ENav.product_header
                   eyebrow="DNS"
                   title="Zones"
-                  description="Pick a domain, then add records like `www` or `mail` relative to it."
+                  description="Authoritative zones and records."
                 >
                   <:actions>
                     <div class="badge badge-outline badge-sm">
@@ -510,9 +510,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                     New zone
                   </h3>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    Start with the domain you own, like `example.com`. You can import its current public records first if you want.
-                  </p>
                 </div>
 
                 <.simple_form
@@ -531,9 +528,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     />
                     <div class="space-y-2">
                       <.input field={@zone_form[:default_ttl]} type="number" label="Default TTL" />
-                      <p class="text-xs text-base-content/55">
-                        TTL is how long other DNS servers cache answers. `3600` seconds (1 hour) is a safe default.
-                      </p>
                     </div>
                   </div>
                   <div class="mt-4 space-y-2">
@@ -550,9 +544,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         <span>Scan public DNS</span>
                       </span>
                     </.button>
-                    <p class="text-xs text-base-content/60">
-                      Runs a one-time lookup for the current domain and lets you choose what to import.
-                    </p>
                   </div>
                   <:actions>
                     <.button
@@ -581,9 +572,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   No DNS zones
                 </div>
                 <h2 class="mt-2 text-2xl font-semibold tracking-tight">Add a domain to manage DNS</h2>
-                <p class="mt-3 text-sm leading-6 text-base-content/65">
-                  Provision a zone from the form on the left, or scan public DNS first to import existing records before switching nameservers.
-                </p>
+                <p class="mt-3 text-sm text-base-content/65">No zones configured.</p>
               </div>
             </div>
           </section>
@@ -623,11 +612,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <.form for={%{}} as={:scan} phx-submit="scan_import" class="mt-4 space-y-5">
                   <div class="flex flex-col gap-3 rounded-xl border border-base-content/10 bg-base-200/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-sm text-base-content/70">
-                      <%= if matching_scan_zone(@zones, @zone_scan) do %>
-                        Select the public records you want to import into the matching Elektrine zone.
-                      <% else %>
-                        Select the public records you want to bring over when provisioning this zone.
-                      <% end %>
+                      Select records to import.
                     </p>
                     <button
                       type="submit"
@@ -703,9 +688,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       <h2 class="font-mono text-xl font-semibold tracking-tight">
                         {@active_zone.domain}
                       </h2>
-                      <p class="mt-1 text-sm text-base-content/65">
-                        {zone_description(@active_zone, @current_user)}
-                      </p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -768,12 +750,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       <%= if builtin_zone_hosted_by_platform?(@current_user) do %>
                         <span>
                           <code>{@active_zone.domain}</code>
-                          is the built-in host for your profile/static site. Apex `@` stays platform-managed; user records can be added on descendant labels plus apex `TXT` and `CAA`.
+                          is platform-hosted. Apex `@` accepts only `TXT` and `CAA` here.
                         </span>
                       <% else %>
                         <span>
                           <code>{@active_zone.domain}</code>
-                          is handed off to DNS. Elektrine will not serve the built-in profile/static site on this host until you switch it back.
+                          is DNS-managed. Platform hosting is paused.
                         </span>
                       <% end %>
                     </div>
@@ -784,9 +766,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                           <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                             Built-in host ownership
                           </h3>
-                          <p class="text-sm text-base-content/65">
-                            Switch between platform-managed apex routing and full user DNS control.
-                          </p>
                         </div>
                         <div class="join self-start lg:self-auto">
                           <button
@@ -816,44 +795,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     </div>
                   <% end %>
 
-                  <%= if not builtin_zone?(@active_zone, @current_user) do %>
-                    <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
-                      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div class="space-y-1">
-                          <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
-                            Quick start
-                          </h3>
-                          <p class="text-sm text-base-content/65">
-                            Follow these steps to move this domain onto Elektrine DNS.
-                          </p>
-                        </div>
-                        <span class={zone_status_badge_class(@active_zone.status)}>
-                          {@active_zone.status}
-                        </span>
-                      </div>
-                      <div class="mt-4 grid gap-3 xl:grid-cols-3">
-                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                          <p class="font-semibold">1. Point your registrar here</p>
-                          <p class="mt-1 text-base-content/65">
-                            Replace your current nameservers with the Elektrine nameservers shown below.
-                          </p>
-                        </div>
-                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                          <p class="font-semibold">2. Wait for DNS to update</p>
-                          <p class="mt-1 text-base-content/65">
-                            Registrar changes can take a little while to spread. This is normal.
-                          </p>
-                        </div>
-                        <div class="rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 text-sm">
-                          <p class="font-semibold">3. Check setup here</p>
-                          <p class="mt-1 text-base-content/65">
-                            When the nameserver change is live, use the button above to verify the zone.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  <% end %>
-
                   <.simple_form
                     for={@zone_settings_form}
                     bare={true}
@@ -864,9 +805,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                         Zone settings
                       </h3>
-                      <p class="mt-1 text-sm text-base-content/65">
-                        Applies to records created inside this zone.
-                      </p>
                     </div>
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                       <.input
@@ -896,18 +834,12 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                     Records
                   </h3>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    `@` means the apex of the selected zone. Managed records are read-only here.
-                  </p>
                 </div>
                 <div class="p-5">
                   <%= if @editing_record_id do %>
                     <div class="mb-5 rounded-2xl border border-base-content/10 bg-base-200/20 p-4">
                       <div class="mb-4 space-y-1">
                         <h4 class="font-semibold">Edit record</h4>
-                        <p class="text-sm text-base-content/65">
-                          Update the label, type, TTL, and type-specific fields.
-                        </p>
                       </div>
                       <.simple_form
                         for={@record_form}
@@ -1054,16 +986,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                     Delegation
                   </h3>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    If your registrar or current DNS host asks where to point the domain, publish these values there before checking setup.
-                  </p>
                 </div>
                 <div class="space-y-4 p-5">
                   <div class="rounded-2xl border border-base-content/10 bg-base-200/20 px-4 py-4">
                     <p class="text-sm font-semibold">Elektrine nameservers</p>
-                    <p class="mt-1 text-sm text-base-content/65">
-                      Many registrars have a dedicated nameserver section. If they ask for nameservers, use these exactly:
-                    </p>
                     <div class="mt-3 rounded-xl border border-base-content/10 bg-base-100 px-3 py-3 font-mono text-xs break-all text-base-content/80">
                       {Enum.join(@nameservers, ", ")}
                     </div>
@@ -1101,16 +1027,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                   New record
                 </h3>
-                <p class="mt-1 text-sm text-base-content/65">
-                  {record_help_text(@active_zone, @current_user)}
-                </p>
               </div>
               <div class="p-5">
                 <div class="mb-5">
-                  <p class="text-sm font-semibold">I want to...</p>
-                  <p class="mt-1 text-sm text-base-content/65">
-                    Start from a common task and we will prefill the DNS record for you.
-                  </p>
+                  <p class="text-sm font-semibold">Presets</p>
                   <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <%= for preset <- record_preset_options(@active_zone) do %>
                       <button
@@ -1120,9 +1040,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         class={record_preset_button_class(@selected_record_preset, preset.id)}
                       >
                         <span class="font-semibold">{preset.label}</span>
-                        <span class="mt-1 block text-xs text-base-content/65">
-                          {preset.description}
-                        </span>
                       </button>
                     <% end %>
                   </div>
@@ -1136,9 +1053,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     class={record_type_preset_button_class(@record_form, "A")}
                   >
                     <p class="font-semibold">A / AAAA</p>
-                    <p class="mt-1 text-base-content/65">
-                      Point a name like `@` or `www` to an IP address.
-                    </p>
                   </button>
                   <button
                     type="button"
@@ -1147,9 +1061,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     class={record_type_preset_button_class(@record_form, "CNAME")}
                   >
                     <p class="font-semibold">CNAME</p>
-                    <p class="mt-1 text-base-content/65">
-                      Make one name follow another hostname, like `www` to `example.com`.
-                    </p>
                   </button>
                   <button
                     type="button"
@@ -1158,9 +1069,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     class={record_type_preset_button_class(@record_form, "MX")}
                   >
                     <p class="font-semibold">MX</p>
-                    <p class="mt-1 text-base-content/65">
-                      Tell other mail servers where email for this domain should go.
-                    </p>
                   </button>
                   <button
                     type="button"
@@ -1169,9 +1077,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     class={record_type_preset_button_class(@record_form, "TXT")}
                   >
                     <p class="font-semibold">TXT</p>
-                    <p class="mt-1 text-base-content/65">
-                      Store verification tokens, SPF rules, or other text-based settings.
-                    </p>
                   </button>
                 </div>
                 <.simple_form
@@ -1241,15 +1146,10 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                   Linked domains
                 </h3>
-                <p class="mt-1 text-sm text-base-content/65">
-                  Shows whether this zone is already referenced by profile or email custom domain settings.
-                </p>
               </div>
               <div class="space-y-3 p-5">
                 <%= if @linked_domains == [] do %>
-                  <p class="text-sm text-base-content/60">
-                    No linked profile or email custom domains match this zone.
-                  </p>
+                  <p class="text-sm text-base-content/60">No linked domains.</p>
                 <% else %>
                   <%= for linked_domain <- @linked_domains do %>
                     <div class="rounded-2xl border border-base-content/10 bg-base-200/20 p-4">
@@ -1323,9 +1223,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                       Domain health
                     </h3>
-                    <p class="mt-1 text-sm text-base-content/65">
-                      Checks DNS, mail security, TLS posture, deliverability signals, and suggested fixes.
-                    </p>
                   </div>
                   <div class="flex items-center gap-3">
                     <div
@@ -1356,7 +1253,9 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         </div>
                         <span class={domain_health_badge_class(check.status)}>{check.status}</span>
                       </div>
-                      <p class="mt-3 text-sm text-base-content/65">{check.detail}</p>
+                      <p :if={check.status != :ok} class="mt-3 text-sm text-base-content/65">
+                        {check.detail}
+                      </p>
                       <%= if check.fix do %>
                         <p class="mt-3 rounded-xl bg-base-100 px-3 py-2 text-xs text-base-content/60">
                           {check.fix}
@@ -1378,9 +1277,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <h3 class="text-sm font-semibold uppercase tracking-[0.16em] text-base-content/60">
                   Service templates
                 </h3>
-                <p class="mt-1 text-sm text-base-content/65">
-                  Prebuilt setup recipes for common jobs like websites, email, and app hostnames.
-                </p>
               </div>
               <div class="space-y-3 p-5">
                 <%= for health <- @service_health do %>
@@ -1393,12 +1289,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                           </p>
                           <span class={service_badge_class(health.status)}>{health.status}</span>
                         </div>
-                        <p class="mt-1 text-sm text-base-content/65">
-                          {service_summary(health.service)}
-                        </p>
-                        <p class="mt-2 text-xs text-base-content/55">
-                          {service_hint(health.service)}
-                        </p>
                         <div class="mt-3 flex flex-wrap gap-2 text-xs text-base-content/60">
                           <span>{length(health.managed_records)} record(s)</span>
                           <span>
@@ -1589,21 +1479,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp zone_role_label(_, _), do: "zone"
 
-  defp zone_description(%Zone{} = zone, user) do
-    cond do
-      builtin_zone?(zone, user) and builtin_zone_hosted_by_platform?(user) ->
-        "Built-in Elektrine subdomain with platform-managed apex routing."
-
-      builtin_zone?(zone, user) ->
-        "Built-in Elektrine subdomain with user-managed DNS."
-
-      true ->
-        "Authoritative DNS zone delegated to Elektrine."
-    end
-  end
-
-  defp zone_description(_, _), do: "DNS zone"
-
   defp record_name_placeholder(%Zone{} = zone, user) do
     cond do
       builtin_zone?(zone, user) and builtin_zone_hosted_by_platform?(user) ->
@@ -1619,125 +1494,110 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp record_name_placeholder(_, _), do: "@ or www"
 
-  defp record_help_text(%Zone{} = zone, user) do
-    cond do
-      builtin_zone?(zone, user) and builtin_zone_hosted_by_platform?(user) ->
-        "Use `@` for the zone apex. While platform-hosted, apex is limited to `TXT` and `CAA`; use labels like `blog`, `vpn`, or `_acme-challenge` for other records."
-
-      builtin_zone?(zone, user) ->
-        "Use `@` for the zone apex or any relative label such as `www`, `mail`, or `blog`."
-
-      true ->
-        "Use `@` for the zone apex or any relative label such as `www`, `mail`, or `vpn`."
-    end
-  end
-
-  defp record_help_text(_, _), do: "Use `@` for the apex of the selected zone."
-
   defp record_name_field_help(%Zone{} = zone, user) do
     if builtin_zone?(zone, user) and builtin_zone_hosted_by_platform?(user) do
-      "`@` means the main domain. Use labels like `blog`, `mail`, or `_acme-challenge` for subdomains and verification records."
+      "Apex allows `TXT` and `CAA`; use labels for subdomains."
     else
-      "`@` means the main domain itself. `www` becomes `www.#{zone.domain}` and `mail` becomes `mail.#{zone.domain}`."
+      "Use `@` for apex; labels become `label.#{zone.domain}`."
     end
   end
 
-  defp record_name_field_help(_, _), do: "`@` means the main domain itself."
+  defp record_name_field_help(_, _), do: "Use `@` for apex."
 
   defp record_type_help(form) do
     case record_form_type(form) do
       "A" ->
-        "Points a name to an IPv4 address, such as `198.51.100.42`."
+        "IPv4 address."
 
       "AAAA" ->
-        "Points a name to an IPv6 address."
+        "IPv6 address."
 
       "ALIAS" ->
-        "Flattens an apex hostname to another hostname, similar to a root-safe CNAME."
+        "Apex hostname alias."
 
       "CAA" ->
-        "Limits which certificate authorities may issue TLS certificates for this name."
+        "Certificate authority policy."
 
       "CNAME" ->
-        "Makes one hostname follow another hostname. Good for aliases like `www`."
+        "Hostname alias."
 
       "HTTPS" ->
-        "Publishes HTTPS endpoint hints like ALPN, port, ECH, or address hints."
+        "HTTPS endpoint hints."
 
       "MX" ->
-        "Sends email for this domain to a mail server. Lower priority numbers win first."
+        "Mail exchanger."
 
       "TXT" ->
-        "Stores text, often used for SPF, DKIM, DMARC, or ownership verification."
+        "Text value."
 
       "NS" ->
-        "Delegates a name to another nameserver. Usually only needed for advanced setups."
+        "Nameserver delegation."
 
       "SRV" ->
-        "Advertises a service target with priority, weight, and port information."
+        "Service target."
 
       "SSHFP" ->
-        "Publishes SSH host key fingerprints for SSH clients that verify host keys with DNSSEC."
+        "SSH fingerprint."
 
       "SVCB" ->
-        "Publishes generic service binding information, often used for modern service discovery."
+        "Service binding."
 
       "TLSA" ->
-        "Publishes DANE certificate association data for a host and port."
+        "DANE certificate data."
 
       other ->
-        "Creates a #{other} record for a more specialized DNS use case."
+        "#{other} record."
     end
   end
 
   defp record_value_help(form) do
     case record_form_type(form) do
       "A" ->
-        "Enter the destination IPv4 address."
+        "IPv4 destination."
 
       "AAAA" ->
-        "Enter the destination IPv6 address."
+        "IPv6 destination."
 
       "ALIAS" ->
-        "Enter the hostname this apex record should flatten to."
+        "Target hostname."
 
       "CAA" ->
-        "Enter the certificate authority value, such as `letsencrypt.org`."
+        "CA value, e.g. `letsencrypt.org`."
 
       "CNAME" ->
-        "Enter the hostname this should point to, not an IP address."
+        "Target hostname."
 
       "HTTPS" ->
-        "Enter the target hostname followed by optional params like `alpn=h2,h3` or `port=443`."
+        "Target plus optional params."
 
       "MX" ->
-        "Enter the mail server hostname here, then set its priority below."
+        "Mail server hostname."
 
       "TXT" ->
-        "Paste the full text exactly as given by your provider."
+        "Full text value."
 
       "NS" ->
-        "Enter the authoritative nameserver hostname."
+        "Nameserver hostname."
 
       "SSHFP" ->
-        "Enter the SSH public host key fingerprint as hexadecimal data."
+        "Hex fingerprint."
 
       "SVCB" ->
-        "Enter the target hostname followed by optional service parameters."
+        "Target plus optional params."
 
       "TLSA" ->
-        "Enter the certificate association data as hexadecimal."
+        "Hex certificate association."
 
       _ ->
-        "Enter the value exactly as required by the service you are connecting."
+        "Record value."
     end
   end
 
   defp ttl_help_text(%Zone{} = zone) do
-    "How long DNS caches this record. Leave it near the zone default (#{zone.default_ttl}) unless a provider tells you otherwise."
+    "Default: #{zone.default_ttl}."
   end
 
-  defp ttl_help_text(_), do: "How long DNS caches this record before checking again."
+  defp ttl_help_text(_), do: "Cache lifetime."
 
   defp zone_scan_for_params(params) when is_map(params) do
     case Map.get(params, "domain") do
@@ -2260,23 +2120,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     }
   end
 
-  defp service_summary("mail"),
-    do: "Sets up the usual DNS records needed to receive and protect email on your domain."
-
-  defp service_summary("web"),
-    do: "Creates the common hostname records used for a website, including `www`."
-
-  defp service_summary("turn"),
-    do: "Creates a TURN hostname for voice, video, or WebRTC relay setups."
-
-  defp service_summary("vpn"),
-    do: "Creates a VPN hostname and optional admin/API hostname for remote access setups."
-
-  defp service_summary("bluesky"),
-    do: "Creates the hostname Bluesky expects for a managed PDS or handle setup."
-
-  defp service_summary(_), do: "Managed DNS setup recipe."
-
   defp service_label("mail"), do: "Email"
   defp service_label("web"), do: "Website"
   defp service_label("turn"), do: "TURN / Calls"
@@ -2284,29 +2127,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp service_label("bluesky"), do: "Bluesky"
   defp service_label(service), do: String.capitalize(service)
 
-  defp service_hint("mail"),
-    do: "Good starting point when you want this domain to send and receive email."
-
-  defp service_hint("web"),
-    do: "Use this when you want `www` and related website hostnames pointed for you."
-
-  defp service_hint("turn"),
-    do: "Useful for chat, calling, or conferencing products that need a TURN relay hostname."
-
-  defp service_hint("vpn"),
-    do: "Useful when you run a VPN gateway and want a memorable hostname like `vpn.example.com`."
-
-  defp service_hint("bluesky"),
-    do: "Useful if you are hosting your own Bluesky PDS or related handle infrastructure."
-
-  defp service_hint(_), do: "Managed DNS recipe for a common setup."
-
   defp record_preset_options(%Zone{} = zone) do
     [
       %{
         id: "website",
         label: "Point website",
-        description: "Point the main domain at a web server IP address.",
         attrs: %{
           "name" => "@",
           "type" => "A",
@@ -2317,7 +2142,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       %{
         id: "email",
         label: "Set up email",
-        description: "Create an MX record so mail for this domain goes to your mail host.",
         attrs: %{
           "name" => "@",
           "type" => "MX",
@@ -2329,7 +2153,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       %{
         id: "verification",
         label: "Verify domain ownership",
-        description: "Add the TXT record many services use to prove you control the domain.",
         attrs: %{
           "name" => "@",
           "type" => "TXT",
@@ -2340,7 +2163,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
       %{
         id: "subdomain",
         label: "Add subdomain",
-        description: "Create a subdomain like `blog` or `app` and point it somewhere.",
         attrs: %{
           "name" => "blog",
           "type" => "CNAME",
