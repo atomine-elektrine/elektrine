@@ -39,6 +39,8 @@ export function copyToClipboard(text, type = 'link') {
     const message =
       type === 'message'
         ? 'Message copied to clipboard'
+        : type === 'selection'
+          ? 'Selection copied to clipboard'
         : type === 'email'
           ? 'Email address copied to clipboard'
           : 'Link copied to clipboard'

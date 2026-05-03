@@ -338,11 +338,12 @@ defmodule Elektrine.Profiles do
     start_date = Date.utc_today() |> Date.add(-days + 1)
     end_date = Date.utc_today()
 
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+
     # Get actual view counts from database
     actual_views =
       from(pv in ProfileView,
-        where:
-          pv.profile_user_id == ^user_id and fragment("DATE(?)", pv.inserted_at) >= ^start_date,
+        where: pv.profile_user_id == ^user_id and pv.inserted_at >= ^start_datetime,
         group_by: fragment("DATE(?)", pv.inserted_at),
         select: %{date: fragment("DATE(?)", pv.inserted_at), count: count(pv.id)}
       )
@@ -470,10 +471,12 @@ defmodule Elektrine.Profiles do
     start_date = Date.utc_today() |> Date.add(-days + 1)
     end_date = Date.utc_today()
 
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
+
     actual_views =
       user_id
       |> profile_site_visits_query(request_host)
-      |> where([sv], fragment("DATE(?)", sv.inserted_at) >= ^start_date)
+      |> where([sv], sv.inserted_at >= ^start_datetime)
       |> group_by([sv], fragment("DATE(?)", sv.inserted_at))
       |> select([sv], %{date: fragment("DATE(?)", sv.inserted_at), count: count(sv.id)})
       |> Repo.all()
@@ -587,19 +590,55 @@ defmodule Elektrine.Profiles do
   end
 
   def get_public_site_view_stats(request_host \\ nil) do
-    now = DateTime.utc_now()
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
-    week_ago = DateTime.add(now, -7, :day)
+    week_ago = DateTime.utc_now() |> DateTime.add(-7, :day)
+
+    visit_stats = get_public_site_visit_stats(request_host, today_start, week_ago)
+    session_stats = get_public_site_session_stats(request_host)
+    sessions = session_stats.sessions || 0
+    bounces = session_stats.bounces || 0
 
     %{
-      total_views: get_public_site_view_count(request_host),
-      unique_visitors: get_public_site_unique_visitor_count(request_host),
-      sessions: get_public_site_session_count(request_host),
-      avg_session_duration_seconds: get_public_site_avg_session_duration(request_host),
-      bounce_rate: get_public_site_bounce_rate(request_host),
-      views_today: get_public_site_views_since(today_start, request_host),
-      views_this_week: get_public_site_views_since(week_ago, request_host)
+      total_views: visit_stats.total_views || 0,
+      unique_visitors: visit_stats.unique_visitors || 0,
+      sessions: sessions,
+      avg_session_duration_seconds: session_stats.avg_session_duration_seconds || 0.0,
+      bounce_rate: if(sessions > 0, do: bounces / sessions * 100, else: 0.0),
+      views_today: visit_stats.views_today || 0,
+      views_this_week: visit_stats.views_this_week || 0
     }
+  end
+
+  defp get_public_site_visit_stats(request_host, today_start, week_ago) do
+    request_host
+    |> site_page_visits_query()
+    |> select([sv], %{
+      total_views: count(sv.id),
+      unique_visitors:
+        count(
+          fragment(
+            "COALESCE(CAST(? AS text), ?, ?)",
+            sv.viewer_user_id,
+            sv.visitor_id,
+            sv.ip_address
+          ),
+          :distinct
+        ),
+      views_today: fragment("COUNT(*) FILTER (WHERE ? > ?)", sv.inserted_at, ^today_start),
+      views_this_week: fragment("COUNT(*) FILTER (WHERE ? > ?)", sv.inserted_at, ^week_ago)
+    })
+    |> Repo.one()
+  end
+
+  defp get_public_site_session_stats(request_host) do
+    request_host
+    |> site_sessions_query()
+    |> select([ss], %{
+      sessions: count(ss.id),
+      avg_session_duration_seconds: fragment("COALESCE(AVG(?)::float, 0)", ss.duration_seconds),
+      bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", ss.page_views)
+    })
+    |> Repo.one()
   end
 
   def get_public_site_view_count(request_host \\ nil) do
@@ -669,11 +708,12 @@ defmodule Elektrine.Profiles do
   def get_public_site_daily_view_counts(days \\ 30, request_host \\ nil) do
     start_date = Date.utc_today() |> Date.add(-days + 1)
     end_date = Date.utc_today()
+    start_datetime = DateTime.new!(start_date, ~T[00:00:00])
 
     actual_views =
       request_host
       |> site_page_visits_query()
-      |> where([sv], fragment("DATE(?)", sv.inserted_at) >= ^start_date)
+      |> where([sv], sv.inserted_at >= ^start_datetime)
       |> group_by([sv], fragment("DATE(?)", sv.inserted_at))
       |> select([sv], %{date: fragment("DATE(?)", sv.inserted_at), count: count(sv.id)})
       |> Repo.all()
@@ -717,6 +757,8 @@ defmodule Elektrine.Profiles do
     |> select([sv], %{referer: sv.referer, count: count(sv.id)})
     |> Repo.all()
   end
+
+  def get_public_site_domain_breakdown([]), do: []
 
   def get_public_site_domain_breakdown(hosts) when is_list(hosts) do
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
@@ -781,6 +823,18 @@ defmodule Elektrine.Profiles do
     end
   end
 
+  defp site_page_visits_query(request_hosts) when is_list(request_hosts) do
+    base =
+      from(sv in SitePageVisit,
+        where: not is_nil(sv.request_host)
+      )
+
+    case normalize_request_hosts(request_hosts) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [sv], sv.request_host in ^hosts)
+      _ -> where(base, [_sv], fragment("FALSE"))
+    end
+  end
+
   defp site_page_visits_query(request_host) do
     base =
       from(sv in SitePageVisit,
@@ -793,6 +847,18 @@ defmodule Elektrine.Profiles do
     end
   end
 
+  defp site_sessions_query(request_hosts) when is_list(request_hosts) do
+    base =
+      from(ss in SiteSession,
+        where: not is_nil(ss.entry_host)
+      )
+
+    case normalize_request_hosts(request_hosts) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [ss], ss.entry_host in ^hosts)
+      _ -> where(base, [_ss], fragment("FALSE"))
+    end
+  end
+
   defp site_sessions_query(request_host) do
     base =
       from(ss in SiteSession,
@@ -802,6 +868,18 @@ defmodule Elektrine.Profiles do
     case normalize_request_hosts(request_host) do
       hosts when is_list(hosts) and hosts != [] -> where(base, [ss], ss.entry_host in ^hosts)
       _ -> base
+    end
+  end
+
+  defp profile_site_visits_query(user_id, request_hosts) when is_list(request_hosts) do
+    base =
+      from(sv in ProfileSiteVisit,
+        where: sv.profile_user_id == ^user_id and not is_nil(sv.request_host)
+      )
+
+    case normalize_request_hosts(request_hosts) do
+      hosts when is_list(hosts) and hosts != [] -> where(base, [sv], sv.request_host in ^hosts)
+      _ -> where(base, [_sv], fragment("FALSE"))
     end
   end
 

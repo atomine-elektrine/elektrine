@@ -29,6 +29,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:account` - Update settings (not password)
   - `read:vault` - Read encrypted password vault entries
   - `write:vault` - Create/update/delete encrypted password vault entries
+  - `read:proofs` - Read identity proofs and score
+  - `write:proofs` - Create, check, and delete identity proofs
   - `export` - Trigger and download data exports
   - `webhook` - Manage webhook subscriptions
   """
@@ -44,6 +46,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:account write:account
     read:vault write:vault
     read:dns write:dns
+    read:proofs write:proofs
     export webhook
   )
   @token_presets [
@@ -89,6 +92,12 @@ defmodule Elektrine.Developer.ApiToken do
       name: "DNS admin",
       description: "Read and write managed DNS zones and records.",
       scopes: ["read:dns", "write:dns"]
+    },
+    %{
+      id: "identity_proofs",
+      name: "Identity proofs",
+      description: "Create, check, and read Atomine identity proofs.",
+      scopes: ["read:proofs", "write:proofs"]
     }
   ]
 
@@ -186,6 +195,10 @@ defmodule Elektrine.Developer.ApiToken do
       "DNS" => [
         {"read:dns", "Read managed DNS zones and records"},
         {"write:dns", "Create, update, verify, and delete DNS zones and records"}
+      ],
+      "Proofs" => [
+        {"read:proofs", "Read identity proofs and personhood score"},
+        {"write:proofs", "Create, check, and delete identity proofs"}
       ],
       "Developer" => [
         {"export", "Trigger and download data exports"},

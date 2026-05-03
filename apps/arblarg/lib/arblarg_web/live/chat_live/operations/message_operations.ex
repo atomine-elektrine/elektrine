@@ -460,25 +460,25 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
         {:ok, _deleted_message} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_info("Message deleted")}
 
         {:error, :unauthorized} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_error("You can only delete your own messages")}
 
         {:error, :not_found} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_error("Message not found")}
 
         {:error, _} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_error("Failed to delete message")}
       end
     else
@@ -506,31 +506,31 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_info("Message deleted")}
 
         {:error, :not_found} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_info("Message not found")}
 
         {:error, :already_deleted} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_info("Message already deleted")}
 
         {:error, _} ->
           {:noreply,
            socket
-           |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+           |> hide_message_context_menu()
            |> notify_error("Failed to delete message")}
       end
     else
       {:noreply,
        socket
-       |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+       |> hide_message_context_menu()
        |> notify_error("Unauthorized")}
     end
   end
@@ -604,7 +604,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
     {:noreply,
      socket
-     |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+     |> hide_message_context_menu()
      |> assign(:message, %{socket.assigns.message | reply_to: message})}
   end
 
@@ -613,7 +613,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
     {:noreply,
      socket
-     |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+     |> hide_message_context_menu()
      |> push_event("copy_to_clipboard", %{text: message.content, type: "message"})}
   end
 
@@ -624,19 +624,19 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
       {:ok, _message} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_info("Message pinned")}
 
       {:error, :unauthorized} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_error("Only moderators can pin messages")}
 
       {:error, _} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_error("Failed to pin message")}
     end
   end
@@ -648,19 +648,19 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
       {:ok, _message} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_info("Message unpinned")}
 
       {:error, :unauthorized} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_error("Only moderators can unpin messages")}
 
       {:error, _} ->
         {:noreply,
          socket
-         |> assign(:context_menu, %{socket.assigns.context_menu | message: nil})
+         |> hide_message_context_menu()
          |> notify_error("Failed to unpin message")}
     end
   end
@@ -731,6 +731,14 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("voice_recording_error", %{"error" => error}, socket) do
     {:noreply, notify_error(socket, error)}
+  end
+
+  defp hide_message_context_menu(socket) do
+    assign(socket, :context_menu, %{
+      socket.assigns.context_menu
+      | message: nil,
+        selected_text: nil
+    })
   end
 
   defp maybe_apply_slash_command("", _uploaded_files, socket) do

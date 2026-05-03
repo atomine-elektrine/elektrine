@@ -182,6 +182,14 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:account"])
   end
 
+  pipeline :api_pat_proofs_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:proofs", "write:proofs"], any: true)
+  end
+
+  pipeline :api_pat_proofs_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:proofs"])
+  end
+
   pipeline :api_pat_dns_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:dns", "write:dns"], any: true)
   end
@@ -920,6 +928,22 @@ defmodule ElektrineWeb.Router do
     pipe_through([:api_pat_authenticated, :api_pat_account_read_scope])
 
     get("/me", MetaController, :me)
+  end
+
+  scope "/api/ext/v1/proofs", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_proofs_read_scope])
+
+    get("/", ProofController, :index)
+    get("/score", ProofController, :score)
+    get("/:id", ProofController, :show)
+  end
+
+  scope "/api/ext/v1/proofs", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_proofs_write_scope])
+
+    post("/", ProofController, :create)
+    post("/:id/check", ProofController, :check)
+    delete("/:id", ProofController, :delete)
   end
 
   scope "/api/ext/v1/search", ElektrineWeb.API do

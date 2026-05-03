@@ -241,10 +241,12 @@ defmodule ElektrineWeb.UserSettingsPGPTest do
         |> log_in_user(user)
         |> live(~p"/account")
 
-      # Click on email tab
-      view
-      |> element("a[phx-value-tab='email']")
-      |> render_click()
+      assert render(view) =~ ~s(href="/account?tab=email")
+
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=email")
 
       # Should show PGP section
       assert render(view) =~ "PGP Encryption"

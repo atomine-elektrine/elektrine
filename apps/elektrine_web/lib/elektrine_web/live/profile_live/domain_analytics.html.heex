@@ -117,6 +117,11 @@
           </div>
         </div>
 
+        <div :if={@analytics_loading} class="alert alert-info shadow-sm">
+          <span class="loading loading-spinner loading-sm"></span>
+          <span>Loading analytics for {@active_host}...</span>
+        </div>
+
         <div class="space-y-6">
           <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <div class="card panel-card">
@@ -262,36 +267,19 @@
                       <span class="badge badge-outline">UTC</span>
                     </div>
 
-                    <%= if @dns_display_hours == [] do %>
-                      <div class="py-8 text-center text-sm text-base-content/55">
-                        No hourly DNS query data yet.
-                      </div>
-                    <% else %>
-                      <div class="mt-5 flex h-48 items-end gap-1 overflow-x-auto rounded-xl bg-base-100 px-3 py-4">
-                        <%= for hour <- @dns_hourly_queries do %>
-                          <% height =
-                            if @max_dns_hourly_queries > 0,
-                              do: max(hour.count / @max_dns_hourly_queries * 100, 3),
-                              else: 3 %>
-                          <div class="flex min-w-8 flex-1 flex-col items-center justify-end gap-2">
-                            <div
-                              class="max-w-10 truncate text-[10px] text-base-content/45"
-                              title={hour.count}
-                            >
-                              {format_count(hour.count)}
-                            </div>
-                            <div
-                              class="w-full rounded-t-md bg-secondary/85"
-                              style={"height: #{height}%"}
-                            >
-                            </div>
-                            <div class="text-[10px] text-base-content/45">
-                              {Calendar.strftime(hour.hour, "%H")}
-                            </div>
-                          </div>
-                        <% end %>
-                      </div>
-                    <% end %>
+                    <div class="mt-5">
+                      <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+                        id="domain-dns-hourly-chart"
+                        data={@dns_hourly_queries}
+                        label_key={:hour}
+                        value_key={:count}
+                        unit="queries"
+                        accent="secondary"
+                        granularity="hour"
+                        empty_message="No hourly DNS query data yet."
+                        aria_label="DNS queries over the last 24 hours"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -300,38 +288,19 @@
                     <div class="card-body p-6">
                       <h3 class="card-title text-base">Daily Queries</h3>
 
-                      <%= if @dns_display_days == [] do %>
-                        <div class="py-8 text-center text-sm text-base-content/55">
-                          No DNS query data yet.
-                        </div>
-                      <% else %>
-                        <div
-                          class="mt-4 space-y-2 max-h-96 overflow-y-auto"
-                          style="scrollbar-gutter: stable"
-                        >
-                          <%= for day <- @dns_display_days do %>
-                            <div class="flex items-center gap-3">
-                              <span class="w-24 shrink-0 text-sm text-base-content/65">
-                                {Calendar.strftime(day.date, "%b %d")}
-                              </span>
-                              <% width =
-                                if @max_dns_daily_queries > 0,
-                                  do: day.count / @max_dns_daily_queries * 100,
-                                  else: 0 %>
-                              <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-300/70">
-                                <div
-                                  class="h-full rounded-full bg-secondary"
-                                  style={"width: #{width}%"}
-                                >
-                                </div>
-                                <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                                  {format_count(day.count)}
-                                </span>
-                              </div>
-                            </div>
-                          <% end %>
-                        </div>
-                      <% end %>
+                      <div class="mt-4">
+                        <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+                          id="domain-dns-daily-chart"
+                          data={@dns_daily_queries}
+                          label_key={:date}
+                          value_key={:count}
+                          unit="queries"
+                          accent="secondary"
+                          granularity="day"
+                          empty_message="No DNS query data yet."
+                          aria_label="DNS queries over the last 30 days"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -486,33 +455,19 @@
               <div class="card-body p-6">
                 <h2 class="card-title text-lg">Traffic Over Time</h2>
 
-                <%= if @display_days == [] do %>
-                  <div class="py-8 text-center text-sm text-base-content/55">
-                    No page view data yet.
-                  </div>
-                <% else %>
-                  <div
-                    class="mt-4 space-y-2 max-h-96 overflow-y-auto"
-                    style="scrollbar-gutter: stable"
-                  >
-                    <%= for day <- @display_days do %>
-                      <div class="flex items-center gap-3">
-                        <span class="w-24 shrink-0 text-sm text-base-content/65">
-                          {Calendar.strftime(day.date, "%b %d")}
-                        </span>
-                        <% width =
-                          if @max_daily_views > 0, do: day.count / @max_daily_views * 100, else: 0 %>
-                        <div class="relative h-6 flex-1 overflow-hidden rounded-full bg-base-200">
-                          <div class="h-full rounded-full bg-primary" style={"width: #{width}%"}>
-                          </div>
-                          <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                            {format_count(day.count)}
-                          </span>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                <% end %>
+                <div class="mt-4">
+                  <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+                    id="domain-traffic-chart"
+                    data={@daily_views}
+                    label_key={:date}
+                    value_key={:count}
+                    unit="views"
+                    accent="primary"
+                    granularity="day"
+                    empty_message="No page view data yet."
+                    aria_label="Domain page views over the last 30 days"
+                  />
+                </div>
               </div>
             </div>
 

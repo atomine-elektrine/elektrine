@@ -10,8 +10,21 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-alias Elektrine.{Accounts, Calendar, Email, Messaging, PasswordManager, Profiles, Repo, Social}
+alias Elektrine.{
+  Accounts,
+  Calendar,
+  DNS,
+  Email,
+  Messaging,
+  PasswordManager,
+  Profiles,
+  Repo,
+  Social
+}
+
+alias Elektrine.DNS.QueryStat
 alias Elektrine.Email.Contacts
+alias Elektrine.Profiles.{ProfileLink, ProfileView, SitePageVisit, SiteSession}
 import Ecto.Query
 
 # Only run in development environment
@@ -1128,7 +1141,7 @@ if Mix.env() == :dev do
   ensure_profile_link = fn profile, attrs ->
     title = Map.fetch!(attrs, :title)
 
-    case Repo.get_by(Profiles.ProfileLink, profile_id: profile.id, title: title) do
+    case Repo.get_by(ProfileLink, profile_id: profile.id, title: title) do
       nil ->
         case Profiles.create_profile_link(profile.id, attrs) do
           {:ok, link} -> link
@@ -1407,7 +1420,7 @@ if Mix.env() == :dev do
   ensure_server_channel = fn server_id, creator_id, attrs ->
     name = attrs |> Map.get(:name, "general") |> String.downcase()
 
-    case Repo.get_by(Elektrine.Social.Conversation,
+    case Repo.get_by(Messaging.ChatConversation,
            server_id: server_id,
            type: "channel",
            name: name
@@ -1424,10 +1437,11 @@ if Mix.env() == :dev do
   end
 
   ensure_group_conversation = fn creator_id, attrs, member_ids ->
-    name = attrs |> Map.fetch!(:name) |> String.downcase()
+    attrs = Map.update!(attrs, :name, &String.downcase/1)
+    name = Map.fetch!(attrs, :name)
 
     existing_group =
-      from(c in Elektrine.Social.Conversation,
+      from(c in Messaging.ChatConversation,
         where:
           c.creator_id == ^creator_id and
             c.type == "group" and
@@ -1440,7 +1454,7 @@ if Mix.env() == :dev do
     group =
       case existing_group do
         nil ->
-          case Messaging.create_group_conversation(creator_id, attrs, member_ids) do
+          case Messaging.create_chat_group_conversation(creator_id, attrs, member_ids) do
             {:ok, conversation} ->
               conversation
 
@@ -1455,8 +1469,10 @@ if Mix.env() == :dev do
           conversation
       end
 
-    Enum.each([creator_id | member_ids], fn member_id ->
-      case Messaging.Conversations.add_member_to_conversation(group.id, member_id) do
+    group_members = [{creator_id, "admin"} | Enum.map(member_ids, &{&1, "member"})]
+
+    Enum.each(group_members, fn {member_id, role} ->
+      case Messaging.ChatConversations.add_member_to_conversation(group.id, member_id, role) do
         {:ok, _member} ->
           :ok
 
@@ -1760,10 +1776,274 @@ if Mix.env() == :dev do
     end)
   end)
 
+  analytics_now = DateTime.utc_now() |> DateTime.truncate(:second)
+  seed_analytics_prefix = "seed-analytics"
+
+  naive_utc = fn datetime ->
+    datetime
+    |> DateTime.to_naive()
+    |> NaiveDateTime.truncate(:second)
+  end
+
+  truncate_to_hour = fn datetime ->
+    DateTime.new!(DateTime.to_date(datetime), Time.new!(datetime.hour, 0, 0), "Etc/UTC")
+  end
+
+  at_seed_day = fn days_back, seconds_offset ->
+    analytics_now
+    |> DateTime.add(-(days_back * 86_400 + seconds_offset), :second)
+    |> DateTime.truncate(:second)
+  end
+
+  analytics_base_domain = Elektrine.Domains.primary_profile_domain()
+  analytics_domain_candidate = "#{test_user.username}-analytics.#{analytics_base_domain}"
+
+  analytics_domain =
+    if DNS.public_hostname?(analytics_domain_candidate) do
+      analytics_domain_candidate
+    else
+      "#{test_user.username}-analytics.elektrine.dev"
+    end
+
+  ensure_analytics_zone = fn user ->
+    zone =
+      case DNS.get_zone_by_domain(analytics_domain) do
+        nil ->
+          case DNS.create_zone(user, %{"domain" => analytics_domain, "default_ttl" => 300}) do
+            {:ok, zone} -> zone
+            {:error, reason} -> raise "Failed to create analytics DNS zone: #{inspect(reason)}"
+          end
+
+        zone when zone.user_id == user.id ->
+          zone
+
+        zone ->
+          raise "Analytics DNS seed domain #{analytics_domain} is owned by user #{zone.user_id}"
+      end
+
+    zone
+    |> Ecto.Changeset.change(%{
+      status: "verified",
+      verified_at: zone.verified_at || analytics_now,
+      last_checked_at: analytics_now
+    })
+    |> Repo.update!()
+  end
+
+  seed_profile_analytics = fn profile_user, viewer_pool ->
+    profile_view_prefix = "#{seed_analytics_prefix}-profile-#{profile_user.username}-"
+
+    from(view in ProfileView,
+      where:
+        view.profile_user_id == ^profile_user.id and
+          like(view.viewer_session_id, ^"#{profile_view_prefix}%")
+    )
+    |> Repo.delete_all()
+
+    referrers = [
+      "https://news.ycombinator.com/item?id=313",
+      "https://github.com/elektrine/elektrine",
+      "https://search.example.com/?q=elektrine+profile",
+      "https://social.example.net/@orbitdev"
+    ]
+
+    user_agents = [
+      "Mozilla/5.0 seed analytics desktop",
+      "Mozilla/5.0 seed analytics mobile",
+      "curl/8.0 seed uptime check"
+    ]
+
+    Enum.each(0..29, fn days_back ->
+      view_count = max(rem(days_back * 7 + 9, 13) + div(30 - days_back, 7) - 3, 0)
+
+      if view_count > 0 do
+        Enum.each(1..view_count, fn view_index ->
+          viewed_at = at_seed_day.(days_back, view_index * 1_379)
+          viewer = Enum.at(viewer_pool, rem(days_back + view_index, length(viewer_pool)))
+          authenticated? = rem(days_back + view_index, 3) == 0
+
+          %ProfileView{
+            profile_user_id: profile_user.id,
+            viewer_user_id: if(authenticated?, do: viewer.id, else: nil),
+            viewer_session_id: "#{profile_view_prefix}#{days_back}-#{view_index}",
+            ip_address: "198.51.100.#{rem(days_back * 17 + view_index, 220) + 20}",
+            user_agent: Enum.at(user_agents, rem(days_back + view_index, length(user_agents))),
+            referer: Enum.at(referrers, rem(days_back + view_index, length(referrers))),
+            inserted_at: naive_utc.(viewed_at)
+          }
+          |> Repo.insert!()
+        end)
+      end
+    end)
+
+    profile = Profiles.get_user_profile(profile_user.id)
+
+    if profile do
+      profile.links
+      |> Enum.with_index()
+      |> Enum.each(fn {link, index} ->
+        link
+        |> Ecto.Changeset.change(clicks: Enum.at([84, 37, 18], index, 9))
+        |> Repo.update!()
+      end)
+    end
+  end
+
+  seed_site_analytics = fn domain, viewer_pool ->
+    site_session_prefix = "#{seed_analytics_prefix}-site-"
+
+    from(visit in SitePageVisit, where: like(visit.session_id, ^"#{site_session_prefix}%"))
+    |> Repo.delete_all()
+
+    from(session in SiteSession, where: like(session.session_id, ^"#{site_session_prefix}%"))
+    |> Repo.delete_all()
+
+    paths = ["/", "/pricing", "/docs", "/changelog", "/contact", "/status"]
+
+    referrers = [
+      "https://news.ycombinator.com/item?id=313",
+      "https://github.com/elektrine/elektrine",
+      "https://search.example.com/?q=private+email",
+      nil
+    ]
+
+    Enum.each(0..29, fn days_back ->
+      session_count = max(rem(days_back * 5 + 11, 10) + div(30 - days_back, 8) - 2, 0)
+
+      if session_count > 0 do
+        Enum.each(1..session_count, fn session_index ->
+          started_at = at_seed_day.(days_back, session_index * 2_413)
+          page_views = 1 + rem(days_back + session_index, 4)
+
+          last_seen_at =
+            DateTime.add(
+              started_at,
+              page_views * (45 + rem(days_back * session_index, 240)),
+              :second
+            )
+
+          session_id = "#{site_session_prefix}#{days_back}-#{session_index}"
+          visitor_id = "seed-visitor-#{rem(days_back * 13 + session_index, 37)}"
+          viewer = Enum.at(viewer_pool, rem(days_back + session_index, length(viewer_pool)))
+          authenticated? = rem(days_back + session_index, 4) == 0
+          entry_path = Enum.at(paths, rem(days_back + session_index, length(paths)))
+          exit_path = Enum.at(paths, rem(days_back + session_index + page_views, length(paths)))
+
+          %SiteSession{
+            session_id: session_id,
+            viewer_user_id: if(authenticated?, do: viewer.id, else: nil),
+            visitor_id: visitor_id,
+            ip_address: "203.0.113.#{rem(days_back * 19 + session_index, 220) + 20}",
+            user_agent: "Mozilla/5.0 seed analytics browser",
+            referer: Enum.at(referrers, rem(days_back + session_index, length(referrers))),
+            entry_host: domain,
+            entry_path: entry_path,
+            exit_host: domain,
+            exit_path: exit_path,
+            page_views: page_views,
+            started_at: started_at,
+            last_seen_at: last_seen_at,
+            duration_seconds: DateTime.diff(last_seen_at, started_at),
+            inserted_at: naive_utc.(started_at),
+            updated_at: naive_utc.(last_seen_at)
+          }
+          |> Repo.insert!()
+
+          Enum.each(1..page_views, fn page_index ->
+            visited_at = DateTime.add(started_at, (page_index - 1) * 53, :second)
+            path = Enum.at(paths, rem(days_back + session_index + page_index, length(paths)))
+
+            %SitePageVisit{
+              session_id: session_id,
+              viewer_user_id: if(authenticated?, do: viewer.id, else: nil),
+              visitor_id: visitor_id,
+              ip_address: "203.0.113.#{rem(days_back * 19 + session_index, 220) + 20}",
+              user_agent: "Mozilla/5.0 seed analytics browser",
+              referer: Enum.at(referrers, rem(days_back + session_index, length(referrers))),
+              request_host: domain,
+              request_path: path,
+              status:
+                if(rem(days_back + session_index + page_index, 23) == 0, do: 404, else: 200),
+              inserted_at: naive_utc.(visited_at)
+            }
+            |> Repo.insert!()
+          end)
+        end)
+      end
+    end)
+  end
+
+  seed_dns_analytics = fn zone ->
+    qnames = [
+      zone.domain,
+      "www.#{zone.domain}",
+      "api.#{zone.domain}",
+      "missing.#{zone.domain}"
+    ]
+
+    from(query_stat in QueryStat,
+      where: query_stat.zone_id == ^zone.id and query_stat.qname in ^qnames
+    )
+    |> Repo.delete_all()
+
+    upsert_query_stat = fn query_hour, qname, qtype, rcode, transport, query_count ->
+      attrs = %{
+        zone_id: zone.id,
+        query_date: DateTime.to_date(query_hour),
+        query_hour: query_hour,
+        qname: qname,
+        qtype: qtype,
+        rcode: rcode,
+        transport: transport,
+        query_count: query_count
+      }
+
+      %QueryStat{}
+      |> QueryStat.changeset(attrs)
+      |> Repo.insert!(
+        on_conflict: [set: [query_count: query_count, query_date: attrs.query_date]],
+        conflict_target: [:zone_id, :query_hour, :qname, :qtype, :rcode, :transport]
+      )
+    end
+
+    Enum.each(0..29, fn days_back ->
+      date = Date.add(Date.utc_today(), -days_back)
+      hour = if days_back == 0, do: min(analytics_now.hour, 12), else: 12
+      query_hour = DateTime.new!(date, Time.new!(hour, 0, 0), "Etc/UTC")
+      qname = Enum.at(qnames, rem(days_back, length(qnames)))
+      rcode = if String.starts_with?(qname, "missing."), do: "NXDOMAIN", else: "NOERROR"
+      qtype = Enum.at(~w(A AAAA MX TXT), rem(days_back, 4))
+      transport = if rem(days_back, 5) == 0, do: "tcp", else: "udp"
+      query_count = 70 + rem(days_back * 31, 120) + max(30 - days_back, 0) * 3
+
+      upsert_query_stat.(query_hour, qname, qtype, rcode, transport, query_count)
+    end)
+
+    current_hour = truncate_to_hour.(analytics_now)
+
+    Enum.each(0..23, fn hours_back ->
+      query_hour = DateTime.add(current_hour, -hours_back * 3_600, :second)
+      qname = Enum.at(qnames, rem(hours_back + 1, length(qnames)))
+      rcode = if String.starts_with?(qname, "missing."), do: "NXDOMAIN", else: "NOERROR"
+      qtype = Enum.at(~w(A AAAA TXT), rem(hours_back, 3))
+      transport = if rem(hours_back, 6) == 0, do: "tcp", else: "udp"
+      query_count = 18 + rem(hours_back * 17, 55) + if(hours_back < 6, do: 18, else: 0)
+
+      upsert_query_stat.(query_hour, qname, qtype, rcode, transport, query_count)
+    end)
+  end
+
   orbitdev = demo_users["orbitdev"].user
   mapsmith = demo_users["mapsmith"].user
   pixelvera = demo_users["pixelvera"].user
   opsnova = demo_users["opsnova"].user
+
+  analytics_viewers = [orbitdev, mapsmith, pixelvera, opsnova]
+
+  analytics_zone = ensure_analytics_zone.(test_user)
+  seed_profile_analytics.(test_user, analytics_viewers)
+  seed_site_analytics.(analytics_zone.domain, analytics_viewers)
+  seed_dns_analytics.(analytics_zone)
 
   follow_pairs = [
     {test_user.id, orbitdev.id},
@@ -2324,6 +2604,7 @@ if Mix.env() == :dev do
   IO.puts("  - 1 DM, 1 group conversation, 1 public server, and 3 server channels")
   IO.puts("  - 2 calendars with 4 events and 4 contacts across 2 groups")
   IO.puts("  - 2 folders, 2 labels, 2 templates, 2 filters, 1 alias, and 2 vault entries")
+  IO.puts("  - Profile, domain, and DNS analytics for /analytics graphs")
 
   IO.puts("Development seeding complete!")
   IO.puts("")

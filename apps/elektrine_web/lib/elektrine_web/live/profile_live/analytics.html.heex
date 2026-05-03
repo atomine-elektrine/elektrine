@@ -121,57 +121,17 @@
                   <.icon name="hero-chart-bar" class="w-5 h-5 mr-2" /> Views Over Time
                 </h2>
 
-                <%= if @daily_views && length(@daily_views) > 0 do %>
-                  <div class="space-y-2 max-h-96 overflow-y-auto" style="scrollbar-gutter: stable">
-                    <%= for view_data <- @display_days do %>
-                      <div class="flex items-center gap-3">
-                        <span class="text-sm opacity-70 w-24 flex-shrink-0">
-                          {Calendar.strftime(view_data.date, "%b %d")}
-                        </span>
-                        <div class="flex-1 bg-base-200 rounded-full h-6 relative overflow-hidden">
-                          <% percentage =
-                            if @max_daily_views > 0,
-                              do: view_data.count / @max_daily_views * 100,
-                              else: 0 %>
-                          <div
-                            class="bg-primary h-full rounded-full transition-all duration-300"
-                            style={"width: #{percentage}%"}
-                          >
-                          </div>
-
-                          <span class="absolute inset-0 flex items-center justify-center text-xs font-medium">
-                            {view_data.count} {if view_data.count == 1, do: "view", else: "views"}
-                          </span>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                  <!-- Summary Stats -->
-                  <div class="mt-4 pt-4 border-t border-base-200">
-                    <div class="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p class="opacity-70">Total Views</p>
-
-                        <p class="text-xl font-bold">
-                          {Enum.sum(Enum.map(@daily_views, & &1.count))}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p class="opacity-70">Daily Average</p>
-
-                        <p class="text-xl font-bold">
-                          {Float.round(Enum.sum(Enum.map(@daily_views, & &1.count)) / 30, 1)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                <% else %>
-                  <div class="text-center py-8 opacity-50">
-                    <.icon name="hero-chart-bar" class="w-12 h-12 mx-auto mb-2" />
-                    <p>No view data for this period</p>
-                  </div>
-                <% end %>
+                <ElektrineWeb.Components.UI.UPlotChart.uplot_chart
+                  id="profile-views-chart"
+                  data={@daily_views}
+                  label_key={:date}
+                  value_key={:count}
+                  unit="views"
+                  accent="primary"
+                  granularity="day"
+                  empty_message="No view data for this period"
+                  aria_label="Profile views over the last 30 days"
+                />
               </div>
             </div>
             <!-- Visitor Breakdown -->

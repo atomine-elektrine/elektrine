@@ -107,6 +107,90 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert token["scopes"] == ["read:account"]
     end
 
+    test "proof endpoints create, list, show, score, and delete owned proofs", %{conn: conn} do
+      user = user_fixture()
+      domain = "pat-proof-#{System.unique_integer([:positive])}.example"
+      write_conn = with_pat(conn, user.id, ["write:proofs"])
+
+      created_conn =
+        post(write_conn, "/api/ext/v1/proofs", %{
+          "kind" => "dns",
+          "subject" => domain,
+          "proof_mode" => "snapshot"
+        })
+
+      assert %{"data" => %{"proof" => proof, "instructions" => instructions}} =
+               json_response(created_conn, 201)
+
+      assert proof["subject"] == domain
+      assert proof["status"] == "pending"
+      assert proof["verification"]["dns_txt_host"] == "_atomine.#{domain}"
+      assert instructions["dns_txt_value"] == proof["challenge"]
+
+      proof_id = proof["id"]
+      read_conn = build_conn() |> with_pat(user.id, ["read:proofs"])
+
+      list_conn = get(read_conn, "/api/ext/v1/proofs")
+      assert %{"data" => %{"proofs" => proofs, "score" => score}} = json_response(list_conn, 200)
+      assert Enum.any?(proofs, &(&1["id"] == proof_id))
+      assert is_integer(score["score"])
+
+      show_conn = get(read_conn, "/api/ext/v1/proofs/#{proof_id}")
+      assert %{"data" => %{"proof" => shown_proof}} = json_response(show_conn, 200)
+      assert shown_proof["id"] == proof_id
+
+      score_conn = get(read_conn, "/api/ext/v1/proofs/score")
+      assert %{"data" => %{"score" => score_data}} = json_response(score_conn, 200)
+      assert is_binary(score_data["level"])
+
+      delete_conn = delete(write_conn, "/api/ext/v1/proofs/#{proof_id}")
+      assert %{"data" => %{"message" => "Proof deleted"}} = json_response(delete_conn, 200)
+
+      missing_conn = get(read_conn, "/api/ext/v1/proofs/#{proof_id}")
+      assert %{"error" => %{"code" => "not_found"}} = json_response(missing_conn, 404)
+    end
+
+    test "proof endpoints support negative assertions and enforce proof scopes", %{conn: conn} do
+      user = user_fixture()
+
+      forbidden_conn =
+        conn
+        |> with_pat(user.id, ["read:account"])
+        |> get("/api/ext/v1/proofs")
+
+      assert %{"error" => %{"code" => "insufficient_scope"}} = json_response(forbidden_conn, 403)
+
+      write_conn = build_conn() |> with_pat(user.id, ["write:proofs"])
+
+      created_conn =
+        post(write_conn, "/api/ext/v1/proofs", %{
+          "claim_type" => "negative",
+          "kind" => "social",
+          "subject" => "twitter.com/old-handle"
+        })
+
+      assert %{"data" => %{"proof" => proof}} = json_response(created_conn, 201)
+      assert proof["claim_type"] == "negative"
+      assert proof["status"] == "asserted"
+
+      check_conn = post(write_conn, "/api/ext/v1/proofs/#{proof["id"]}/check")
+      assert %{"error" => %{"code" => "not_checkable"}} = json_response(check_conn, 422)
+
+      capabilities_conn =
+        build_conn()
+        |> with_pat(user.id, ["read:proofs"])
+        |> get("/api/ext/v1/capabilities")
+
+      assert %{"data" => %{"capabilities" => %{"endpoints" => endpoints}}} =
+               json_response(capabilities_conn, 200)
+
+      assert Enum.any?(endpoints, &(&1["path"] == "/api/ext/v1/proofs" and &1["method"] == "GET"))
+
+      refute Enum.any?(endpoints, fn endpoint ->
+               endpoint["path"] == "/api/ext/v1/proofs" and endpoint["method"] == "POST"
+             end)
+    end
+
     test "capabilities only advertises endpoints allowed by read scopes", %{conn: conn} do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["read:chat"])

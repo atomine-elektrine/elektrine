@@ -66,6 +66,7 @@ import {
   StatusSelector,
 } from "./profile_hooks";
 import { ReputationGraph } from "./reputation_graph_hook";
+import { UPlotChart } from "./analytics_hooks";
 
 // Timeline/Feed hooks
 import {
@@ -163,6 +164,7 @@ export const Hooks = {
   VideoBackground,
   StatusSelector,
   ReputationGraph,
+  UPlotChart,
 
   // Timeline/Feed
   PostClick,

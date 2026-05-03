@@ -239,6 +239,25 @@ defmodule Atomine.PersonhoodTest do
       assert checked.review_notes =~ "blocked_private_host"
     end
 
+    test "check_proof reports failed live checks instead of returning success" do
+      user = user_fixture()
+
+      {:ok, proof} =
+        Personhood.create_proof(user, %{
+          kind: "web",
+          subject: "ftp://example.com/proof",
+          proof_mode: "live"
+        })
+
+      assert {:error, {:not_found, checked}} = Personhood.check_proof(proof)
+      assert checked.status == "pending"
+      assert checked.live_status == "stale"
+      assert checked.failed_check_count == 1
+      assert checked.checked_at
+      assert checked.review_notes =~ "Web check failed"
+      assert Personhood.personhood_score(user) == 0
+    end
+
     test "lists live proofs due for scheduled recheck" do
       user = user_fixture()
 

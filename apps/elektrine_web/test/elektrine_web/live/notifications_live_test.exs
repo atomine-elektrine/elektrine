@@ -123,8 +123,8 @@ defmodule ElektrineWeb.NotificationsLiveTest do
       |> log_in_user(viewer)
       |> live(~p"/notifications?filter=unseen")
 
-    assert html =~ "Queue Focus"
-    assert html =~ "All / All"
+    assert html =~ "Filter notifications"
+    assert html =~ "Showing every notification"
     refute html =~ ">Unseen<"
   end
 
@@ -159,7 +159,7 @@ defmodule ElektrineWeb.NotificationsLiveTest do
     assert rendered =~ "No unread system notifications."
   end
 
-  test "unread filter disables auto-marking visible notifications", %{conn: conn} do
+  test "notification list does not auto-mark visible notifications", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
 
     notification_fixture(viewer, %{title: "Stay visible", body: "Unread body"})
@@ -171,6 +171,35 @@ defmodule ElektrineWeb.NotificationsLiveTest do
 
     assert html =~ ~s(data-auto-mark-read="false")
     assert render(view) =~ ~s(data-auto-mark-read="false")
+  end
+
+  test "social replies stay out of the chat source filter", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    sender = AccountsFixtures.user_fixture(%{username: "socialreplysender"})
+
+    notification_fixture(viewer, %{
+      type: "reply",
+      title: "@socialreplysender replied to your post",
+      body: "Social reply body",
+      actor_id: sender.id,
+      source_type: "post",
+      source_id: 123,
+      url: "/timeline/post/123"
+    })
+
+    {:ok, chat_view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?source=chat")
+
+    refute render(chat_view) =~ "Social reply body"
+
+    {:ok, social_view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/notifications?source=social")
+
+    assert render(social_view) =~ "Social reply body"
   end
 
   test "single notifications without a body do not render duplicate detail text", %{conn: conn} do

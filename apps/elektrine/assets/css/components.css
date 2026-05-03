@@ -82,7 +82,7 @@ html[data-theme="dark"] .btn:focus-visible,
 } .panel-card > .card-body { position: relative;
 } .card-interactive:focus-visible,
 [data-post-id]:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(var(--p));
-} .surface-subtle { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 78%, var(--color-base-100) 22%); box-shadow: none;
+} .surface-subtle { border: 1px solid var(--surface-panel-border); background-color: var(--color-base-200, #151b22) !important; background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 78%, var(--color-base-100) 22%) !important; background-image: none !important; box-shadow: none;
 } .surface-muted { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--color-base-200) 84%, transparent); box-shadow: none;
 } .surface-soft { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--color-base-100) 65%, var(--surface-panel-bg-fallback) 35%); box-shadow: none;
 } .surface-interactive { border: 1px solid var(--surface-panel-border); background-color: var(--surface-panel-bg-fallback) !important; box-shadow: var(--surface-panel-shadow); transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
@@ -208,6 +208,18 @@ html[data-theme="dark"] .btn:focus-visible,
 } .modal-box { position: relative; isolation: isolate; border-radius: 0.75rem !important; animation: modal-pop 0.2s ease-out; max-width: min(32rem, calc(100dvw - 2rem));
 } .modal-action { flex-wrap: wrap;
 } @keyframes modal-pop { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); }
+} /* -------------------------------------------------------------------------- ANALYTICS CHARTS -------------------------------------------------------------------------- */ .analytics-chart { color: var(--color-base-content); min-width: 0;
+} .analytics-uplot { min-height: 18rem; overflow: visible; width: 100%;
+} .analytics-uplot .uplot { background: transparent; color: var(--color-base-content); font-family: inherit; max-width: 100%;
+} .analytics-uplot .u-title { display: none;
+} .analytics-uplot .u-wrap { background: transparent;
+} .analytics-uplot .u-under, .analytics-uplot .u-over { border-radius: 0.75rem;
+} .analytics-uplot .u-axis { color: color-mix(in srgb, var(--color-base-content) 62%, transparent); font-size: 11px;
+} .analytics-uplot .u-legend { background: color-mix(in srgb, var(--color-base-200) 88%, var(--color-base-100) 12%); border: 1px solid var(--surface-panel-border); border-radius: 0.75rem; color: var(--color-base-content); font-size: 12px; margin: 0 0 0.75rem 0; padding: 0.45rem 0.65rem;
+} .analytics-uplot .u-legend th, .analytics-uplot .u-legend td { border: 0 !important; padding: 0.15rem 0.4rem;
+} .analytics-uplot .u-legend .u-marker { border-radius: 9999px;
+} .analytics-uplot .u-cursor-x, .analytics-uplot .u-cursor-y { border-color: color-mix(in srgb, var(--color-base-content) 32%, transparent) !important;
+} .analytics-uplot .u-cursor-pt { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-base-100) 88%, transparent);
 } /* -------------------------------------------------------------------------- MENUS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- BADGES & TABS -------------------------------------------------------------------------- */ /* -------------------------------------------------------------------------- AVATARS -------------------------------------------------------------------------- */ .avatar:hover,
 .avatar img:hover,
 [class*="avatar"]:hover { transform: none !important;

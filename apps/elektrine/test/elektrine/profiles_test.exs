@@ -249,6 +249,44 @@ defmodule Elektrine.ProfilesTest do
     end
   end
 
+  describe "public site analytics" do
+    test "empty host lists do not fall back to global analytics" do
+      track_site_visit("analytics-empty.example", "/", "empty-a")
+
+      assert Profiles.get_public_site_view_count([]) == 0
+      assert Profiles.get_public_site_unique_visitor_count([]) == 0
+      assert Profiles.get_public_site_session_count([]) == 0
+      assert Profiles.get_public_site_top_pages([], 10) == []
+      assert Profiles.get_public_site_top_referrers([], 10) == []
+      assert Profiles.get_public_site_domain_breakdown([]) == []
+
+      stats = Profiles.get_public_site_view_stats([])
+
+      assert stats.total_views == 0
+      assert stats.unique_visitors == 0
+      assert stats.sessions == 0
+      assert stats.views_today == 0
+      assert stats.views_this_week == 0
+    end
+
+    test "public site stats aggregate a selected host" do
+      session_id = unique_session_id("analytics-host")
+
+      track_site_visit("analytics-host.example", "/", "host-a", session_id)
+      track_site_visit("analytics-host.example", "/pricing", "host-a", session_id)
+      track_site_visit("other-analytics-host.example", "/", "host-b")
+
+      stats = Profiles.get_public_site_view_stats("analytics-host.example")
+
+      assert stats.total_views == 2
+      assert stats.unique_visitors == 1
+      assert stats.sessions == 1
+      assert stats.views_today == 2
+      assert stats.views_this_week == 2
+      assert stats.bounce_rate == 0.0
+    end
+  end
+
   describe "get_follower_count/1" do
     test "returns 0 for user with no followers" do
       user = AccountsFixtures.user_fixture()
@@ -464,5 +502,24 @@ defmodule Elektrine.ProfilesTest do
       activitypub_id: "https://elektrine.example/activities/#{System.unique_integer([:positive])}"
     })
     |> Repo.insert!()
+  end
+
+  defp track_site_visit(host, path, visitor_id, session_id \\ nil) do
+    session_id = session_id || unique_session_id(visitor_id)
+
+    {:ok, _visit} =
+      Profiles.track_site_page_visit(
+        visitor_id: visitor_id,
+        session_id: session_id,
+        request_host: host,
+        request_path: path,
+        status: 200
+      )
+
+    session_id
+  end
+
+  defp unique_session_id(label) do
+    "#{label}-#{System.unique_integer([:positive])}"
   end
 end

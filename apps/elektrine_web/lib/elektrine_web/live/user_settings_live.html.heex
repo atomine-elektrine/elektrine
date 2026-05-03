@@ -537,28 +537,85 @@
       <!-- Security Tab -->
       <%= if @selected_tab == "security" do %>
         <div class="space-y-4 sm:space-y-6">
-          <!-- Password Section -->
-          <div class="card panel-card">
-            <div class="card-body p-4 sm:p-6">
-              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
-              </h3>
+          <%= if tab_enabled?("email") do %>
+            <!-- Email Sending Status Section -->
+            <%= if @loading_security do %>
+              <div class="card panel-card">
+                <div class="card-body p-4 sm:p-6">
+                  <div class="animate-pulse space-y-4">
+                    <div class="h-4 bg-base-300 rounded w-1/3"></div>
 
-              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
-                {gettext("Keep your account secure with a strong password.")}
-              </p>
-
-              <div class="card-actions">
-                <.link
-                  navigate={~p"/account/password"}
-                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
-                >
-                  {gettext("Change Password")}
-                </.link>
+                    <div class="h-3 bg-base-300 rounded w-2/3"></div>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <!-- Two-Factor Authentication Section -->
+            <% end %>
+
+            <%= if !@loading_security && @email_restriction_status.restricted do %>
+              <div class="card panel-card border-2 border-warning">
+                <div class="card-body p-4 sm:p-6">
+                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                    <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
+                    Email Sending Restricted
+                  </h3>
+
+                  <div class="alert alert-warning mb-4">
+                    <.icon name="hero-shield-exclamation" class="w-5 h-5" />
+                    <div>
+                      <div class="font-semibold">
+                        Your email sending has been temporarily restricted
+                      </div>
+
+                      <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
+                    </div>
+                  </div>
+
+                  <div class="bg-base-200 rounded-lg p-4 mb-4">
+                    <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
+
+                    <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
+                      <li>Make sure you have a recovery email set in your profile</li>
+
+                      <li>Click the button below to receive a verification email</li>
+
+                      <li>Click the verification link in that email</li>
+                    </ol>
+                  </div>
+
+                  <%= if @email_restriction_status.recovery_email do %>
+                    <div class="mb-4">
+                      <div class="text-sm opacity-70 mb-1">Recovery Email</div>
+
+                      <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
+                        <span>{@email_restriction_status.recovery_email}</span>
+                        <%= if @email_restriction_status.recovery_email_verified do %>
+                          <span class="badge badge-success badge-sm">Verified</span>
+                        <% else %>
+                          <span class="badge badge-warning badge-sm">Not Verified</span>
+                        <% end %>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      phx-click="send_recovery_verification"
+                      class="btn btn-warning w-full"
+                    >
+                      <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
+                    </button>
+                  <% else %>
+                    <div class="alert alert-info">
+                      <.icon name="hero-information-circle" class="w-5 h-5" />
+                      <span class="text-sm">
+                        Please add a recovery email address in the Profile tab first.
+                      </span>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            <% end %>
+          <% end %>
+
           <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
@@ -580,7 +637,7 @@
                 <div class="card-actions">
                   <.link
                     navigate={~p"/account/two_factor"}
-                    class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                    class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
                   >
                     {gettext("Manage 2FA")}
                   </.link>
@@ -606,7 +663,7 @@
               <% end %>
             </div>
           </div>
-          <!-- Passkeys Section -->
+
           <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
               <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
@@ -622,13 +679,58 @@
               <div class="card-actions">
                 <.link
                   navigate={~p"/account/passkeys"}
-                  class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
+                  class="btn btn-outline btn-primary btn-sm w-full text-xs sm:text-sm"
                 >
                   {gettext("Manage Passkeys")}
                 </.link>
               </div>
             </div>
           </div>
+
+          <div class="card panel-card">
+            <div class="card-body p-4 sm:p-6">
+              <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                <.icon name="hero-key" class="w-5 h-5" /> {gettext("Password")}
+              </h3>
+
+              <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                {gettext("Keep your account secure with a strong password.")}
+              </p>
+
+              <div class="card-actions">
+                <.link
+                  navigate={~p"/account/password"}
+                  class="btn btn-outline btn-sm w-full text-xs sm:text-sm"
+                >
+                  {gettext("Change Password")}
+                </.link>
+              </div>
+            </div>
+          </div>
+
+          <%= if tab_enabled?("email") do %>
+            <!-- App Passwords Section -->
+            <div class="card panel-card">
+              <div class="card-body p-4 sm:p-6">
+                <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
+                  <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
+                </h3>
+
+                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
+                  {gettext("Access your email from POP3/IMAP clients without 2FA.")}
+                </p>
+
+                <div class="card-actions">
+                  <.link
+                    navigate={~p"/account/app-passwords"}
+                    class="btn btn-outline btn-sm w-full text-xs sm:text-sm"
+                  >
+                    {gettext("Manage App Passwords")}
+                  </.link>
+                </div>
+              </div>
+            </div>
+          <% end %>
 
           <div class="card panel-card">
             <div class="card-body p-4 sm:p-6">
@@ -765,109 +867,6 @@
               </div>
             </div>
           </div>
-
-          <%= if tab_enabled?("email") do %>
-            <!-- Email Sending Status Section -->
-            <%= if @loading_security do %>
-              <div class="card panel-card">
-                <div class="card-body p-4 sm:p-6">
-                  <div class="animate-pulse space-y-4">
-                    <div class="h-4 bg-base-300 rounded w-1/3"></div>
-
-                    <div class="h-3 bg-base-300 rounded w-2/3"></div>
-                  </div>
-                </div>
-              </div>
-            <% end %>
-
-            <%= if !@loading_security && @email_restriction_status.restricted do %>
-              <div class="card panel-card border-2 border-warning">
-                <div class="card-body p-4 sm:p-6">
-                  <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                    <.icon name="hero-exclamation-triangle" class="w-5 h-5 text-warning" />
-                    Email Sending Restricted
-                  </h3>
-
-                  <div class="alert alert-warning mb-4">
-                    <.icon name="hero-shield-exclamation" class="w-5 h-5" />
-                    <div>
-                      <div class="font-semibold">
-                        Your email sending has been temporarily restricted
-                      </div>
-
-                      <div class="text-sm opacity-80">{@email_restriction_status.reason}</div>
-                    </div>
-                  </div>
-
-                  <div class="bg-base-200 rounded-lg p-4 mb-4">
-                    <h4 class="font-semibold mb-2 text-sm">To restore email sending:</h4>
-
-                    <ol class="list-decimal list-inside space-y-1 text-sm opacity-80">
-                      <li>Make sure you have a recovery email set in your profile</li>
-
-                      <li>Click the button below to receive a verification email</li>
-
-                      <li>Click the verification link in that email</li>
-                    </ol>
-                  </div>
-
-                  <%= if @email_restriction_status.recovery_email do %>
-                    <div class="mb-4">
-                      <div class="text-sm opacity-70 mb-1">Recovery Email</div>
-
-                      <div class="font-mono bg-base-200 rounded px-3 py-2 flex items-center justify-between text-sm">
-                        <span>{@email_restriction_status.recovery_email}</span>
-                        <%= if @email_restriction_status.recovery_email_verified do %>
-                          <span class="badge badge-success badge-sm">Verified</span>
-                        <% else %>
-                          <span class="badge badge-warning badge-sm">Not Verified</span>
-                        <% end %>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      phx-click="send_recovery_verification"
-                      class="btn btn-warning w-full"
-                    >
-                      <.icon name="hero-envelope" class="w-5 h-5 mr-2" /> Send Verification Email
-                    </button>
-                  <% else %>
-                    <div class="alert alert-info">
-                      <.icon name="hero-information-circle" class="w-5 h-5" />
-                      <span class="text-sm">
-                        Please add a recovery email address in the Profile tab first.
-                      </span>
-                    </div>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-          <% end %>
-
-          <%= if tab_enabled?("email") do %>
-            <!-- App Passwords Section -->
-            <div class="card panel-card">
-              <div class="card-body p-4 sm:p-6">
-                <h3 class="card-title text-base sm:text-lg flex items-center gap-2">
-                  <.icon name="hero-device-tablet" class="w-5 h-5" /> {gettext("App Passwords")}
-                </h3>
-
-                <p class="text-xs sm:text-sm text-base-content/70 mb-3 sm:mb-4">
-                  {gettext("Access your email from POP3/IMAP clients without 2FA.")}
-                </p>
-
-                <div class="card-actions">
-                  <.link
-                    navigate={~p"/account/app-passwords"}
-                    class="btn btn-ghost btn-sm w-full text-xs sm:text-sm"
-                  >
-                    {gettext("Manage App Passwords")}
-                  </.link>
-                </div>
-              </div>
-            </div>
-          <% end %>
         </div>
       <% end %>
       <!-- Privacy Tab -->
@@ -2339,6 +2338,37 @@
                       "Responses include X-RateLimit-* headers and a request id in meta.request_id for easier debugging."
                     )}
                   </p>
+
+                  <div class="mt-4 rounded-lg border border-base-300/70 bg-base-200/50 p-3">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="font-semibold text-base-content/80">{gettext("Proofs")}</p>
+                      <div class="flex flex-wrap gap-1">
+                        <code class="rounded bg-base-300 px-2 py-0.5 text-[11px]">
+                          read:proofs
+                        </code>
+                        <code class="rounded bg-base-300 px-2 py-0.5 text-[11px]">
+                          write:proofs
+                        </code>
+                      </div>
+                    </div>
+
+                    <div class="mt-3 grid gap-1 text-xs sm:grid-cols-2">
+                      <code class="rounded bg-base-300/70 px-2 py-1">GET /api/ext/v1/proofs</code>
+                      <code class="rounded bg-base-300/70 px-2 py-1">
+                        GET /api/ext/v1/proofs/score
+                      </code>
+                      <code class="rounded bg-base-300/70 px-2 py-1">
+                        POST /api/ext/v1/proofs
+                      </code>
+                      <code class="rounded bg-base-300/70 px-2 py-1">
+                        POST /api/ext/v1/proofs/:id/check
+                      </code>
+                    </div>
+
+                    <code class="mt-3 block bg-base-300 p-3 rounded text-xs font-mono overflow-x-auto">
+                      curl -H "Authorization: Bearer ekt_xxxxx" {"#{Elektrine.Domains.public_base_url()}/api/ext/v1/proofs"}
+                    </code>
+                  </div>
 
                   <p class="mt-2">
                     {gettext(

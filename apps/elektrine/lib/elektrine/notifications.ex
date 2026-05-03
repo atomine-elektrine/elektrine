@@ -260,12 +260,32 @@ defmodule Elektrine.Notifications do
 
   defp apply_source_filter(query, source_filter) do
     case source_filter do
-      "chat" -> where(query, [n], n.type in ["new_message", "reply"])
-      "email" -> where(query, [n], n.type == "email_received")
-      "requests" -> where(query, [n], n.type == "follow")
-      "social" -> where(query, [n], n.type in ["mention", "like", "comment", "discussion_reply"])
-      "system" -> where(query, [n], n.type == "system")
-      _ -> query
+      "chat" ->
+        where(
+          query,
+          [n],
+          n.type == "new_message" or (n.type == "reply" and n.source_type == "message")
+        )
+
+      "email" ->
+        where(query, [n], n.type == "email_received")
+
+      "requests" ->
+        where(query, [n], n.type == "follow")
+
+      "social" ->
+        where(
+          query,
+          [n],
+          n.type in ["mention", "like", "comment", "discussion_reply"] or
+            (n.type == "reply" and n.source_type != "message")
+        )
+
+      "system" ->
+        where(query, [n], n.type == "system")
+
+      _ ->
+        query
     end
   end
 

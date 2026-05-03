@@ -36,7 +36,7 @@ defmodule Elektrine.Email.PGP do
           pgp_public_key: public_key_armor,
           pgp_fingerprint: key_info.fingerprint,
           pgp_key_id: key_info.key_id,
-          pgp_key_uploaded_at: DateTime.utc_now(),
+          pgp_key_uploaded_at: DateTime.utc_now() |> DateTime.truncate(:second),
           pgp_wkd_hash: wkd_hash_value
         })
         |> Repo.update()
