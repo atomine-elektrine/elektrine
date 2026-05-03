@@ -101,8 +101,17 @@ chmod 700 "$TOR_HS_DIR" 2>/dev/null || true
 
 # The dedicated vpn role needs root so it can manage the WireGuard interface.
 if [ "$ROLE" = "vpn" ]; then
+  if [ "$(id -u)" != "0" ]; then
+    echo "The vpn runtime role requires the container to start as root" >&2
+    exit 1
+  fi
+
   exec /app/start.sh "$ROLE"
 fi
 
-# Drop to nobody and run the start script
-exec su -s /bin/bash nobody -c "/app/start.sh ${ROLE}"
+# Drop to nobody and run the start script when the entrypoint starts as root.
+if [ "$(id -u)" = "0" ]; then
+  exec su -s /bin/bash nobody -c "/app/start.sh ${ROLE}"
+fi
+
+exec /app/start.sh "$ROLE"
