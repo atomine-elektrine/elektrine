@@ -307,8 +307,7 @@ defmodule ElektrineEmailWeb.EmailController do
   defp split_email_document_content(content) when is_binary(content) do
     head_content =
       Regex.scan(~r/<style\b[^>]*>.*?<\/style>|<link\b[^>]*>/is, content)
-      |> Enum.map(fn [match | _] -> match end)
-      |> Enum.join("\n")
+      |> Enum.map_join("\n", fn [match | _] -> match end)
 
     body_content =
       case Regex.run(~r/<body\b[^>]*>(.*?)<\/body>/is, content) do
