@@ -1127,6 +1127,14 @@ if config_env() == :prod do
   config :elektrine, :primary_domain, primary_domain
 
   port = String.to_integer(System.get_env("PORT") || "4000")
+  http_ip_env = System.get_env("PHX_HTTP_IP") || "0.0.0.0"
+
+  http_ip =
+    case :inet.parse_address(String.to_charlist(String.trim(http_ip_env))) do
+      {:ok, ip} -> ip
+      _ -> {0, 0, 0, 0}
+    end
+
   onion_tls_port = String.to_integer(System.get_env("ONION_TLS_PORT") || "8443")
   onion_tls_certfile = System.get_env("ONION_TLS_CERTFILE") || "/data/certs/live/onion-cert.pem"
   onion_tls_keyfile = System.get_env("ONION_TLS_KEYFILE") || "/data/certs/live/onion-key.pem"
@@ -1140,7 +1148,7 @@ if config_env() == :prod do
   config :elektrine, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   endpoint_http = [
-    ip: {0, 0, 0, 0, 0, 0, 0, 0},
+    ip: http_ip,
     port: port,
     http_1_options: [
       max_header_count: 50,

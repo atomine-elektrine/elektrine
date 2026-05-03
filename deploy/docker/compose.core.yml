@@ -52,6 +52,7 @@ services:
       PHX_HOST: ${PHX_HOST:-localhost}
       PHX_SERVER: "true"
       PORT: ${PORT:-8080}
+      PHX_HTTP_IP: ${PHX_HTTP_IP:-0.0.0.0}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault}
