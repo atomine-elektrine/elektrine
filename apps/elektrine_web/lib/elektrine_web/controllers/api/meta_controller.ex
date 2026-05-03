@@ -125,6 +125,48 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "GET",
+        path: "/api/ext/v1/proofs",
+        summary: "List identity proofs and current personhood score",
+        required_scopes: ["read:proofs", "write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "GET",
+        path: "/api/ext/v1/proofs/score",
+        summary: "Get the current personhood score breakdown",
+        required_scopes: ["read:proofs", "write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "GET",
+        path: "/api/ext/v1/proofs/:id",
+        summary: "Get one owned identity proof",
+        required_scopes: ["read:proofs", "write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/proofs",
+        summary: "Create a DNS, web, social, or negative identity proof",
+        required_scopes: ["write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/proofs/:id/check",
+        summary: "Check an owned DNS, web, or social proof",
+        required_scopes: ["write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "DELETE",
+        path: "/api/ext/v1/proofs/:id",
+        summary: "Delete an owned identity proof",
+        required_scopes: ["write:proofs"],
+        platform_module: nil
+      },
+      %{
+        method: "GET",
         path: "/api/ext/v1/search",
         summary: "Search across resources allowed by the token",
         required_scopes: [

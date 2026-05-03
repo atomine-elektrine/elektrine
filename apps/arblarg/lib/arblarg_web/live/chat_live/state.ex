@@ -72,6 +72,7 @@ defmodule ArblargWeb.ChatLive.State do
     """
     defstruct conversation: nil,
               message: nil,
+              selected_text: nil,
               position: %{x: 0, y: 0}
   end
 

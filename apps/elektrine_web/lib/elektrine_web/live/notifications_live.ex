@@ -481,6 +481,15 @@ defmodule ElektrineWeb.NotificationsLive do
   defp notification_state_count(:all, stats), do: stats.total_groups
   defp notification_state_count(:unread, stats), do: stats.waiting_groups
 
+  defp notification_filter_summary(:all, "all"), do: "Showing every notification"
+  defp notification_filter_summary(:unread, "all"), do: "Showing unread notifications"
+
+  defp notification_filter_summary(filter, source_filter) do
+    state = notification_state_label(filter) |> String.downcase()
+    source = notification_source_label(source_filter) |> String.downcase()
+    "Showing #{state} #{source} notifications"
+  end
+
   defp state_filter_button_class(current_filter, filter) do
     [
       "btn btn-sm btn-surface",

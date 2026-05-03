@@ -1,6 +1,27 @@
 // Chat-specific LiveView hooks
 import { copyToClipboard } from '../utils/clipboard'
 
+function selectedTextWithin(element) {
+  const selection = window.getSelection()
+
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return ''
+
+  const text = selection.toString().trim()
+  if (!text) return ''
+
+  for (let index = 0; index < selection.rangeCount; index++) {
+    const range = selection.getRangeAt(index)
+    const container = range.commonAncestorContainer
+    const node = container.nodeType === Node.TEXT_NODE ? container.parentElement : container
+
+    if (node && element.contains(node)) {
+      return text
+    }
+  }
+
+  return ''
+}
+
 export const AutoExpandTextarea = {
   mounted() {
     this.sendingMessage = false
@@ -849,11 +870,13 @@ export const MessageContextMenu = {
     // Handle right-click context menu
     this.contextMenuHandler = (e) => {
       e.preventDefault()
+      const selectedText = selectedTextWithin(this.el)
       // Hide any existing context menus first
       this.pushEvent("hide_context_menu", {})
       this.pushEvent("show_message_context_menu", {
         message_id: parseInt(messageId),
         sender_id: parseInt(senderId),
+        selected_text: selectedText,
         x: e.clientX,
         y: e.clientY
       })
@@ -913,7 +936,8 @@ export const CopyChatMessage = {
   mounted() {
     this.copyHandler = () => {
       const text = this.el.dataset.copyContent || ''
-      copyToClipboard(text, 'message')
+      const type = this.el.dataset.copyType || 'message'
+      copyToClipboard(text, type)
 
       const hideEvent = this.el.dataset.hideEvent
       if (hideEvent) {

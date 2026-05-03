@@ -1874,6 +1874,19 @@ defmodule ArblargWeb.ChatLive.Index do
         style={"left: #{@context_menu.position.x}px; top: #{@context_menu.position.y}px;"}
         phx-click-away="hide_message_context_menu"
       >
+        <%= if @context_menu.selected_text do %>
+          <button
+            id={"copy-selected-message-text-#{@context_menu.message.id}"}
+            type="button"
+            phx-hook="CopyChatMessage"
+            data-copy-content={@context_menu.selected_text}
+            data-copy-type="selection"
+            data-hide-event="hide_message_context_menu"
+            class="w-full px-4 py-2 text-left hover:bg-base-200 flex items-center gap-2"
+          >
+            <.icon name="hero-document-duplicate" class="w-4 h-4" /> Copy Selection
+          </button>
+        <% end %>
         <!-- Copy Message -->
         <button
           phx-click="copy_message"

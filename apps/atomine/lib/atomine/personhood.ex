@@ -814,7 +814,12 @@ defmodule Atomine.Personhood do
   defp secure_compare(_, _), do: false
 
   defp mark_check_failed(%Proof{proof_mode: "live"} = proof, notes) do
-    mark_live_stale(proof, notes)
+    proof
+    |> mark_live_stale(notes)
+    |> case do
+      {:ok, updated} -> {:error, {:not_found, updated}}
+      {:error, changeset} -> {:error, changeset}
+    end
   end
 
   defp mark_check_failed(%Proof{} = proof, notes) do

@@ -20,6 +20,9 @@
 }
 @config "../tailwind.config.mjs";
 
+/* Vendor styles */
+@import "../node_modules/uplot/dist/uPlot.min.css";
+
 /* App styles */
 @import "./base.css";
 @import "./components.css";

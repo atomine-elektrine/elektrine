@@ -1,34 +1,26 @@
-<div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
+<div class="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
   <.e_nav active_tab="portal" current_user={@current_user} />
 
-  <div class="space-y-6">
-    <div class="card panel-card">
+  <div class="space-y-5">
+    <section class="card panel-card">
       <div class="card-body gap-4 p-4 sm:p-5">
-        <div class="flex flex-wrap gap-2 lg:justify-end">
-          <div class="flex flex-wrap gap-2">
-            <.link
-              navigate={~p"/portal"}
-              class={nav_action_button_class()}
-            >
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight">Notifications</h1>
+            <p class="mt-1 text-sm text-base-content/65">
+              Review unread and recent account activity.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-2 lg:justify-end">
+            <.link navigate={~p"/portal"} class={nav_action_button_class()}>
               <.icon name="hero-squares-2x2" class="mr-2 h-4 w-4" /> Portal
-            </.link>
-            <.link
-              navigate={Elektrine.Paths.chat_root_path()}
-              class={nav_action_button_class()}
-            >
-              <.icon name="hero-chat-bubble-left-right" class="mr-2 h-4 w-4" /> Chat
             </.link>
             <.link
               navigate={Elektrine.Paths.email_index_path(tab: "inbox", filter: "unread")}
               class={nav_action_button_class()}
             >
               <.icon name="hero-envelope" class="mr-2 h-4 w-4" /> Email
-            </.link>
-            <.link
-              navigate={Elektrine.Paths.friends_path(tab: "requests")}
-              class={nav_action_button_class()}
-            >
-              <.icon name="hero-user-group" class="mr-2 h-4 w-4" /> Requests
             </.link>
             <%= if @unread_count > 0 do %>
               <button phx-click="mark_all_as_read" class="btn btn-secondary btn-sm">
@@ -39,39 +31,39 @@
               <button
                 phx-click="dismiss_all"
                 class={nav_action_button_class()}
-                data-confirm="Clear every notification from this queue?"
+                data-confirm="Clear every notification from this list?"
               >
-                <.icon name="hero-trash" class="mr-2 h-4 w-4" /> Clear queue
+                <.icon name="hero-trash" class="mr-2 h-4 w-4" /> Clear all
               </button>
             <% end %>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <div class="grid grid-cols-3 gap-3">
           <div class="surface-subtle rounded-lg p-3">
-            <p class="text-xs uppercase tracking-wide opacity-60">Unread</p>
-            <p class="mt-1 text-xl font-semibold">{@unread_count}</p>
+            <p class="text-xs uppercase tracking-wide text-base-content/60">Unread</p>
+            <p class="mt-1 text-2xl font-semibold">{@unread_count}</p>
           </div>
           <div class="surface-subtle rounded-lg p-3">
-            <p class="text-xs uppercase tracking-wide opacity-60">Waiting Groups</p>
-            <p class="mt-1 text-xl font-semibold">{@notification_stats.waiting_groups}</p>
+            <p class="text-xs uppercase tracking-wide text-base-content/60">Unread groups</p>
+            <p class="mt-1 text-2xl font-semibold">{@notification_stats.waiting_groups}</p>
           </div>
           <div class="surface-subtle rounded-lg p-3">
-            <p class="text-xs uppercase tracking-wide opacity-60">Visible Groups</p>
-            <p class="mt-1 text-xl font-semibold">{length(@filtered_notifications)}</p>
+            <p class="text-xs uppercase tracking-wide text-base-content/60">Visible</p>
+            <p class="mt-1 text-2xl font-semibold">{length(@filtered_notifications)}</p>
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="card panel-card">
-      <div class="card-body gap-4 p-4">
-        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div class="flex items-center gap-2">
-            <h2 class="font-semibold">Queue Focus</h2>
-            <span class="badge badge-ghost badge-sm">
-              {notification_state_label(@filter)} / {notification_source_label(@source_filter)}
-            </span>
+    <section class="card panel-card">
+      <div class="card-body gap-4 p-4 sm:p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 class="text-base font-semibold">Filter notifications</h2>
+            <p class="mt-1 text-sm text-base-content/65">
+              {notification_filter_summary(@filter, @source_filter)}
+            </p>
           </div>
 
           <div class="flex flex-wrap gap-2">
@@ -105,13 +97,13 @@
           <% end %>
         </div>
       </div>
-    </div>
+    </section>
 
     <div
       id="notifications-list"
       class="space-y-3"
       phx-hook="NotificationVisibility"
-      data-auto-mark-read={to_string(@filter != :unread)}
+      data-auto-mark-read="false"
     >
       <%= if @loading_notifications do %>
         <div class="space-y-3">
@@ -130,8 +122,8 @@
         </div>
       <% else %>
         <%= if Enum.empty?(@filtered_notifications) do %>
-          <div class="surface-subtle rounded-lg border-dashed p-8 text-center shadow-sm">
-            <.icon name="hero-bell-slash" class="mx-auto mb-3 h-10 w-10 opacity-50" />
+          <div class="surface-subtle rounded-lg border border-dashed border-base-300 p-8 text-center shadow-sm">
+            <.icon name="hero-bell-slash" class="mx-auto mb-3 h-10 w-10 text-base-content/50" />
             <p class="text-sm font-medium">
               <%= cond do %>
                 <% @filter == :unread and @source_filter == "all" -> %>
@@ -220,7 +212,8 @@
                         <%= for {actor, index} <- Enum.with_index(Enum.take(group.actors, 3)) do %>
                           <%= if index > 0 do %>
                             ,
-                          <% end %>@{actor.handle}
+                          <% end %>
+                          @{actor.handle || actor.username}
                         <% end %>
                         <%= if length(group.actors) > 3 do %>
                           and {length(group.actors) - 3} more
@@ -228,7 +221,7 @@
                       </span>
                     <% end %>
                     <%= if group.type == :email_group && group.sender do %>
-                      <span>Sender @{group.sender.handle}</span>
+                      <span>From @{group.sender.handle || group.sender.username}</span>
                     <% end %>
                   </div>
 
@@ -241,7 +234,8 @@
                           phx-value-url={notif.url}
                           class={[
                             "panel-card flex w-full items-start gap-3 rounded-lg p-3 text-left transition-colors hover:border-base-content/15",
-                            is_nil(notif.read_at) && "border-l-4 border-l-secondary bg-secondary/5"
+                            is_nil(notif.read_at) &&
+                              "border-l-4 border-l-secondary bg-secondary/5"
                           ]}
                         >
                           <%= if notif.actor do %>
@@ -265,7 +259,7 @@
                                 </span>
                               <% end %>
                               <%= if notif.actor do %>
-                                <span>@{notif.actor.handle}</span>
+                                <span>@{notif.actor.handle || notif.actor.username}</span>
                               <% end %>
                               <.local_time
                                 datetime={notif.inserted_at}

@@ -13,7 +13,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
      socket
      |> assign(:page_title, "Domain Analytics")
      |> assign(:domains, domains)
-     |> assign_domain_analytics(user, active_domain)}
+     |> assign_pending_domain_analytics(active_domain)}
   end
 
   @impl true
@@ -25,12 +25,69 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     {:noreply,
      socket
      |> assign(:domains, domains)
-     |> assign_domain_analytics(user, active_domain)}
+     |> assign_pending_domain_analytics(active_domain)
+     |> maybe_load_domain_analytics(domains, active_domain)}
   end
 
-  defp assign_domain_analytics(socket, _user, active_domain) do
-    active_host = active_domain && active_domain.host
+  @impl true
+  def handle_info({:load_domain_analytics, load_key, domains, active_domain}, socket) do
+    if socket.assigns.analytics_load_key == load_key do
+      {:noreply, assign_domain_analytics(socket, domains, active_domain)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info(_message, socket), do: {:noreply, socket}
+
+  defp maybe_load_domain_analytics(socket, domains, nil) do
+    socket
+    |> assign(:analytics_loading, false)
+    |> assign(:domain_breakdown, merge_domain_breakdown(domains, []))
+  end
+
+  defp maybe_load_domain_analytics(socket, domains, active_domain) do
+    if connected?(socket) do
+      send(
+        self(),
+        {:load_domain_analytics, socket.assigns.analytics_load_key, domains, active_domain}
+      )
+    end
+
+    socket
+  end
+
+  defp assign_pending_domain_analytics(socket, active_domain) do
     domains = socket.assigns[:domains] || []
+
+    socket
+    |> assign(:analytics_load_key, domain_load_key(active_domain))
+    |> assign(:analytics_loading, not is_nil(active_domain))
+    |> assign(:active_domain, active_domain)
+    |> assign(:active_host, active_domain && active_domain.host)
+    |> assign(:stats, empty_public_site_stats())
+    |> assign(:domain_breakdown, merge_domain_breakdown(domains, []))
+    |> assign(:top_pages, [])
+    |> assign(:top_referrers, [])
+    |> assign(:daily_views, [])
+    |> assign(:display_days, [])
+    |> assign(:max_daily_views, 0)
+    |> assign(:dns_stats, empty_dns_stats())
+    |> assign(:dns_query_types, [])
+    |> assign(:dns_top_names, [])
+    |> assign(:dns_top_nxdomain_names, [])
+    |> assign(:dns_rcode_breakdown, [])
+    |> assign(:dns_transport_breakdown, [])
+    |> assign(:dns_hourly_queries, [])
+    |> assign(:dns_display_hours, [])
+    |> assign(:max_dns_hourly_queries, 0)
+    |> assign(:dns_daily_queries, [])
+    |> assign(:dns_display_days, [])
+    |> assign(:max_dns_daily_queries, 0)
+  end
+
+  defp assign_domain_analytics(socket, domains, active_domain) do
+    active_host = active_domain && active_domain.host
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
     domain_breakdown = Profiles.get_public_site_domain_breakdown(domain_hosts)
@@ -39,6 +96,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     dns_hourly_queries = dns_hourly_queries(active_domain)
 
     socket
+    |> assign(:analytics_loading, false)
     |> assign(:active_domain, active_domain)
     |> assign(:active_host, active_host)
     |> assign(:stats, Profiles.get_public_site_view_stats(active_site_scope))
@@ -214,6 +272,25 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
 
   defp empty_domain_stats, do: %{views: 0, unique_visitors: 0, views_today: 0}
 
+  defp empty_public_site_stats do
+    %{
+      total_views: 0,
+      unique_visitors: 0,
+      sessions: 0,
+      avg_session_duration_seconds: 0,
+      bounce_rate: 0.0,
+      views_today: 0,
+      views_this_week: 0
+    }
+  end
+
+  defp empty_dns_stats do
+    %{total_queries: 0, queries_today: 0, queries_this_week: 0, nxdomain_queries: 0}
+  end
+
+  defp domain_load_key(%{host: host, dns_zone_id: zone_id}), do: {host, zone_id}
+  defp domain_load_key(_), do: nil
+
   defp sum_domain_stats(rows) do
     Enum.reduce(rows, empty_domain_stats(), fn row, acc ->
       %{
@@ -318,8 +395,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp dns_stats(%{dns_zone_id: zone_id}) when is_integer(zone_id),
     do: DNS.get_zone_query_stats(zone_id)
 
-  defp dns_stats(_),
-    do: %{total_queries: 0, queries_today: 0, queries_this_week: 0, nxdomain_queries: 0}
+  defp dns_stats(_), do: empty_dns_stats()
 
   defp dns_daily_queries(%{dns_zone_id: zone_id}) when is_integer(zone_id),
     do: DNS.get_zone_daily_query_counts(zone_id, 30)
