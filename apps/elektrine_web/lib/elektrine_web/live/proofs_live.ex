@@ -166,10 +166,18 @@ defmodule ElektrineWeb.ProofsLive do
         <div class="space-y-6">
           <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
-              <h2 class="card-title text-lg mb-2">Proofs</h2>
-              <p class="text-sm text-base-content/70">
-                Verify control of a domain or web page.
-              </p>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 class="card-title text-lg mb-2">Proofs</h2>
+                  <p class="text-sm text-base-content/70">
+                    Verify control of a domain or web page.
+                  </p>
+                </div>
+
+                <span class="badge badge-outline badge-sm shrink-0 text-[10px] uppercase tracking-[0.16em] text-base-content/60">
+                  Powered by Atomine
+                </span>
+              </div>
 
               <div class="alert alert-info mt-2">
                 <.icon name="hero-information-circle" class="w-5 h-5" />

@@ -84,6 +84,36 @@ defmodule Elektrine.DNSAnalyticsTest do
              DNS.get_zone_query_stats(zone.id)
   end
 
+  test "preserves operational underscore labels in top queried names" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    atproto_name = "_atproto.maxfield23.bsky.#{zone.domain}"
+    acme_name = "_acme-challenge.maxfield23.bsky.#{zone.domain}"
+    generic_name = "probe.maxfield23.bsky.#{zone.domain}"
+    wildcard_bucket = "*.maxfield23.bsky.#{zone.domain}"
+
+    for qname <- [atproto_name, acme_name, generic_name] do
+      assert :ok =
+               DNS.track_query(
+                 %{
+                   zone: zone,
+                   authoritative: true,
+                   qname: qname,
+                   qtype: :txt,
+                   rcode: :noerror
+                 },
+                 "udp"
+               )
+    end
+
+    top_names = DNS.get_zone_top_names(zone.id, 10)
+
+    assert Enum.any?(top_names, &(&1.qname == atproto_name and &1.count == 1))
+    assert Enum.any?(top_names, &(&1.qname == acme_name and &1.count == 1))
+    assert Enum.any?(top_names, &(&1.qname == wildcard_bucket and &1.count == 1))
+  end
+
   defp unique_domain do
     "dnsanalytics#{System.unique_integer([:positive])}.example.com"
   end

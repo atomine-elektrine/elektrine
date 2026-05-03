@@ -1214,13 +1214,21 @@ defmodule Elektrine.DNS do
     zone_labels = String.split(zone_domain, ".", trim: true)
     max_labels = length(zone_labels) + 2
 
-    if String.ends_with?(qname, "." <> zone_domain) and length(qname_labels) > max_labels do
-      suffix = qname_labels |> Enum.take(-max_labels) |> Enum.join(".")
-      "*." <> suffix
-    else
-      qname
+    cond do
+      preserve_metric_qname?(qname_labels) ->
+        qname
+
+      String.ends_with?(qname, "." <> zone_domain) and length(qname_labels) > max_labels ->
+        suffix = qname_labels |> Enum.take(-max_labels) |> Enum.join(".")
+        "*." <> suffix
+
+      true ->
+        qname
     end
   end
+
+  defp preserve_metric_qname?([label | _]), do: label in ["_acme-challenge", "_atproto"]
+  defp preserve_metric_qname?(_), do: false
 
   defp refresh_authority_cache_after_write(result, opts \\ [])
 

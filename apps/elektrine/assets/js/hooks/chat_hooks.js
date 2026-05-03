@@ -22,6 +22,789 @@ function selectedTextWithin(element) {
   return ''
 }
 
+const CHAT_E2EE_STORAGE_PREFIX = 'elektrine:chat-e2ee:v1'
+const CHAT_E2EE_MAX_DEVICES = 64
+const textEncoder = new TextEncoder()
+const textDecoder = new TextDecoder()
+
+function cryptoAvailable() {
+  return Boolean(window.crypto?.subtle && window.crypto?.getRandomValues)
+}
+
+function parseJson(value, fallback) {
+  if (!value) return fallback
+
+  try {
+    return JSON.parse(value)
+  } catch (_err) {
+    return fallback
+  }
+}
+
+function bytesToBase64(bytes) {
+  const array = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  let binary = ''
+
+  for (let offset = 0; offset < array.length; offset += 0x8000) {
+    binary += String.fromCharCode(...array.subarray(offset, offset + 0x8000))
+  }
+
+  return btoa(binary)
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return bytes
+}
+
+function bytesToBase64Url(bytes) {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function randomBytes(length) {
+  const bytes = new Uint8Array(length)
+  window.crypto.getRandomValues(bytes)
+  return bytes
+}
+
+function randomId(prefix) {
+  if (window.crypto?.randomUUID) {
+    return `${prefix}${window.crypto.randomUUID()}`
+  }
+
+  return `${prefix}${bytesToBase64Url(randomBytes(18))}`
+}
+
+function arrayBufferFromBytes(bytes) {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
+}
+
+async function sha256Base64Url(value) {
+  const digest = await window.crypto.subtle.digest('SHA-256', textEncoder.encode(value))
+  return bytesToBase64Url(digest)
+}
+
+function extractSearchKeywords(text) {
+  const stopWords = new Set([
+    'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was',
+    'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now',
+    'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she',
+    'too', 'use'
+  ])
+
+  const lower = text.toLowerCase()
+  const hashtags = lower.match(/#[a-z0-9_]+/g) || []
+  const words = lower
+    .replace(/[^a-z0-9_\s#]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length >= 3 && !stopWords.has(word))
+
+  return Array.from(new Set([...hashtags, ...words]))
+}
+
+function stableDevices(devices) {
+  return [...devices]
+    .map(device => ({
+      user_id: Number.isInteger(Number(device.user_id)) ? Number(device.user_id) : null,
+      recipient_handle: device.recipient_handle || null,
+      origin_domain: device.origin_domain || null,
+      device_id: String(device.device_id || ''),
+      public_key: device.public_key || {}
+    }))
+    .sort((left, right) => {
+      const leftOwner = left.recipient_handle || String(left.user_id)
+      const rightOwner = right.recipient_handle || String(right.user_id)
+      if (leftOwner !== rightOwner) return leftOwner.localeCompare(rightOwner)
+      return left.device_id.localeCompare(right.device_id)
+    })
+}
+
+async function devicesHash(devices) {
+  return sha256Base64Url(JSON.stringify(stableDevices(devices)))
+}
+
+async function importRsaPublicKey(publicKeyPayload) {
+  const key = publicKeyPayload?.key
+
+  if (!key || publicKeyPayload.algorithm !== 'RSA-OAEP-SHA256') {
+    throw new Error('Invalid chat public key')
+  }
+
+  return window.crypto.subtle.importKey(
+    'spki',
+    arrayBufferFromBytes(base64ToBytes(key)),
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    ['encrypt']
+  )
+}
+
+async function importRsaPrivateKey(privateKeyBase64) {
+  return window.crypto.subtle.importKey(
+    'pkcs8',
+    arrayBufferFromBytes(base64ToBytes(privateKeyBase64)),
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    ['decrypt']
+  )
+}
+
+async function importAesKey(rawKeyBytes, usages) {
+  return window.crypto.subtle.importKey(
+    'raw',
+    arrayBufferFromBytes(rawKeyBytes),
+    { name: 'AES-GCM' },
+    false,
+    usages
+  )
+}
+
+async function importHmacKey(rawKeyBytes) {
+  return window.crypto.subtle.importKey(
+    'raw',
+    arrayBufferFromBytes(rawKeyBytes),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+}
+
+export const ChatE2EE = {
+  mounted() {
+    this.devicePromise = null
+    this.lastTypingAt = 0
+    this.lastDeviceRegistrationAt = 0
+    this.searchTimer = null
+
+    this.submitHandler = event => this.handleSubmit(event)
+    this.inputHandler = event => this.handleInput(event)
+    this.toggleHandler = event => this.handleToggle(event)
+
+    this.el.addEventListener('submit', this.submitHandler, true)
+    this.el.addEventListener('input', this.inputHandler, true)
+    this.el.addEventListener('click', this.toggleHandler, true)
+
+    this.observer = new MutationObserver(() => this.decryptVisibleMessages())
+    this.observer.observe(this.el, { childList: true, subtree: true })
+
+    this.ensureDeviceRegistered()
+    this.updateInputMode()
+    this.updateToggleState()
+    this.decryptVisibleMessages()
+  },
+
+  updated() {
+    this.ensureDeviceRegistered()
+    this.updateInputMode()
+    this.updateToggleState()
+    this.decryptVisibleMessages()
+  },
+
+  destroyed() {
+    this.el.removeEventListener('submit', this.submitHandler, true)
+    this.el.removeEventListener('input', this.inputHandler, true)
+    this.el.removeEventListener('click', this.toggleHandler, true)
+
+    if (this.observer) {
+      this.observer.disconnect()
+    }
+
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+    }
+  },
+
+  userId() {
+    const userId = Number(this.el.dataset.userId)
+    return Number.isInteger(userId) && userId > 0 ? userId : null
+  },
+
+  conversationId() {
+    const conversationId = Number(this.el.dataset.conversationId)
+    return Number.isInteger(conversationId) && conversationId > 0 ? conversationId : null
+  },
+
+  devices() {
+    return parseJson(this.el.dataset.chatE2eeDevices, [])
+  },
+
+  memberIds() {
+    return parseJson(this.el.dataset.chatE2eeMemberIds, [])
+      .map(id => Number(id))
+      .filter(id => Number.isInteger(id) && id > 0)
+  },
+
+  e2eeReady() {
+    return this.e2eeCapable() && this.e2eeEnabled()
+  },
+
+  e2eeCapable() {
+    if (!cryptoAvailable() || this.el.dataset.chatE2eeReady !== 'true' || !this.conversationId()) {
+      return false
+    }
+
+    const devices = this.devices()
+    return devices.length > 0 && devices.length <= CHAT_E2EE_MAX_DEVICES
+  },
+
+  e2eeEnabled() {
+    const conversationId = this.conversationId()
+    if (!conversationId || !this.userId()) return false
+
+    return localStorage.getItem(this.enabledStorageKey(conversationId)) === 'true'
+  },
+
+  setE2EEEnabled(enabled) {
+    const conversationId = this.conversationId()
+    if (!conversationId || !this.userId()) return
+
+    localStorage.setItem(this.enabledStorageKey(conversationId), enabled ? 'true' : 'false')
+  },
+
+  updateInputMode() {
+    const form = this.messageForm()
+    const textarea = this.messageInput()
+    const enabled = this.e2eeReady()
+
+    if (!form || !textarea) return
+
+    if (enabled) {
+      form.removeAttribute('phx-change')
+      textarea.removeAttribute('phx-change')
+    } else {
+      form.setAttribute('phx-change', 'validate_upload')
+      textarea.setAttribute('phx-change', 'update_message')
+    }
+
+    this.el.querySelectorAll('input[type="file"]').forEach(input => {
+      input.disabled = enabled
+    })
+
+    const submitButton = form.querySelector('button[type="submit"]')
+    if (enabled && submitButton) {
+      submitButton.disabled = false
+    }
+  },
+
+  updateToggleState() {
+    const toggle = this.el.querySelector('[data-chat-e2ee-toggle="true"]')
+    if (!toggle) return
+
+    const capable = this.e2eeCapable()
+    const enabled = capable && this.e2eeEnabled()
+    const label = toggle.querySelector('[data-chat-e2ee-toggle-label]')
+
+    toggle.disabled = !capable
+    toggle.classList.toggle('btn-secondary', enabled)
+    toggle.classList.toggle('btn-ghost', !enabled)
+    toggle.title = capable
+      ? 'Toggle optional client-side encrypted chat for this browser'
+      : this.e2eeUnavailableTitle()
+
+    if (label) {
+      label.textContent = capable
+        ? (enabled ? 'Encrypted chat on' : 'Encrypted chat off')
+        : this.e2eeUnavailableLabel()
+    }
+  },
+
+  e2eeUnavailableLabel() {
+    switch (this.el.dataset.chatE2eeStatus) {
+      case 'registering_device':
+        return 'Registering this browser'
+      case 'waiting_for_remote_keys':
+        return 'Waiting for remote keys'
+      case 'waiting_for_member_keys':
+        return 'Waiting for member keys'
+      case 'too_many_devices':
+        return 'Too many devices'
+      case 'not_applicable':
+        return 'Encrypted chat not supported here'
+      default:
+        return 'Encrypted chat not ready'
+    }
+  },
+
+  e2eeUnavailableTitle() {
+    switch (this.el.dataset.chatE2eeStatus) {
+      case 'registering_device':
+        return 'This browser is registering an encryption device. Try again in a moment.'
+      case 'waiting_for_remote_keys':
+        return 'The remote participant has not advertised compatible chat encryption keys yet.'
+      case 'waiting_for_member_keys':
+        return 'Every active member needs at least one registered chat encryption device.'
+      case 'too_many_devices':
+        return 'This conversation has too many devices for the simple E2EE mode.'
+      case 'not_applicable':
+        return 'Optional client-side E2EE is currently supported for DMs and groups.'
+      default:
+        return 'Encrypted chat is not ready for this conversation yet.'
+    }
+  },
+
+  handleToggle(event) {
+    const toggle = event.target.closest('[data-chat-e2ee-toggle="true"]')
+    if (!toggle || !this.el.contains(toggle)) return
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    if (!this.e2eeCapable()) return
+
+    this.setE2EEEnabled(!this.e2eeEnabled())
+    this.updateInputMode()
+    this.updateToggleState()
+  },
+
+  messageForm() {
+    const input = this.messageInput()
+    return input?.closest('form') || null
+  },
+
+  messageInput() {
+    return this.el.querySelector('#message-input')
+  },
+
+  async ensureDeviceRegistered() {
+    if (!cryptoAvailable() || !this.userId() || this.devicePromise) return this.devicePromise
+    if (Date.now() - this.lastDeviceRegistrationAt < 300000) return null
+
+    this.devicePromise = this.loadOrCreateDevice()
+      .then(device => new Promise(resolve => {
+        this.pushEvent('register_chat_encryption_device', {
+          device_id: device.device_id,
+          public_key: {
+            version: 1,
+            algorithm: 'RSA-OAEP-SHA256',
+            key: device.public_key
+          },
+          key_algorithm: 'RSA-OAEP-SHA256',
+          label: device.label
+        }, reply => {
+          if (reply?.ok) {
+            this.lastDeviceRegistrationAt = Date.now()
+          }
+
+          resolve({ device, reply })
+        })
+      }))
+      .catch(error => {
+        console.warn('Chat E2EE device registration failed', error)
+        return null
+      })
+      .finally(() => {
+        this.devicePromise = null
+      })
+
+    return this.devicePromise
+  },
+
+  async loadOrCreateDevice() {
+    const key = this.deviceStorageKey()
+    const stored = parseJson(localStorage.getItem(key), null)
+
+    if (stored?.device_id && stored?.private_key && stored?.public_key) {
+      return stored
+    }
+
+    const keyPair = await window.crypto.subtle.generateKey(
+      {
+        name: 'RSA-OAEP',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256'
+      },
+      true,
+      ['encrypt', 'decrypt']
+    )
+
+    const [publicKey, privateKey] = await Promise.all([
+      window.crypto.subtle.exportKey('spki', keyPair.publicKey),
+      window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
+    ])
+
+    const device = {
+      device_id: randomId('web-'),
+      public_key: bytesToBase64(publicKey),
+      private_key: bytesToBase64(privateKey),
+      key_algorithm: 'RSA-OAEP-SHA256',
+      label: this.deviceLabel()
+    }
+
+    localStorage.setItem(key, JSON.stringify(device))
+    return device
+  },
+
+  deviceStorageKey() {
+    return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:device`
+  },
+
+  deviceLabel() {
+    const userAgent = navigator.userAgent || 'browser'
+    return userAgent.length > 80 ? userAgent.slice(0, 80) : userAgent
+  },
+
+  handleInput(event) {
+    if (event.target === this.messageInput() && this.e2eeReady()) {
+      this.pushTypingEvent(event.target.value)
+    }
+
+    if (event.target?.name === 'query' && event.target.closest('#message-search-form')) {
+      this.scheduleEncryptedSearch(event.target.value)
+    }
+  },
+
+  pushTypingEvent(value) {
+    if (!value.trim()) return
+
+    const now = Date.now()
+    if (now - this.lastTypingAt < 2000) return
+
+    this.lastTypingAt = now
+    this.pushEvent('chat_typing', {})
+  },
+
+  scheduleEncryptedSearch(query) {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer)
+    }
+
+    this.searchTimer = setTimeout(async () => {
+      if (!this.conversationId() || query.trim().length < 2) return
+
+      const tokens = await this.searchTokensForKnownKeys(query)
+      if (tokens.length === 0) return
+
+      this.pushEvent('search_messages', { query, search_tokens: tokens })
+    }, 150)
+  },
+
+  async handleSubmit(event) {
+    const form = event.target
+    const textarea = this.messageInput()
+
+    if (!form || textarea?.closest('form') !== form || !this.e2eeReady()) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopImmediatePropagation()
+
+    const content = textarea.value.trim()
+    const submitButton = form.querySelector('button[type="submit"]')
+    const fileInput = form.querySelector('input[type="file"]')
+    const hasUploads = form.dataset.hasUploads === 'true' || (fileInput && fileInput.files.length > 0)
+
+    if (submitButton) {
+      submitButton.disabled = true
+    }
+
+    if (!content || content.startsWith('/') || hasUploads) {
+      console.warn('Encrypted chat mode only supports plain text messages. Toggle it off to use commands or attachments.')
+
+      if (submitButton) {
+        submitButton.disabled = false
+      }
+
+      return
+    }
+
+    try {
+      await this.ensureDeviceRegistered()
+      const encryptedMessage = await this.encryptMessage(content)
+
+      this.pushEvent('send_client_encrypted_message', encryptedMessage.payload, reply => {
+        if (reply?.ok) {
+          if (encryptedMessage.devicesHash) {
+            this.markPackagesSent(encryptedMessage.keyUid, encryptedMessage.devicesHash)
+          }
+
+          textarea.value = ''
+          textarea.dispatchEvent(new Event('input', { bubbles: true }))
+        } else {
+          console.warn('Encrypted chat send failed', reply)
+        }
+
+        if (submitButton) {
+          submitButton.disabled = false
+        }
+      })
+    } catch (error) {
+      console.warn('Could not encrypt chat message', error)
+      if (submitButton) {
+        submitButton.disabled = false
+      }
+    }
+  },
+
+  async encryptMessage(content) {
+    const devices = this.devices()
+    const { keyUid, rawKeyBytes, packagesNeeded, hash } = await this.conversationKeyForDevices(devices)
+    const aesKey = await importAesKey(rawKeyBytes, ['encrypt'])
+    const iv = randomBytes(12)
+    const ciphertext = await window.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv },
+      aesKey,
+      textEncoder.encode(content)
+    )
+
+    const keyPackages = packagesNeeded ? await this.wrapConversationKey(rawKeyBytes, devices) : []
+    const localKeyPackages = keyPackages.filter(keyPackage => Number.isInteger(keyPackage.user_id))
+    const federatedKeyPackages = keyPackages.filter(keyPackage => keyPackage.recipient_handle)
+
+    const payload = {
+      version: 1,
+      content_algorithm: 'AES-256-GCM',
+      key_uid: keyUid,
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(ciphertext)
+    }
+
+    if (federatedKeyPackages.length > 0) {
+      payload.federated_key_packages = federatedKeyPackages
+    }
+
+    return {
+      keyUid,
+      devicesHash: packagesNeeded ? hash : null,
+      payload: {
+        encrypted_payload: payload,
+        key_packages: localKeyPackages,
+        search_index: await this.searchTokensForKey(rawKeyBytes, content)
+      }
+    }
+  },
+
+  async conversationKeyForDevices(devices) {
+    const conversationId = this.conversationId()
+    const hash = await devicesHash(devices)
+    const activeKey = parseJson(localStorage.getItem(this.activeKeyStorageKey(conversationId)), null)
+
+    if (activeKey?.key_uid && activeKey.devices_hash === hash) {
+      const rawKeyBytes = this.loadRawConversationKey(conversationId, activeKey.key_uid)
+
+      if (rawKeyBytes) {
+        return {
+          keyUid: activeKey.key_uid,
+          rawKeyBytes,
+          packagesNeeded: activeKey.packages_sent_hash !== hash,
+          hash
+        }
+      }
+    }
+
+    const keyUid = randomId('key-')
+    const rawKeyBytes = randomBytes(32)
+    this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+    this.storeActiveConversationKey(conversationId, keyUid, hash, null)
+
+    return { keyUid, rawKeyBytes, packagesNeeded: true, hash }
+  },
+
+  async wrapConversationKey(rawKeyBytes, devices) {
+    const packages = []
+
+    for (const device of stableDevices(devices)) {
+      const publicKey = await importRsaPublicKey(device.public_key)
+      const encryptedKey = await window.crypto.subtle.encrypt(
+        { name: 'RSA-OAEP' },
+        publicKey,
+        arrayBufferFromBytes(rawKeyBytes)
+      )
+
+      packages.push({
+        ...(Number.isInteger(device.user_id) ? { user_id: device.user_id } : {}),
+        ...(device.recipient_handle ? { recipient_handle: device.recipient_handle } : {}),
+        ...(device.origin_domain ? { origin_domain: device.origin_domain } : {}),
+        device_id: device.device_id,
+        wrapped_key: {
+          version: 1,
+          key_algorithm: 'RSA-OAEP-SHA256',
+          encrypted_key: bytesToBase64(encryptedKey)
+        }
+      })
+    }
+
+    return packages
+  },
+
+  async searchTokensForKnownKeys(query) {
+    const conversationId = this.conversationId()
+    if (!conversationId) return []
+
+    const keyUids = parseJson(localStorage.getItem(this.keyListStorageKey(conversationId)), [])
+    const tokenSets = await Promise.all(keyUids.map(keyUid => {
+      const rawKeyBytes = this.loadRawConversationKey(conversationId, keyUid)
+      return rawKeyBytes ? this.searchTokensForKey(rawKeyBytes, query) : []
+    }))
+
+    return Array.from(new Set(tokenSets.flat()))
+  },
+
+  async searchTokensForKey(rawKeyBytes, text) {
+    const keywords = extractSearchKeywords(text)
+    if (keywords.length === 0) return []
+
+    const hmacKey = await importHmacKey(rawKeyBytes)
+    const tokens = await Promise.all(keywords.map(async keyword => {
+      const digest = await window.crypto.subtle.sign(
+        'HMAC',
+        hmacKey,
+        textEncoder.encode(`chat-search:v1:${keyword}`)
+      )
+
+      return bytesToBase64(digest)
+    }))
+
+    return Array.from(new Set(tokens))
+  },
+
+  decryptVisibleMessages() {
+    if (!cryptoAvailable() || !this.conversationId()) return
+
+    this.el.querySelectorAll('[data-chat-encrypted-message="true"]').forEach(element => {
+      if (element.dataset.decrypted === 'true') return
+      if (element.dataset.decrypting === 'true') return
+
+      element.dataset.decrypting = 'true'
+      this.decryptMessageElement(element).finally(() => {
+        delete element.dataset.decrypting
+      })
+    })
+  },
+
+  async decryptMessageElement(element) {
+    const payload = parseJson(element.dataset.payload, null)
+    const conversationId = Number(element.dataset.conversationId || this.conversationId())
+    const keyUid = payload?.key_uid || element.dataset.keyUid
+
+    if (!payload || !conversationId || !keyUid) return
+
+    try {
+      const rawKeyBytes = await this.rawConversationKey(conversationId, keyUid, payload)
+      const aesKey = await importAesKey(rawKeyBytes, ['decrypt'])
+      const plaintext = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: base64ToBytes(payload.iv) },
+        aesKey,
+        arrayBufferFromBytes(base64ToBytes(payload.ciphertext))
+      )
+
+      element.textContent = textDecoder.decode(plaintext)
+      element.classList.remove('opacity-80')
+      element.dataset.decrypted = 'true'
+    } catch (error) {
+      console.warn('Could not decrypt chat message', error)
+      element.textContent = 'Encrypted message'
+      element.dataset.decrypted = 'failed'
+    }
+  },
+
+  async rawConversationKey(conversationId, keyUid, payload = null) {
+    const stored = this.loadRawConversationKey(conversationId, keyUid)
+    if (stored) return stored
+
+    const device = await this.loadOrCreateDevice()
+    const inlinePackage = this.inlineKeyPackageForDevice(payload, device.device_id)
+
+    if (inlinePackage?.wrapped_key?.encrypted_key) {
+      const rawKeyBytes = await this.decryptWrappedConversationKey(device, inlinePackage.wrapped_key)
+      this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+      return rawKeyBytes
+    }
+
+    const wrappedKey = await new Promise((resolve, reject) => {
+      this.pushEvent('chat_e2ee_key', {
+        conversation_id: conversationId,
+        device_id: device.device_id,
+        key_uid: keyUid
+      }, reply => {
+        if (reply?.ok && reply.wrapped_key) {
+          resolve(reply.wrapped_key)
+        } else {
+          reject(new Error(reply?.error || 'Wrapped key not found'))
+        }
+      })
+    })
+
+    const rawKeyBytes = await this.decryptWrappedConversationKey(device, wrappedKey)
+
+    this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+
+    const hash = await devicesHash(this.devices())
+    this.storeActiveConversationKey(conversationId, keyUid, hash, hash)
+
+    return rawKeyBytes
+  },
+
+  inlineKeyPackageForDevice(payload, deviceId) {
+    const packages = payload?.federated_key_packages || payload?.federatedKeyPackages || []
+    return packages.find(keyPackage => keyPackage?.device_id === deviceId)
+  },
+
+  async decryptWrappedConversationKey(device, wrappedKey) {
+    const privateKey = await importRsaPrivateKey(device.private_key)
+    const rawKey = await window.crypto.subtle.decrypt(
+      { name: 'RSA-OAEP' },
+      privateKey,
+      arrayBufferFromBytes(base64ToBytes(wrappedKey.encrypted_key))
+    )
+
+    return new Uint8Array(rawKey)
+  },
+
+  loadRawConversationKey(conversationId, keyUid) {
+    const key = localStorage.getItem(this.rawKeyStorageKey(conversationId, keyUid))
+    return key ? base64ToBytes(key) : null
+  },
+
+  storeRawConversationKey(conversationId, keyUid, rawKeyBytes) {
+    localStorage.setItem(this.rawKeyStorageKey(conversationId, keyUid), bytesToBase64(rawKeyBytes))
+
+    const listKey = this.keyListStorageKey(conversationId)
+    const keyUids = parseJson(localStorage.getItem(listKey), [])
+    if (!keyUids.includes(keyUid)) {
+      localStorage.setItem(listKey, JSON.stringify([...keyUids, keyUid]))
+    }
+  },
+
+  storeActiveConversationKey(conversationId, keyUid, devicesHashValue, packagesSentHash) {
+    localStorage.setItem(this.activeKeyStorageKey(conversationId), JSON.stringify({
+      key_uid: keyUid,
+      devices_hash: devicesHashValue,
+      packages_sent_hash: packagesSentHash
+    }))
+  },
+
+  markPackagesSent(keyUid, devicesHashValue) {
+    const conversationId = this.conversationId()
+    if (!conversationId) return
+
+    this.storeActiveConversationKey(conversationId, keyUid, devicesHashValue, devicesHashValue)
+  },
+
+  rawKeyStorageKey(conversationId, keyUid) {
+    return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:conversation:${conversationId}:key:${keyUid}`
+  },
+
+  activeKeyStorageKey(conversationId) {
+    return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:conversation:${conversationId}:active-key`
+  },
+
+  keyListStorageKey(conversationId) {
+    return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:conversation:${conversationId}:keys`
+  },
+
+  enabledStorageKey(conversationId) {
+    return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:conversation:${conversationId}:enabled`
+  }
+}
+
 export const AutoExpandTextarea = {
   mounted() {
     this.sendingMessage = false
@@ -296,6 +1079,24 @@ export const SimpleChatInput = {
       this.autoResize()
       this.el.focus()
     })
+
+    this.focusComposer = () => {
+      const activeElement = document.activeElement
+      const activeTag = activeElement?.tagName
+      const activeIsTypingTarget = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT"
+      const overlayActive =
+        document.getElementById("chat-keyboard-shortcuts")?.dataset.activeOverlay === "true"
+
+      if (
+        window.matchMedia("(min-width: 640px)").matches &&
+        !activeIsTypingTarget &&
+        !overlayActive
+      ) {
+        this.el.focus({ preventScroll: true })
+      }
+    }
+
+    setTimeout(this.focusComposer, 0)
   },
 
   beforeUpdate() {
@@ -343,6 +1144,26 @@ export const SimpleChatInput = {
 
     if (this.form && this.handleFormSubmit) {
       this.form.removeEventListener("submit", this.handleFormSubmit)
+    }
+  }
+}
+
+export const ChatKeyboardShortcuts = {
+  mounted() {
+    this.handleKeydown = (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (this.el.dataset.activeOverlay !== "true") return
+
+      event.preventDefault()
+      this.pushEvent("close_chat_overlay", {})
+    }
+
+    document.addEventListener("keydown", this.handleKeydown)
+  },
+
+  destroyed() {
+    if (this.handleKeydown) {
+      document.removeEventListener("keydown", this.handleKeydown)
     }
   }
 }

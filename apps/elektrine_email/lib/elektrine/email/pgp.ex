@@ -449,6 +449,8 @@ defmodule Elektrine.Email.PGP do
           File.chmod!(key_file, 0o600)
 
           args = [
+            "--homedir",
+            temp_dir,
             "--batch",
             "--with-colons",
             "--with-fingerprint",

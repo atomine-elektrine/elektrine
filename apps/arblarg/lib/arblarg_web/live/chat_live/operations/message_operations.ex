@@ -102,6 +102,72 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
     {:noreply, push_event(socket, "scroll_to_bottom", %{})}
   end
 
+  def handle_event("register_chat_encryption_device", params, socket) do
+    case Messaging.register_chat_encryption_device(socket.assigns.current_user.id, params) do
+      {:ok, _device} ->
+        broadcast_chat_e2ee_devices_changed(socket)
+        socket = refresh_chat_e2ee_devices(socket)
+        {:reply, %{ok: true}, socket}
+
+      {:error, _changeset} ->
+        {:reply, %{ok: false, error: "invalid_device"}, socket}
+    end
+  end
+
+  def handle_event("chat_e2ee_key", params, socket) do
+    conversation_id = parse_int(Map.get(params, "conversation_id"))
+    device_id = Map.get(params, "device_id")
+    key_uid = Map.get(params, "key_uid")
+
+    with %{id: selected_id} <- socket.assigns.conversation.selected,
+         true <- conversation_id == selected_id,
+         {:ok, wrapped_key} <-
+           Messaging.get_wrapped_chat_key(
+             conversation_id,
+             socket.assigns.current_user.id,
+             device_id,
+             key_uid
+           ) do
+      {:reply, %{ok: true, wrapped_key: wrapped_key}, socket}
+    else
+      _ -> {:reply, %{ok: false, error: "key_not_found"}, socket}
+    end
+  end
+
+  def handle_event("chat_typing", _params, socket) do
+    {:noreply, broadcast_typing(socket)}
+  end
+
+  def handle_event("send_client_encrypted_message", params, socket) do
+    case socket.assigns.conversation.selected do
+      nil ->
+        {:reply, %{ok: false, error: "no_conversation"}, socket}
+
+      conversation ->
+        reply_to_id = socket.assigns.message.reply_to && socket.assigns.message.reply_to.id
+
+        attrs = %{
+          "encrypted_payload" => Map.get(params, "encrypted_payload"),
+          "key_packages" => Map.get(params, "key_packages", []),
+          "search_index" => Map.get(params, "search_index", [])
+        }
+
+        case Messaging.create_client_encrypted_chat_text_message(
+               conversation.id,
+               socket.assigns.current_user.id,
+               attrs,
+               reply_to_id: reply_to_id
+             ) do
+          {:ok, message} ->
+            socket = put_sent_message(socket, conversation, message)
+            {:reply, %{ok: true}, socket}
+
+          {:error, reason} ->
+            {:reply, %{ok: false, error: to_string(reason)}, socket}
+        end
+    end
+  end
+
   def handle_event("send_message", %{"message" => message_content}, socket) do
     trimmed_content = String.trim(message_content)
 
@@ -351,42 +417,7 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("update_message", %{"message" => message_content}, socket) do
     socket =
-      if Elektrine.Strings.present?(message_content) && socket.assigns.conversation.selected do
-        should_broadcast =
-          case socket.assigns[:last_typing_broadcast] do
-            nil -> true
-            last_time -> System.system_time(:millisecond) - last_time > 2000
-          end
-
-        socket =
-          if should_broadcast do
-            Phoenix.PubSub.broadcast_from(
-              Elektrine.PubSub,
-              self(),
-              "conversation:#{socket.assigns.conversation.selected.id}",
-              {:user_typing, socket.assigns.current_user.id,
-               socket.assigns.current_user.handle || socket.assigns.current_user.username}
-            )
-
-            Elektrine.Messaging.Federation.publish_typing_started(
-              socket.assigns.conversation.selected.id,
-              socket.assigns.current_user.id
-            )
-
-            assign(socket, :last_typing_broadcast, System.system_time(:millisecond))
-          else
-            socket
-          end
-
-        if socket.assigns[:typing_timer] do
-          Process.cancel_timer(socket.assigns.typing_timer)
-        end
-
-        timer = Process.send_after(self(), :clear_typing, 3000)
-        assign(socket, :typing_timer, timer)
-      else
-        socket
-      end
+      if Elektrine.Strings.present?(message_content), do: broadcast_typing(socket), else: socket
 
     {:noreply, assign(socket, :message, %{socket.assigns.message | new_message: message_content})}
   end
@@ -562,12 +593,14 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
   def handle_event("search_messages", params, socket) do
     query = Map.get(params, "query") || Map.get(params, "value") || ""
+    search_tokens = Map.get(params, "search_tokens", [])
 
     if String.length(query) >= 2 and socket.assigns.conversation.selected do
       case Messaging.search_messages_in_conversation(
              socket.assigns.conversation.selected.id,
              socket.assigns.current_user.id,
-             query
+             query,
+             search_tokens: search_tokens
            ) do
         {:ok, results} ->
           {:noreply,
@@ -732,6 +765,110 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
   def handle_event("voice_recording_error", %{"error" => error}, socket) do
     {:noreply, notify_error(socket, error)}
   end
+
+  defp refresh_chat_e2ee_devices(socket) do
+    case socket.assigns.conversation.selected do
+      %{id: conversation_id} ->
+        assign(
+          socket,
+          :chat_e2ee_devices,
+          Messaging.list_chat_encryption_devices_for_conversation(conversation_id)
+        )
+
+      _ ->
+        socket
+    end
+  end
+
+  defp broadcast_chat_e2ee_devices_changed(socket) do
+    case socket.assigns.conversation.selected do
+      %{id: conversation_id} ->
+        Phoenix.PubSub.broadcast_from(
+          Elektrine.PubSub,
+          self(),
+          "conversation:#{conversation_id}",
+          {:chat_e2ee_devices_changed, conversation_id}
+        )
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp put_sent_message(socket, conversation, message) do
+    message = Elektrine.Repo.preload(message, sender: [:profile])
+
+    socket
+    |> assign(:messages, Helpers.dedupe_messages(socket.assigns.messages ++ [message]))
+    |> assign(:newest_message_id, message.id)
+    |> assign(:has_more_newer_messages, false)
+    |> assign(:message, %{
+      socket.assigns.message
+      | new_message: "",
+        reply_to: nil,
+        loading_messages: false,
+        read_status: Map.put(socket.assigns.message.read_status || %{}, message.id, [])
+    })
+    |> assign(:conversation, %{
+      socket.assigns.conversation
+      | unread_counts:
+          Map.put(socket.assigns.conversation.unread_counts || %{}, conversation.id, 0)
+    })
+    |> push_event("clear_message_input", %{})
+    |> push_event("scroll_to_bottom", %{})
+  end
+
+  defp broadcast_typing(socket) do
+    case socket.assigns.conversation.selected do
+      nil ->
+        socket
+
+      conversation ->
+        should_broadcast =
+          case socket.assigns[:last_typing_broadcast] do
+            nil -> true
+            last_time -> System.system_time(:millisecond) - last_time > 2000
+          end
+
+        socket =
+          if should_broadcast do
+            Phoenix.PubSub.broadcast_from(
+              Elektrine.PubSub,
+              self(),
+              "conversation:#{conversation.id}",
+              {:user_typing, socket.assigns.current_user.id,
+               socket.assigns.current_user.handle || socket.assigns.current_user.username}
+            )
+
+            Elektrine.Messaging.Federation.publish_typing_started(
+              conversation.id,
+              socket.assigns.current_user.id
+            )
+
+            assign(socket, :last_typing_broadcast, System.system_time(:millisecond))
+          else
+            socket
+          end
+
+        if socket.assigns[:typing_timer] do
+          Process.cancel_timer(socket.assigns.typing_timer)
+        end
+
+        timer = Process.send_after(self(), :clear_typing, 3000)
+        assign(socket, :typing_timer, timer)
+    end
+  end
+
+  defp parse_int(value) when is_integer(value), do: value
+
+  defp parse_int(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} -> integer
+      _ -> nil
+    end
+  end
+
+  defp parse_int(_), do: nil
 
   defp hide_message_context_menu(socket) do
     assign(socket, :context_menu, %{

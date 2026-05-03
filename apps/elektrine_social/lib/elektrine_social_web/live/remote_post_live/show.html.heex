@@ -438,94 +438,11 @@
 
               <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
                 <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                  <%= if length(@quick_reply_recent_replies) > 0 do %>
-                    <div class="timeline-thread-preview-list space-y-2">
-                      <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
-                      <%= for reply <- @quick_reply_recent_replies do %>
-                        <% author_preview = quick_reply_author_preview(reply) %>
-                        <% reply_click = quick_reply_click_target(reply) %>
-                        <div
-                          id={"remote-post-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
-                          class={[
-                            "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
-                            reply_click &&
-                              "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
-                          ]}
-                          style="background-color: oklch(var(--b1));"
-                          phx-hook={reply_click && "PostClick"}
-                          data-click-event={reply_click && reply_click.event}
-                          data-id={reply_click && reply_click.id}
-                          data-post-id={reply_click && reply_click.post_id}
-                        >
-                          <%= if reply_click do %>
-                            <.link
-                              navigate={
-                                Elektrine.Paths.post_path(reply_click.id || reply_click.post_id)
-                              }
-                              class="hidden"
-                              data-post-nav-link
-                              tabindex="-1"
-                              aria-hidden="true"
-                            >
-                              Open reply
-                            </.link>
-                          <% end %>
-                          <div class="flex items-center gap-2 mb-1 min-w-0">
-                            <%= if author_preview.profile_path do %>
-                              <.link
-                                navigate={author_preview.profile_path}
-                                class="w-5 h-5 flex-shrink-0"
-                              >
-                                <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
-                                  <img
-                                    src={author_preview.avatar_url}
-                                    alt=""
-                                    class="w-5 h-5 rounded-full object-cover"
-                                  />
-                                <% else %>
-                                  <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
-                                    <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                                  </div>
-                                <% end %>
-                              </.link>
-                              <.link
-                                navigate={author_preview.profile_path}
-                                class="font-medium break-words hover:underline"
-                              >
-                                {author_preview.label}
-                              </.link>
-                            <% else %>
-                              <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
-                                <img
-                                  src={author_preview.avatar_url}
-                                  alt=""
-                                  class="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                                />
-                              <% else %>
-                                <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
-                                  <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                                </div>
-                              <% end %>
-                              <span class="font-medium break-words">{author_preview.label}</span>
-                            <% end %>
-                            <%= if reply["published"] do %>
-                              <span class="text-xs opacity-50">
-                                · {format_activitypub_date(reply["published"])}
-                              </span>
-                            <% end %>
-                          </div>
-                          <div class="text-xs opacity-75 line-clamp-2 break-words">
-                            {raw(
-                              render_remote_post_content(
-                                reply["content"] || "",
-                                @reply_content_domain
-                              )
-                            )}
-                          </div>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% end %>
+                  <.quick_reply_recent_replies_preview
+                    replies={@quick_reply_recent_replies}
+                    reply_content_domain={@reply_content_domain}
+                    id_prefix="remote-post-quick-reply-"
+                  />
 
                   <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
                     wrapper_class=""
@@ -1397,98 +1314,11 @@
 <!-- Reply Form -->
                       <%= if @show_reply_form && is_nil(@replying_to_comment_id) do %>
                         <div class="mt-4 pt-4 border-t border-base-300 space-y-3">
-                          <%= if length(@quick_reply_recent_replies) > 0 do %>
-                            <div class="timeline-thread-preview-list space-y-2">
-                              <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
-                              <%= for reply <- @quick_reply_recent_replies do %>
-                                <% author_preview = quick_reply_author_preview(reply) %>
-                                <% reply_click = quick_reply_click_target(reply) %>
-                                <div
-                                  id={"remote-post-inline-quick-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
-                                  class={[
-                                    "timeline-thread-preview-item relative text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
-                                    reply_click &&
-                                      "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
-                                  ]}
-                                  style="background-color: oklch(var(--b1));"
-                                  phx-hook={reply_click && "PostClick"}
-                                  data-click-event={reply_click && reply_click.event}
-                                  data-id={reply_click && reply_click.id}
-                                  data-post-id={reply_click && reply_click.post_id}
-                                >
-                                  <%= if reply_click do %>
-                                    <.link
-                                      navigate={
-                                        Elektrine.Paths.post_path(
-                                          reply_click.id || reply_click.post_id
-                                        )
-                                      }
-                                      class="hidden"
-                                      data-post-nav-link
-                                      tabindex="-1"
-                                      aria-hidden="true"
-                                    >
-                                      Open reply
-                                    </.link>
-                                  <% end %>
-                                  <div class="flex items-center gap-2 mb-1 min-w-0">
-                                    <%= if author_preview.profile_path do %>
-                                      <.link
-                                        navigate={author_preview.profile_path}
-                                        class="w-5 h-5 flex-shrink-0"
-                                      >
-                                        <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
-                                          <img
-                                            src={author_preview.avatar_url}
-                                            alt=""
-                                            class="w-5 h-5 rounded-full object-cover"
-                                          />
-                                        <% else %>
-                                          <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
-                                            <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                                          </div>
-                                        <% end %>
-                                      </.link>
-                                      <.link
-                                        navigate={author_preview.profile_path}
-                                        class="font-medium break-words hover:underline"
-                                      >
-                                        {author_preview.label}
-                                      </.link>
-                                    <% else %>
-                                      <%= if is_binary(author_preview.avatar_url) && String.trim(author_preview.avatar_url) != "" do %>
-                                        <img
-                                          src={author_preview.avatar_url}
-                                          alt=""
-                                          class="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                                        />
-                                      <% else %>
-                                        <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
-                                          <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                                        </div>
-                                      <% end %>
-                                      <span class="font-medium break-words">
-                                        {author_preview.label}
-                                      </span>
-                                    <% end %>
-                                    <%= if reply["published"] do %>
-                                      <span class="text-xs opacity-50">
-                                        · {format_activitypub_date(reply["published"])}
-                                      </span>
-                                    <% end %>
-                                  </div>
-                                  <div class="text-xs opacity-75 line-clamp-2 break-words">
-                                    {raw(
-                                      render_remote_post_content(
-                                        reply["content"] || "",
-                                        @remote_actor && @remote_actor.domain
-                                      )
-                                    )}
-                                  </div>
-                                </div>
-                              <% end %>
-                            </div>
-                          <% end %>
+                          <.quick_reply_recent_replies_preview
+                            replies={@quick_reply_recent_replies}
+                            reply_content_domain={@remote_actor && @remote_actor.domain}
+                            id_prefix="remote-post-inline-quick-reply-"
+                          />
 
                           <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
                             wrapper_class=""

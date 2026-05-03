@@ -140,4 +140,24 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       refute reloaded_user.recovery_email_verified
     end
   end
+
+  describe "encryption coverage" do
+    test "shows optional chat E2EE and server-side encrypted-at-rest coverage", %{
+      conn: conn,
+      user: user
+    } do
+      {:ok, _view, html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=security")
+
+      assert html =~ "Encryption Coverage"
+      assert html =~ "Encrypted at rest?"
+      assert html =~ "Chat messages"
+      assert html =~ "Optional"
+      assert html =~ "Depends"
+      assert html =~ "Available now"
+      assert html =~ "Chat messages are encrypted at rest by default"
+    end
+  end
 end

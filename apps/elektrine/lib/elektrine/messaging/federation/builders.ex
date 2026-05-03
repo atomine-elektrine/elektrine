@@ -103,6 +103,20 @@ defmodule Elektrine.Messaging.Federation.Builders do
       dm_id = dm_federation_id(conversation.id, domain: origin_domain)
       sender_data = sender_payload(sender, domain: origin_domain)
 
+      message_payload =
+        %{
+          "id" =>
+            message.federated_source || message_federation_id(message.id, domain: origin_domain),
+          "dm_id" => dm_id,
+          "content" => message.content || "",
+          "message_type" => message.message_type || "text",
+          "attachments" => attachment_payloads(message),
+          "created_at" => format_created_at(message.inserted_at),
+          "edited_at" => format_created_at(message.edited_at),
+          "sender" => sender_data
+        }
+        |> maybe_put_client_encryption(message)
+
       {:ok,
        event_envelope(
          @dm_message_create_event_type,
@@ -114,18 +128,7 @@ defmodule Elektrine.Messaging.Federation.Builders do
              "sender" => sender_data,
              "recipient" => DirectMessageState.dm_actor_payload(recipient)
            },
-           "message" => %{
-             "id" =>
-               message.federated_source ||
-                 message_federation_id(message.id, domain: origin_domain),
-             "dm_id" => dm_id,
-             "content" => message.content || "",
-             "message_type" => message.message_type || "text",
-             "attachments" => attachment_payloads(message),
-             "created_at" => format_created_at(message.inserted_at),
-             "edited_at" => format_created_at(message.edited_at),
-             "sender" => sender_data
-           }
+           "message" => message_payload
          },
          context,
          origin_domain: origin_domain
@@ -836,6 +839,21 @@ defmodule Elektrine.Messaging.Federation.Builders do
       "payload" => payload
     }
   end
+
+  defp maybe_put_client_encryption(payload, %{client_encrypted_payload: encrypted_payload})
+       when is_map(payload) and is_map(encrypted_payload) do
+    payload
+    |> Map.put("client_encrypted_payload", encrypted_payload)
+    |> Map.put("e2ee", %{
+      "version" => 1,
+      "payload" => encrypted_payload,
+      "key_packages" =>
+        encrypted_payload["federated_key_packages"] || encrypted_payload[:federated_key_packages] ||
+          []
+    })
+  end
+
+  defp maybe_put_client_encryption(payload, _message), do: payload
 
   defp read_cursor_sequence_for_message(stream_id, %ChatMessage{} = message)
        when is_binary(stream_id) do

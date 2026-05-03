@@ -3996,6 +3996,121 @@ defmodule Elektrine.Messaging.FederationTest do
       assert get_in(inbound_message.media_metadata, ["remote_sender", "handle"]) ==
                "alice@remote.example"
     end
+
+    test "builds optional E2EE fields and local device discovery into outbound dm.message.create" do
+      sender = AccountsFixtures.user_fixture()
+      remote_handle = "alice@remote.example"
+
+      {:ok, _device} =
+        Messaging.register_chat_encryption_device(sender.id, chat_device_attrs("sender-device"))
+
+      conversation =
+        %Conversation{}
+        |> Conversation.dm_changeset(%{
+          creator_id: sender.id,
+          federated_source:
+            Elektrine.Messaging.Federation.DirectMessageState.remote_dm_source(remote_handle)
+        })
+        |> Repo.insert!()
+
+      conversation.id
+      |> ConversationMember.add_member_changeset(sender.id)
+      |> Repo.insert!()
+
+      encrypted_payload = federated_encrypted_payload("key-test-123456")
+
+      message =
+        %ChatMessage{}
+        |> ChatMessage.changeset(%{
+          conversation_id: conversation.id,
+          sender_id: sender.id,
+          message_type: "text",
+          client_encrypted_payload: encrypted_payload
+        })
+        |> Repo.insert!()
+
+      assert {:ok, event} =
+               Builders.build_dm_message_created_event(message, remote_handle, builder_context())
+
+      assert event["event_type"] == ArblargSDK.dm_message_create_event_type()
+      assert get_in(event, ["payload", "message", "content"]) == ""
+
+      assert get_in(event, ["payload", "message", "client_encrypted_payload"]) ==
+               encrypted_payload
+
+      assert [device] = get_in(event, ["payload", "dm", "sender", "chat_encryption_devices"])
+      assert device["device_id"] == "sender-device"
+    end
+
+    test "stores inbound optional E2EE payloads and advertised remote devices" do
+      recipient = AccountsFixtures.user_fixture()
+      remote_domain = "remote.example"
+      local_domain = Federation.local_domain()
+      dm_id = "https://remote.example/_arblarg/dms/encrypted-#{recipient.id}"
+      stream_id = "dm:#{dm_id}"
+      encrypted_payload = federated_encrypted_payload("key-test-123456")
+
+      remote_actor =
+        canonical_actor("alice", remote_domain,
+          display_name: "Alice Remote",
+          uri: "https://remote.example/users/alice"
+        )
+        |> Map.put("chat_encryption_devices", [chat_device_payload("remote-device")])
+
+      event =
+        signed_event(
+          ArblargSDK.dm_message_create_event_type(),
+          remote_domain,
+          stream_id,
+          1,
+          %{
+            "dm" => %{
+              "id" => dm_id,
+              "sender" => remote_actor,
+              "recipient" =>
+                canonical_actor(recipient.username, local_domain,
+                  uri: "https://#{local_domain}/users/#{recipient.username}"
+                )
+            },
+            "message" => %{
+              "id" => "https://remote.example/_arblarg/messages/#{Ecto.UUID.generate()}",
+              "dm_id" => dm_id,
+              "content" => "",
+              "message_type" => "text",
+              "client_encrypted_payload" => encrypted_payload,
+              "sender" => remote_actor
+            }
+          },
+          secret: "dm-secret"
+        )
+
+      assert {:ok, :applied} = Federation.receive_event(event, remote_domain)
+
+      remote_dm_conversation =
+        Repo.one!(
+          from(c in Conversation,
+            where: c.type == "dm",
+            where: like(c.federated_source, "arblarg:dm:%"),
+            order_by: [desc: c.id],
+            limit: 1
+          )
+        )
+
+      inbound_message =
+        Repo.get_by!(ChatMessage,
+          conversation_id: remote_dm_conversation.id,
+          client_encrypted_payload: encrypted_payload
+        )
+
+      assert inbound_message.content == nil
+      assert inbound_message.client_encrypted_payload == encrypted_payload
+
+      assert [remote_device] =
+               Messaging.list_chat_encryption_devices_for_conversation(remote_dm_conversation.id)
+
+      assert remote_device.device_id == "remote-device"
+      assert remote_device.recipient_handle == "alice@remote.example"
+    end
   end
 
   describe "remote join moderation workflow" do
@@ -4778,6 +4893,45 @@ defmodule Elektrine.Messaging.FederationTest do
     %{
       text: "fingerprint=#{discovery_fingerprint(discovery_document)}",
       authenticated: true
+    }
+  end
+
+  defp chat_device_attrs(device_id) do
+    %{
+      "device_id" => device_id,
+      "public_key" => %{
+        "version" => 1,
+        "algorithm" => "RSA-OAEP-SHA256",
+        "key" => Base.encode64(:crypto.strong_rand_bytes(64))
+      },
+      "key_algorithm" => "RSA-OAEP-SHA256",
+      "label" => "test browser"
+    }
+  end
+
+  defp chat_device_payload(device_id) do
+    chat_device_attrs(device_id)
+    |> Map.take(["device_id", "public_key", "key_algorithm", "label"])
+  end
+
+  defp federated_encrypted_payload(key_uid) do
+    %{
+      "version" => 1,
+      "content_algorithm" => "AES-256-GCM",
+      "key_uid" => key_uid,
+      "iv" => Base.encode64(:crypto.strong_rand_bytes(12)),
+      "ciphertext" => Base.encode64(:crypto.strong_rand_bytes(48)),
+      "federated_key_packages" => [
+        %{
+          "recipient_handle" => "alice@remote.example",
+          "device_id" => "remote-device",
+          "wrapped_key" => %{
+            "version" => 1,
+            "key_algorithm" => "RSA-OAEP-SHA256",
+            "encrypted_key" => Base.encode64(:crypto.strong_rand_bytes(48))
+          }
+        }
+      ]
     }
   end
 

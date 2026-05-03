@@ -23,6 +23,18 @@ defmodule ElektrineWeb.UserSettingsPGPTest do
   -----END PGP PUBLIC KEY BLOCK-----
   """
 
+  @valid_pgp_key """
+  -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+  mDMEafbW0RYJKwYBBAHaRw8BAQdAATPQUyy/7ayrAWmVILjSspgtruSPNSGMVufZ
+  jqlJYJa0H1BHUCBUZXN0IDxwZ3AtdGVzdEBleGFtcGxlLmNvbT6IlgQTFgoAPhYh
+  BHCCYtk0aDiHVygIbEZcaamxBDXuBQJp9tbRAhsDBQkB4TOABQsJCAcCBhUKCQgL
+  AgQWAgMBAh4BAheAAAoJEEZcaamxBDXukTcA/31o8yRditZv4lVF3cGeMaZR7Ols
+  YhlLTInAZ2Jy6Cm8AP9jSVRBr7Vr0TRgv8Sc8jKzOsHGYnx7ntglYTLM2qKlDA==
+  =/sey
+  -----END PGP PUBLIC KEY BLOCK-----
+  """
+
   setup do
     # Create a test user
     {:ok, user} =
@@ -144,6 +156,25 @@ defmodule ElektrineWeb.UserSettingsPGPTest do
   end
 
   describe "upload_pgp_key event" do
+    test "stores a valid key and shows key status", %{conn: conn, user: user} do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/account?tab=email")
+
+      view
+      |> form("#pgp-key-form", %{pgp_public_key: @valid_pgp_key})
+      |> render_submit()
+
+      assert has_element?(view, "span", "PGP Key Active")
+      refute has_element?(view, "textarea[name='pgp_public_key']")
+
+      updated_user = Repo.get!(Elektrine.Accounts.User, user.id)
+      assert updated_user.pgp_public_key == @valid_pgp_key
+      assert updated_user.pgp_fingerprint
+      assert updated_user.pgp_key_id
+    end
+
     test "shows error for invalid key format", %{conn: conn, user: user} do
       {:ok, view, _html} =
         conn

@@ -804,6 +804,21 @@ defmodule Elektrine.Messaging do
     to: ChatMessages,
     as: :create_text_message
 
+  defdelegate create_client_encrypted_chat_text_message(
+                conversation_id,
+                sender_id,
+                attrs,
+                opts \\ []
+              ),
+              to: ChatMessages,
+              as: :create_client_encrypted_text_message
+
+  defdelegate register_chat_encryption_device(user_id, attrs), to: ChatMessages
+
+  defdelegate list_chat_encryption_devices_for_conversation(conversation_id), to: ChatMessages
+
+  defdelegate get_wrapped_chat_key(conversation_id, user_id, device_id, key_uid), to: ChatMessages
+
   @doc """
   Creates a media chat message.
   """

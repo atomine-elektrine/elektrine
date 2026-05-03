@@ -739,8 +739,8 @@
               </h3>
 
               <p class="text-xs sm:text-sm text-base-content/70 mb-4">
-                Current encryption coverage by feature, including whether client-side encryption is
-                already available or planned.
+                Current encryption coverage by feature, including server-side at-rest coverage and
+                whether client-side encryption is already available or planned.
               </p>
 
               <div class="overflow-x-auto rounded-box border border-base-300/70">
@@ -749,6 +749,7 @@
                     <tr>
                       <th>Area</th>
                       <th>Encrypted before upload?</th>
+                      <th>Encrypted at rest?</th>
                       <th>Can the server read it?</th>
                       <th>Client-side encryption plan</th>
                     </tr>
@@ -756,6 +757,11 @@
                   <tbody>
                     <tr>
                       <td>Vault</td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
                       <td>
                         <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           Yes
@@ -781,6 +787,11 @@
                       </td>
                       <td>
                         <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           No
                         </span>
                       </td>
@@ -792,6 +803,11 @@
                     </tr>
                     <tr>
                       <td>Private mailbox storage</td>
+                      <td>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Optional
+                        </span>
+                      </td>
                       <td>
                         <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           Optional
@@ -817,19 +833,6 @@
                       </td>
                       <td>
                         <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
-                          Yes
-                        </span>
-                      </td>
-                      <td>
-                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight">
-                          Planned
-                        </span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Chat messages</td>
-                      <td>
-                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           No
                         </span>
                       </td>
@@ -845,7 +848,35 @@
                       </td>
                     </tr>
                     <tr>
+                      <td>Chat messages</td>
+                      <td>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Optional
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Yes
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          Depends
+                        </span>
+                      </td>
+                      <td>
+                        <span class="badge badge-info badge-sm h-auto min-h-5 whitespace-normal leading-tight">
+                          Available now
+                        </span>
+                      </td>
+                    </tr>
+                    <tr>
                       <td>Regular notes</td>
+                      <td>
+                        <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
+                          No
+                        </span>
+                      </td>
                       <td>
                         <span class="badge badge-warning badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           No
@@ -865,6 +896,13 @@
                   </tbody>
                 </table>
               </div>
+
+              <p class="mt-3 text-xs text-base-content/65">
+                Chat messages are encrypted at rest by default. Optional E2EE encrypts text before
+                upload when compatible member or federated DM device keys are available and the
+                conversation toggle is enabled; otherwise the server can read chat content for
+                delivery and federation.
+              </p>
             </div>
           </div>
         </div>

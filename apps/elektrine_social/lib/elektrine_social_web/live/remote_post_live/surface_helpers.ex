@@ -61,7 +61,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
         uri |> String.split("/@") |> List.last() |> String.split("/") |> List.first()
 
       true ->
-        uri |> URI.parse() |> Map.get(:path, "") |> String.split("/") |> List.last()
+        uri
+        |> URI.parse()
+        |> Map.get(:path)
+        |> case do
+          path when is_binary(path) -> path
+          _ -> ""
+        end
+        |> String.split("/", trim: true)
+        |> List.last()
+        |> case do
+          username when is_binary(username) and username != "" -> username
+          _ -> "unknown"
+        end
     end
   end
 

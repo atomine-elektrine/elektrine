@@ -28,7 +28,7 @@ defmodule Elektrine.MessagingEncryptionTest do
   end
 
   describe "chat message storage on creation" do
-    test "stores message content as plaintext when creating", %{
+    test "stores message content encrypted when creating", %{
       user1: user1,
       conversation: conversation
     } do
@@ -44,16 +44,16 @@ defmodule Elektrine.MessagingEncryptionTest do
       # Reload from database to check stored values
       db_message = Repo.get(ChatMessage, message.id)
 
-      # Chat content should be plaintext
-      assert db_message.encrypted_content == nil
-      assert db_message.content == content
+      assert db_message.content == nil
+      assert encrypted_payload?(db_message.encrypted_content)
+      assert ChatMessage.decrypt_content(db_message).content == content
 
       # Search index should still be created for chat search
       assert is_list(db_message.search_index)
       assert db_message.search_index != []
     end
 
-    test "returned message contains plaintext content", %{
+    test "returned message contains decrypted content", %{
       user1: user1,
       conversation: conversation
     } do
@@ -66,7 +66,6 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      # Returned message should have plaintext content
       assert message.content == content
     end
 
@@ -93,7 +92,7 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert project_hash in db_message.search_index
     end
 
-    test "stores media message captions as plaintext", %{user1: user1, conversation: conversation} do
+    test "stores media message captions encrypted", %{user1: user1, conversation: conversation} do
       content = "Check out this photo!"
       media_urls = ["attachments/#{user1.id}_photo.jpg"]
 
@@ -107,9 +106,9 @@ defmodule Elektrine.MessagingEncryptionTest do
 
       db_message = Repo.get(ChatMessage, message.id)
 
-      # Caption should be plaintext
-      assert db_message.encrypted_content == nil
-      assert db_message.content == content
+      assert db_message.content == nil
+      assert encrypted_payload?(db_message.encrypted_content)
+      assert ChatMessage.decrypt_content(db_message).content == content
       assert message.content == content
     end
 
@@ -124,13 +123,13 @@ defmodule Elektrine.MessagingEncryptionTest do
           nil
         )
 
-      # Should not crash, encrypted_content should be nil for plaintext chat
+      # Should not crash; media-only messages have no caption to encrypt.
       assert message.encrypted_content == nil
     end
   end
 
   describe "message retrieval" do
-    test "loads plaintext messages when loading conversation", %{
+    test "loads decrypted messages when loading conversation", %{
       user1: user1,
       user2: user2,
       conversation: conversation
@@ -144,12 +143,11 @@ defmodule Elektrine.MessagingEncryptionTest do
 
       messages = loaded_conversation.messages
 
-      # Messages should be readable
       assert Enum.any?(messages, fn m -> m.content == "First message" end)
       assert Enum.any?(messages, fn m -> m.content == "Second message" end)
     end
 
-    test "returns plaintext messages when searching", %{user1: user1, conversation: conversation} do
+    test "returns decrypted messages when searching", %{user1: user1, conversation: conversation} do
       # Create test message
       {:ok, _message} =
         Messaging.create_text_message(
@@ -171,7 +169,7 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert Enum.any?(results, fn m -> m.content =~ "searchable" end)
     end
 
-    test "stores edited messages as plaintext", %{user1: user1, conversation: conversation} do
+    test "stores edited messages encrypted", %{user1: user1, conversation: conversation} do
       {:ok, message} =
         Messaging.create_text_message(
           conversation.id,
@@ -183,10 +181,10 @@ defmodule Elektrine.MessagingEncryptionTest do
       new_content = "Updated content"
       {:ok, updated_message} = Messaging.edit_message(message.id, user1.id, new_content)
 
-      # Should remain plaintext in database
       db_message = Repo.get(ChatMessage, message.id)
-      assert db_message.encrypted_content == nil
-      assert db_message.content == new_content
+      assert db_message.content == nil
+      assert encrypted_payload?(db_message.encrypted_content)
+      assert ChatMessage.decrypt_content(db_message).content == new_content
 
       # Returned content should match
       assert updated_message.content == new_content
@@ -222,7 +220,7 @@ defmodule Elektrine.MessagingEncryptionTest do
   end
 
   describe "special content handling" do
-    test "stores unicode and emoji content as plaintext", %{
+    test "stores unicode and emoji content encrypted", %{
       user1: user1,
       conversation: conversation
     } do
@@ -244,7 +242,7 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert loaded_msg.content == content
     end
 
-    test "stores long messages as plaintext", %{user1: user1, conversation: conversation} do
+    test "stores long messages encrypted", %{user1: user1, conversation: conversation} do
       content = String.duplicate("Long message content. ", 100)
 
       {:ok, message} =
@@ -257,11 +255,12 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert message.content == content
 
       db_message = Repo.get(ChatMessage, message.id)
-      assert db_message.encrypted_content == nil
-      assert db_message.content == content
+      assert db_message.content == nil
+      assert encrypted_payload?(db_message.encrypted_content)
+      assert ChatMessage.decrypt_content(db_message).content == content
     end
 
-    test "indexes plaintext messages with hashtags for search", %{
+    test "indexes encrypted messages with hashtags for search", %{
       user1: user1,
       conversation: conversation
     } do
@@ -274,10 +273,10 @@ defmodule Elektrine.MessagingEncryptionTest do
           content
         )
 
-      # Content should be plaintext and searchable by hashtags
       db_message = Repo.get(ChatMessage, message.id)
-      assert db_message.encrypted_content == nil
-      assert db_message.content == content
+      assert db_message.content == nil
+      assert encrypted_payload?(db_message.encrypted_content)
+      assert ChatMessage.decrypt_content(db_message).content == content
 
       project_hash = Elektrine.Encryption.hash_keyword("#project", user1.id)
       deadline_hash = Elektrine.Encryption.hash_keyword("#deadline", user1.id)
@@ -286,6 +285,20 @@ defmodule Elektrine.MessagingEncryptionTest do
       assert project_hash in db_message.search_index
       assert deadline_hash in db_message.search_index
       assert meeting_hash in db_message.search_index
+    end
+
+    test "keeps legacy plaintext rows readable", %{user1: user1, conversation: conversation} do
+      legacy_message =
+        %ChatMessage{}
+        |> ChatMessage.changeset(%{
+          conversation_id: conversation.id,
+          sender_id: user1.id,
+          content: "legacy plaintext",
+          message_type: "text"
+        })
+        |> Repo.insert!()
+
+      assert ChatMessage.decrypt_content(legacy_message).content == "legacy plaintext"
     end
   end
 
@@ -298,4 +311,10 @@ defmodule Elektrine.MessagingEncryptionTest do
       refute changeset.valid?
     end
   end
+
+  defp encrypted_payload?(payload) when is_map(payload) do
+    Map.has_key?(payload, "encrypted_data") or Map.has_key?(payload, :encrypted_data)
+  end
+
+  defp encrypted_payload?(_), do: false
 end

@@ -7,6 +7,25 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
   import Phoenix.LiveView
   import Phoenix.Component
 
+  @overlay_ui_keys [
+    :show_new_chat,
+    :show_create_group,
+    :show_create_channel,
+    :show_group_modal,
+    :show_channel_modal,
+    :show_server_modal,
+    :show_browse_channels,
+    :show_settings_modal,
+    :show_edit_modal,
+    :show_add_members_modal,
+    :show_message_search_modal,
+    :show_emoji_picker,
+    :show_profile_modal,
+    :show_member_management,
+    :show_moderation_log,
+    :show_browse_modal
+  ]
+
   def handle_event("close_dropdown", _params, socket) do
     # Just acknowledge the event - dropdown will close automatically
     {:noreply, socket}
@@ -14,6 +33,32 @@ defmodule ArblargWeb.ChatLive.Operations.UIOperations do
 
   def handle_event("toggle_mobile_search", _params, socket) do
     {:noreply, assign(socket, :show_mobile_search, !socket.assigns.show_mobile_search)}
+  end
+
+  def handle_event("close_chat_overlay", _params, socket) do
+    ui = Enum.reduce(@overlay_ui_keys, socket.assigns.ui, &Map.put(&2, &1, false))
+
+    context_menu = %{
+      socket.assigns.context_menu
+      | conversation: nil,
+        message: nil,
+        selected_text: nil
+    }
+
+    {:noreply,
+     socket
+     |> assign(:ui, ui)
+     |> assign(:context_menu, context_menu)
+     |> assign(:show_mobile_search, false)
+     |> assign(:show_report_modal, false)
+     |> assign(:report_type, nil)
+     |> assign(:report_id, nil)
+     |> assign(:report_metadata, %{})
+     |> assign(:show_image_modal, false)
+     |> assign(:modal_image_url, nil)
+     |> assign(:modal_images, [])
+     |> assign(:modal_image_index, 0)
+     |> assign(:modal_post, nil)}
   end
 
   def handle_event("show_emoji_picker", _params, socket) do

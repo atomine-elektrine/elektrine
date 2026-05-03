@@ -1129,6 +1129,99 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp thread_hydration_state(_, _, _, _), do: "idle"
 
+  attr :replies, :list, required: true
+  attr :reply_content_domain, :any, default: nil
+  attr :id_prefix, :string, default: "remote-post-quick-reply-"
+
+  def quick_reply_recent_replies_preview(assigns) do
+    ~H"""
+    <%= if length(@replies) > 0 do %>
+      <div class="timeline-thread-preview-list timeline-thread-preview-list--flush space-y-2 text-left">
+        <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
+        <%= for reply <- @replies do %>
+          <% author_preview = quick_reply_author_preview(reply) %>
+          <% reply_click = quick_reply_click_target(reply) %>
+          <div
+            class={[
+              "timeline-thread-preview-item relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
+              reply_click &&
+                "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
+            ]}
+            style="background-color: oklch(var(--b1));"
+            id={@id_prefix <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
+            phx-hook={reply_click && "PostClick"}
+            data-click-event={reply_click && reply_click.event}
+            data-id={reply_click && reply_click.id}
+            data-post-id={reply_click && reply_click.post_id}
+          >
+            <%= if reply_click do %>
+              <.link
+                navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
+                class="hidden"
+                data-post-nav-link
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                Open reply
+              </.link>
+            <% end %>
+            <div class="flex items-center gap-2 mb-1 min-w-0">
+              <%= if author_preview.profile_path do %>
+                <.link navigate={author_preview.profile_path} class="w-5 h-5 flex-shrink-0">
+                  <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
+                    <img
+                      src={author_preview.avatar_url}
+                      alt=""
+                      class="w-5 h-5 rounded-full object-cover"
+                    />
+                  <% else %>
+                    <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
+                      <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                    </div>
+                  <% end %>
+                </.link>
+                <.link
+                  navigate={author_preview.profile_path}
+                  class="font-medium truncate hover:underline"
+                >
+                  {author_preview.label}
+                </.link>
+              <% else %>
+                <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
+                  <img
+                    src={author_preview.avatar_url}
+                    alt=""
+                    class="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                  />
+                <% else %>
+                  <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                    <.icon name="hero-user" class="w-3 h-3 opacity-60" />
+                  </div>
+                <% end %>
+                <span class="font-medium truncate">{author_preview.label}</span>
+              <% end %>
+              <%= if reply["published"] do %>
+                <span class="text-xs opacity-50">
+                  · {format_activitypub_date(reply["published"])}
+                </span>
+              <% end %>
+            </div>
+            <div class="text-xs opacity-75 line-clamp-2 break-words">
+              {raw(
+                render_remote_post_content(
+                  reply["content"] || "",
+                  reply_render_domain(reply, nil, @reply_content_domain),
+                  reply_mention_domain_hints(reply)
+                )
+              )}
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+    """
+  end
+
   attr :show_reply_form, :boolean, default: false
   attr :current_user, :map, default: nil
   attr :quick_reply_recent_replies, :list, default: []
@@ -1142,93 +1235,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     <%= if @show_reply_form && @current_user && is_nil(@replying_to_comment_id) do %>
       <div class="card panel-card rounded-lg p-4 mb-6">
         <div class="space-y-3">
-          <%= if @show_recent_replies_preview && length(@quick_reply_recent_replies) > 0 do %>
-            <div class="timeline-thread-preview-list timeline-thread-preview-list--flush space-y-2 text-left">
-              <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
-              <%= for reply <- @quick_reply_recent_replies do %>
-                <% author_preview = quick_reply_author_preview(reply) %>
-                <% reply_click = quick_reply_click_target(reply) %>
-                <div
-                  class={[
-                    "timeline-thread-preview-item relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
-                    reply_click &&
-                      "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
-                  ]}
-                  style="background-color: oklch(var(--b1));"
-                  id={"remote-post-inline-component-reply-" <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
-                  phx-hook={reply_click && "PostClick"}
-                  data-click-event={reply_click && reply_click.event}
-                  data-id={reply_click && reply_click.id}
-                  data-post-id={reply_click && reply_click.post_id}
-                >
-                  <%= if reply_click do %>
-                    <.link
-                      navigate={Paths.post_path(reply_click.id || reply_click.post_id)}
-                      class="hidden"
-                      data-post-nav-link
-                      tabindex="-1"
-                      aria-hidden="true"
-                    >
-                      Open reply
-                    </.link>
-                  <% end %>
-                  <div class="flex items-center gap-2 mb-1 min-w-0">
-                    <%= if author_preview.profile_path do %>
-                      <.link
-                        navigate={author_preview.profile_path}
-                        class="w-5 h-5 flex-shrink-0"
-                      >
-                        <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
-                          <img
-                            src={author_preview.avatar_url}
-                            alt=""
-                            class="w-5 h-5 rounded-full object-cover"
-                          />
-                        <% else %>
-                          <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center">
-                            <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                          </div>
-                        <% end %>
-                      </.link>
-                      <.link
-                        navigate={author_preview.profile_path}
-                        class="font-medium truncate hover:underline"
-                      >
-                        {author_preview.label}
-                      </.link>
-                    <% else %>
-                      <%= if Elektrine.Strings.present?(author_preview.avatar_url) do %>
-                        <img
-                          src={author_preview.avatar_url}
-                          alt=""
-                          class="w-5 h-5 rounded-full object-cover flex-shrink-0"
-                        />
-                      <% else %>
-                        <div class="w-5 h-5 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
-                          <.icon name="hero-user" class="w-3 h-3 opacity-60" />
-                        </div>
-                      <% end %>
-                      <span class="font-medium truncate">{author_preview.label}</span>
-                    <% end %>
-                    <%= if reply["published"] do %>
-                      <span class="text-xs opacity-50">
-                        · {format_activitypub_date(reply["published"])}
-                      </span>
-                    <% end %>
-                  </div>
-                  <div class="text-xs opacity-75 line-clamp-2 break-words">
-                    {raw(
-                      render_remote_post_content(
-                        reply["content"] || "",
-                        reply_render_domain(reply, nil, @reply_content_domain),
-                        reply_mention_domain_hints(reply)
-                      )
-                    )}
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          <% end %>
+          <.quick_reply_recent_replies_preview
+            :if={@show_recent_replies_preview}
+            replies={@quick_reply_recent_replies}
+            reply_content_domain={@reply_content_domain}
+            id_prefix="remote-post-inline-component-reply-"
+          />
 
           <ElektrineSocialWeb.Components.Social.RemotePostShared.inline_reply_form
             wrapper_class=""
@@ -2386,6 +2398,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       _ ->
         :error
     end
+  rescue
+    error in Postgrex.Error ->
+      if postgres_error_code(error) == :index_corrupted do
+        Logger.error(
+          "Postgres index corruption while resolving reply parent: #{Exception.message(error)}"
+        )
+
+        :error
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp local_reply_parent_from_ref(_), do: :error
@@ -4602,6 +4625,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     else
       Messaging.get_message_by_activitypub_ref(post_id)
     end
+  rescue
+    error in Postgrex.Error ->
+      if postgres_error_code(error) == :index_corrupted do
+        Logger.error(
+          "Postgres index corruption while loading ActivityPub ref: #{Exception.message(error)}"
+        )
+
+        nil
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp ensure_local_message_for_remote_post(post_object, remote_actor) when is_map(post_object) do
@@ -4615,7 +4649,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     latest_local_message_for_post(post_id) ||
       case actor_uri do
         actor_uri when is_binary(actor_uri) ->
-          case ActivityPub.Handler.store_remote_post(post_object, actor_uri) do
+          case store_remote_post_safely(post_object, actor_uri) do
             {:ok, %Elektrine.Social.Message{} = message} ->
               preload_cached_message_associations(message)
 
@@ -6883,9 +6917,47 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp strict_fetch_remote_actor(actor_uri) when is_binary(actor_uri) do
     ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
+  rescue
+    error in Postgrex.Error ->
+      if postgres_error_code(error) == :index_corrupted do
+        Logger.error(
+          "Postgres index corruption while fetching remote actor: #{Exception.message(error)}"
+        )
+
+        {:error, :local_actor_index_corrupted}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp strict_fetch_remote_actor(_actor_uri), do: {:error, :invalid_actor_uri}
+
+  defp store_remote_post_safely(post_object, actor_uri) do
+    ActivityPub.Handler.store_remote_post(post_object, actor_uri)
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        {:ok, :already_exists}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp unique_activitypub_violation?(%Postgrex.Error{postgres: postgres}) when is_map(postgres) do
+    postgres[:code] in [:unique_violation, "unique_violation", "23505"] &&
+      to_string(postgres[:constraint] || "") == "messages_activitypub_id_index"
+  end
+
+  defp unique_activitypub_violation?(_), do: false
+
+  defp postgres_error_code(%Postgrex.Error{postgres: postgres}) when is_map(postgres) do
+    case postgres[:code] do
+      "XX002" -> :index_corrupted
+      code -> code
+    end
+  end
+
+  defp postgres_error_code(_), do: nil
 
   defp extract_username_from_uri(uri), do: SurfaceHelpers.extract_username_from_uri(uri)
 
