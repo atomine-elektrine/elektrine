@@ -73,6 +73,12 @@ services:
       caddy_proxy_network:
         aliases:
           - app_proxy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${PORT:-8080}/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     restart: unless-stopped
 
   worker:
@@ -304,7 +310,7 @@ services:
       - caddy
     depends_on:
       app:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - ../../.env.production
     environment:
