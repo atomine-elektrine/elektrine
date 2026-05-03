@@ -513,7 +513,10 @@ defmodule Elektrine.Email.Receiver do
       if message_attrs["spam"] do
         message_attrs
       else
-        Email.categorize_message(message_attrs, user_id: mailbox_user_id)
+        Email.categorize_message(message_attrs,
+          user_id: mailbox_user_id,
+          enabled_category_filters: Mailbox.enabled_category_filter_categories(mailbox)
+        )
       end
 
     valid_message_keys = ~w(

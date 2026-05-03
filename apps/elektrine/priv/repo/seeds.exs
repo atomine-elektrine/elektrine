@@ -2566,6 +2566,7 @@ if Mix.env() == :dev do
         title: "Linear",
         login_username: "testuser@#{seed_contact_domain}",
         website: "https://linear.app",
+        encrypted_metadata: seed_encrypted_payload.("linear-metadata-seed"),
         encrypted_password: seed_encrypted_payload.("linear-password-seed"),
         encrypted_notes: seed_encrypted_payload.("Workspace owner: Orbit Dev")
       },
@@ -2573,6 +2574,7 @@ if Mix.env() == :dev do
         title: "Docker",
         login_username: "deployments@#{seed_contact_domain}",
         website: "https://docker.com",
+        encrypted_metadata: seed_encrypted_payload.("docker-metadata-seed"),
         encrypted_password: seed_encrypted_payload.("docker-password-seed"),
         encrypted_notes:
           seed_encrypted_payload.("Remember to check container health after deploy")

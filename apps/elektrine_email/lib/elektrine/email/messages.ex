@@ -289,10 +289,12 @@ defmodule Elektrine.Email.Messages do
   Returns the list of non-spam, non-archived messages for a mailbox, excluding bulk and paper trail.
   """
   def list_inbox_messages(mailbox_id, limit \\ 50, offset \\ 0) do
+    excluded_categories = inbox_excluded_categories(mailbox_id)
+
     Message
     |> where(mailbox_id: ^mailbox_id, spam: false, archived: false, deleted: false)
     |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-    |> where([m], m.category not in ["feed", "ledger", "stack"])
+    |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
     |> where([m], is_nil(m.reply_later_at))
     |> where([m], is_nil(m.folder_id))
     |> order_by(desc: :inserted_at)
@@ -347,10 +349,12 @@ defmodule Elektrine.Email.Messages do
   Returns the list of unread messages for a mailbox.
   """
   def list_unread_messages(mailbox_id) do
+    excluded_categories = inbox_excluded_categories(mailbox_id)
+
     Message
     |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
     |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-    |> where([m], m.category not in ["feed", "ledger", "stack"])
+    |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
     |> where([m], is_nil(m.reply_later_at))
     |> order_by(desc: :inserted_at)
     |> Repo.all()
@@ -401,7 +405,7 @@ defmodule Elektrine.Email.Messages do
         # Categorize the message before inserting (only if category not already set)
         status = get_attr(attrs, :status)
         is_spam_message = truthy?(get_attr(attrs, :spam))
-        categorize_opts = if mailbox_user_id, do: [user_id: mailbox_user_id], else: []
+        categorize_opts = categorization_opts(mailbox, mailbox_user_id)
 
         categorized_attrs =
           if status != "sent" and !is_spam_message do
@@ -796,11 +800,7 @@ defmodule Elektrine.Email.Messages do
           new_unread_count = unread_count(updated_message.mailbox_id)
 
           # Broadcast the unread count update
-          Phoenix.PubSub.broadcast!(
-            Elektrine.PubSub,
-            "user:#{mailbox.user_id}",
-            {:unread_count_updated, new_unread_count}
-          )
+          broadcast_user_unread_count_update(mailbox.user_id, new_unread_count)
 
           # Clear email notification when email is marked as read
           Elektrine.Notifications.mark_as_read_by_source(
@@ -839,11 +839,7 @@ defmodule Elektrine.Email.Messages do
           new_unread_count = unread_count(updated_message.mailbox_id)
 
           # Broadcast the unread count update
-          Phoenix.PubSub.broadcast!(
-            Elektrine.PubSub,
-            "user:#{mailbox.user_id}",
-            {:unread_count_updated, new_unread_count}
-          )
+          broadcast_user_unread_count_update(mailbox.user_id, new_unread_count)
         end
 
         CacheHooks.with_cache_invalidation({:ok, updated_message},
@@ -1008,11 +1004,7 @@ defmodule Elektrine.Email.Messages do
           new_unread_count = unread_count(mailbox_id)
 
           # Broadcast the unread count update
-          Phoenix.PubSub.broadcast!(
-            Elektrine.PubSub,
-            "user:#{mailbox.user_id}",
-            {:unread_count_updated, new_unread_count}
-          )
+          broadcast_user_unread_count_update(mailbox.user_id, new_unread_count)
         end
 
         # Always broadcast message deletion for IMAP sync (even for read messages)
@@ -1090,12 +1082,13 @@ defmodule Elektrine.Email.Messages do
   """
   def unread_count(mailbox_id) do
     started_at = System.monotonic_time(:millisecond)
+    excluded_categories = inbox_excluded_categories(mailbox_id)
 
     count =
       Message
       |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
       |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> where([m], m.category not in ["feed", "ledger", "stack"])
+      |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
       |> where([m], is_nil(m.reply_later_at))
       |> Repo.aggregate(:count)
 
@@ -1111,34 +1104,44 @@ defmodule Elektrine.Email.Messages do
     if mailbox && mailbox.user_id do
       new_unread_count = unread_count(mailbox_id)
 
-      Phoenix.PubSub.broadcast!(
-        Elektrine.PubSub,
-        "user:#{mailbox.user_id}",
-        {:unread_count_updated, new_unread_count}
-      )
+      broadcast_user_unread_count_update(mailbox.user_id, new_unread_count)
     end
+  end
+
+  defp broadcast_user_unread_count_update(user_id, new_unread_count) do
+    Phoenix.PubSub.broadcast!(
+      Elektrine.PubSub,
+      "user:#{user_id}",
+      {:unread_count_updated, new_unread_count}
+    )
+
+    Phoenix.PubSub.broadcast!(
+      Elektrine.PubSub,
+      "user:#{user_id}:notification_count",
+      {:email_unread_count_updated, new_unread_count}
+    )
   end
 
   @doc """
   Returns the unread feed message count for a mailbox.
   """
   def unread_feed_count(mailbox_id) do
-    Message
-    |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
-    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status))
-    |> where(category: "feed")
-    |> Repo.aggregate(:count)
+    if category_filter_enabled?(mailbox_id, "feed") do
+      unread_category_count(mailbox_id, "feed")
+    else
+      0
+    end
   end
 
   @doc """
   Returns the unread paper trail message count for a mailbox.
   """
   def unread_ledger_count(mailbox_id) do
-    Message
-    |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
-    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status))
-    |> where(category: "ledger")
-    |> Repo.aggregate(:count)
+    if category_filter_enabled?(mailbox_id, "ledger") do
+      unread_category_count(mailbox_id, "ledger")
+    else
+      0
+    end
   end
 
   @doc """
@@ -1168,10 +1171,12 @@ defmodule Elektrine.Email.Messages do
   This counts messages that are in the main inbox (not in special categories).
   """
   def unread_inbox_count(mailbox_id) do
+    excluded_categories = inbox_excluded_categories(mailbox_id)
+
     Message
     |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
     |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-    |> where([m], is_nil(m.category) or m.category not in ["feed", "ledger", "stack"])
+    |> where([m], is_nil(m.category) or m.category not in ^excluded_categories)
     |> where([m], is_nil(m.reply_later_at))
     |> where([m], is_nil(m.folder_id))
     |> Repo.aggregate(:count)
@@ -1186,28 +1191,56 @@ defmodule Elektrine.Email.Messages do
   def get_all_unread_counts(mailbox_id) do
     started_at = System.monotonic_time(:millisecond)
 
-    result =
-      Message
-      |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
-      |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status) or m.from == m.to)
-      |> select([m], %{
-        inbox:
-          fragment(
-            "COUNT(*) FILTER (WHERE (category IS NULL OR category NOT IN ('feed', 'ledger', 'stack')) AND reply_later_at IS NULL AND folder_id IS NULL)"
-          ),
-        feed: fragment("COUNT(*) FILTER (WHERE category = 'feed')"),
-        ledger: fragment("COUNT(*) FILTER (WHERE category = 'ledger')"),
-        stack: fragment("COUNT(*) FILTER (WHERE category = 'stack')"),
-        reply_later: fragment("COUNT(*) FILTER (WHERE reply_later_at IS NOT NULL)")
-      })
-      |> Repo.one()
+    result = %{
+      inbox: unread_inbox_count(mailbox_id),
+      feed: unread_feed_count(mailbox_id),
+      ledger: unread_ledger_count(mailbox_id),
+      stack: unread_stack_count(mailbox_id),
+      reply_later: unread_reply_later_count(mailbox_id)
+    }
 
     emit_db_hot_path(:email_messages, :get_all_unread_counts, started_at, %{
       mailbox_id: mailbox_id
     })
 
-    result || %{inbox: 0, feed: 0, ledger: 0, stack: 0, reply_later: 0}
+    result
   end
+
+  defp unread_category_count(mailbox_id, category) do
+    Message
+    |> where(mailbox_id: ^mailbox_id, read: false, spam: false, archived: false, deleted: false)
+    |> where([m], m.status not in ["sent", "draft"] or is_nil(m.status))
+    |> where(category: ^category)
+    |> Repo.aggregate(:count)
+  end
+
+  defp inbox_excluded_categories(mailbox_id) do
+    mailbox_id
+    |> Elektrine.Email.Mailboxes.get_mailbox()
+    |> Mailbox.enabled_category_filter_categories()
+    |> Kernel.++(["stack"])
+  end
+
+  defp category_filter_enabled?(mailbox_id, category) do
+    mailbox_id
+    |> Elektrine.Email.Mailboxes.get_mailbox()
+    |> Mailbox.enabled_category_filter_categories()
+    |> Enum.member?(category)
+  end
+
+  defp categorization_opts(%Mailbox{} = mailbox, user_id) do
+    [
+      enabled_category_filters: Mailbox.enabled_category_filter_categories(mailbox)
+    ]
+    |> maybe_add_user_id(user_id)
+  end
+
+  defp categorization_opts(_mailbox, user_id), do: maybe_add_user_id([], user_id)
+
+  defp maybe_add_user_id(opts, user_id) when is_integer(user_id),
+    do: Keyword.put(opts, :user_id, user_id)
+
+  defp maybe_add_user_id(opts, _user_id), do: opts
 
   defp emit_db_hot_path(component, operation, started_at, metadata) do
     Events.db_hot_path(
@@ -1290,12 +1323,7 @@ defmodule Elektrine.Email.Messages do
 
                 # Broadcast the unread count update
                 new_unread_count = unread_count(mailbox_id)
-
-                Phoenix.PubSub.broadcast!(
-                  Elektrine.PubSub,
-                  "user:#{user_id}",
-                  {:unread_count_updated, new_unread_count}
-                )
+                broadcast_user_unread_count_update(user_id, new_unread_count)
               end
 
               # Broadcast message update to webmail for IMAP sync

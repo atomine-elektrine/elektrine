@@ -1,5 +1,12 @@
 import { createEntry, getEntry, listEntries, updateEntry } from "./lib/api.js"
-import { decryptValue, encryptValue, verifyPassphrase } from "./lib/crypto.js"
+import {
+  decryptValue,
+  encryptValue,
+  isClientPayload,
+  vaultEntryAssociatedData,
+  vaultMetadataAssociatedData,
+  verifyPassphrase
+} from "./lib/crypto.js"
 import {
   clearPendingSave,
   clearStagedFill,
@@ -28,10 +35,10 @@ const MESSAGE_TYPES = {
   RECORD_SUBMISSION: "vault:record-submission",
   RESOLVE_PENDING_SAVE: "vault:resolve-pending-save",
   SAVE_PENDING: "vault:save-pending",
-  DISMISS_PENDING_SAVE: "vault:dismiss-pending-save"
-  ,GET_SESSION_PASSPHRASE: "vault:get-session-passphrase"
-  ,SET_SESSION_PASSPHRASE: "vault:set-session-passphrase"
-  ,CLEAR_SESSION_PASSPHRASE: "vault:clear-session-passphrase"
+  DISMISS_PENDING_SAVE: "vault:dismiss-pending-save",
+  GET_SESSION_PASSPHRASE: "vault:get-session-passphrase",
+  SET_SESSION_PASSPHRASE: "vault:set-session-passphrase",
+  CLEAR_SESSION_PASSPHRASE: "vault:clear-session-passphrase"
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -285,9 +292,25 @@ async function savePendingEntry(tabId, payload) {
   const attrs = {
     title: (payload.title || defaultTitle(pending)).trim(),
     login_username: (payload.username || pending.username || "").trim(),
-    website: (payload.website || pending.website || originFromUrl(pending.submitUrl) || "").trim(),
-    encrypted_password: await encryptValue(pending.password, session.passphrase)
+    website: (payload.website || pending.website || originFromUrl(pending.submitUrl) || "").trim()
   }
+
+  const metadata = { ...attrs }
+
+  attrs.title = "Encrypted entry"
+  attrs.login_username = ""
+  attrs.website = ""
+  attrs.encrypted_metadata = await encryptValue(
+    JSON.stringify(metadata),
+    session.passphrase,
+    vaultMetadataAssociatedData()
+  )
+
+  attrs.encrypted_password = await encryptValue(
+    pending.password,
+    session.passphrase,
+    vaultEntryAssociatedData(metadata, "password")
+  )
 
   const result =
     payload.entryId
@@ -305,12 +328,18 @@ async function savePendingEntry(tabId, payload) {
 
 async function loadEntryCredentials(session, entryId) {
   const data = await getEntry(session.settings, entryId)
-  const entry = data.entry
+  const entry = await hydrateEntryMetadata(data.entry, session.passphrase)
 
   return {
     username: entry.login_username || "",
-    password: await decryptValue(entry.encrypted_password, session.passphrase),
-    notes: entry.encrypted_notes ? await decryptValue(entry.encrypted_notes, session.passphrase) : ""
+    password: await decryptValue(
+      entry.encrypted_password,
+      session.passphrase,
+      vaultEntryAssociatedData(entry, "password")
+    ),
+    notes: entry.encrypted_notes
+      ? await decryptValue(entry.encrypted_notes, session.passphrase, vaultEntryAssociatedData(entry, "notes"))
+      : ""
   }
 }
 
@@ -357,12 +386,41 @@ async function getVaultSession() {
   }
 
   scheduleSessionPassphraseExpiry()
+  const hydratedEntries = await hydrateEntries(entries, passphrase)
 
   return {
     status: "ready",
     settings,
     passphrase,
-    entries
+    entries: hydratedEntries
+  }
+}
+
+async function hydrateEntries(entries, passphrase) {
+  return Promise.all(entries.map((entry) => hydrateEntryMetadata(entry, passphrase)))
+}
+
+async function hydrateEntryMetadata(entry, passphrase) {
+  if (!entry || !passphrase || !isClientPayload(entry.encrypted_metadata)) {
+    return entry
+  }
+
+  try {
+    const decrypted = await decryptValue(
+      entry.encrypted_metadata,
+      passphrase,
+      vaultMetadataAssociatedData()
+    )
+    const metadata = JSON.parse(decrypted)
+
+    return {
+      ...entry,
+      title: metadata.title || entry.title || "Encrypted entry",
+      login_username: metadata.login_username || "",
+      website: metadata.website || ""
+    }
+  } catch (_error) {
+    return entry
   }
 }
 

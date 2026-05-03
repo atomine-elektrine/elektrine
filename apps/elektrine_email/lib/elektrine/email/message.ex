@@ -500,7 +500,7 @@ defmodule Elektrine.Email.Message do
         changeset
 
       payload when is_map(payload) ->
-        if MailboxEncryption.valid_payload?(payload) do
+        if MailboxEncryption.valid_payload?(payload, :message) do
           changeset
         else
           add_error(changeset, :client_encrypted_payload, "must be a valid encrypted payload")

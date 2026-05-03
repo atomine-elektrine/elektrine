@@ -135,7 +135,7 @@ defmodule ElektrineWeb.NotesLive do
 
   def handle_event(
         "create_encrypted_share",
-        %{"id" => id, "payload" => payload, "key" => key} = params,
+        %{"id" => id, "payload" => payload} = params,
         socket
       ) do
     user = socket.assigns.current_user
@@ -148,7 +148,7 @@ defmodule ElektrineWeb.NotesLive do
         |> put_flash(:info, "Encrypted share link ready")
         |> push_patch(to: notes_path(q: socket.assigns.search_query, note: note.id))
 
-      {:reply, %{url: share_url(share) <> "#" <> key}, socket}
+      {:reply, %{url: share_url(share)}, socket}
     else
       _ -> {:reply, %{error: "Could not create encrypted share link"}, socket}
     end

@@ -60,6 +60,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
     recent_recipients = Elektrine.Email.Contacts.get_recent_recipients(user.id)
     templates = Email.list_templates(user.id)
+    custom_folders = Email.list_custom_folders(user.id)
 
     socket =
       socket
@@ -71,6 +72,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       |> assign(:available_from_addresses, available_from_addresses)
       |> assign(:unread_count, unread_count)
       |> assign(:storage_info, storage_info)
+      |> assign(:custom_folders, custom_folders)
       |> assign(:mode, Map.get(params, "mode", "compose"))
       |> assign(:original_message_id, Map.get(params, "message_id"))
       |> assign(:original_message, original_message)
@@ -1357,15 +1359,8 @@ Subject: #{message.subject}#{attachment_info}
 
   defp markdown_to_html(markdown) do
     markdown
-    |> String.replace(~r/^### (.*)$/m, "<h3>\\1</h3>")
-    |> String.replace(~r/^## (.*)$/m, "<h2>\\1</h2>")
-    |> String.replace(~r/^# (.*)$/m, "<h1>\\1</h1>")
-    |> String.replace(~r/\*\*(.*?)\*\*/s, "<strong>\\1</strong>")
-    |> String.replace(~r/\*(.*?)\*/s, "<em>\\1</em>")
-    |> String.replace(~r/\[([^\]]+)\]\(([^)]+)\)/, "<a href=\"\\2\">\\1</a>")
-    |> String.replace(~r/^- (.*)$/m, "<li>\\1</li>")
-    |> String.replace(~r/^> (.*)$/m, "<blockquote>\\1</blockquote>")
-    |> String.replace("\n", "<br>")
+    |> Earmark.as_html!()
+    |> Elektrine.Email.Sanitizer.sanitize_html_content()
   end
 
   defp blank_reply?(mode, email_params) when mode in ["reply", "reply_all"] do

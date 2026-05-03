@@ -41,7 +41,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
     locale = fresh_user.locale || session["locale"] || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
-    unread_count = Email.unread_count(mailbox.id)
+    unread_count = Email.unread_inbox_count(mailbox.id)
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
@@ -59,6 +59,8 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, fresh_user))
      |> assign(:unread_count, unread_count)
      |> assign(:storage_info, storage_info)
+     |> assign(:custom_folders, Email.list_custom_folders(user.id))
+     |> assign(:current_folder_id, nil)
      |> assign(:active_tab, "aliases")
      |> assign(:show_modal, nil)
      |> assign(:edit_item, nil)
@@ -92,6 +94,10 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       "filters" ->
         socket
         |> assign(:filters, Email.list_filters(user_id))
+        |> assign(
+          :mailbox_filter_form,
+          to_form(Email.change_mailbox_category_filters(socket.assigns.mailbox), as: :mailbox)
+        )
         |> assign(:new_filter, %Filter{
           conditions: %{"match_type" => "all", "rules" => []},
           actions: %{}
@@ -309,6 +315,37 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   end
 
   @impl true
+  def handle_event("save_category_filters", %{"mailbox" => params}, socket) do
+    user_id = socket.assigns.current_user.id
+    mailbox = Email.get_user_mailbox(user_id) || socket.assigns.mailbox
+
+    attrs = %{
+      "digest_filter_enabled" => truthy_form_value?(params["digest_filter_enabled"]),
+      "ledger_filter_enabled" => truthy_form_value?(params["ledger_filter_enabled"])
+    }
+
+    case Email.update_mailbox_category_filters(mailbox, attrs) do
+      {:ok, mailbox} ->
+        Elektrine.Email.Cached.invalidate_message_caches(mailbox.id, user_id)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "Inbox category filters updated")
+         |> assign(:mailbox, mailbox)
+         |> assign(
+           :mailbox_filter_form,
+           to_form(Email.change_mailbox_category_filters(mailbox), as: :mailbox)
+         )}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to update inbox category filters")
+         |> assign(:mailbox_filter_form, to_form(changeset, as: :mailbox))}
+    end
+  end
+
+  @impl true
   def handle_event("toggle_filter", %{"id" => id}, socket) do
     user_id = socket.assigns.current_user.id
 
@@ -463,10 +500,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
 
     case Email.create_custom_folder(%{name: name, color: color, user_id: user_id}) do
       {:ok, _} ->
+        folders = Email.list_custom_folders(user_id)
+
         {:noreply,
          socket
          |> put_flash(:info, "Folder created successfully")
-         |> assign(:folders, Email.list_custom_folders(user_id))}
+         |> assign(:folders, folders)
+         |> assign(:custom_folders, folders)}
 
       {:error, :limit_reached} ->
         {:noreply, put_flash(socket, :error, "Maximum number of folders reached (25)")}
@@ -488,11 +528,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
 
       folder ->
         {:ok, _} = Email.delete_custom_folder(folder)
+        folders = Email.list_custom_folders(user_id)
 
         {:noreply,
          socket
          |> put_flash(:info, "Folder deleted")
-         |> assign(:folders, Email.list_custom_folders(user_id))}
+         |> assign(:folders, folders)
+         |> assign(:custom_folders, folders)}
     end
   end
 
@@ -802,12 +844,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   @impl true
   def handle_info({:new_email, _message}, socket) do
     mailbox = socket.assigns.mailbox
-    unread_count = Email.unread_count(mailbox.id)
+    unread_count = Email.unread_inbox_count(mailbox.id)
     {:noreply, assign(socket, :unread_count, unread_count)}
   end
 
-  def handle_info({:unread_count_updated, new_count}, socket) do
-    {:noreply, assign(socket, :unread_count, new_count)}
+  def handle_info({:unread_count_updated, _new_count}, socket) do
+    {:noreply, assign(socket, :unread_count, Email.unread_inbox_count(socket.assigns.mailbox.id))}
   end
 
   def handle_info({:storage_updated, %{user_id: user_id}}, socket) do
@@ -908,16 +950,30 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
     })
   end
 
+  defp truthy_form_value?(values) when is_list(values),
+    do: Enum.any?(values, &truthy_form_value?/1)
+
+  defp truthy_form_value?(value), do: value in [true, "true", "on", 1, "1"]
+
   defp build_conditions_from_params(params) do
+    rule_value = params["rule_value"] || ""
+
+    rules =
+      if String.trim(to_string(rule_value)) == "" do
+        []
+      else
+        [
+          %{
+            "field" => params["rule_field"] || "from",
+            "operator" => params["rule_operator"] || "contains",
+            "value" => rule_value
+          }
+        ]
+      end
+
     %{
       "match_type" => params["match_type"] || "all",
-      "rules" => [
-        %{
-          "field" => params["rule_field"] || "from",
-          "operator" => params["rule_operator"] || "contains",
-          "value" => params["rule_value"] || ""
-        }
-      ]
+      "rules" => rules
     }
   end
 
@@ -965,6 +1021,8 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           mailbox_addresses={@mailbox_addresses}
           storage_info={@storage_info}
           current_user={@current_user}
+          custom_folders={@custom_folders}
+          current_folder_id={@current_folder_id}
         />
 
         <div class="flex-1 min-w-0">
@@ -1220,6 +1278,58 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           Create Filter
         </button>
       </div>
+      
+    <!-- Category Filters -->
+      <.form for={@mailbox_filter_form} phx-submit="save_category_filters" class="mb-6">
+        <div class="rounded-lg border border-base-content/10 bg-base-100/50 p-4">
+          <div class="mb-4">
+            <h3 class="font-semibold">Inbox Category Filters</h3>
+            <p class="text-sm text-base-content/60">
+              Digest and Ledger are optional inbox views. Turning one off keeps matching mail in Inbox and hides that filter button.
+            </p>
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
+              <input type="hidden" name="mailbox[digest_filter_enabled]" value="false" />
+              <span>
+                <span class="block font-medium">Digest</span>
+                <span class="text-sm text-base-content/60">
+                  Newsletters and bulk mail get their own inbox filter.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                name="mailbox[digest_filter_enabled]"
+                value="true"
+                checked={@mailbox_filter_form[:digest_filter_enabled].value in [true, "true"]}
+                class="toggle toggle-secondary"
+              />
+            </label>
+
+            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
+              <input type="hidden" name="mailbox[ledger_filter_enabled]" value="false" />
+              <span>
+                <span class="block font-medium">Ledger</span>
+                <span class="text-sm text-base-content/60">
+                  Receipts, invoices, and transaction mail get their own inbox filter.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                name="mailbox[ledger_filter_enabled]"
+                value="true"
+                checked={@mailbox_filter_form[:ledger_filter_enabled].value in [true, "true"]}
+                class="toggle toggle-secondary"
+              />
+            </label>
+          </div>
+
+          <div class="mt-4 flex justify-end">
+            <button type="submit" class="btn btn-secondary btn-sm">Save Category Filters</button>
+          </div>
+        </div>
+      </.form>
       
     <!-- List -->
       <div class="space-y-2">
@@ -2097,7 +2207,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                 />
               </div>
 
-              <div class="divider text-xs text-base-content/50 my-2">CONDITIONS</div>
+              <div class="divider text-xs text-base-content/50 my-2">CONDITIONS (OPTIONAL)</div>
               
     <!-- Conditions Section -->
               <div class="bg-base-200/50 rounded-lg p-4 space-y-4">
@@ -2186,7 +2296,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
                 </div>
               </div>
 
-              <div class="divider text-xs text-base-content/50 my-2">ACTIONS</div>
+              <div class="divider text-xs text-base-content/50 my-2">ACTIONS (OPTIONAL)</div>
               
     <!-- Actions Section -->
               <div class="bg-base-200/50 rounded-lg p-4">
@@ -2390,11 +2500,15 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
     actions = filter.actions || %{}
 
     rule_desc =
-      rules
-      |> Enum.map(fn rule ->
-        "#{rule["field"]} #{rule["operator"]} '#{rule["value"]}'"
-      end)
-      |> Enum.map_join(", ", & &1)
+      if rules == [] do
+        "all messages"
+      else
+        rules
+        |> Enum.map(fn rule ->
+          "#{rule["field"]} #{rule["operator"]} '#{rule["value"]}'"
+        end)
+        |> Enum.map_join(", ", & &1)
+      end
 
     action_desc =
       actions
@@ -2409,6 +2523,10 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       end)
       |> Enum.reject(&is_nil/1)
       |> Enum.join(", ")
+      |> case do
+        "" -> "do nothing"
+        description -> description
+      end
 
     "If #{rule_desc} then #{action_desc}"
   end

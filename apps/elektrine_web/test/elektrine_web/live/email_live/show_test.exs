@@ -4,7 +4,7 @@ defmodule ElektrineEmailWeb.EmailLive.ShowTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.Email
+  alias Elektrine.{Email, Notifications}
 
   defp log_in_user(conn, user) do
     token =
@@ -18,6 +18,13 @@ defmodule ElektrineEmailWeb.EmailLive.ShowTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  defp portal_nav_badges(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find(~s(nav.e-nav a[href="/portal"] span.absolute))
+    |> Enum.map(&(Floki.text(&1) |> String.trim()))
   end
 
   test "deleting from a custom folder returns to that folder", %{conn: conn} do
@@ -47,6 +54,32 @@ defmodule ElektrineEmailWeb.EmailLive.ShowTest do
     |> render_click()
 
     assert_redirect(view, ~p"/email?tab=folder&folder_id=#{folder.id}")
+  end
+
+  test "opening an unread email clears the portal nav bubble", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Portal badge refresh regression",
+        text_body: "Mark this read",
+        html_body: "<p>Mark this read</p>",
+        message_id: "<portal-badge-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    assert Notifications.get_unread_count(user.id) == 1
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/view/#{message.hash}")
+
+    assert Notifications.get_unread_count(user.id) == 0
+    assert portal_nav_badges(html) == []
   end
 
   defp ensure_mailbox(user) do

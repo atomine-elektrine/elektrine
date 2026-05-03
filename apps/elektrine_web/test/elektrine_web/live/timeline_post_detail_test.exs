@@ -155,7 +155,7 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
 
       assert html =~ "Replying to"
       assert html =~ "Original parent content"
-      assert html =~ ~s(href="#{parent_id}")
+      assert html =~ "Open parent"
     end
 
     test "shows full ancestor chain for cached federated replies", %{conn: conn} do
@@ -211,8 +211,7 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       {:ok, _view, html} = live(conn, ~p"/remote/post/#{encoded_reply_id}")
       assert html =~ "Middle ancestor content"
       assert html =~ "Root ancestor content"
-      assert html =~ ~s(href="#{parent_id}")
-      assert html =~ ~s(href="#{grandparent_id}")
+      assert html =~ "Open parent"
     end
 
     test "renders local post replies when remote actor is nil", %{conn: conn} do

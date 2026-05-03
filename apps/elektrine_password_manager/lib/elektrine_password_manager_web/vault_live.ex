@@ -373,6 +373,11 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
 
                     <input
                       type="hidden"
+                      name="entry[encrypted_metadata]"
+                      data-vault-encrypted-metadata
+                    />
+                    <input
+                      type="hidden"
                       name="entry[encrypted_password]"
                       data-vault-encrypted-password
                     />
@@ -433,16 +438,25 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
                           <tr
                             id={"entry-#{entry.id}"}
                             data-vault-entry-id={entry.id}
+                            data-vault-title={entry.title}
+                            data-vault-login-username={entry.login_username || ""}
+                            data-vault-website={entry.website || ""}
+                            data-encrypted-metadata={
+                              Payloads.encode_payload(entry.encrypted_metadata)
+                            }
                             data-encrypted-password={
                               Payloads.encode_payload(entry.encrypted_password)
                             }
                             data-encrypted-notes={Payloads.encode_payload(entry.encrypted_notes)}
                           >
-                            <td class="font-medium">{entry.title}</td>
-                            <td class="hidden text-sm text-base-content/70 md:table-cell">
+                            <td class="font-medium" data-vault-title-output>{entry.title}</td>
+                            <td
+                              class="hidden text-sm text-base-content/70 md:table-cell"
+                              data-vault-username-output
+                            >
                               {entry.login_username || "-"}
                             </td>
-                            <td class="hidden text-sm lg:table-cell">
+                            <td class="hidden text-sm lg:table-cell" data-vault-website-output>
                               <%= if entry.website do %>
                                 <a
                                   href={entry.website}

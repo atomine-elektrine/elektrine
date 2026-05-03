@@ -323,77 +323,137 @@ defmodule ElektrineWeb.ProofsLive do
         <div class="space-y-6">
           <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
-              <h2 class="card-title text-lg mb-4">Status</h2>
-              <dl class="space-y-3 text-sm">
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-base-content/70">Proofs</dt>
-                  <dd class="font-semibold">{length(@proofs)}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-base-content/70">Verified</dt>
-                  <dd class="font-semibold">{proof_status_count(@proofs, "verified")}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <dt class="text-base-content/70">Pending</dt>
-                  <dd class="font-semibold">{proof_status_count(@proofs, "pending")}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3 border-t border-base-300 pt-3">
-                  <dt class="text-base-content/70">Score</dt>
-                  <dd class="text-right">
-                    <p class="font-semibold">{@breakdown.score}</p>
-                    <p class="text-xs text-base-content/60">{level_label(@breakdown.level)}</p>
+              <div class="flex items-baseline justify-between gap-3">
+                <h2 class="card-title text-lg">Account</h2>
+                <span class="text-sm font-semibold">TL{@current_user.trust_level || 0}</span>
+              </div>
+
+              <dl class="mt-4 divide-y divide-base-300 text-sm">
+                <div :if={@credits_available} class="flex items-center justify-between gap-4 pb-3">
+                  <dt>
+                    <p class="font-medium">Atomine Credits</p>
+                    <p class="mt-1 text-xs text-base-content/60">Spendable action capacity.</p>
+                  </dt>
+                  <dd class="text-3xl font-semibold leading-none">
+                    {credit_balance(@credit_rows, "atomine_credit")}
                   </dd>
                 </div>
+                <div class="flex items-center justify-between gap-3 py-3">
+                  <dt class="text-base-content/70">Proof score</dt>
+                  <dd class="font-medium">{@breakdown.score}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-3">
+                  <dt class="text-base-content/70">Verified proofs</dt>
+                  <dd class="font-medium">{proof_status_count(@proofs, "verified")}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-3 py-3">
+                  <dt class="text-base-content/70">Pending proofs</dt>
+                  <dd class="font-medium">{proof_status_count(@proofs, "pending")}</dd>
+                </div>
               </dl>
-            </div>
-          </div>
 
-          <div class="card panel-card border border-base-300 shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h2 class="card-title text-lg mb-4">GitHub</h2>
-              <p class="text-sm text-base-content/70">
-                Connect GitHub as an account signal. DNS and web proofs are checked separately.
-              </p>
-              <.link
-                navigate={~p"/account/connections/github/start?return_to=/account/proofs"}
-                class={[
-                  "btn btn-primary mt-4 w-full",
-                  !github_oauth_configured?() && "btn-disabled"
-                ]}
+              <p class="text-xs text-base-content/60">{level_label(@breakdown.level)}</p>
+
+              <details
+                :if={@credits_available && @credit_earning_paths != []}
+                class="mt-5 border-t border-base-300 pt-4"
               >
-                Connect GitHub
-              </.link>
-              <p :if={!github_oauth_configured?()} class="mt-2 text-xs text-base-content/60">
-                GitHub OAuth is not configured on this server.
-              </p>
-            </div>
-          </div>
+                <summary class="cursor-pointer text-sm font-medium">How to earn credits</summary>
+                <div class="mt-3 space-y-2 text-xs text-base-content/70">
+                  <p :for={path <- active_earning_paths(@credit_earning_paths)}>
+                    <span class="font-medium text-base-content">{path.label}:</span> {path.reward}
+                  </p>
+                  <p :if={planned_earning_path_labels(@credit_earning_paths) != ""}>
+                    Planned: {planned_earning_path_labels(@credit_earning_paths)}.
+                  </p>
+                </div>
+              </details>
 
-          <div class="card panel-card border border-base-300 shadow-lg">
-            <div class="card-body p-4 sm:p-6">
-              <h2 class="card-title text-lg mb-4">Negative Assertion</h2>
-              <p class="text-sm text-base-content/70">
-                Self-declare that you do not use a specific social account. This is unverified and does not increase score.
-              </p>
-
-              <.form
-                for={%{}}
-                as={:assertion}
-                phx-submit="create_negative_assertion"
-                class="mt-4 space-y-5"
+              <details
+                :if={@credits_available && @credit_action_prices != []}
+                class="mt-4 border-t border-base-300 pt-4"
               >
-                <.input
-                  id="negative-assertion-subject"
-                  type="text"
-                  name="assertion[subject]"
-                  label="Subject"
-                  value={@negative_form["subject"]}
-                  placeholder="twitter.com/your-old-handle"
-                  required
-                />
+                <summary class="cursor-pointer text-sm font-medium">Pricing</summary>
+                <dl class="mt-3 divide-y divide-base-300 text-sm">
+                  <div
+                    :for={price <- @credit_action_prices}
+                    class="flex items-start justify-between gap-4 py-2 first:pt-0 last:pb-0"
+                  >
+                    <dt>{price.label}</dt>
+                    <dd class="text-right text-xs text-base-content/70">
+                      {compact_credit_price(price)}
+                    </dd>
+                  </div>
+                </dl>
+                <p class="mt-3 text-xs text-base-content/60">
+                  {credit_gate_summary(@credit_action_prices)}
+                </p>
+              </details>
 
-                <button class="btn btn-secondary w-full" type="submit">Add assertion</button>
-              </.form>
+              <details
+                :if={@credits_available && visible_restricted_credit_rows(@credit_rows) != []}
+                class="mt-4 border-t border-base-300 pt-4"
+              >
+                <summary class="cursor-pointer text-sm font-medium">Action-specific credits</summary>
+                <dl class="mt-3 divide-y divide-base-300 text-sm">
+                  <div
+                    :for={row <- visible_restricted_credit_rows(@credit_rows)}
+                    class="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+                  >
+                    <dt class="text-base-content/70">{row.label}</dt>
+                    <dd class="font-medium">{row.balance}</dd>
+                  </div>
+                </dl>
+              </details>
+
+              <div class="mt-5 border-t border-base-300 pt-5">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 class="font-semibold text-sm">GitHub</h3>
+                    <p class="mt-1 text-xs text-base-content/60">
+                      Adds an account signal; DNS and web proofs stay separate.
+                    </p>
+                  </div>
+                  <.link
+                    navigate={~p"/account/connections/github/start?return_to=/account/proofs"}
+                    class={[
+                      "btn btn-outline btn-sm shrink-0",
+                      !github_oauth_configured?() && "btn-disabled"
+                    ]}
+                  >
+                    Connect
+                  </.link>
+                </div>
+                <p :if={!github_oauth_configured?()} class="mt-2 text-xs text-base-content/60">
+                  GitHub OAuth is not configured on this server.
+                </p>
+              </div>
+
+              <details class="mt-5 border-t border-base-300 pt-5">
+                <summary class="cursor-pointer text-sm font-medium">Negative assertion</summary>
+                <p class="mt-2 text-xs text-base-content/60">
+                  Self-declare a social account you do not use. It does not increase score.
+                </p>
+
+                <.form
+                  for={%{}}
+                  as={:assertion}
+                  phx-submit="create_negative_assertion"
+                  class="mt-3 space-y-3"
+                >
+                  <.input
+                    id="negative-assertion-subject"
+                    type="text"
+                    name="assertion[subject]"
+                    label="Subject"
+                    value={@negative_form["subject"]}
+                    placeholder="twitter.com/your-old-handle"
+                    required
+                  />
+
+                  <button class="btn btn-secondary btn-sm w-full" type="submit">Add assertion</button>
+                </.form>
+              </details>
             </div>
           </div>
         </div>
@@ -405,10 +465,17 @@ defmodule ElektrineWeb.ProofsLive do
   defp load_proofs(socket, user_id) do
     {proofs, breakdown, atomine_available} = proof_data(user_id)
 
+    {credit_rows, credit_action_prices, credit_earning_paths, credits_available} =
+      credit_data(user_id)
+
     socket
     |> assign(:proofs, proofs)
     |> assign(:breakdown, breakdown)
     |> assign(:atomine_available, atomine_available)
+    |> assign(:credit_rows, credit_rows)
+    |> assign(:credit_action_prices, credit_action_prices)
+    |> assign(:credit_earning_paths, credit_earning_paths)
+    |> assign(:credits_available, credits_available)
     |> assign_new(:last_created_proof, fn -> nil end)
   end
 
@@ -451,6 +518,43 @@ defmodule ElektrineWeb.ProofsLive do
 
       :error ->
         {[], empty_breakdown(), false}
+    end
+  end
+
+  defp credit_data(user_id) do
+    if Code.ensure_loaded?(Atomine.Credits) do
+      accounts = Atomine.Credits.list_accounts(user_id)
+      balances = Map.new(accounts, &{&1.credit_type, &1.balance})
+
+      rows =
+        Atomine.Credits.credit_types()
+        |> Enum.map(fn credit_type ->
+          %{
+            type: credit_type,
+            label: credit_label(credit_type),
+            balance: Map.get(balances, credit_type, 0)
+          }
+        end)
+
+      {rows, credit_action_prices(), credit_earning_paths(), true}
+    else
+      {[], [], [], false}
+    end
+  end
+
+  defp credit_action_prices do
+    if Code.ensure_loaded?(Atomine.CreditPolicy) do
+      Atomine.CreditPolicy.action_prices()
+    else
+      []
+    end
+  end
+
+  defp credit_earning_paths do
+    if Code.ensure_loaded?(Atomine.CreditEarningPolicy) do
+      Atomine.CreditEarningPolicy.earning_paths()
+    else
+      []
     end
   end
 
@@ -586,6 +690,70 @@ defmodule ElektrineWeb.ProofsLive do
   end
 
   defp proof_kind_description(_), do: "Choose where this proof should live."
+
+  defp credit_balance(rows, credit_type) do
+    case Enum.find(rows, &(&1.type == credit_type)) do
+      %{balance: balance} -> balance
+      _ -> 0
+    end
+  end
+
+  defp visible_restricted_credit_rows(rows) do
+    rows
+    |> Enum.reject(&(&1.type == "atomine_credit"))
+    |> Enum.filter(&(&1.balance > 0))
+  end
+
+  defp compact_credit_price(price) do
+    "#{credit_amount_label(price.atomine_cost, "atomine_credit")} / #{credit_amount_label(price.restricted_cost, price.restricted_credit_type)}"
+  end
+
+  defp credit_amount_label(amount, credit_type) do
+    "#{amount} #{credit_unit_label(credit_type)}#{plural_suffix(amount)}"
+  end
+
+  defp credit_label("atomine_credit"), do: "Atomine Credits"
+  defp credit_label("dm_credit"), do: "DM Credits"
+  defp credit_label("email_credit"), do: "Email Credits"
+  defp credit_label("link_credit"), do: "Link Credits"
+  defp credit_label("signup_credit"), do: "Signup Credits"
+  defp credit_label("api_credit"), do: "API Credits"
+  defp credit_label("invite_credit"), do: "Invite Credits"
+  defp credit_label(value), do: titleize_credit_type(value)
+
+  defp credit_unit_label(credit_type) do
+    credit_type
+    |> credit_label()
+    |> String.trim_trailing("s")
+  end
+
+  defp titleize_credit_type(value) do
+    value
+    |> to_string()
+    |> String.replace("_", " ")
+    |> String.split()
+    |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp plural_suffix(1), do: ""
+  defp plural_suffix(_), do: "s"
+
+  defp credit_gate_summary(prices) do
+    if Enum.any?(prices, & &1.gate_enabled) do
+      "Some gates are enabled. TL1+ and admins bypass current priced gates."
+    else
+      "Gates are currently off."
+    end
+  end
+
+  defp active_earning_paths(paths), do: Enum.filter(paths, &(&1.status == :active))
+
+  defp planned_earning_path_labels(paths) do
+    paths
+    |> Enum.filter(&(&1.status != :active))
+    |> Enum.map(&String.replace_prefix(&1.label, "Proof of ", ""))
+    |> Enum.join(", ")
+  end
 
   defp checkable_proof?(proof) do
     proof.claim_type == "positive" and proof.status in ["pending", "verified"] and

@@ -232,6 +232,44 @@ defmodule Elektrine.NotificationsTest do
                notification.type == "new_message" and notification.source_id == message.id
              end)
     end
+
+    test "mark_as_read clears the linked chat unread source" do
+      sender = user_fixture()
+      recipient = user_fixture()
+
+      assert {:ok, conversation} = Messaging.create_dm_conversation(sender.id, recipient.id)
+      assert {:ok, message} = Messaging.create_text_message(conversation.id, sender.id, "hello")
+
+      notification =
+        recipient.id
+        |> Notifications.list_notifications(filter: :unread)
+        |> Enum.find(&(&1.source_id == message.id))
+
+      assert notification
+      assert Messaging.get_unread_count(recipient.id) == 1
+
+      assert :ok = Notifications.mark_as_read(notification.id, recipient.id)
+
+      assert Notifications.get_unread_count(recipient.id) == 0
+      assert Messaging.get_unread_count(recipient.id) == 0
+    end
+
+    test "mark_all_as_read clears linked chat unread sources" do
+      sender = user_fixture()
+      recipient = user_fixture()
+
+      assert {:ok, conversation} = Messaging.create_dm_conversation(sender.id, recipient.id)
+      assert {:ok, _message} = Messaging.create_text_message(conversation.id, sender.id, "one")
+      assert {:ok, _message} = Messaging.create_text_message(conversation.id, sender.id, "two")
+
+      assert Notifications.get_unread_count(recipient.id) == 2
+      assert Messaging.get_unread_count(recipient.id) == 2
+
+      assert :ok = Notifications.mark_all_as_read(recipient.id)
+
+      assert Notifications.get_unread_count(recipient.id) == 0
+      assert Messaging.get_unread_count(recipient.id) == 0
+    end
   end
 
   describe "message notification urls" do

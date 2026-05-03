@@ -109,7 +109,12 @@
   data-chat-e2ee-status={chat_e2ee_status}
 >
   <!-- Z Platform Navigation -->
-  <.e_nav active_tab="chat" class="mb-6" current_user={@current_user} />
+  <.e_nav
+    active_tab="chat"
+    class="mb-6"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+  />
   
 <!-- Hidden elements for call hooks -->
   <div id="call-initiator" phx-hook="CallInitiator" class="hidden"></div>
@@ -594,6 +599,9 @@
 
                     <%= if conversation.messages != [] do %>
                       <% last_message = List.first(conversation.messages) %>
+                      <% last_message_encrypted_payload =
+                        Map.get(last_message, :client_encrypted_payload) ||
+                          Map.get(last_message, "client_encrypted_payload") %>
                       <%= if last_message.sender_id == @current_user.id do %>
                         <% read_status =
                           Map.get(@conversation.last_message_read_status || %{}, conversation.id) %>
@@ -620,7 +628,25 @@
                             </span>
                           <% end %>
                           <span class="truncate">
-                            You: {message_display_content(last_message)}
+                            You:
+                            <%= if last_message_encrypted_payload do %>
+                              <span
+                                id={"conversation-preview-encrypted-message-#{last_message.id}"}
+                                phx-update="ignore"
+                                class="opacity-0"
+                                data-chat-encrypted-preview="true"
+                                data-conversation-id={last_message.conversation_id}
+                                data-key-uid={
+                                  Map.get(last_message_encrypted_payload, "key_uid") ||
+                                    Map.get(last_message_encrypted_payload, :key_uid)
+                                }
+                                data-payload={Jason.encode!(last_message_encrypted_payload)}
+                              >
+                                Encrypted message
+                              </span>
+                            <% else %>
+                              {message_display_content(last_message)}
+                            <% end %>
                           </span>
                         </div>
                       <% else %>
@@ -634,7 +660,24 @@
                               )
                           )
                         }>
-                          {message_display_content(last_message)}
+                          <%= if last_message_encrypted_payload do %>
+                            <span
+                              id={"conversation-preview-encrypted-message-#{last_message.id}"}
+                              phx-update="ignore"
+                              class="opacity-0"
+                              data-chat-encrypted-preview="true"
+                              data-conversation-id={last_message.conversation_id}
+                              data-key-uid={
+                                Map.get(last_message_encrypted_payload, "key_uid") ||
+                                  Map.get(last_message_encrypted_payload, :key_uid)
+                              }
+                              data-payload={Jason.encode!(last_message_encrypted_payload)}
+                            >
+                              Encrypted message
+                            </span>
+                          <% else %>
+                            {message_display_content(last_message)}
+                          <% end %>
                         </p>
                       <% end %>
                     <% else %>
@@ -1178,10 +1221,14 @@
                   <% end %>
                   
 <!-- Message Content -->
-                  <% client_encrypted_payload = Map.get(message, :client_encrypted_payload) %>
+                  <% client_encrypted_payload =
+                    Map.get(message, :client_encrypted_payload) ||
+                      Map.get(message, "client_encrypted_payload") %>
                   <%= if client_encrypted_payload do %>
                     <p
-                      class="text-sm sm:text-base break-words cursor-text select-text opacity-80"
+                      id={"chat-encrypted-message-content-#{message.id}"}
+                      phx-update="ignore"
+                      class="text-sm sm:text-base break-words cursor-text select-text opacity-0"
                       data-chat-encrypted-message="true"
                       data-conversation-id={message.conversation_id}
                       data-key-uid={
@@ -1700,10 +1747,11 @@
             <% end %>
 
             <%= if @conversation.selected.type in ["dm", "group"] do %>
-              <div class="mb-2 flex items-center justify-end gap-2 text-xs text-base-content/70">
+              <div class="mb-2 flex flex-col items-end gap-1 text-xs text-base-content/70">
                 <button
                   type="button"
                   id="chat-e2ee-toggle"
+                  phx-update="ignore"
                   data-chat-e2ee-toggle="true"
                   data-chat-e2ee-capable={if chat_e2ee_ready, do: "true", else: "false"}
                   class="btn btn-xs btn-ghost gap-1"
@@ -1712,6 +1760,13 @@
                   <.icon name="hero-lock-open" class="w-3.5 h-3.5" />
                   <span data-chat-e2ee-toggle-label>Encrypted chat off</span>
                 </button>
+                <p
+                  class="hidden max-w-full text-right text-base-content/70"
+                  role="status"
+                  aria-live="polite"
+                  data-chat-e2ee-status-message="true"
+                >
+                </p>
               </div>
             <% end %>
 
@@ -1730,6 +1785,7 @@
                 phx-change="validate_upload"
                 class="space-y-2"
                 data-chat-e2ee-ready={if chat_e2ee_ready, do: "true", else: "false"}
+                data-message-loading={if @message.loading_messages, do: "true", else: "false"}
                 data-has-uploads={
                   if @uploads.chat_attachments.entries == [], do: "false", else: "true"
                 }
@@ -1844,8 +1900,10 @@
                       type="submit"
                       class="btn btn-circle p-0 min-h-0 h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-secondary hover:bg-secondary/90 border-none text-secondary-content"
                       disabled={
-                        ((!@message.new_message || String.trim(@message.new_message) == "") &&
-                           @uploads.chat_attachments.entries == []) || @message.loading_messages
+                        @message.loading_messages ||
+                          (not chat_e2ee_ready &&
+                             ((!@message.new_message || String.trim(@message.new_message) == "") &&
+                                @uploads.chat_attachments.entries == []))
                       }
                       title="Send"
                     >

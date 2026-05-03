@@ -69,6 +69,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
     # For counts, use fresh DB data to avoid showing stale cached values
     # The slight delay is better than showing wrong numbers (e.g. 75 -> 12)
     fresh_counts = Email.get_all_unread_counts(mailbox.id)
+    custom_folders = Email.list_custom_folders(user.id)
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
@@ -83,6 +84,8 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
      |> assign(:page_title, "Email")
      |> assign(:mailbox, mailbox)
      |> assign(:mailbox_addresses, mailbox_addresses(mailbox, user))
+     |> assign(:digest_filter_enabled, Elektrine.Email.Mailbox.digest_filter_enabled?(mailbox))
+     |> assign(:ledger_filter_enabled, Elektrine.Email.Mailbox.ledger_filter_enabled?(mailbox))
      |> assign(:loading_sidebar, true)
      |> assign(:storage_info, cached_storage)
      |> assign(:unread_count, fresh_counts.inbox)
@@ -104,7 +107,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
      |> assign(:show_reply_later_modal, false)
      |> assign(:reply_later_message, nil)
      |> assign(:user_labels, [])
-     |> assign(:custom_folders, [])
+     |> assign(:custom_folders, custom_folders)
      |> assign(:pagination, %{
        page: 1,
        per_page: 20,
@@ -232,14 +235,12 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
     rate_limit_task = Task.async(fn -> RateLimiter.get_rate_limit_status(user.id) end)
     storage_task = Task.async(fn -> Elektrine.Accounts.Storage.get_storage_info(user.id) end)
     labels_task = Task.async(fn -> Email.list_labels(user.id) end)
-    folders_task = Task.async(fn -> Email.list_custom_folders(user.id) end)
     # Fetch fresh unread counts from DB (not cache) to ensure accuracy
     all_counts_task = Task.async(fn -> Email.get_all_unread_counts(mailbox.id) end)
 
     rate_limit_status = Task.await(rate_limit_task)
     storage_info = Task.await(storage_task)
     user_labels = Task.await(labels_task)
-    custom_folders = Task.await(folders_task)
     fresh_counts = Task.await(all_counts_task)
 
     inbox_unread_count = fresh_counts.inbox
@@ -269,7 +270,6 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
      |> assign(:rate_limit_status, rate_limit_status)
      |> assign(:storage_info, storage_info)
      |> assign(:user_labels, user_labels)
-     |> assign(:custom_folders, custom_folders)
      |> assign(:inbox_unread_count, inbox_unread_count)
      |> assign(:digest_count, digest_count)
      |> assign(:ledger_count, ledger_count)
@@ -410,7 +410,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
     socket =
       case tab do
         "inbox" ->
-          filter = params["filter"] || "inbox"
+          filter = normalize_inbox_filter(mailbox, params["filter"] || "inbox")
 
           socket =
             if filter == "aliases" do
@@ -651,6 +651,16 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
     end
   end
 
+  defp normalize_inbox_filter(mailbox, "digest") do
+    if Elektrine.Email.Mailbox.digest_filter_enabled?(mailbox), do: "digest", else: "inbox"
+  end
+
+  defp normalize_inbox_filter(mailbox, "ledger") do
+    if Elektrine.Email.Mailbox.ledger_filter_enabled?(mailbox), do: "ledger", else: "inbox"
+  end
+
+  defp normalize_inbox_filter(_mailbox, filter), do: filter
+
   defp get_page_title(tab, _params \\ %{}) do
     case tab do
       "inbox" -> "Inbox"
@@ -669,6 +679,27 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
       _ -> "Email"
     end
   end
+
+  defp message_list_count_label(messages, total_count) when is_list(messages) do
+    visible_count = length(messages)
+
+    cond do
+      total_count == visible_count ->
+        ngettext("1 result", "%{count} results", total_count, count: total_count)
+
+      visible_count == 1 ->
+        gettext("1 thread, %{count} messages", count: total_count)
+
+      true ->
+        gettext("%{threads} threads, %{count} messages",
+          threads: visible_count,
+          count: total_count
+        )
+    end
+  end
+
+  defp message_list_count_label(_messages, total_count),
+    do: ngettext("1 result", "%{count} results", total_count, count: total_count)
 
   defp maybe_open_calendar_composer(socket, "calendar", %{"composer" => composer})
        when composer in ["event", "task"] do

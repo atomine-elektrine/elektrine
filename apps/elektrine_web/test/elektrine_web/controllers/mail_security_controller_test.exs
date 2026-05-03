@@ -7,7 +7,7 @@ defmodule ElektrineWeb.MailSecurityControllerTest do
 
   test "serves MTA-STS policy for managed mail zones", %{conn: conn} do
     user = user_fixture()
-    domain = "mailpolicy#{System.unique_integer([:positive])}.example.com"
+    domain = "mailpolicy#{System.unique_integer([:positive])}.elektrine.dev"
 
     {:ok, zone} = DNS.create_zone(user, %{"domain" => domain})
 

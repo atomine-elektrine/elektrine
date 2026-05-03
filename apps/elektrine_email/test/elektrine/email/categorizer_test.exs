@@ -62,6 +62,38 @@ defmodule Elektrine.Email.CategorizerTest do
       assert result["is_receipt"] == true
     end
 
+    test "falls back to inbox when digest category filter is disabled" do
+      message = %{
+        "subject" => "Special Offer: 50% Off Everything!",
+        "from" => "marketing@store.com",
+        "to" => "customers@list.store.com",
+        "text_body" => "Limited time offer! Click here to shop now. Unsubscribe.",
+        "html_body" => "<a href='unsubscribe'>Unsubscribe</a>",
+        "metadata" => %{"headers" => %{"list-unsubscribe" => "<mailto:unsubscribe@store.com>"}}
+      }
+
+      result = Categorizer.categorize_message(message, enabled_category_filters: ["ledger"])
+
+      assert result["category"] == "inbox"
+      assert result["metadata"]["categorization"]["source"] == "disabled_category_filter"
+    end
+
+    test "falls back to inbox when ledger category filter is disabled" do
+      message = %{
+        "subject" => "Your order receipt #12345",
+        "from" => "receipts@amazon.com",
+        "to" => "customer@email.com",
+        "text_body" => "Order Total: $99.99\nThank you for your purchase!",
+        "html_body" => "<table><tr><td>Item</td><td>Price</td></tr></table>",
+        "metadata" => %{"headers" => %{}}
+      }
+
+      result = Categorizer.categorize_message(message, enabled_category_filters: ["feed"])
+
+      assert result["category"] == "inbox"
+      assert result["is_receipt"] == true
+    end
+
     test "detects newsletter email" do
       message = %{
         "subject" => "Tech Weekly Newsletter - Issue #42",

@@ -9,7 +9,7 @@ defmodule Atomine.Personhood do
 
   import Ecto.Query, warn: false
 
-  alias Atomine.Proof
+  alias Atomine.{CreditEarningPolicy, Proof}
   alias Atomine.Scoring
   alias Atomine.TrustSession
   alias Elektrine.Accounts.ConnectedAccount
@@ -224,11 +224,13 @@ defmodule Atomine.Personhood do
         proof
         |> Proof.changeset(attrs)
         |> Repo.update()
+        |> grant_verified_proof_credits()
 
       nil ->
         %Proof{}
         |> Proof.changeset(attrs)
         |> Repo.insert()
+        |> grant_verified_proof_credits()
     end
   end
 
@@ -252,6 +254,7 @@ defmodule Atomine.Personhood do
       review_notes: notes
     })
     |> Repo.update()
+    |> grant_verified_proof_credits()
   end
 
   @doc "Rejects a pending proof without contributing score."
@@ -796,7 +799,12 @@ defmodule Atomine.Personhood do
   end
 
   defp proof_signing_secret do
-    Elektrine.RuntimeSecrets.secret_key_base() || "atomine-dev-proof-signing-secret"
+    Elektrine.RuntimeSecrets.secret_key_base() ||
+      if Elektrine.RuntimeEnv.dev_or_test?() do
+        "atomine-dev-proof-signing-secret"
+      else
+        raise "proof signing secret is not configured"
+      end
   end
 
   defp encode_proof_field(value), do: value |> to_string() |> URI.encode_www_form()
@@ -874,6 +882,13 @@ defmodule Atomine.Personhood do
 
   defp verified_live_status(%Proof{proof_mode: "live"}), do: "active"
   defp verified_live_status(%Proof{} = proof), do: proof.live_status
+
+  defp grant_verified_proof_credits({:ok, %Proof{} = proof}) do
+    _ = CreditEarningPolicy.grant_for_verified_proof(proof)
+    {:ok, proof}
+  end
+
+  defp grant_verified_proof_credits(result), do: result
 
   defp rejected_live_status(%Proof{proof_mode: "live"}), do: "inactive"
   defp rejected_live_status(%Proof{} = proof), do: proof.live_status

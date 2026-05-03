@@ -6,6 +6,7 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
+  alias Elektrine.Messaging
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
   alias Elektrine.Social.Message
@@ -363,6 +364,14 @@ defmodule Elektrine.Notifications do
   def mark_as_read(notification_id, user_id) do
     now = Elektrine.Time.utc_now()
 
+    notification =
+      Repo.get_by(Notification,
+        id: notification_id,
+        user_id: user_id
+      )
+
+    sync_notification_sources_as_read(user_id, [notification])
+
     from(n in Notification,
       where: n.id == ^notification_id and n.user_id == ^user_id
     )
@@ -483,6 +492,14 @@ defmodule Elektrine.Notifications do
   def mark_all_as_read(user_id) do
     now = Elektrine.Time.utc_now()
 
+    unread_notifications =
+      from(n in Notification,
+        where: n.user_id == ^user_id and is_nil(n.read_at)
+      )
+      |> Repo.all()
+
+    sync_notification_sources_as_read(user_id, unread_notifications)
+
     from(n in Notification,
       where: n.user_id == ^user_id and is_nil(n.read_at)
     )
@@ -505,6 +522,67 @@ defmodule Elektrine.Notifications do
     )
 
     :ok
+  end
+
+  defp sync_notification_sources_as_read(user_id, notifications) do
+    notifications =
+      notifications
+      |> List.wrap()
+      |> Enum.reject(&is_nil/1)
+      |> Enum.filter(&is_nil(&1.read_at))
+
+    mark_chat_notification_sources_as_read(user_id, notifications)
+    mark_email_notification_sources_as_read(user_id, notifications)
+
+    :ok
+  end
+
+  defp mark_chat_notification_sources_as_read(user_id, notifications) do
+    notifications
+    |> Enum.each(fn
+      %Notification{type: type, source_type: "message", source_id: message_id}
+      when type in ["new_message", "reply"] and is_integer(message_id) ->
+        case Messaging.get_chat_message(message_id) do
+          %{conversation_id: conversation_id, sender_id: sender_id, id: id}
+          when is_integer(conversation_id) and sender_id != user_id ->
+            Messaging.mark_chat_messages_read(conversation_id, user_id, id)
+
+          _ ->
+            :ok
+        end
+
+      _ ->
+        :ok
+    end)
+  end
+
+  defp mark_email_notification_sources_as_read(user_id, notifications) do
+    with true <- email_source_available?(),
+         %{id: mailbox_id} <- Elektrine.Email.get_user_mailbox(user_id) do
+      Enum.each(notifications, fn
+        %Notification{type: "email_received", source_type: "email", source_id: message_id}
+        when is_integer(message_id) ->
+          case Elektrine.Email.get_message_internal(message_id) do
+            %{mailbox_id: ^mailbox_id, read: false} = message ->
+              Elektrine.Email.mark_as_read(message)
+
+            _ ->
+              :ok
+          end
+
+        _ ->
+          :ok
+      end)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp email_source_available? do
+    Code.ensure_loaded?(Elektrine.Email) and
+      function_exported?(Elektrine.Email, :get_user_mailbox, 1) and
+      function_exported?(Elektrine.Email, :get_message_internal, 1) and
+      function_exported?(Elektrine.Email, :mark_as_read, 1)
   end
 
   @doc """

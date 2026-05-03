@@ -53,11 +53,47 @@ defmodule ArblargWeb.ChatLive.Components.ConversationList do
 
             <%= if conversation.messages != [] do %>
               <% last_message = List.first(conversation.messages) %>
+              <% encrypted_payload =
+                Map.get(last_message, :client_encrypted_payload) ||
+                  Map.get(last_message, "client_encrypted_payload") %>
               <p class="text-sm opacity-70 truncate">
                 <%= if last_message.sender_id == @current_user.id do %>
-                  You: {message_display_content(last_message)}
+                  You:
+                  <%= if encrypted_payload do %>
+                    <span
+                      id={"conversation-list-encrypted-preview-#{last_message.id}"}
+                      phx-update="ignore"
+                      class="opacity-0"
+                      data-chat-encrypted-preview="true"
+                      data-conversation-id={last_message.conversation_id}
+                      data-key-uid={
+                        Map.get(encrypted_payload, "key_uid") || Map.get(encrypted_payload, :key_uid)
+                      }
+                      data-payload={Jason.encode!(encrypted_payload)}
+                    >
+                      Encrypted message
+                    </span>
+                  <% else %>
+                    {message_display_content(last_message)}
+                  <% end %>
                 <% else %>
-                  {message_display_content(last_message)}
+                  <%= if encrypted_payload do %>
+                    <span
+                      id={"conversation-list-encrypted-preview-#{last_message.id}"}
+                      phx-update="ignore"
+                      class="opacity-0"
+                      data-chat-encrypted-preview="true"
+                      data-conversation-id={last_message.conversation_id}
+                      data-key-uid={
+                        Map.get(encrypted_payload, "key_uid") || Map.get(encrypted_payload, :key_uid)
+                      }
+                      data-payload={Jason.encode!(encrypted_payload)}
+                    >
+                      Encrypted message
+                    </span>
+                  <% else %>
+                    {message_display_content(last_message)}
+                  <% end %>
                 <% end %>
               </p>
             <% else %>
@@ -112,10 +148,14 @@ defmodule ArblargWeb.ChatLive.Components.ConversationList do
   defp fallback_message_text(content, _message), do: content
 
   defp fallback_message_label(message) do
+    client_encrypted_payload = map_message_value(message, :client_encrypted_payload)
     message_type = map_message_value(message, :message_type)
     media_urls = map_message_value(message, :media_urls) || []
 
     cond do
+      is_map(client_encrypted_payload) ->
+        "Encrypted message"
+
       message_type == "voice" ->
         "Voice message"
 

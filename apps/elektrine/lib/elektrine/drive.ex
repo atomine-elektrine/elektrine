@@ -1037,7 +1037,25 @@ defmodule Elektrine.Drive do
       |> List.first()
       |> to_string()
 
-    if value == "", do: MIME.from_path(filename || "") || "application/octet-stream", else: value
+    normalized =
+      if value == "",
+        do: MIME.from_path(filename || "") || "application/octet-stream",
+        else: value
+
+    if active_content_type?(normalized), do: "application/octet-stream", else: normalized
+  end
+
+  defp active_content_type?(content_type) do
+    content_type in [
+      "text/html",
+      "text/xml",
+      "text/javascript",
+      "application/javascript",
+      "application/ecmascript",
+      "application/xml",
+      "application/xhtml+xml",
+      "image/svg+xml"
+    ]
   end
 
   defp put_storage_binary(user_id, binary, filename, content_type) do

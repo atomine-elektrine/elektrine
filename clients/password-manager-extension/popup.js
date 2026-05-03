@@ -2,10 +2,13 @@ import { createEntry, deleteVault, getEntry, listEntries, setupVault } from "./l
 import { getSettings } from "./lib/storage.js"
 import {
   VERIFIER_TEXT,
+  MIN_PASSPHRASE_LENGTH,
   createPassword,
   decryptValue,
   encryptValue,
   isClientPayload,
+  vaultEntryAssociatedData,
+  vaultMetadataAssociatedData,
   verifyPassphrase
 } from "./lib/crypto.js"
 
@@ -150,13 +153,19 @@ async function refreshVaultIndex() {
   try {
     setFeedback("Loading vault...", "info")
     const data = await listEntries(state.settings)
-    state.entries = Array.isArray(data.entries) ? data.entries : []
+    let entries = Array.isArray(data.entries) ? data.entries : []
     state.vaultConfigured = Boolean(data.vault_configured)
     state.vaultVerifier = data.vault_verifier || null
 
     if (state.vaultConfigured && state.passphrase) {
       await validateSavedPassphrase()
     }
+
+    if (state.vaultConfigured && isUnlocked()) {
+      entries = await hydrateEntryMetadata(entries)
+    }
+
+    state.entries = entries
 
     render()
 
@@ -200,8 +209,8 @@ async function handleSetupSubmit(event) {
   const confirmation = refs.setupPassphraseConfirm.value.trim()
 
   try {
-    if (passphrase.length < 8) {
-      throw new Error("Use a vault passphrase with at least 8 characters.")
+    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
+      throw new Error(`Use a vault passphrase with at least ${MIN_PASSPHRASE_LENGTH} characters.`)
     }
 
     if (passphrase !== confirmation) {
@@ -321,13 +330,26 @@ async function handleCreateEntrySubmit(event) {
 
     setBusy(refs.createEntrySubmitButton, true)
 
-    const encryptedPassword = await encryptValue(password, state.passphrase)
-    const encryptedNotes = notes ? await encryptValue(notes, state.passphrase) : null
+    const metadata = { title, login_username: loginUsername, website }
+    const encryptedMetadata = await encryptValue(
+      JSON.stringify(metadata),
+      state.passphrase,
+      vaultMetadataAssociatedData()
+    )
+    const encryptedPassword = await encryptValue(
+      password,
+      state.passphrase,
+      vaultEntryAssociatedData(metadata, "password")
+    )
+    const encryptedNotes = notes
+      ? await encryptValue(notes, state.passphrase, vaultEntryAssociatedData(metadata, "notes"))
+      : null
 
     await createEntry(state.settings, {
-      title,
-      login_username: loginUsername,
-      website,
+      title: "Encrypted entry",
+      login_username: "",
+      website: "",
+      encrypted_metadata: encryptedMetadata,
       encrypted_password: encryptedPassword,
       encrypted_notes: encryptedNotes
     })
@@ -460,7 +482,7 @@ async function copyUsername(entry) {
 
 async function loadDecryptedEntry(entryId) {
   const data = await getEntry(state.settings, entryId)
-  const entry = data.entry
+  const entry = await hydrateEntryMetadataValue(data.entry)
 
   if (!isClientPayload(entry?.encrypted_password)) {
     throw new Error("This entry is not stored in the current client-encrypted format.")
@@ -468,11 +490,47 @@ async function loadDecryptedEntry(entryId) {
 
   return {
     entry,
-    password: await decryptValue(entry.encrypted_password, state.passphrase),
+    password: await decryptValue(
+      entry.encrypted_password,
+      state.passphrase,
+      vaultEntryAssociatedData(entry, "password")
+    ),
     notes:
       entry.encrypted_notes && isClientPayload(entry.encrypted_notes)
-        ? await decryptValue(entry.encrypted_notes, state.passphrase)
+        ? await decryptValue(
+            entry.encrypted_notes,
+            state.passphrase,
+            vaultEntryAssociatedData(entry, "notes")
+          )
         : ""
+  }
+}
+
+async function hydrateEntryMetadata(entries) {
+  return Promise.all(entries.map((entry) => hydrateEntryMetadataValue(entry)))
+}
+
+async function hydrateEntryMetadataValue(entry) {
+  if (!entry || !isUnlocked() || !isClientPayload(entry.encrypted_metadata)) {
+    return entry
+  }
+
+  try {
+    const decrypted = await decryptValue(
+      entry.encrypted_metadata,
+      state.passphrase,
+      vaultMetadataAssociatedData()
+    )
+    const metadata = JSON.parse(decrypted)
+
+    return {
+      ...entry,
+      title: metadata.title || entry.title || "Encrypted entry",
+      login_username: metadata.login_username || "",
+      website: metadata.website || ""
+    }
+  } catch (_error) {
+    return entry
   }
 }
 

@@ -6,7 +6,7 @@ defmodule Elektrine.Email.Processing do
 
   import Ecto.Query, warn: false
   require Logger
-  alias Elektrine.Email.Message
+  alias Elektrine.Email.{Mailbox, Message}
   alias Elektrine.Repo
 
   @doc """
@@ -59,7 +59,12 @@ defmodule Elektrine.Email.Processing do
             }
 
             # Apply categorization
-            categorized_attrs = Elektrine.Email.Categorizer.categorize_message(message_attrs)
+            categorized_attrs =
+              Elektrine.Email.Categorizer.categorize_message(
+                message_attrs,
+                categorization_opts(message)
+              )
+
             new_category = categorized_attrs["category"]
 
             # Only update if category actually changed
@@ -127,7 +132,7 @@ defmodule Elektrine.Email.Processing do
         }
 
         # Apply categorization
-        categorized_attrs = categorize_message(message_attrs)
+        categorized_attrs = categorize_message(message_attrs, categorization_opts(message))
 
         # Check if anything would change
         would_change_category = categorized_attrs["category"] != message.category
@@ -168,4 +173,20 @@ defmodule Elektrine.Email.Processing do
   # Helper function to conditionally put values in a map
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp categorization_opts(%Message{mailbox_id: mailbox_id}) do
+    case Elektrine.Email.Mailboxes.get_mailbox(mailbox_id) do
+      %Mailbox{user_id: user_id} = mailbox when is_integer(user_id) ->
+        [
+          user_id: user_id,
+          enabled_category_filters: Mailbox.enabled_category_filter_categories(mailbox)
+        ]
+
+      %Mailbox{} = mailbox ->
+        [enabled_category_filters: Mailbox.enabled_category_filter_categories(mailbox)]
+
+      _ ->
+        []
+    end
+  end
 end

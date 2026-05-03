@@ -259,6 +259,8 @@ defmodule Elektrine.IMAP.Server do
       connection_start: now,
       last_activity: now,
       idle_start: nil,
+      auth_method: nil,
+      auth_app_password_id: nil,
       initial_data: initial_data,
       tls_opts: tls_opts,
       allow_insecure_auth: allow_insecure_auth

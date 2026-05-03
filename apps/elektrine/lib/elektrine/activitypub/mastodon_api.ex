@@ -38,6 +38,17 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   def fetch_status_counts(_), do: nil
 
   @doc """
+  Fetch counts for a post struct/map, using `activitypub_url` as a fallback when
+  `activitypub_id` is not directly addressable by a Mastodon-compatible API.
+  """
+  def fetch_status_counts_for_post(post) do
+    case status_count_lookup(post) do
+      {_result_key, status_url} -> fetch_status_counts(status_url)
+      nil -> nil
+    end
+  end
+
+  @doc """
   Fetch counts for multiple statuses in parallel.
   Returns a map of activitypub_id => counts.
   Uses yield_many to avoid blocking on slow/failed requests.
@@ -45,13 +56,19 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   def fetch_statuses_counts(posts) when is_list(posts) do
     tasks =
       posts
-      |> Enum.filter(&mastodon_compatible?/1)
-      |> Enum.map(fn post ->
-        Task.async(fn ->
-          activitypub_id = get_activitypub_id(post)
-          counts = fetch_status_counts(activitypub_id)
-          {activitypub_id, counts}
-        end)
+      |> Enum.flat_map(fn post ->
+        case status_count_lookup(post) do
+          {result_key, status_url} ->
+            [
+              Task.async(fn ->
+                counts = fetch_status_counts(status_url)
+                {result_key, counts}
+              end)
+            ]
+
+          nil ->
+            []
+        end
       end)
 
     # Use yield_many with 5s timeout - accept whatever completes in time
@@ -133,44 +150,9 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   This includes Misskey note URLs because count lookup falls back to `/api/notes/show`.
   """
   def count_api_compatible?(post) do
-    activitypub_id = get_activitypub_id(post)
-
-    cond do
-      is_nil(activitypub_id) ->
-        false
-
-      # Lemmy posts have /post/ pattern - not Mastodon
-      String.contains?(activitypub_id, "/post/") ->
-        false
-
-      # Lemmy comments have /comment/ pattern
-      String.contains?(activitypub_id, "/comment/") ->
-        false
-
-      # Mastodon/Pleroma/Akkoma pattern: /users/{user}/statuses/{id}
-      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/\d+}) ->
-        true
-
-      # Misskey/Calckey pattern: /notes/{id}
-      String.match?(activitypub_id, ~r{/notes/[a-zA-Z0-9]+$}) ->
-        true
-
-      # Pixelfed pattern: /p/{user}/{id}
-      String.match?(activitypub_id, ~r{/p/[^/]+/\d+$}) ->
-        true
-
-      # GoToSocial pattern: /users/{user}/statuses/{id}
-      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/[A-Z0-9]+$}i) ->
-        true
-
-      # Friendica pattern: /objects/{uuid}
-      String.match?(activitypub_id, ~r{/objects/[a-f0-9-]+$}i) ->
-        true
-
-      # Generic: try if it has a recognizable domain
-      true ->
-        false
-    end
+    post
+    |> status_url_candidates()
+    |> Enum.any?(&count_api_compatible_url?/1)
   end
 
   @doc """
@@ -178,37 +160,9 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   `/api/v1/statuses/:id`, `/context`, `/favourited_by`, and `/reblogged_by`.
   """
   def mastodon_compatible?(post) do
-    activitypub_id = get_activitypub_id(post)
-
-    cond do
-      is_nil(activitypub_id) ->
-        false
-
-      String.contains?(activitypub_id, "/post/") ->
-        false
-
-      String.contains?(activitypub_id, "/comment/") ->
-        false
-
-      # Mastodon/Pleroma/Akkoma pattern: /users/{user}/statuses/{id}
-      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/\d+}) ->
-        true
-
-      # Pixelfed pattern: /p/{user}/{id}
-      String.match?(activitypub_id, ~r{/p/[^/]+/\d+$}) ->
-        true
-
-      # GoToSocial pattern: /users/{user}/statuses/{id}
-      String.match?(activitypub_id, ~r{/users/[^/]+/statuses/[A-Z0-9]+$}i) ->
-        true
-
-      # Friendica pattern: /objects/{uuid}
-      String.match?(activitypub_id, ~r{/objects/[a-f0-9-]+$}i) ->
-        true
-
-      true ->
-        false
-    end
+    post
+    |> status_url_candidates()
+    |> Enum.any?(&mastodon_compatible_url?/1)
   end
 
   @doc """
@@ -258,6 +212,53 @@ defmodule Elektrine.ActivityPub.MastodonApi do
         :error
     end
   end
+
+  defp status_count_lookup(post) do
+    candidates = status_url_candidates(post)
+
+    status_url =
+      Enum.find(candidates, &direct_count_api_url?/1) ||
+        Enum.find(candidates, &count_api_compatible_url?/1)
+
+    if status_url do
+      {get_activitypub_id(post) || status_url, status_url}
+    end
+  end
+
+  defp status_url_candidates(post) do
+    [get_activitypub_id(post), get_activitypub_url(post)]
+    |> Enum.filter(&(is_binary(&1) and String.trim(&1) != ""))
+    |> Enum.uniq()
+  end
+
+  defp count_api_compatible_url?(url) when is_binary(url) do
+    cond do
+      # Lemmy posts/comments are handled by LemmyApi, not Mastodon-compatible APIs.
+      String.contains?(url, "/post/") -> false
+      String.contains?(url, "/comment/") -> false
+      direct_count_api_url?(url) -> true
+      # Friendica/Akkoma object URLs may still be resolvable by API search paths.
+      String.match?(url, ~r{/objects/[a-f0-9-]+(?:$|[/?#])}i) -> true
+      true -> false
+    end
+  end
+
+  defp count_api_compatible_url?(_), do: false
+
+  defp mastodon_compatible_url?(url) when is_binary(url) do
+    count_api_compatible_url?(url) && !String.match?(url, ~r{/notes/[a-zA-Z0-9]+(?:$|[/?#])})
+  end
+
+  defp mastodon_compatible_url?(_), do: false
+
+  defp direct_count_api_url?(url) when is_binary(url) do
+    String.match?(url, ~r{/users/[^/]+/statuses/[a-zA-Z0-9_-]+(?:$|[/?#])}) ||
+      String.match?(url, ~r{/@[^/]+/[a-zA-Z0-9_-]+(?:$|[/?#])}) ||
+      String.match?(url, ~r{/notes/[a-zA-Z0-9]+(?:$|[/?#])}) ||
+      String.match?(url, ~r{/p/[^/]+/\d+(?:$|[/?#])})
+  end
+
+  defp direct_count_api_url?(_), do: false
 
   defp fetch_context_from_api(domain, status_id, root_status_url, opts, root_status \\ nil) do
     api_url = "https://#{domain}/api/v1/statuses/#{status_id}/context"
@@ -508,6 +509,12 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   end
 
   defp get_activitypub_id(%{activitypub_id: id}) when is_binary(id), do: id
+  defp get_activitypub_id(%{"activitypub_id" => id}) when is_binary(id), do: id
   defp get_activitypub_id(%{"id" => id}) when is_binary(id), do: id
   defp get_activitypub_id(_), do: nil
+
+  defp get_activitypub_url(%{activitypub_url: url}) when is_binary(url), do: url
+  defp get_activitypub_url(%{"activitypub_url" => url}) when is_binary(url), do: url
+  defp get_activitypub_url(%{"url" => url}) when is_binary(url), do: url
+  defp get_activitypub_url(_), do: nil
 end

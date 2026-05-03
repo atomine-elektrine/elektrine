@@ -54,7 +54,8 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert conn.resp_body == html_content
       assert {"content-type", "text/html; charset=utf-8"} in conn.resp_headers
       [csp] = get_resp_header(conn, "content-security-policy")
-      assert csp =~ "script-src 'self' https: http: 'unsafe-inline'"
+      assert csp =~ "script-src 'self' https: 'unsafe-inline'"
+      refute csp =~ "script-src 'self' https: http:"
       refute csp =~ "unsafe-eval"
       assert csp =~ "object-src 'none'"
       assert csp =~ "frame-ancestors 'none'"

@@ -44,6 +44,11 @@ defmodule Elektrine.Email do
   defdelegate delete_mailbox(mailbox), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox_forwarding(mailbox, attrs), to: Elektrine.Email.Mailboxes
   defdelegate change_mailbox_forwarding(mailbox, attrs \\ %{}), to: Elektrine.Email.Mailboxes
+  defdelegate update_mailbox_category_filters(mailbox, attrs), to: Elektrine.Email.Mailboxes
+
+  defdelegate change_mailbox_category_filters(mailbox, attrs \\ %{}),
+    to: Elektrine.Email.Mailboxes
+
   defdelegate get_mailbox_forward_target(mailbox), to: Elektrine.Email.Mailboxes
 
   # Delegate message functions to Messages module

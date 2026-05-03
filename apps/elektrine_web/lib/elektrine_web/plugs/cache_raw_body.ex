@@ -9,17 +9,29 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
 
   @behaviour Plug
 
+  @default_max_length 1 * 1024 * 1024
+
   @impl true
   def init(opts) do
     paths = Keyword.get(opts, :paths, [])
     suffixes = Keyword.get(opts, :suffixes, [])
-    %{paths: paths, suffixes: suffixes}
+    max_length = Keyword.get(opts, :max_length, @default_max_length)
+    max_lengths = Keyword.get(opts, :max_lengths, %{})
+    %{paths: paths, suffixes: suffixes, max_length: max_length, max_lengths: max_lengths}
   end
 
   @impl true
-  def call(%Plug.Conn{request_path: request_path} = conn, %{paths: paths, suffixes: suffixes}) do
+  def call(
+        %Plug.Conn{request_path: request_path} = conn,
+        %{paths: paths, suffixes: suffixes, max_length: max_length, max_lengths: max_lengths}
+      ) do
     if request_path in paths or Enum.any?(suffixes, &String.ends_with?(request_path, &1)) do
-      Plug.Conn.put_private(conn, :cache_raw_body, true)
+      conn
+      |> Plug.Conn.put_private(:cache_raw_body, true)
+      |> Plug.Conn.put_private(
+        :raw_body_max_length,
+        Map.get(max_lengths, request_path, max_length)
+      )
     else
       conn
     end
@@ -48,18 +60,30 @@ defmodule ElektrineWeb.Plugs.CacheRawBody do
 
     case Plug.Conn.read_body(conn, opts) do
       {:ok, chunk, conn} ->
-        body = acc <> chunk
+        with {:ok, body} <- append_chunk(acc, chunk, max_length) do
+          conn =
+            conn |> Plug.Conn.assign(:raw_body, body) |> Plug.Conn.put_private(:cached_body, body)
 
-        conn =
-          conn |> Plug.Conn.assign(:raw_body, body) |> Plug.Conn.put_private(:cached_body, body)
-
-        {:ok, body, conn}
+          {:ok, body, conn}
+        end
 
       {:more, chunk, conn} ->
-        read_and_cache_full_body(conn, opts, acc <> chunk)
+        with {:ok, body} <- append_chunk(acc, chunk, max_length) do
+          read_and_cache_full_body(conn, opts, body)
+        end
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp append_chunk(acc, chunk, max_length) when is_integer(max_length) do
+    if byte_size(acc) + byte_size(chunk) > max_length do
+      {:error, :too_large}
+    else
+      {:ok, acc <> chunk}
+    end
+  end
+
+  defp append_chunk(acc, chunk, _max_length), do: {:ok, acc <> chunk}
 end

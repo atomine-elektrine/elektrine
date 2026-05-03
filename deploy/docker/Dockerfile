@@ -137,7 +137,7 @@ RUN for i in 1 2 3 4 5; do \
 
 # Install npm dependencies for assets with retry (includes tailwindcss)
 RUN for i in 1 2 3 4 5; do \
-      if (cd apps/elektrine/assets && npm install); then \
+      if (cd apps/elektrine/assets && npm ci); then \
         break; \
       fi; \
       if [ "$i" = "5" ]; then \
@@ -221,5 +221,7 @@ COPY --from=builder --chown=nobody:root /app/_deploy_release/${RELEASE_NAME} ./
 
 # Expose ports for HTTP and HTTPS (non-privileged ports, fly.toml maps external 80/443)
 EXPOSE 8080 8443
+
+USER nobody:nogroup
 
 CMD ["/app/docker-entrypoint.sh"]

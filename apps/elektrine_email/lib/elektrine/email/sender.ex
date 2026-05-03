@@ -252,6 +252,7 @@ defmodule Elektrine.Email.Sender do
                    delivery_plan.external.bcc
                  ),
                :ok <- validate_external_recipient_domains(external_params),
+               :ok <- maybe_spend_email_credit(user_id, delivery_plan),
                {:ok, swoosh_response} <- send_via_swoosh(external_params) do
             stored_params = merge_pgp_message_body(formatted_params, pgp_params)
 
@@ -1937,6 +1938,37 @@ defmodule Elektrine.Email.Sender do
   defp maybe_record_send(_user_id, %{skip_rate_limit: true}), do: :ok
   defp maybe_record_send(_user_id, %{"skip_rate_limit" => true}), do: :ok
   defp maybe_record_send(user_id, _params), do: RateLimiter.record_send(user_id)
+
+  defp maybe_spend_email_credit(user_id, delivery_plan) do
+    case email_credit_audience(delivery_plan) do
+      nil ->
+        :ok
+
+      audience ->
+        if Code.ensure_loaded?(Atomine.CreditPolicy) do
+          Atomine.CreditPolicy.spend_email_credit(user_id, audience)
+        else
+          :ok
+        end
+    end
+  end
+
+  defp email_credit_audience(delivery_plan) do
+    recipients =
+      delivery_plan.external.to ++ delivery_plan.external.cc ++ delivery_plan.external.bcc
+
+    case Enum.sort(Enum.uniq(recipients)) do
+      [] -> nil
+      recipients -> "email:#{audience_hash(recipients)}"
+    end
+  end
+
+  defp audience_hash(recipients) do
+    recipients
+    |> Enum.join("\n")
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.url_encode64(padding: false)
+  end
 
   # VPN Quota Notification Emails
 

@@ -23,6 +23,7 @@ defmodule Elektrine.ActivityPub do
     MastodonApi,
     MRF,
     RelaySubscription,
+    RequestReplayCache,
     UserBlock
   }
 
@@ -1228,7 +1229,7 @@ defmodule Elektrine.ActivityPub do
       )
       |> Repo.delete_all()
 
-    count
+    count + RequestReplayCache.prune_expired()
   end
 
   @doc """

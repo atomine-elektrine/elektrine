@@ -1,5 +1,5 @@
 defmodule Elektrine.Email.Sanitizer do
-  @moduledoc "Unified email sanitization module for all email paths (incoming, outgoing, forwarding).\n\nThis is the ONLY module you should use for email sanitization. It provides:\n- HTML content scrubbing (removes scripts, dangerous tags, event handlers)\n- Header sanitization (prevents SMTP injection)\n- UTF-8 validation and fixing\n- Comprehensive protection across all email paths\n\n## Usage\n\n    # Incoming emails\n    sanitized = Sanitizer.sanitize_incoming_email(email_params)\n\n    # Outgoing emails\n    sanitized = Sanitizer.sanitize_outgoing_email(email_params)\n\n    # Just HTML content\n    safe_html = Sanitizer.sanitize_html_content(html_string)\n\n## Do NOT use ElektrineWeb.EmailScrubber directly\n\nEmailScrubber is an internal implementation detail. Always use this module instead.\n"
+  @moduledoc "Unified email sanitization module for all email paths (incoming, outgoing, forwarding).\n\nThis is the ONLY module you should use for email sanitization. It provides:\n- HTML content scrubbing (removes scripts, dangerous tags, event handlers)\n- Header sanitization (prevents SMTP injection)\n- UTF-8 validation and fixing\n- Comprehensive protection across all email paths\n\n## Usage\n\n    # Incoming emails\n    sanitized = Sanitizer.sanitize_incoming_email(email_params)\n\n    # Outgoing emails\n    sanitized = Sanitizer.sanitize_outgoing_email(email_params)\n\n    # Just HTML content\n    safe_html = Sanitizer.sanitize_html_content(html_string)\n\n## Do NOT use ElektrineEmailWeb.EmailScrubber directly\n\nEmailScrubber is an internal implementation detail. Always use this module instead.\n"
   alias Elektrine.Email.HeaderSanitizer
   alias HtmlSanitizeEx.Scrubber
 
@@ -323,9 +323,9 @@ defmodule Elektrine.Email.Sanitizer do
   end
 
   defp scrub_with_email_scrubber(content) do
-    Scrubber.scrub(content, ElektrineWeb.EmailScrubber)
+    Scrubber.scrub(content, ElektrineEmailWeb.EmailScrubber)
   rescue
-    _error -> content
+    _error -> HtmlSanitizeEx.strip_tags(content)
   end
 
   @doc "Sanitizes UTF-8 content (for text bodies and other text fields).\nGUARANTEES valid UTF-8 output suitable for JSON encoding and PostgreSQL.\nRemoves null bytes which PostgreSQL does not allow in text fields.\n"

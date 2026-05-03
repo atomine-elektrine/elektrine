@@ -36,7 +36,7 @@ defmodule ElektrineEmail.MixProject do
     end
   end
 
-  defp no_warn_undefined, do: []
+  defp no_warn_undefined, do: [Atomine.CreditPolicy]
 
   defp deps do
     [

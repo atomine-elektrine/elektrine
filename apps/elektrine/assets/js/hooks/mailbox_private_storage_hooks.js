@@ -11,6 +11,23 @@ const decoder = new TextDecoder()
 const importedPrivateKeys = new Map()
 const decryptedAttachments = new WeakMap()
 
+function stableJson(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return JSON.stringify(value)
+
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = value[key]
+        return acc
+      }, {})
+  )
+}
+
+function encodedStableJson(value) {
+  return encoder.encode(stableJson(value))
+}
+
 function randomBytes(length) {
   const bytes = new Uint8Array(length)
   crypto.getRandomValues(bytes)
@@ -144,16 +161,41 @@ async function deriveWrappingKey(passphrase, salt, params) {
   ])
 }
 
-async function wrapBytes(bytes, passphrase, unlockMode = null) {
+function keyWrapAADContext(unlockMode, kind) {
+  return {
+    purpose: "elektrine-private-mailbox-key-wrap",
+    version: 2,
+    kind,
+    algorithm: WRAP_ALGORITHM,
+    kdf: "scrypt",
+    unlock_mode: unlockMode
+  }
+}
+
+function wrapParams(payload, iv) {
+  if (Number(payload.version) >= 2) {
+    return { name: WRAP_ALGORITHM, iv, additionalData: encodedStableJson(payload.aad_context) }
+  }
+
+  return { name: WRAP_ALGORITHM, iv }
+}
+
+async function wrapBytes(bytes, passphrase, unlockMode = null, kind = "private_key") {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
   const key = await deriveWrappingKey(passphrase, salt, DEFAULT_SCRYPT)
-  const ciphertext = await crypto.subtle.encrypt({ name: WRAP_ALGORITHM, iv }, key, bytes)
+  const aadContext = keyWrapAADContext(unlockMode, kind)
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: WRAP_ALGORITHM, iv, additionalData: encodedStableJson(aadContext) },
+    key,
+    bytes
+  )
 
   const payload = {
-    version: 1,
+    version: 2,
     algorithm: WRAP_ALGORITHM,
     kdf: "scrypt",
+    aad_context: aadContext,
     n: DEFAULT_SCRYPT.n,
     r: DEFAULT_SCRYPT.r,
     p: DEFAULT_SCRYPT.p,
@@ -174,7 +216,7 @@ async function unwrapBytes(payload, passphrase) {
   const iv = base64ToBytes(payload.iv)
   const ciphertext = base64ToBytes(payload.ciphertext)
   const key = await deriveWrappingKey(passphrase, salt, payload)
-  const plaintext = await crypto.subtle.decrypt({ name: WRAP_ALGORITHM, iv }, key, ciphertext)
+  const plaintext = await crypto.subtle.decrypt(wrapParams(payload, iv), key, ciphertext)
   return new Uint8Array(plaintext)
 }
 
@@ -425,12 +467,20 @@ async function decryptEnvelope(envelope, mailboxId, aad) {
   const iv = base64ToBytes(envelope.iv)
 
   const plaintext = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv, additionalData: aad },
+    { name: "AES-GCM", iv, additionalData: envelopeAAD(envelope, aad) },
     contentKey,
     concatBytes(ciphertext, tag)
   )
 
   return JSON.parse(decoder.decode(plaintext))
+}
+
+function envelopeAAD(envelope, legacyAAD) {
+  if (Number(envelope.version) >= 2 && envelope.aad_context) {
+    return encodedStableJson(envelope.aad_context)
+  }
+
+  return legacyAAD
 }
 
 async function decryptMessagePayload(envelope, mailboxId) {
@@ -840,7 +890,12 @@ export const MailboxPrivateStorage = {
       const { publicKeyPem, privateKey } = await generateMailboxKeypair()
       const wrappingSecret = unlockMode === "account_password" ? accountPassword : passphrase
       const wrappedPrivateKey = await wrapBytes(privateKey, wrappingSecret, unlockMode)
-      const verifier = await wrapBytes(encoder.encode(VERIFY_TEXT), wrappingSecret, unlockMode)
+      const verifier = await wrapBytes(
+        encoder.encode(VERIFY_TEXT),
+        wrappingSecret,
+        unlockMode,
+        "verifier"
+      )
 
       this.wrappedKeyInput.value = JSON.stringify(wrappedPrivateKey)
       this.publicKeyInput.value = publicKeyPem
@@ -1281,7 +1336,8 @@ function bindPrivateMailboxPasswordForm(form) {
       const nextVerifier = await wrapBytes(
         encoder.encode(VERIFY_TEXT),
         newPassword,
-        "account_password"
+        "account_password",
+        "verifier"
       )
 
       wrappedKeyField.value = JSON.stringify(nextWrappedKey)

@@ -461,10 +461,14 @@ defmodule ArblargWeb.ChatLive.Operations.Helpers do
   defp fallback_message_text(content, _message), do: content
 
   defp fallback_message_label(message) do
+    client_encrypted_payload = map_message_value(message, :client_encrypted_payload)
     message_type = map_message_value(message, :message_type)
     media_urls = map_message_value(message, :media_urls) || []
 
     cond do
+      is_map(client_encrypted_payload) ->
+        "Encrypted message"
+
       message_type == "voice" ->
         "Voice message"
 

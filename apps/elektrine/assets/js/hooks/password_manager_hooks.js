@@ -3,11 +3,12 @@
  * Client-side encryption/decryption for zero-knowledge vault entries.
  */
 
-const ITERATIONS = 210000
-const VERSION = 1
+const ITERATIONS = 600000
+const VERSION = 2
 const ALGORITHM = "AES-GCM"
 const KDF = "PBKDF2-SHA256"
 const PASSWORD_LENGTH = 24
+const MIN_PASSPHRASE_LENGTH = 14
 const VERIFIER_TEXT = "elektrine-vault-verifier-v1"
 
 const encoder = new TextEncoder()
@@ -56,12 +57,35 @@ async function deriveAesKey(passphrase, salt, iterations) {
   )
 }
 
-async function encryptValue(plaintext, passphrase) {
+function stableJson(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return JSON.stringify(value)
+
+  return JSON.stringify(
+    Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = value[key]
+        return acc
+      }, {})
+  )
+}
+
+function aesGcmParams(iv, associatedData) {
+  if (!associatedData) return { name: ALGORITHM, iv }
+
+  return {
+    name: ALGORITHM,
+    iv,
+    additionalData: encoder.encode(stableJson(associatedData))
+  }
+}
+
+async function encryptValue(plaintext, passphrase, associatedData = null) {
   const salt = randomBytes(16)
   const iv = randomBytes(12)
   const key = await deriveAesKey(passphrase, salt, ITERATIONS)
   const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv },
+    aesGcmParams(iv, associatedData),
     key,
     encoder.encode(plaintext)
   )
@@ -77,13 +101,13 @@ async function encryptValue(plaintext, passphrase) {
   }
 }
 
-async function decryptValue(payload, passphrase) {
+async function decryptValue(payload, passphrase, associatedData = null) {
   const iv = base64ToBytes(payload.iv)
   const salt = base64ToBytes(payload.salt)
   const ciphertext = base64ToBytes(payload.ciphertext)
   const key = await deriveAesKey(passphrase, salt, payload.iterations)
   const plaintextBuffer = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv },
+    Number(payload.version) >= 2 ? aesGcmParams(iv, associatedData) : { name: ALGORITHM, iv },
     key,
     ciphertext
   )
@@ -97,14 +121,20 @@ function createPassword() {
   const digits = "0123456789"
   const symbols = "!@#$%^&*()-_=+"
   const all = lowercase + uppercase + digits + symbols
-  const cryptoValues = new Uint32Array(PASSWORD_LENGTH * 2)
-  crypto.getRandomValues(cryptoValues)
-  let randomIndex = 0
+
+  const randomInt = (max) => {
+    const values = new Uint32Array(1)
+    const limit = Math.floor(0x100000000 / max) * max
+
+    do {
+      crypto.getRandomValues(values)
+    } while (values[0] >= limit)
+
+    return values[0] % max
+  }
 
   const pick = (characters) => {
-    const value = cryptoValues[randomIndex]
-    randomIndex += 1
-    return characters[value % characters.length]
+    return characters[randomInt(characters.length)]
   }
 
   const required = [
@@ -119,8 +149,7 @@ function createPassword() {
   }
 
   for (let i = required.length - 1; i > 0; i -= 1) {
-    const swapIndex = cryptoValues[randomIndex] % (i + 1)
-    randomIndex += 1
+    const swapIndex = randomInt(i + 1)
     ;[required[i], required[swapIndex]] = [required[swapIndex], required[i]]
   }
 
@@ -156,6 +185,20 @@ function isLegacyServerPayload(parsed) {
     typeof parsed.iv === "string" &&
     typeof parsed.tag === "string"
   )
+}
+
+function vaultEntryAssociatedData(metadata, field) {
+  return {
+    purpose: "elektrine-password-vault-entry",
+    field,
+    title: (metadata.title || "").trim(),
+    login_username: (metadata.login_username || "").trim(),
+    website: (metadata.website || "").trim()
+  }
+}
+
+function vaultMetadataAssociatedData() {
+  return { purpose: "elektrine-password-vault-metadata" }
 }
 
 function notify(message, type = "error", title = "Vault") {
@@ -194,6 +237,10 @@ export const PasswordVault = {
     }
 
     this.renderLockState()
+
+    if (this.passphrase) {
+      this.decryptEntryMetadataRows().catch(() => null)
+    }
   },
 
   destroyed() {
@@ -211,10 +258,64 @@ export const PasswordVault = {
     this.setupEncryptedVerifierInput = this.el.querySelector("[data-vault-setup-encrypted-verifier]")
     this.passphraseInput = this.el.querySelector("[data-vault-passphrase-input]")
     this.status = this.el.querySelector("[data-vault-status]")
+    this.titleInput = this.el.querySelector('[name="entry[title]"]')
+    this.loginUsernameInput = this.el.querySelector('[name="entry[login_username]"]')
+    this.websiteInput = this.el.querySelector('[name="entry[website]"]')
     this.passwordInput = this.el.querySelector("[data-vault-password-input]")
     this.notesInput = this.el.querySelector("[data-vault-notes-input]")
     this.encryptedPasswordInput = this.el.querySelector("[data-vault-encrypted-password]")
     this.encryptedNotesInput = this.el.querySelector("[data-vault-encrypted-notes]")
+    this.encryptedMetadataInput = this.el.querySelector("[data-vault-encrypted-metadata]")
+  },
+
+  entryFormMetadata() {
+    return {
+      title: this.titleInput?.value || "",
+      login_username: this.loginUsernameInput?.value || "",
+      website: this.websiteInput?.value || ""
+    }
+  },
+
+  async entryRowMetadata(entryRow) {
+    const cached = parsePayload(entryRow.dataset.decryptedMetadata)
+    if (cached) return cached
+
+    const encryptedMetadata = parsePayload(entryRow.dataset.encryptedMetadata)
+
+    if (isClientPayload(encryptedMetadata) && this.passphrase) {
+      const decrypted = await decryptValue(encryptedMetadata, this.passphrase, vaultMetadataAssociatedData())
+      const metadata = JSON.parse(decrypted)
+
+      this.applyEntryRowMetadata(entryRow, metadata)
+      return metadata
+    }
+
+    return {
+      title: entryRow.dataset.vaultTitle || "",
+      login_username: entryRow.dataset.vaultLoginUsername || "",
+      website: entryRow.dataset.vaultWebsite || ""
+    }
+  },
+
+  applyEntryRowMetadata(entryRow, metadata) {
+    const normalized = {
+      title: metadata.title || "",
+      login_username: metadata.login_username || "",
+      website: metadata.website || ""
+    }
+
+    entryRow.dataset.decryptedMetadata = JSON.stringify(normalized)
+    entryRow.dataset.vaultTitle = normalized.title
+    entryRow.dataset.vaultLoginUsername = normalized.login_username
+    entryRow.dataset.vaultWebsite = normalized.website
+
+    const titleOutput = entryRow.querySelector("[data-vault-title-output]")
+    const usernameOutput = entryRow.querySelector("[data-vault-username-output]")
+    const websiteOutput = entryRow.querySelector("[data-vault-website-output]")
+
+    if (titleOutput) titleOutput.textContent = normalized.title || "Encrypted entry"
+    if (usernameOutput) usernameOutput.textContent = normalized.login_username || "-"
+    if (websiteOutput) websiteOutput.textContent = normalized.website || "-"
   },
 
   bindEvents() {
@@ -313,6 +414,7 @@ export const PasswordVault = {
 
     this.passphrase = passphrase
     if (this.passphraseInput) this.passphraseInput.value = ""
+    await this.decryptEntryMetadataRows()
     this.renderLockState()
     notify("Vault unlocked in this browser session.", "success", "Vault")
   },
@@ -383,8 +485,8 @@ export const PasswordVault = {
     const passphrase = this.setupPassphraseInput.value.trim()
     const confirmation = this.setupPassphraseConfirmInput.value.trim()
 
-    if (!passphrase || passphrase.length < 8) {
-      notify("Use a vault passphrase with at least 8 characters.", "warning")
+    if (!passphrase || passphrase.length < MIN_PASSPHRASE_LENGTH) {
+      notify(`Use a vault passphrase with at least ${MIN_PASSPHRASE_LENGTH} characters.`, "warning")
       return
     }
 
@@ -408,7 +510,14 @@ export const PasswordVault = {
 
   async submitEncrypted() {
     if (!this.ensureUnlocked()) return
-    if (!this.passwordInput || !this.encryptedPasswordInput || !this.encryptedNotesInput) return
+    if (
+      !this.passwordInput ||
+      !this.encryptedPasswordInput ||
+      !this.encryptedNotesInput ||
+      !this.encryptedMetadataInput
+    ) {
+      return
+    }
 
     const password = this.passwordInput.value
     const notes = this.notesInput?.value || ""
@@ -419,13 +528,29 @@ export const PasswordVault = {
     }
 
     try {
-      const encryptedPassword = await encryptValue(password, this.passphrase)
-      const encryptedNotes = notes ? await encryptValue(notes, this.passphrase) : null
+      const metadata = this.entryFormMetadata()
+      const encryptedMetadata = await encryptValue(
+        JSON.stringify(metadata),
+        this.passphrase,
+        vaultMetadataAssociatedData()
+      )
+      const encryptedPassword = await encryptValue(
+        password,
+        this.passphrase,
+        vaultEntryAssociatedData(metadata, "password")
+      )
+      const encryptedNotes = notes
+        ? await encryptValue(notes, this.passphrase, vaultEntryAssociatedData(metadata, "notes"))
+        : null
 
+      this.encryptedMetadataInput.value = JSON.stringify(encryptedMetadata)
       this.encryptedPasswordInput.value = JSON.stringify(encryptedPassword)
       this.encryptedNotesInput.value = encryptedNotes ? JSON.stringify(encryptedNotes) : ""
 
       // Minimize plaintext lifetime in the DOM before the LiveView submit.
+      if (this.titleInput) this.titleInput.value = "Encrypted entry"
+      if (this.loginUsernameInput) this.loginUsernameInput.value = ""
+      if (this.websiteInput) this.websiteInput.value = ""
       this.passwordInput.value = ""
       if (this.notesInput) this.notesInput.value = ""
       this.form.requestSubmit()
@@ -472,8 +597,19 @@ export const PasswordVault = {
     const notesWrapper = secretRow.querySelector("[data-vault-notes-wrapper]")
 
     try {
-      const password = await decryptValue(passwordPayload, this.passphrase)
-      const notes = notesPayload ? await decryptValue(notesPayload, this.passphrase) : null
+      const metadata = await this.entryRowMetadata(entryRow)
+      const password = await decryptValue(
+        passwordPayload,
+        this.passphrase,
+        vaultEntryAssociatedData(metadata, "password")
+      )
+      const notes = notesPayload
+        ? await decryptValue(
+            notesPayload,
+            this.passphrase,
+            vaultEntryAssociatedData(metadata, "notes")
+          )
+        : null
 
       if (passwordOutput) passwordOutput.textContent = password
       if (notesOutput) notesOutput.textContent = notes || ""
@@ -487,6 +623,13 @@ export const PasswordVault = {
     } catch (_error) {
       notify("Decryption failed. Check your vault passphrase.", "error")
     }
+  },
+
+  async decryptEntryMetadataRows() {
+    if (!this.passphrase) return
+
+    const rows = Array.from(this.el.querySelectorAll("[data-vault-entry-id]"))
+    await Promise.all(rows.map((row) => this.entryRowMetadata(row).catch(() => null)))
   },
 
   hideSecret(secretRow, button) {

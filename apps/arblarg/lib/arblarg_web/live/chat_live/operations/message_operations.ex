@@ -797,6 +797,53 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
 
   defp put_sent_message(socket, conversation, message) do
     message = Elektrine.Repo.preload(message, sender: [:profile])
+    unread_counts = Map.put(socket.assigns.conversation.unread_counts || %{}, conversation.id, 0)
+
+    if socket.assigns[:typing_timer] do
+      Process.cancel_timer(socket.assigns.typing_timer)
+    end
+
+    Phoenix.PubSub.broadcast_from(
+      Elektrine.PubSub,
+      self(),
+      "conversation:#{conversation.id}",
+      {:user_stopped_typing, socket.assigns.current_user.id}
+    )
+
+    Elektrine.Messaging.Federation.publish_typing_stopped(
+      conversation.id,
+      socket.assigns.current_user.id
+    )
+
+    conversations =
+      update_sent_conversation_preview(socket.assigns.conversation.list, conversation, message)
+
+    last_message_read_status =
+      Helpers.calculate_last_message_read_status(conversations, socket.assigns.current_user.id)
+
+    sorted_conversations =
+      Helpers.sort_conversations_by_unread(
+        conversations,
+        unread_counts,
+        socket.assigns.current_user.id
+      )
+
+    scoped_conversations =
+      Helpers.scope_conversations_to_server(
+        sorted_conversations,
+        socket.assigns[:active_server_id]
+      )
+
+    filtered_conversations =
+      if socket.assigns.search.conversation_query != "" do
+        Helpers.filter_conversations(
+          scoped_conversations,
+          socket.assigns.search.conversation_query,
+          socket.assigns.current_user.id
+        )
+      else
+        scoped_conversations
+      end
 
     socket
     |> assign(:messages, Helpers.dedupe_messages(socket.assigns.messages ++ [message]))
@@ -809,14 +856,41 @@ defmodule ArblargWeb.ChatLive.Operations.MessageOperations do
         loading_messages: false,
         read_status: Map.put(socket.assigns.message.read_status || %{}, message.id, [])
     })
+    |> assign(:typing_timer, nil)
     |> assign(:conversation, %{
       socket.assigns.conversation
-      | unread_counts:
-          Map.put(socket.assigns.conversation.unread_counts || %{}, conversation.id, 0)
+      | list: sorted_conversations,
+        filtered: filtered_conversations,
+        unread_counts: unread_counts,
+        last_message_read_status: last_message_read_status
     })
     |> push_event("clear_message_input", %{})
     |> push_event("scroll_to_bottom", %{})
   end
+
+  defp update_sent_conversation_preview(conversations, conversation, message)
+       when is_list(conversations) do
+    Enum.map(conversations, fn current ->
+      if current.id == conversation.id do
+        %{
+          current
+          | messages: [message],
+            last_message_at: message_datetime(message, current.last_message_at)
+        }
+      else
+        current
+      end
+    end)
+  end
+
+  defp update_sent_conversation_preview(_, _conversation, _message), do: []
+
+  defp message_datetime(%{inserted_at: %DateTime{} = datetime}, _fallback), do: datetime
+
+  defp message_datetime(%{inserted_at: %NaiveDateTime{} = naive_datetime}, _fallback),
+    do: DateTime.from_naive!(naive_datetime, "Etc/UTC")
+
+  defp message_datetime(_message, fallback), do: fallback
 
   defp broadcast_typing(socket) do
     case socket.assigns.conversation.selected do

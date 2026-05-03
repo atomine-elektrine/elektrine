@@ -23,9 +23,13 @@ function selectedTextWithin(element) {
 }
 
 const CHAT_E2EE_STORAGE_PREFIX = 'elektrine:chat-e2ee:v1'
+const CHAT_E2EE_DB_NAME = 'elektrine-chat-e2ee'
+const CHAT_E2EE_DB_VERSION = 1
+const CHAT_E2EE_STORE_NAME = 'secrets'
 const CHAT_E2EE_MAX_DEVICES = 64
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
+let chatE2EEDatabasePromise = null
 
 function cryptoAvailable() {
   return Boolean(window.crypto?.subtle && window.crypto?.getRandomValues)
@@ -39,6 +43,78 @@ function parseJson(value, fallback) {
   } catch (_err) {
     return fallback
   }
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return JSON.stringify(value.map(item => stableJsonValue(item)))
+  if (!value || typeof value !== 'object') return JSON.stringify(value)
+
+  return JSON.stringify(stableJsonValue(value))
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(item => stableJsonValue(item))
+  if (!value || typeof value !== 'object') return value
+
+  return Object.keys(value)
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = stableJsonValue(value[key])
+      return acc
+    }, {})
+}
+
+function openChatE2EEDatabase() {
+  if (chatE2EEDatabasePromise) return chatE2EEDatabasePromise
+
+  chatE2EEDatabasePromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(CHAT_E2EE_DB_NAME, CHAT_E2EE_DB_VERSION)
+
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(CHAT_E2EE_STORE_NAME)) {
+        db.createObjectStore(CHAT_E2EE_STORE_NAME)
+      }
+    }
+
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('Could not open chat key storage'))
+  })
+
+  return chatE2EEDatabasePromise
+}
+
+async function secureStorageGet(key) {
+  const db = await openChatE2EEDatabase()
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CHAT_E2EE_STORE_NAME, 'readonly')
+    const request = transaction.objectStore(CHAT_E2EE_STORE_NAME).get(key)
+    request.onsuccess = () => resolve(request.result ?? null)
+    request.onerror = () => reject(request.error || new Error('Could not read chat key storage'))
+  })
+}
+
+async function secureStorageSet(key, value) {
+  const db = await openChatE2EEDatabase()
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CHAT_E2EE_STORE_NAME, 'readwrite')
+    const request = transaction.objectStore(CHAT_E2EE_STORE_NAME).put(value, key)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error || new Error('Could not write chat key storage'))
+  })
+}
+
+async function secureStorageDelete(key) {
+  const db = await openChatE2EEDatabase()
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(CHAT_E2EE_STORE_NAME, 'readwrite')
+    const request = transaction.objectStore(CHAT_E2EE_STORE_NAME).delete(key)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error || new Error('Could not delete chat key storage'))
+  })
 }
 
 function bytesToBase64(bytes) {
@@ -115,7 +191,10 @@ function stableDevices(devices) {
       recipient_handle: device.recipient_handle || null,
       origin_domain: device.origin_domain || null,
       device_id: String(device.device_id || ''),
-      public_key: device.public_key || {}
+      public_key: device.public_key || {},
+      fingerprint: device.fingerprint || null,
+      signing_public_key: device.signing_public_key || null,
+      device_signature: device.device_signature || null
     }))
     .sort((left, right) => {
       const leftOwner = left.recipient_handle || String(left.user_id)
@@ -155,6 +234,32 @@ async function importRsaPrivateKey(privateKeyBase64) {
   )
 }
 
+async function importEcdsaPublicKey(publicKeyPayload) {
+  const key = publicKeyPayload?.key
+
+  if (!key || publicKeyPayload.algorithm !== 'ECDSA-P256-SHA256') {
+    throw new Error('Invalid chat signing key')
+  }
+
+  return window.crypto.subtle.importKey(
+    'spki',
+    arrayBufferFromBytes(base64ToBytes(key)),
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['verify']
+  )
+}
+
+async function importEcdsaPrivateKey(privateKeyBase64) {
+  return window.crypto.subtle.importKey(
+    'pkcs8',
+    arrayBufferFromBytes(base64ToBytes(privateKeyBase64)),
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  )
+}
+
 async function importAesKey(rawKeyBytes, usages) {
   return window.crypto.subtle.importKey(
     'raw',
@@ -175,12 +280,54 @@ async function importHmacKey(rawKeyBytes) {
   )
 }
 
+function signingPublicKeyPayload(device) {
+  if (device.signing_public_key?.key) return device.signing_public_key
+  if (device.signing_public_key) {
+    return { version: 1, algorithm: 'ECDSA-P256-SHA256', key: device.signing_public_key }
+  }
+  return null
+}
+
+function devicePublicKeyPayload(device) {
+  if (device.public_key?.key) return device.public_key
+  if (device.public_key) {
+    return { version: 1, algorithm: 'RSA-OAEP-SHA256', key: device.public_key }
+  }
+  return null
+}
+
+function deviceFingerprintPayload(device) {
+  return {
+    purpose: 'elektrine-chat-e2ee-device',
+    version: 1,
+    device_id: String(device.device_id || ''),
+    key_algorithm: device.key_algorithm || 'RSA-OAEP-SHA256',
+    public_key: devicePublicKeyPayload(device),
+    signing_public_key: signingPublicKeyPayload(device)
+  }
+}
+
+function deviceSignaturePayload(device, fingerprint) {
+  return {
+    ...deviceFingerprintPayload(device),
+    fingerprint
+  }
+}
+
 export const ChatE2EE = {
   mounted() {
     this.devicePromise = null
     this.lastTypingAt = 0
     this.lastDeviceRegistrationAt = 0
     this.searchTimer = null
+    this.unavailableConversationKeys = new Set()
+    this.conversationKeyRequests = new Map()
+    this.sentPlaintexts = new Map()
+    this.preparedConversationKey = null
+    this.prepareConversationKeyPromise = null
+    this.preparingDeviceCount = 0
+    this.cachedDevice = null
+    this.currentConversationId = this.conversationId()
 
     this.submitHandler = event => this.handleSubmit(event)
     this.inputHandler = event => this.handleInput(event)
@@ -196,13 +343,20 @@ export const ChatE2EE = {
     this.ensureDeviceRegistered()
     this.updateInputMode()
     this.updateToggleState()
+    this.updateStatusMessage()
+    this.syncEncryptedModeAfterPatch()
+    this.maybePrepareEnabledConversationKey()
     this.decryptVisibleMessages()
   },
 
   updated() {
+    this.resetConversationKeyCacheIfChanged()
     this.ensureDeviceRegistered()
     this.updateInputMode()
     this.updateToggleState()
+    this.updateStatusMessage()
+    this.syncEncryptedModeAfterPatch()
+    this.maybePrepareEnabledConversationKey()
     this.decryptVisibleMessages()
   },
 
@@ -230,8 +384,45 @@ export const ChatE2EE = {
     return Number.isInteger(conversationId) && conversationId > 0 ? conversationId : null
   },
 
+  resetConversationKeyCacheIfChanged() {
+    const conversationId = this.conversationId()
+
+    if (this.currentConversationId === conversationId) return
+
+    this.currentConversationId = conversationId
+    this.preparedConversationKey = null
+    this.prepareConversationKeyPromise = null
+    this.preparingDeviceCount = 0
+  },
+
   devices() {
     return parseJson(this.el.dataset.chatE2eeDevices, [])
+  },
+
+  serverE2EEReady() {
+    return this.el.dataset.chatE2eeReady === 'true'
+  },
+
+  localDevice() {
+    if (!this.userId()) return null
+    return this.cachedDevice
+  },
+
+  localDeviceAdvertised() {
+    const deviceId = this.localDevice()?.device_id
+    const userId = this.userId()
+
+    if (!deviceId || !userId) return false
+
+    return this.devices().some(device => Number(device.user_id) === userId && device.device_id === deviceId)
+  },
+
+  localDeviceSetupRequired() {
+    return cryptoAvailable() && Boolean(this.userId()) && Boolean(this.conversationId()) && !this.localDeviceAdvertised()
+  },
+
+  e2eeStatus() {
+    return this.el.dataset.chatE2eeStatus || 'unknown'
   },
 
   memberIds() {
@@ -245,12 +436,12 @@ export const ChatE2EE = {
   },
 
   e2eeCapable() {
-    if (!cryptoAvailable() || this.el.dataset.chatE2eeReady !== 'true' || !this.conversationId()) {
+    if (!cryptoAvailable() || !this.serverE2EEReady() || !this.conversationId()) {
       return false
     }
 
     const devices = this.devices()
-    return devices.length > 0 && devices.length <= CHAT_E2EE_MAX_DEVICES
+    return devices.length > 0 && devices.length <= CHAT_E2EE_MAX_DEVICES && this.localDeviceAdvertised()
   },
 
   e2eeEnabled() {
@@ -265,16 +456,21 @@ export const ChatE2EE = {
     if (!conversationId || !this.userId()) return
 
     localStorage.setItem(this.enabledStorageKey(conversationId), enabled ? 'true' : 'false')
+
+    if (!enabled) {
+      this.preparedConversationKey = null
+      this.preparingDeviceCount = 0
+    }
   },
 
   updateInputMode() {
     const form = this.messageForm()
     const textarea = this.messageInput()
-    const enabled = this.e2eeReady()
+    const encryptedMode = this.e2eeEnabled()
 
     if (!form || !textarea) return
 
-    if (enabled) {
+    if (encryptedMode) {
       form.removeAttribute('phx-change')
       textarea.removeAttribute('phx-change')
     } else {
@@ -283,12 +479,67 @@ export const ChatE2EE = {
     }
 
     this.el.querySelectorAll('input[type="file"]').forEach(input => {
-      input.disabled = enabled
+      input.disabled = encryptedMode
     })
 
     const submitButton = form.querySelector('button[type="submit"]')
-    if (enabled && submitButton) {
+    if (encryptedMode && submitButton) {
       submitButton.disabled = false
+    }
+
+    this.syncEncryptedSubmitButton()
+  },
+
+  syncEncryptedSubmitButton() {
+    const form = this.messageForm()
+    const textarea = this.messageInput()
+    const submitButton = form?.querySelector('button[type="submit"]')
+
+    if (!form || !textarea || !submitButton) return
+
+    const fileInput = form.querySelector('input[type="file"]')
+    const hasUploads = form.dataset.hasUploads === 'true' || (fileInput && fileInput.files.length > 0)
+    const loading = form.dataset.messageLoading === 'true'
+
+    if (loading) {
+      submitButton.disabled = true
+      return
+    }
+
+    if (this.e2eeReady() && this.prepareConversationKeyPromise) {
+      submitButton.disabled = true
+      return
+    }
+
+    if (!this.e2eeCapable()) {
+      if (this.e2eeEnabled()) {
+        submitButton.disabled = true
+      } else if (this.serverE2EEReady()) {
+        submitButton.disabled = !textarea.value.trim() && !hasUploads
+      }
+
+      return
+    }
+
+    if (!this.e2eeReady()) {
+      submitButton.disabled = !textarea.value.trim() && !hasUploads
+      return
+    }
+
+    submitButton.disabled = !textarea.value.trim() || hasUploads
+  },
+
+  syncEncryptedModeAfterPatch() {
+    const sync = () => {
+      this.updateInputMode()
+      this.updateToggleState()
+      this.updateStatusMessage()
+    }
+
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(sync))
+    } else {
+      setTimeout(sync, 0)
     }
   },
 
@@ -304,17 +555,118 @@ export const ChatE2EE = {
     toggle.classList.toggle('btn-secondary', enabled)
     toggle.classList.toggle('btn-ghost', !enabled)
     toggle.title = capable
-      ? 'Toggle optional client-side encrypted chat for this browser'
+      ? (enabled
+        ? 'Encrypted chat is ready and enabled for this browser.'
+        : 'Encrypted chat is ready. Click to turn it on for this browser.')
       : this.e2eeUnavailableTitle()
 
     if (label) {
       label.textContent = capable
-        ? (enabled ? 'Encrypted chat on' : 'Encrypted chat off')
+        ? (enabled ? 'Encrypted chat on' : 'Encrypted chat ready')
         : this.e2eeUnavailableLabel()
     }
   },
 
+  statusElement() {
+    return this.el.querySelector('[data-chat-e2ee-status-message="true"]')
+  },
+
+  setE2EEStatusMessage(message) {
+    const element = this.statusElement()
+    if (!element) return
+
+    if (!message) {
+      element.textContent = ''
+      element.classList.add('hidden')
+      return
+    }
+
+    element.textContent = message
+    element.classList.remove('hidden')
+  },
+
+  updateStatusMessage() {
+    if (!this.conversationId() || !this.userId()) {
+      this.setE2EEStatusMessage(null)
+      return
+    }
+
+    if (!cryptoAvailable()) {
+      this.setE2EEStatusMessage('Encrypted chat is unavailable because this browser does not support the required crypto APIs.')
+      return
+    }
+
+    if (this.e2eeCapable()) {
+      if (this.e2eeEnabled() && this.prepareConversationKeyPromise) {
+        this.setE2EEStatusMessage(this.conversationKeyPreparationMessage())
+        return
+      }
+
+      this.setE2EEStatusMessage(
+        this.e2eeEnabled()
+          ? 'Ready: encrypted messages will be encrypted before they leave this browser.'
+          : 'Ready: click the encrypted chat button to turn encrypted sending on for this browser.'
+      )
+      return
+    }
+
+    if (this.localDeviceSetupRequired()) {
+      this.setE2EEStatusMessage(
+        this.localDevice()?.device_id
+          ? 'Registering this browser for encrypted chat. Encrypted sending will unlock automatically.'
+          : 'Generating this browser\'s encrypted chat keys. Encrypted sending will unlock automatically.'
+      )
+      return
+    }
+
+    switch (this.e2eeStatus()) {
+      case 'registering_device':
+        this.setE2EEStatusMessage('Generating and registering this browser\'s chat encryption keys...')
+        break
+      case 'waiting_for_remote_keys':
+        this.setE2EEStatusMessage('Waiting for the other side to register encryption keys. Ask them to open this chat, then try again.')
+        break
+      case 'waiting_for_member_keys':
+        this.setE2EEStatusMessage(this.waitingForMemberKeysMessage())
+        break
+      case 'too_many_devices':
+        this.setE2EEStatusMessage('Encrypted chat is unavailable because this conversation has too many active devices.')
+        break
+      default:
+        this.setE2EEStatusMessage(null)
+        break
+    }
+  },
+
+  waitingForMemberKeysMessage() {
+    const deviceUserIds = new Set(
+      this.devices()
+        .map(device => Number(device.user_id))
+        .filter(id => Number.isInteger(id) && id > 0)
+    )
+    const missingCount = this.memberIds().filter(id => !deviceUserIds.has(id)).length
+
+    if (missingCount <= 1) {
+      return 'Waiting for one active member to register encryption keys. They need to open this chat once.'
+    }
+
+    return `Waiting for ${missingCount} active members to register encryption keys. They need to open this chat once.`
+  },
+
+  notifyE2EE(message, type = 'info') {
+    if (typeof window.showNotification !== 'function') return
+
+    window.showNotification(message, type, {
+      title: 'Encrypted chat',
+      duration: type === 'error' ? 7000 : 5000
+    })
+  },
+
   e2eeUnavailableLabel() {
+    if (this.localDeviceSetupRequired()) {
+      return 'Setting up this browser'
+    }
+
     switch (this.el.dataset.chatE2eeStatus) {
       case 'registering_device':
         return 'Registering this browser'
@@ -332,6 +684,10 @@ export const ChatE2EE = {
   },
 
   e2eeUnavailableTitle() {
+    if (this.localDeviceSetupRequired()) {
+      return 'This browser is still registering its own encryption keys. Encrypted sending will unlock automatically.'
+    }
+
     switch (this.el.dataset.chatE2eeStatus) {
       case 'registering_device':
         return 'This browser is registering an encryption device. Try again in a moment.'
@@ -349,17 +705,57 @@ export const ChatE2EE = {
   },
 
   handleToggle(event) {
+    const emojiButton = event.target.closest('[phx-click="insert_emoji"]')
+    if (emojiButton && this.el.contains(emojiButton) && this.e2eeReady()) {
+      this.handleEncryptedEmojiInsert(event, emojiButton)
+      return
+    }
+
     const toggle = event.target.closest('[data-chat-e2ee-toggle="true"]')
     if (!toggle || !this.el.contains(toggle)) return
 
     event.preventDefault()
     event.stopPropagation()
 
-    if (!this.e2eeCapable()) return
+    if (!this.e2eeCapable()) {
+      this.updateStatusMessage()
+      this.notifyE2EE(this.e2eeUnavailableTitle(), 'warning')
+      return
+    }
 
-    this.setE2EEEnabled(!this.e2eeEnabled())
+    const enabled = !this.e2eeEnabled()
+
+    this.setE2EEEnabled(enabled)
     this.updateInputMode()
     this.updateToggleState()
+    this.updateStatusMessage()
+
+    if (enabled) {
+      this.prepareConversationKeyPackages()
+    }
+  },
+
+  handleEncryptedEmojiInsert(event, button) {
+    const emoji = button.getAttribute('phx-value-emoji')
+    const textarea = this.messageInput()
+
+    if (!emoji || !textarea) return
+
+    event.preventDefault()
+    event.stopImmediatePropagation()
+
+    const start = textarea.selectionStart ?? textarea.value.length
+    const end = textarea.selectionEnd ?? start
+    const nextValue = `${textarea.value.slice(0, start)}${emoji}${textarea.value.slice(end)}`
+    const cursorPosition = start + emoji.length
+
+    textarea.value = nextValue
+    textarea.focus()
+    textarea.setSelectionRange(cursorPosition, cursorPosition)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    this.syncEncryptedSubmitButton()
+
+    this.pushEvent('toggle_emoji_picker', {})
   },
 
   messageForm() {
@@ -385,17 +781,36 @@ export const ChatE2EE = {
             key: device.public_key
           },
           key_algorithm: 'RSA-OAEP-SHA256',
+          fingerprint: device.fingerprint,
+          signing_public_key: {
+            version: 1,
+            algorithm: 'ECDSA-P256-SHA256',
+            key: device.signing_public_key
+          },
+          device_signature: {
+            version: 1,
+            algorithm: 'ECDSA-P256-SHA256',
+            signature: device.device_signature
+          },
           label: device.label
         }, reply => {
           if (reply?.ok) {
             this.lastDeviceRegistrationAt = Date.now()
+            this.updateStatusMessage()
+          } else {
+            const message = 'Could not register this browser for encrypted chat. Try refreshing the chat.'
+            this.setE2EEStatusMessage(message)
+            this.notifyE2EE(message, 'error')
           }
 
           resolve({ device, reply })
         })
       }))
       .catch(error => {
+        const message = 'Could not set up encrypted chat keys in this browser. Try refreshing the chat.'
         console.warn('Chat E2EE device registration failed', error)
+        this.setE2EEStatusMessage(message)
+        this.notifyE2EE(message, 'error')
         return null
       })
       .finally(() => {
@@ -407,10 +822,12 @@ export const ChatE2EE = {
 
   async loadOrCreateDevice() {
     const key = this.deviceStorageKey()
-    const stored = parseJson(localStorage.getItem(key), null)
+    const stored = await this.loadSecureJson(key)
 
     if (stored?.device_id && stored?.private_key && stored?.public_key) {
-      return stored
+      const upgraded = await this.upgradeDeviceTrustMaterial(stored)
+      this.cachedDevice = upgraded
+      return upgraded
     }
 
     const keyPair = await window.crypto.subtle.generateKey(
@@ -429,16 +846,79 @@ export const ChatE2EE = {
       window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey)
     ])
 
-    const device = {
+    const device = await this.upgradeDeviceTrustMaterial({
       device_id: randomId('web-'),
       public_key: bytesToBase64(publicKey),
       private_key: bytesToBase64(privateKey),
       key_algorithm: 'RSA-OAEP-SHA256',
       label: this.deviceLabel()
+    })
+
+    await secureStorageSet(key, device)
+    this.cachedDevice = device
+    return device
+  },
+
+  async loadSecureJson(key) {
+    try {
+      const stored = await secureStorageGet(key)
+      if (stored) return stored
+    } catch (_error) {
+      // Fall back to localStorage once so existing browsers can migrate out of it.
     }
 
-    localStorage.setItem(key, JSON.stringify(device))
-    return device
+    const legacy = parseJson(localStorage.getItem(key), null)
+    if (legacy) {
+      await secureStorageSet(key, legacy)
+      localStorage.removeItem(key)
+    }
+
+    return legacy
+  },
+
+  async upgradeDeviceTrustMaterial(device) {
+    if (device.signing_private_key && device.signing_public_key && device.fingerprint && device.device_signature) {
+      return device
+    }
+
+    const signingKeyPair = await window.crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify']
+    )
+
+    const [signingPublicKey, signingPrivateKey] = await Promise.all([
+      window.crypto.subtle.exportKey('spki', signingKeyPair.publicKey),
+      window.crypto.subtle.exportKey('pkcs8', signingKeyPair.privateKey)
+    ])
+
+    const upgraded = {
+      ...device,
+      signing_public_key: bytesToBase64(signingPublicKey),
+      signing_private_key: bytesToBase64(signingPrivateKey)
+    }
+
+    upgraded.fingerprint = await this.deviceFingerprint(upgraded)
+    upgraded.device_signature = await this.signDeviceFingerprint(upgraded, upgraded.fingerprint)
+
+    await secureStorageSet(this.deviceStorageKey(), upgraded)
+    localStorage.removeItem(this.deviceStorageKey())
+    return upgraded
+  },
+
+  async deviceFingerprint(device) {
+    return sha256Base64Url(stableJson(deviceFingerprintPayload(device)))
+  },
+
+  async signDeviceFingerprint(device, fingerprint) {
+    const signingKey = await importEcdsaPrivateKey(device.signing_private_key)
+    const signature = await window.crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      signingKey,
+      textEncoder.encode(stableJson(deviceSignaturePayload(device, fingerprint)))
+    )
+
+    return bytesToBase64(signature)
   },
 
   deviceStorageKey() {
@@ -450,9 +930,73 @@ export const ChatE2EE = {
     return userAgent.length > 80 ? userAgent.slice(0, 80) : userAgent
   },
 
+  async ensureDevicesTrusted(devices) {
+    await Promise.all(stableDevices(devices).map(device => this.ensureDeviceTrusted(device)))
+  },
+
+  untrustedDeviceMessage() {
+    return 'Encrypted chat was paused because a participant device key changed. Turn encrypted chat off and verify the participant before continuing.'
+  },
+
+  async ensureDeviceTrusted(device) {
+    const fingerprint = await this.verifiedDeviceFingerprint(device)
+    const key = this.deviceTrustStorageKey(device)
+    const trusted = await this.loadSecureJson(key)
+
+    if (trusted?.fingerprint && trusted.fingerprint !== fingerprint) {
+      throw new Error('untrusted_device')
+    }
+
+    if (!trusted?.fingerprint) {
+      await secureStorageSet(key, {
+        fingerprint,
+        device_id: device.device_id,
+        trusted_at: new Date().toISOString()
+      })
+      localStorage.removeItem(key)
+    }
+  },
+
+  async verifiedDeviceFingerprint(device) {
+    const computed = await this.deviceFingerprint(device)
+    const advertised = device.fingerprint || computed
+
+    if (advertised !== computed) {
+      throw new Error('untrusted_device')
+    }
+
+    const signingKeyPayload = signingPublicKeyPayload(device)
+    const signaturePayload = device.device_signature
+    const signature = signaturePayload?.signature || signaturePayload
+
+    if (signingKeyPayload && signature) {
+      const signingKey = await importEcdsaPublicKey(signingKeyPayload)
+      const valid = await window.crypto.subtle.verify(
+        { name: 'ECDSA', hash: 'SHA-256' },
+        signingKey,
+        base64ToBytes(signature),
+        textEncoder.encode(stableJson(deviceSignaturePayload(device, advertised)))
+      )
+
+      if (!valid) {
+        throw new Error('untrusted_device')
+      }
+    }
+
+    return advertised
+  },
+
+  deviceTrustStorageKey(device) {
+    const owner = device.recipient_handle
+      ? `remote:${device.origin_domain || ''}:${device.recipient_handle}`
+      : `local:${device.user_id || ''}`
+
+    return `${CHAT_E2EE_STORAGE_PREFIX}:trust:${owner}:device:${device.device_id}`
+  },
+
   handleInput(event) {
-    if (event.target === this.messageInput() && this.e2eeReady()) {
-      this.pushTypingEvent(event.target.value)
+    if (event.target === this.messageInput()) {
+      this.syncEncryptedSubmitButton()
     }
 
     if (event.target?.name === 'query' && event.target.closest('#message-search-form')) {
@@ -489,7 +1033,7 @@ export const ChatE2EE = {
     const form = event.target
     const textarea = this.messageInput()
 
-    if (!form || textarea?.closest('form') !== form || !this.e2eeReady()) {
+    if (!form || textarea?.closest('form') !== form || !this.e2eeEnabled()) {
       return
     }
 
@@ -505,8 +1049,26 @@ export const ChatE2EE = {
       submitButton.disabled = true
     }
 
+    if (!this.e2eeReady()) {
+      const message = this.localDeviceSetupRequired()
+        ? 'Encrypted chat is still setting up this browser. Your message was not sent yet; try again when it says ready.'
+        : this.e2eeUnavailableTitle()
+
+      this.setE2EEStatusMessage(message)
+      this.notifyE2EE(message, 'warning')
+
+      if (submitButton) {
+        submitButton.disabled = false
+      }
+
+      return
+    }
+
     if (!content || content.startsWith('/') || hasUploads) {
-      console.warn('Encrypted chat mode only supports plain text messages. Toggle it off to use commands or attachments.')
+      const message = this.encryptedSubmitBlockedMessage(content, hasUploads)
+      console.warn(message)
+      this.setE2EEStatusMessage(message)
+      this.notifyE2EE(message, 'warning')
 
       if (submitButton) {
         submitButton.disabled = false
@@ -516,8 +1078,9 @@ export const ChatE2EE = {
     }
 
     try {
-      await this.ensureDeviceRegistered()
+      this.setE2EEStatusMessage('Encrypting and sending message...')
       const encryptedMessage = await this.encryptMessage(content)
+      this.cacheSentPlaintext(encryptedMessage.payload.encrypted_payload, content)
 
       this.pushEvent('send_client_encrypted_message', encryptedMessage.payload, reply => {
         if (reply?.ok) {
@@ -527,24 +1090,129 @@ export const ChatE2EE = {
 
           textarea.value = ''
           textarea.dispatchEvent(new Event('input', { bubbles: true }))
+          this.syncEncryptedSubmitButton()
+          this.updateStatusMessage()
         } else {
+          this.forgetSentPlaintext(encryptedMessage.payload.encrypted_payload)
+          const message = this.encryptedSendFailureMessage(reply?.error)
           console.warn('Encrypted chat send failed', reply)
+          this.setE2EEStatusMessage(message)
+          this.notifyE2EE(message, 'error')
         }
 
-        if (submitButton) {
+        if (submitButton && !reply?.ok) {
           submitButton.disabled = false
         }
       })
     } catch (error) {
+      const message = error?.message === 'untrusted_device'
+        ? this.untrustedDeviceMessage()
+        : 'Could not encrypt this message. Make sure everyone has opened this chat so their keys can register, then try again.'
       console.warn('Could not encrypt chat message', error)
+      this.setE2EEStatusMessage(message)
+      this.notifyE2EE(message, 'error')
       if (submitButton) {
         submitButton.disabled = false
       }
     }
   },
 
+  encryptedSubmitBlockedMessage(content, hasUploads) {
+    if (!content) {
+      return 'Type a message before sending encrypted chat.'
+    }
+
+    if (hasUploads) {
+      return 'Encrypted chat only supports plain text right now. Remove attachments or turn encrypted chat off.'
+    }
+
+    return 'Encrypted chat only supports plain text right now. Turn it off to use commands.'
+  },
+
+  encryptedSendFailureMessage(error) {
+    switch (error) {
+      case 'missing_key_packages':
+        return 'Encrypted chat keys were not ready. Wait for the chat to finish key setup, then try again.'
+      case 'invalid_key_recipient':
+        return 'Encrypted chat keys changed while sending. Wait for the chat to resync, then try again.'
+      case 'invalid_key_package':
+      case 'invalid_encrypted_payload':
+        return 'This encrypted message could not be sent because its encrypted payload was invalid.'
+      case 'no_conversation':
+        return 'Select a chat before sending an encrypted message.'
+      case 'blocked':
+        return 'This message was not sent because one of you has blocked the other.'
+      case 'privacy_restricted':
+        return 'This message was not sent because this user is not accepting direct messages.'
+      default:
+        return 'Encrypted message could not be sent. Make sure everyone has opened this chat so their keys can register, then try again.'
+    }
+  },
+
+  conversationKeyPreparationMessage() {
+    const deviceCount = this.preparingDeviceCount || this.devices().length
+    return `Preparing encryption keys for ${deviceCount} device${deviceCount === 1 ? '' : 's'}...`
+  },
+
+  maybePrepareEnabledConversationKey() {
+    if (!this.e2eeReady() || this.preparedConversationKey || this.prepareConversationKeyPromise) return
+
+    this.prepareConversationKeyPackages()
+  },
+
+  async prepareConversationKeyPackages() {
+    if (!this.e2eeReady()) return null
+
+    if (this.prepareConversationKeyPromise) {
+      return this.prepareConversationKeyPromise
+    }
+
+    const devices = this.devices()
+
+    this.prepareConversationKeyPromise = (async () => {
+      await this.ensureDevicesTrusted(devices)
+      const { keyUid, rawKeyBytes, packagesNeeded, hash } = await this.conversationKeyForDevices(devices)
+
+      if (!packagesNeeded) {
+        this.preparedConversationKey = { keyUid, hash, keyPackages: [] }
+        return this.preparedConversationKey
+      }
+
+      if (this.preparedConversationKey?.keyUid === keyUid && this.preparedConversationKey?.hash === hash) {
+        return this.preparedConversationKey
+      }
+
+      this.preparingDeviceCount = devices.length
+      this.setE2EEStatusMessage(this.conversationKeyPreparationMessage())
+      this.syncEncryptedSubmitButton()
+
+      const keyPackages = await this.wrapConversationKey(rawKeyBytes, devices)
+      this.preparedConversationKey = { keyUid, hash, keyPackages }
+
+      return this.preparedConversationKey
+    })()
+      .catch(error => {
+        const message = error?.message === 'untrusted_device'
+          ? this.untrustedDeviceMessage()
+          : 'Could not prepare encrypted chat keys. Try turning encrypted chat off and on again.'
+        console.warn('Could not prepare encrypted chat keys', error)
+        this.setE2EEStatusMessage(message)
+        this.notifyE2EE(message, 'error')
+        return null
+      })
+      .finally(() => {
+        this.prepareConversationKeyPromise = null
+        this.preparingDeviceCount = 0
+        this.syncEncryptedSubmitButton()
+        this.updateStatusMessage()
+      })
+
+    return this.prepareConversationKeyPromise
+  },
+
   async encryptMessage(content) {
     const devices = this.devices()
+    await this.ensureDevicesTrusted(devices)
     const { keyUid, rawKeyBytes, packagesNeeded, hash } = await this.conversationKeyForDevices(devices)
     const aesKey = await importAesKey(rawKeyBytes, ['encrypt'])
     const iv = randomBytes(12)
@@ -554,7 +1222,30 @@ export const ChatE2EE = {
       textEncoder.encode(content)
     )
 
-    const keyPackages = packagesNeeded ? await this.wrapConversationKey(rawKeyBytes, devices) : []
+    let keyPackages = []
+
+    if (packagesNeeded) {
+      let prepared = this.preparedConversationKey
+
+      if (this.prepareConversationKeyPromise) {
+        prepared = await this.prepareConversationKeyPromise
+      }
+
+      if (prepared?.keyUid === keyUid && prepared?.hash === hash) {
+        keyPackages = prepared.keyPackages
+      } else {
+        this.preparingDeviceCount = devices.length
+        this.setE2EEStatusMessage(this.conversationKeyPreparationMessage())
+
+        try {
+          keyPackages = await this.wrapConversationKey(rawKeyBytes, devices)
+          this.preparedConversationKey = { keyUid, hash, keyPackages }
+        } finally {
+          this.preparingDeviceCount = 0
+        }
+      }
+    }
+
     const localKeyPackages = keyPackages.filter(keyPackage => Number.isInteger(keyPackage.user_id))
     const federatedKeyPackages = keyPackages.filter(keyPackage => keyPackage.recipient_handle)
 
@@ -568,6 +1259,10 @@ export const ChatE2EE = {
 
     if (federatedKeyPackages.length > 0) {
       payload.federated_key_packages = federatedKeyPackages
+    }
+
+    if (localKeyPackages.length > 0) {
+      payload.local_key_packages = localKeyPackages
     }
 
     return {
@@ -584,10 +1279,10 @@ export const ChatE2EE = {
   async conversationKeyForDevices(devices) {
     const conversationId = this.conversationId()
     const hash = await devicesHash(devices)
-    const activeKey = parseJson(localStorage.getItem(this.activeKeyStorageKey(conversationId)), null)
+    const activeKey = await this.loadSecureJson(this.activeKeyStorageKey(conversationId))
 
     if (activeKey?.key_uid && activeKey.devices_hash === hash) {
-      const rawKeyBytes = this.loadRawConversationKey(conversationId, activeKey.key_uid)
+      const rawKeyBytes = await this.loadRawConversationKey(conversationId, activeKey.key_uid)
 
       if (rawKeyBytes) {
         return {
@@ -601,16 +1296,14 @@ export const ChatE2EE = {
 
     const keyUid = randomId('key-')
     const rawKeyBytes = randomBytes(32)
-    this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
-    this.storeActiveConversationKey(conversationId, keyUid, hash, null)
+    await this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+    await this.storeActiveConversationKey(conversationId, keyUid, hash, null)
 
     return { keyUid, rawKeyBytes, packagesNeeded: true, hash }
   },
 
   async wrapConversationKey(rawKeyBytes, devices) {
-    const packages = []
-
-    for (const device of stableDevices(devices)) {
+    return Promise.all(stableDevices(devices).map(async device => {
       const publicKey = await importRsaPublicKey(device.public_key)
       const encryptedKey = await window.crypto.subtle.encrypt(
         { name: 'RSA-OAEP' },
@@ -618,7 +1311,7 @@ export const ChatE2EE = {
         arrayBufferFromBytes(rawKeyBytes)
       )
 
-      packages.push({
+      return {
         ...(Number.isInteger(device.user_id) ? { user_id: device.user_id } : {}),
         ...(device.recipient_handle ? { recipient_handle: device.recipient_handle } : {}),
         ...(device.origin_domain ? { origin_domain: device.origin_domain } : {}),
@@ -628,19 +1321,17 @@ export const ChatE2EE = {
           key_algorithm: 'RSA-OAEP-SHA256',
           encrypted_key: bytesToBase64(encryptedKey)
         }
-      })
-    }
-
-    return packages
+      }
+    }))
   },
 
   async searchTokensForKnownKeys(query) {
     const conversationId = this.conversationId()
     if (!conversationId) return []
 
-    const keyUids = parseJson(localStorage.getItem(this.keyListStorageKey(conversationId)), [])
-    const tokenSets = await Promise.all(keyUids.map(keyUid => {
-      const rawKeyBytes = this.loadRawConversationKey(conversationId, keyUid)
+    const keyUids = (await this.loadSecureJson(this.keyListStorageKey(conversationId))) || []
+    const tokenSets = await Promise.all(keyUids.map(async keyUid => {
+      const rawKeyBytes = await this.loadRawConversationKey(conversationId, keyUid)
       return rawKeyBytes ? this.searchTokensForKey(rawKeyBytes, query) : []
     }))
 
@@ -668,15 +1359,17 @@ export const ChatE2EE = {
   decryptVisibleMessages() {
     if (!cryptoAvailable() || !this.conversationId()) return
 
-    this.el.querySelectorAll('[data-chat-encrypted-message="true"]').forEach(element => {
-      if (element.dataset.decrypted === 'true') return
-      if (element.dataset.decrypting === 'true') return
+    this.el
+      .querySelectorAll('[data-chat-encrypted-message="true"], [data-chat-encrypted-preview="true"]')
+      .forEach(element => {
+        if (element.dataset.decrypted === 'true' || element.dataset.decrypted === 'failed') return
+        if (element.dataset.decrypting === 'true') return
 
-      element.dataset.decrypting = 'true'
-      this.decryptMessageElement(element).finally(() => {
-        delete element.dataset.decrypting
+        element.dataset.decrypting = 'true'
+        this.decryptMessageElement(element).finally(() => {
+          delete element.dataset.decrypting
+        })
       })
-    })
   },
 
   async decryptMessageElement(element) {
@@ -684,7 +1377,18 @@ export const ChatE2EE = {
     const conversationId = Number(element.dataset.conversationId || this.conversationId())
     const keyUid = payload?.key_uid || element.dataset.keyUid
 
-    if (!payload || !conversationId || !keyUid) return
+    const sentPlaintext = this.sentPlaintextForPayload(payload)
+    if (sentPlaintext) {
+      element.textContent = sentPlaintext
+      this.showEncryptedMessageElement(element)
+      element.dataset.decrypted = 'true'
+      return
+    }
+
+    if (!payload || !conversationId || !keyUid) {
+      this.showEncryptedMessageElement(element)
+      return
+    }
 
     try {
       const rawKeyBytes = await this.rawConversationKey(conversationId, keyUid, payload)
@@ -696,54 +1400,124 @@ export const ChatE2EE = {
       )
 
       element.textContent = textDecoder.decode(plaintext)
-      element.classList.remove('opacity-80')
+      this.showEncryptedMessageElement(element)
       element.dataset.decrypted = 'true'
     } catch (error) {
-      console.warn('Could not decrypt chat message', error)
+      if (error?.code !== 'key_not_found' && error?.message !== 'key_not_found') {
+        console.warn('Could not decrypt chat message', error)
+      }
+
       element.textContent = 'Encrypted message'
+      this.showEncryptedMessageElement(element)
       element.dataset.decrypted = 'failed'
     }
   },
 
-  async rawConversationKey(conversationId, keyUid, payload = null) {
-    const stored = this.loadRawConversationKey(conversationId, keyUid)
-    if (stored) return stored
+  showEncryptedMessageElement(element) {
+    element.classList.remove('opacity-0', 'opacity-80')
+  },
 
-    const device = await this.loadOrCreateDevice()
-    const inlinePackage = this.inlineKeyPackageForDevice(payload, device.device_id)
+  sentPlaintextCacheKey(payload) {
+    if (!payload?.key_uid || !payload?.ciphertext) return null
+    return `${payload.key_uid}:${payload.ciphertext}`
+  },
 
-    if (inlinePackage?.wrapped_key?.encrypted_key) {
-      const rawKeyBytes = await this.decryptWrappedConversationKey(device, inlinePackage.wrapped_key)
-      this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
-      return rawKeyBytes
+  cacheSentPlaintext(payload, plaintext) {
+    const key = this.sentPlaintextCacheKey(payload)
+    if (!key || !plaintext) return
+
+    this.sentPlaintexts.set(key, plaintext)
+
+    if (this.sentPlaintexts.size > 50) {
+      this.sentPlaintexts.delete(this.sentPlaintexts.keys().next().value)
     }
 
-    const wrappedKey = await new Promise((resolve, reject) => {
-      this.pushEvent('chat_e2ee_key', {
-        conversation_id: conversationId,
-        device_id: device.device_id,
-        key_uid: keyUid
-      }, reply => {
-        if (reply?.ok && reply.wrapped_key) {
-          resolve(reply.wrapped_key)
-        } else {
-          reject(new Error(reply?.error || 'Wrapped key not found'))
-        }
+    setTimeout(() => this.sentPlaintexts.delete(key), 5 * 60 * 1000)
+  },
+
+  forgetSentPlaintext(payload) {
+    const key = this.sentPlaintextCacheKey(payload)
+    if (key) this.sentPlaintexts.delete(key)
+  },
+
+  sentPlaintextForPayload(payload) {
+    const key = this.sentPlaintextCacheKey(payload)
+    return key ? this.sentPlaintexts.get(key) : null
+  },
+
+  async rawConversationKey(conversationId, keyUid, payload = null) {
+    const stored = await this.loadRawConversationKey(conversationId, keyUid)
+    if (stored) return stored
+
+    const cacheKey = `${conversationId}:${keyUid}`
+    if (this.unavailableConversationKeys.has(cacheKey)) {
+      throw new Error('key_not_found')
+    }
+
+    const pendingRequest = this.conversationKeyRequests.get(cacheKey)
+    if (pendingRequest) return pendingRequest
+
+    const request = (async () => {
+      const device = await this.loadOrCreateDevice()
+      const inlinePackage = this.inlineKeyPackageForDevice(payload, device.device_id)
+
+      if (inlinePackage?.wrapped_key?.encrypted_key) {
+        const rawKeyBytes = await this.decryptWrappedConversationKey(device, inlinePackage.wrapped_key)
+        await this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+        return rawKeyBytes
+      }
+
+      const wrappedKey = await new Promise((resolve, reject) => {
+        this.pushEvent(
+          'chat_e2ee_key',
+          {
+            conversation_id: conversationId,
+            device_id: device.device_id,
+            key_uid: keyUid
+          },
+          reply => {
+            if (reply?.ok && reply.wrapped_key) {
+              resolve(reply.wrapped_key)
+            } else {
+              const error = new Error(reply?.error || 'Wrapped key not found')
+              error.code = reply?.error
+              reject(error)
+            }
+          }
+        )
       })
-    })
 
-    const rawKeyBytes = await this.decryptWrappedConversationKey(device, wrappedKey)
+      const rawKeyBytes = await this.decryptWrappedConversationKey(device, wrappedKey)
 
-    this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
+      await this.storeRawConversationKey(conversationId, keyUid, rawKeyBytes)
 
-    const hash = await devicesHash(this.devices())
-    this.storeActiveConversationKey(conversationId, keyUid, hash, hash)
+      const hash = await devicesHash(this.devices())
+      await this.storeActiveConversationKey(conversationId, keyUid, hash, hash)
 
-    return rawKeyBytes
+      return rawKeyBytes
+    })()
+      .catch(error => {
+        if (error?.code === 'key_not_found' || error?.message === 'key_not_found') {
+          this.unavailableConversationKeys.add(cacheKey)
+        }
+
+        throw error
+      })
+      .finally(() => {
+        this.conversationKeyRequests.delete(cacheKey)
+      })
+
+    this.conversationKeyRequests.set(cacheKey, request)
+    return request
   },
 
   inlineKeyPackageForDevice(payload, deviceId) {
-    const packages = payload?.federated_key_packages || payload?.federatedKeyPackages || []
+    const packages = [
+      ...(payload?.local_key_packages || payload?.localKeyPackages || []),
+      ...(payload?.key_packages || payload?.keyPackages || []),
+      ...(payload?.federated_key_packages || payload?.federatedKeyPackages || [])
+    ]
+
     return packages.find(keyPackage => keyPackage?.device_id === deviceId)
   },
 
@@ -758,34 +1532,55 @@ export const ChatE2EE = {
     return new Uint8Array(rawKey)
   },
 
-  loadRawConversationKey(conversationId, keyUid) {
-    const key = localStorage.getItem(this.rawKeyStorageKey(conversationId, keyUid))
-    return key ? base64ToBytes(key) : null
+  async loadRawConversationKey(conversationId, keyUid) {
+    const storageKey = this.rawKeyStorageKey(conversationId, keyUid)
+    let key = null
+
+    try {
+      key = await secureStorageGet(storageKey)
+    } catch (_error) {
+      key = null
+    }
+
+    if (key) return base64ToBytes(key)
+
+    const legacyKey = localStorage.getItem(storageKey)
+    if (legacyKey) {
+      await secureStorageSet(storageKey, legacyKey)
+      localStorage.removeItem(storageKey)
+      return base64ToBytes(legacyKey)
+    }
+
+    return null
   },
 
-  storeRawConversationKey(conversationId, keyUid, rawKeyBytes) {
-    localStorage.setItem(this.rawKeyStorageKey(conversationId, keyUid), bytesToBase64(rawKeyBytes))
+  async storeRawConversationKey(conversationId, keyUid, rawKeyBytes) {
+    await secureStorageSet(this.rawKeyStorageKey(conversationId, keyUid), bytesToBase64(rawKeyBytes))
+    localStorage.removeItem(this.rawKeyStorageKey(conversationId, keyUid))
 
     const listKey = this.keyListStorageKey(conversationId)
-    const keyUids = parseJson(localStorage.getItem(listKey), [])
+    const keyUids = (await this.loadSecureJson(listKey)) || []
     if (!keyUids.includes(keyUid)) {
-      localStorage.setItem(listKey, JSON.stringify([...keyUids, keyUid]))
+      await secureStorageSet(listKey, [...keyUids, keyUid])
+      localStorage.removeItem(listKey)
     }
   },
 
-  storeActiveConversationKey(conversationId, keyUid, devicesHashValue, packagesSentHash) {
-    localStorage.setItem(this.activeKeyStorageKey(conversationId), JSON.stringify({
+  async storeActiveConversationKey(conversationId, keyUid, devicesHashValue, packagesSentHash) {
+    const key = this.activeKeyStorageKey(conversationId)
+    await secureStorageSet(key, {
       key_uid: keyUid,
       devices_hash: devicesHashValue,
       packages_sent_hash: packagesSentHash
-    }))
+    })
+    localStorage.removeItem(key)
   },
 
   markPackagesSent(keyUid, devicesHashValue) {
     const conversationId = this.conversationId()
     if (!conversationId) return
 
-    this.storeActiveConversationKey(conversationId, keyUid, devicesHashValue, devicesHashValue)
+    this.storeActiveConversationKey(conversationId, keyUid, devicesHashValue, devicesHashValue).catch(() => null)
   },
 
   rawKeyStorageKey(conversationId, keyUid) {
@@ -1058,7 +1853,7 @@ export const SimpleChatInput = {
         e.preventDefault()
         if (this.form && this.el.value.trim()) {
           this.awaitingSubmitClear = true
-          this.form.requestSubmit()
+          this.form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
         }
       }
     }

@@ -63,7 +63,9 @@ defmodule Elektrine.Email.Filter do
   def changeset(filter, attrs) do
     filter
     |> cast(attrs, [:name, :enabled, :priority, :stop_processing, :conditions, :actions, :user_id])
-    |> validate_required([:name, :conditions, :actions, :user_id])
+    |> default_empty_map(:conditions)
+    |> default_empty_map(:actions)
+    |> validate_required([:name, :user_id])
     |> validate_length(:name, min: 1, max: 100)
     |> validate_conditions()
     |> validate_actions()
@@ -71,20 +73,34 @@ defmodule Elektrine.Email.Filter do
     |> unique_constraint([:user_id, :name])
   end
 
+  defp default_empty_map(changeset, field) do
+    case get_field(changeset, field) do
+      nil -> put_change(changeset, field, %{})
+      _ -> changeset
+    end
+  end
+
   defp validate_conditions(changeset) do
     case get_field(changeset, :conditions) do
-      nil ->
-        add_error(changeset, :conditions, "is required")
+      conditions when is_map(conditions) ->
+        rules = Map.get(conditions, "rules") || []
 
-      %{"rules" => rules} when is_list(rules) and rules != [] ->
-        if Enum.all?(rules, &valid_rule?/1) do
-          changeset
-        else
-          add_error(changeset, :conditions, "contains invalid rules")
+        cond do
+          rules == [] ->
+            changeset
+
+          is_list(rules) and Enum.all?(rules, &valid_rule?/1) ->
+            changeset
+
+          is_list(rules) ->
+            add_error(changeset, :conditions, "contains invalid rules")
+
+          true ->
+            add_error(changeset, :conditions, "rules must be a list")
         end
 
       _ ->
-        add_error(changeset, :conditions, "must contain at least one rule")
+        add_error(changeset, :conditions, "must be a map")
     end
   end
 
@@ -100,8 +116,8 @@ defmodule Elektrine.Email.Filter do
 
   defp validate_actions(changeset) do
     case get_field(changeset, :actions) do
-      nil ->
-        add_error(changeset, :actions, "is required")
+      actions when is_map(actions) and map_size(actions) == 0 ->
+        changeset
 
       actions when is_map(actions) and map_size(actions) > 0 ->
         if valid_actions?(actions) do
@@ -111,7 +127,7 @@ defmodule Elektrine.Email.Filter do
         end
 
       _ ->
-        add_error(changeset, :actions, "must contain at least one action")
+        add_error(changeset, :actions, "must be a map")
     end
   end
 
@@ -135,8 +151,9 @@ defmodule Elektrine.Email.Filter do
   Checks if a message matches this filter's conditions.
   """
   def matches?(filter, message) do
-    match_type = Map.get(filter.conditions, "match_type", "all")
-    rules = Map.get(filter.conditions, "rules", [])
+    conditions = filter.conditions || %{}
+    match_type = Map.get(conditions, "match_type", "all")
+    rules = Map.get(conditions, "rules") || []
 
     case match_type do
       "all" -> Enum.all?(rules, &rule_matches?(&1, message))

@@ -4,7 +4,11 @@
   phx-hook="EmailShowKeyboardShortcuts"
 >
   <!-- Elektrine Platform Navigation -->
-  <.elektrine_nav active_tab="email" current_user={@current_user} />
+  <.elektrine_nav
+    active_tab="email"
+    current_user={@current_user}
+    badge_counts={@e_nav_badge_counts}
+  />
 
   <div class="flex flex-col gap-3 lg:flex-row lg:gap-6">
     <div class="order-2 lg:order-1">
@@ -15,6 +19,7 @@
         unread_count={@unread_count}
         current_page={@return_to || "inbox"}
         current_user={@current_user}
+        custom_folders={@custom_folders}
       />
     </div>
     
@@ -576,7 +581,7 @@
                 src={~p"/email/#{@message.id}/iframe_content"}
                 class="email-content-iframe w-full border-0 bg-white"
                 style="height: clamp(420px, 70vh, 680px);"
-                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
                 title="Email content"
               >
               </iframe>

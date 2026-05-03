@@ -127,6 +127,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         select: [
           :id,
           :activitypub_id,
+          :activitypub_url,
           :like_count,
           :reply_count,
           :share_count,
@@ -155,6 +156,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         select: [
           :id,
           :activitypub_id,
+          :activitypub_url,
           :like_count,
           :reply_count,
           :share_count,
@@ -184,6 +186,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
         select: [
           :id,
           :activitypub_id,
+          :activitypub_url,
           :like_count,
           :reply_count,
           :share_count,
@@ -250,6 +253,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           select: [
             :id,
             :activitypub_id,
+            :activitypub_url,
             :like_count,
             :reply_count,
             :share_count,
@@ -408,7 +412,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   defp do_refresh_post(%{id: id, activitypub_id: ap_id} = post) do
     # Try platform-specific APIs first (more reliable counts), then fall back to ActivityPub
-    case fetch_counts_smart(ap_id) do
+    case fetch_counts_smart(post) do
       {:ok, new_counts} ->
         normalized_counts = normalize_counts(new_counts)
         maybe_update_refreshed_counts(post, id, ap_id, normalized_counts)
@@ -489,33 +493,44 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   # Intelligently fetch counts using the best available API for each platform
-  defp fetch_counts_smart(ap_id) do
+  defp fetch_counts_smart(%{activitypub_id: _ap_id} = post) do
+    count_ref = count_reference(post)
+    lemmy_ref = lemmy_reference(post)
+
     cond do
       # Lemmy posts: use Lemmy API (most reliable)
-      lemmy_url?(ap_id) ->
-        case LemmyApi.fetch_post_counts(ap_id) do
+      is_binary(lemmy_ref) ->
+        case LemmyApi.fetch_post_counts(lemmy_ref) do
           %{score: score, comments: comments} = counts ->
             {:ok, %{like_count: score, reply_count: comments, share_count: 0, raw: counts}}
 
           nil ->
-            fetch_counts_activitypub(ap_id)
+            fetch_counts_activitypub(count_ref)
         end
 
       # Mastodon-compatible and Misskey note URLs: use instance-specific counts API
-      MastodonApi.count_api_compatible?(%{activitypub_id: ap_id}) ->
-        case MastodonApi.fetch_status_counts(ap_id) do
+      MastodonApi.count_api_compatible?(post) ->
+        case MastodonApi.fetch_status_counts_for_post(post) do
           %{favourites_count: fav, reblogs_count: reb, replies_count: rep} ->
             {:ok, %{like_count: fav, reply_count: rep, share_count: reb}}
 
           nil ->
-            fetch_counts_activitypub(ap_id)
+            fetch_counts_activitypub(count_ref)
         end
 
       # Fallback: use ActivityPub
+      is_binary(count_ref) ->
+        fetch_counts_activitypub(count_ref)
+
       true ->
-        fetch_counts_activitypub(ap_id)
+        {:error, :invalid_activitypub_id}
     end
   end
+
+  defp fetch_counts_smart(ap_id) when is_binary(ap_id),
+    do: fetch_counts_smart(%{activitypub_id: ap_id})
+
+  defp fetch_counts_smart(_), do: {:error, :invalid_activitypub_id}
 
   defp fetch_counts_activitypub(ap_id) do
     case Fetcher.fetch_object(ap_id) do
@@ -541,6 +556,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp lemmy_url?(_), do: false
+
+  defp lemmy_reference(post) do
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
+    |> Enum.find(&lemmy_url?/1)
+  end
+
+  defp count_reference(post) do
+    [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
+    |> Enum.find(&(is_binary(&1) and String.trim(&1) != ""))
+  end
 
   defp counts_changed?(post, new_likes, new_replies, new_shares) do
     (post.like_count || 0) != new_likes ||

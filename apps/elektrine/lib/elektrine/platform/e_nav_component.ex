@@ -35,6 +35,7 @@ defmodule Elektrine.Platform.ENavComponent do
                       class={icon_class(@active_tab, item.id)}
                     />
                     <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                    <.nav_badge count={Map.get(item, :badge_count, 0)} />
                   </.link>
                 <% end %>
               </div>
@@ -59,6 +60,7 @@ defmodule Elektrine.Platform.ENavComponent do
                         class={icon_class(@active_tab, item.id)}
                       />
                       <span class="hidden min-w-0 truncate sm:block">{item.label}</span>
+                      <.nav_badge count={Map.get(item, :badge_count, 0)} />
                     </.link>
                   <% end %>
                 </div>
@@ -80,9 +82,22 @@ defmodule Elektrine.Platform.ENavComponent do
     """
   end
 
+  attr :count, :any, default: 0
+
+  def nav_badge(assigns) do
+    ~H"""
+    <span
+      :if={show_badge?(@count)}
+      class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-bold leading-none text-error-content ring-2 ring-base-100"
+    >
+      {format_badge_count(@count)}
+    </span>
+    """
+  end
+
   defp tab_class(active_tab, tab_id) do
     [
-      "e-nav-link group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+      "e-nav-link group relative flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium whitespace-nowrap transition-colors",
       if(active_tab == tab_id,
         do: "bg-primary/10 text-base-content",
         else: "text-base-content/65 hover:bg-base-200/80 hover:text-base-content"
@@ -92,7 +107,7 @@ defmodule Elektrine.Platform.ENavComponent do
 
   defp secondary_tab_class(active_tab, tab_id) do
     [
-      "e-nav-link group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium whitespace-nowrap transition-colors",
+      "e-nav-link group relative flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium whitespace-nowrap transition-colors",
       if(active_tab == tab_id,
         do: "bg-primary/10 text-base-content",
         else: "text-base-content/65 hover:bg-base-200/80 hover:text-base-content"
@@ -109,4 +124,10 @@ defmodule Elektrine.Platform.ENavComponent do
       )
     ]
   end
+
+  defp show_badge?(count) when is_integer(count), do: count > 0
+  defp show_badge?(_count), do: false
+
+  defp format_badge_count(count) when is_integer(count) and count > 99, do: "99+"
+  defp format_badge_count(count) when is_integer(count), do: Integer.to_string(count)
 end
