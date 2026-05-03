@@ -82,6 +82,38 @@ defmodule ElektrineEmailWeb.EmailLive.ShowTest do
     assert portal_nav_badges(html) == []
   end
 
+  test "email content iframe keeps same-origin access for proxied images without scripts", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Iframe sandbox regression",
+        html_body: ~s(<p><img src="https://example.com/image.png"></p>),
+        message_id: "<iframe-sandbox-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/view/#{message.hash}")
+
+    document = Floki.parse_document!(html)
+
+    [sandbox] =
+      document
+      |> Floki.find("iframe.email-content-iframe")
+      |> Floki.attribute("sandbox")
+
+    assert sandbox =~ "allow-same-origin"
+    refute sandbox =~ "allow-scripts"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do
