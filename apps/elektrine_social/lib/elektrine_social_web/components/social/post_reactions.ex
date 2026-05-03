@@ -51,9 +51,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
           |> Enum.reject(&is_nil/1)
           |> Enum.take(10)
 
+        count = reaction_group_count(reactions)
+
         %{
           emoji: emoji,
-          count: length(reactions),
+          count: count,
           user_reacted: user_reacted,
           usernames: usernames,
           instance_domain: reaction_instance_domain(reactions, assigns.actor_uri)
@@ -130,6 +132,32 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     <% end %>
     """
   end
+
+  defp reaction_group_count(reactions) when is_list(reactions) do
+    Enum.reduce(reactions, 0, fn reaction, total ->
+      total + reaction_count(reaction)
+    end)
+  end
+
+  defp reaction_group_count(_), do: 0
+
+  defp reaction_count(reaction) when is_map(reaction) do
+    case Map.get(reaction, :remote_count) || Map.get(reaction, "remote_count") do
+      count when is_integer(count) and count > 0 ->
+        count
+
+      count when is_binary(count) ->
+        case Integer.parse(String.trim(count)) do
+          {parsed, _} when parsed > 0 -> parsed
+          _ -> 1
+        end
+
+      _ ->
+        1
+    end
+  end
+
+  defp reaction_count(_), do: 1
 
   defp size_classes(:xs) do
     {

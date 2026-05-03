@@ -314,7 +314,12 @@
                     icon: "hero-inbox",
                     count: assigns[:inbox_unread_count] || 0
                   },
-                  %{id: "unread", label: gettext("Unread"), icon: "hero-envelope", count: 0},
+                  %{
+                    id: "unread",
+                    label: gettext("Unread"),
+                    icon: "hero-envelope",
+                    count: assigns[:inbox_unread_count] || 0
+                  },
                   %{id: "read", label: gettext("Read"), icon: "hero-check-circle", count: 0}
                 ] ++
                   if assigns[:digest_filter_enabled] do

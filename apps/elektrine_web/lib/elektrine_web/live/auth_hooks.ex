@@ -169,6 +169,11 @@ defmodule ElektrineWeb.Live.AuthHooks do
                 socket
                 |> assign_admin_security_metadata(session)
                 |> attach_hook(
+                  :track_admin_return_to,
+                  :handle_params,
+                  &track_admin_return_to/3
+                )
+                |> attach_hook(
                   :enforce_admin_event_security,
                   :handle_event,
                   &enforce_admin_live_event_security/3
@@ -255,6 +260,10 @@ defmodule ElektrineWeb.Live.AuthHooks do
     |> assign(:admin_last_resign_at, parse_session_int(session["admin_last_resign_at"]))
   end
 
+  defp track_admin_return_to(_params, url, socket) do
+    {:cont, assign(socket, :admin_return_to, admin_return_to_from_url(url))}
+  end
+
   defp enforce_admin_live_event_security(event, _params, socket) do
     now = System.system_time(:second)
     auth_method = socket.assigns[:admin_auth_method]
@@ -286,18 +295,34 @@ defmodule ElektrineWeb.Live.AuthHooks do
   end
 
   defp live_admin_return_to(socket) do
-    case get_connect_info(socket, :uri) do
-      %URI{path: path, query: query} when is_binary(path) and path != "" ->
-        path
-        |> maybe_with_query(query)
-        |> AdminSecurity.normalize_return_to()
+    case socket.assigns[:admin_return_to] do
+      return_to when is_binary(return_to) and return_to != "" ->
+        AdminSecurity.normalize_return_to(return_to)
 
       _ ->
-        "/pripyat"
+        socket
+        |> get_connect_info(:uri)
+        |> admin_return_to_from_uri()
     end
   rescue
     _ -> "/pripyat"
   end
+
+  defp admin_return_to_from_url(url) when is_binary(url) do
+    url
+    |> URI.parse()
+    |> admin_return_to_from_uri()
+  end
+
+  defp admin_return_to_from_url(_url), do: "/pripyat"
+
+  defp admin_return_to_from_uri(%URI{path: path, query: query}) when is_binary(path) and path != "" do
+    path
+    |> maybe_with_query(query)
+    |> AdminSecurity.normalize_return_to()
+  end
+
+  defp admin_return_to_from_uri(_uri), do: "/pripyat"
 
   defp maybe_with_query(path, query) when is_binary(query) and query != "",
     do: path <> "?" <> query

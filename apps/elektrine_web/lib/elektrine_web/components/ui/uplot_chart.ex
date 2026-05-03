@@ -27,8 +27,9 @@ defmodule ElektrineWeb.Components.UI.UPlotChart do
     ~H"""
     <div class={["analytics-chart w-full", @class]}>
       <%= if @chart.has_data do %>
-        <div class="mb-3 flex items-center justify-between gap-4 text-xs text-base-content/55">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-4 text-xs text-base-content/55">
           <span>{@chart.total_label} total</span>
+          <span :if={@chart.partial_period_note}>{@chart.partial_period_note}</span>
           <span>Peak {@chart.max_label}</span>
         </div>
         <div
@@ -50,15 +51,22 @@ defmodule ElektrineWeb.Components.UI.UPlotChart do
   end
 
   defp build_chart(assigns) do
-    rows = Enum.map(assigns.data, &normalize_row(&1, assigns.label_key, assigns.value_key))
+    rows =
+      Enum.map(
+        assigns.data,
+        &normalize_row(&1, assigns.label_key, assigns.value_key, assigns.granularity)
+      )
+
     values = Enum.map(rows, & &1.y)
     max_value = Enum.max([0 | values])
     total = Enum.sum(values)
+    has_partial_current_period = Enum.any?(rows, & &1.partial)
 
     %{
       has_data: max_value > 0,
       total_label: value_label(total, assigns.unit),
       max_label: value_label(max_value, assigns.unit),
+      partial_period_note: partial_period_note(has_partial_current_period, assigns.granularity),
       payload: %{
         points: rows,
         unit: assigns.unit,
@@ -69,13 +77,14 @@ defmodule ElektrineWeb.Components.UI.UPlotChart do
     }
   end
 
-  defp normalize_row(row, label_key, value_key) do
+  defp normalize_row(row, label_key, value_key, granularity) do
     x_value = value_for(row, label_key)
 
     %{
       x: unix_time(x_value),
       label: format_label(x_value),
-      y: row |> value_for(value_key) |> numeric_value()
+      y: row |> value_for(value_key) |> numeric_value(),
+      partial: current_period?(x_value, granularity)
     }
   end
 
@@ -118,6 +127,41 @@ defmodule ElektrineWeb.Components.UI.UPlotChart do
   defp format_label(%NaiveDateTime{} = datetime), do: Calendar.strftime(datetime, "%H:00")
   defp format_label(value) when is_binary(value), do: value
   defp format_label(value), do: to_string(value || "")
+
+  defp current_period?(%Date{} = date, "day"), do: Date.compare(date, Date.utc_today()) == :eq
+
+  defp current_period?(%DateTime{} = datetime, "hour") do
+    datetime
+    |> DateTime.truncate(:second)
+    |> truncate_to_hour()
+    |> DateTime.compare(DateTime.utc_now() |> DateTime.truncate(:second) |> truncate_to_hour())
+    |> Kernel.==(:eq)
+  end
+
+  defp current_period?(%NaiveDateTime{} = datetime, "hour") do
+    datetime
+    |> DateTime.from_naive!("Etc/UTC")
+    |> current_period?("hour")
+  end
+
+  defp current_period?(value, granularity) when is_binary(value) do
+    with {:error, _reason} <- DateTime.from_iso8601(value),
+         {:ok, date} <- Date.from_iso8601(value) do
+      current_period?(date, granularity)
+    else
+      {:ok, datetime, _offset} -> current_period?(datetime, granularity)
+      _ -> false
+    end
+  end
+
+  defp current_period?(_value, _granularity), do: false
+
+  defp truncate_to_hour(%DateTime{} = datetime),
+    do: %{datetime | minute: 0, second: 0, microsecond: {0, 0}}
+
+  defp partial_period_note(true, "hour"), do: "Current hour in progress"
+  defp partial_period_note(true, "day"), do: "Current day in progress"
+  defp partial_period_note(_has_partial_current_period, _granularity), do: nil
 
   defp value_label(value, ""), do: format_count(value)
   defp value_label(value, unit), do: "#{format_count(value)} #{unit}"

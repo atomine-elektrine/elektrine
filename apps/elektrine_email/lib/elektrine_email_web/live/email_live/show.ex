@@ -462,25 +462,7 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
     if private_message?(message) do
       gettext("Unlock your mailbox to read this message.")
     else
-      content = message.text_body || message.html_body || ""
-
-      preview =
-        content
-        |> String.replace(~r/<[^>]+>/, " ")
-        |> String.replace(~r/\s+/, " ")
-        |> String.trim()
-
-      case preview do
-        "" ->
-          gettext("(No preview)")
-
-        text ->
-          if String.length(text) <= 140 do
-            text
-          else
-            String.slice(text, 0, 140) <> "..."
-          end
-      end
+      email_preview(message, 140)
     end
   end
 end

@@ -20,7 +20,18 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
     "inReplyToAuthor",
     "inReplyToContent",
     "external_link",
-    "community_actor_uri"
+    "community_actor_uri",
+    "emoji_reactions",
+    "quotes_count",
+    "quote",
+    "quote_id",
+    "quote_url",
+    "card",
+    "application",
+    "language",
+    "media_attachments",
+    "pleroma",
+    "misskey"
   ]
 
   @doc """
@@ -178,6 +189,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
         :like_count,
         :reply_count,
         :share_count,
+        :quote_count,
         :sensitive,
         :content_warning,
         :extracted_hashtags
@@ -230,6 +242,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
         :like_count,
         :reply_count,
         :share_count,
+        :quote_count,
         :sensitive,
         :content_warning,
         :extracted_hashtags

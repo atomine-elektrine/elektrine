@@ -1,6 +1,8 @@
 defmodule ElektrineWeb.ProofsLive do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.Platform.ENav
+
   @proof_kinds [
     {"DNS TXT", "dns"},
     {"Web page", "web"},
@@ -142,6 +144,7 @@ defmodule ElektrineWeb.ProofsLive do
       sidebar_link="proofs"
       nav_tab="proofs"
       current_user={@current_user}
+      badge_counts={@e_nav_badge_counts}
       show_header={false}
     >
       <div :if={!@atomine_available} class="alert alert-warning">
@@ -471,6 +474,7 @@ defmodule ElektrineWeb.ProofsLive do
     socket
     |> assign(:proofs, proofs)
     |> assign(:breakdown, breakdown)
+    |> assign(:e_nav_badge_counts, ENav.notification_badge_counts(socket.assigns.current_user))
     |> assign(:atomine_available, atomine_available)
     |> assign(:credit_rows, credit_rows)
     |> assign(:credit_action_prices, credit_action_prices)

@@ -267,7 +267,9 @@
           ElektrineWeb.CoreComponents.safe_sanitize_email_html(@message.html_body)
         )}
       <% else %>
-        <div class="text-content">{@message.text_body}</div>
+        <div class="text-content">
+          {ElektrineEmailWeb.Components.Email.Display.clean_plain_text_body(@message.text_body)}
+        </div>
       <% end %>
     </div>
 

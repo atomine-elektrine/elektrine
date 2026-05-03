@@ -295,12 +295,34 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
             r.user_id == current_user_id
           end)
 
-      {emoji, length(emoji_reactions), users, user_reacted || false}
+      {emoji, reaction_group_count(emoji_reactions), users, user_reacted || false}
     end)
     |> Enum.sort_by(fn {_, count, _, _} -> -count end)
   end
 
   def format_reactions(_, _user_id), do: []
+
+  defp reaction_group_count(reactions) when is_list(reactions) do
+    Enum.reduce(reactions, 0, fn reaction, total -> total + reaction_count(reaction) end)
+  end
+
+  defp reaction_count(reaction) when is_map(reaction) do
+    case Map.get(reaction, :remote_count) || Map.get(reaction, "remote_count") do
+      count when is_integer(count) and count > 0 ->
+        count
+
+      count when is_binary(count) ->
+        case Integer.parse(String.trim(count)) do
+          {parsed, _} when parsed > 0 -> parsed
+          _ -> 1
+        end
+
+      _ ->
+        1
+    end
+  end
+
+  defp reaction_count(_), do: 1
 
   @doc """
   Gets the author display string from a reply.

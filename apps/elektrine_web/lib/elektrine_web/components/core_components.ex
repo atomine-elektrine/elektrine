@@ -140,6 +140,7 @@ defmodule ElektrineWeb.CoreComponents do
   attr :sidebar_link, :string, default: nil
   attr :nav_tab, :string, default: "account"
   attr :current_user, :any, default: nil
+  attr :badge_counts, :map, default: nil
   attr :max_width, :string, default: nil
   attr :class, :string, default: nil
   attr :shell_title, :string, default: nil
@@ -154,6 +155,7 @@ defmodule ElektrineWeb.CoreComponents do
       <ElektrineWeb.Components.Platform.ENav.e_nav
         active_tab={@nav_tab}
         current_user={@current_user}
+        badge_counts={@badge_counts}
         class="mb-6 sm:mb-8"
       />
 

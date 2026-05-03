@@ -7,6 +7,7 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   alias Elektrine.Repo
   alias Elektrine.Social
   alias Elektrine.Uploads
+  alias Elektrine.ActivityPub.Helpers, as: APHelpers
 
   import Ecto.Query
 
@@ -16,6 +17,7 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   def render_status(message, for_user) do
     base_url = ElektrineWeb.Endpoint.url()
     message = ensure_status_preloads(message)
+    metadata = status_metadata(message)
 
     %{
       id: to_string(message.id),
@@ -25,22 +27,26 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
       sensitive: Map.get(message, :sensitive, false),
       spoiler_text: Map.get(message, :content_warning) || "",
       visibility: message.visibility || "public",
-      language: "en",
+      language: status_language(metadata),
       uri: status_uri(base_url, message),
       url: "#{base_url}/timeline/post/#{message.id}",
       replies_count: message.reply_count || 0,
       reblogs_count: message.share_count || 0,
       favourites_count: message.like_count || 0,
+      quotes_count: status_quote_count(message, metadata),
       edited_at: message.edited_at && format_datetime(message.edited_at),
       content: message.content || "",
       reblog: nil,
-      application: nil,
+      application: status_metadata_value(metadata, ["application", "mastodon_application"]),
       account: render_status_account(message, for_user),
       media_attachments: render_media_urls(message),
       mentions: [],
       tags: render_hashtags(message),
       emojis: [],
-      card: nil,
+      emoji_reactions: status_emoji_reactions(metadata),
+      card: status_metadata_value(metadata, ["card", "mastodon_card"]),
+      pleroma: status_pleroma_metadata(metadata),
+      misskey: status_misskey_metadata(metadata),
       poll: render_poll(Map.get(message, :poll), for_user),
       favourited: liked_by_user?(message, for_user),
       reblogged: reposted_by_user?(message, for_user),
@@ -122,7 +128,19 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
 
   # Private functions
 
-  defp render_media_urls(%{media_urls: urls, media_metadata: metadata})
+  defp render_media_urls(%{media_metadata: metadata} = message) when is_map(metadata) do
+    case remote_media_attachments(metadata) do
+      attachments when attachments != [] ->
+        attachments
+
+      _ ->
+        render_local_media_urls(message)
+    end
+  end
+
+  defp render_media_urls(message), do: render_local_media_urls(message)
+
+  defp render_local_media_urls(%{media_urls: urls, media_metadata: metadata})
        when is_list(urls) and urls != [] do
     urls
     |> Enum.with_index()
@@ -142,7 +160,101 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
     end)
   end
 
-  defp render_media_urls(_), do: []
+  defp render_local_media_urls(_), do: []
+
+  defp remote_media_attachments(metadata) when is_map(metadata) do
+    metadata
+    |> status_metadata_value(["media_attachments", "mastodon_media_attachments"])
+    |> normalize_remote_media_attachments()
+  end
+
+  defp normalize_remote_media_attachments(attachments) when is_list(attachments) do
+    attachments
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(fn attachment ->
+      %{
+        id: to_string(attachment["id"] || attachment[:id] || ""),
+        type: attachment["type"] || attachment[:type] || "unknown",
+        url: attachment["url"] || attachment[:url],
+        preview_url: attachment["preview_url"] || attachment[:preview_url] || attachment["url"],
+        remote_url: attachment["remote_url"] || attachment[:remote_url],
+        meta: attachment["meta"] || attachment[:meta] || %{},
+        description: attachment["description"] || attachment[:description],
+        blurhash: attachment["blurhash"] || attachment[:blurhash]
+      }
+    end)
+    |> Enum.filter(&(is_binary(&1.url) and &1.url != ""))
+  end
+
+  defp normalize_remote_media_attachments(_), do: []
+
+  defp status_metadata(%{media_metadata: metadata}) when is_map(metadata), do: metadata
+  defp status_metadata(_), do: %{}
+
+  defp status_metadata_value(metadata, keys) when is_map(metadata) and is_list(keys) do
+    Enum.find_value(keys, fn key ->
+      case Map.get(metadata, key) || Map.get(metadata, String.to_atom(key)) do
+        nil -> nil
+        [] -> nil
+        %{} = value when map_size(value) == 0 -> nil
+        value -> value
+      end
+    end)
+  end
+
+  defp status_metadata_value(_, _), do: nil
+
+  defp status_language(metadata) do
+    case status_metadata_value(metadata, ["language"]) do
+      language when is_binary(language) and language != "" -> language
+      _ -> "en"
+    end
+  end
+
+  defp status_quote_count(%{quote_count: quote_count}, metadata) when is_integer(quote_count) do
+    max(quote_count, metadata_quote_count(metadata))
+  end
+
+  defp status_quote_count(_message, metadata), do: metadata_quote_count(metadata)
+
+  defp metadata_quote_count(metadata) do
+    case status_metadata_value(metadata, ["quotes_count", "quote_count"]) do
+      count when is_integer(count) ->
+        max(count, 0)
+
+      count when is_binary(count) ->
+        case Integer.parse(String.trim(count)) do
+          {parsed, _} -> max(parsed, 0)
+          :error -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
+  defp status_emoji_reactions(metadata) do
+    metadata
+    |> status_metadata_value(["emoji_reactions", "mastodon_emoji_reactions"])
+    |> case do
+      reactions when is_list(reactions) -> reactions
+      _ -> []
+    end
+  end
+
+  defp status_pleroma_metadata(metadata) do
+    case status_metadata_value(metadata, ["pleroma"]) do
+      %{} = pleroma -> pleroma
+      _ -> %{}
+    end
+  end
+
+  defp status_misskey_metadata(metadata) do
+    case status_metadata_value(metadata, ["misskey"]) do
+      %{} = misskey -> misskey
+      _ -> %{}
+    end
+  end
 
   defp detect_media_type(nil), do: "image"
 
@@ -184,6 +296,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
   defp render_status_account(_message, _for_user), do: nil
 
   defp render_remote_account(actor) do
+    metadata = if is_map(actor.metadata), do: actor.metadata, else: %{}
+
     %{
       id: to_string(actor.id),
       username: actor.username,
@@ -200,9 +314,9 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusView do
       avatar_static: actor.avatar_url,
       header: actor.header_url,
       header_static: actor.header_url,
-      followers_count: 0,
-      following_count: 0,
-      statuses_count: 0,
+      followers_count: APHelpers.get_follower_count(metadata),
+      following_count: APHelpers.get_following_count(metadata),
+      statuses_count: APHelpers.get_status_count(metadata),
       last_status_at: nil,
       emojis: [],
       fields: []

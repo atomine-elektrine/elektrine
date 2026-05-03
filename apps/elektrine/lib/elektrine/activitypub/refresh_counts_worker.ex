@@ -131,9 +131,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           :like_count,
           :reply_count,
           :share_count,
+          :quote_count,
           :upvotes,
           :downvotes,
-          :score
+          :score,
+          :media_metadata
         ]
       )
       |> Repo.all()
@@ -160,9 +162,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           :like_count,
           :reply_count,
           :share_count,
+          :quote_count,
           :upvotes,
           :downvotes,
-          :score
+          :score,
+          :media_metadata
         ]
       )
       |> Repo.all()
@@ -190,9 +194,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           :like_count,
           :reply_count,
           :share_count,
+          :quote_count,
           :upvotes,
           :downvotes,
-          :score
+          :score,
+          :media_metadata
         ]
       )
       |> Repo.all()
@@ -257,9 +263,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
             :like_count,
             :reply_count,
             :share_count,
+            :quote_count,
             :upvotes,
             :downvotes,
-            :score
+            :score,
+            :media_metadata
           ]
         )
         |> Repo.all()
@@ -368,16 +376,27 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     end)
   end
 
-  defp refresh_mastodon_post(post, %{
-         favourites_count: fav,
-         reblogs_count: reb,
-         replies_count: rep
-       }) do
-    if counts_changed?(post, fav, rep, reb) do
+  defp refresh_mastodon_post(
+         post,
+         %{
+           favourites_count: fav,
+           reblogs_count: reb,
+           replies_count: rep
+         } = counts
+       ) do
+    quotes = normalize_remote_count(Map.get(counts, :quotes_count))
+    status_metadata = normalize_status_metadata(Map.get(counts, :status_metadata))
+    media_metadata = merge_status_metadata(post.media_metadata, status_metadata, quotes)
+    metadata_changed? = media_metadata != normalize_status_metadata(post.media_metadata)
+
+    if counts_changed?(post, fav, rep, reb) ||
+         (post.quote_count || 0) != quotes ||
+         metadata_changed? do
       updated_counts = %{
         like_count: normalize_remote_count(fav),
         reply_count: normalize_remote_count(rep),
-        share_count: normalize_remote_count(reb)
+        share_count: normalize_remote_count(reb),
+        quote_count: quotes
       }
 
       Repo.update_all(
@@ -386,6 +405,8 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
+          quote_count: updated_counts.quote_count,
+          media_metadata: media_metadata,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
@@ -429,12 +450,14 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       reply_count:
         new_counts[:reply_count] || new_counts[:replies_count] || new_counts[:comments] || 0,
       share_count: new_counts[:share_count] || new_counts[:reblogs_count] || 0,
+      quote_count: new_counts[:quote_count] || new_counts[:quotes_count] || 0,
       upvotes: new_counts[:upvotes] || get_in(new_counts, [:raw, :upvotes]) || 0,
       downvotes: new_counts[:downvotes] || get_in(new_counts, [:raw, :downvotes]) || 0,
       score:
         new_counts[:score] || get_in(new_counts, [:raw, :score]) ||
           new_counts[:like_count] ||
-          new_counts[:favourites_count] || 0
+          new_counts[:favourites_count] || 0,
+      status_metadata: normalize_status_metadata(new_counts[:status_metadata])
     }
   end
 
@@ -442,18 +465,26 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          like_count: likes,
          reply_count: replies,
          share_count: shares,
+         quote_count: quotes,
          upvotes: upvotes,
          downvotes: downvotes,
-         score: score
+         score: score,
+         status_metadata: status_metadata
        }) do
+    media_metadata = merge_status_metadata(post.media_metadata, status_metadata, quotes)
+    metadata_changed? = media_metadata != normalize_status_metadata(post.media_metadata)
+
     if counts_changed?(post, likes, replies, shares) ||
+         (post.quote_count || 0) != quotes ||
          (post.upvotes || 0) != upvotes ||
          (post.downvotes || 0) != downvotes ||
-         (post.score || 0) != score do
+         (post.score || 0) != score ||
+         metadata_changed? do
       updated_counts = %{
         like_count: normalize_remote_count(likes),
         reply_count: normalize_remote_count(replies),
         share_count: normalize_remote_count(shares),
+        quote_count: normalize_remote_count(quotes),
         upvotes: normalize_remote_count(upvotes),
         downvotes: normalize_remote_count(downvotes),
         score: normalize_remote_count(score)
@@ -465,9 +496,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
           share_count: updated_counts.share_count,
+          quote_count: updated_counts.quote_count,
           upvotes: updated_counts.upvotes,
           downvotes: updated_counts.downvotes,
           score: updated_counts.score,
+          media_metadata: media_metadata,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
@@ -485,9 +518,11 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          like_count: post.like_count,
          reply_count: post.reply_count,
          share_count: post.share_count,
+         quote_count: post.quote_count || 0,
          upvotes: post.upvotes || 0,
          downvotes: post.downvotes || 0,
-         score: post.score || 0
+         score: post.score || 0,
+         status_metadata: status_metadata
        }}
     end
   end
@@ -511,8 +546,15 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       # Mastodon-compatible and Misskey note URLs: use instance-specific counts API
       MastodonApi.count_api_compatible?(post) ->
         case MastodonApi.fetch_status_counts_for_post(post) do
-          %{favourites_count: fav, reblogs_count: reb, replies_count: rep} ->
-            {:ok, %{like_count: fav, reply_count: rep, share_count: reb}}
+          %{favourites_count: fav, reblogs_count: reb, replies_count: rep} = counts ->
+            {:ok,
+             %{
+               like_count: fav,
+               reply_count: rep,
+               share_count: reb,
+               quote_count: Map.get(counts, :quotes_count, 0),
+               status_metadata: Map.get(counts, :status_metadata, %{})
+             }}
 
           nil ->
             fetch_counts_activitypub(count_ref)
@@ -539,7 +581,8 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          %{
            like_count: Helpers.extract_interaction_count(object, "likes"),
            reply_count: Helpers.extract_interaction_count(object, "replies"),
-           share_count: Helpers.extract_interaction_count(object, "shares")
+           share_count: Helpers.extract_interaction_count(object, "shares"),
+           quote_count: activitypub_quote_count(object)
          }}
 
       {:error, reason} ->
@@ -548,8 +591,65 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp normalize_remote_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_remote_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, _} -> max(count, 0)
+      :error -> 0
+    end
+  end
+
   defp normalize_remote_count(nil), do: 0
   defp normalize_remote_count(_), do: 0
+
+  defp activitypub_quote_count(object) when is_map(object) do
+    normalize_remote_count(
+      object["quotes_count"] ||
+        object["quote_count"] ||
+        object["quotesCount"] ||
+        object["quoteCount"] ||
+        object["quotedCount"] ||
+        get_in(object, ["pleroma", "quotes_count"])
+    )
+  end
+
+  defp activitypub_quote_count(_), do: 0
+
+  defp normalize_status_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalize_status_metadata(_), do: %{}
+
+  defp merge_status_metadata(existing_metadata, status_metadata, quote_count) do
+    status_metadata = normalize_status_metadata(status_metadata)
+    quote_count = normalize_remote_count(quote_count)
+
+    quote_count_metadata =
+      Map.get(status_metadata, "quotes_count") || if(quote_count > 0, do: quote_count)
+
+    existing_metadata
+    |> normalize_status_metadata()
+    |> maybe_put_status_metadata("emoji_reactions", Map.get(status_metadata, "emoji_reactions"))
+    |> maybe_put_status_metadata("quotes_count", quote_count_metadata)
+    |> maybe_put_status_metadata("quote", Map.get(status_metadata, "quote"))
+    |> maybe_put_status_metadata("quote_id", Map.get(status_metadata, "quote_id"))
+    |> maybe_put_status_metadata("quote_url", Map.get(status_metadata, "quote_url"))
+    |> maybe_put_status_metadata("card", Map.get(status_metadata, "card"))
+    |> maybe_put_status_metadata("application", Map.get(status_metadata, "application"))
+    |> maybe_put_status_metadata("language", Map.get(status_metadata, "language"))
+    |> maybe_put_status_metadata(
+      "media_attachments",
+      Map.get(status_metadata, "media_attachments")
+    )
+    |> maybe_put_status_metadata("pleroma", Map.get(status_metadata, "pleroma"))
+    |> maybe_put_status_metadata("misskey", Map.get(status_metadata, "misskey"))
+  end
+
+  defp maybe_put_status_metadata(metadata, _key, nil), do: metadata
+  defp maybe_put_status_metadata(metadata, _key, []), do: metadata
+
+  defp maybe_put_status_metadata(metadata, _key, %{} = value) when map_size(value) == 0,
+    do: metadata
+
+  defp maybe_put_status_metadata(metadata, key, value), do: Map.put(metadata, key, value)
 
   defp lemmy_url?(url) when is_binary(url) do
     LemmyApi.community_post_url?(url) or Regex.match?(~r{/comment/\d+(?:$|[/?#])}, url)
@@ -588,11 +688,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   Uses platform-specific APIs when available.
   """
   def fetch_likers(message) do
-    ap_id = message.activitypub_id
-
-    if MastodonApi.mastodon_compatible?(message) do
-      # Mastodon API provides user info directly
-      case MastodonApi.fetch_favourited_by(ap_id) do
+    if MastodonApi.count_api_compatible?(message) do
+      # Mastodon/Pleroma/Misskey APIs provide user info directly.
+      case MastodonApi.fetch_favourited_by_for_post(message) do
         {:ok, accounts} -> {:ok, accounts}
         {:error, _} -> fetch_likers_activitypub(message)
       end
@@ -623,11 +721,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   Uses platform-specific APIs when available.
   """
   def fetch_sharers(message) do
-    ap_id = message.activitypub_id
-
-    if MastodonApi.mastodon_compatible?(message) do
-      # Mastodon API provides user info directly
-      case MastodonApi.fetch_reblogged_by(ap_id) do
+    if MastodonApi.count_api_compatible?(message) do
+      # Mastodon/Pleroma/Misskey APIs provide user info directly.
+      case MastodonApi.fetch_reblogged_by_for_post(message) do
         {:ok, accounts} -> {:ok, accounts}
         {:error, _} -> fetch_sharers_activitypub(message)
       end

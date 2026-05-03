@@ -193,7 +193,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
         |> assign(:current_tab, "inbox")
         |> assign(:page_title, "Inbox")
 
-      socket = load_tab_content(socket, "inbox", %{}, 1)
+      socket = load_tab_content(socket, "inbox", params, 1)
 
       {:noreply, socket}
     end
@@ -328,7 +328,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
       cond do
         # Always refresh inbox for received messages
         socket.assigns.current_tab == "inbox" && message.status != "sent" ->
-          load_tab_content(socket, "inbox", %{})
+          load_tab_content(socket, "inbox", current_tab_params(socket))
 
         # Refresh sent folder for sent messages (SMTP/IMAP APPEND)
         socket.assigns.current_tab == "sent" && message.status == "sent" ->
@@ -356,14 +356,14 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
       |> assign(:ledger_count, Cached.unread_ledger_count(mailbox.id))
       |> assign(:stack_unread_count, Cached.unread_stack_count(mailbox.id))
       |> assign(:boomerang_unread_count, Cached.unread_reply_later_count(mailbox.id))
-      |> load_tab_content(socket.assigns.current_tab, %{})
+      |> load_tab_content(socket.assigns.current_tab, current_tab_params(socket))
 
     {:noreply, socket}
   end
 
   def handle_info({:message_updated, _updated_message}, socket) do
     # Message was updated (moved, deleted, etc.), refresh current tab
-    socket = load_tab_content(socket, socket.assigns.current_tab, %{})
+    socket = load_tab_content(socket, socket.assigns.current_tab, current_tab_params(socket))
     {:noreply, socket}
   end
 
@@ -378,7 +378,7 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
       |> assign(:ledger_count, Cached.unread_ledger_count(mailbox.id))
       |> assign(:stack_unread_count, Cached.unread_stack_count(mailbox.id))
       |> assign(:boomerang_unread_count, Cached.unread_reply_later_count(mailbox.id))
-      |> load_tab_content(socket.assigns.current_tab, %{})
+      |> load_tab_content(socket.assigns.current_tab, current_tab_params(socket))
 
     {:noreply, socket}
   end
@@ -650,6 +650,17 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
         Cached.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
+
+  defp current_tab_params(socket) do
+    %{}
+    |> maybe_put_param("filter", socket.assigns[:current_filter])
+    |> maybe_put_param("folder_id", socket.assigns[:current_folder_id])
+    |> maybe_put_param("q", socket.assigns[:search_query])
+  end
+
+  defp maybe_put_param(params, _key, nil), do: params
+  defp maybe_put_param(params, _key, ""), do: params
+  defp maybe_put_param(params, key, value), do: Map.put(params, key, value)
 
   defp normalize_inbox_filter(mailbox, "digest") do
     if Elektrine.Email.Mailbox.digest_filter_enabled?(mailbox), do: "digest", else: "inbox"

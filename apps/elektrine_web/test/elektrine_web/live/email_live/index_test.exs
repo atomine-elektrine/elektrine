@@ -154,6 +154,103 @@ defmodule ElektrineEmailWeb.EmailLive.IndexTest do
     refute render(view) =~ "Digest message"
   end
 
+  test "unread inbox filter is honored without an explicit tab param", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, _unread_message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Unread filter visible message",
+        text_body: "Unread body",
+        html_body: "<p>Unread body</p>",
+        read: false,
+        category: "inbox",
+        message_id: "<unread-filter-visible-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, _read_message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Unread filter hidden read message",
+        text_body: "Read body",
+        html_body: "<p>Read body</p>",
+        read: true,
+        category: "inbox",
+        message_id: "<unread-filter-hidden-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email?filter=unread")
+
+    assert html =~ "Unread filter visible message"
+    refute html =~ "Unread filter hidden read message"
+  end
+
+  test "mailbox updates preserve the unread inbox filter", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, _read_message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Preserve unread hidden read message",
+        text_body: "Read body",
+        html_body: "<p>Read body</p>",
+        read: true,
+        category: "inbox",
+        message_id: "<preserve-unread-hidden-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, _existing_unread} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Preserve unread existing message",
+        text_body: "Unread body",
+        html_body: "<p>Unread body</p>",
+        read: false,
+        category: "inbox",
+        message_id: "<preserve-unread-existing-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email?tab=inbox&filter=unread")
+
+    assert html =~ "Preserve unread existing message"
+    refute html =~ "Preserve unread hidden read message"
+
+    {:ok, _new_unread} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Preserve unread new message",
+        text_body: "New unread body",
+        html_body: "<p>New unread body</p>",
+        read: false,
+        category: "inbox",
+        message_id: "<preserve-unread-new-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    html = render(view)
+
+    assert has_element?(view, "a[href='/email?tab=inbox&filter=unread'].btn-secondary")
+    assert html =~ "Preserve unread new message"
+    refute html =~ "Preserve unread hidden read message"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do

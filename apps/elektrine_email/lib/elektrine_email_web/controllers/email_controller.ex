@@ -133,13 +133,12 @@ defmodule ElektrineEmailWeb.EmailController do
                   "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #666; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"max-width: 32rem; text-align: center;\">This message is protected by mailbox encryption. Unlock it in webmail to view the contents.</p></div>"
 
                 Elektrine.Strings.present?(message.html_body) ->
-                  safe_sanitize_email_html(message.html_body)
+                  message.html_body
+                  |> safe_sanitize_email_html()
+                  |> normalize_iframe_email_content()
 
                 Elektrine.Strings.present?(message.text_body) ->
-                  escaped_text =
-                    Phoenix.HTML.html_escape(message.text_body) |> Phoenix.HTML.safe_to_string()
-
-                  "<pre style=\"font-family: monospace; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; margin: 0; padding: 16px;\">#{escaped_text}</pre>"
+                  plain_text_email_content(message.text_body)
 
                 true ->
                   "<div style=\"display: flex; align-items: center; justify-content: center; height: 300px; color: #999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\"><p style=\"font-style: italic; max-width: 32rem; text-align: center;\">This message does not contain a displayable text or HTML body.</p></div>"
@@ -164,6 +163,33 @@ defmodule ElektrineEmailWeb.EmailController do
       {:error, _} ->
         send_resp(conn, 400, "Invalid message ID")
     end
+  end
+
+  defp normalize_iframe_email_content(content) when is_binary(content) do
+    if html_fragment?(content) do
+      content
+    else
+      plain_text_email_content(content)
+    end
+  end
+
+  defp normalize_iframe_email_content(content), do: content
+
+  defp html_fragment?(content) when is_binary(content) do
+    Regex.match?(
+      ~r/<\/?(?:html|head|body|table|tbody|tr|td|div|p|span|br|a|img|style|section|article|h[1-6])\b/i,
+      content
+    )
+  end
+
+  defp plain_text_email_content(text) do
+    escaped_text =
+      text
+      |> clean_plain_text_body()
+      |> Phoenix.HTML.html_escape()
+      |> Phoenix.HTML.safe_to_string()
+
+    "<pre style=\"font-family: monospace; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; margin: 0; padding: 16px;\">#{escaped_text}</pre>"
   end
 
   # Build a relaxed CSP for email iframes
@@ -200,6 +226,8 @@ defmodule ElektrineEmailWeb.EmailController do
   end
 
   defp build_iframe_html(content) do
+    {head_content, body_content} = split_email_document_content(content)
+
     """
     <!DOCTYPE html>
     <html>
@@ -266,13 +294,39 @@ defmodule ElektrineEmailWeb.EmailController do
           }
         }
       </style>
+      #{head_content}
       <base target="_blank">
     </head>
     <body>
-      #{content}
+      #{body_content}
     </body>
     </html>
     """
+  end
+
+  defp split_email_document_content(content) when is_binary(content) do
+    head_content =
+      Regex.scan(~r/<style\b[^>]*>.*?<\/style>|<link\b[^>]*>/is, content)
+      |> Enum.map(fn [match | _] -> match end)
+      |> Enum.join("\n")
+
+    body_content =
+      case Regex.run(~r/<body\b[^>]*>(.*?)<\/body>/is, content) do
+        [_, body] -> body
+        _ -> strip_document_shell(content)
+      end
+
+    {head_content, body_content}
+  end
+
+  defp split_email_document_content(content), do: {"", content}
+
+  defp strip_document_shell(content) do
+    content
+    |> String.replace(~r/<!doctype[^>]*>/i, "")
+    |> String.replace(~r/<\/?html\b[^>]*>/i, "")
+    |> String.replace(~r/<head\b[^>]*>.*?<\/head>/is, "")
+    |> String.replace(~r/<\/?body\b[^>]*>/i, "")
   end
 
   defp generate_eml_content(message) do

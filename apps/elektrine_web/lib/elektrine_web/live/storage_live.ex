@@ -8,12 +8,14 @@ defmodule ElektrineWeb.StorageLive do
   @impl true
   def mount(_params, _session, socket) do
     user = socket.assigns.current_user
+    connected? = connected?(socket)
 
-    if connected?(socket) do
+    {storage_info, breakdown, breakdown_total} =
+      load_storage_data(user.id, recalculate?: connected?)
+
+    if connected? do
       Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
     end
-
-    {storage_info, breakdown, breakdown_total} = load_storage_data(user.id, recalculate?: true)
 
     {:ok,
      socket

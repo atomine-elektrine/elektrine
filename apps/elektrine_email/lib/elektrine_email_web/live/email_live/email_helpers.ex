@@ -5,6 +5,8 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
   use Phoenix.Component
   import ElektrineWeb.CoreComponents
 
+  alias ElektrineEmailWeb.Components.Email.Display
+
   # Translation
   use Gettext, backend: ElektrineWeb.Gettext
 
@@ -280,6 +282,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
             message.text_body
             # Decode quoted-printable encoding first
             |> decode_body()
+            |> Display.clean_plain_text_body()
             # Remove image URLs in square brackets like [https://...]
             |> String.replace(~r/\[https?:\/\/[^\]]+\]/i, "")
             # Remove bare URLs
