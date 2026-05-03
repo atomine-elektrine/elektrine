@@ -223,6 +223,7 @@ defmodule Elektrine.Email.Sanitizer do
   def sanitize_html_content(html_content) when is_binary(html_content) do
     html_content
     |> ensure_valid_utf8()
+    |> remove_outlook_conditional_comments()
     |> remove_dangerous_tags()
     |> remove_event_handlers()
     |> remove_dangerous_protocols()
@@ -307,6 +308,13 @@ defmodule Elektrine.Email.Sanitizer do
     |> String.replace(~r/<input[^>]*>/is, "")
     |> String.replace(~r/<textarea[^>]*>.*?<\/textarea>/is, "")
     |> String.replace(~r/<select[^>]*>.*?<\/select>/is, "")
+  end
+
+  defp remove_outlook_conditional_comments(content) do
+    content
+    |> String.replace(~r/<!--\[if[^\]]*\]>.*?<!\[endif\]-->/is, "")
+    |> String.replace(~r/<!--\[if.*?\]>/is, "")
+    |> String.replace(~r/<!\[endif\]-->/i, "")
   end
 
   defp remove_event_handlers(content) do

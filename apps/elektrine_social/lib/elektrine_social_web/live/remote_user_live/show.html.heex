@@ -1107,7 +1107,10 @@
         <!-- Main Profile Column -->
         <div class="flex-1 min-w-0">
           <!-- Mastodon-style Header -->
-          <div class="social-page-card panel-card rounded-lg overflow-hidden mb-6">
+          <div
+            id="remote-profile-header-person"
+            class="social-page-card panel-card rounded-lg overflow-hidden mb-6"
+          >
             <!-- Cover Photo -->
             <div class="h-48 sm:h-60 relative">
               <%= if @remote_actor.header_url do %>
@@ -1155,6 +1158,7 @@
                 <div class="flex gap-2 mb-2">
                   <%= if @current_user do %>
                     <button
+                      id="remote-profile-primary-follow"
                       type="button"
                       phx-click="toggle_follow"
                       class={[
@@ -1296,6 +1300,85 @@
               <% end %>
             </div>
           </div>
+          <%= if @current_user do %>
+            <div
+              id="remote-profile-sticky-follow"
+              phx-hook="RemoteProfileStickyFollow"
+              data-follow-target="remote-profile-primary-follow"
+              data-show-offset="180"
+              class="remote-user-sticky-follow sticky top-6 z-30 h-0 px-5 pointer-events-none sm:px-8"
+              aria-hidden="true"
+            >
+              <div class="social-page-card panel-card remote-user-sticky-follow-panel hidden w-full items-center justify-between gap-4 rounded-lg px-5 py-4 opacity-0 shadow-lg backdrop-blur transition-opacity duration-200 pointer-events-none">
+                <%= if @remote_actor.avatar_url do %>
+                  <img
+                    src={@remote_actor.avatar_url}
+                    alt=""
+                    class="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+                    loading="lazy"
+                  />
+                <% else %>
+                  <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-base-300">
+                    <.icon name="hero-user" class="h-4 w-4 opacity-70" />
+                  </span>
+                <% end %>
+
+                <div class="min-w-0 flex-1 text-left">
+                  <div class="truncate text-sm font-semibold leading-tight">
+                    {raw(
+                      render_display_name_with_emojis(
+                        @remote_actor.display_name || @remote_actor.username,
+                        @remote_actor.domain
+                      )
+                    )}
+                  </div>
+                  <div class="truncate text-xs text-base-content/60">
+                    @{@remote_actor.username}@{@remote_actor.domain}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  phx-click="toggle_follow"
+                  class={[
+                    "btn btn-sm min-w-24 rounded-full transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80",
+                    cond do
+                      @is_following ->
+                        "btn-outline btn-secondary"
+
+                      @is_pending ->
+                        "btn-outline btn-warning"
+
+                      true ->
+                        "btn-secondary phx-click-loading:bg-base-200 phx-click-loading:text-base-content"
+                    end
+                  ]}
+                  aria-label={
+                    if @is_following || @is_pending,
+                      do: "Update follow",
+                      else: "Follow remote profile"
+                  }
+                >
+                  <span class="phx-click-loading:hidden">
+                    <%= cond do %>
+                      <% @is_following -> %>
+                        Following
+                      <% @is_pending -> %>
+                        <span class="inline-flex items-center">
+                          <.spinner size="sm" class="mr-1" /> Pending
+                        </span>
+                      <% true -> %>
+                        Follow
+                    <% end %>
+                  </span>
+                  <span class="hidden items-center justify-center phx-click-loading:inline-flex">
+                    <.spinner size="sm" class="mr-1" />
+                    {if @is_following || @is_pending, do: "Updating...", else: "Following..."}
+                  </span>
+                </button>
+              </div>
+            </div>
+          <% end %>
           
 <!-- Timeline Posts -->
           <div

@@ -12,7 +12,7 @@ defmodule Elektrine.Platform.ENavComponent do
     ~H"""
     <nav
       aria-label="Primary modes"
-      class={["e-nav sticky top-14 z-40 -mx-4 sm:-mx-6 lg:-mx-8", @class]}
+      class={["e-nav -mx-4 sm:-mx-6 lg:-mx-8", @class]}
     >
       <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="card panel-card rounded-lg">

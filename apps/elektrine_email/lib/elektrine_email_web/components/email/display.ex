@@ -82,7 +82,7 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
       String.starts_with?(selector, ["@", ".", "#", "*", "["]) ->
         true
 
-      Regex.match?(~r/^[a-zA-Z][\w\s,\.\#:\[\]=~"'\*\>\+\(\)\-\/]+$/u, selector) and
+      Regex.match?(~r/^[a-zA-Z][\w\s,\.\#:\[\]=~"'\*\>\+\(\)\-\/]*$/u, selector) and
           !String.contains?(selector, ["?", "!"]) ->
         true
 
@@ -123,7 +123,7 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
 
   defp normalize_plain_text_whitespace(text) do
     text
-    |> String.replace(~r/[ \t\f\v]+/, " ")
+    |> String.replace(~r/[ \t\f\x0B]+/, " ")
     |> String.replace(~r/ *\n */, "\n")
     |> String.replace(~r/\n{3,}/, "\n\n")
     |> String.trim()

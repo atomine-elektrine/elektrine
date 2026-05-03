@@ -3310,7 +3310,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^today_start and
-            is_nil(m.deleted_at),
+            is_nil(m.deleted_at) and not is_nil(m.sender_id),
         select: m.sender_id,
         distinct: true
       )
@@ -3332,13 +3332,14 @@ defmodule ElektrineWeb.PortalLive.Index do
       from(m in Elektrine.Social.Message,
         where:
           m.post_type in ["post", "gallery", "discussion"] and m.inserted_at > ^week_start and
-            is_nil(m.deleted_at),
+            is_nil(m.deleted_at) and not is_nil(m.sender_id),
         group_by: m.sender_id,
         order_by: [desc: count(m.id)],
         limit: 5,
         select: m.sender_id
       )
       |> Elektrine.Repo.all()
+      |> Enum.reject(&is_nil/1)
       |> Enum.map(&Elektrine.Repo.get(Elektrine.Accounts.User, &1))
       |> Enum.reject(&is_nil/1)
       |> Elektrine.Repo.preload(:profile)
