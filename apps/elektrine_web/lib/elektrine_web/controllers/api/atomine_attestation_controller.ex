@@ -3,6 +3,10 @@ defmodule ElektrineWeb.API.AtomineAttestationController do
 
   alias Atomine.Attestations
 
+  def issuer(conn, _params) do
+    json(conn, Attestations.issuer_metadata(endpoint_base(conn)))
+  end
+
   def pow_challenge(conn, params) do
     difficulty = Map.get(params, "difficulty")
     {:ok, challenge} = Attestations.issue_pow_challenge(difficulty: difficulty)
@@ -35,6 +39,25 @@ defmodule ElektrineWeb.API.AtomineAttestationController do
   end
 
   def redeem_anonymous_token(conn, _params), do: error(conn, :missing_token)
+
+  def spend_anonymous_token(conn, %{"token" => token, "audience" => audience} = params) do
+    spend_attrs = %{"audience" => audience, "nonce" => Map.get(params, "nonce")}
+
+    case Attestations.redeem_anonymous_effort_token(token, spend_attrs) do
+      {:ok, attestation} ->
+        json(conn, %{
+          status: attestation.status,
+          redeemed_at: attestation.redeemed_at,
+          spend: attestation.metadata["spend"]
+        })
+
+      {:error, reason} ->
+        error(conn, reason)
+    end
+  end
+
+  def spend_anonymous_token(conn, %{"token" => _token}), do: error(conn, :missing_audience)
+  def spend_anonymous_token(conn, _params), do: error(conn, :missing_token)
 
   def verify(conn, %{"artifact" => artifact}) do
     case Attestations.verify_artifact(artifact) do
@@ -92,6 +115,12 @@ defmodule ElektrineWeb.API.AtomineAttestationController do
     |> put_status(:unprocessable_entity)
     |> json(%{error: format_reason(reason)})
   end
+
+  defp endpoint_base(conn), do: "#{conn.scheme}://#{conn.host}#{port_suffix(conn)}"
+
+  defp port_suffix(%{scheme: :http, port: 80}), do: ""
+  defp port_suffix(%{scheme: :https, port: 443}), do: ""
+  defp port_suffix(%{port: port}), do: ":#{port}"
 
   defp with_current_user(params, conn) do
     case conn.assigns[:current_user] do

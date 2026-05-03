@@ -181,6 +181,9 @@
                         {group.priority}
                       </span>
                     <% end %>
+                    <%= if group.unread_count > 0 do %>
+                      <span class="h-2 w-2 rounded-full bg-secondary" aria-hidden="true"></span>
+                    <% end %>
                     <span class="text-xs opacity-60">
                       <.local_time
                         datetime={group.latest_notification.inserted_at}
@@ -195,7 +198,10 @@
                     phx-click="view_notification"
                     phx-value-id={group.latest_notification.id}
                     phx-value-url={group.destination}
-                    class="mt-2 block text-left text-sm font-semibold hover:underline sm:text-base"
+                    class={[
+                      "mt-2 block text-left text-sm hover:underline sm:text-base",
+                      if(group.unread_count > 0, do: "font-bold", else: "font-semibold")
+                    ]}
                   >
                     {group.title}
                   </button>
@@ -235,7 +241,7 @@
                           phx-value-url={notif.url}
                           class={[
                             "panel-card flex w-full items-start gap-3 rounded-lg p-3 text-left transition-colors hover:border-base-content/15",
-                            is_nil(notif.read_at) && "border-l-4 border-l-primary"
+                            is_nil(notif.read_at) && "border-l-4 border-l-secondary bg-secondary/5"
                           ]}
                         >
                           <%= if notif.actor do %>
@@ -254,6 +260,10 @@
                               {notif.body || notif.title}
                             </p>
                             <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-base-content/65">
+                              <%= if is_nil(notif.read_at) do %>
+                                <span class="h-2 w-2 rounded-full bg-secondary" aria-hidden="true">
+                                </span>
+                              <% end %>
                               <%= if notif.actor do %>
                                 <span>@{notif.actor.handle}</span>
                               <% end %>
