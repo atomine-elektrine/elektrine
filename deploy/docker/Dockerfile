@@ -222,6 +222,4 @@ COPY --from=builder --chown=nobody:root /app/_deploy_release/${RELEASE_NAME} ./
 # Expose ports for HTTP and HTTPS (non-privileged ports, fly.toml maps external 80/443)
 EXPOSE 8080 8443
 
-USER nobody:nogroup
-
 CMD ["/app/docker-entrypoint.sh"]
