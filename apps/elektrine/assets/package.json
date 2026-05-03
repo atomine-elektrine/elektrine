@@ -10,7 +10,7 @@
   "dependencies": {
     "@iconify-json/simple-icons": "^1.2.68",
     "@iconify-json/svg-spinners": "^1.2.4",
-    "@noble/hashes": "^1.8.0",
+    "@noble/hashes": "^2.2.0",
     "daisyui": "^5.5.14",
     "uplot": "^1.6.32"
   },
