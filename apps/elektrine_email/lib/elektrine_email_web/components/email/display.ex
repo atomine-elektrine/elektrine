@@ -21,6 +21,114 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
     nil
   end
 
+  @doc "Removes email-client CSS artifacts from plain-text display bodies."
+  def clean_plain_text_body(text) when is_binary(text) do
+    text
+    |> ensure_valid_utf8()
+    |> decode_if_quoted_printable()
+    |> strip_leading_css_text()
+    |> HtmlEntities.decode()
+    |> remove_invisible_preheader_fillers()
+    |> normalize_plain_text_whitespace()
+  end
+
+  def clean_plain_text_body(nil), do: ""
+
+  defp strip_leading_css_text(text), do: do_strip_leading_css_text(String.trim_leading(text), 0)
+
+  defp do_strip_leading_css_text(text, attempts) when attempts >= 200, do: text
+
+  defp do_strip_leading_css_text(text, attempts) do
+    trimmed = String.trim_leading(text)
+
+    cond do
+      trimmed == "" ->
+        ""
+
+      String.starts_with?(trimmed, "/*") ->
+        case String.split(trimmed, "*/", parts: 2) do
+          [_comment, rest] -> do_strip_leading_css_text(rest, attempts + 1)
+          _ -> trimmed
+        end
+
+      match = Regex.run(~r/^@(?:import|charset)\b[^;{]*;?/i, trimmed) ->
+        [directive | _] = match
+        do_strip_leading_css_text(String.replace_prefix(trimmed, directive, ""), attempts + 1)
+
+      css_block = leading_css_block(trimmed) ->
+        do_strip_leading_css_text(String.replace_prefix(trimmed, css_block, ""), attempts + 1)
+
+      true ->
+        trimmed
+    end
+  end
+
+  defp leading_css_block(text) do
+    with {brace_index, 1} <- :binary.match(text, "{"),
+         selector when selector != "" <- String.slice(text, 0, brace_index) |> String.trim(),
+         true <- css_selector_prefix?(selector),
+         block_end when is_integer(block_end) <- matching_css_block_end(text, brace_index) do
+      String.slice(text, 0, block_end + 1)
+    else
+      _ -> nil
+    end
+  end
+
+  defp css_selector_prefix?(selector) do
+    cond do
+      String.length(selector) > 600 ->
+        false
+
+      String.starts_with?(selector, ["@", ".", "#", "*", "["]) ->
+        true
+
+      Regex.match?(~r/^[a-zA-Z][\w\s,\.\#:\[\]=~"'\*\>\+\(\)\-\/]+$/u, selector) and
+          !String.contains?(selector, ["?", "!"]) ->
+        true
+
+      true ->
+        false
+    end
+  end
+
+  defp matching_css_block_end(text, opening_index) do
+    text
+    |> String.slice(opening_index..-1//1)
+    |> String.graphemes()
+    |> Enum.reduce_while({0, opening_index}, fn
+      "{", {depth, index} ->
+        {:cont, {depth + 1, index + 1}}
+
+      "}", {1, index} ->
+        {:halt, index}
+
+      "}", {depth, index} when depth > 1 ->
+        {:cont, {depth - 1, index + 1}}
+
+      _char, {depth, index} ->
+        {:cont, {depth, index + 1}}
+    end)
+    |> case do
+      index when is_integer(index) -> index
+      {_depth, _index} -> nil
+    end
+  end
+
+  defp remove_invisible_preheader_fillers(text) do
+    text
+    |> String.replace(~r/[\x{200B}-\x{200D}\x{FEFF}]+/u, " ")
+    |> String.replace(~r/(?:&zwnj;|&#8204;|&#x200c;|&nbsp;)+/i, " ")
+    |> String.replace(<<0xC2, 0xA0>>, " ")
+  end
+
+  defp normalize_plain_text_whitespace(text) do
+    text
+    |> String.replace(~r/[ \t\f\v]+/, " ")
+    |> String.replace(~r/ *\n */, "\n")
+    |> String.replace(~r/\n{3,}/, "\n\n")
+    |> String.trim()
+  end
+
   defp remove_css_before_html(content) do
     cond do
       String.starts_with?(content, "Facebook@media") ->

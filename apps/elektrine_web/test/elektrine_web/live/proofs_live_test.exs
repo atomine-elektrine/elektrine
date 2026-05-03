@@ -4,6 +4,7 @@ defmodule ElektrineWeb.ProofsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Atomine.Credits
+  alias Atomine.Personhood
   alias Elektrine.Accounts.User
   alias Elektrine.{AccountsFixtures, Repo}
 
@@ -43,6 +44,38 @@ defmodule ElektrineWeb.ProofsLiveTest do
     assert html =~ "1 Atomine Credit / 1 DM Credit"
     assert html =~ "5 Atomine Credits / 1 Email Credit"
     assert html =~ "Gates are currently off."
+  end
+
+  test "deleting a pending proof refreshes the nav badge", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, proof} =
+      Personhood.create_proof(user, %{
+        kind: "dns",
+        subject: "pending-#{System.unique_integer([:positive])}.example.com",
+        proof_mode: "snapshot"
+      })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/proofs")
+
+    assert proof_nav_badges(html) == ["1"]
+
+    html =
+      view
+      |> element("button[phx-click='delete_proof'][phx-value-id='#{proof.id}']")
+      |> render_click()
+
+    assert proof_nav_badges(html) == []
+  end
+
+  defp proof_nav_badges(html) do
+    html
+    |> Floki.parse_document!()
+    |> Floki.find(~s(nav.e-nav a[href="/account/proofs"] span.absolute))
+    |> Enum.map(&(Floki.text(&1) |> String.trim()))
   end
 
   defp log_in_user(conn, user) do

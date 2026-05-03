@@ -52,6 +52,10 @@ function formatTime(value, granularity) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function periodLabel(granularity) {
+  return granularity === "hour" ? "current hour" : "current day";
+}
+
 function chartData(points) {
   const rows = Array.isArray(points) ? points : [];
 
@@ -59,22 +63,79 @@ function chartData(points) {
     .map((point) => ({
       x: Number(point.x),
       y: Number(point.y),
+      partial: point.partial === true,
     }))
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
     .sort((a, b) => a.x - b.x);
 
-  return [
-    normalized.map((point) => point.x),
-    normalized.map((point) => point.y),
-  ];
+  const hasPartial = normalized.some((point) => point.partial);
+
+  if (!hasPartial) {
+    return {
+      hasPartial,
+      data: [
+        normalized.map((point) => point.x),
+        normalized.map((point) => point.y),
+      ],
+    };
+  }
+
+  const partialValues = new Array(normalized.length).fill(null);
+
+  normalized.forEach((point, index) => {
+    if (!point.partial) return;
+
+    partialValues[index] = point.y;
+
+    for (let previousIndex = index - 1; previousIndex >= 0; previousIndex--) {
+      if (!normalized[previousIndex].partial) {
+        partialValues[previousIndex] = normalized[previousIndex].y;
+        break;
+      }
+    }
+  });
+
+  return {
+    hasPartial,
+    data: [
+      normalized.map((point) => point.x),
+      normalized.map((point) => (point.partial ? null : point.y)),
+      partialValues,
+    ],
+  };
 }
 
-function chartOptions(el, payload) {
+function chartOptions(el, payload, hasPartial) {
   const accent = ACCENTS[payload.accent] || ACCENTS.primary;
   const axisColor = cssVar("--color-base-content", "#e4e7eb");
   const gridColor = "rgba(228, 231, 235, 0.11)";
   const unit = payload.unit || "value";
   const granularity = payload.granularity || "day";
+  const series = [
+    {
+      label: "Time",
+      value: (_u, value) => (value == null ? "" : formatTime(value, granularity)),
+    },
+    {
+      label: unit,
+      stroke: accent.stroke,
+      fill: accent.fill,
+      width: 2.5,
+      points: { size: 5, width: 2, stroke: accent.stroke, fill: cssVar("--color-base-100", "#101419") },
+      value: (_u, value) => (value == null ? "" : `${formatNumber(value)} ${unit}`),
+    },
+  ];
+
+  if (hasPartial) {
+    series.push({
+      label: `${unit} (${periodLabel(granularity)})`,
+      stroke: accent.stroke,
+      width: 2.5,
+      dash: [6, 4],
+      points: { size: 6, width: 2.5, stroke: accent.stroke, fill: accent.fill },
+      value: (_u, value) => (value == null ? "" : `${formatNumber(value)} ${unit}`),
+    });
+  }
 
   return {
     width: chartWidth(el),
@@ -108,20 +169,7 @@ function chartOptions(el, payload) {
         values: (_u, values) => values.map(formatNumber),
       },
     ],
-    series: [
-      {
-        label: "Time",
-        value: (_u, value) => (value == null ? "" : formatTime(value, granularity)),
-      },
-      {
-        label: unit,
-        stroke: accent.stroke,
-        fill: accent.fill,
-        width: 2.5,
-        points: { size: 5, width: 2, stroke: accent.stroke, fill: cssVar("--color-base-100", "#101419") },
-        value: (_u, value) => (value == null ? "" : `${formatNumber(value)} ${unit}`),
-      },
-    ],
+    series,
   };
 }
 
@@ -171,11 +219,12 @@ export const UPlotChart = {
     this.el.innerHTML = "";
 
     const payload = parsePayload(this.el);
-    const data = chartData(payload.points);
+    const preparedData = chartData(payload.points);
+    const data = preparedData.data;
 
     if (data[0].length === 0) return;
 
-    const options = chartOptions(this.el, payload);
+    const options = chartOptions(this.el, payload, preparedData.hasPartial);
     this.chartHeight = options.height;
     this.chart = new uPlot(options, data, this.el);
   },

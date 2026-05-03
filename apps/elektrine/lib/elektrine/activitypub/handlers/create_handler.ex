@@ -196,6 +196,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           like_count: Helpers.extract_interaction_count(object, "likes"),
           reply_count: Helpers.extract_interaction_count(object, "replies"),
           share_count: Helpers.extract_interaction_count(object, "shares"),
+          quote_count: extract_quote_count(object),
           sensitive: object["sensitive"] || false,
           content_warning: object["summary"]
         }
@@ -235,6 +236,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
           like_count: Helpers.extract_interaction_count(object, "likes"),
           reply_count: Helpers.extract_interaction_count(object, "replies"),
           share_count: Helpers.extract_interaction_count(object, "shares"),
+          quote_count: extract_quote_count(object),
           sensitive: object["sensitive"] || false,
           content_warning: object["summary"]
         }
@@ -705,6 +707,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     base = if map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}
 
     base
+    |> Map.merge(extract_remote_status_metadata(object))
     |> Map.merge(extract_community_metadata(object, opts))
   end
 
@@ -730,9 +733,76 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
 
     base
     |> Map.merge(engagement)
+    |> Map.merge(extract_remote_status_metadata(object))
     |> Map.merge(reply_context)
     |> Map.merge(external_link)
     |> Map.merge(community_metadata)
+  end
+
+  defp extract_remote_status_metadata(object) when is_map(object) do
+    %{}
+    |> maybe_put_metadata(
+      "emoji_reactions",
+      object["emoji_reactions"] || get_in(object, ["pleroma", "emoji_reactions"]) ||
+        misskey_emoji_reactions(object["reactions"])
+    )
+    |> maybe_put_metadata("quotes_count", extract_quote_count(object))
+    |> maybe_put_metadata(
+      "quote",
+      object["quote"] || object["renote"] || get_in(object, ["pleroma", "quote"])
+    )
+    |> maybe_put_metadata(
+      "quote_id",
+      object["quote_id"] || object["renoteId"] || get_in(object, ["pleroma", "quote_id"])
+    )
+    |> maybe_put_metadata(
+      "quote_url",
+      object["quoteUrl"] || object["quoteUri"] || object["quote_url"] ||
+        object["_misskey_quote"] ||
+        get_in(object, ["pleroma", "quote_url"])
+    )
+    |> maybe_put_metadata("card", object["card"])
+    |> maybe_put_metadata("application", object["application"] || object["app"])
+    |> maybe_put_metadata("language", object["language"])
+    |> maybe_put_metadata("media_attachments", extract_media_attachments_metadata(object))
+    |> maybe_put_metadata("pleroma", object["pleroma"])
+    |> maybe_put_metadata("misskey", misskey_status_metadata(object))
+  end
+
+  defp extract_remote_status_metadata(_), do: %{}
+
+  defp maybe_put_metadata(metadata, _key, nil), do: metadata
+  defp maybe_put_metadata(metadata, _key, []), do: metadata
+  defp maybe_put_metadata(metadata, _key, %{} = value) when map_size(value) == 0, do: metadata
+  defp maybe_put_metadata(metadata, key, value), do: Map.put(metadata, key, value)
+
+  defp misskey_emoji_reactions(reactions) when is_map(reactions) do
+    reactions
+    |> Enum.map(fn {emoji, count} ->
+      %{"name" => emoji, "count" => parse_nonnegative_count(count)}
+    end)
+    |> Enum.filter(&(&1["count"] > 0))
+  end
+
+  defp misskey_emoji_reactions(_), do: []
+
+  defp misskey_status_metadata(object) when is_map(object) do
+    object
+    |> Map.take([
+      "id",
+      "createdAt",
+      "cw",
+      "visibility",
+      "reactionAcceptance",
+      "reactionCount",
+      "reactions",
+      "renoteCount",
+      "repliesCount",
+      "renoteId",
+      "replyId",
+      "uri",
+      "url"
+    ])
   end
 
   defp extract_community_metadata(object, opts) do
@@ -1667,8 +1737,110 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     end
   end
 
+  defp extract_quote_count(object) when is_map(object) do
+    parse_nonnegative_count(
+      object["quotes_count"] ||
+        object["quote_count"] ||
+        object["quotesCount"] ||
+        object["quoteCount"] ||
+        object["quotedCount"] ||
+        get_in(object, ["pleroma", "quotes_count"])
+    )
+  end
+
+  defp extract_quote_count(_), do: 0
+
+  defp parse_nonnegative_count(value) when is_integer(value), do: max(value, 0)
+
+  defp parse_nonnegative_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, _} -> max(count, 0)
+      :error -> 0
+    end
+  end
+
+  defp parse_nonnegative_count(_), do: 0
+
+  defp extract_media_attachments_metadata(object) when is_map(object) do
+    attachments =
+      case Map.get(object, "attachment", []) do
+        [] -> Map.get(object, "files", [])
+        attachments -> attachments
+      end
+
+    attachments
+    |> List.wrap()
+    |> Enum.with_index()
+    |> Enum.map(fn {attachment, index} -> media_attachment_metadata(attachment, index) end)
+    |> Enum.filter(& &1)
+    |> Enum.take(10)
+  end
+
+  defp extract_media_attachments_metadata(_), do: []
+
+  defp media_attachment_metadata(%{} = attachment, index) do
+    url = attachment_url(attachment)
+
+    if is_binary(url) && valid_media_url?(url) do
+      %{
+        "id" => to_string(index),
+        "type" => mastodon_media_type(attachment, url),
+        "url" => url,
+        "preview_url" => attachment_preview_url(attachment) || attachment["thumbnailUrl"] || url,
+        "remote_url" =>
+          attachment["remote_url"] || attachment["remoteUrl"] || attachment["uri"] || url,
+        "meta" => attachment["meta"] || attachment["properties"] || %{},
+        "description" =>
+          attachment["comment"] || attachment["name"] || attachment["summary"] ||
+            attachment["content"],
+        "blurhash" => attachment["blurhash"]
+      }
+    end
+  end
+
+  defp media_attachment_metadata(_, _), do: nil
+
+  defp attachment_url(attachment) when is_map(attachment) do
+    cond do
+      is_binary(attachment["url"]) -> attachment["url"]
+      is_binary(attachment["uri"]) -> attachment["uri"]
+      is_map(attachment["url"]) -> attachment["url"]["href"]
+      is_list(attachment["url"]) -> Enum.find_value(attachment["url"], &attachment_url/1)
+      is_binary(attachment["href"]) -> attachment["href"]
+      true -> nil
+    end
+  end
+
+  defp attachment_url(_), do: nil
+
+  defp attachment_preview_url(%{"preview_url" => url}) when is_binary(url), do: url
+  defp attachment_preview_url(%{"previewUrl" => url}) when is_binary(url), do: url
+  defp attachment_preview_url(%{"preview" => %{"url" => url}}) when is_binary(url), do: url
+  defp attachment_preview_url(%{"preview" => %{"href" => url}}) when is_binary(url), do: url
+  defp attachment_preview_url(_), do: nil
+
+  defp mastodon_media_type(attachment, url) do
+    media_type =
+      String.downcase(
+        to_string(attachment["mediaType"] || attachment["mimeType"] || attachment["type"] || "")
+      )
+
+    url_downcased = String.downcase(url)
+
+    cond do
+      String.starts_with?(media_type, "video/") -> "video"
+      String.starts_with?(media_type, "audio/") -> "audio"
+      String.starts_with?(media_type, "image/gif") -> "gifv"
+      String.starts_with?(media_type, "image/") -> "image"
+      String.match?(url_downcased, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/) -> "video"
+      String.match?(url_downcased, ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/) -> "audio"
+      String.match?(url_downcased, ~r/\.gif(\?.*)?$/) -> "gifv"
+      true -> "image"
+    end
+  end
+
   defp extract_media_with_alt_text(object) do
-    attachments = object["attachment"] || []
+    attachments = object["attachment"] || object["files"] || []
 
     attachments
     |> Enum.with_index()
@@ -1676,12 +1848,17 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
       url =
         cond do
           is_binary(attachment["url"]) -> attachment["url"]
+          is_binary(attachment["uri"]) -> attachment["uri"]
           is_map(attachment["url"]) -> attachment["url"]["href"]
+          is_binary(attachment["thumbnailUrl"]) -> attachment["thumbnailUrl"]
           is_binary(attachment["href"]) -> attachment["href"]
           true -> nil
         end
 
-      alt_text = attachment["name"] || attachment["summary"] || attachment["content"]
+      alt_text =
+        attachment["comment"] || attachment["name"] || attachment["summary"] ||
+          attachment["content"]
+
       {url, alt_text, idx}
     end)
     |> Enum.filter(fn {url, _alt, _idx} -> is_binary(url) && valid_media_url?(url) end)

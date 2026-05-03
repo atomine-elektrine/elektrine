@@ -1344,6 +1344,96 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> Enum.find_value([], &Map.get(post_reactions, &1))
   end
 
+  defp merge_remote_post_reactions(post_reactions, post_object, local_message) do
+    remote_reactions = remote_emoji_reaction_entries(post_object, local_message)
+
+    if remote_reactions == [] do
+      post_reactions || %{}
+    else
+      [
+        field_value(post_object, ["id", :id]),
+        field_value(post_object, ["url", :url]),
+        field_value(local_message, [:activitypub_id, "activitypub_id"]),
+        field_value(local_message, [:activitypub_url, "activitypub_url"]),
+        field_value(local_message, [:id, "id"])
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&PostInteractions.normalize_key/1)
+      |> Enum.uniq()
+      |> Enum.reduce(post_reactions || %{}, fn key, acc ->
+        Map.update(
+          acc,
+          key,
+          remote_reactions,
+          &merge_remote_reaction_entries(&1, remote_reactions)
+        )
+      end)
+    end
+  end
+
+  defp remote_emoji_reaction_entries(post_object, local_message) do
+    metadata = field_value(local_message, [:media_metadata, "media_metadata"]) || %{}
+
+    [
+      field_value(post_object, ["emoji_reactions", :emoji_reactions]),
+      field_value(metadata, ["emoji_reactions", :emoji_reactions])
+    ]
+    |> Enum.flat_map(&normalize_remote_emoji_reactions/1)
+    |> Enum.uniq_by(& &1.emoji)
+  end
+
+  defp normalize_remote_emoji_reactions(reactions) when is_list(reactions) do
+    reactions
+    |> Enum.map(&normalize_remote_emoji_reaction/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp normalize_remote_emoji_reactions(_), do: []
+
+  defp misskey_emoji_reactions(reactions) when is_map(reactions) do
+    reactions
+    |> Enum.map(fn {emoji, count} ->
+      %{"name" => emoji, "count" => normalize_display_count(count)}
+    end)
+    |> Enum.filter(&(&1["count"] > 0))
+  end
+
+  defp misskey_emoji_reactions(_), do: []
+
+  defp normalize_remote_emoji_reaction(%{} = reaction) do
+    emoji =
+      reaction["name"] || reaction[:name] || reaction["emoji"] || reaction[:emoji] ||
+        reaction["shortcode"] || reaction[:shortcode]
+
+    count = normalize_display_count(reaction["count"] || reaction[:count] || 1)
+
+    if Elektrine.Strings.present?(emoji) && count > 0 do
+      %{
+        emoji: emoji,
+        remote_count: count,
+        remote_reaction?: true,
+        user_id: nil,
+        user: nil,
+        remote_actor: nil
+      }
+    end
+  end
+
+  defp normalize_remote_emoji_reaction([emoji, count]) do
+    normalize_remote_emoji_reaction(%{"name" => emoji, "count" => count})
+  end
+
+  defp normalize_remote_emoji_reaction(_), do: nil
+
+  defp merge_remote_reaction_entries(existing_reactions, remote_reactions)
+       when is_list(existing_reactions) do
+    existing_reactions
+    |> Enum.reject(&(is_map(&1) && Map.get(&1, :remote_reaction?) == true))
+    |> Kernel.++(remote_reactions)
+  end
+
+  defp merge_remote_reaction_entries(_existing_reactions, remote_reactions), do: remote_reactions
+
   defp detail_message_saved?(user_saves, message) do
     [message.activitypub_id, message.id]
     |> Enum.filter(& &1)
@@ -1655,14 +1745,35 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "like_count" => msg.like_count || 0,
       "reply_count" => reply_count,
       "share_count" => msg.share_count || 0,
+      "quotes_count" => msg.quote_count || 0,
       "upvotes" => msg.upvotes || 0,
       "downvotes" => msg.downvotes || 0,
       "score" => max(msg.score || 0, msg.like_count || 0),
       "_cached" => true,
       "_local_message" => msg
     }
+    |> Map.merge(cached_remote_status_fields(metadata))
     |> Map.merge(poll_fields)
   end
+
+  defp cached_remote_status_fields(metadata) when is_map(metadata) do
+    metadata
+    |> Map.take([
+      "emoji_reactions",
+      "quotes_count",
+      "quote",
+      "quote_id",
+      "quote_url",
+      "card",
+      "application",
+      "language",
+      "media_attachments",
+      "pleroma",
+      "misskey"
+    ])
+  end
+
+  defp cached_remote_status_fields(_), do: %{}
 
   defp maybe_enrich_cached_federated_post(post_object, msg)
        when is_map(post_object) and is_map(msg) do
@@ -3123,6 +3234,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:is_following_author, is_following_author)
       |> assign(:is_pending_author, is_pending_author)
       |> assign_remote_author_follow_maps(remote_actor, is_following_author, is_pending_author)
+      |> assign(
+        :post_reactions,
+        merge_remote_post_reactions(socket.assigns.post_reactions, post_object, local_message)
+      )
       |> assign(:awaiting_initial_comment_counts, discussion_source == :lemmy)
 
     _ = Elektrine.Messaging.SyncRemoteCountsWorker.enqueue(post_object)
@@ -3230,9 +3345,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> push_navigate(to: ~p"/")
   end
 
-  defp fetch_platform_counts_result(post_id, current_post) do
-    case DiscussionSource.remote_discussion_source(post_id, current_post, nil) do
-      :lemmy ->
+  defp fetch_platform_counts_result(post_id, current_post, local_message) do
+    count_lookup_post = platform_count_lookup_post(post_id, current_post, local_message)
+
+    discussion_source =
+      DiscussionSource.remote_discussion_source(post_id, current_post, local_message)
+
+    cond do
+      discussion_source == :lemmy ->
         %{
           mastodon_counts: nil,
           lemmy_counts: Elektrine.ActivityPub.LemmyApi.fetch_post_counts(post_id),
@@ -3240,15 +3360,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           fresh_post: nil
         }
 
-      :mastodon ->
+      Elektrine.ActivityPub.MastodonApi.count_api_compatible?(count_lookup_post) ->
         %{
-          mastodon_counts: Elektrine.ActivityPub.MastodonApi.fetch_status_counts(post_id),
+          mastodon_counts:
+            Elektrine.ActivityPub.MastodonApi.fetch_status_counts_for_post(count_lookup_post),
           lemmy_counts: nil,
           lemmy_comment_counts: nil,
           fresh_post: nil
         }
 
-      :activitypub ->
+      true ->
         fresh_post =
           if current_post do
             case strict_fetch_remote_object(post_id) do
@@ -3266,6 +3387,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           fresh_post: fresh_post
         }
     end
+  end
+
+  defp platform_count_lookup_post(post_id, current_post, local_message) do
+    %{
+      activitypub_id:
+        first_platform_count_ref([
+          post_id,
+          field_value(current_post, ["id", :id]),
+          field_value(local_message, [:activitypub_id, "activitypub_id"])
+        ]),
+      activitypub_url:
+        first_platform_count_ref([
+          field_value(local_message, [:activitypub_url, "activitypub_url"]),
+          field_value(current_post, ["activitypub_url", :activitypub_url]),
+          field_value(current_post, ["url", :url])
+        ])
+    }
+  end
+
+  defp first_platform_count_ref(refs) do
+    refs
+    |> Enum.map(&normalize_in_reply_to_ref/1)
+    |> Enum.find(&Elektrine.Strings.present?/1)
   end
 
   defp apply_platform_counts_result(socket, result) do
@@ -3288,6 +3432,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket
       end
 
+    platform_counts = platform_counts_from_result(mastodon_counts, lemmy_counts, fresh_post)
+    platform_metadata = platform_metadata_from_result(mastodon_counts, lemmy_counts, fresh_post)
+
     socket =
       case latest_local_message_for_post(field_value(socket.assigns[:post], ["id", :id])) do
         %{} = refreshed_local_message ->
@@ -3298,6 +3445,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         _ ->
           socket
       end
+      |> maybe_apply_platform_counts_to_local_message(platform_counts, platform_metadata)
+
+    socket =
+      assign(
+        socket,
+        :post_reactions,
+        merge_remote_post_reactions(
+          socket.assigns.post_reactions,
+          socket.assigns[:post],
+          socket.assigns[:local_message]
+        )
+      )
 
     socket
     |> assign(:mastodon_counts, mastodon_counts)
@@ -3305,6 +3464,296 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> assign(:lemmy_comment_counts, lemmy_comment_counts)
     |> maybe_apply_lemmy_comment_counts(lemmy_comment_counts)
   end
+
+  defp platform_counts_from_result(mastodon_counts, _lemmy_counts, _fresh_post)
+       when is_map(mastodon_counts) do
+    %{
+      like_count: positive_display_count(Map.get(mastodon_counts, :favourites_count)),
+      reply_count: positive_display_count(Map.get(mastodon_counts, :replies_count)),
+      share_count: positive_display_count(Map.get(mastodon_counts, :reblogs_count)),
+      quote_count: positive_display_count(Map.get(mastodon_counts, :quotes_count))
+    }
+    |> nonzero_platform_counts()
+  end
+
+  defp platform_counts_from_result(_mastodon_counts, lemmy_counts, _fresh_post)
+       when is_map(lemmy_counts) do
+    %{
+      like_count: positive_display_count(Map.get(lemmy_counts, :score)),
+      reply_count: positive_display_count(Map.get(lemmy_counts, :comments)),
+      share_count: nil,
+      upvotes: positive_display_count(Map.get(lemmy_counts, :upvotes)),
+      downvotes: positive_display_count(Map.get(lemmy_counts, :downvotes)),
+      score: positive_display_count(Map.get(lemmy_counts, :score))
+    }
+    |> nonzero_platform_counts()
+  end
+
+  defp platform_counts_from_result(_mastodon_counts, _lemmy_counts, fresh_post)
+       when is_map(fresh_post) do
+    %{
+      like_count:
+        positive_display_count(APHelpers.extract_interaction_count(fresh_post, "likes")),
+      reply_count:
+        positive_display_count(APHelpers.extract_interaction_count(fresh_post, "replies")),
+      share_count:
+        positive_display_count(APHelpers.extract_interaction_count(fresh_post, "shares")),
+      quote_count: positive_display_count(remote_status_quote_count(fresh_post))
+    }
+    |> nonzero_platform_counts()
+  end
+
+  defp platform_counts_from_result(_, _, _), do: nil
+
+  defp nonzero_platform_counts(counts) when is_map(counts) do
+    if Enum.any?([:like_count, :reply_count, :share_count, :quote_count], fn key ->
+         count = Map.get(counts, key)
+         is_integer(count) and count > 0
+       end) do
+      counts
+    end
+  end
+
+  defp nonzero_platform_counts(_), do: nil
+
+  defp platform_metadata_from_result(mastodon_counts, _lemmy_counts, _fresh_post)
+       when is_map(mastodon_counts) do
+    mastodon_counts
+    |> Map.get(:status_metadata)
+    |> normalize_metadata()
+  end
+
+  defp platform_metadata_from_result(_mastodon_counts, _lemmy_counts, fresh_post)
+       when is_map(fresh_post) do
+    remote_status_metadata_from_post(fresh_post)
+  end
+
+  defp platform_metadata_from_result(_, _, _), do: %{}
+
+  defp remote_status_metadata_from_post(post) when is_map(post) do
+    quote_count = remote_status_quote_count(post)
+
+    %{}
+    |> maybe_put_platform_status_metadata(
+      "emoji_reactions",
+      post["emoji_reactions"] || get_in(post, ["pleroma", "emoji_reactions"]) ||
+        misskey_emoji_reactions(post["reactions"])
+    )
+    |> maybe_put_platform_status_metadata("quotes_count", if(quote_count > 0, do: quote_count))
+    |> maybe_put_platform_status_metadata(
+      "quote",
+      post["quote"] || post["renote"] || get_in(post, ["pleroma", "quote"])
+    )
+    |> maybe_put_platform_status_metadata(
+      "quote_id",
+      post["quote_id"] || post["renoteId"] || get_in(post, ["pleroma", "quote_id"])
+    )
+    |> maybe_put_platform_status_metadata(
+      "quote_url",
+      post["quoteUrl"] || post["quoteUri"] || post["quote_url"] ||
+        post["_misskey_quote"] ||
+        get_in(post, ["pleroma", "quote_url"])
+    )
+    |> maybe_put_platform_status_metadata("card", post["card"])
+    |> maybe_put_platform_status_metadata("application", post["application"] || post["app"])
+    |> maybe_put_platform_status_metadata("language", post["language"])
+    |> maybe_put_platform_status_metadata(
+      "media_attachments",
+      post["media_attachments"] || post["files"]
+    )
+    |> maybe_put_platform_status_metadata("pleroma", post["pleroma"])
+    |> maybe_put_platform_status_metadata("misskey", post["misskey"])
+  end
+
+  defp remote_status_metadata_from_post(_), do: %{}
+
+  defp remote_status_quote_count(post) when is_map(post) do
+    normalize_display_count(
+      post["quotes_count"] ||
+        post["quote_count"] ||
+        post["quotesCount"] ||
+        post["quoteCount"] ||
+        post["quotedCount"] ||
+        get_in(post, ["pleroma", "quotes_count"])
+    )
+  end
+
+  defp remote_status_quote_count(_), do: 0
+
+  defp maybe_apply_platform_counts_to_local_message(socket, nil, metadata) do
+    metadata = normalize_metadata(metadata)
+
+    socket =
+      update(socket, :post, fn
+        %{} = post -> apply_status_metadata_to_post_object(post, metadata)
+        post -> post
+      end)
+
+    if map_size(metadata) > 0 do
+      case sync_local_message_platform_counts(socket.assigns[:local_message], %{}, metadata) do
+        %{} = local_message -> assign(socket, :local_message, local_message)
+        _ -> socket
+      end
+    else
+      socket
+    end
+  end
+
+  defp maybe_apply_platform_counts_to_local_message(socket, counts, metadata)
+       when is_map(counts) do
+    metadata = normalize_metadata(metadata)
+
+    socket =
+      update(socket, :post, fn
+        %{} = post ->
+          post
+          |> apply_counts_to_post_object(counts)
+          |> apply_status_metadata_to_post_object(metadata)
+
+        post ->
+          post
+      end)
+
+    case sync_local_message_platform_counts(socket.assigns[:local_message], counts, metadata) do
+      %{} = local_message -> assign(socket, :local_message, local_message)
+      _ -> socket
+    end
+  end
+
+  defp sync_local_message_platform_counts(%{id: message_id} = local_message, counts, metadata)
+       when is_integer(message_id) do
+    {count_updates, updated_message} = merge_platform_count_updates(local_message, counts)
+
+    merged_metadata =
+      local_message.media_metadata
+      |> merge_original_platform_counts(counts)
+      |> merge_platform_status_metadata(metadata)
+
+    metadata_changed? = merged_metadata != normalize_metadata(local_message.media_metadata)
+
+    updates =
+      count_updates
+      |> maybe_put_metadata_update(metadata_changed?, merged_metadata)
+
+    if updates != [] do
+      import Ecto.Query
+
+      Elektrine.Repo.update_all(
+        from(m in Elektrine.Social.Message, where: m.id == ^message_id),
+        set: Keyword.put(updates, :updated_at, DateTime.utc_now() |> DateTime.truncate(:second))
+      )
+
+      maybe_broadcast_platform_counts(message_id, updated_message, count_updates)
+    end
+
+    if metadata_changed? do
+      %{updated_message | media_metadata: merged_metadata}
+    else
+      updated_message
+    end
+  end
+
+  defp sync_local_message_platform_counts(local_message, _counts, _metadata), do: local_message
+
+  defp merge_platform_count_updates(local_message, counts) do
+    [:like_count, :reply_count, :share_count, :quote_count, :upvotes, :downvotes, :score]
+    |> Enum.reduce({[], local_message}, fn field, {updates, message} ->
+      platform_count = Map.get(counts, field)
+      current_count = Map.get(message, field, 0) || 0
+
+      if is_integer(platform_count) and platform_count > current_count do
+        {[{field, platform_count} | updates], Map.put(message, field, platform_count)}
+      else
+        {updates, message}
+      end
+    end)
+  end
+
+  defp maybe_put_metadata_update(updates, true, metadata),
+    do: [{:media_metadata, metadata} | updates]
+
+  defp maybe_put_metadata_update(updates, _metadata_changed?, _metadata), do: updates
+
+  defp merge_original_platform_counts(metadata, counts) do
+    metadata
+    |> normalize_metadata()
+    |> maybe_put_original_platform_count("original_like_count", Map.get(counts, :like_count))
+    |> maybe_put_original_platform_count("original_reply_count", Map.get(counts, :reply_count))
+    |> maybe_put_original_platform_count("original_share_count", Map.get(counts, :share_count))
+  end
+
+  defp merge_platform_status_metadata(metadata, status_metadata) do
+    status_metadata = normalize_metadata(status_metadata)
+
+    metadata
+    |> normalize_metadata()
+    |> maybe_put_platform_status_metadata(
+      "emoji_reactions",
+      Map.get(status_metadata, "emoji_reactions")
+    )
+    |> maybe_put_platform_status_metadata(
+      "quotes_count",
+      Map.get(status_metadata, "quotes_count")
+    )
+    |> maybe_put_platform_status_metadata("quote", Map.get(status_metadata, "quote"))
+    |> maybe_put_platform_status_metadata("quote_id", Map.get(status_metadata, "quote_id"))
+    |> maybe_put_platform_status_metadata("quote_url", Map.get(status_metadata, "quote_url"))
+    |> maybe_put_platform_status_metadata("card", Map.get(status_metadata, "card"))
+    |> maybe_put_platform_status_metadata("application", Map.get(status_metadata, "application"))
+    |> maybe_put_platform_status_metadata("language", Map.get(status_metadata, "language"))
+    |> maybe_put_platform_status_metadata(
+      "media_attachments",
+      Map.get(status_metadata, "media_attachments")
+    )
+    |> maybe_put_platform_status_metadata("pleroma", Map.get(status_metadata, "pleroma"))
+    |> maybe_put_platform_status_metadata("misskey", Map.get(status_metadata, "misskey"))
+  end
+
+  defp maybe_put_platform_status_metadata(metadata, _key, nil), do: metadata
+  defp maybe_put_platform_status_metadata(metadata, _key, []), do: metadata
+
+  defp maybe_put_platform_status_metadata(metadata, _key, %{} = value) when map_size(value) == 0,
+    do: metadata
+
+  defp maybe_put_platform_status_metadata(metadata, key, value), do: Map.put(metadata, key, value)
+
+  defp maybe_put_original_platform_count(metadata, key, value) when is_integer(value),
+    do: Map.put(metadata, key, value)
+
+  defp maybe_put_original_platform_count(metadata, _key, _value), do: metadata
+
+  defp normalize_metadata(metadata) when is_map(metadata), do: metadata
+  defp normalize_metadata(_), do: %{}
+
+  defp maybe_broadcast_platform_counts(message_id, updated_message, count_updates) do
+    if Keyword.has_key?(count_updates, :like_count) or
+         Keyword.has_key?(count_updates, :reply_count) or
+         Keyword.has_key?(count_updates, :share_count) do
+      Elektrine.Social.Messages.broadcast_post_counts_updated(message_id, %{
+        like_count: updated_message.like_count || 0,
+        reply_count: updated_message.reply_count || 0,
+        share_count: updated_message.share_count || 0
+      })
+    end
+  end
+
+  defp positive_display_count(value) do
+    case normalize_display_count(value) do
+      count when count > 0 -> count
+      _ -> nil
+    end
+  end
+
+  defp normalize_display_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_display_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {count, _} -> max(count, 0)
+      :error -> 0
+    end
+  end
+
+  defp normalize_display_count(_), do: 0
 
   defp update_cached_post_object(socket, post_object) do
     local_message = socket.assigns[:local_message]
@@ -4236,10 +4685,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     load_ref = System.unique_integer([:positive, :monotonic])
     parent = self()
     current_post = socket.assigns[:post]
+    local_message = socket.assigns[:local_message]
 
     Task.start(fn ->
       started_at = System.monotonic_time(:millisecond)
-      result = fetch_platform_counts_result(post_id, current_post)
+      result = fetch_platform_counts_result(post_id, current_post, local_message)
 
       log_remote_post_timing("load_platform_counts", started_at,
         post_id: post_id,
@@ -4278,7 +4728,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
          assign(
            socket,
            :post_reactions,
-           Map.put(socket.assigns.post_reactions || %{}, activitypub_id, reactions)
+           socket.assigns.post_reactions
+           |> Kernel.||(%{})
+           |> Map.put(activitypub_id, reactions)
+           |> merge_remote_post_reactions(socket.assigns[:post], socket.assigns[:local_message])
          )}
     end
   end
@@ -4287,9 +4740,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     refresh_ref = System.unique_integer([:positive, :monotonic])
     parent = self()
     current_post = socket.assigns[:post]
+    local_message = socket.assigns[:local_message]
 
     Task.start(fn ->
-      result = fetch_platform_counts_result(post_id, current_post)
+      result = fetch_platform_counts_result(post_id, current_post, local_message)
       send(parent, {:remote_counts_refreshed, refresh_ref, post_id, result})
     end)
 
@@ -4523,6 +4977,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     like_count = Map.get(counts, :like_count)
     reply_count = Map.get(counts, :reply_count)
     share_count = Map.get(counts, :share_count)
+    quote_count = Map.get(counts, :quote_count)
 
     post
     |> maybe_put_collection_total("likes", like_count)
@@ -4531,10 +4986,45 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> maybe_put_optional_count("like_count", like_count)
     |> maybe_put_optional_count("reply_count", reply_count)
     |> maybe_put_optional_count("share_count", share_count)
+    |> maybe_put_optional_count("quotes_count", quote_count)
     |> maybe_put_optional_count("upvotes", Map.get(counts, :upvotes))
     |> maybe_put_optional_count("downvotes", Map.get(counts, :downvotes))
     |> maybe_put_optional_count("score", Map.get(counts, :score))
   end
+
+  defp apply_status_metadata_to_post_object(post, metadata)
+       when is_map(post) and is_map(metadata) do
+    metadata
+    |> Enum.reduce(post, fn
+      {key, value}, acc
+      when key in [
+             "emoji_reactions",
+             "quotes_count",
+             "quote",
+             "quote_id",
+             "quote_url",
+             "card",
+             "application",
+             "language",
+             "media_attachments",
+             "pleroma"
+           ] ->
+        maybe_put_status_metadata_field(acc, key, value)
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp apply_status_metadata_to_post_object(post, _metadata), do: post
+
+  defp maybe_put_status_metadata_field(post, _key, nil), do: post
+  defp maybe_put_status_metadata_field(post, _key, []), do: post
+
+  defp maybe_put_status_metadata_field(post, _key, %{} = value) when map_size(value) == 0,
+    do: post
+
+  defp maybe_put_status_metadata_field(post, key, value), do: Map.put(post, key, value)
 
   defp maybe_put_collection_total(post, _key, total)
        when not is_map(post) or not is_integer(total),
