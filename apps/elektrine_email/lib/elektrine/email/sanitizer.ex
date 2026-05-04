@@ -224,6 +224,8 @@ defmodule Elektrine.Email.Sanitizer do
     html_content
     |> ensure_valid_utf8()
     |> remove_processing_instructions()
+    |> remove_doctype_declarations()
+    |> remove_xml_namespace_attributes()
     |> remove_outlook_conditional_comments()
     |> remove_dangerous_tags()
     |> remove_event_handlers()
@@ -316,6 +318,18 @@ defmodule Elektrine.Email.Sanitizer do
     String.replace(content, ~r/<\?[^>]*\?>/s, "")
   end
 
+  defp remove_doctype_declarations(content) do
+    String.replace(content, ~r/<!doctype[^>]*>/i, "")
+  end
+
+  defp remove_xml_namespace_attributes(content) do
+    String.replace(
+      content,
+      ~r/\s+xmlns(?::[A-Za-z_][\w.-]*)?\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i,
+      ""
+    )
+  end
+
   defp remove_outlook_conditional_comments(content) do
     content
     |> preserve_non_mso_conditional_content()
@@ -326,7 +340,7 @@ defmodule Elektrine.Email.Sanitizer do
   defp preserve_non_mso_conditional_content(content) do
     content
     |> String.replace(
-      ~r/<!--\s*\[if\s+!mso[^\]]*\]\s*><!-->\s*(.*?)\s*<!--\s*<!\[endif\]\s*-->/is,
+      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(?:<!-->|<!--\s*-->)\s*(.*?)\s*<!--\s*<!\[endif\]\s*-->/is,
       "\\1"
     )
     |> String.replace(
@@ -338,14 +352,14 @@ defmodule Elektrine.Email.Sanitizer do
   defp remove_mso_conditional_content(content) do
     String.replace(
       content,
-      ~r/<!--\s*\[if[^\]]*(?:\bmso\b|\bIE\b)[^\]]*\]>.*?<!\[endif\]\s*-->/is,
+      ~r/<!--\s*\[if\s+(?!\s*!mso\b)[^\]]*(?:\bmso\b|\bIE\b)[^\]]*\]>.*?<!\[endif\]\s*-->/is,
       ""
     )
   end
 
   defp strip_conditional_comment_markers(content) do
     content
-    |> String.replace(~r/<!--\s*\[if.*?\]>\s*<!-->/is, "")
+    |> String.replace(~r/<!--\s*\[if.*?\]>\s*(?:<!-->|<!--\s*-->)/is, "")
     |> String.replace(~r/<!--\s*\[if.*?\]>/is, "")
     |> String.replace(~r/<!--\s*<!\[endif\]\s*-->/i, "")
     |> String.replace(~r/<!\[endif\]\s*-->/i, "")
@@ -367,18 +381,30 @@ defmodule Elektrine.Email.Sanitizer do
   defp scrub_with_email_scrubber(content) do
     Scrubber.scrub(content, ElektrineEmailWeb.EmailScrubber)
   rescue
-    _error -> strip_tags_fallback(content)
+    _error -> graceful_fallback(content)
   end
 
-  defp strip_tags_fallback(content) when is_binary(content) do
+  defp graceful_fallback(content) when is_binary(content) do
+    case HtmlSanitizeEx.basic_html(content) do
+      "" -> strip_dangerous_tags(content)
+      result -> result
+    end
+  rescue
+    _ -> strip_dangerous_tags(content)
+  end
+
+  defp strip_dangerous_tags(content) when is_binary(content) do
     content
     |> remove_processing_instructions()
     |> String.replace(~r/<script\b[^>]*>.*?<\/script>/is, "")
     |> String.replace(~r/<style\b[^>]*>.*?<\/style>/is, "")
-    |> String.replace(~r/<[^>]+>/, "")
+    |> String.replace(~r/\bon\w+\s*=\s*["'][^"']*["']/i, "")
+    |> String.replace(~r/\bon\w+\s*=\s*[^\s>]+/i, "")
+    |> String.replace(~r/javascript\s*:/i, "")
+    |> String.replace(~r/vbscript\s*:/i, "")
   end
 
-  defp strip_tags_fallback(_content), do: ""
+  defp strip_dangerous_tags(_content), do: ""
 
   @doc "Sanitizes UTF-8 content (for text bodies and other text fields).\nGUARANTEES valid UTF-8 output suitable for JSON encoding and PostgreSQL.\nRemoves null bytes which PostgreSQL does not allow in text fields.\n"
   def sanitize_utf8(content) when is_binary(content) do
