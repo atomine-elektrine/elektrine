@@ -10,21 +10,20 @@
     badge_counts={@e_nav_badge_counts}
   />
 
-  <div class="flex flex-col gap-3 lg:flex-row lg:gap-6">
-    <div class="order-2 lg:order-1">
-      <.sidebar
-        mailbox={@mailbox}
-        mailbox_addresses={@mailbox_addresses}
-        storage_info={@storage_info}
-        unread_count={@unread_count}
-        current_page={@return_to || "inbox"}
-        current_user={@current_user}
-        custom_folders={@custom_folders}
-      />
-    </div>
+  <div class="email-sidebar-layout flex flex-col items-start gap-4 lg:flex-row lg:gap-6">
+    <.sidebar
+      mailbox={@mailbox}
+      mailbox_addresses={@mailbox_addresses}
+      storage_info={@storage_info}
+      unread_count={@unread_count}
+      current_page={@return_to || "inbox"}
+      current_user={@current_user}
+      custom_folders={@custom_folders}
+      class="order-2 lg:order-1"
+    />
     
 <!-- Main content -->
-    <div class="order-1 lg:order-2 flex-1 min-w-0 overflow-visible">
+    <div class="order-1 lg:order-2 w-full flex-1 min-w-0 max-w-full overflow-visible">
       <div id="show-email-card" class="card panel-card rounded-lg">
         <div
           id="private-mailbox-show-content"

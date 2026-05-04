@@ -130,6 +130,47 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     assert html =~ ~s(href="mailto:help@example.com")
   end
 
+  test "iframe content preserves body attributes and non-Outlook CSS", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Body CSS regression",
+        html_body: """
+        <html>
+          <head>
+            <!--[if !mso]><!-->
+            <style>.modern-client { color: #123456; }</style>
+            <!--<![endif]-->
+            <!--[if mso]><style>.outlook-only { color: red; }</style><![endif]-->
+          </head>
+          <body style="margin:0;padding:0" bgcolor="#f3f2f1">
+            <table role="presentation"><tr><td class="modern-client">Modern body</td></tr></table>
+          </body>
+        </html>
+        """,
+        message_id: "<body-css-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    html =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/iframe_content")
+      |> html_response(200)
+
+    document = Floki.parse_document!(html)
+
+    assert html =~ ".modern-client"
+    refute html =~ ".outlook-only"
+    assert Floki.attribute(document, "body", "bgcolor") == ["#f3f2f1"]
+    assert Floki.attribute(document, "body", "style") == ["margin:0;padding:0"]
+    assert document |> Floki.find("body") |> Floki.text() =~ "Modern body"
+  end
+
   defp ensure_mailbox(user) do
     Email.get_user_mailbox(user.id) ||
       case Email.ensure_user_has_mailbox(user) do
