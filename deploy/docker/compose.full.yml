@@ -331,7 +331,6 @@ services:
     networks:
       elektrine_network:
       caddy_proxy_network:
-        ipv4_address: ${CADDY_DOCKER_IPV4:-172.30.0.12}
     restart: unless-stopped
 
   bluesky_pds:

@@ -38,88 +38,125 @@ defmodule ElektrineWeb.PageLive.Home do
 
         <main class="flex flex-1 items-center py-8 lg:py-10">
           <div class="grid w-full items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
-            <section class="card border border-base-300 bg-base-200/80">
-              <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
-                <div class="space-y-4">
+            <section class="space-y-4">
+              <div class="card border border-base-300 bg-base-200/80">
+                <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
                   <div class="space-y-4">
-                    <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
-                      Software for sovereignty.
-                    </h1>
-                    <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
-                      Elektrine is a private, modular internet suite for people who want everyday
-                      services without ads, tracking, or dependence on closed providers. Use the
-                      hosted service, or run your own when you want full independence. Open source,
-                      licensed under the AGPLv3.
-                    </p>
+                    <div class="space-y-4">
+                      <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
+                        Software for sovereignty.
+                      </h1>
+                      <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
+                        Elektrine is a private, modular internet suite for people who want everyday
+                        services without ads, tracking, or dependence on closed providers. Use the
+                        hosted service, or run your own when you want full independence. Open source,
+                        licensed under the AGPLv3.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-3">
+                    <%= if @current_user do %>
+                      <.link href={~p"/portal"} class="btn btn-primary btn-lg">
+                        {gettext("Portal")}
+                      </.link>
+                      <%= if Modules.enabled?(:email) do %>
+                        <.link href={~p"/email"} class="btn btn-ghost btn-lg">
+                          {gettext("Email")}
+                        </.link>
+                      <% end %>
+                      <%= if Modules.enabled?(:chat) do %>
+                        <.link href={~p"/chat"} class="btn btn-ghost btn-lg">
+                          {gettext("Chat")}
+                        </.link>
+                      <% end %>
+                      <.link href={~p"/account"} class="btn btn-ghost btn-lg">
+                        {gettext("Account")}
+                      </.link>
+                      <.link href={~p"/logout"} method="delete" class="btn btn-error btn-lg">
+                        {gettext("Sign out")}
+                      </.link>
+                    <% else %>
+                      <.link href={~p"/register"} class="btn btn-primary btn-lg">
+                        {gettext("Sign up")}
+                      </.link>
+                      <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-lg">
+                        {gettext("Sign in")}
+                      </.link>
+                    <% end %>
+                  </div>
+
+                  <div class="flex flex-wrap items-center gap-4 border-t border-base-300/80 pt-5 text-sm text-base-content/60">
+                    <.link
+                      href={github_repo_url()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-2 hover:text-base-content"
+                    >
+                      <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
+                      <span>GitHub</span>
+                    </.link>
+                    <.link
+                      href={github_releases_url()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-2 hover:text-base-content"
+                    >
+                      <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
+                      <span>Releases</span>
+                    </.link>
+                    <.link
+                      href={github_issues_url()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-2 hover:text-base-content"
+                    >
+                      <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
+                      <span>Issues</span>
+                    </.link>
+                    <.link
+                      href={~p"/canary"}
+                      class="inline-flex items-center gap-2 hover:text-base-content"
+                    >
+                      <.icon name="hero-shield-check-mini" class="h-4 w-4" />
+                      <span>Canary</span>
+                    </.link>
                   </div>
                 </div>
+              </div>
 
-                <div class="flex flex-wrap items-center gap-3">
-                  <%= if @current_user do %>
-                    <.link href={~p"/portal"} class="btn btn-primary btn-lg">
-                      {gettext("Portal")}
-                    </.link>
-                    <%= if Modules.enabled?(:email) do %>
-                      <.link href={~p"/email"} class="btn btn-ghost btn-lg">
-                        {gettext("Email")}
+              <div class="card border border-base-300 bg-base-200/80">
+                <div class="card-body gap-3 p-5 sm:p-6">
+                  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="space-y-2">
+                      <p class="text-xs uppercase tracking-[0.22em] opacity-60">From the developer</p>
+                      <h2 class="text-xl font-semibold tracking-tight text-base-content">
+                        Notes from the author
+                      </h2>
+                      <p class="max-w-xl text-sm leading-6 text-base-content/70">
+                        Development updates, release context, and essays on building independent
+                        internet infrastructure.
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <.link
+                        href={blog_url()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-outline btn-sm"
+                      >
+                        Read the blog
                       </.link>
-                    <% end %>
-                    <%= if Modules.enabled?(:chat) do %>
-                      <.link href={~p"/chat"} class="btn btn-ghost btn-lg">
-                        {gettext("Chat")}
+                      <.link
+                        href={blog_rss_url()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-ghost btn-sm"
+                      >
+                        <.icon name="hero-rss-mini" class="h-4 w-4" /> RSS
                       </.link>
-                    <% end %>
-                    <.link href={~p"/account"} class="btn btn-ghost btn-lg">
-                      {gettext("Account")}
-                    </.link>
-                    <.link href={~p"/logout"} method="delete" class="btn btn-error btn-lg">
-                      {gettext("Sign out")}
-                    </.link>
-                  <% else %>
-                    <.link href={~p"/register"} class="btn btn-primary btn-lg">
-                      {gettext("Sign up")}
-                    </.link>
-                    <.link href={Elektrine.Paths.login_path()} class="btn btn-ghost btn-lg">
-                      {gettext("Sign in")}
-                    </.link>
-                  <% end %>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-4 border-t border-base-300/80 pt-5 text-sm text-base-content/60">
-                  <.link
-                    href={github_repo_url()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 hover:text-base-content"
-                  >
-                    <.icon name="hero-code-bracket-mini" class="h-4 w-4" />
-                    <span>GitHub</span>
-                  </.link>
-                  <.link
-                    href={github_releases_url()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 hover:text-base-content"
-                  >
-                    <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" />
-                    <span>Releases</span>
-                  </.link>
-                  <.link
-                    href={github_issues_url()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="inline-flex items-center gap-2 hover:text-base-content"
-                  >
-                    <.icon name="hero-exclamation-circle-mini" class="h-4 w-4" />
-                    <span>Issues</span>
-                  </.link>
-                  <.link
-                    href={~p"/canary"}
-                    class="inline-flex items-center gap-2 hover:text-base-content"
-                  >
-                    <.icon name="hero-shield-check-mini" class="h-4 w-4" />
-                    <span>Canary</span>
-                  </.link>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -212,6 +249,10 @@ defmodule ElektrineWeb.PageLive.Home do
   defp github_releases_url, do: "https://github.com/atomine-elektrine/elektrine/releases"
 
   defp github_issues_url, do: "https://github.com/atomine-elektrine/elektrine/issues"
+
+  defp blog_url, do: "https://maxfieldluke.com"
+
+  defp blog_rss_url, do: "https://maxfieldluke.com/rss.xml"
 
   def load_platform_stats(cache_fetch \\ &Elektrine.AppCache.get_platform_stats/1) do
     case cache_fetch.(fn -> default_platform_stats() end) do

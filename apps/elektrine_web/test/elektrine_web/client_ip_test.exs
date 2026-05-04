@@ -93,6 +93,37 @@ defmodule ElektrineWeb.ClientIPTest do
 
       assert ClientIP.client_ip(conn) == "198.51.100.77"
     end
+
+    test "does not record Docker gateway when forwarded headers are missing", %{conn: conn} do
+      previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_cidrs)
+      end)
+
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.0/24"])
+
+      conn = Map.put(conn, :remote_ip, {172, 30, 0, 1})
+
+      assert ClientIP.client_ip(conn) == "unknown"
+    end
+
+    test "does not record private forwarded proxy hops without a public client", %{conn: conn} do
+      previous_trusted_cidrs = Application.get_env(:elektrine, :trusted_proxy_cidrs)
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :trusted_proxy_cidrs, previous_trusted_cidrs)
+      end)
+
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.0/24"])
+
+      conn =
+        conn
+        |> Map.put(:remote_ip, {172, 30, 0, 1})
+        |> put_req_header("x-forwarded-for", "172.30.0.1, 172.30.0.12")
+
+      assert ClientIP.client_ip(conn) == "unknown"
+    end
   end
 
   describe "forwarded_as_https?/1" do

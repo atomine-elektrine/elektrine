@@ -20,6 +20,7 @@ ARG PRIMARY_DOMAIN=example.com
 ARG EMAIL_DOMAIN=example.com
 ARG SUPPORTED_DOMAINS=example.com
 ARG PROFILE_BASE_DOMAINS=example.com
+ARG NPM_VERSION=11.13.0
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-ubuntu-${UBUNTU_VERSION}"
 ARG RUNNER_IMAGE="ubuntu:${UBUNTU_VERSION}"
@@ -32,6 +33,7 @@ ARG PRIMARY_DOMAIN
 ARG EMAIL_DOMAIN
 ARG SUPPORTED_DOMAINS
 ARG PROFILE_BASE_DOMAINS
+ARG NPM_VERSION
 
 # Retry helper function for flaky network operations
 SHELL ["/bin/bash", "-c"]
@@ -76,6 +78,7 @@ ENV PRIMARY_DOMAIN="${PRIMARY_DOMAIN}"
 ENV EMAIL_DOMAIN="${EMAIL_DOMAIN}"
 ENV SUPPORTED_DOMAINS="${SUPPORTED_DOMAINS}"
 ENV PROFILE_BASE_DOMAINS="${PROFILE_BASE_DOMAINS}"
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 
 # install mix dependencies
 COPY mix.lock ./
@@ -125,6 +128,19 @@ RUN for i in 1 2 3 4 5; do \
            apt-get install -y nodejs; then \
         apt-get clean; \
         rm -rf /var/lib/apt/lists/*; \
+        break; \
+      fi; \
+      if [ "$i" = "5" ]; then \
+        echo "Retry $i failed, giving up." >&2; \
+        exit 1; \
+      fi; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
+    done
+
+# Update npm before installing asset dependencies.
+RUN for i in 1 2 3 4 5; do \
+      if npm install -g npm@${NPM_VERSION}; then \
         break; \
       fi; \
       if [ "$i" = "5" ]; then \

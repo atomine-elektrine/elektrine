@@ -7,6 +7,12 @@
 	}
 
 	auto_https disable_redirects
+
+	servers {
+		trusted_proxies static 192.0.2.0/32 {$CADDY_TRUSTED_PROXY_CIDRS:}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For X-Real-IP
+	}
 }
 
 (admin_netbird_gate) {
