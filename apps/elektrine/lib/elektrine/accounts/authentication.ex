@@ -479,10 +479,11 @@ defmodule Elektrine.Accounts.Authentication do
 
   @doc ~s|Verifies an app password token for a user.\nUpdates last used timestamp if valid.\n|
   def verify_app_password(user_id, token, ip_address \\ nil) do
-    token_hash = AppPassword.hash_token(token)
+    candidate_hashes = AppPassword.candidate_hashes(token)
 
     AppPassword
-    |> where(user_id: ^user_id, token_hash: ^token_hash)
+    |> where(user_id: ^user_id)
+    |> where([ap], ap.token_hash in ^candidate_hashes)
     |> where([ap], is_nil(ap.expires_at) or ap.expires_at > ^DateTime.utc_now())
     |> Repo.one()
     |> case do

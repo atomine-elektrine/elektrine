@@ -1,8 +1,9 @@
 const SETTINGS_KEYS = ["serverUrl"]
 const TOKEN_KEY = "apiToken"
 const PASSPHRASE_KEY = "vaultPassphrase"
-const PENDING_SAVES_KEY = "pendingLoginSaves"
 const STAGED_FILLS_KEY = "stagedEntryFills"
+const PENDING_SAVE_MEMORY_TTL_MS = 5 * 60 * 1000
+const pendingLoginSaves = new Map()
 
 function getArea(areaName) {
   const area = chrome?.storage?.[areaName]
@@ -92,6 +93,14 @@ export async function clearSessionPassphrase() {
   await storageRemove("session", PASSPHRASE_KEY)
 }
 
+function pendingSaveKey(tabId) {
+  return tabId ? String(tabId) : null
+}
+
+function pendingSaveExpired(value) {
+  return !value?.recordedAt || Date.now() - value.recordedAt > PENDING_SAVE_MEMORY_TTL_MS
+}
+
 async function sessionMapValues(storageKey) {
   const values = await storageGet("session", storageKey)
   return values[storageKey] || {}
@@ -127,15 +136,31 @@ async function clearSessionMapEntry(storageKey, entryKey) {
 }
 
 export async function getPendingSave(tabId) {
-  return getSessionMapEntry(PENDING_SAVES_KEY, tabId)
+  const key = pendingSaveKey(tabId)
+  if (!key) return null
+
+  const value = pendingLoginSaves.get(key) || null
+
+  if (pendingSaveExpired(value)) {
+    pendingLoginSaves.delete(key)
+    return null
+  }
+
+  return value
 }
 
 export async function setPendingSave(tabId, value) {
-  await setSessionMapEntry(PENDING_SAVES_KEY, tabId, value)
+  const key = pendingSaveKey(tabId)
+  if (!key) return
+
+  pendingLoginSaves.set(key, value)
 }
 
 export async function clearPendingSave(tabId) {
-  await clearSessionMapEntry(PENDING_SAVES_KEY, tabId)
+  const key = pendingSaveKey(tabId)
+  if (!key) return
+
+  pendingLoginSaves.delete(key)
 }
 
 export async function getStagedFill(tabId) {

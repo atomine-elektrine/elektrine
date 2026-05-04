@@ -18,6 +18,9 @@ defmodule Elektrine.StaticSites do
   @max_decompression_ratio 100
   # Maximum size of a single file (10MB, aligned with StaticSiteFile changeset)
   @max_single_file_size 10_000_000
+  # Maximum accepted zip upload and extracted payload size.
+  @max_zip_archive_size 100 * 1024 * 1024
+  @default_max_zip_uncompressed_size 100 * 1024 * 1024
 
   # Magic bytes for content type validation
   @magic_bytes %{
@@ -365,21 +368,9 @@ defmodule Elektrine.StaticSites do
   Uploads multiple files from a zip archive.
   """
   def upload_zip(user, zip_binary) do
-    with {:ok, files} <- extract_zip(user.id, zip_binary),
-         :ok <- validate_zip_limits(user.id, files) do
-      results =
-        Enum.map(files, fn {path, content} ->
-          content_type = MIME.from_path(path)
-          upload_file(user, path, content, content_type)
-        end)
-
-      errors = Enum.filter(results, &match?({:error, _}, &1))
-
-      if Enum.empty?(errors) do
-        {:ok, length(results)}
-      else
-        {:error, :partial_upload, errors}
-      end
+    with {:ok, entries} <- preflight_zip(user.id, zip_binary),
+         :ok <- validate_zip_limits(user.id, entries) do
+      upload_zip_entries(user, zip_binary, entries)
     end
   end
 
@@ -468,17 +459,21 @@ defmodule Elektrine.StaticSites do
     end
   end
 
-  defp validate_zip_limits(user_id, files) do
-    total_size = Enum.reduce(files, 0, fn {_path, content}, acc -> acc + byte_size(content) end)
-    file_count = length(files)
+  defp validate_zip_limits(user_id, entries) do
+    total_size = Enum.reduce(entries, 0, fn entry, acc -> acc + entry.size end)
+    new_file_count = length(entries)
+    current_file_count = file_count(user_id)
     current_usage = total_storage_used(user_id)
     storage_limit = user_storage_limit(user_id)
 
     cond do
+      total_size > max_zip_uncompressed_size() ->
+        {:error, :storage_limit_exceeded}
+
       current_usage + total_size > storage_limit ->
         {:error, :storage_limit_exceeded}
 
-      file_count > @max_files ->
+      current_file_count + new_file_count > @max_files ->
         {:error, :file_limit_exceeded}
 
       true ->
@@ -495,61 +490,31 @@ defmodule Elektrine.StaticSites do
     "static_sites/#{user_id}/#{hex}/#{safe_filename}"
   end
 
-  defp extract_zip(user_id, zip_binary) do
+  defp preflight_zip(user_id, zip_binary) do
     zip_size = byte_size(zip_binary)
     storage_limit = user_storage_limit(user_id)
 
-    # First, check zip structure without extracting to detect zip bombs
-    # OTP 28+: Use zip_open with :memory option, then zip_list_dir
+    if zip_size > @max_zip_archive_size do
+      Logger.warning("Zip archive too large: #{zip_size} bytes exceeds limit")
+      {:error, :storage_limit_exceeded}
+    else
+      do_preflight_zip(user_id, zip_binary, zip_size, storage_limit)
+    end
+  end
+
+  defp do_preflight_zip(_user_id, zip_binary, zip_size, storage_limit) do
     case :zip.zip_open(zip_binary, [:memory]) do
       {:ok, handle} ->
         try do
-          case :zip.zip_list_dir(handle) do
-            {:ok, file_list} ->
-              # Calculate total uncompressed size from file list
-              # file_list contains {:zip_comment, _} and {:zip_file, Name, FileInfo, Comment, Offset, CompSize}
-              zip_entries =
-                file_list
-                |> Enum.filter(fn
-                  {:zip_file, _, _, _, _, _} -> true
-                  _ -> false
-                end)
-
-              total_uncompressed =
-                zip_entries
-                |> Enum.reduce(0, fn {:zip_file, _name, file_info, _comment, _offset, _comp_size},
-                                     acc ->
-                  # file_info is a :file_info record - size is the first field (index 1 after record tag)
-                  uncompressed_size = elem(file_info, 1)
-                  acc + uncompressed_size
-                end)
-
-              # Check decompression ratio to prevent zip bombs
-              decompression_ratio = if zip_size > 0, do: total_uncompressed / zip_size, else: 0
-
-              cond do
-                length(zip_entries) > @max_files ->
-                  Logger.warning("Zip contains too many entries: #{length(zip_entries)}")
-                  {:error, :file_limit_exceeded}
-
-                decompression_ratio > @max_decompression_ratio ->
-                  Logger.warning(
-                    "Zip bomb detected: ratio #{decompression_ratio}:1 exceeds limit"
-                  )
-
-                  {:error, :zip_bomb_detected}
-
-                total_uncompressed > storage_limit ->
-                  Logger.warning("Zip too large: #{total_uncompressed} bytes exceeds limit")
-                  {:error, :storage_limit_exceeded}
-
-                true ->
-                  # Safe to extract
-                  extract_zip_contents(zip_binary)
-              end
-
-            {:error, reason} ->
-              {:error, {:invalid_zip, reason}}
+          with {:ok, file_list} <- :zip.zip_list_dir(handle),
+               zip_entries <- zip_file_entries(file_list),
+               :ok <- validate_zip_entry_count(zip_entries),
+               {:ok, entries} <- build_zip_entries(zip_entries),
+               :ok <- validate_zip_uncompressed_size(entries, zip_size, storage_limit) do
+            {:ok, entries}
+          else
+            {:error, reason} -> {:error, {:invalid_zip, reason}}
+            {:zip_error, reason} -> {:error, reason}
           end
         after
           :zip.zip_close(handle)
@@ -560,40 +525,238 @@ defmodule Elektrine.StaticSites do
     end
   end
 
-  defp extract_zip_contents(zip_binary) do
-    case :zip.unzip(zip_binary, [:memory]) do
-      {:ok, files} ->
-        # Filter out macOS metadata and directories
-        files =
-          files
-          |> Enum.map(fn {path, content} -> {to_string(path), content} end)
-          |> Enum.reject(fn {path, _content} ->
-            # Skip macOS metadata, directories, and hidden files
-            String.contains?(path, "__MACOSX") or
-              String.ends_with?(path, "/") or
-              String.starts_with?(Path.basename(path), ".")
-          end)
+  defp zip_file_entries(file_list) do
+    Enum.filter(file_list, fn
+      {:zip_file, _, _, _, _, _} -> true
+      _ -> false
+    end)
+  end
 
-        # Normalize paths (strip common prefix)
-        files =
-          files
-          |> Enum.map(fn {path, content} ->
-            normalized = normalize_zip_path(path, files)
-            {normalized, content}
-          end)
-          |> Enum.filter(fn {path, content} ->
-            # Skip empty paths, files that are too large, and paths with traversal sequences
-            path != "" and
-              byte_size(content) <= @max_single_file_size and
-              not String.contains?(path, ["../", "..\\", "/..", "\\.."]) and
-              not String.starts_with?(path, ["../", "..\\", "/", "\\"]) and
-              not String.contains?(path, "\0")
-          end)
+  defp validate_zip_entry_count(zip_entries) do
+    if length(zip_entries) > @max_files do
+      Logger.warning("Zip contains too many entries: #{length(zip_entries)}")
+      {:zip_error, :file_limit_exceeded}
+    else
+      :ok
+    end
+  end
 
-        {:ok, files}
+  defp build_zip_entries(zip_entries) do
+    with {:ok, entries} <- collect_zip_entries(zip_entries) do
+      normalize_zip_entries(entries)
+    end
+  end
+
+  defp collect_zip_entries(zip_entries) do
+    zip_entries
+    |> Enum.reduce_while({:ok, []}, fn {:zip_file, zip_name, file_info, _comment, _offset,
+                                        _comp_size},
+                                       {:ok, entries} ->
+      with {:ok, raw_path} <- zip_entry_name(zip_name),
+           {:ok, entry} <- zip_entry(zip_name, raw_path, file_info) do
+        case entry do
+          :skip -> {:cont, {:ok, entries}}
+          entry -> {:cont, {:ok, [entry | entries]}}
+        end
+      else
+        {:error, reason} -> {:halt, {:zip_error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, entries} -> {:ok, Enum.reverse(entries)}
+      {:zip_error, reason} -> {:zip_error, reason}
+    end
+  end
+
+  defp zip_entry(zip_name, raw_path, file_info) do
+    type = zip_entry_type(file_info)
+
+    cond do
+      skippable_zip_path?(raw_path) or zip_entry_directory?(raw_path, type) ->
+        {:ok, :skip}
+
+      type != :regular ->
+        {:error, :invalid_zip_entry}
+
+      true ->
+        case zip_entry_size(file_info) do
+          size when is_integer(size) and size >= 0 and size <= @max_single_file_size ->
+            {:ok, %{zip_name: zip_name, raw_path: raw_path, size: size}}
+
+          size when is_integer(size) and size > @max_single_file_size ->
+            {:error, :file_too_large}
+
+          _ ->
+            {:error, :invalid_zip_entry}
+        end
+    end
+  end
+
+  defp zip_entry_name(name) when is_binary(name), do: {:ok, name}
+
+  defp zip_entry_name(name) when is_list(name) do
+    {:ok, List.to_string(name)}
+  rescue
+    _ -> {:error, :invalid_path}
+  end
+
+  defp zip_entry_name(_name), do: {:error, :invalid_path}
+
+  defp zip_entry_size(
+         {:file_info, size, _type, _access, _atime, _mtime, _ctime, _mode, _links, _major_device,
+          _minor_device, _inode, _uid, _gid}
+       ),
+       do: size
+
+  defp zip_entry_size(_file_info), do: :unknown
+
+  defp zip_entry_type(
+         {:file_info, _size, type, _access, _atime, _mtime, _ctime, _mode, _links, _major_device,
+          _minor_device, _inode, _uid, _gid}
+       ),
+       do: type
+
+  defp zip_entry_type(_file_info), do: :unknown
+
+  defp zip_entry_directory?(path, type), do: type == :directory or String.ends_with?(path, "/")
+
+  defp skippable_zip_path?(path) do
+    String.contains?(path, "__MACOSX") or String.starts_with?(Path.basename(path), ".")
+  end
+
+  defp normalize_zip_entries([]), do: {:ok, []}
+
+  defp normalize_zip_entries(entries) do
+    all_files = Enum.map(entries, &{&1.raw_path, ""})
+
+    entries
+    |> Enum.reduce_while({:ok, [], MapSet.new()}, fn entry,
+                                                     {:ok, normalized_entries, seen_paths} ->
+      raw_path = normalize_zip_path(entry.raw_path, all_files)
+
+      with {:ok, path} <- normalize_site_path(raw_path),
+           :ok <- validate_file_extension(path),
+           :ok <- validate_unique_zip_path(path, seen_paths) do
+        {:cont,
+         {:ok, [Map.put(entry, :path, path) | normalized_entries], MapSet.put(seen_paths, path)}}
+      else
+        {:error, reason} -> {:halt, {:zip_error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, entries, _seen_paths} -> {:ok, Enum.reverse(entries)}
+      {:zip_error, reason} -> {:zip_error, reason}
+    end
+  end
+
+  defp validate_unique_zip_path(path, seen_paths) do
+    if MapSet.member?(seen_paths, path) do
+      {:error, :duplicate_zip_path}
+    else
+      :ok
+    end
+  end
+
+  defp validate_zip_uncompressed_size(entries, zip_size, storage_limit) do
+    total_uncompressed = Enum.reduce(entries, 0, fn entry, acc -> acc + entry.size end)
+    hard_limit = min(storage_limit, max_zip_uncompressed_size())
+    decompression_ratio = if zip_size > 0, do: total_uncompressed / zip_size, else: 0
+
+    cond do
+      total_uncompressed > hard_limit ->
+        Logger.warning("Zip too large: #{total_uncompressed} bytes exceeds limit")
+        {:zip_error, :storage_limit_exceeded}
+
+      decompression_ratio > @max_decompression_ratio ->
+        Logger.warning("Zip bomb detected: ratio #{decompression_ratio}:1 exceeds limit")
+        {:zip_error, :zip_bomb_detected}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp upload_zip_entries(user, zip_binary, entries) do
+    case :zip.zip_open(zip_binary, [:memory]) do
+      {:ok, handle} ->
+        try do
+          case extract_and_upload_zip_entries(handle, user, entries) do
+            {:ok, results} ->
+              errors = Enum.filter(results, &match?({:error, _}, &1))
+
+              if Enum.empty?(errors) do
+                {:ok, length(results)}
+              else
+                {:error, :partial_upload, errors}
+              end
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+        after
+          :zip.zip_close(handle)
+        end
 
       {:error, reason} ->
         {:error, {:invalid_zip, reason}}
+    end
+  end
+
+  defp extract_and_upload_zip_entries(handle, user, entries) do
+    entries
+    |> Enum.reduce_while({:ok, [], 0}, fn entry, {:ok, results, extracted_size} ->
+      with {:ok, content} <- zip_entry_content(handle, entry),
+           new_extracted_size <- extracted_size + byte_size(content),
+           :ok <- validate_extracted_zip_size(new_extracted_size) do
+        content_type = static_site_content_type(entry.path)
+        result = upload_file(user, entry.path, content, content_type)
+        {:cont, {:ok, [result | results], new_extracted_size}}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, results, _extracted_size} -> {:ok, Enum.reverse(results)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp zip_entry_content(handle, entry) do
+    case :zip.zip_get(entry.zip_name, handle) do
+      {:ok, {_name, content}} when is_binary(content) ->
+        cond do
+          byte_size(content) != entry.size ->
+            {:error, {:invalid_zip, :size_mismatch}}
+
+          byte_size(content) > @max_single_file_size ->
+            {:error, :file_too_large}
+
+          true ->
+            {:ok, content}
+        end
+
+      {:ok, _unexpected} ->
+        {:error, {:invalid_zip, :invalid_entry}}
+
+      {:error, reason} ->
+        {:error, {:invalid_zip, reason}}
+    end
+  end
+
+  defp validate_extracted_zip_size(size) do
+    if size > max_zip_uncompressed_size() do
+      {:error, :storage_limit_exceeded}
+    else
+      :ok
+    end
+  end
+
+  defp max_zip_uncompressed_size do
+    config = Application.get_env(:elektrine, :static_sites, []) || []
+
+    case Keyword.get(config, :max_zip_uncompressed_size) do
+      limit when is_integer(limit) and limit > 0 -> limit
+      _ -> @default_max_zip_uncompressed_size
     end
   end
 

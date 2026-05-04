@@ -3146,6 +3146,33 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     else
       deny_remote_post_access(socket)
     end
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        Logger.warning(
+          "Resolved duplicate ActivityPub post while applying remote post #{inspect(post_object["id"] || post_object["url"])}"
+        )
+
+        post_id = normalize_in_reply_to_ref(post_object["id"] || post_object["url"])
+
+        case latest_local_message_for_post(post_id) do
+          %Elektrine.Social.Message{} = local_message ->
+            do_apply_loaded_remote_post(
+              socket,
+              post_object,
+              remote_actor,
+              community_actor,
+              local_message
+            )
+
+          _ ->
+            socket
+            |> assign(:loading, false)
+            |> assign(:load_error, "Post is already being cached. Refresh and try again.")
+        end
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp do_apply_loaded_remote_post(
@@ -4145,6 +4172,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     else
       {:noreply, deny_remote_post_access(socket)}
     end
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        post_id = normalize_in_reply_to_ref(post_object["id"] || post_object["url"])
+        local_message = latest_local_message_for_post(post_id)
+
+        {:noreply,
+         socket
+         |> assign(:local_message, local_message)
+         |> assign_local_first_post(local_message, post_object)}
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   def handle_info({:load_community_for_cached, post_id}, socket) do

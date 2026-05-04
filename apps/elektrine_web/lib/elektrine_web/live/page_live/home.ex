@@ -41,16 +41,15 @@ defmodule ElektrineWeb.PageLive.Home do
             <section class="card border border-base-300 bg-base-200/80">
               <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
                 <div class="space-y-4">
-                  <div class="inline-flex items-center rounded-full border border-base-300 bg-base-200/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-base-content/65">
-                    Doctrine
-                  </div>
                   <div class="space-y-4">
                     <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
                       Software for sovereignty.
                     </h1>
                     <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
-                      Elektrine is a modular platform for people who want to run communications,
-                      identity, and infrastructure under their own control.
+                      Elektrine is a private, modular internet suite for people who want everyday
+                      services without ads, tracking, or dependence on closed providers. Use the
+                      hosted service, or run your own when you want full independence. Open source,
+                      licensed under the AGPLv3.
                     </p>
                   </div>
                 </div>
@@ -63,6 +62,11 @@ defmodule ElektrineWeb.PageLive.Home do
                     <%= if Modules.enabled?(:email) do %>
                       <.link href={~p"/email"} class="btn btn-ghost btn-lg">
                         {gettext("Email")}
+                      </.link>
+                    <% end %>
+                    <%= if Modules.enabled?(:chat) do %>
+                      <.link href={~p"/chat"} class="btn btn-ghost btn-lg">
+                        {gettext("Chat")}
                       </.link>
                     <% end %>
                     <.link href={~p"/account"} class="btn btn-ghost btn-lg">

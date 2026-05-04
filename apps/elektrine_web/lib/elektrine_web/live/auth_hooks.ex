@@ -13,6 +13,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
   @authenticated_live_modules [
     ArblargWeb.ChatLive.Index,
     ElektrineEmailWeb.ContactsLive.Index,
+    ElektrineDNSWeb.DNSLive.Index,
     ElektrineEmailWeb.EmailLive.Compose,
     ElektrineEmailWeb.EmailLive.Index,
     ElektrineEmailWeb.EmailLive.Raw,
@@ -20,10 +21,13 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineEmailWeb.EmailLive.Settings,
     ElektrineEmailWeb.EmailLive.Show,
     ElektrineWeb.FriendsLive,
+    ElektrineWeb.DriveLive,
+    ElektrineWeb.NotesLive,
     ElektrineSocialWeb.ListLive.Index,
     ElektrineSocialWeb.ListLive.Show,
     ElektrineWeb.NotificationsLive,
     ElektrineWeb.PortalLive.Index,
+    ElektrineWeb.ProofsLive,
     ElektrineWeb.ProfileLive.Analytics,
     ElektrineWeb.ProfileLive.DomainAnalytics,
     ElektrineWeb.ProfileLive.Domains,
@@ -76,62 +80,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
   def on_mount(:require_authenticated_user, _params, session, socket) do
     socket = mount_current_user(socket, session)
-
-    case socket.assigns[:current_user] do
-      %{banned: true} = user ->
-        message =
-          if Elektrine.Strings.present?(user.banned_reason) do
-            "Your account has been banned. Reason: #{user.banned_reason}"
-          else
-            "Your account has been banned. Please contact support if you believe this is an error."
-          end
-
-        socket =
-          socket
-          |> notify_error(message)
-          |> redirect(to: ~p"/logout")
-
-        {:halt, socket}
-
-      %{suspended: true} = user ->
-        if Elektrine.Accounts.user_suspended?(user) do
-          base_message =
-            if user.suspended_until do
-              "Your account is suspended until #{Calendar.strftime(user.suspended_until, "%B %d, %Y")}"
-            else
-              "Your account is suspended"
-            end
-
-          message =
-            if Elektrine.Strings.present?(user.suspension_reason) do
-              "#{base_message}. Reason: #{user.suspension_reason}"
-            else
-              "#{base_message}. Please contact support if you believe this is an error."
-            end
-
-          socket =
-            socket
-            |> notify_error(message)
-            |> redirect(to: ~p"/logout")
-
-          {:halt, socket}
-        else
-          # Suspension has expired, auto-unsuspend (match controller behavior)
-          {:ok, _} = Elektrine.Accounts.unsuspend_user(user)
-          {:cont, socket}
-        end
-
-      %{} = _user ->
-        {:cont, socket}
-
-      nil ->
-        socket =
-          socket
-          |> notify_error("You must log in to access this live page.")
-          |> redirect(to: Elektrine.Paths.login_path())
-
-        {:halt, socket}
-    end
+    enforce_authenticated_user(socket, "You must log in to access this live page.")
   end
 
   def on_mount(:maybe_authenticated_user, _params, session, socket) do
@@ -140,13 +89,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
     # Check if this LiveView module requires authentication
     view_module = socket.view
 
-    if requires_auth_module?(view_module) && is_nil(socket.assigns[:current_user]) do
-      socket =
-        socket
-        |> notify_error("You must log in to access this page.")
-        |> redirect(to: Elektrine.Paths.login_path())
-
-      {:halt, socket}
+    if requires_auth_module?(view_module) do
+      enforce_authenticated_user(socket, "You must log in to access this page.")
     else
       {:cont, socket}
     end
@@ -246,6 +190,64 @@ defmodule ElektrineWeb.Live.AuthHooks do
 
           {:halt, socket}
         end
+    end
+  end
+
+  defp enforce_authenticated_user(socket, unauthenticated_message) do
+    case socket.assigns[:current_user] do
+      %{banned: true} = user ->
+        message =
+          if Elektrine.Strings.present?(user.banned_reason) do
+            "Your account has been banned. Reason: #{user.banned_reason}"
+          else
+            "Your account has been banned. Please contact support if you believe this is an error."
+          end
+
+        socket =
+          socket
+          |> notify_error(message)
+          |> redirect(to: ~p"/logout")
+
+        {:halt, socket}
+
+      %{suspended: true} = user ->
+        if Elektrine.Accounts.user_suspended?(user) do
+          base_message =
+            if user.suspended_until do
+              "Your account is suspended until #{Calendar.strftime(user.suspended_until, "%B %d, %Y")}"
+            else
+              "Your account is suspended"
+            end
+
+          message =
+            if Elektrine.Strings.present?(user.suspension_reason) do
+              "#{base_message}. Reason: #{user.suspension_reason}"
+            else
+              "#{base_message}. Please contact support if you believe this is an error."
+            end
+
+          socket =
+            socket
+            |> notify_error(message)
+            |> redirect(to: ~p"/logout")
+
+          {:halt, socket}
+        else
+          # Suspension has expired, auto-unsuspend (match controller behavior)
+          {:ok, _} = Elektrine.Accounts.unsuspend_user(user)
+          {:cont, socket}
+        end
+
+      %{} = _user ->
+        {:cont, socket}
+
+      nil ->
+        socket =
+          socket
+          |> notify_error(unauthenticated_message)
+          |> redirect(to: Elektrine.Paths.login_path())
+
+        {:halt, socket}
     end
   end
 

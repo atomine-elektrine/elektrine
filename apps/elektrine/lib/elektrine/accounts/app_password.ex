@@ -5,6 +5,8 @@ defmodule Elektrine.Accounts.AppPassword do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @current_hash_prefix "v2$hmac-sha256$"
+
   schema "app_passwords" do
     field :name, :string
     field :token_hash, :string
@@ -64,12 +66,11 @@ defmodule Elektrine.Accounts.AppPassword do
 
   @doc """
   Generates a secure random token for app password.
-  Format: xxxx-xxxx-xxxx-xxxx (16 characters)
+  Format: xxxx-xxxx-xxxx-xxxx-xxxx-xxxx-xxxx-xxxx (32 characters)
   """
   def generate_token do
-    :crypto.strong_rand_bytes(12)
+    :crypto.strong_rand_bytes(20)
     |> Base.encode32(case: :lower, padding: false)
-    |> String.slice(0, 16)
     |> format_token()
   end
 
@@ -84,14 +85,45 @@ defmodule Elektrine.Accounts.AppPassword do
   Hashes a token for secure storage.
   """
   def hash_token(token) do
+    @current_hash_prefix <> hmac_token(token)
+  end
+
+  @doc "Returns all token hashes that can authenticate the given token.
+
+  Includes the legacy SHA-256 hash so existing app passwords continue to work
+  until users rotate them.
+  "
+  def candidate_hashes(token) do
+    [hash_token(token), legacy_hash_token(token)]
+  end
+
+  defp legacy_hash_token(token) do
     :crypto.hash(:sha256, token)
     |> Base.encode16(case: :lower)
+  end
+
+  defp hmac_token(token) do
+    :crypto.mac(:hmac, :sha256, app_password_pepper(), token)
+    |> Base.url_encode64(padding: false)
+  end
+
+  defp app_password_pepper do
+    Application.get_env(:elektrine, :app_password_pepper) ||
+      Application.get_env(:elektrine, :encryption_master_secret) ||
+      get_in(Application.get_env(:elektrine, ElektrineWeb.Endpoint, []), [:secret_key_base]) ||
+      raise "app password pepper is not configured"
   end
 
   @doc """
   Verifies if a given token matches the stored hash.
   """
   def verify_token(token, token_hash) do
-    hash_token(token) == token_hash
+    Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
   end
+
+  defp secure_compare(left, right) when is_binary(left) and is_binary(right) do
+    byte_size(left) == byte_size(right) and Plug.Crypto.secure_compare(left, right)
+  end
+
+  defp secure_compare(_left, _right), do: false
 end

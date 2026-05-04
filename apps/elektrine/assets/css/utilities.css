@@ -47,6 +47,19 @@
   margin-bottom: 1rem;
 }
 
+.remote-user-sticky-follow {
+  isolation: isolate;
+  position: sticky;
+  top: 1.5rem;
+  width: 100%;
+  z-index: 900;
+}
+
+#remote-profile-infinite-scroll-person {
+  position: relative;
+  z-index: 0;
+}
+
 .social-page-wrap,
 .social-page-rail,
 .card,

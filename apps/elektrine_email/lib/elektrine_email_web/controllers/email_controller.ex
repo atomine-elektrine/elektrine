@@ -269,15 +269,16 @@ defmodule ElektrineEmailWeb.EmailController do
       # Styles: allow ANY HTTPS source (newsletters use various CDNs)
       # Common: Google Fonts, Adobe Fonts, Font Awesome, Typekit, custom CDNs
       "style-src 'self' 'unsafe-inline' https:",
-      # Images: remote HTTPS images are rewritten through the authenticated proxy.
-      "img-src 'self' data: cid:",
+      # Images: rewrite common HTML image references through the proxy, but keep
+      # HTTPS as a fidelity fallback for CSS, picture/source, and poster assets.
+      "img-src 'self' data: cid: https:",
       # Fonts: allow ANY HTTPS source (not just specific CDNs)
       # Common: fonts.googleapis.com, use.typekit.net, fonts.adobe.com, etc.
       "font-src 'self' data: https:",
       # Connect: block external connections
       "connect-src 'self'",
-      # Media: allow HTTPS (video embeds in emails)
-      "media-src 'self' https:",
+      # Media: allow common marketing-email media sources without scripts.
+      "media-src 'self' data: cid: https:",
       # Frames: block nested iframes
       "frame-src 'none'",
       # Objects: block all
@@ -301,31 +302,14 @@ defmodule ElektrineEmailWeb.EmailController do
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
+        html,
         body {
           margin: 0;
-          padding: 16px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          font-size: 14px;
-          line-height: 1.5;
-          color: #333;
+          padding: 0;
           background: #ffffff;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
         }
         img {
-          max-width: 100%;
-          height: auto;
-        }
-        a {
-          color: #0066cc;
-          text-decoration: none;
-        }
-        a:hover {
-          text-decoration: underline;
-        }
-        table {
-          max-width: 100%;
-          border-collapse: collapse;
+          border: 0;
         }
 
         /* Only fix truly broken buttons (like Odysee with empty background-color) */
@@ -336,29 +320,6 @@ defmodule ElektrineEmailWeb.EmailController do
           padding: 10px 20px;
         }
 
-        /* Hide tracking pixels */
-        img[width="1"][height="1"],
-        img[style*="width: 1px"][style*="height: 1px"] {
-          display: none !important;
-        }
-
-        /* Minimal mobile responsive styles */
-        @media screen and (max-width: 600px) {
-          body {
-            padding: 8px !important;
-          }
-
-          /* Prevent images from overflowing */
-          img {
-            max-width: 100% !important;
-            height: auto !important;
-          }
-
-          /* Allow tables to shrink on mobile */
-          table {
-            max-width: 100% !important;
-          }
-        }
       </style>
       #{head_content}
       <base target="_blank">
@@ -484,6 +445,8 @@ defmodule ElektrineEmailWeb.EmailController do
     content
     |> rewrite_remote_image_src_attributes(conn)
     |> rewrite_remote_image_srcset_attributes(conn)
+    |> rewrite_remote_image_source_srcset_attributes(conn)
+    |> rewrite_remote_media_poster_attributes(conn)
     |> rewrite_remote_background_attributes(conn)
     |> rewrite_remote_css_image_urls(conn)
   end
@@ -505,6 +468,30 @@ defmodule ElektrineEmailWeb.EmailController do
       content,
       fn _full, prefix, srcset, suffix ->
         prefix <> rewrite_srcset_urls(srcset, conn) <> suffix
+      end
+    )
+  end
+
+  defp rewrite_remote_image_source_srcset_attributes(content, conn) do
+    Regex.replace(
+      ~r/(<source\b[^>]*\bsrcset\s*=\s*["'])([^"']+)(["'][^>]*>)/i,
+      content,
+      fn _full, prefix, srcset, suffix ->
+        prefix <> rewrite_srcset_urls(srcset, conn) <> suffix
+      end
+    )
+  end
+
+  defp rewrite_remote_media_poster_attributes(content, conn) do
+    Regex.replace(
+      ~r/(<video\b[^>]*\bposter\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/i,
+      content,
+      fn _full, prefix, url, suffix ->
+        if proxyable_email_image_url?(url) do
+          prefix <> signed_email_image_proxy_path(conn, url) <> suffix
+        else
+          prefix <> url <> suffix
+        end
       end
     )
   end

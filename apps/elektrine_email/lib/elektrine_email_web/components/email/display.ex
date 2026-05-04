@@ -51,6 +51,12 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
           _ -> trimmed
         end
 
+      stray_closing = leading_stray_css_closing_brace(trimmed) ->
+        do_strip_leading_css_text(String.replace_prefix(trimmed, stray_closing, ""), attempts + 1)
+
+      fragment = leading_css_fragment_line(trimmed) ->
+        do_strip_leading_css_text(String.replace_prefix(trimmed, fragment, ""), attempts + 1)
+
       match = Regex.run(~r/^@(?:import|charset)\b[^;{]*;?/i, trimmed) ->
         [directive | _] = match
         do_strip_leading_css_text(String.replace_prefix(trimmed, directive, ""), attempts + 1)
@@ -61,6 +67,44 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
       true ->
         trimmed
     end
+  end
+
+  defp leading_stray_css_closing_brace(text) do
+    case Regex.run(~r/\A\}\s*/, text) do
+      [fragment] ->
+        rest = String.replace_prefix(text, fragment, "") |> String.trim_leading()
+        if css_start?(rest), do: fragment, else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  defp leading_css_fragment_line(text) do
+    case Regex.run(~r/\A([^\r\n]{1,500})(\r?\n|$)/, text) do
+      [fragment, line, _line_break] ->
+        rest = String.replace_prefix(text, fragment, "") |> String.trim_leading()
+
+        if css_start?(rest) and css_fragment_line?(line), do: fragment, else: nil
+
+      _ ->
+        nil
+    end
+  end
+
+  defp css_fragment_line?(line) do
+    line = String.trim(line)
+
+    line != "" and not String.contains?(line, "<") and
+      (String.ends_with?(line, [";", ");", "');", "\");"]) or
+         String.contains?(line, ["url(", "=", "&", "{"]))
+  end
+
+  defp css_start?(""), do: false
+
+  defp css_start?(text) do
+    String.starts_with?(text, ["/*", "@import", "@charset", "@media", ".", "#", "*", "["]) or
+      not is_nil(leading_css_block(text))
   end
 
   defp leading_css_block(text) do

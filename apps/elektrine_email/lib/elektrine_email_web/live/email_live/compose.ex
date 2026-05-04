@@ -13,6 +13,21 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   alias Elektrine.Email.Sender
   alias ElektrineEmailWeb.UserErrorHelpers
   require Logger
+
+  @max_email_attachments 5
+  @allowed_attachment_types %{
+    ".jpg" => ["image/jpeg"],
+    ".jpeg" => ["image/jpeg"],
+    ".png" => ["image/png"],
+    ".gif" => ["image/gif"],
+    ".pdf" => ["application/pdf"],
+    ".doc" => ["application/msword"],
+    ".docx" => ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ".xls" => ["application/vnd.ms-excel"],
+    ".xlsx" => ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    ".txt" => ["text/plain"]
+  }
+
   @impl true
   def mount(params, session, socket) do
     user = socket.assigns.current_user
@@ -712,7 +727,8 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           {[], []}
         end
 
-      private_forward_attachments = parse_private_forward_attachments(email_params)
+      private_forward_attachments =
+        parse_private_forward_attachments(email_params, mode, original_message, user)
 
       {all_db_attachments, all_email_attachments} =
         if mode == "forward" && original_message && original_message.attachments do
@@ -797,12 +813,23 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       send_at = parse_scheduled_send_at(email_params["send_at"])
 
       send_result =
-        if scheduled_send?(send_at) do
-          SendEmailWorker.enqueue(user.id, email_attrs, db_attachments_map,
-            scheduled_for: send_at
-          )
-        else
-          Sender.send_email(user.id, email_attrs, db_attachments_map)
+        cond do
+          length(all_db_attachments) > @max_email_attachments ->
+            {:error, :too_many_attachments}
+
+          any_attachment_too_large?(all_db_attachments, user) ->
+            {:error, :attachment_too_large}
+
+          all_db_attachments != [] && attachment_rate_limited?(user.id) ->
+            {:error, :attachment_rate_limit_exceeded}
+
+          scheduled_send?(send_at) ->
+            SendEmailWorker.enqueue(user.id, email_attrs, db_attachments_map,
+              scheduled_for: send_at
+            )
+
+          true ->
+            Sender.send_email(user.id, email_attrs, db_attachments_map)
         end
 
       case send_result do
@@ -836,6 +863,27 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
            socket
            |> assign(:sending, false)
            |> notify_error(rate_limit_message)
+           |> assign(:form, to_form(email_params))}
+
+        {:error, :attachment_rate_limit_exceeded} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error("Attachment upload limit exceeded (max 20 files per hour)")
+           |> assign(:form, to_form(email_params))}
+
+        {:error, :too_many_attachments} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error("Too many attachments (max #{@max_email_attachments})")
+           |> assign(:form, to_form(email_params))}
+
+        {:error, :attachment_too_large} ->
+          {:noreply,
+           socket
+           |> assign(:sending, false)
+           |> notify_error("One or more attachments exceed the attachment size limit")
            |> assign(:form, to_form(email_params))}
 
         {:error, :storage_limit_exceeded} ->
@@ -1273,24 +1321,17 @@ Subject: #{message.subject}#{attachment_info}
     end
   end
 
-  defp parse_private_forward_attachments(email_params) when is_map(email_params) do
+  defp parse_private_forward_attachments(email_params, "forward", original_message, user)
+       when is_map(email_params) and not is_nil(original_message) do
     case Map.get(email_params, "private_forward_attachments") do
       raw when is_binary(raw) and raw != "" ->
-        case Jason.decode(raw) do
-          {:ok, attachments} when is_list(attachments) ->
-            attachments
-            |> Enum.filter(&valid_private_forward_attachment?/1)
-            |> Enum.map(fn attachment ->
-              %{
-                "filename" => attachment["filename"],
-                "content_type" => attachment["content_type"] || "application/octet-stream",
-                "size" => attachment["size"] || 0,
-                "encoding" => attachment["encoding"] || "base64",
-                "data" => attachment["data"]
-              }
-            end)
-
+        with {:ok, attachments} when is_list(attachments) <- Jason.decode(raw),
+             {:ok, verified} <-
+               verify_private_forward_attachments(attachments, original_message, user) do
+          verified
+        else
           _ ->
+            Logger.warning("Rejected invalid private forwarded attachments")
             []
         end
 
@@ -1299,14 +1340,82 @@ Subject: #{message.subject}#{attachment_info}
     end
   end
 
-  defp parse_private_forward_attachments(_email_params), do: []
+  defp parse_private_forward_attachments(_email_params, _mode, _original_message, _user), do: []
 
-  defp valid_private_forward_attachment?(attachment) when is_map(attachment) do
-    is_binary(attachment["filename"]) and attachment["filename"] != "" and
-      is_binary(attachment["data"]) and attachment["data"] != ""
+  defp verify_private_forward_attachments(attachments, original_message, user) do
+    original_attachments = original_message.attachments || %{}
+    max_size = email_attachment_limit(user)
+
+    attachments
+    |> Enum.reduce_while({:ok, [], MapSet.new()}, fn attachment, {:ok, verified, seen_ids} ->
+      with {:ok, attachment_id} <- private_forward_attachment_id(attachment),
+           false <- MapSet.member?(seen_ids, attachment_id),
+           {:ok, _original_attachment} <-
+             original_private_attachment(original_attachments, attachment_id),
+           {:ok, verified_attachment} <-
+             verify_private_forward_attachment(attachment, max_size) do
+        {:cont, {:ok, [verified_attachment | verified], MapSet.put(seen_ids, attachment_id)}}
+      else
+        true -> {:halt, {:error, :duplicate_attachment}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, verified, _seen_ids} -> {:ok, Enum.reverse(verified)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp valid_private_forward_attachment?(_attachment), do: false
+  defp private_forward_attachment_id(%{"attachment_id" => id}) when is_binary(id) and id != "",
+    do: {:ok, id}
+
+  defp private_forward_attachment_id(%{"id" => id}) when is_binary(id) and id != "",
+    do: {:ok, id}
+
+  defp private_forward_attachment_id(_attachment), do: {:error, :invalid_attachment_id}
+
+  defp original_private_attachment(original_attachments, attachment_id) do
+    case Map.get(original_attachments, attachment_id) do
+      attachment when is_map(attachment) ->
+        if MailboxEncryption.attachment_encrypted?(attachment) do
+          {:ok, attachment}
+        else
+          {:error, :attachment_not_private}
+        end
+
+      _ ->
+        {:error, :attachment_not_found}
+    end
+  end
+
+  defp verify_private_forward_attachment(attachment, max_size) when is_map(attachment) do
+    filename = attachment["filename"]
+    content_type = attachment["content_type"] || "application/octet-stream"
+    data = attachment["data"]
+
+    with true <- is_binary(filename) and filename != "",
+         true <- is_binary(data) and data != "",
+         :ok <- validate_attachment_type(filename, content_type),
+         {:ok, decoded} <- Base.decode64(data),
+         size <- byte_size(decoded),
+         true <- size <= max_size do
+      {:ok,
+       %{
+         "filename" => filename,
+         "content_type" => content_type,
+         "size" => size,
+         "encoding" => "base64",
+         "data" => Base.encode64(decoded)
+       }}
+    else
+      false -> {:error, :invalid_attachment}
+      :error -> {:error, :invalid_attachment_data}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp verify_private_forward_attachment(_attachment, _max_size),
+    do: {:error, :invalid_attachment}
 
   defp quote_message_body(body) do
     body |> String.split("\n") |> Enum.map_join("\n", &"> #{&1}")
@@ -1654,6 +1763,39 @@ Subject: #{message.subject}#{attachment_info}
     end
   end
 
+  defp attachment_rate_limited?(user_id) do
+    match?({:error, :rate_limit_exceeded}, check_attachment_rate_limit(user_id))
+  end
+
+  defp any_attachment_too_large?(attachments, user) do
+    max_size = email_attachment_limit(user)
+
+    Enum.any?(attachments, fn attachment ->
+      attachment_size(attachment) > max_size
+    end)
+  end
+
+  defp attachment_size(attachment) when is_map(attachment) do
+    case Map.get(attachment, "size") || Map.get(attachment, :size) do
+      size when is_integer(size) and size >= 0 ->
+        size
+
+      size when is_binary(size) ->
+        case Integer.parse(size) do
+          {parsed, ""} when parsed >= 0 -> parsed
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
+
+  defp attachment_size(_attachment), do: 0
+
+  defp email_attachment_limit(%{is_admin: true}), do: Constants.max_email_attachment_size_admin()
+  defp email_attachment_limit(_user), do: Constants.max_email_attachment_size()
+
   defp build_rate_limit_error_message(user_id) do
     restriction = RateLimiter.get_restriction_status(user_id)
 
@@ -1679,33 +1821,26 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp validate_file_content(entry) do
-    ext = Path.extname(entry.client_name) |> String.downcase()
+    validate_attachment_type(entry.client_name, entry.client_type)
+  end
 
-    valid_types = %{
-      ".jpg" => ["image/jpeg"],
-      ".jpeg" => ["image/jpeg"],
-      ".png" => ["image/png"],
-      ".gif" => ["image/gif"],
-      ".pdf" => ["application/pdf"],
-      ".doc" => ["application/msword"],
-      ".docx" => ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-      ".xls" => ["application/vnd.ms-excel"],
-      ".xlsx" => ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-      ".txt" => ["text/plain"]
-    }
+  defp validate_attachment_type(filename, content_type) when is_binary(filename) do
+    ext = Path.extname(filename) |> String.downcase()
 
-    case Map.get(valid_types, ext) do
+    case Map.get(@allowed_attachment_types, ext) do
       nil ->
         {:error, "File type not allowed"}
 
       allowed_types ->
-        if entry.client_type in allowed_types do
+        if content_type in allowed_types do
           :ok
         else
-          {:error, "File type mismatch (extension: #{ext}, type: #{entry.client_type})"}
+          {:error, "File type mismatch (extension: #{ext}, type: #{content_type})"}
         end
     end
   end
+
+  defp validate_attachment_type(_filename, _content_type), do: {:error, "File type not allowed"}
 
   defp error_to_string(:too_large) do
     gettext("File is too large (max 10MB)")
