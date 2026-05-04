@@ -321,6 +321,22 @@ function buildSandboxedEmailHtml(content) {
 </html>`
 }
 
+const HTML_FRAGMENT_PATTERN =
+  /<\/?(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b/i
+const ENCODED_HTML_FRAGMENT_PATTERN =
+  /&lt;\s*(?:!doctype\b|\/?\s*(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b)/gi
+
+function maybeDecodeEntityEncodedHtml(content) {
+  if (HTML_FRAGMENT_PATTERN.test(content)) return content
+
+  const matches = content.match(ENCODED_HTML_FRAGMENT_PATTERN) || []
+  if (matches.length < 2) return content
+
+  const textarea = document.createElement("textarea")
+  textarea.innerHTML = content
+  return textarea.value
+}
+
 function removeUnsafeElement(element) {
   if (element && typeof element.remove === "function") {
     element.remove()
@@ -361,7 +377,10 @@ function scrubSrcset(value) {
 function sanitizeProtectedHtml(content) {
   if (typeof content !== "string" || content.trim() === "") return ""
 
-  const doc = new DOMParser().parseFromString(content, "text/html")
+  const doc = new DOMParser().parseFromString(
+    maybeDecodeEntityEncodedHtml(content),
+    "text/html"
+  )
 
   doc.querySelectorAll("script, iframe, frame, frameset, object, embed, applet, form, input, textarea, select, button, meta[http-equiv], base").forEach(removeUnsafeElement)
 
@@ -417,7 +436,11 @@ function sanitizeProtectedHtml(content) {
     })
   })
 
-  return doc.body?.innerHTML || ""
+  const headStyles = Array.from(doc.head?.querySelectorAll("style") || [])
+    .map((element) => element.outerHTML)
+    .join("\n")
+
+  return [headStyles, doc.body?.innerHTML || ""].filter(Boolean).join("\n")
 }
 
 function downloadBytes(filename, contentType, data) {

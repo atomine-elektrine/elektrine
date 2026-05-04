@@ -62,6 +62,7 @@ defmodule Elektrine.Messaging.ChatConversation do
     |> validate_number(:channel_position, greater_than_or_equal_to: 0)
     |> validate_length(:name, max: 100)
     |> validate_length(:description, max: 500)
+    |> generate_hash_if_needed()
     |> unique_constraint(:hash)
   end
 
@@ -75,5 +76,15 @@ defmodule Elektrine.Messaging.ChatConversation do
 
   def channel_changeset(conversation, attrs) do
     changeset(conversation, Map.put(attrs, :type, "channel"))
+  end
+
+  defp generate_hash_if_needed(changeset) do
+    case get_field(changeset, :hash) do
+      hash when is_binary(hash) and hash != "" ->
+        changeset
+
+      _ ->
+        put_change(changeset, :hash, :crypto.strong_rand_bytes(16) |> Base.encode16(case: :lower))
+    end
   end
 end

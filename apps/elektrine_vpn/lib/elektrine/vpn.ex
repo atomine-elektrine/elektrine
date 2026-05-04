@@ -4,6 +4,7 @@ defmodule Elektrine.VPN do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.{Capabilities, User}
   alias Elektrine.{PubSubTopics, Repo}
   alias Elektrine.VPN.{ConnectionLog, SelfHostedReconciler, Server, UserConfig}
 
@@ -14,10 +15,9 @@ defmodule Elektrine.VPN do
   @hashed_api_key_prefix "sha256:"
   @default_shadowsocks_cipher "chacha20-ietf-poly1305"
   @default_shadowsocks_port_range_size 2000
-  def minimum_trust_level, do: Elektrine.System.module_min_trust_level(:vpn)
+  def minimum_trust_level, do: Capabilities.vpn_minimum_trust_level()
 
-  def user_can_access?(%Elektrine.Accounts.User{} = user),
-    do: Elektrine.System.user_can_access_module?(user, :vpn)
+  def user_can_access?(%User{} = user), do: Capabilities.vpn_allowed?(user)
 
   def user_can_access?(_user), do: false
 
@@ -346,8 +346,8 @@ defmodule Elektrine.VPN do
   Creates a user config for the server protocol.
   """
   def create_user_config(user_id, server_id) do
-    with {:ok, server} <- get_available_server(user_id, server_id),
-         {:ok, attrs} <- build_user_config_attrs(user_id, server) do
+    with {:ok, {server, capability}} <- get_available_server(user_id, server_id),
+         {:ok, attrs} <- build_user_config_attrs(user_id, server, capability) do
       create_user_config_record(server, user_id, attrs)
     end
   end
@@ -466,7 +466,14 @@ defmodule Elektrine.VPN do
 
   defp get_available_server(user_id, server_id) do
     server = Repo.get(Server, server_id)
-    user_trust_level = get_user_trust_level(user_id)
+    user = Repo.get(User, user_id)
+
+    capability =
+      if server do
+        Capabilities.vpn_capability(user, server_min_trust_level: server.minimum_trust_level)
+      else
+        nil
+      end
 
     cond do
       is_nil(server) ->
@@ -475,16 +482,15 @@ defmodule Elektrine.VPN do
       server.status != "active" ->
         {:error, :server_not_active}
 
-      user_trust_level < minimum_trust_level() ->
-        {:error, :insufficient_trust_level}
-
-      server.minimum_trust_level > user_trust_level ->
-        {:error, :insufficient_trust_level}
+      !capability.allowed ->
+        {:error, vpn_access_error(capability.reason)}
 
       true ->
-        {:ok, server}
+        {:ok, {server, capability}}
     end
   end
+
+  defp vpn_access_error(_reason), do: :insufficient_trust_level
 
   defp build_sync_snapshot(%Server{} = server) do
     case server_sync_mode(server) do
@@ -787,16 +793,6 @@ defmodule Elektrine.VPN do
 
   defp secure_compare(_left, _right), do: false
 
-  defp get_user_trust_level(user_id) when is_integer(user_id) do
-    case Repo.get(Elektrine.Accounts.User, user_id) do
-      %{is_admin: true} -> 4
-      %{trust_level: trust_level} when is_integer(trust_level) -> trust_level
-      _ -> 0
-    end
-  end
-
-  defp get_user_trust_level(_user_id), do: 0
-
   defp env_value(env, key) when is_map(env) do
     case Map.get(env, key) do
       value when is_binary(value) ->
@@ -852,14 +848,14 @@ defmodule Elektrine.VPN do
   defp protocol_listen_port_env("shadowsocks"), do: "VPN_SELFHOST_SS_LISTEN_PORT"
   defp protocol_listen_port_env(_protocol), do: "VPN_SELFHOST_LISTEN_PORT"
 
-  defp build_user_config_attrs(user_id, %Server{} = server) do
+  defp build_user_config_attrs(user_id, %Server{} = server, capability) do
     case server_protocol(server) do
-      "shadowsocks" -> build_shadowsocks_user_config_attrs(user_id, server)
-      _ -> build_wireguard_user_config_attrs(user_id, server)
+      "shadowsocks" -> build_shadowsocks_user_config_attrs(user_id, server, capability)
+      _ -> build_wireguard_user_config_attrs(user_id, server, capability)
     end
   end
 
-  defp build_wireguard_user_config_attrs(user_id, %Server{id: server_id}) do
+  defp build_wireguard_user_config_attrs(user_id, %Server{id: server_id}, capability) do
     with {:ok, keys} <- generate_wireguard_keypair(),
          {:ok, allocated_ip} <- allocate_ip_for_user(server_id) do
       {:ok,
@@ -869,12 +865,14 @@ defmodule Elektrine.VPN do
          public_key: keys.public_key,
          private_key: encrypt_private_key(keys.private_key),
          allocated_ip: allocated_ip,
+         bandwidth_quota_bytes: capability.bandwidth_quota_bytes,
+         rate_limit_mbps: capability.rate_limit_mbps,
          status: "active"
        }}
     end
   end
 
-  defp build_shadowsocks_user_config_attrs(user_id, %Server{id: server_id} = server) do
+  defp build_shadowsocks_user_config_attrs(user_id, %Server{id: server_id} = server, capability) do
     password = generate_shadowsocks_password()
     client_id = generate_client_identifier()
     port = allocate_shadowsocks_port(server)
@@ -886,6 +884,8 @@ defmodule Elektrine.VPN do
        public_key: client_id,
        private_key: encrypt_private_key(password),
        allocated_ip: shadowsocks_allocated_label(server, client_id),
+       bandwidth_quota_bytes: capability.bandwidth_quota_bytes,
+       rate_limit_mbps: capability.rate_limit_mbps,
        status: "active",
        metadata: %{"cipher" => shadowsocks_cipher(server), "server_port" => port}
      }}

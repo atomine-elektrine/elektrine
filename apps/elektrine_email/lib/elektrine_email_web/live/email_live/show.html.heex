@@ -561,8 +561,8 @@
               data-private-message-mode="full"
               data-private-message-payload={Jason.encode!(@message.client_encrypted_payload)}
             >
-              <div class="p-5 text-sm text-base-content/60">
-                <div class="font-semibold text-base-content mb-2">
+              <div class="p-5 text-sm" style="color: var(--theme-email-wrapper-text, #1f2937);">
+                <div class="font-semibold mb-2">
                   {gettext("Protected mailbox content")}
                 </div>
                 <div class="hidden" data-private-html-body-container>

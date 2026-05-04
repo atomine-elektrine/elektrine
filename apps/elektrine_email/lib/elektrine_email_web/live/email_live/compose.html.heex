@@ -531,6 +531,30 @@
                 </div>
               </div>
 
+              <div class="rounded-lg border border-base-300/60 bg-base-100/50 p-4">
+                <label class="label px-0 pt-0">
+                  <span class="font-semibold">{gettext("Message Format")}</span>
+                </label>
+                <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <p class="text-xs leading-5 text-base-content/60 sm:max-w-2xl">
+                    {gettext(
+                      "Plain text sends only a text/plain body. Markdown formatting and HTML preview are not included."
+                    )}
+                  </p>
+                  <div class="select select-bordered select-sm w-full sm:w-64">
+                    <select name="email[body_format]" value={@body_format}>
+                      <option value="markdown" selected={@body_format == "markdown"}>
+                        {gettext("Markdown + HTML")}
+                      </option>
+
+                      <option value="plaintext" selected={@body_format == "plaintext"}>
+                        {gettext("Plain text only")}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div class="rounded-lg bg-base-200/55 p-4 space-y-3">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div class="space-y-1">

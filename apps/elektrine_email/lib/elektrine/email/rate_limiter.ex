@@ -5,19 +5,19 @@ defmodule Elektrine.Email.RateLimiter do
   ## Warmup Period (TL0 accounts)
 
   Day 1:
-  - 1 email per minute, 5 per hour, 5 per day, 3 recipients
+  - 1 email per minute, 5 per hour, 10 per day, 3 recipients
 
   Days 2-3:
-  - 2 emails per minute, 8 per hour, 5 per day, 5 recipients
+  - 2 emails per minute, 8 per hour, 10 per day, 5 recipients
 
   Days 4-7:
-  - 2 emails per minute, 15 per hour, 5 per day, 10 recipients
+  - 2 emails per minute, 15 per hour, 10 per day, 10 recipients
 
   Week 2 (days 8-14):
-  - 3 emails per minute, 25 per hour, 5 per day, 15 recipients
+  - 3 emails per minute, 25 per hour, 10 per day, 15 recipients
 
   Weeks 3-4 (days 15-30):
-  - 3 emails per minute, 35 per hour, 5 per day, 20 recipients
+  - 3 emails per minute, 35 per hour, 10 per day, 20 recipients
 
   ## Trust Level Tiers (override warmup)
 
@@ -43,23 +43,11 @@ defmodule Elektrine.Email.RateLimiter do
   use GenServer
   require Logger
 
+  alias Elektrine.Accounts.Capabilities
+
   @table_name :email_rate_limiter
   @recipient_table :email_recipient_limiter
   @cleanup_interval :timer.minutes(5)
-
-  # Tier definitions: {minute_limit, hour_limit, day_limit, recipient_limit}
-  @tier_limits %{
-    # Warmup tiers for TL0 accounts (very restrictive initially)
-    day_1: {1, 5, 1, 3},
-    days_2_3: {2, 8, 1, 5},
-    days_4_7: {2, 15, 1, 10},
-    week_2: {3, 25, 1, 15},
-    weeks_3_4: {3, 35, 1, 20},
-    # Trust level tiers (override warmup)
-    tl1: {5, 50, 200, 50},
-    tl2: {10, 100, 500, 100},
-    tl3_plus: {15, 150, 1000, 200}
-  }
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -109,8 +97,11 @@ defmodule Elektrine.Email.RateLimiter do
   end
 
   defp do_check_rate_limit(user_id) do
-    tier = get_user_tier(user_id)
-    {minute_limit, hour_limit, day_limit, _recipient_limit} = Map.get(@tier_limits, tier)
+    limits = Capabilities.email_limits(user_id)
+    tier = limits.tier
+    minute_limit = limits.minute_limit
+    hour_limit = limits.hour_limit
+    day_limit = limits.day_limit
 
     now = System.system_time(:second)
     attempts = get_attempts(user_id)
@@ -254,8 +245,9 @@ defmodule Elektrine.Email.RateLimiter do
   - `{:error, :recipient_limit_exceeded}` - Hit unique recipient limit
   """
   def check_recipient_limit(user_id, recipient_email) do
-    tier = get_user_tier(user_id)
-    {_minute_limit, _hour_limit, _day_limit, recipient_limit} = Map.get(@tier_limits, tier)
+    limits = Capabilities.email_limits(user_id)
+    tier = limits.tier
+    recipient_limit = limits.recipient_limit
 
     now = System.system_time(:second)
     recipients = get_recipients(user_id)
@@ -350,8 +342,12 @@ defmodule Elektrine.Email.RateLimiter do
   Gets the current rate limit status for a user.
   """
   def get_status(user_id) do
-    tier = get_user_tier(user_id)
-    {minute_limit, hour_limit, day_limit, recipient_limit} = Map.get(@tier_limits, tier)
+    limits = Capabilities.email_limits(user_id)
+    tier = limits.tier
+    minute_limit = limits.minute_limit
+    hour_limit = limits.hour_limit
+    day_limit = limits.day_limit
+    recipient_limit = limits.recipient_limit
 
     now = System.system_time(:second)
     attempts = get_attempts(user_id)
@@ -430,33 +426,6 @@ defmodule Elektrine.Email.RateLimiter do
   def daily_limit, do: 1000
 
   # Private functions
-
-  defp get_user_tier(user_id) do
-    case Elektrine.Repo.get(Elektrine.Accounts.User, user_id) do
-      nil ->
-        # Default to most restrictive
-        :day_1
-
-      user ->
-        account_age_days = DateTime.diff(DateTime.utc_now(), user.inserted_at, :day)
-        trust_level = user.trust_level || 0
-
-        # Trust levels override warmup period
-        cond do
-          trust_level >= 3 -> :tl3_plus
-          trust_level == 2 -> :tl2
-          trust_level == 1 -> :tl1
-          # Granular warmup for TL0 accounts
-          account_age_days < 1 -> :day_1
-          account_age_days < 3 -> :days_2_3
-          account_age_days < 7 -> :days_4_7
-          account_age_days < 14 -> :week_2
-          account_age_days < 30 -> :weeks_3_4
-          # After 30 days at TL0, use week 3-4 limits (they need to earn TL1)
-          true -> :weeks_3_4
-        end
-    end
-  end
 
   defp get_attempts(user_id) do
     case :ets.lookup(@table_name, user_id) do

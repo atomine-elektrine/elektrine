@@ -16,7 +16,15 @@ defmodule ArblargWeb.ChatLive.Operations.ConversationOperations do
   alias Elektrine.Messaging, as: Messaging
 
   def handle_event("select_conversation", %{"id" => conversation_id}, socket) do
-    {:noreply, push_patch(socket, to: Elektrine.Paths.chat_path(conversation_id))}
+    conversation_ref =
+      socket.assigns.conversation.list
+      |> Enum.find(&(Integer.to_string(&1.id) == conversation_id))
+      |> case do
+        nil -> conversation_id
+        conversation -> conversation
+      end
+
+    {:noreply, push_patch(socket, to: Elektrine.Paths.chat_path(conversation_ref))}
   end
 
   def handle_event("search_conversations", params, socket) do
