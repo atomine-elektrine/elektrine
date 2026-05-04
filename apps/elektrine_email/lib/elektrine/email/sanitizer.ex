@@ -340,11 +340,11 @@ defmodule Elektrine.Email.Sanitizer do
   defp preserve_non_mso_conditional_content(content) do
     content
     |> String.replace(
-      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(?:<!-->|<!--\s*-->)\s*(.*?)\s*<!--\s*<!\[endif\]\s*-->/is,
+      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(?:<!-->|<!--\s*-->)\s*(.*?)\s*<!--\s*<!\s*\[endif\]\s*-->/is,
       "\\1"
     )
     |> String.replace(
-      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(.*?)\s*<!\[endif\]\s*-->/is,
+      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(.*?)\s*<!\s*\[endif\]\s*-->/is,
       "\\1"
     )
   end
@@ -352,7 +352,7 @@ defmodule Elektrine.Email.Sanitizer do
   defp remove_mso_conditional_content(content) do
     String.replace(
       content,
-      ~r/<!--\s*\[if\s+(?!\s*!mso\b)[^\]]*(?:\bmso\b|\bIE\b)[^\]]*\]>.*?<!\[endif\]\s*-->/is,
+      ~r/<!--\s*\[if\s+(?!\s*!mso\b)[^\]]*(?:\bmso\b|\bIE\b)[^\]]*\]>.*?<!\s*\[endif\]\s*-->/is,
       ""
     )
   end
@@ -361,8 +361,8 @@ defmodule Elektrine.Email.Sanitizer do
     content
     |> String.replace(~r/<!--\s*\[if.*?\]>\s*(?:<!-->|<!--\s*-->)/is, "")
     |> String.replace(~r/<!--\s*\[if.*?\]>/is, "")
-    |> String.replace(~r/<!--\s*<!\[endif\]\s*-->/i, "")
-    |> String.replace(~r/<!\[endif\]\s*-->/i, "")
+    |> String.replace(~r/<!--\s*<!\s*\[endif\]\s*-->/i, "")
+    |> String.replace(~r/<!\s*\[endif\]\s*-->/i, "")
   end
 
   defp remove_event_handlers(content) do

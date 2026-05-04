@@ -159,86 +159,64 @@ defmodule ElektrineEmailWeb.EmailScrubber do
     {tag, safe_attributes}
   end
 
-  # Block dangerous protocols - must be after scrub function definitions
-  Meta.allow_tag_with_uri_attributes(
-    "a",
-    ["href", "style", "class", "id", "target", "rel", "title"],
-    ["http", "https", "mailto"]
-  )
+  # Block dangerous protocols only on URL-bearing attributes. Layout attributes
+  # like style/class/id often contain CSS colons and must not be URI-scrubbed.
+  Meta.allow_tag_with_uri_attributes("a", ["href"], ["http", "https", "mailto"])
+  Meta.allow_tag_with_these_attributes("a", ["style", "class", "id", "target", "rel", "title"])
 
-  Meta.allow_tag_with_uri_attributes(
-    "img",
-    [
-      "src",
-      "style",
-      "class",
-      "id",
-      "alt",
-      "title",
-      "width",
-      "height",
-      "loading",
-      "sizes",
-      "srcset"
-    ],
-    ["http", "https", "data", "cid"]
-  )
+  Meta.allow_tag_with_uri_attributes("img", ["src", "srcset"], ["http", "https", "data", "cid"])
 
-  Meta.allow_tag_with_uri_attributes(
-    "source",
-    ["srcset", "style", "class", "id", "src", "type", "media"],
-    ["http", "https"]
-  )
+  Meta.allow_tag_with_these_attributes("img", [
+    "style",
+    "class",
+    "id",
+    "alt",
+    "title",
+    "width",
+    "height",
+    "loading",
+    "sizes"
+  ])
 
-  Meta.allow_tag_with_uri_attributes(
-    "video",
-    [
-      "src",
-      "poster",
-      "style",
-      "class",
-      "id",
-      "title",
-      "width",
-      "height",
-      "controls",
-      "autoplay",
-      "muted",
-      "loop",
-      "playsinline",
-      "preload"
-    ],
-    ["http", "https", "data", "cid"]
-  )
+  Meta.allow_tag_with_uri_attributes("source", ["src", "srcset"], ["http", "https"])
+  Meta.allow_tag_with_these_attributes("source", ["style", "class", "id", "type", "media"])
 
-  Meta.allow_tag_with_uri_attributes(
-    "audio",
-    [
-      "src",
-      "style",
-      "class",
-      "id",
-      "title",
-      "controls",
-      "autoplay",
-      "muted",
-      "loop",
-      "preload"
-    ],
-    ["http", "https", "data", "cid"]
-  )
+  Meta.allow_tag_with_uri_attributes("video", ["src", "poster"], ["http", "https", "data", "cid"])
 
-  Meta.allow_tag_with_uri_attributes(
-    "track",
-    ["src", "kind", "label", "srclang", "default"],
-    ["http", "https"]
-  )
+  Meta.allow_tag_with_these_attributes("video", [
+    "style",
+    "class",
+    "id",
+    "title",
+    "width",
+    "height",
+    "controls",
+    "autoplay",
+    "muted",
+    "loop",
+    "playsinline",
+    "preload"
+  ])
 
-  Meta.allow_tag_with_uri_attributes(
-    "link",
-    ["href", "style", "class", "id", "rel", "type", "media"],
-    ["http", "https"]
-  )
+  Meta.allow_tag_with_uri_attributes("audio", ["src"], ["http", "https", "data", "cid"])
+
+  Meta.allow_tag_with_these_attributes("audio", [
+    "style",
+    "class",
+    "id",
+    "title",
+    "controls",
+    "autoplay",
+    "muted",
+    "loop",
+    "preload"
+  ])
+
+  Meta.allow_tag_with_uri_attributes("track", ["src"], ["http", "https"])
+  Meta.allow_tag_with_these_attributes("track", ["kind", "label", "srclang", "default"])
+
+  Meta.allow_tag_with_uri_attributes("link", ["href"], ["http", "https"])
+  Meta.allow_tag_with_these_attributes("link", ["style", "class", "id", "rel", "type", "media"])
 
   @before_compile HtmlSanitizeEx.ScrubberCompiler
 end
