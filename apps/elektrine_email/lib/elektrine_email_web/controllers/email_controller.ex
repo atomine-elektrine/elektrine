@@ -292,7 +292,7 @@ defmodule ElektrineEmailWeb.EmailController do
   end
 
   defp build_iframe_html(content) do
-    {head_content, body_content} = split_email_document_content(content)
+    {head_content, body_attributes, body_content} = split_email_document_content(content)
 
     """
     <!DOCTYPE html>
@@ -363,7 +363,7 @@ defmodule ElektrineEmailWeb.EmailController do
       #{head_content}
       <base target="_blank">
     </head>
-    <body>
+    <body#{body_attributes}>
       #{body_content}
     </body>
     </html>
@@ -375,12 +375,13 @@ defmodule ElektrineEmailWeb.EmailController do
       Regex.scan(~r/<style\b[^>]*>.*?<\/style>|<link\b[^>]*>/is, content)
       |> Enum.map_join("\n", fn [match | _] -> match end)
 
-    body_content =
+    {body_attributes, body_content} =
       case Regex.run(~r/<body\b[^>]*>(.*?)<\/body>/is, content) do
-        [_, body] -> body
-        _ -> strip_document_shell(content)
+        [body_tag, body] -> {body_attributes(body_tag), body}
+        _ -> {"", strip_document_shell(content)}
       end
-      |> remove_extracted_head_content()
+
+    body_content = remove_extracted_head_content(body_content)
 
     {css_preamble, body_content} = split_leading_css_preamble(body_content)
 
@@ -389,10 +390,27 @@ defmodule ElektrineEmailWeb.EmailController do
       |> Enum.reject(&(&1 in [nil, ""]))
       |> Enum.join("\n")
 
-    {head_content, body_content}
+    {head_content, body_attributes, body_content}
   end
 
-  defp split_email_document_content(content), do: {"", content}
+  defp split_email_document_content(content), do: {"", "", content}
+
+  defp body_attributes(body_tag) do
+    case Regex.run(~r/<body\b([^>]*)>/is, body_tag) do
+      [_, attributes] -> normalize_body_attributes(attributes)
+      _ -> ""
+    end
+  end
+
+  defp normalize_body_attributes(attributes) do
+    attributes = String.trim(attributes || "")
+
+    if attributes == "" do
+      ""
+    else
+      " " <> attributes
+    end
+  end
 
   defp strip_document_shell(content) do
     content

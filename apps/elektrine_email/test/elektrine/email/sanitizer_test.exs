@@ -291,6 +291,27 @@ defmodule Elektrine.Email.SanitizerTest do
       assert String.contains?(result, "https://example.com")
       assert String.valid?(result)
     end
+
+    test "preserves non-Outlook conditional content while removing Outlook-only content" do
+      html = """
+      <!--[if !mso]><!-->
+      <style>.modern { color: #123456; }</style>
+      <img src="https://example.com/icon.png" alt="Modern icon">
+      <!--<![endif]-->
+      <!--[if (gt mso 9)|(IE)]>
+      <table><tr><td>Outlook only</td></tr></table>
+      <![endif]-->
+      <p>Visible body</p>
+      """
+
+      result = Sanitizer.sanitize_html_content(html)
+
+      assert String.contains?(result, ".modern")
+      assert String.contains?(result, "https://example.com/icon.png")
+      assert String.contains?(result, "Visible body")
+      refute String.contains?(result, "Outlook only")
+      refute String.contains?(result, "<!--[if")
+    end
   end
 
   describe "fix common encoding issues (mojibake)" do

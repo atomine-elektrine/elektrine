@@ -494,6 +494,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
   attr :mailbox_addresses, :list, default: nil
   attr :custom_folders, :list, default: []
   attr :current_folder_id, :integer, default: nil
+  attr :class, :any, default: nil
 
   def sidebar(assigns) do
     # Use storage_info from assigns (updated via PubSub broadcasts)
@@ -516,7 +517,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
 
     ~H"""
     <!-- Sidebar -->
-    <div class="w-full lg:w-72 xl:w-80 lg:sticky lg:top-[9rem] lg:self-start flex-shrink-0">
+    <div class={["email-sidebar-sticky w-full lg:w-72 xl:w-80 flex-shrink-0", @class]}>
       <div class="lg:hidden">
         <div
           id={"mobile-email-sidebar-card-#{@mailbox.id}"}
@@ -805,7 +806,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
         </div>
       </div>
 
-      <div class="hidden lg:block">
+      <div class="email-sidebar-scroll hidden lg:block pr-1">
         <!-- Mailbox Info Card -->
         <div
           id={"mailbox-info-card-#{@mailbox.id}"}

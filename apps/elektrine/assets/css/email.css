@@ -3,6 +3,35 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
+   EMAIL SIDEBAR
+   -------------------------------------------------------------------------- */
+
+.email-sidebar-layout {
+  --email-sidebar-gap: 1.5rem;
+}
+
+.email-sidebar-sticky,
+.email-sidebar-sticky .panel-card,
+.email-sidebar-scroll {
+  contain: none;
+  transform: none;
+}
+
+@media (min-width: 1024px) {
+  .email-sidebar-sticky {
+    position: sticky !important;
+    top: var(--email-sidebar-gap, 1.5rem);
+    align-self: flex-start;
+  }
+
+  .email-sidebar-scroll {
+    max-height: calc(100vh - var(--email-sidebar-gap, 1.5rem));
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+}
+
+/* --------------------------------------------------------------------------
    EMAIL CONTENT CONTAINER
    -------------------------------------------------------------------------- */
 

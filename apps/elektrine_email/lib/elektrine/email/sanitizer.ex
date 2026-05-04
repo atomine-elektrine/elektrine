@@ -312,9 +312,37 @@ defmodule Elektrine.Email.Sanitizer do
 
   defp remove_outlook_conditional_comments(content) do
     content
-    |> String.replace(~r/<!--\[if[^\]]*\]>.*?<!\[endif\]-->/is, "")
-    |> String.replace(~r/<!--\[if.*?\]>/is, "")
-    |> String.replace(~r/<!\[endif\]-->/i, "")
+    |> preserve_non_mso_conditional_content()
+    |> remove_mso_conditional_content()
+    |> strip_conditional_comment_markers()
+  end
+
+  defp preserve_non_mso_conditional_content(content) do
+    content
+    |> String.replace(
+      ~r/<!--\s*\[if\s+!mso[^\]]*\]\s*><!-->\s*(.*?)\s*<!--\s*<!\[endif\]\s*-->/is,
+      "\\1"
+    )
+    |> String.replace(
+      ~r/<!--\s*\[if\s+!mso[^\]]*\]>\s*(.*?)\s*<!\[endif\]\s*-->/is,
+      "\\1"
+    )
+  end
+
+  defp remove_mso_conditional_content(content) do
+    String.replace(
+      content,
+      ~r/<!--\s*\[if[^\]]*(?:\bmso\b|\bIE\b)[^\]]*\]>.*?<!\[endif\]\s*-->/is,
+      ""
+    )
+  end
+
+  defp strip_conditional_comment_markers(content) do
+    content
+    |> String.replace(~r/<!--\s*\[if.*?\]>\s*<!-->/is, "")
+    |> String.replace(~r/<!--\s*\[if.*?\]>/is, "")
+    |> String.replace(~r/<!--\s*<!\[endif\]\s*-->/i, "")
+    |> String.replace(~r/<!\[endif\]\s*-->/i, "")
   end
 
   defp remove_event_handlers(content) do
