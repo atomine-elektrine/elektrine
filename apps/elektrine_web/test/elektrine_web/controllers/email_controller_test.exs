@@ -74,13 +74,14 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
       |> html_response(200)
 
     assert html =~ ~s(src="/email/message/#{message.id}/attachment/attachment_0/download")
-    assert html =~ ~s(src="/email/image_proxy?token=)
-    assert html =~ ~s(srcset="/email/image_proxy?token=)
-    assert html =~ ~s(background-image:url(/email/image_proxy?token=)
+    assert html =~ ~s(src="https://example.com/open.png")
+
+    assert html =~
+             ~s(srcset="https://example.com/open@2x.png 2x, https://example.com/open@1x.png 1x")
+
+    assert html =~ "background-image:url('https://example.com/bg.png')"
     refute html =~ "cid:logo@example.com"
-    refute html =~ "https://example.com/open.png"
-    refute html =~ "https://example.com/open@2x.png"
-    refute html =~ "https://example.com/bg.png"
+    refute html =~ ~s(src="/email/image_proxy?token=)
   end
 
   test "iframe content keeps marketing-email layout assets permissive", %{conn: conn} do
@@ -124,11 +125,12 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     assert csp =~ "img-src 'self' data: cid: https:"
     assert csp =~ "media-src 'self' data: cid: https:"
     assert html =~ ~s(rel="stylesheet")
-    assert html =~ ~s(srcset="/email/image_proxy?token=)
-    assert html =~ ~s(src="/email/image_proxy?token=)
-    assert html =~ ~s(poster="/email/image_proxy?token=)
+    assert html =~ ~s(srcset="https://example.com/hero-wide.jpg 1x")
+    assert html =~ ~s(src="https://example.com/hero.jpg")
+    assert html =~ ~s(poster="https://example.com/poster.jpg")
     refute html =~ "max-width: 100%"
     refute html =~ "display: none !important"
+    refute html =~ ~s(src="/email/image_proxy?token=)
   end
 
   test "original html endpoint returns source as text", %{conn: conn} do

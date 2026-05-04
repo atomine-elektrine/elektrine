@@ -3,15 +3,8 @@ defmodule ElektrineEmailWeb.EmailController do
 
   alias Elektrine.Email
   alias Elektrine.EmailAddresses
-  alias Elektrine.HTTP.SafeFetch
-  alias Elektrine.Security.URLValidator
-  alias ElektrineWeb.Endpoint
 
   import ElektrineEmailWeb.Components.Email.Display
-
-  @email_image_proxy_salt "email image proxy"
-  @email_image_proxy_max_age_seconds 7 * 24 * 60 * 60
-  @email_image_proxy_max_bytes 10 * 1024 * 1024
 
   def delete(conn, %{"id" => id}) do
     user = conn.assigns.current_user
@@ -173,23 +166,6 @@ defmodule ElektrineEmailWeb.EmailController do
         send_resp(conn, 400, "Invalid message ID")
     end
   end
-
-  def image_proxy(conn, %{"token" => token}) do
-    user = conn.assigns.current_user
-
-    with {:ok, %{"user_id" => user_id, "url" => url}} <-
-           Phoenix.Token.verify(Endpoint, @email_image_proxy_salt, token,
-             max_age: @email_image_proxy_max_age_seconds
-           ),
-         true <- user_id == user.id,
-         :ok <- validate_email_image_url(url) do
-      fetch_and_send_email_image(conn, url)
-    else
-      _ -> send_resp(conn, 404, "Not found")
-    end
-  end
-
-  def image_proxy(conn, _params), do: send_resp(conn, 404, "Not found")
 
   defp iframe_email_content(conn, message) do
     if Email.Message.private_encrypted?(message) do
@@ -402,10 +378,8 @@ defmodule ElektrineEmailWeb.EmailController do
   defp css_preamble_style(""), do: nil
   defp css_preamble_style(css), do: "<style>#{css}</style>"
 
-  defp rewrite_email_html_assets(content, conn, message) do
-    content
-    |> rewrite_cid_image_urls(message)
-    |> rewrite_remote_image_urls(conn)
+  defp rewrite_email_html_assets(content, _conn, message) do
+    rewrite_cid_image_urls(content, message)
   end
 
   defp rewrite_cid_image_urls(content, message) do
@@ -415,129 +389,6 @@ defmodule ElektrineEmailWeb.EmailController do
           nil -> prefix <> "cid:" <> cid <> suffix
           path -> prefix <> path <> suffix
         end
-    end)
-  end
-
-  defp rewrite_remote_image_urls(content, conn) do
-    content
-    |> rewrite_remote_image_src_attributes(conn)
-    |> rewrite_remote_image_srcset_attributes(conn)
-    |> rewrite_remote_image_source_srcset_attributes(conn)
-    |> rewrite_remote_media_poster_attributes(conn)
-    |> rewrite_remote_background_attributes(conn)
-    |> rewrite_remote_css_image_urls(conn)
-  end
-
-  defp rewrite_remote_image_src_attributes(content, conn) do
-    Regex.replace(~r/(<img\b[^>]*\bsrc\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/i, content, fn
-      _full, prefix, url, suffix ->
-        if proxyable_email_image_url?(url) do
-          prefix <> signed_email_image_proxy_path(conn, url) <> suffix
-        else
-          prefix <> url <> suffix
-        end
-    end)
-  end
-
-  defp rewrite_remote_image_srcset_attributes(content, conn) do
-    Regex.replace(
-      ~r/(<img\b[^>]*\bsrcset\s*=\s*["'])([^"']+)(["'][^>]*>)/i,
-      content,
-      fn _full, prefix, srcset, suffix ->
-        prefix <> rewrite_srcset_urls(srcset, conn) <> suffix
-      end
-    )
-  end
-
-  defp rewrite_remote_image_source_srcset_attributes(content, conn) do
-    Regex.replace(
-      ~r/(<source\b[^>]*\bsrcset\s*=\s*["'])([^"']+)(["'][^>]*>)/i,
-      content,
-      fn _full, prefix, srcset, suffix ->
-        prefix <> rewrite_srcset_urls(srcset, conn) <> suffix
-      end
-    )
-  end
-
-  defp rewrite_remote_media_poster_attributes(content, conn) do
-    Regex.replace(
-      ~r/(<video\b[^>]*\bposter\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/i,
-      content,
-      fn _full, prefix, url, suffix ->
-        if proxyable_email_image_url?(url) do
-          prefix <> signed_email_image_proxy_path(conn, url) <> suffix
-        else
-          prefix <> url <> suffix
-        end
-      end
-    )
-  end
-
-  defp rewrite_remote_background_attributes(content, conn) do
-    Regex.replace(
-      ~r/(<[^>]*\bbackground\s*=\s*["'])(https?:\/\/[^"']+)(["'][^>]*>)/i,
-      content,
-      fn _full, prefix, url, suffix ->
-        if proxyable_email_image_url?(url) do
-          prefix <> signed_email_image_proxy_path(conn, url) <> suffix
-        else
-          prefix <> url <> suffix
-        end
-      end
-    )
-  end
-
-  defp rewrite_remote_css_image_urls(content, conn) do
-    {content, imports} = protect_import_statements(content, 0, [])
-    content = do_rewrite_css_image_urls(content, conn)
-    restore_import_statements(content, imports)
-  end
-
-  defp protect_import_statements(content, counter, acc) do
-    content
-    |> do_protect_import(
-      ~r/@import\s+url\(\s*(['"]?)(https?:\/\/[^'")\s]+)\1\s*\)\s*;?/i,
-      counter,
-      acc
-    )
-  end
-
-  defp do_protect_import(content, pattern, counter, acc) do
-    case Regex.run(pattern, content) do
-      [full_match | _] ->
-        marker = "@IMPFIX#{counter}@"
-        new_content = String.replace(content, full_match, marker, global: false)
-        do_protect_import(new_content, pattern, counter + 1, [{marker, full_match} | acc])
-
-      nil ->
-        {content, acc}
-    end
-  end
-
-  defp restore_import_statements(content, imports) do
-    Enum.reduce(imports, content, fn {marker, original}, acc ->
-      String.replace(acc, marker, original, global: false)
-    end)
-  end
-
-  defp do_rewrite_css_image_urls(content, conn) do
-    Regex.replace(~r/url\(\s*(['"]?)(https?:\/\/[^'")\s]+)\1\s*\)/i, content, fn
-      _full, _quote, url ->
-        if proxyable_email_image_url?(url) do
-          "url(#{signed_email_image_proxy_path(conn, url)})"
-        else
-          "url(#{url})"
-        end
-    end)
-  end
-
-  defp rewrite_srcset_urls(srcset, conn) do
-    Regex.replace(~r/https?:\/\/[^\s,]+/i, srcset, fn url ->
-      if proxyable_email_image_url?(url) do
-        signed_email_image_proxy_path(conn, url)
-      else
-        url
-      end
     end)
   end
 
@@ -566,100 +417,6 @@ defmodule ElektrineEmailWeb.EmailController do
 
   defp normalize_attachments_map(attachments) when is_map(attachments), do: attachments
   defp normalize_attachments_map(_attachments), do: %{}
-
-  defp signed_email_image_proxy_path(conn, url) do
-    token =
-      Phoenix.Token.sign(Endpoint, @email_image_proxy_salt, %{
-        "user_id" => conn.assigns.current_user.id,
-        "url" => url
-      })
-
-    ~p"/email/image_proxy?token=#{token}"
-  end
-
-  defp proxyable_email_image_url?(url) do
-    with %URI{scheme: "https", host: host} <- URI.parse(url),
-         true <- is_binary(host) and host != "" do
-      true
-    else
-      _ -> false
-    end
-  end
-
-  defp validate_email_image_url(url) when is_binary(url) do
-    with :ok <- URLValidator.validate(url),
-         %URI{scheme: "https", host: host} <- URI.parse(url),
-         true <- is_binary(host) and host != "" do
-      :ok
-    else
-      _ -> {:error, :invalid_url}
-    end
-  end
-
-  defp validate_email_image_url(_url), do: {:error, :invalid_url}
-
-  defp fetch_and_send_email_image(conn, url) do
-    headers = [
-      {"user-agent", "Elektrine/1.0 EmailImageProxy (+#{Endpoint.url()})"},
-      {"accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"}
-    ]
-
-    request = Finch.build(:get, url, headers)
-
-    case SafeFetch.request(request, Elektrine.Finch,
-           receive_timeout: 15_000,
-           pool_timeout: 10_000,
-           max_body_bytes: @email_image_proxy_max_bytes
-         ) do
-      {:ok, %Finch.Response{status: status, headers: response_headers, body: body}}
-      when status in 200..299 ->
-        content_type =
-          response_header(response_headers, "content-type") || "application/octet-stream"
-
-        if safe_email_image_content_type?(content_type) do
-          conn
-          |> put_resp_content_type(content_type)
-          |> put_resp_header("cache-control", "private, max-age=86400")
-          |> put_resp_header("x-content-type-options", "nosniff")
-          |> send_resp(200, body)
-        else
-          send_resp(conn, 415, "Unsupported media type")
-        end
-
-      {:error, :too_large} ->
-        send_resp(conn, 413, "Image too large")
-
-      _ ->
-        send_resp(conn, 502, "Failed to fetch image")
-    end
-  end
-
-  defp response_header(headers, name) do
-    name = String.downcase(name)
-
-    Enum.find_value(headers, fn {key, value} ->
-      if String.downcase(key) == name, do: value
-    end)
-  end
-
-  defp safe_email_image_content_type?(content_type) when is_binary(content_type) do
-    content_type
-    |> String.downcase()
-    |> String.split(";", parts: 2)
-    |> List.first()
-    |> case do
-      "image/jpeg" -> true
-      "image/jpg" -> true
-      "image/png" -> true
-      "image/gif" -> true
-      "image/webp" -> true
-      "image/avif" -> true
-      "image/apng" -> true
-      _ -> false
-    end
-  end
-
-  defp safe_email_image_content_type?(_content_type), do: false
 
   defp generate_eml_content(message) do
     # Use Mail library's builder functions to create the message properly
