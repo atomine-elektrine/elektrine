@@ -885,6 +885,36 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
       assert_spoof_alert_count(mailbox.id, 0)
     end
 
+    test "allows local-domain sender with valid internal origin signature", %{conn: conn} do
+      previous_secret = System.get_env("HARAKA_INTERNAL_SIGNING_SECRET")
+      System.put_env("HARAKA_INTERNAL_SIGNING_SECRET", "webhook-signature-test-secret")
+      on_exit(fn -> restore_env("HARAKA_INTERNAL_SIGNING_SECRET", previous_secret) end)
+
+      local_part = "internalreset#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: local_part})
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      from = mailbox.email
+
+      params = %{
+        "from" => "Elektrine Support <#{from}>",
+        "to" => from,
+        "rcpt_to" => from,
+        "subject" => "Reset your Elektrine password",
+        "text_body" => "Reset instructions",
+        "headers" => Elektrine.Email.InternalOrigin.sign_headers(%{}, from),
+        "message_id" => "signed-local-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+      assert length(Email.list_inbox_messages(mailbox.id)) == 1
+      assert_spoof_alert_count(mailbox.id, 0)
+    end
+
     test "skips outbound local mail to external recipients without generating spoof alerts", %{
       conn: conn
     } do
