@@ -576,8 +576,17 @@ export const PasswordVault = {
 
     if (!this.ensureUnlocked()) return
 
-    const parsedPasswordPayload = parsePayload(entryRow.dataset.encryptedPassword)
-    const parsedNotesPayload = parsePayload(entryRow.dataset.encryptedNotes)
+    let parsedPasswordPayload = null
+    let parsedNotesPayload = null
+
+    try {
+      const payloads = await this.loadEntrySecretPayloads(entryId)
+      parsedPasswordPayload = payloads.passwordPayload
+      parsedNotesPayload = payloads.notesPayload
+    } catch (_error) {
+      notify("Entry payload is unavailable.", "error")
+      return
+    }
 
     if (isLegacyServerPayload(parsedPasswordPayload)) {
       notify("This is a legacy vault entry. Re-save it to migrate to zero-knowledge mode.", "warning")
@@ -623,6 +632,22 @@ export const PasswordVault = {
     } catch (_error) {
       notify("Decryption failed. Check your vault passphrase.", "error")
     }
+  },
+
+  async loadEntrySecretPayloads(entryId) {
+    return new Promise((resolve, reject) => {
+      this.pushEvent("load_secret", { id: entryId }, (reply) => {
+        if (!reply || reply.status !== "ok") {
+          reject(new Error("Entry payload is unavailable."))
+          return
+        }
+
+        resolve({
+          passwordPayload: parsePayload(reply.encrypted_password),
+          notesPayload: parsePayload(reply.encrypted_notes)
+        })
+      })
+    })
   },
 
   async decryptEntryMetadataRows() {

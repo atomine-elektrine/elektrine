@@ -96,7 +96,6 @@ defmodule Elektrine.Social do
 
     case first_hashtag_by_normalized_name(normalized_name) do
       nil ->
-        # Create new hashtag
         case %Hashtag{}
              |> Hashtag.changeset(%{
                name: name,
@@ -104,12 +103,15 @@ defmodule Elektrine.Social do
                use_count: 0,
                last_used_at: DateTime.utc_now()
              })
-             |> Repo.insert() do
+             |> Repo.insert(
+               on_conflict: :nothing,
+               conflict_target: :normalized_name,
+               returning: true
+             ) do
           {:ok, hashtag} ->
-            hashtag
+            if hashtag.id, do: hashtag, else: first_hashtag_by_normalized_name(normalized_name)
 
           {:error, _} ->
-            # Race condition - try to get existing
             first_hashtag_by_normalized_name(normalized_name)
         end
 

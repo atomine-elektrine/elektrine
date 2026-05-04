@@ -19,7 +19,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
 
     entries =
       if vault_configured,
-        do: PasswordManager.list_entries(user.id, include_secrets: true),
+        do: PasswordManager.list_entries(user.id),
         else: []
 
     {:ok,
@@ -46,7 +46,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
          {:ok, _entry} <- PasswordManager.create_entry(user.id, params) do
       {:noreply,
        socket
-       |> assign(:entries, PasswordManager.list_entries(user.id, include_secrets: true))
+       |> assign(:entries, PasswordManager.list_entries(user.id))
        |> assign(:form, entry_form(user.id))
        |> put_flash(:info, "Vault entry saved")}
     else
@@ -73,7 +73,7 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
        socket
        |> assign(:vault_configured, true)
        |> assign(:vault_verifier, settings.encrypted_verifier)
-       |> assign(:entries, PasswordManager.list_entries(user.id, include_secrets: true))
+       |> assign(:entries, PasswordManager.list_entries(user.id))
        |> put_flash(:info, "Vault configured")}
     else
       {:error, :invalid_payload} ->
@@ -109,12 +109,30 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
          {:ok, _entry} <- PasswordManager.delete_entry(user.id, entry_id) do
       {:noreply,
        socket
-       |> assign(:entries, PasswordManager.list_entries(user.id, include_secrets: true))
+       |> assign(:entries, PasswordManager.list_entries(user.id))
        |> put_flash(:info, "Vault entry deleted")}
     else
       :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
       {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Entry not found")}
       {:error, _reason} -> {:noreply, put_flash(socket, :error, "Could not delete entry")}
+    end
+  end
+
+  @impl true
+  def handle_event("load_secret", %{"id" => id}, socket) do
+    user = socket.assigns.current_user
+
+    with {:ok, entry_id} <- parse_entry_id(id),
+         {:ok, entry} <- PasswordManager.get_entry_ciphertext(user.id, entry_id) do
+      {:reply,
+       %{
+         status: "ok",
+         encrypted_password: Payloads.encode_payload(entry.encrypted_password),
+         encrypted_notes: Payloads.encode_payload(entry.encrypted_notes)
+       }, socket}
+    else
+      _ ->
+        {:reply, %{status: "error"}, socket}
     end
   end
 
@@ -444,10 +462,6 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
                             data-encrypted-metadata={
                               Payloads.encode_payload(entry.encrypted_metadata)
                             }
-                            data-encrypted-password={
-                              Payloads.encode_payload(entry.encrypted_password)
-                            }
-                            data-encrypted-notes={Payloads.encode_payload(entry.encrypted_notes)}
                           >
                             <td class="font-medium" data-vault-title-output>{entry.title}</td>
                             <td

@@ -283,6 +283,7 @@ defmodule Elektrine.Accounts do
 
   """
   def update_user(%User{} = user, attrs) do
+    attrs = sanitize_update_attrs(attrs)
     changeset = User.changeset(user, attrs)
 
     case Repo.update(changeset) do
@@ -302,6 +303,38 @@ defmodule Elektrine.Accounts do
 
       error ->
         error
+    end
+  end
+
+  defp sanitize_update_attrs(attrs) when is_map(attrs) do
+    Map.new(attrs, fn {key, value} -> {key, sanitize_update_value(value)} end)
+  end
+
+  defp sanitize_update_attrs(attrs), do: attrs
+
+  defp sanitize_update_value(value) when is_binary(value) do
+    value
+    |> ensure_valid_update_utf8()
+    |> String.replace(<<0>>, "")
+  end
+
+  defp sanitize_update_value(value) when is_map(value), do: sanitize_update_attrs(value)
+
+  defp sanitize_update_value(value) when is_list(value),
+    do: Enum.map(value, &sanitize_update_value/1)
+
+  defp sanitize_update_value(value), do: value
+
+  defp ensure_valid_update_utf8(value) when is_binary(value) do
+    if String.valid?(value) do
+      value
+    else
+      case :unicode.characters_to_binary(value, :latin1, :utf8) do
+        converted when is_binary(converted) -> converted
+        {:error, good, _bad} when is_binary(good) -> good
+        {:incomplete, good, _rest} when is_binary(good) -> good
+        _ -> ""
+      end
     end
   end
 

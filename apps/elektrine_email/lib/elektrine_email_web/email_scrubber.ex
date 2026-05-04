@@ -107,6 +107,9 @@ defmodule ElektrineEmailWeb.EmailScrubber do
   # Strip comments - must be before other tuple patterns
   def scrub({:comment, _text}), do: nil
 
+  # Strip XML/HTML processing instructions such as <?xml version="1.0"?>.
+  def scrub({:pi, _target, _attrs}), do: nil
+
   # Allow content inside style tags to pass through (3-tuple pattern)
   # This is needed for email templates that use CSS classes
   def scrub({"style", _attributes, children}) do
@@ -184,6 +187,50 @@ defmodule ElektrineEmailWeb.EmailScrubber do
   Meta.allow_tag_with_uri_attributes(
     "source",
     ["srcset", "style", "class", "id", "src", "type", "media"],
+    ["http", "https"]
+  )
+
+  Meta.allow_tag_with_uri_attributes(
+    "video",
+    [
+      "src",
+      "poster",
+      "style",
+      "class",
+      "id",
+      "title",
+      "width",
+      "height",
+      "controls",
+      "autoplay",
+      "muted",
+      "loop",
+      "playsinline",
+      "preload"
+    ],
+    ["http", "https", "data", "cid"]
+  )
+
+  Meta.allow_tag_with_uri_attributes(
+    "audio",
+    [
+      "src",
+      "style",
+      "class",
+      "id",
+      "title",
+      "controls",
+      "autoplay",
+      "muted",
+      "loop",
+      "preload"
+    ],
+    ["http", "https", "data", "cid"]
+  )
+
+  Meta.allow_tag_with_uri_attributes(
+    "track",
+    ["src", "kind", "label", "srclang", "default"],
     ["http", "https"]
   )
 

@@ -2,6 +2,7 @@ defmodule ElektrineWeb.DAV.DriveControllerTest do
   use ElektrineWeb.ConnCase, async: false
 
   alias Elektrine.Accounts
+  alias Elektrine.Drive
 
   @test_password "testpassword123"
 
@@ -69,6 +70,32 @@ defmodule ElektrineWeb.DAV.DriveControllerTest do
 
     conn = build_conn() |> auth_conn(user) |> delete("/drive-dav/#{user.username}/docs/moved.txt")
     assert conn.status == 204
+  end
+
+  test "PUT accepts bodies delivered across multiple reads", %{user: user} do
+    body = String.duplicate("a", 1_048_577)
+
+    conn =
+      build_conn()
+      |> auth_conn(user)
+      |> put_req_header("content-type", "text/plain")
+      |> request(:put, "/drive-dav/#{user.username}/large-note.txt", body)
+
+    assert conn.status == 201
+
+    conn = build_conn() |> auth_conn(user) |> get("/drive-dav/#{user.username}/large-note.txt")
+    assert response(conn, 200) == body
+  end
+
+  test "PUT rejects content-length larger than the drive limit", %{conn: conn, user: user} do
+    conn =
+      conn
+      |> auth_conn(user)
+      |> put_req_header("content-type", "application/octet-stream")
+      |> put_req_header("content-length", Integer.to_string(Drive.max_upload_size() + 1))
+      |> request(:put, "/drive-dav/#{user.username}/too-large.bin", "")
+
+    assert conn.status == 413
   end
 
   defp user_fixture do

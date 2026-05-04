@@ -223,6 +223,7 @@ defmodule Elektrine.Email.Sanitizer do
   def sanitize_html_content(html_content) when is_binary(html_content) do
     html_content
     |> ensure_valid_utf8()
+    |> remove_processing_instructions()
     |> remove_outlook_conditional_comments()
     |> remove_dangerous_tags()
     |> remove_event_handlers()
@@ -304,10 +305,15 @@ defmodule Elektrine.Email.Sanitizer do
     |> String.replace(~r/<object[^>]*>.*?<\/object>/is, "")
     |> String.replace(~r/<embed[^>]*>/is, "")
     |> String.replace(~r/<applet[^>]*>.*?<\/applet>/is, "")
-    |> String.replace(~r/<form[^>]*>.*?<\/form>/is, "")
+    |> String.replace(~r/<form[^>]*>/i, "")
+    |> String.replace(~r/<\/form>/i, "")
     |> String.replace(~r/<input[^>]*>/is, "")
-    |> String.replace(~r/<textarea[^>]*>.*?<\/textarea>/is, "")
-    |> String.replace(~r/<select[^>]*>.*?<\/select>/is, "")
+    |> String.replace(~r/<textarea[^>]*>(.*?)<\/textarea>/is, "\\1")
+    |> String.replace(~r/<select[^>]*>(.*?)<\/select>/is, "\\1")
+  end
+
+  defp remove_processing_instructions(content) do
+    String.replace(content, ~r/<\?[^>]*\?>/s, "")
   end
 
   defp remove_outlook_conditional_comments(content) do
@@ -361,8 +367,18 @@ defmodule Elektrine.Email.Sanitizer do
   defp scrub_with_email_scrubber(content) do
     Scrubber.scrub(content, ElektrineEmailWeb.EmailScrubber)
   rescue
-    _error -> HtmlSanitizeEx.strip_tags(content)
+    _error -> strip_tags_fallback(content)
   end
+
+  defp strip_tags_fallback(content) when is_binary(content) do
+    content
+    |> remove_processing_instructions()
+    |> String.replace(~r/<script\b[^>]*>.*?<\/script>/is, "")
+    |> String.replace(~r/<style\b[^>]*>.*?<\/style>/is, "")
+    |> String.replace(~r/<[^>]+>/, "")
+  end
+
+  defp strip_tags_fallback(_content), do: ""
 
   @doc "Sanitizes UTF-8 content (for text bodies and other text fields).\nGUARANTEES valid UTF-8 output suitable for JSON encoding and PostgreSQL.\nRemoves null bytes which PostgreSQL does not allow in text fields.\n"
   def sanitize_utf8(content) when is_binary(content) do

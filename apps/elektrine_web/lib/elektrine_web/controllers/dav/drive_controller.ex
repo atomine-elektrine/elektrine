@@ -5,6 +5,9 @@ defmodule ElektrineWeb.DAV.DriveController do
   alias ElektrineWeb.CanonicalURL
   alias ElektrineWeb.DAV.ResponseHelpers
 
+  @body_read_chunk_size 1_048_576
+  @body_read_timeout 15_000
+
   def propfind_home(conn, %{"username" => username}) do
     user = conn.assigns.current_user
 
@@ -124,21 +127,29 @@ defmodule ElektrineWeb.DAV.DriveController do
     if user.username != username or not Drive.user_can_access?(user) do
       ResponseHelpers.send_forbidden(conn)
     else
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
-      existing = Drive.get_file_by_path(user.id, path)
+      case read_limited_body(conn, Drive.max_upload_size()) do
+        {:ok, body, conn} ->
+          existing = Drive.get_file_by_path(user.id, path)
 
-      case Drive.put_file_content(user, path, body,
-             content_type: List.first(get_req_header(conn, "content-type"))
-           ) do
-        {:ok, file} ->
-          if existing do
-            ResponseHelpers.send_no_content(conn, dav_etag(file))
-          else
-            ResponseHelpers.send_created(conn, dav_etag(file))
+          case Drive.put_file_content(user, path, body,
+                 content_type: List.first(get_req_header(conn, "content-type"))
+               ) do
+            {:ok, file} ->
+              if existing do
+                ResponseHelpers.send_no_content(conn, dav_etag(file))
+              else
+                ResponseHelpers.send_created(conn, dav_etag(file))
+              end
+
+            {:error, _reason} ->
+              send_resp(conn, 409, "Could not save file")
           end
 
-        {:error, _reason} ->
-          send_resp(conn, 409, "Could not save file")
+        {:error, :too_large, conn} ->
+          send_resp(conn, 413, "Request body too large")
+
+        {:error, _reason, conn} ->
+          send_resp(conn, 400, "Could not read request body")
       end
     end
   end
@@ -227,6 +238,67 @@ defmodule ElektrineWeb.DAV.DriveController do
       end)
 
     folder_responses ++ file_responses
+  end
+
+  defp read_limited_body(conn, max_size) do
+    if content_length_exceeds?(conn, max_size) do
+      {:error, :too_large, conn}
+    else
+      do_read_limited_body(conn, max_size, 0, [])
+    end
+  end
+
+  defp do_read_limited_body(conn, max_size, bytes_read, chunks) do
+    case Plug.Conn.read_body(conn,
+           length: @body_read_chunk_size,
+           read_length: @body_read_chunk_size,
+           read_timeout: @body_read_timeout
+         ) do
+      {:ok, chunk, conn} ->
+        finish_limited_body(conn, max_size, bytes_read, chunks, chunk)
+
+      {:more, chunk, conn} ->
+        continue_limited_body(conn, max_size, bytes_read, chunks, chunk)
+
+      {:error, reason} ->
+        {:error, reason, conn}
+    end
+  end
+
+  defp continue_limited_body(conn, max_size, bytes_read, chunks, chunk) do
+    bytes_read = bytes_read + byte_size(chunk)
+
+    if bytes_read > max_size do
+      {:error, :too_large, conn}
+    else
+      do_read_limited_body(conn, max_size, bytes_read, [chunk | chunks])
+    end
+  end
+
+  defp finish_limited_body(conn, max_size, bytes_read, chunks, chunk) do
+    bytes_read = bytes_read + byte_size(chunk)
+
+    if bytes_read > max_size do
+      {:error, :too_large, conn}
+    else
+      {:ok, IO.iodata_to_binary(Enum.reverse([chunk | chunks])), conn}
+    end
+  end
+
+  defp content_length_exceeds?(conn, max_size) do
+    conn
+    |> get_req_header("content-length")
+    |> List.first()
+    |> case do
+      nil ->
+        false
+
+      content_length ->
+        case Integer.parse(content_length) do
+          {length, ""} when length > max_size -> true
+          _ -> false
+        end
+    end
   end
 
   defp collection_props(display_name, user, username, path, base_url) do

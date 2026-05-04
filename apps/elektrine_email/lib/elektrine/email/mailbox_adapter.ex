@@ -36,12 +36,57 @@ defmodule Elektrine.Email.MailboxAdapter do
 
         {:error, reason} ->
           require Logger
-          Logger.error("FINAL ROUTING VALIDATION FAILED: #{reason}")
-          Logger.error("Message attributes: #{inspect(attrs)}")
+          Logger.error("FINAL ROUTING VALIDATION FAILED: #{redact_emails(reason)}")
+          Logger.error("Routing metadata: #{inspect(routing_log_metadata(attrs, mailbox_id))}")
           {:error, :final_routing_validation_failed}
       end
     end
   end
+
+  defp routing_log_metadata(attrs, mailbox_id) do
+    attachments = Map.get(attrs, :attachments) || Map.get(attrs, "attachments") || %{}
+
+    %{
+      mailbox_id: mailbox_id,
+      from_domain: attrs |> attr(:from) |> email_domain(),
+      to_domain: attrs |> attr(:to) |> email_domain(),
+      cc_present: present?(attr(attrs, :cc)),
+      bcc_present: present?(attr(attrs, :bcc)),
+      subject_present: present?(attr(attrs, :subject)),
+      text_body_present: present?(attr(attrs, :text_body)),
+      html_body_present: present?(attr(attrs, :html_body)),
+      attachment_count: attachment_count(attachments),
+      status: attr(attrs, :status),
+      pre_validated: attr(attrs, :pre_validated) == true
+    }
+  end
+
+  defp attr(attrs, key) when is_map(attrs),
+    do: Map.get(attrs, key) || Map.get(attrs, Atom.to_string(key))
+
+  defp email_domain(value) when is_binary(value) do
+    value
+    |> extract_clean_email_final()
+    |> case do
+      nil -> nil
+      email -> email |> String.split("@") |> List.last() |> String.downcase()
+    end
+  end
+
+  defp email_domain(_value), do: nil
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(value), do: not is_nil(value)
+
+  defp attachment_count(attachments) when is_map(attachments), do: map_size(attachments)
+  defp attachment_count(attachments) when is_list(attachments), do: length(attachments)
+  defp attachment_count(_attachments), do: 0
+
+  defp redact_emails(message) when is_binary(message) do
+    Regex.replace(~r/[^\s<>,']+@[^\s<>,']+/, message, "[redacted-email]")
+  end
+
+  defp redact_emails(message), do: inspect(message)
 
   @doc """
   Gets a regular mailbox by ID.

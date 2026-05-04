@@ -10,6 +10,7 @@ defmodule Elektrine.StaticSitesTest do
   setup do
     user = AccountsFixtures.user_fixture()
     previous_uploads = Application.get_env(:elektrine, :uploads, [])
+    previous_static_sites = Application.get_env(:elektrine, :static_sites, [])
 
     Application.put_env(:elektrine, :uploads,
       adapter: :local,
@@ -18,6 +19,7 @@ defmodule Elektrine.StaticSitesTest do
 
     on_exit(fn ->
       Application.put_env(:elektrine, :uploads, previous_uploads)
+      Application.put_env(:elektrine, :static_sites, previous_static_sites)
     end)
 
     # Clean up test uploads directory
@@ -293,9 +295,36 @@ defmodule Elektrine.StaticSitesTest do
       assert "index.html" in paths
       assert "style.css" in paths
     end
+
+    test "rejects zip entries larger than the single file limit", %{user: user} do
+      zip_files = [{~c"huge.html", String.duplicate("x", 10_000_001)}]
+      {:ok, {_name, zip_binary}} = :zip.create(~c"huge.zip", zip_files, [:memory])
+
+      assert {:error, :file_too_large} = StaticSites.upload_zip(user, zip_binary)
+      assert StaticSites.list_files(user.id) == []
+    end
+
+    test "rejects zip paths that normalize outside the site root", %{user: user} do
+      zip_files = [{~c"pages/../evil.html", "<html>evil</html>"}]
+      {:ok, {_name, zip_binary}} = :zip.create(~c"evil.zip", zip_files, [:memory])
+
+      assert {:error, :invalid_path} = StaticSites.upload_zip(user, zip_binary)
+      assert StaticSites.list_files(user.id) == []
+    end
   end
 
   describe "zip bomb protection" do
+    test "rejects zip whose total extracted size exceeds the hard zip cap", %{user: user} do
+      Application.put_env(:elektrine, :static_sites, max_zip_uncompressed_size: 1_000)
+
+      content = String.duplicate("a", 600)
+      zip_files = [{~c"a.txt", content}, {~c"b.txt", content}]
+      {:ok, {_name, zip_binary}} = :zip.create(~c"oversized.zip", zip_files, [:memory])
+
+      assert {:error, :storage_limit_exceeded} = StaticSites.upload_zip(user, zip_binary)
+      assert StaticSites.list_files(user.id) == []
+    end
+
     test "rejects zip with excessive decompression ratio", %{user: user} do
       # Create a highly compressible file (lots of repeated data)
       # This simulates a zip bomb where a small zip decompresses to huge size

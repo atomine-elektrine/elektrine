@@ -125,6 +125,16 @@ defmodule Elektrine.AccountsTest do
   end
 
   describe "ActivityPub actor updates" do
+    test "update_user sanitizes invalid UTF-8 before persistence" do
+      user = AccountsFixtures.user_fixture()
+
+      assert {:ok, updated_user} =
+               Accounts.update_user(user, %{display_name: "Bad " <> <<0xE6, 0xAA, 0xE5>>})
+
+      assert String.valid?(updated_user.display_name)
+      assert updated_user.display_name != ""
+    end
+
     test "handle changes are rejected once set" do
       user = AccountsFixtures.user_fixture(%{username: "stablehandleuser"})
 

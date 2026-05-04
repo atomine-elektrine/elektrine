@@ -83,6 +83,54 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     refute html =~ "https://example.com/bg.png"
   end
 
+  test "iframe content keeps marketing-email layout assets permissive", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Marketing layout regression",
+        html_body: """
+        <html>
+          <head>
+            <link rel="stylesheet" href="https://cdn.example.com/email.css">
+          </head>
+          <body>
+            <picture>
+              <source media="(min-width: 600px)" srcset="https://example.com/hero-wide.jpg 1x">
+              <img src="https://example.com/hero.jpg" width="720" height="320" alt="Hero">
+            </picture>
+            <video controls poster="https://example.com/poster.jpg"></video>
+          </body>
+        </html>
+        """,
+        message_id: "<marketing-layout-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/iframe_content")
+
+    html = html_response(conn, 200)
+    [csp] = get_resp_header(conn, "content-security-policy")
+
+    assert csp =~ "script-src 'none'"
+    assert csp =~ "frame-src 'none'"
+    assert csp =~ "form-action 'none'"
+    assert csp =~ "img-src 'self' data: cid: https:"
+    assert csp =~ "media-src 'self' data: cid: https:"
+    assert html =~ ~s(rel="stylesheet")
+    assert html =~ ~s(srcset="/email/image_proxy?token=)
+    assert html =~ ~s(src="/email/image_proxy?token=)
+    assert html =~ ~s(poster="/email/image_proxy?token=)
+    refute html =~ "max-width: 100%"
+    refute html =~ "display: none !important"
+  end
+
   test "original html endpoint returns source as text", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = ensure_mailbox(user)
@@ -128,6 +176,46 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
 
     assert html =~ ~s(href="https://example.com/path?q=1")
     assert html =~ ~s(href="mailto:help@example.com")
+  end
+
+  test "plain text iframe content removes broken CSS font import fragments", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Plain text CSS regression",
+        text_body: """
+        700&display=swap');
+
+        /* iOS BLUE LINKS */
+        a[x-apple-data-detectors] { color: inherit !important; }
+        [style*='Noto Sans'] { font-family: 'Indeed Sans', 'Noto Sans', sans-serif !important; }
+
+        Find immediate job opportunities
+
+        Apply now to companies hiring fast
+        """,
+        message_id: "<plain-css-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    html =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/iframe_content")
+      |> html_response(200)
+
+    body_text = html |> Floki.parse_document!() |> Floki.find("body") |> Floki.text()
+
+    refute body_text =~ "display=swap"
+    refute body_text =~ "iOS BLUE LINKS"
+    refute body_text =~ "x-apple-data-detectors"
+    refute body_text =~ "Noto Sans"
+    assert body_text =~ "Find immediate job opportunities"
+    assert body_text =~ "Apply now to companies hiring fast"
   end
 
   test "iframe content preserves body attributes and non-Outlook CSS", %{conn: conn} do

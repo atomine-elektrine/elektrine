@@ -74,6 +74,9 @@ defmodule ElektrineWeb.PasswordManagerLiveTest do
     })
 
     assert render(view) =~ "Encrypted entry"
+    html = render(view)
+    refute html =~ "data-encrypted-password"
+    refute html =~ "data-encrypted-notes"
 
     [entry] = PasswordManager.list_entries(user.id, include_secrets: true)
     assert entry.encrypted_password["algorithm"] == "AES-GCM"

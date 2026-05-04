@@ -83,9 +83,8 @@ defmodule Elektrine.Accounts.InviteCode do
   def normalize_code(_), do: nil
 
   def generate_code do
-    :crypto.strong_rand_bytes(4)
-    |> Base.encode32()
-    |> String.replace(~r/[=]+$/, "")
+    :crypto.strong_rand_bytes(16)
+    |> Base.encode32(padding: false)
     |> String.upcase()
   end
 

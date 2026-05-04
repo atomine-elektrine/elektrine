@@ -43,6 +43,43 @@ defmodule ElektrineEmailWeb.Components.Email.DisplayTest do
       assert cleaned == "Hi Maxfield We are excited you are interested in joining FHI."
     end
 
+    test "removes truncated font import fragments before CSS preambles" do
+      zwnj = <<0xE2, 0x80, 0x8C>>
+
+      body = """
+      700&display=swap');
+
+      /* iOS BLUE LINKS */
+      a[x-apple-data-detectors] {
+        color: inherit !important;
+        font-size: inherit !important;
+      }
+
+      @media all and (max-width: 600px) {
+        .hide { display: none !important; }
+      }
+
+      [style*='Noto Sans'] {
+        font-family: 'Indeed Sans', 'Noto Sans', Helvetica, Arial, sans-serif !important;
+      }
+
+      Find immediate job opportunities #{zwnj} #{zwnj}
+
+      Find JobsSign in
+
+      Apply now to companies hiring fast
+      """
+
+      cleaned = Display.clean_plain_text_body(body)
+
+      refute String.contains?(cleaned, "display=swap")
+      refute String.contains?(cleaned, "iOS BLUE LINKS")
+      refute String.contains?(cleaned, "x-apple-data-detectors")
+      refute String.contains?(cleaned, "Noto Sans")
+      assert String.starts_with?(cleaned, "Find immediate job opportunities")
+      assert String.contains?(cleaned, "Apply now to companies hiring fast")
+    end
+
     test "preserves regular plain text" do
       assert Display.clean_plain_text_body("Hello\n\nWorld") == "Hello\n\nWorld"
     end

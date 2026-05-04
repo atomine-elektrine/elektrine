@@ -10,6 +10,21 @@ defmodule Elektrine.Accounts.InviteCodesTest do
   alias Elektrine.Repo
 
   describe "invite code normalization" do
+    test "generates high-entropy uppercase invite codes" do
+      code = InviteCode.generate_code()
+
+      assert String.length(code) >= 26
+      assert code =~ ~r/^[A-Z2-7]+$/
+    end
+
+    test "creates a generated code when no code is supplied" do
+      admin = AccountsFixtures.user_fixture()
+
+      assert {:ok, invite_code} = Accounts.create_invite_code(%{created_by_id: admin.id})
+      assert String.length(invite_code.code) >= 26
+      assert invite_code.code =~ ~r/^[A-Z2-7]+$/
+    end
+
     test "normalizes invite codes on create and lookup" do
       admin = AccountsFixtures.user_fixture()
 

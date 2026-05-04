@@ -292,6 +292,40 @@ defmodule Elektrine.Email.SanitizerTest do
       assert String.valid?(result)
     end
 
+    test "preserves marketing content inside inert forms" do
+      html =
+        "<form action=\"https://example.com/submit\"><table><tr><td>Sale ends tonight</td></tr></table><button>Shop now</button></form>"
+
+      result = Sanitizer.sanitize_html_content(html)
+
+      refute String.contains?(result, "<form")
+      refute String.contains?(result, "action=")
+      assert String.contains?(result, "Sale ends tonight")
+      assert String.contains?(result, "Shop now")
+    end
+
+    test "preserves safe marketing media tags" do
+      html =
+        "<video controls poster=\"https://example.com/poster.jpg\"><source src=\"https://example.com/clip.mp4\" type=\"video/mp4\"></video>"
+
+      result = Sanitizer.sanitize_html_content(html)
+
+      assert String.contains?(result, "<video")
+      assert String.contains?(result, "controls")
+      assert String.contains?(result, "https://example.com/poster.jpg")
+      assert String.contains?(result, "https://example.com/clip.mp4")
+      assert String.valid?(result)
+    end
+
+    test "strips XML processing instructions without crashing" do
+      html = "<?xml version=\"1.0\" encoding=\"utf-8\"?><div><p>Hello</p></div>"
+      result = Sanitizer.sanitize_html_content(html)
+
+      refute String.contains?(result, "<?xml")
+      assert String.contains?(result, "Hello")
+      assert String.valid?(result)
+    end
+
     test "preserves non-Outlook conditional content while removing Outlook-only content" do
       html = """
       <!--[if !mso]><!-->

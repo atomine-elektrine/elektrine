@@ -1209,13 +1209,14 @@ export const PrivateMailboxCompose = {
   },
 
   async decryptForwardAttachments() {
-    const attachments = Object.values(this.attachments || {})
+    const attachments = Object.entries(this.attachments || {})
     if (attachments.length === 0) return []
 
     const decrypted = await Promise.all(
-      attachments.map(async (attachment) => {
+      attachments.map(async ([attachmentId, attachment]) => {
         if (!attachment?.private_encrypted_payload) {
           return {
+            attachment_id: attachmentId,
             filename: attachment.filename || "attachment",
             content_type: attachment.content_type || "application/octet-stream",
             size: attachment.size || 0
@@ -1225,6 +1226,7 @@ export const PrivateMailboxCompose = {
         const payload = await decryptAttachmentPayload(attachment.private_encrypted_payload, this.mailboxId)
 
         return {
+          attachment_id: attachmentId,
           filename: payload.filename || "attachment",
           content_type: payload.content_type || "application/octet-stream",
           size: payload.size || 0,
