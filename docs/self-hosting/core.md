@@ -25,6 +25,11 @@ It does not include:
 docker compose --env-file .env.production -f deploy/docker/compose.core.yml up -d --build
 ```
 
+The core compose file binds the app HTTP port to `127.0.0.1` by default so it
+does not bypass an edge proxy on public hosts. Set `APP_HTTP_BIND=8080:8080`
+only for local testing or when an external firewall/proxy already protects the
+port.
+
 If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
 That path is for the generated multi-service stack and defaults to `caddy` unless
 you override profiles.

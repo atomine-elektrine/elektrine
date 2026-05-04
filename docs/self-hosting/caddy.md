@@ -116,8 +116,12 @@ keep using the stock `Caddyfile` and do not put wildcard hosts into
 - raw server IP access is expected to work over `http://` for first-run bootstrap
 - raw server IP access is not expected to work over `https://`
 - for full browser interactivity over raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>`
-- the stock Docker+Caddy stack trusts `TRUSTED_PROXY_CIDRS=172.30.0.0/24`; this covers Caddy and Docker's bridge gateway `172.30.0.1` for app IP capture
-- if you customize `CADDY_PROXY_DOCKER_SUBNET`, set `TRUSTED_PROXY_CIDRS` to that proxy subnet too
+- the stock Docker+Caddy stack uses app-side `TRUSTED_PROXY_CIDRS=172.30.0.0/24`; this lets Elektrine honor Caddy's forwarded client IPs without recording Caddy's Docker address
+- if you customize `CADDY_PROXY_DOCKER_SUBNET`, set app-side `TRUSTED_PROXY_CIDRS` to that proxy subnet too
+- if Caddy itself is behind a CDN/load balancer that sanitizes `X-Forwarded-For`, set `CADDY_TRUSTED_PROXY_CIDRS` to that upstream proxy's CIDR list so Caddy can derive `{client_ip}` safely
+- do not set `CADDY_TRUSTED_PROXY_CIDRS` to Docker private ranges unless a trusted host-side proxy always strips untrusted forwarded headers first
+- if registrations show `172.30.0.1`, Caddy is not receiving a real client IP; use direct host networking, PROXY protocol from a trusted load balancer, or a trusted upstream proxy header path
+- for bridged Docker Caddy on Linux, disabling Docker's `userland-proxy` can let Caddy see the real peer IP; run `scripts/deploy/docker_deploy.sh --configure-docker-source-ips` to have the deploy wrapper apply it
 - wildcard external mode keeps certificate issuance outside Caddy
 - Elektrine DNS wildcard automation uses acme.sh DNS-01 and then feeds Caddy external cert files
 - Oban runs acme.sh renewal checks and acme.sh runs the saved Caddy reload command after renewal

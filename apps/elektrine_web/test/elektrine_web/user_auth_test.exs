@@ -53,6 +53,24 @@ defmodule ElektrineWeb.UserAuthTest do
       assert Accounts.get_user!(user.id).last_login_ip == "203.0.113.88"
     end
 
+    test "does not record Docker gateway as login IP when no public forwarded IP is available", %{
+      conn: conn
+    } do
+      Application.put_env(:elektrine, :trusted_proxy_cidrs, ["172.30.0.0/24"])
+      user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{})
+        |> put_private(:phoenix_endpoint, ElektrineWeb.Endpoint)
+        |> Map.put(:remote_ip, {172, 30, 0, 1})
+        |> put_req_header("x-forwarded-for", "172.30.0.1, 172.30.0.12")
+        |> UserAuth.log_in_user(user)
+
+      assert redirected_to(conn)
+      assert Accounts.get_user!(user.id).last_login_ip == "unknown"
+    end
+
     test "allows admin access with a valid elevated session", %{conn: conn} do
       user = user_fixture()
       {:ok, admin} = Accounts.admin_update_user(user, %{is_admin: true})

@@ -13,6 +13,7 @@ DO_UP=1
 DO_MIGRATE=1
 DO_BUILD=1
 DO_PULL=0
+DO_CONFIGURE_DOCKER_SOURCE_IPS=0
 PASSTHROUGH_ARGS=()
 DOCKER_BIN=(docker)
 POSTGRES_EXTENSIONS_RAW="${POSTGRES_EXTENSIONS:-vector}"
@@ -25,7 +26,7 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--skip-up] [additional docker compose args...]
+Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--skip-up] [--configure-docker-source-ips] [additional docker compose args...]
 
 Renders a module-aware Compose file and deploys the Docker stack.
 EOF
@@ -55,6 +56,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pull)
       DO_PULL=1
+      shift
+      ;;
+    --configure-docker-source-ips)
+      DO_CONFIGURE_DOCKER_SOURCE_IPS=1
       shift
       ;;
     --skip-build)
@@ -106,12 +111,20 @@ validate_env_file() {
   done < "$env_file"
 }
 
+truthy() {
+  [[ "${1:-false}" =~ ^(1|true|TRUE|yes|YES)$ ]]
+}
+
 if [[ -f "$ENV_FILE" ]]; then
   validate_env_file "$ENV_FILE"
   set -a
   # shellcheck disable=SC1090
   source "$ENV_FILE"
   set +a
+fi
+
+if truthy "${ELEKTRINE_AUTO_CONFIGURE_DOCKER_SOURCE_IPS:-false}"; then
+  DO_CONFIGURE_DOCKER_SOURCE_IPS=1
 fi
 
 if [[ -z "$REQUESTED_MODULES" ]]; then
@@ -293,6 +306,25 @@ validate_caddy_admin_cidrs() {
     echo "Hint: set exact VPN/private CIDRs, or leave it unset to deny public admin host access by default." >&2
     return 1
   fi
+}
+
+maybe_configure_docker_source_ips() {
+  if [[ "$DO_UP" -ne 1 || "$DO_CONFIGURE_DOCKER_SOURCE_IPS" -ne 1 ]]; then
+    return 0
+  fi
+
+  if [[ " $RENDER_PROFILES " != *" caddy "* ]]; then
+    return 0
+  fi
+
+  local configure_args=()
+
+  if ! truthy "${ELEKTRINE_RESTART_DOCKER_FOR_SOURCE_IPS:-true}"; then
+    configure_args+=(--no-restart)
+  fi
+
+  echo "Info: configuring Docker to preserve source IPs for bridged Caddy" >&2
+  "$ROOT_DIR/scripts/deploy/configure_docker_source_ips.sh" "${configure_args[@]}"
 }
 
 append_compose_override_if_missing() {
@@ -491,6 +523,8 @@ if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
   echo "Hint: if this is a repo-owned generated file, fix ownership instead of running git operations as root" >&2
   exit 1
 fi
+
+maybe_configure_docker_source_ips
 
 if ! docker info >/dev/null 2>&1; then
   if sudo -n docker info >/dev/null 2>&1; then

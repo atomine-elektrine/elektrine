@@ -63,7 +63,7 @@ services:
       CADDY_TLS_MOUNT_DIR: ${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}
       RELOAD_CMD: ${ACME_RELOAD_CMD:-true}
     ports:
-      - "${APP_HTTP_BIND:-8080:8080}"
+      - "${APP_HTTP_BIND:-127.0.0.1:8080:8080}"
     volumes:
       - app_data:/data
       - uploads:/data/uploads

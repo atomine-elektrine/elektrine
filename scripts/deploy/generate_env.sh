@@ -112,6 +112,10 @@ ACME_EMAIL=$ACME_EMAIL
 CADDY_EDGE_API_KEY=$CADDY_EDGE_API_KEY
 CADDY_ORIGIN_UPSTREAM=app:8080
 
+# Uncomment to let docker_deploy.sh set Docker userland-proxy=false and restart
+# Docker before deploy so bridged Caddy can preserve source IPs on Linux.
+# ELEKTRINE_AUTO_CONFIGURE_DOCKER_SOURCE_IPS=true
+
 # Keep uploads local for first boot. Enable Magpie/S3 later if you need it.
 # S3_ACCESS_KEY_ID=
 # S3_SECRET_ACCESS_KEY=

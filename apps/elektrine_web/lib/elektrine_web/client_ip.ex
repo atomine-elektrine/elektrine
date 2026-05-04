@@ -24,7 +24,7 @@ defmodule ElektrineWeb.ClientIP do
     remote_ip = normalize_ip_tuple(remote_ip)
 
     if trusted_proxy?(remote_ip) do
-      forwarded_ip(headers) || remote_ip
+      forwarded_ip(headers)
     else
       remote_ip
     end
@@ -43,7 +43,7 @@ defmodule ElektrineWeb.ClientIP do
     remote_ip = normalize_ip_tuple(conn.remote_ip)
 
     if trusted_proxy?(remote_ip) do
-      forwarded_ip(conn) || remote_ip
+      forwarded_ip(conn)
     else
       remote_ip
     end
@@ -100,7 +100,8 @@ defmodule ElektrineWeb.ClientIP do
             _ -> []
           end)
 
-        Enum.find(parsed_ips, &public_client_ip_candidate?/1) || List.first(parsed_ips)
+        Enum.find(parsed_ips, &public_forwarded_client_ip_candidate?/1) ||
+          Enum.find(parsed_ips, &forwarded_client_ip_candidate?/1)
     end
   end
 
@@ -110,7 +111,7 @@ defmodule ElektrineWeb.ClientIP do
     |> List.first()
     |> parse_ip_string()
     |> case do
-      {:ok, ip} -> ip
+      {:ok, ip} -> if forwarded_client_ip_candidate?(ip), do: ip
       _ -> nil
     end
   end
@@ -251,6 +252,12 @@ defmodule ElektrineWeb.ClientIP do
   defp ip_to_int({a, b, c, d, e, f, g, h}) do
     Enum.reduce([a, b, c, d, e, f, g, h], 0, fn part, acc -> (acc <<< 16) + part end)
   end
+
+  defp public_forwarded_client_ip_candidate?(ip) do
+    public_client_ip_candidate?(ip) and forwarded_client_ip_candidate?(ip)
+  end
+
+  defp forwarded_client_ip_candidate?(ip), do: not trusted_proxy?(ip)
 
   defp public_client_ip_candidate?(ip) do
     case maybe_unwrap_mapped_ipv4(ip) do

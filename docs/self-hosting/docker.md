@@ -173,6 +173,43 @@ interactivity over the raw IP, set `EXTRA_CHECK_ORIGINS=http://<server-ip>` in
 If you need one wildcard cert for many username subdomains, switch to the
 wildcard Caddy path with Elektrine DNS challenge or an external cert.
 
+## Client IPs
+
+If you must keep Caddy in Docker bridge networking, first make sure Docker is
+not hiding client source addresses before packets reach the Caddy container. On
+a normal Linux Docker Engine host, use kernel port forwarding instead of the
+Docker userland proxy:
+
+```json
+{
+  "userland-proxy": false
+}
+```
+
+The deploy wrapper can do this automatically, including a backup, validation,
+and Docker restart:
+
+```bash
+scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --configure-docker-source-ips
+```
+
+You can also keep it enabled in `.env.production`:
+
+```env
+ELEKTRINE_AUTO_CONFIGURE_DOCKER_SOURCE_IPS=true
+```
+
+Do not use this path on Docker Desktop or rootless Docker expecting real public
+source IPs; those port-forwarding layers commonly replace the client IP with a
+local gateway address. If you set `ELEKTRINE_RESTART_DOCKER_FOR_SOURCE_IPS=false`,
+restart Docker manually before redeploying.
+
+If Caddy still only sees Docker gateway addresses such as `172.30.0.1`, the real
+client IP is not present in the request path. Use PROXY protocol from a trusted
+load balancer or a trusted CDN/load-balancer `X-Forwarded-For` path instead.
+Only set `CADDY_TRUSTED_PROXY_CIDRS` to networks you trust to strip spoofed
+forwarded headers before adding their own.
+
 For external wildcard certs, set:
 
 - `CADDY_MANAGED_SITE_1="example.com *.example.com"`

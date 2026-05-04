@@ -206,8 +206,7 @@ defmodule ElektrineEmailWeb.EmailController do
       end
 
     cond do
-      Elektrine.Strings.present?(sanitized_html) and
-          (html_displayable?(sanitized_html) or not Elektrine.Strings.present?(message.text_body)) ->
+      Elektrine.Strings.present?(sanitized_html) ->
         sanitized_html
         |> normalize_iframe_email_content()
         |> rewrite_email_html_assets(conn, message)
@@ -311,15 +310,6 @@ defmodule ElektrineEmailWeb.EmailController do
         img {
           border: 0;
         }
-
-        /* Only fix truly broken buttons (like Odysee with empty background-color) */
-        a[style$="background-color:"],
-        a[style$="background:"] {
-          background-color: #1a73e8;
-          border-radius: 4px;
-          padding: 10px 20px;
-        }
-
       </style>
       #{head_content}
       <base target="_blank">
@@ -412,19 +402,6 @@ defmodule ElektrineEmailWeb.EmailController do
   defp css_preamble_style(""), do: nil
   defp css_preamble_style(css), do: "<style>#{css}</style>"
 
-  defp html_displayable?(content) do
-    visible_text =
-      content
-      |> String.replace(~r/<script\b[^>]*>.*?<\/script>/is, "")
-      |> String.replace(~r/<style\b[^>]*>.*?<\/style>/is, "")
-      |> String.replace(~r/<link\b[^>]*>/is, "")
-      |> String.replace(~r/<[^>]+>/, " ")
-      |> clean_plain_text_body()
-
-    Elektrine.Strings.present?(visible_text) or
-      Regex.match?(~r/<(?:img|table|td|th|video|audio|picture)\b/i, content)
-  end
-
   defp rewrite_email_html_assets(content, conn, message) do
     content
     |> rewrite_cid_image_urls(message)
@@ -511,6 +488,39 @@ defmodule ElektrineEmailWeb.EmailController do
   end
 
   defp rewrite_remote_css_image_urls(content, conn) do
+    {content, imports} = protect_import_statements(content, 0, [])
+    content = do_rewrite_css_image_urls(content, conn)
+    restore_import_statements(content, imports)
+  end
+
+  defp protect_import_statements(content, counter, acc) do
+    content
+    |> do_protect_import(
+      ~r/@import\s+url\(\s*(['"]?)(https?:\/\/[^'")\s]+)\1\s*\)\s*;?/i,
+      counter,
+      acc
+    )
+  end
+
+  defp do_protect_import(content, pattern, counter, acc) do
+    case Regex.run(pattern, content) do
+      [full_match | _] ->
+        marker = "@IMPFIX#{counter}@"
+        new_content = String.replace(content, full_match, marker, global: false)
+        do_protect_import(new_content, pattern, counter + 1, [{marker, full_match} | acc])
+
+      nil ->
+        {content, acc}
+    end
+  end
+
+  defp restore_import_statements(content, imports) do
+    Enum.reduce(imports, content, fn {marker, original}, acc ->
+      String.replace(acc, marker, original, global: false)
+    end)
+  end
+
+  defp do_rewrite_css_image_urls(content, conn) do
     Regex.replace(~r/url\(\s*(['"]?)(https?:\/\/[^'")\s]+)\1\s*\)/i, content, fn
       _full, _quote, url ->
         if proxyable_email_image_url?(url) do
