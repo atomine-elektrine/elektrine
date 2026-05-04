@@ -7,6 +7,7 @@ defmodule Elektrine.Email.HarakaAdapter do
     required_config: [:api_key],
     optional_config: [:base_url, :timeout]
 
+  alias Elektrine.Email.InternalOrigin
   alias Elektrine.EmailConfig
   alias Swoosh.Email
 
@@ -60,7 +61,8 @@ defmodule Elektrine.Email.HarakaAdapter do
     Enum.map(emails, &deliver(&1, config))
   end
 
-  defp build_api_body(email) do
+  @doc false
+  def build_api_body(email) do
     # Build the JSON body for Haraka HTTP API
     body = %{
       "from" => format_from(email.from),
@@ -106,15 +108,29 @@ defmodule Elektrine.Email.HarakaAdapter do
           body
       end
 
-    # Add custom headers if present
-    body =
-      if email.headers && email.headers != %{} do
-        Map.put(body, "headers", email.headers)
-      else
-        body
-      end
+    body = maybe_put_custom_headers(body, email)
+    body = sign_internal_origin(body)
 
     Jason.encode!(body)
+  end
+
+  defp maybe_put_custom_headers(body, email) do
+    if email.headers && email.headers != %{} do
+      Map.put(body, "headers", email.headers)
+    else
+      body
+    end
+  end
+
+  defp sign_internal_origin(body) do
+    headers = Map.get(body, "headers", %{})
+    signed_headers = InternalOrigin.sign_headers(headers, body["from"])
+
+    if signed_headers == %{} and headers == %{} do
+      body
+    else
+      Map.put(body, "headers", signed_headers)
+    end
   end
 
   defp format_recipients(recipients) when is_list(recipients) do

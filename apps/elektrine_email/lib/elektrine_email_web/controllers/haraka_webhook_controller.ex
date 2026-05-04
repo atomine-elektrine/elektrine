@@ -5,9 +5,9 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.InboundRouting
+  alias Elektrine.Email.InternalOrigin
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
-  alias Elektrine.EmailConfig
   alias Elektrine.InternalAPI
   alias Elektrine.Repo
   alias Elektrine.Telemetry.Events
@@ -1105,63 +1105,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   defp map_value(_, _), do: nil
 
   defp valid_internal_origin_signature?(params, from) do
-    with secret when is_binary(secret) <- internal_signing_secret(),
-         true <- Elektrine.Strings.present?(secret),
-         headers when is_map(headers) <- params["headers"] || %{},
-         "internal" <- header_value(headers, ["x-elektrine-origin", "X-Elektrine-Origin"]),
-         ts when is_binary(ts) <-
-           header_value(headers, ["x-elektrine-origin-ts", "X-Elektrine-Origin-Ts"]),
-         true <- Elektrine.Strings.present?(ts),
-         signature when is_binary(signature) <-
-           header_value(headers, ["x-elektrine-origin-sig", "X-Elektrine-Origin-Sig"]),
-         true <- Elektrine.Strings.present?(signature),
-         {timestamp, ""} <- Integer.parse(ts),
-         true <- timestamp_fresh?(timestamp) do
-      payload = internal_origin_payload(from, ts)
-      expected = Base.encode16(:crypto.mac(:hmac, :sha256, secret, payload), case: :lower)
-      secure_compare(signature, expected)
-    else
-      _ -> false
-    end
-  end
-
-  defp internal_signing_secret do
-    EmailConfig.internal_signing_secret()
-  end
-
-  defp header_value(headers, candidates) do
-    Enum.find_value(candidates, fn key ->
-      case Map.get(headers, key) do
-        value when is_binary(value) -> String.trim(value)
-        _ -> nil
-      end
-    end)
-  end
-
-  defp timestamp_fresh?(timestamp) when is_integer(timestamp) do
-    now = System.system_time(:second)
-    abs(now - timestamp) <= 900
-  end
-
-  defp internal_origin_payload(from, ts) do
-    clean_from =
-      from
-      |> InboundRouting.extract_clean_email()
-      |> case do
-        nil -> ""
-        email -> String.downcase(email)
-      end
-
-    "internal|#{ts}|#{clean_from}"
-  end
-
-  defp secure_compare(left, right)
-       when is_binary(left) and is_binary(right) and byte_size(left) == byte_size(right) do
-    Plug.Crypto.secure_compare(left, right)
-  end
-
-  defp secure_compare(_left, _right) do
-    false
+    InternalOrigin.valid?(params["headers"] || %{}, from)
   end
 
   defp extract_spam_info_from_webhook(params) do

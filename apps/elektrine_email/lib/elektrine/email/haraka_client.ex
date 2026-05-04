@@ -9,6 +9,7 @@ defmodule Elektrine.Email.HarakaClient do
 
   require Logger
 
+  alias Elektrine.Email.InternalOrigin
   alias Elektrine.EmailConfig
 
   @api_path "/api/v1/send"
@@ -520,34 +521,7 @@ defmodule Elektrine.Email.HarakaClient do
   defp attachment_field(attachment, key) when is_map(attachment), do: Map.get(attachment, key)
 
   defp add_internal_origin_headers(params) do
-    case internal_signing_secret() do
-      secret when is_binary(secret) and secret != "" ->
-        ts = Integer.to_string(System.system_time(:second))
-        payload = internal_origin_payload(params[:from], ts)
-        signature = Base.encode16(:crypto.mac(:hmac, :sha256, secret, payload), case: :lower)
-        existing_headers = if is_map(params[:headers]), do: params[:headers], else: %{}
-
-        signed_headers =
-          existing_headers
-          |> Map.put("X-Elektrine-Origin", "internal")
-          |> Map.put("X-Elektrine-Origin-Ts", ts)
-          |> Map.put("X-Elektrine-Origin-Sig", signature)
-
-        Map.put(params, :headers, signed_headers)
-
-      _ ->
-        params
-    end
-  end
-
-  defp internal_signing_secret do
-    EmailConfig.internal_signing_secret()
-  end
-
-  defp internal_origin_payload(from_address, ts) do
-    {email, _name} = extract_email_and_name(from_address || "")
-    clean_email = String.trim(email) |> String.downcase()
-    "internal|#{ts}|#{clean_email}"
+    InternalOrigin.sign_params(params)
   end
 
   @doc """
