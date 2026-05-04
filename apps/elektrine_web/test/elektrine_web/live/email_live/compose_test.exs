@@ -6,6 +6,7 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Email
   alias Elektrine.Email.Contact
+  alias Elektrine.Email.Message
   alias Elektrine.Repo
 
   defp log_in_user(conn, user) do
@@ -84,13 +85,47 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     assert html =~ "Unlock this mailbox in the current tab"
   end
 
+  test "sends compose message as plain text only", %{conn: conn} do
+    sender = AccountsFixtures.user_fixture()
+    recipient = AccountsFixtures.user_fixture()
+    sender_mailbox = mailbox_fixture(sender)
+    recipient_mailbox = mailbox_fixture(recipient)
+    subject = "Plain text compose #{System.unique_integer([:positive])}"
+    body = "**Not HTML**\n\nhttps://example.com"
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(sender)
+      |> live(~p"/email/compose?to=#{recipient_mailbox.email}")
+
+    render_submit(view, "save", %{
+      "email" => %{
+        "subject" => subject,
+        "body" => body,
+        "body_format" => "plaintext",
+        "encryption_mode" => "off"
+      }
+    })
+
+    sent = Repo.get_by!(Message, mailbox_id: sender_mailbox.id, status: "sent", subject: subject)
+    sent = Email.get_message(sent.id, sender_mailbox.id)
+    assert sent.text_body == body
+    assert sent.html_body == nil
+
+    received =
+      Repo.get_by!(Message,
+        mailbox_id: recipient_mailbox.id,
+        status: "received",
+        subject: subject
+      )
+
+    received = Email.get_message(received.id, recipient_mailbox.id)
+    assert received.text_body == body
+    assert received.html_body == nil
+  end
+
   defp private_mailbox_fixture(user) do
-    mailbox =
-      Email.get_user_mailbox(user.id) ||
-        case Email.ensure_user_has_mailbox(user) do
-          {:ok, mailbox} -> mailbox
-          mailbox -> mailbox
-        end
+    mailbox = mailbox_fixture(user)
 
     {:ok, mailbox} =
       Email.update_mailbox_private_storage(mailbox, %{
@@ -101,6 +136,14 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
       })
 
     mailbox
+  end
+
+  defp mailbox_fixture(user) do
+    Email.get_user_mailbox(user.id) ||
+      case Email.ensure_user_has_mailbox(user) do
+        {:ok, mailbox} -> mailbox
+        mailbox -> mailbox
+      end
   end
 
   defp wrapped_payload do

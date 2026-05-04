@@ -51,6 +51,8 @@ defmodule Elektrine.MixProject do
       Elektrine.Email.Mailbox,
       Elektrine.Email.MailboxAdapter,
       Elektrine.Email.Message,
+      Atomine.CreditEarningPolicy,
+      Atomine.Credits,
       Atomine.Personhood,
       Atomine.CreditPolicy,
       Elektrine.Social,

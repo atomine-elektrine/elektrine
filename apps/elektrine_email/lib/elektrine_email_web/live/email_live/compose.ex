@@ -118,6 +118,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       |> assign(:bcc_suggestions, [])
       |> assign(:body_char_count, String.length(form_data["body"] || ""))
       |> assign(:body_word_count, count_words(form_data["body"] || ""))
+      |> assign(:body_format, body_format(form_data))
       |> assign(:encryption_mode, form_data["encryption_mode"] || "auto")
       |> assign(:draft_id, form_data["draft_id"])
       |> assign(:draft_status, nil)
@@ -168,6 +169,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
         socket
         |> assign(:form, to_form(form_data))
+        |> assign(:body_format, body_format(form_data))
         |> assign(:to_tags, to_tags)
         |> assign(:cc_tags, cc_tags)
         |> assign(:bcc_tags, bcc_tags)
@@ -226,9 +228,11 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
          "bcc" => "",
          "subject" => "",
          "body" => "",
+         "body_format" => "markdown",
          "encryption_mode" => "auto"
        })
      )
+     |> assign(:body_format, "markdown")
      |> assign(:to_tags, [])
      |> assign(:cc_tags, [])
      |> assign(:bcc_tags, [])
@@ -275,12 +279,14 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   @impl true
   def handle_event("validate", %{"email" => email_params}, socket) do
     socket = validate_attachments(socket)
+    email_params = put_body_format(email_params, socket.assigns.body_format)
     body = email_params["body"] || email_params["new_message"] || ""
     word_count = count_words(body)
 
     {:noreply,
      socket
      |> assign(:form, to_form(email_params))
+     |> assign(:body_format, body_format(email_params, socket.assigns.body_format))
      |> assign(:body_word_count, word_count)
      |> assign_encryption_state(email_params["encryption_mode"])}
   end
@@ -294,12 +300,14 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   @impl true
   def handle_event("validate_and_autosave", %{"email" => email_params}, socket) do
     socket = validate_attachments(socket)
+    email_params = put_body_format(email_params, socket.assigns.body_format)
     body = email_params["body"] || email_params["new_message"] || ""
     word_count = count_words(body)
 
     socket =
       socket
       |> assign(:form, to_form(email_params))
+      |> assign(:body_format, body_format(email_params, socket.assigns.body_format))
       |> assign(:body_word_count, word_count)
       |> assign_encryption_state(email_params["encryption_mode"])
 
@@ -554,11 +562,13 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
   @impl true
   def handle_event("save", %{"email" => email_params}, socket) do
-    socket = assign(socket, :sending, true)
     user = socket.assigns.current_user
     _mailbox = socket.assigns.mailbox
     mode = socket.assigns.mode
     original_message = Map.get(socket.assigns, :original_message)
+    email_params = put_body_format(email_params, socket.assigns.body_format)
+    body_format = body_format(email_params, socket.assigns.body_format)
+    socket = socket |> assign(:sending, true) |> assign(:body_format, body_format)
 
     if blank_reply?(mode, email_params) do
       {:noreply,
@@ -573,46 +583,49 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           combined_text = combine_reply_text(new_message, email_params["body"])
 
           combined_html =
-            if original_message && Elektrine.Strings.present?(original_message.html_body) do
-              new_message_html = markdown_to_html(new_message)
+            if body_format == "plaintext" do
+              nil
+            else
+              if original_message && Elektrine.Strings.present?(original_message.html_body) do
+                new_message_html = markdown_to_html(new_message)
 
-              if mode == "reply" do
-                date_str = format_date_for_quote(original_message.inserted_at)
+                if mode == "reply" do
+                  date_str = format_date_for_quote(original_message.inserted_at)
 
-                sender_text =
-                  if original_message.status == "sent" do
-                    "you"
-                  else
-                    original_message.from
-                  end
+                  sender_text =
+                    if original_message.status == "sent" do
+                      "you"
+                    else
+                      original_message.from
+                    end
 
-                new_message_html <> "<br><br>
+                  new_message_html <> "<br><br>
 <div style=\"color: #666; border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px;\">
   On #{date_str}, #{sender_text} wrote:<br>
   #{original_message.html_body}
 </div>
 "
-              else
-                date_str = format_date_for_quote(original_message.inserted_at)
+                else
+                  date_str = format_date_for_quote(original_message.inserted_at)
 
-                attachment_html =
-                  if original_message.attachments && is_map(original_message.attachments) &&
-                       map_size(original_message.attachments) > 0 do
-                    attachment_list =
-                      original_message.attachments
-                      |> Enum.map(fn {_key, attachment} ->
-                        filename = Map.get(attachment, "filename", "unknown")
-                        size = Map.get(attachment, "size", "unknown")
-                        "<li>#{filename} (#{size} bytes)</li>"
-                      end)
-                      |> Enum.map_join("", & &1)
+                  attachment_html =
+                    if original_message.attachments && is_map(original_message.attachments) &&
+                         map_size(original_message.attachments) > 0 do
+                      attachment_list =
+                        original_message.attachments
+                        |> Enum.map(fn {_key, attachment} ->
+                          filename = Map.get(attachment, "filename", "unknown")
+                          size = Map.get(attachment, "size", "unknown")
+                          "<li>#{filename} (#{size} bytes)</li>"
+                        end)
+                        |> Enum.map_join("", & &1)
 
-                    "<br><strong>Attachments:</strong><ul style='margin: 5px 0 10px 20px;'>#{attachment_list}</ul>"
-                  else
-                    ""
-                  end
+                      "<br><strong>Attachments:</strong><ul style='margin: 5px 0 10px 20px;'>#{attachment_list}</ul>"
+                    else
+                      ""
+                    end
 
-                new_message_html <> "<br><br>
+                  new_message_html <> "<br><br>
 <div style=\"border: 1px solid #ccc; padding: 15px; margin: 10px 0; background-color: #f9f9f9;\">
   <div style=\"color: #666; margin-bottom: 10px;\">
     ---------- Forwarded message ----------<br>
@@ -626,16 +639,17 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   </div>
 </div>
 "
+                end
+              else
+                markdown_to_html(combined_text)
               end
-            else
-              markdown_to_html(combined_text)
             end
 
           {combined_text, combined_html}
         else
-          text = email_params["body"]
+          text = email_params["body"] || ""
           text_with_signature = append_signature(text, socket.assigns.current_user)
-          html = markdown_to_html(text_with_signature)
+          html = html_body_for_format(text_with_signature, body_format)
           {text_with_signature, html}
         end
 
@@ -958,7 +972,12 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       bcc: Enum.join(socket.assigns.bcc_tags, ", "),
       subject: email_params["subject"] || "",
       text_body: email_params["body"] || "",
-      html_body: markdown_to_html(email_params["body"] || ""),
+      html_body:
+        html_body_for_format(
+          email_params["body"] || "",
+          body_format(email_params, socket.assigns.body_format)
+        ),
+      metadata: %{"body_format" => body_format(email_params, socket.assigns.body_format)},
       status: "draft"
     }
 
@@ -1099,7 +1118,12 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       bcc: Enum.join(socket.assigns.bcc_tags, ", "),
       subject: email_params["subject"] || "",
       text_body: email_params["body"] || "",
-      html_body: markdown_to_html(email_params["body"] || ""),
+      html_body:
+        html_body_for_format(
+          email_params["body"] || "",
+          body_format(email_params, socket.assigns.body_format)
+        ),
+      metadata: %{"body_format" => body_format(email_params, socket.assigns.body_format)},
       status: "draft"
     }
 
@@ -1148,6 +1172,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           "bcc" => Map.get(params, "bcc", ""),
           "subject" => Map.get(params, "subject", ""),
           "body" => Map.get(params, "body", ""),
+          "body_format" => body_format(params),
           "encryption_mode" => Map.get(params, "encryption_mode", "auto")
         }
     end
@@ -1171,6 +1196,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           "bcc" => "",
           "subject" => "",
           "body" => "",
+          "body_format" => "markdown",
           "encryption_mode" => "auto",
           "draft_id" => nil
         }
@@ -1182,6 +1208,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           "bcc" => draft.bcc || "",
           "subject" => draft.subject || "",
           "body" => draft.text_body || "",
+          "body_format" => body_format(draft.metadata || %{}),
           "encryption_mode" => "auto",
           "draft_id" => draft.id
         }
@@ -1199,7 +1226,15 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     case Email.get_user_message(message_id_int, mailbox.user_id) do
       {:error, _} ->
         Logger.warning("Message not found or access denied for reply: #{message_id}")
-        %{"to" => "", "cc" => "", "bcc" => "", "subject" => "", "body" => ""}
+
+        %{
+          "to" => "",
+          "cc" => "",
+          "bcc" => "",
+          "subject" => "",
+          "body" => "",
+          "body_format" => "markdown"
+        }
 
       {:ok, message} ->
         subject =
@@ -1224,6 +1259,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           "bcc" => "",
           "subject" => subject,
           "body" => quoted_body,
+          "body_format" => "markdown",
           "new_message" => ""
         }
     end
@@ -1239,7 +1275,14 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
     case Email.get_user_message(message_id_int, mailbox.user_id) do
       {:error, _} ->
-        %{"to" => "", "cc" => "", "bcc" => "", "subject" => "", "body" => ""}
+        %{
+          "to" => "",
+          "cc" => "",
+          "bcc" => "",
+          "subject" => "",
+          "body" => "",
+          "body_format" => "markdown"
+        }
 
       {:ok, message} ->
         subject =
@@ -1256,7 +1299,15 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
           end
 
         forwarded_body = format_forwarded_message(message)
-        %{"to" => "", "cc" => "", "bcc" => "", "subject" => subject, "body" => forwarded_body}
+
+        %{
+          "to" => "",
+          "cc" => "",
+          "bcc" => "",
+          "subject" => subject,
+          "body" => forwarded_body,
+          "body_format" => "markdown"
+        }
     end
   end
 
@@ -1470,6 +1521,28 @@ Subject: #{message.subject}#{attachment_info}
     markdown
     |> Earmark.as_html!()
     |> Elektrine.Email.Sanitizer.sanitize_html_content()
+  end
+
+  defp html_body_for_format(_body, "plaintext"), do: nil
+
+  defp html_body_for_format(body, _format), do: markdown_to_html(body || "")
+
+  defp body_format(params, fallback \\ "markdown")
+
+  defp body_format(%{} = params, fallback) do
+    case Map.get(params, "body_format") || Map.get(params, :body_format) || fallback do
+      value when value in ["plaintext", "plain_text", "plain", :plaintext, :plain_text, :plain] ->
+        "plaintext"
+
+      _ ->
+        "markdown"
+    end
+  end
+
+  defp body_format(_params, fallback), do: body_format(%{"body_format" => fallback})
+
+  defp put_body_format(params, fallback) when is_map(params) do
+    Map.put(params, "body_format", body_format(params, fallback))
   end
 
   defp blank_reply?(mode, email_params) when mode in ["reply", "reply_all"] do

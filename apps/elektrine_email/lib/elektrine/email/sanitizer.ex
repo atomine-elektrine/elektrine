@@ -3,6 +3,9 @@ defmodule Elektrine.Email.Sanitizer do
   alias Elektrine.Email.HeaderSanitizer
   alias HtmlSanitizeEx.Scrubber
 
+  @literal_html_fragment_pattern ~r/<\/?(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b/i
+  @encoded_html_fragment_pattern ~r/&lt;\s*(?:!doctype\b|\/?\s*(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b)/i
+
   @doc "Sanitizes an incoming email before storage.\n\nApplies:\n- Header sanitization (from, to, cc, bcc, subject)\n- HTML content scrubbing\n- UTF-8 validation\n\nSpecial handling for PGP encrypted/signed emails:\n- Preserves PGP blocks intact (BEGIN/END markers and content)\n- Skips aggressive HTML sanitization for PGP content\n"
   def sanitize_incoming_email(email_params) do
     if is_pgp_email?(email_params) do
@@ -223,6 +226,7 @@ defmodule Elektrine.Email.Sanitizer do
   def sanitize_html_content(html_content) when is_binary(html_content) do
     html_content
     |> ensure_valid_utf8()
+    |> maybe_decode_entity_encoded_html()
     |> remove_processing_instructions()
     |> remove_doctype_declarations()
     |> remove_xml_namespace_attributes()
@@ -289,6 +293,25 @@ defmodule Elektrine.Email.Sanitizer do
             force_valid_utf8(content)
         end
     end
+  end
+
+  defp maybe_decode_entity_encoded_html(content) do
+    if entity_encoded_html_fragment?(content) and not literal_html_fragment?(content) do
+      HtmlEntities.decode(content)
+    else
+      content
+    end
+  end
+
+  defp entity_encoded_html_fragment?(content) do
+    @encoded_html_fragment_pattern
+    |> Regex.scan(content)
+    |> length()
+    |> Kernel.>=(2)
+  end
+
+  defp literal_html_fragment?(content) do
+    Regex.match?(@literal_html_fragment_pattern, content)
   end
 
   defp remove_dangerous_tags(content) do

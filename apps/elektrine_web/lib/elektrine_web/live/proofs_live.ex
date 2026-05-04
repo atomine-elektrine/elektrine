@@ -1,6 +1,7 @@
 defmodule ElektrineWeb.ProofsLive do
   use ElektrineWeb, :live_view
 
+  alias Elektrine.Accounts.Capabilities
   alias Elektrine.Platform.ENav
 
   @proof_kinds [
@@ -466,20 +467,20 @@ defmodule ElektrineWeb.ProofsLive do
   end
 
   defp load_proofs(socket, user_id) do
-    {proofs, breakdown, atomine_available} = proof_data(user_id)
-
-    {credit_rows, credit_action_prices, credit_earning_paths, credits_available} =
-      credit_data(user_id)
+    {proofs, atomine_available} = proof_data(user_id)
+    capability_snapshot = Capabilities.snapshot(socket.assigns.current_user)
+    credits = capability_snapshot.credits
 
     socket
     |> assign(:proofs, proofs)
-    |> assign(:breakdown, breakdown)
+    |> assign(:breakdown, capability_snapshot.reputation.breakdown)
+    |> assign(:capability_snapshot, capability_snapshot)
     |> assign(:e_nav_badge_counts, ENav.notification_badge_counts(socket.assigns.current_user))
     |> assign(:atomine_available, atomine_available)
-    |> assign(:credit_rows, credit_rows)
-    |> assign(:credit_action_prices, credit_action_prices)
-    |> assign(:credit_earning_paths, credit_earning_paths)
-    |> assign(:credits_available, credits_available)
+    |> assign(:credit_rows, credits.rows)
+    |> assign(:credit_action_prices, credits.action_prices)
+    |> assign(:credit_earning_paths, credits.earning_paths)
+    |> assign(:credits_available, Map.fetch!(credits, :available?))
     |> assign_new(:last_created_proof, fn -> nil end)
   end
 
@@ -518,47 +519,10 @@ defmodule ElektrineWeb.ProofsLive do
   defp proof_data(user_id) do
     case personhood_module() do
       {:ok, personhood} ->
-        {personhood.list_proofs(user_id), personhood.personhood_breakdown(user_id), true}
+        {personhood.list_proofs(user_id), true}
 
       :error ->
-        {[], empty_breakdown(), false}
-    end
-  end
-
-  defp credit_data(user_id) do
-    if Code.ensure_loaded?(Atomine.Credits) do
-      accounts = Atomine.Credits.list_accounts(user_id)
-      balances = Map.new(accounts, &{&1.credit_type, &1.balance})
-
-      rows =
-        Atomine.Credits.credit_types()
-        |> Enum.map(fn credit_type ->
-          %{
-            type: credit_type,
-            label: credit_label(credit_type),
-            balance: Map.get(balances, credit_type, 0)
-          }
-        end)
-
-      {rows, credit_action_prices(), credit_earning_paths(), true}
-    else
-      {[], [], [], false}
-    end
-  end
-
-  defp credit_action_prices do
-    if Code.ensure_loaded?(Atomine.CreditPolicy) do
-      Atomine.CreditPolicy.action_prices()
-    else
-      []
-    end
-  end
-
-  defp credit_earning_paths do
-    if Code.ensure_loaded?(Atomine.CreditEarningPolicy) do
-      Atomine.CreditEarningPolicy.earning_paths()
-    else
-      []
+        {[], false}
     end
   end
 
@@ -582,25 +546,6 @@ defmodule ElektrineWeb.ProofsLive do
     else
       :error
     end
-  end
-
-  defp empty_breakdown do
-    %{
-      score: 0,
-      raw_score: 0,
-      level: :unknown,
-      positive: %{
-        proofs: 0,
-        proof_diversity: 0,
-        account_age: 0,
-        security: 0,
-        account_history: 0,
-        platform_trust: 0
-      },
-      penalties: %{account_restrictions: 0, onion_registration: 0, proof_rejections: 0},
-      verified_proof_count: 0,
-      verified_proof_kinds: []
-    }
   end
 
   defp default_proof_form do
