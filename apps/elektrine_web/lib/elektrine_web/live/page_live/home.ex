@@ -124,41 +124,6 @@ defmodule ElektrineWeb.PageLive.Home do
                   </div>
                 </div>
               </div>
-
-              <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-3 p-5 sm:p-6">
-                  <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="space-y-2">
-                      <p class="text-xs uppercase tracking-[0.22em] opacity-60">From the developer</p>
-                      <h2 class="text-xl font-semibold tracking-tight text-base-content">
-                        Notes from the author
-                      </h2>
-                      <p class="max-w-xl text-sm leading-6 text-base-content/70">
-                        Development updates, release context, and essays on building independent
-                        internet infrastructure.
-                      </p>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                      <.link
-                        href={blog_url()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="btn btn-outline btn-sm"
-                      >
-                        Read the blog
-                      </.link>
-                      <.link
-                        href={blog_rss_url()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="btn btn-ghost btn-sm"
-                      >
-                        <.icon name="hero-rss-mini" class="h-4 w-4" /> RSS
-                      </.link>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </section>
 
             <section class="space-y-4">
@@ -249,10 +214,6 @@ defmodule ElektrineWeb.PageLive.Home do
   defp github_releases_url, do: "https://github.com/atomine-elektrine/elektrine/releases"
 
   defp github_issues_url, do: "https://github.com/atomine-elektrine/elektrine/issues"
-
-  defp blog_url, do: "https://maxfieldluke.com"
-
-  defp blog_rss_url, do: "https://maxfieldluke.com/rss.xml"
 
   def load_platform_stats(cache_fetch \\ &Elektrine.AppCache.get_platform_stats/1) do
     case cache_fetch.(fn -> default_platform_stats() end) do
