@@ -357,26 +357,6 @@ defmodule ElektrineEmailWeb.Components.Email.Display do
 
   def permissive_email_sanitize(html_content) when is_binary(html_content) do
     Elektrine.Email.Sanitizer.sanitize_html_content(html_content)
-  rescue
-    _ ->
-      try do
-        case HtmlSanitizeEx.basic_html(html_content) do
-          "" -> strip_dangerous_tags(html_content)
-          result -> result
-        end
-      rescue
-        _ -> strip_dangerous_tags(html_content)
-      end
-  end
-
-  defp strip_dangerous_tags(html_content) do
-    html_content
-    |> String.replace(~r/<script[^>]*>.*?<\/script>/is, "")
-    |> String.replace(~r/<link[^>]*>/is, "")
-    |> String.replace(~r/<meta[^>]*>/is, "")
-    |> String.replace(~r/<form[^>]*>.*?<\/form>/is, "")
-    |> String.replace(~r/javascript:/i, "")
-    |> String.replace(~r/on\w+\s*=/i, "")
   end
 
   @doc "Safely converts an email message to JSON, excluding associations and metadata.\n"

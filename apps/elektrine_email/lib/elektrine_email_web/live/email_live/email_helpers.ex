@@ -517,7 +517,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
 
     ~H"""
     <!-- Sidebar -->
-    <div class={["email-sidebar-sticky w-full lg:w-72 xl:w-80 flex-shrink-0", @class]}>
+    <.sticky_sidebar class={["w-full lg:w-72 xl:w-80 flex-shrink-0", @class]}>
       <div class="lg:hidden">
         <div
           id={"mobile-email-sidebar-card-#{@mailbox.id}"}
@@ -1135,7 +1135,7 @@ defmodule ElektrineEmailWeb.EmailLive.EmailHelpers do
           </div>
         </div>
       </div>
-    </div>
+    </.sticky_sidebar>
     """
   end
 

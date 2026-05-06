@@ -346,6 +346,72 @@ defmodule Elektrine.Email.SanitizerTest do
       refute String.contains?(result, "Outlook only")
       refute String.contains?(result, "<!--[if")
     end
+
+    test "preserves real email layout attributes, inline styles, and responsive CSS" do
+      html = """
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>@media only screen and (max-width: 480px) { table[class="collapse"] { width:100% !important; } }</style>
+        </head>
+        <body bgcolor="#F5F8FA" style="margin:0;padding:0;">
+          <table class="collapse" id="header" align="center" width="448" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="width:448px;background-color:#ffffff;">
+            <tbody>
+              <tr align="right">
+                <td width="24" class="margin" style="padding:0;margin:0;"></td>
+                <td align="right" style="font-size:14px;line-height:16px;">
+                  <img width="32" height="32" src="https://example.com/logo.png" style="width:32px;display:block;" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </body>
+      </html>
+      """
+
+      result = Sanitizer.sanitize_html_content(html)
+
+      assert String.contains?(result, ~s(bgcolor="#F5F8FA"))
+      assert String.contains?(result, ~s(style="margin:0;padding:0;"))
+      assert String.contains?(result, ~s(class="collapse"))
+      assert String.contains?(result, ~s(id="header"))
+      assert String.contains?(result, ~s(align="center"))
+      assert String.contains?(result, ~s(width="448"))
+      assert String.contains?(result, ~s(cellpadding="0"))
+      assert String.contains?(result, ~s(cellspacing="0"))
+      assert String.contains?(result, ~s(border="0"))
+      assert String.contains?(result, ~s(style="width:448px;background-color:#ffffff;"))
+      assert String.contains?(result, ~s(src="https://example.com/logo.png"))
+      assert String.contains?(result, "@media only screen")
+      refute String.contains?(String.downcase(result), "<!doctype")
+    end
+
+    test "removes active behavior without stripping safe email presentation" do
+      html = """
+      <div onclick="steal()" style="width:100px;background:url(javascript:alert(1));color:#111;">
+        <script>alert("xss")</script>
+        <form action="https://evil.example/submit"><input name="token" value="secret"><table style="border-collapse:collapse;"><tr><td>Sale ends tonight</td></tr></table></form>
+        <a href="java&#x73;cript:alert(1)" style="color:#1DA1F2;">Bad link</a>
+        <img src="data:text/html,<svg onload=alert(1)>" onerror="steal()" width="1" height="1" style="display:block;" />
+      </div>
+      """
+
+      result = Sanitizer.sanitize_html_content(html)
+      result_downcase = String.downcase(result)
+
+      refute String.contains?(result_downcase, "<script")
+      refute String.contains?(result_downcase, "onclick")
+      refute String.contains?(result_downcase, "onerror")
+      refute String.contains?(result_downcase, "javascript:")
+      refute String.contains?(result_downcase, "data:text/html")
+      refute String.contains?(result_downcase, "action=")
+      refute String.contains?(result_downcase, "<form")
+      refute String.contains?(result_downcase, "<input")
+      assert String.contains?(result, ~s(style="width:100px;background:none;color:#111;"))
+      assert String.contains?(result, ~s(style="border-collapse:collapse;"))
+      assert String.contains?(result, ~s(style="color:#1DA1F2;"))
+      assert String.contains?(result, "Sale ends tonight")
+    end
   end
 
   describe "fix common encoding issues (mojibake)" do

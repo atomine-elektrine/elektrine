@@ -278,10 +278,10 @@ function escapeHtml(value) {
 function buildSandboxedEmailHtml(content) {
   const csp = [
     "default-src 'none'",
-    "img-src data: cid:",
-    "media-src data: cid:",
-    "style-src 'unsafe-inline'",
-    "font-src data:",
+    "img-src data: cid: https:",
+    "media-src data: cid: https:",
+    "style-src 'unsafe-inline' https:",
+    "font-src data: https:",
     "connect-src 'none'",
     "frame-src 'none'",
     "child-src 'none'",
@@ -369,7 +369,7 @@ function scrubSrcset(value) {
     .map((entry) => entry.trim())
     .filter((entry) => {
       const [candidate] = entry.split(/\s+/, 1)
-      return candidate && !isRemoteUrl(candidate) && !isDangerousUrl(candidate)
+      return candidate && !isDangerousUrl(candidate)
     })
     .join(", ")
 }
@@ -386,7 +386,10 @@ function sanitizeProtectedHtml(content) {
 
   doc.querySelectorAll("link").forEach((element) => {
     const href = element.getAttribute("href") || ""
-    if (isRemoteUrl(href) || isDangerousUrl(href)) {
+    const rel = (element.getAttribute("rel") || "").toLowerCase()
+    const blockedRel = /(?:^|\s)(?:dns-prefetch|import|modulepreload|preconnect|prefetch|preload)(?:\s|$)/.test(rel)
+
+    if (isDangerousUrl(href) || blockedRel) {
       removeUnsafeElement(element)
     }
   })
@@ -406,11 +409,6 @@ function sanitizeProtectedHtml(content) {
         return
       }
 
-      if (["src", "poster"].includes(name) && isRemoteUrl(value)) {
-        element.removeAttribute(attribute.name)
-        return
-      }
-
       if (name === "srcset") {
         const scrubbed = scrubSrcset(value)
         if (scrubbed) {
@@ -423,8 +421,9 @@ function sanitizeProtectedHtml(content) {
 
       if (name === "style") {
         const scrubbedStyle = value
-          .replace(/url\(\s*(['"]?)(https?:|\/\/)[^)]+\1\s*\)/gi, "none")
-          .replace(/url\(\s*(['"]?)javascript:[^)]+\1\s*\)/gi, "none")
+          .replace(/url\(\s*(['"]?)\s*javascript\s*:[^;>]*\1\s*\)/gi, "none")
+          .replace(/url\(\s*(['"]?)\s*vbscript\s*:[^;>]*\1\s*\)/gi, "none")
+          .replace(/url\(\s*(['"]?)\s*data\s*:\s*text\/html[^;>]*\1\s*\)/gi, "none")
           .replace(/expression\s*\([^)]*\)/gi, "")
 
         if (scrubbedStyle.trim() === "") {

@@ -63,6 +63,16 @@
           <% end %>
 
           <p><strong>Category:</strong> {String.capitalize(@message.category || "inbox")}</p>
+
+          <p>
+            <strong>Status:</strong>
+            <span class={["badge badge-sm", message_status_badge_class(@message.status)]}>
+              {message_status_label(@message.status)}
+            </span>
+            <span class="ml-1 text-xs opacity-60">
+              {message_status_description(@message.status)}
+            </span>
+          </p>
         </div>
       </div>
     </div>

@@ -398,7 +398,7 @@
 
     <div class="flex flex-col sm:flex-row items-start gap-4 lg:gap-6">
       <!-- Left Sidebar - Post composer and search (Hidden on mobile) -->
-      <div class="timeline-sidebar-sticky hidden sm:block w-64 xl:w-72 flex-shrink-0 self-start z-20 pr-1">
+      <.sticky_sidebar class="hidden sm:block w-64 xl:w-72 flex-shrink-0 z-20 pr-1">
         <div class="timeline-sidebar-scroll">
           <div id="timeline-left-sidebar" class="card panel-card rounded-lg">
             <div class="card-body p-4 space-y-4">
@@ -485,7 +485,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </.sticky_sidebar>
 
       <div class="flex-1 min-w-0 max-w-full">
         <!-- Main Timeline -->
@@ -1442,7 +1442,7 @@
       </div>
       <!-- Right Sidebar - Suggestions (Hidden on mobile and for unauthenticated users) -->
       <%= if @current_user do %>
-        <div class="timeline-sidebar-sticky hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col self-start pr-1">
+        <.sticky_sidebar class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col pr-1">
           <div class="timeline-sidebar-scroll">
             <div id="timeline-right-sidebar" class="space-y-6">
               <!-- Follow Remote User/Community Section -->
@@ -1509,7 +1509,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </.sticky_sidebar>
       <% end %>
     </div>
     <!-- Report Modal -->

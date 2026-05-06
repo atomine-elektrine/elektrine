@@ -45,7 +45,9 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
 
     total_pages = ceil(total_count / per_page)
     page_range = pagination_range(page, total_pages)
-    {received_messages, sent_messages} = Enum.split_with(messages, &(&1.status == "received"))
+    received_messages = Enum.filter(messages, &(&1.status == "received"))
+    sent_messages = Enum.filter(messages, &(&1.status == "sent"))
+    draft_messages = Enum.filter(messages, &(&1.status == "draft"))
 
     # Domain stats query scans outbound recipient fields across the message table.
     # Keep it opt-in so the default messages page stays responsive.
@@ -60,6 +62,7 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
       messages: messages,
       received_messages: received_messages,
       sent_messages: sent_messages,
+      draft_messages: draft_messages,
       search_query: search_query,
       status_filter: status_filter,
       show_domain_stats: show_domain_stats,
@@ -454,11 +457,13 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
   end
 
   defp parse_status_filter("sent"), do: "sent"
+  defp parse_status_filter("draft"), do: "draft"
   defp parse_status_filter("received"), do: "received"
   defp parse_status_filter(_), do: "received"
 
   defp maybe_filter_status(query, "received"), do: where(query, [m, ...], m.status == "received")
   defp maybe_filter_status(query, "sent"), do: where(query, [m, ...], m.status == "sent")
+  defp maybe_filter_status(query, "draft"), do: where(query, [m, ...], m.status == "draft")
   defp maybe_filter_status(query, _), do: query
 
   defp truthy_param?(value) when value in [true, 1, "1", "true", "on", "yes"], do: true

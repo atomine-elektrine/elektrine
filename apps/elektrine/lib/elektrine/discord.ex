@@ -11,17 +11,26 @@ defmodule Elektrine.Discord do
   Gets Discord presence data for a user ID.
   Returns nil if user is not found or offline.
   """
-  def get_user_presence(discord_id) when is_binary(discord_id) do
-    request = Finch.build(:get, "#{@lanyard_base_url}#{discord_id}")
+  def get_user_presence(discord_id, opts \\ [])
 
-    case Finch.request(request, Elektrine.Finch, receive_timeout: 5000) do
+  def get_user_presence(discord_id, opts) when is_binary(discord_id) do
+    request = Finch.build(:get, "#{@lanyard_base_url}#{discord_id}")
+    request_fun = Keyword.get(opts, :request_fun, &request/2)
+    receive_timeout = Keyword.get(opts, :receive_timeout, 5000)
+
+    case request_fun.(request, receive_timeout: receive_timeout) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         case Jason.decode(body) do
-          {:ok, %{"success" => true, "data" => data}} ->
+          {:ok, %{"success" => true, "data" => data}} when is_map(data) ->
             parse_discord_data(data)
 
-          {:ok, %{"success" => false, "error" => error}} ->
-            Logger.warning("Lanyard API error for #{discord_id}: #{error}")
+          {:ok, %{"success" => false} = response} ->
+            error = Map.get(response, "error") || response
+            Logger.warning("Lanyard API error for #{discord_id}: #{inspect(error)}")
+            nil
+
+          {:ok, decoded} ->
+            Logger.warning("Unexpected Lanyard response for #{discord_id}: #{inspect(decoded)}")
             nil
 
           {:error, decode_error} ->
@@ -45,7 +54,9 @@ defmodule Elektrine.Discord do
     end
   end
 
-  def get_user_presence(_), do: nil
+  def get_user_presence(_, _), do: nil
+
+  defp request(request, opts), do: Finch.request(request, Elektrine.Finch, opts)
 
   # Parse Lanyard API response into useful data
   defp parse_discord_data(data) do
@@ -58,15 +69,17 @@ defmodule Elektrine.Discord do
         discord_user["username"] ||
         "Unknown"
 
+    activities = list_value(data["activities"])
+
     %{
       username: display_name,
       discriminator: discord_user["discriminator"],
       avatar: get_avatar_url(discord_user),
       # "online", "idle", "dnd", "offline"
       status: data["discord_status"],
-      activities: parse_activities(data["activities"] || []),
+      activities: parse_activities(activities),
       spotify: parse_spotify(data["spotify"]),
-      custom_status: get_custom_status(data["activities"] || [])
+      custom_status: get_custom_status(activities)
     }
   end
 
@@ -83,10 +96,15 @@ defmodule Elektrine.Discord do
   defp get_avatar_url(_), do: "https://cdn.discordapp.com/embed/avatars/0.png"
 
   defp get_default_avatar(user_id) when is_binary(user_id) do
-    # Discord's default avatar logic
-    id_int = String.to_integer(user_id)
-    discriminator = rem(id_int, 5)
-    "https://cdn.discordapp.com/embed/avatars/#{discriminator}.png"
+    case Integer.parse(user_id) do
+      {id_int, ""} ->
+        # Discord's default avatar logic
+        discriminator = rem(id_int, 5)
+        "https://cdn.discordapp.com/embed/avatars/#{discriminator}.png"
+
+      _ ->
+        get_default_avatar(nil)
+    end
   end
 
   defp get_default_avatar(_), do: "https://cdn.discordapp.com/embed/avatars/0.png"
@@ -109,16 +127,24 @@ defmodule Elektrine.Discord do
 
   # Parse Spotify data if listening
   defp parse_spotify(nil), do: nil
+  defp parse_spotify(spotify) when not is_map(spotify), do: nil
 
   defp parse_spotify(spotify) do
     %{
       song: spotify["song"],
       artist: spotify["artist"],
       album: spotify["album"],
-      album_art: List.first(spotify["album_art_url"] || []),
+      album_art: album_art_url(spotify["album_art_url"]),
       track_id: spotify["track_id"]
     }
   end
+
+  defp album_art_url(url) when is_binary(url), do: url
+  defp album_art_url([url | _]) when is_binary(url), do: url
+  defp album_art_url(_), do: nil
+
+  defp list_value(value) when is_list(value), do: value
+  defp list_value(_), do: []
 
   # Get custom status message
   defp get_custom_status(activities) do

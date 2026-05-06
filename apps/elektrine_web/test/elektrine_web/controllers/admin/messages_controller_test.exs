@@ -5,6 +5,7 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
 
   alias Elektrine.{Accounts, AuditLog, Repo}
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Email.Message
   alias Elektrine.EmailFixtures
   alias ElektrineWeb.AdminSecurity
 
@@ -30,6 +31,54 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
       assert log.target_user_id == owner.id
       assert log.details["view_format"] == "html"
       assert log.details["route_context"] == "admin_messages"
+    end
+
+    test "shows draft state on admin message view", %{conn: conn} do
+      %{admin: admin, message: message} =
+        admin_message_fixture(%{
+          status: "draft",
+          to: nil,
+          subject: "Draft localization request"
+        })
+
+      request_path = "/pripyat/messages/#{message.id}/view"
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+
+      html =
+        conn
+        |> get(request_path, %{
+          "_admin_action_grant" => grant_read_access(conn, admin, request_path)
+        })
+        |> html_response(200)
+
+      assert html =~ "Message Details"
+      assert html =~ "Draft"
+      assert html =~ "Drafts are saved compose records and may not have recipients yet."
+    end
+
+    test "lists draft messages on the draft tab", %{conn: conn} do
+      %{admin: admin, message: message} =
+        admin_message_fixture(%{
+          status: "draft",
+          to: nil,
+          subject: "Draft admin list regression"
+        })
+
+      html =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> get("/pripyat/messages", %{"status" => "draft"})
+        |> html_response(200)
+
+      assert html =~ "Draft Messages"
+      assert html =~ "Draft admin list regression"
+      assert html =~ "(No recipient yet)"
+      assert html =~ "/pripyat/messages/#{message.id}/view"
     end
 
     test "logs user-scoped message view", %{conn: conn} do
@@ -137,13 +186,42 @@ defmodule ElektrineEmailWeb.Admin.MessagesControllerTest do
     end
   end
 
-  defp admin_message_fixture do
+  defp admin_message_fixture(attrs \\ %{}) do
     admin = AccountsFixtures.user_fixture() |> make_admin()
     owner = AccountsFixtures.user_fixture()
     mailbox = EmailFixtures.mailbox_fixture(%{user_id: owner.id})
-    message = EmailFixtures.message_fixture(%{mailbox_id: mailbox.id, to: mailbox.email})
+    message_attrs = Map.merge(%{mailbox_id: mailbox.id, to: mailbox.email}, attrs)
+
+    message =
+      if message_attrs[:status] == "draft" do
+        draft_message_fixture(message_attrs)
+      else
+        EmailFixtures.message_fixture(message_attrs)
+      end
 
     %{admin: admin, owner: owner, mailbox: mailbox, message: message}
+  end
+
+  defp draft_message_fixture(attrs) do
+    defaults = %{
+      from: "sender@example.com",
+      subject: "Draft Subject #{System.unique_integer([:positive])}",
+      text_body: "Draft body content",
+      html_body: "<p>Draft body content</p>",
+      message_id: "draft-#{System.unique_integer([:positive])}@example.com",
+      status: "draft",
+      read: false,
+      spam: false,
+      archived: false,
+      deleted: false
+    }
+
+    {:ok, message} =
+      %Message{}
+      |> Message.changeset(Map.merge(defaults, attrs))
+      |> Repo.insert()
+
+    message
   end
 
   defp latest_view_email_log(admin_id, message_id) do

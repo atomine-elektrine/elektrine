@@ -146,11 +146,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
               </div>
               <div class="relative px-4 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2 flex-1">
-                  <%= if is_voted do %>
-                    <.icon name="hero-check-circle" class="w-4 h-4 text-primary flex-shrink-0" />
-                  <% else %>
-                    <.icon name="hero-stop" class="w-4 h-4 opacity-40 flex-shrink-0" />
-                  <% end %>
+                  <.poll_option_marker is_voted={is_voted} />
                   <span class="font-medium">{option.option_text}</span>
                 </div>
                 <%= if @show_results do %>
@@ -326,11 +322,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
               </div>
               <div class="relative px-4 py-3 flex items-center justify-between">
                 <div class="flex items-center gap-2 flex-1">
-                  <%= if is_voted do %>
-                    <.icon name="hero-check-circle" class="w-4 h-4 text-primary flex-shrink-0" />
-                  <% else %>
-                    <.icon name="hero-stop" class="w-4 h-4 opacity-40 flex-shrink-0" />
-                  <% end %>
+                  <.poll_option_marker is_voted={is_voted} />
                   <span class="font-medium">{option_text}</span>
                 </div>
                 <div class="flex items-center gap-2 text-sm">
@@ -408,11 +400,7 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
       </div>
       <div class="relative px-4 py-3 flex items-center justify-between">
         <div class="flex items-center gap-2 flex-1">
-          <%= if @is_voted do %>
-            <.icon name="hero-check-circle" class="w-4 h-4 text-primary flex-shrink-0" />
-          <% else %>
-            <.icon name="hero-stop" class="w-4 h-4 opacity-40 flex-shrink-0" />
-          <% end %>
+          <.poll_option_marker is_voted={@is_voted} />
           <span class="font-medium">{@option_text}</span>
         </div>
         <div class="flex items-center gap-2 text-sm">
@@ -423,6 +411,22 @@ defmodule ElektrineSocialWeb.Components.Social.PollDisplay do
         </div>
       </div>
     </div>
+    """
+  end
+
+  attr(:is_voted, :boolean, required: true)
+
+  defp poll_option_marker(assigns) do
+    ~H"""
+    <%= if @is_voted do %>
+      <.icon name="hero-check-circle" class="w-4 h-4 text-primary flex-shrink-0" />
+    <% else %>
+      <span
+        aria-hidden="true"
+        class="w-4 h-4 rounded border-2 border-current opacity-40 flex-shrink-0"
+      >
+      </span>
+    <% end %>
     """
   end
 

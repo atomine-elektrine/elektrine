@@ -1457,7 +1457,7 @@
                           <div class="text-sm text-error">Invalid GitHub username</div>
                         <% end %>
                       <% "discord_status" -> %>
-                        <%= if String.match?(widget.content, ~r/^[0-9]{1,20}$/) do %>
+                        <%= if String.match?(widget.content, ~r/^[0-9]{17,20}$/) do %>
                           <% widget_discord_data =
                             Elektrine.Discord.get_user_presence(widget.content) %>
                           <%= if widget_discord_data do %>
@@ -1516,7 +1516,9 @@
                               </div>
                             </div>
                           <% else %>
-                            <div class="text-sm text-error">Could not fetch Discord status</div>
+                            <div class="text-sm text-warning">
+                              Discord status unavailable. Join the Lanyard Discord server and enable Discord presence for this ID.
+                            </div>
                           <% end %>
                         <% else %>
                           <div class="text-sm text-error">Invalid Discord ID</div>

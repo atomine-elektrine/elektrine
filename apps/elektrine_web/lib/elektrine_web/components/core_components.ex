@@ -132,6 +132,22 @@ defmodule ElektrineWeb.CoreComponents do
   defdelegate local_time(assigns), to: LocalTime
 
   @doc """
+  Renders a sidebar that sticks using the app-wide sidebar offset.
+  """
+  attr :class, :any, default: nil
+  attr :scroll, :boolean, default: false
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def sticky_sidebar(assigns) do
+    ~H"""
+    <div class={["app-sticky-sidebar", @scroll && "app-sticky-sidebar-scroll", @class]} {@rest}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
   Renders a consistent shell for account/settings detail pages.
   """
   attr :title, :string, required: true
@@ -199,7 +215,7 @@ defmodule ElektrineWeb.CoreComponents do
     assigns = assign(assigns, :tabs, account_setting_tabs())
 
     ~H"""
-    <div class="sticky top-24 self-start">
+    <.sticky_sidebar>
       <div class="card panel-card">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">{gettext("Settings")}</h3>
@@ -246,7 +262,7 @@ defmodule ElektrineWeb.CoreComponents do
           </div>
         </div>
       </div>
-    </div>
+    </.sticky_sidebar>
     """
   end
 
@@ -258,7 +274,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   def profile_settings_sidebar(assigns) do
     ~H"""
-    <div class="sticky top-24 self-start">
+    <.sticky_sidebar>
       <div class="card panel-card">
         <div class="card-body p-4">
           <div class="mb-3 flex items-center justify-between gap-3">
@@ -334,7 +350,7 @@ defmodule ElektrineWeb.CoreComponents do
           </ul>
         </div>
       </div>
-    </div>
+    </.sticky_sidebar>
     """
   end
 
@@ -342,7 +358,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   def developer_settings_sidebar(assigns) do
     ~H"""
-    <div class="sticky top-24 self-start">
+    <.sticky_sidebar>
       <div class="card panel-card">
         <div class="card-body p-4">
           <h3 class="font-semibold text-sm mb-4">{gettext("Developer")}</h3>
@@ -377,7 +393,7 @@ defmodule ElektrineWeb.CoreComponents do
           </ul>
         </div>
       </div>
-    </div>
+    </.sticky_sidebar>
     """
   end
 
