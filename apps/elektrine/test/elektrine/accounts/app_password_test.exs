@@ -5,6 +5,7 @@ defmodule Elektrine.Accounts.AppPasswordTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.AppPassword
+  alias Elektrine.Email
   alias Elektrine.Repo
 
   describe "app password authentication" do
@@ -35,6 +36,51 @@ defmodule Elektrine.Accounts.AppPasswordTest do
 
       assert {:ok, authenticated_user} =
                Accounts.authenticate_with_app_password(user.username, typed_token)
+
+      assert authenticated_user.id == user.id
+    end
+
+    test "authenticates generated app passwords with mailbox email identifier" do
+      user = user_fixture()
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+      assert {:ok, app_password} = Accounts.create_app_password(user.id, %{name: "Mail app"})
+
+      assert {:ok, authenticated_user} =
+               Accounts.authenticate_with_app_password(mailbox.email, app_password.token)
+
+      assert authenticated_user.id == user.id
+    end
+
+    test "accepts v2 hashes created from displayed tokens with separators" do
+      user = user_fixture()
+      token = "abcd-efgh-ijkl-mnop-qrst-uvwx-yz23-4567"
+
+      {:ok, _app_password} =
+        %AppPassword{}
+        |> AppPassword.changeset(%{
+          name: "Displayed token hash",
+          user_id: user.id,
+          token_hash: AppPassword.hash_token(token)
+        })
+        |> Repo.insert()
+
+      assert {:ok, authenticated_user} =
+               Accounts.authenticate_with_app_password(user.username, token)
+
+      assert authenticated_user.id == user.id
+    end
+
+    test "ignores copy-paste separators around current generated tokens" do
+      user = user_fixture()
+      assert {:ok, app_password} = Accounts.create_app_password(user.id, %{name: "Mail app"})
+
+      pasted_token =
+        app_password.token
+        |> String.replace("-", "\u2011")
+        |> then(&(" " <> &1 <> "\n"))
+
+      assert {:ok, authenticated_user} =
+               Accounts.authenticate_with_app_password(user.username, pasted_token)
 
       assert authenticated_user.id == user.id
     end

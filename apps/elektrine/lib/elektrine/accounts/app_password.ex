@@ -97,13 +97,18 @@ defmodule Elektrine.Accounts.AppPassword do
     clean_token = normalize_current_token(token)
     legacy_token = normalize_legacy_token(token)
 
-    [hash_token(clean_token), legacy_hash_token(legacy_token), legacy_hash_token(clean_token)]
+    [
+      hash_token(clean_token),
+      hash_token(legacy_token),
+      legacy_hash_token(legacy_token),
+      legacy_hash_token(clean_token)
+    ]
     |> Enum.uniq()
   end
 
   defp normalize_current_token(token) when is_binary(token) do
     token
-    |> String.replace(~r/[\s-]/, "")
+    |> String.replace(~r/[^a-z2-7]/i, "")
     |> String.downcase()
   end
 
