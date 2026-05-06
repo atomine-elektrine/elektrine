@@ -440,13 +440,11 @@ defmodule Elektrine.Accounts.Authentication do
   end
 
   def authenticate_with_app_password_info(username, token) do
-    clean_token = String.replace(token, ~r/[\s-]/, "")
-
     case get_user_by_username_or_email(username) do
       {:ok, user} ->
         case ensure_user_active(user) do
           :ok ->
-            case verify_app_password(user.id, clean_token) do
+            case verify_app_password(user.id, token) do
               {:ok, app_password} -> {:ok, user, app_password}
               {:error, _} -> {:error, {:invalid_token, user}}
             end

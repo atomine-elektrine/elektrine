@@ -4,7 +4,8 @@
     assigns[:show_domain_stats] || false %> <% page_results_count =
     assigns[:page_results_count] || length(@messages) %> <% received_messages =
     assigns[:received_messages] || Enum.filter(@messages, &(&1.status == "received")) %> <% sent_messages =
-    assigns[:sent_messages] || Enum.filter(@messages, &(&1.status == "sent")) %> <% base_params =
+    assigns[:sent_messages] || Enum.filter(@messages, &(&1.status == "sent")) %> <% draft_messages =
+    assigns[:draft_messages] || Enum.filter(@messages, &(&1.status == "draft")) %> <% base_params =
     %{"status" => status_filter}
     |> then(fn params ->
       if search_active, do: Map.put(params, "search", @search_query), else: params
@@ -14,13 +15,18 @@
     end) %> <% base_params_without_search = Map.delete(base_params, "search") %> <% base_params_without_domain_stats =
     Map.delete(base_params, "show_domains") %> <% received_tab_params =
     base_params |> Map.put("status", "received") |> Map.put("page", 1) %> <% sent_tab_params =
-    base_params |> Map.put("status", "sent") |> Map.put("page", 1) %>
+    base_params |> Map.put("status", "sent") |> Map.put("page", 1) %> <% draft_tab_params =
+    base_params |> Map.put("status", "draft") |> Map.put("page", 1) %>
   <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl font-bold sm:text-3xl">Message Console</h1>
 
       <p class="mt-1 text-sm opacity-70 sm:text-base">
-        Admin view for {if status_filter == "sent", do: "outbound", else: "inbound"} email activity.
+        Admin view for {case status_filter do
+          "sent" -> "outbound"
+          "draft" -> "draft"
+          _ -> "inbound"
+        end} email activity.
       </p>
     </div>
 
@@ -49,10 +55,20 @@
       >
         <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> Sent
       </.link>
+      <.link
+        href={~p"/pripyat/messages?#{draft_tab_params}"}
+        class={
+          if status_filter == "draft",
+            do: "join-item btn btn-primary",
+            else: "join-item btn btn-ghost"
+        }
+      >
+        <.icon name="hero-pencil-square" class="h-4 w-4" /> Drafts
+      </.link>
     </div>
   </div>
 
-  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
     <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
       <div class="text-xs uppercase tracking-wide opacity-60">On This Page</div>
 
@@ -72,6 +88,14 @@
 
       <div class="mt-1 text-xl font-semibold text-success sm:text-2xl">
         {length(sent_messages)}
+      </div>
+    </div>
+
+    <div class="rounded-xl border border-base-300 bg-base-200/60 p-3 sm:p-4">
+      <div class="text-xs uppercase tracking-wide opacity-60">Drafts</div>
+
+      <div class="mt-1 text-xl font-semibold text-warning sm:text-2xl">
+        {length(draft_messages)}
       </div>
     </div>
 
@@ -493,6 +517,201 @@
 
                   <p class="mt-1 truncate text-xs opacity-70" title={message.to}>
                     To: {message.to || "(Unknown)"}
+                  </p>
+                </div>
+
+                <div class="flex flex-shrink-0 gap-1">
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/view"}
+                    class="btn btn-xs btn-ghost"
+                    title="View message"
+                    data-admin-action-sign="true"
+                    data-admin-action-method="GET"
+                  >
+                    <.icon name="hero-eye" class="h-3 w-3" />
+                  </.link>
+                  <.link
+                    href={~p"/pripyat/messages/#{message.id}/raw"}
+                    class="btn btn-xs btn-ghost"
+                    target="_blank"
+                    title="View raw email"
+                    data-admin-action-sign="true"
+                    data-admin-action-method="GET"
+                  >
+                    <.icon name="hero-code-bracket" class="h-3 w-3" />
+                  </.link>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span class="opacity-60">From:</span>
+                  <div class="truncate font-medium" title={message.from}>
+                    {message.from || "(Unknown)"}
+                  </div>
+                </div>
+
+                <div>
+                  <span class="opacity-60">User:</span>
+                  <div class="font-medium">
+                    {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-1.5 flex min-w-0 items-center justify-between gap-2 text-xs">
+                <span
+                  class="min-w-0 truncate opacity-50"
+                  title={message.mailbox && message.mailbox.email}
+                >
+                  ← {message.mailbox && message.mailbox.email}
+                </span>
+                <span class="opacity-70">
+                  <.local_time
+                    datetime={message.inserted_at}
+                    format="datetime"
+                    timezone={@timezone}
+                    time_format={@time_format}
+                  />
+                </span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <%= if length(draft_messages) > 0 do %>
+    <div class="card panel-card">
+      <div class="card-body p-4 sm:p-5">
+        <h3 class="card-title mb-3 text-base sm:text-lg">
+          <.icon name="hero-pencil-square" class="mr-2 h-5 w-5" />
+          Draft Messages ({length(draft_messages)})
+        </h3>
+
+        <div class="hidden lg:block">
+          <table class="table table-zebra table-sm w-full table-fixed">
+            <thead class="text-xs">
+              <tr>
+                <th class="w-[34%]">Subject & Recipient</th>
+
+                <th class="w-[24%]">From</th>
+
+                <th class="w-[12%]">User</th>
+
+                <th class="w-[20%]">Drafted</th>
+
+                <th class="w-[10%]">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              <%= for message <- draft_messages do %>
+                <tr class="hover align-top text-sm">
+                  <td class="py-2">
+                    <div
+                      class="max-w-full truncate font-medium leading-tight"
+                      title={decode_email_subject(message.subject)}
+                    >
+                      {decode_email_subject(message.subject)}
+                    </div>
+
+                    <div class="max-w-full truncate text-xs opacity-70" title={message.to}>
+                      To: {message.to || "(No recipient yet)"}
+                    </div>
+
+                    <div class="mt-1 flex items-center gap-1 text-[11px] opacity-70">
+                      <span>ID: {message.id}</span>
+                      <span class={["badge badge-xs", message_status_badge_class(message.status)]}>
+                        {message_status_label(message.status)}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td class="py-2">
+                    <div class="max-w-full truncate text-sm font-medium" title={message.from}>
+                      {message.from || "(Unknown)"}
+                    </div>
+
+                    <div
+                      class="truncate text-[11px] opacity-50"
+                      title={message.mailbox && message.mailbox.email}
+                    >
+                      ← {message.mailbox && message.mailbox.email}
+                    </div>
+                  </td>
+
+                  <td class="py-2">
+                    <div
+                      class="max-w-[10rem] truncate font-medium"
+                      title={
+                        message.mailbox && message.mailbox.user && message.mailbox.user.username
+                      }
+                    >
+                      {message.mailbox && message.mailbox.user && message.mailbox.user.username}
+                    </div>
+                  </td>
+
+                  <td class="py-2 text-xs opacity-70 whitespace-nowrap">
+                    <.local_time
+                      datetime={message.inserted_at}
+                      format="datetime"
+                      timezone={@timezone}
+                      time_format={@time_format}
+                    />
+                  </td>
+
+                  <td class="py-2">
+                    <div class="flex justify-end gap-1">
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/view"}
+                        class="btn btn-xs btn-ghost"
+                        title="View message"
+                        data-admin-action-sign="true"
+                        data-admin-action-method="GET"
+                      >
+                        <.icon name="hero-eye" class="h-4 w-4" />
+                      </.link>
+                      <.link
+                        href={~p"/pripyat/messages/#{message.id}/raw"}
+                        class="btn btn-xs btn-ghost"
+                        target="_blank"
+                        title="View raw email"
+                        data-admin-action-sign="true"
+                        data-admin-action-method="GET"
+                      >
+                        <.icon name="hero-code-bracket" class="h-4 w-4" />
+                      </.link>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="space-y-2 lg:hidden">
+          <%= for message <- draft_messages do %>
+            <div class="rounded-lg border border-base-300 bg-base-200 p-3">
+              <div class="mb-1.5 flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="mb-1 flex items-center gap-1">
+                    <span class={["badge badge-xs", message_status_badge_class(message.status)]}>
+                      {message_status_label(message.status)}
+                    </span>
+                    <span class="text-[11px] opacity-50">ID: {message.id}</span>
+                  </div>
+
+                  <h4
+                    class="truncate text-sm font-medium"
+                    title={decode_email_subject(message.subject)}
+                  >
+                    {decode_email_subject(message.subject)}
+                  </h4>
+
+                  <p class="mt-1 truncate text-xs opacity-70" title={message.to}>
+                    To: {message.to || "(No recipient yet)"}
                   </p>
                 </div>
 

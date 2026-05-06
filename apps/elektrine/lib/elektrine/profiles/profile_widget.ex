@@ -38,8 +38,23 @@ defmodule Elektrine.Profiles.ProfileWidget do
     |> validate_inclusion(:widget_type, @widget_types)
     |> validate_length(:title, max: 200)
     |> validate_length(:content, max: 5000)
+    |> validate_discord_status_content()
     |> foreign_key_constraint(:profile_id)
   end
 
   def widget_types, do: @widget_types
+
+  defp validate_discord_status_content(changeset) do
+    case {get_field(changeset, :widget_type), get_field(changeset, :content)} do
+      {"discord_status", content} when is_binary(content) ->
+        if String.match?(content, ~r/^[0-9]{17,20}$/) do
+          changeset
+        else
+          add_error(changeset, :content, "must be a valid Discord user ID")
+        end
+
+      _ ->
+        changeset
+    end
+  end
 end

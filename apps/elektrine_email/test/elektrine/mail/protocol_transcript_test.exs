@@ -410,6 +410,42 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(socket)
   end
 
+  test "IMAP and SMTP accept generated app passwords with displayed separators" do
+    {user, _password, mailbox} = create_user_with_messages(0)
+    {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "Thunderbird"})
+    typed_token = String.upcase(app_password.token)
+
+    clear_auth_limits(:imap, mailbox.email)
+    {:ok, imap_socket} = connect_tcp(imap_port())
+    assert String.starts_with?(recv_line!(imap_socket), "* OK")
+
+    assert Enum.any?(
+             imap_command(imap_socket, "ATLS", "STARTTLS"),
+             &String.starts_with?(&1, "ATLS OK")
+           )
+
+    {:ok, imap_socket} = upgrade_socket_to_tls(imap_socket)
+
+    login_lines = imap_command(imap_socket, "A1", "LOGIN #{mailbox.email} #{typed_token}")
+    assert Enum.any?(login_lines, &String.starts_with?(&1, "A1 OK"))
+    assert Enum.any?(imap_command(imap_socket, "A2", "LOGOUT"), &String.starts_with?(&1, "A2 OK"))
+    :ok = close_socket(imap_socket)
+
+    clear_auth_limits(:smtp, mailbox.email)
+    {:ok, smtp_socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(smtp_socket), "220 ")
+    assert String.starts_with?(smtp_command(smtp_socket, "STARTTLS"), "220 ")
+    {:ok, smtp_socket} = upgrade_socket_to_tls(smtp_socket)
+
+    ehlo_lines = smtp_multiline_command(smtp_socket, "EHLO localhost")
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+
+    plain_cred = Base.encode64("\0#{mailbox.email}\0#{typed_token}")
+    assert String.starts_with?(smtp_command(smtp_socket, "AUTH plain #{plain_cred}"), "235 ")
+    assert String.starts_with?(smtp_command(smtp_socket, "QUIT"), "221 ")
+    :ok = close_socket(smtp_socket)
+  end
+
   test "SMTPS supports implicit TLS submission on the dedicated TLS port" do
     {user, password, _mailbox} = create_user_with_messages(0)
     clear_auth_limits(:smtp, user.username)

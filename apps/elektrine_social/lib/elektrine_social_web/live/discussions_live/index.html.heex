@@ -135,7 +135,7 @@
   </div>
 
   <div class="flex flex-col lg:flex-row gap-4 lg:gap-6">
-    <div class="hidden sm:block w-64 xl:w-72 flex-shrink-0 sticky top-36 self-start max-h-[calc(100vh-11rem)] z-20">
+    <.sticky_sidebar scroll class="hidden sm:block w-64 xl:w-72 flex-shrink-0 z-20">
       <div class="card panel-card rounded-lg">
         <div class="card-body p-4 space-y-4">
           <%= if @current_user do %>
@@ -275,7 +275,7 @@
           <% end %>
         </div>
       </div>
-    </div>
+    </.sticky_sidebar>
 
     <div class={[
       "flex-1 min-w-0 max-w-full",
@@ -1615,7 +1615,10 @@
     </div>
     
 <!-- Right Sidebar - Cross-Context Integration & Suggestions (Hidden on mobile) -->
-    <div class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col sticky top-36 self-start max-h-[calc(100vh-11rem)] overflow-y-auto">
+    <.sticky_sidebar
+      scroll
+      class="hidden lg:flex w-16 sm:w-20 lg:w-64 xl:w-72 flex-shrink-0 flex-col"
+    >
       <div class="space-y-6">
         <!-- Quick Post Creator or Login Prompt -->
         <%= if @current_user do %>
@@ -1747,7 +1750,7 @@
           </div>
         <% end %>
       </div>
-    </div>
+    </.sticky_sidebar>
   </div>
 
   <%= if @show_create_community do %>

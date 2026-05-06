@@ -1,10 +1,10 @@
 defmodule Elektrine.Email.Sanitizer do
-  @moduledoc "Unified email sanitization module for all email paths (incoming, outgoing, forwarding).\n\nThis is the ONLY module you should use for email sanitization. It provides:\n- HTML content scrubbing (removes scripts, dangerous tags, event handlers)\n- Header sanitization (prevents SMTP injection)\n- UTF-8 validation and fixing\n- Comprehensive protection across all email paths\n\n## Usage\n\n    # Incoming emails\n    sanitized = Sanitizer.sanitize_incoming_email(email_params)\n\n    # Outgoing emails\n    sanitized = Sanitizer.sanitize_outgoing_email(email_params)\n\n    # Just HTML content\n    safe_html = Sanitizer.sanitize_html_content(html_string)\n\n## Do NOT use ElektrineEmailWeb.EmailScrubber directly\n\nEmailScrubber is an internal implementation detail. Always use this module instead.\n"
+  @moduledoc "Unified email sanitization module for all email paths (incoming, outgoing, forwarding).\n\nThis is the ONLY module you should use for email sanitization. It provides:\n- Permissive HTML filtering for email markup, styles, and layout attributes\n- Removal of active/dangerous content such as scripts, event handlers, and unsafe URL protocols\n- Header sanitization (prevents SMTP injection)\n- UTF-8 validation and fixing\n- Comprehensive protection across all email paths\n\n## Usage\n\n    # Incoming emails\n    sanitized = Sanitizer.sanitize_incoming_email(email_params)\n\n    # Outgoing emails\n    sanitized = Sanitizer.sanitize_outgoing_email(email_params)\n\n    # Just HTML content\n    safe_html = Sanitizer.sanitize_html_content(html_string)\n"
   alias Elektrine.Email.HeaderSanitizer
-  alias HtmlSanitizeEx.Scrubber
 
   @literal_html_fragment_pattern ~r/<\/?(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b/i
   @encoded_html_fragment_pattern ~r/&lt;\s*(?:!doctype\b|\/?\s*(?:html|head|body|table|thead|tbody|tfoot|tr|th|td|div|p|span|br|a|img|style|section|article|h[1-6])\b)/i
+  @dangerous_url_attribute_pattern ~r/\s((?:href|src|srcset|poster|background|cite|longdesc|xlink:href|action|formaction)\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i
 
   @doc "Sanitizes an incoming email before storage.\n\nApplies:\n- Header sanitization (from, to, cc, bcc, subject)\n- HTML content scrubbing\n- UTF-8 validation\n\nSpecial handling for PGP encrypted/signed emails:\n- Preserves PGP blocks intact (BEGIN/END markers and content)\n- Skips aggressive HTML sanitization for PGP content\n"
   def sanitize_incoming_email(email_params) do
@@ -222,19 +222,12 @@ defmodule Elektrine.Email.Sanitizer do
     end
   end
 
-  @doc "Sanitizes HTML content using comprehensive scrubbing.\n\nThis is the core HTML sanitization function that:\n1. Ensures valid UTF-8\n2. Removes dangerous tags (script, iframe, form, etc.)\n3. Removes event handlers (onclick, onload, etc.)\n4. Removes dangerous protocols (javascript:, vbscript:, etc.)\n5. Uses EmailScrubber for comprehensive allowlist-based scrubbing\n"
+  @doc "Sanitizes HTML content using permissive email-safe filtering.\n\nThis is the core HTML sanitization function that:\n1. Ensures valid UTF-8\n2. Preserves email layout markup, attributes, inline styles, and CSS\n3. Removes active/dangerous tags (script, iframe, form controls, etc.)\n4. Removes event handlers (onclick, onload, etc.)\n5. Removes dangerous URL protocols (javascript:, vbscript:, data:text/html)\n"
   def sanitize_html_content(html_content) when is_binary(html_content) do
     html_content
     |> ensure_valid_utf8()
     |> maybe_decode_entity_encoded_html()
-    |> remove_processing_instructions()
-    |> remove_doctype_declarations()
-    |> remove_xml_namespace_attributes()
-    |> remove_outlook_conditional_comments()
-    |> remove_dangerous_tags()
-    |> remove_event_handlers()
-    |> remove_dangerous_protocols()
-    |> scrub_with_email_scrubber()
+    |> sanitize_email_markup()
   end
 
   def sanitize_html_content(nil) do
@@ -319,6 +312,7 @@ defmodule Elektrine.Email.Sanitizer do
     |> String.replace(~r/<script[^>]*>.*?<\/script>/is, "")
     |> String.replace(~r/<script[^>]*>/i, "")
     |> String.replace(~r/<\/script>/i, "")
+    |> String.replace(~r/<base[^>]*>/i, "")
     |> String.replace(~r/<meta[^>]*http-equiv[^>]*>/i, "")
     |> String.replace(
       ~r/<link[^>]*rel=["']?(?:prefetch|preconnect|dns-prefetch|modulepreload|preload|import)[^>]*>/i,
@@ -395,39 +389,87 @@ defmodule Elektrine.Email.Sanitizer do
   end
 
   defp remove_dangerous_protocols(content) do
+    Regex.replace(@dangerous_url_attribute_pattern, content, fn full,
+                                                                prefix,
+                                                                double_quoted,
+                                                                single_quoted,
+                                                                unquoted ->
+      value = first_present([double_quoted, single_quoted, unquoted])
+      attribute = prefix |> String.split("=", parts: 2) |> List.first() |> String.trim()
+
+      if dangerous_url_attribute?(attribute, value) do
+        ""
+      else
+        full
+      end
+    end)
+  end
+
+  defp remove_dangerous_css(content) do
     content
-    |> String.replace(~r/javascript\s*:/i, "")
-    |> String.replace(~r/vbscript\s*:/i, "")
-    |> String.replace(~r/data\s*:\s*text\/html/i, "")
+    |> String.replace(~r/url\(\s*(['"]?)\s*javascript\s*:[^;>]*\1\s*\)/i, "none")
+    |> String.replace(~r/url\(\s*(['"]?)\s*vbscript\s*:[^;>]*\1\s*\)/i, "none")
+    |> String.replace(~r/url\(\s*(['"]?)\s*data\s*:\s*text\/html[^;>]*\1\s*\)/i, "none")
+    |> String.replace(~r/expression\s*\([^)]*\)/i, "")
+    |> String.replace(~r/(?:behavior|-moz-binding)\s*:\s*url\s*\([^)]*\)\s*;?/i, "")
   end
 
-  defp scrub_with_email_scrubber(content) do
-    Scrubber.scrub(content, ElektrineEmailWeb.EmailScrubber)
-  rescue
-    _error -> graceful_fallback(content)
-  end
-
-  defp graceful_fallback(content) when is_binary(content) do
-    case HtmlSanitizeEx.basic_html(content) do
-      "" -> strip_dangerous_tags(content)
-      result -> result
-    end
-  rescue
-    _ -> strip_dangerous_tags(content)
-  end
-
-  defp strip_dangerous_tags(content) when is_binary(content) do
+  defp sanitize_email_markup(content) when is_binary(content) do
     content
     |> remove_processing_instructions()
-    |> String.replace(~r/<script\b[^>]*>.*?<\/script>/is, "")
-    |> String.replace(~r/<style\b[^>]*>.*?<\/style>/is, "")
-    |> String.replace(~r/\bon\w+\s*=\s*["'][^"']*["']/i, "")
-    |> String.replace(~r/\bon\w+\s*=\s*[^\s>]+/i, "")
-    |> String.replace(~r/javascript\s*:/i, "")
-    |> String.replace(~r/vbscript\s*:/i, "")
+    |> remove_doctype_declarations()
+    |> remove_xml_namespace_attributes()
+    |> remove_outlook_conditional_comments()
+    |> remove_dangerous_tags()
+    |> remove_dangerous_attributes()
+    |> remove_event_handlers()
+    |> remove_dangerous_protocols()
+    |> remove_dangerous_css()
   end
 
-  defp strip_dangerous_tags(_content), do: ""
+  defp remove_dangerous_attributes(content) do
+    String.replace(
+      content,
+      ~r/\s(?:action|formaction|method|enctype|srcdoc)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i,
+      ""
+    )
+  end
+
+  defp dangerous_url_attribute?(attribute, value) do
+    attribute = String.downcase(attribute || "")
+
+    if attribute == "srcset" do
+      value
+      |> String.split(",")
+      |> Enum.any?(fn entry ->
+        entry
+        |> String.trim()
+        |> String.split(~r/\s+/, parts: 2)
+        |> List.first()
+        |> dangerous_url?()
+      end)
+    else
+      dangerous_url?(value)
+    end
+  end
+
+  defp dangerous_url?(value) when is_binary(value) do
+    normalized =
+      value
+      |> HtmlEntities.decode()
+      |> String.replace(~r/[\x00-\x1F\x7F\s]+/u, "")
+      |> String.downcase()
+
+    String.starts_with?(normalized, "javascript:") or
+      String.starts_with?(normalized, "vbscript:") or
+      String.starts_with?(normalized, "data:text/html")
+  end
+
+  defp dangerous_url?(_value), do: false
+
+  defp first_present(values) do
+    Enum.find(values, "", &(&1 not in [nil, ""]))
+  end
 
   @doc "Sanitizes UTF-8 content (for text bodies and other text fields).\nGUARANTEES valid UTF-8 output suitable for JSON encoding and PostgreSQL.\nRemoves null bytes which PostgreSQL does not allow in text fields.\n"
   def sanitize_utf8(content) when is_binary(content) do

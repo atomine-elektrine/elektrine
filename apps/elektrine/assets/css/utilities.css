@@ -11,6 +11,33 @@
 }
 
 /* --------------------------------------------------------------------------
+   STICKY SIDEBARS
+   -------------------------------------------------------------------------- */
+
+:root {
+  --app-sticky-sidebar-gap: 1.5rem;
+}
+
+.app-sticky-sidebar {
+  position: sticky !important;
+  top: var(--app-sticky-sidebar-gap, 1.5rem);
+  align-self: flex-start;
+  contain: none;
+  transform: none;
+}
+
+.app-sticky-sidebar .panel-card {
+  contain: none;
+  transform: none;
+}
+
+.app-sticky-sidebar-scroll {
+  max-height: calc(100vh - var(--app-sticky-sidebar-gap, 1.5rem));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* --------------------------------------------------------------------------
    SOCIAL PAGES
    -------------------------------------------------------------------------- */
 

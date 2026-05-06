@@ -38,7 +38,7 @@ defmodule Elektrine.Accounts.AppPassword do
     # Generate a secure random token
     token = generate_token()
     # Hash the token WITHOUT dashes for storage
-    clean_token = String.replace(token, "-", "")
+    clean_token = normalize_current_token(token)
     token_hash = hash_token(clean_token)
 
     changeset =
@@ -94,7 +94,21 @@ defmodule Elektrine.Accounts.AppPassword do
   until users rotate them.
   "
   def candidate_hashes(token) do
-    [hash_token(token), legacy_hash_token(token)]
+    clean_token = normalize_current_token(token)
+    legacy_token = normalize_legacy_token(token)
+
+    [hash_token(clean_token), legacy_hash_token(legacy_token), legacy_hash_token(clean_token)]
+    |> Enum.uniq()
+  end
+
+  defp normalize_current_token(token) when is_binary(token) do
+    token
+    |> String.replace(~r/[\s-]/, "")
+    |> String.downcase()
+  end
+
+  defp normalize_legacy_token(token) when is_binary(token) do
+    String.trim(token)
   end
 
   defp legacy_hash_token(token) do
