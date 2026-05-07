@@ -200,4 +200,22 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
 
     assert PostUtilities.get_display_counts(post, %{}, %{}) == {0, 12}
   end
+
+  test "get_display_counts/3 falls back to cached federated like metadata" do
+    post = %{
+      id: 126,
+      activitypub_id: "https://remote.example/users/alice/statuses/126",
+      post_type: "post",
+      like_count: 0,
+      reply_count: 0,
+      score: 0,
+      media_metadata: %{
+        "original_like_count" => 14,
+        "remote_engagement" => %{"likes" => 11},
+        "likes" => %{"totalItems" => 9}
+      }
+    }
+
+    assert PostUtilities.get_display_counts(post, %{}, %{}) == {14, 0}
+  end
 end

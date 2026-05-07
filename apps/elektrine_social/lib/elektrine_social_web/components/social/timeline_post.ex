@@ -2393,16 +2393,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     lemmy_counts = Map.get(assigns.lemmy_counts, post.activitypub_id)
     is_vote_post = PostUtilities.lemmy_vote_post?(post)
+    cached_primary_count = PostUtilities.display_primary_count(post, lemmy_counts)
 
     base_count =
       cond do
-        like_only_mode && is_integer(post.like_count) ->
+        like_only_mode && is_integer(post.like_count) && post.like_count != 0 ->
           post.like_count
 
-        like_only_mode && is_integer(post.score) ->
+        like_only_mode && is_integer(post.score) && post.score != 0 ->
           post.score
 
-        like_only_mode && is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) ->
+        like_only_mode && is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
+            Map.get(lemmy_counts, :score) != 0 ->
           Map.get(lemmy_counts, :score)
 
         like_only_mode && ((post.upvotes || 0) != 0 or (post.downvotes || 0) != 0) ->
@@ -2433,17 +2435,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
-        !is_vote_post && is_integer(post.like_count) ->
+        !is_vote_post && is_integer(post.like_count) && post.like_count != 0 ->
           post.like_count
 
-        !is_vote_post && is_integer(post.score) ->
+        !is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
-        is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) ->
+        is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
+            Map.get(lemmy_counts, :score) != 0 ->
           Map.get(lemmy_counts, :score)
 
         true ->
-          nil
+          cached_primary_count
       end
 
     score_delta =

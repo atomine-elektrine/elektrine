@@ -16,6 +16,7 @@ defmodule ElektrineEmail.HarakaInboundWorker do
       states: [:available, :scheduled, :executing, :retryable, :completed]
     ]
 
+  alias Elektrine.Email.PayloadSanitizer
   alias Elektrine.Telemetry.Events
   alias ElektrineEmailWeb.HarakaWebhookController
 
@@ -31,6 +32,7 @@ defmodule ElektrineEmail.HarakaInboundWorker do
   Enqueue a Haraka inbound payload for asynchronous processing.
   """
   def enqueue(payload, opts \\ []) when is_map(payload) do
+    payload = PayloadSanitizer.strip_postgres_null_bytes(payload)
     idempotency_key = idempotency_key(payload)
 
     args = %{
@@ -53,7 +55,7 @@ defmodule ElektrineEmail.HarakaInboundWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{} = job) do
     start_time = System.monotonic_time(:millisecond)
-    payload = job.args["payload"] || %{}
+    payload = PayloadSanitizer.strip_postgres_null_bytes(job.args["payload"] || %{})
 
     ingest_context = %{
       "ingest_mode" => "async",

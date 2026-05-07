@@ -109,7 +109,7 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
           {:error, :backoff, remaining_ms} ->
             # Domain is in backoff due to failures
             snooze_seconds = max(1, div(normalize_remaining_ms(remaining_ms), 1000))
-            Logger.info("Domain #{domain} in backoff, snoozing delivery for #{snooze_seconds}s")
+            Logger.debug("Domain #{domain} in backoff, snoozing delivery for #{snooze_seconds}s")
 
             Events.federation(
               :delivery_worker,

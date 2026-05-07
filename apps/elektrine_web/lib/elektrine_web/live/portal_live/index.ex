@@ -1,7 +1,7 @@
 defmodule ElektrineWeb.PortalLive.Index do
   use ElektrineWeb, :live_view
   require Logger
-  alias Elektrine.ActivityPub.LemmyCache
+  alias Elektrine.ActivityPub.{LemmyCache, RefreshCountsWorker}
   alias Elektrine.Friends
   alias Elektrine.Messaging
   alias Elektrine.Messaging.Reactions
@@ -28,6 +28,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   @session_interest_dwell_ms 10_000
   @portal_feed_limit 20
   @portal_feed_step 20
+  @portal_count_refresh_limit 20
   @activity_sections ~w(posts timeline gallery discussions likes followers following)
   @impl true
   def mount(_params, session, socket) do
@@ -2633,6 +2634,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     socket
     |> assign(:filtered_all_posts, base_posts)
     |> sync_portal_posts_stream()
+    |> maybe_schedule_portal_count_refresh()
   end
 
   defp sync_portal_posts_stream(socket) do
@@ -2643,6 +2645,58 @@ defmodule ElektrineWeb.PortalLive.Index do
 
     socket
     |> assign(:loading_more, false)
+  end
+
+  defp maybe_schedule_portal_count_refresh(socket) do
+    visible_posts =
+      socket.assigns[:filtered_all_posts]
+      |> List.wrap()
+      |> filtered_posts(socket.assigns[:filter], socket.assigns)
+      |> Enum.take(socket.assigns[:visible_post_limit] || @portal_feed_limit)
+
+    message_ids = visible_remote_count_refresh_ids(visible_posts)
+
+    if connected?(socket) && message_ids != [] && !test_env?() do
+      Enum.each(message_ids, fn message_id ->
+        _ = RefreshCountsWorker.schedule_single_refresh(message_id)
+      end)
+    end
+
+    socket
+  end
+
+  @doc false
+  def visible_remote_count_refresh_ids(posts, limit \\ @portal_count_refresh_limit)
+
+  def visible_remote_count_refresh_ids(posts, limit)
+      when is_list(posts) and is_integer(limit) and limit > 0 do
+    posts
+    |> Enum.filter(&remote_count_refresh_candidate?/1)
+    |> Enum.map(&Map.get(&1, :id))
+    |> Enum.uniq()
+    |> Enum.take(limit)
+  end
+
+  def visible_remote_count_refresh_ids(_posts, _limit), do: []
+
+  defp remote_count_refresh_candidate?(post) when is_map(post) do
+    is_integer(Map.get(post, :id)) &&
+      Map.get(post, :federated) == true &&
+      is_integer(Map.get(post, :remote_actor_id)) &&
+      has_activitypub_count_reference?(post)
+  end
+
+  defp remote_count_refresh_candidate?(_post), do: false
+
+  defp has_activitypub_count_reference?(post) do
+    post
+    |> Map.take([:activitypub_id, :activitypub_url])
+    |> Map.values()
+    |> Enum.any?(&(is_binary(&1) && String.trim(&1) != ""))
+  end
+
+  defp test_env? do
+    Elektrine.RuntimeEnv.environment() == :test
   end
 
   defp load_feed_data(socket, limit) do

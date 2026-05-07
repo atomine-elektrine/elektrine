@@ -176,6 +176,20 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert Enum.map(merged, & &1.id) == [1, 2, 3]
   end
 
+  test "remote count refresh candidates are visible remote ActivityPub posts only" do
+    posts = [
+      %{id: 1, federated: true, remote_actor_id: 10, activitypub_id: "https://remote.test/1"},
+      %{id: 1, federated: true, remote_actor_id: 10, activitypub_id: "https://remote.test/1"},
+      %{id: 2, federated: false, remote_actor_id: 10, activitypub_id: "https://remote.test/2"},
+      %{id: 3, federated: true, remote_actor_id: nil, activitypub_id: "https://remote.test/3"},
+      %{id: 4, federated: true, remote_actor_id: 10, activitypub_id: ""},
+      %{id: 5, federated: true, remote_actor_id: 11, activitypub_url: "https://remote.test/5"}
+    ]
+
+    assert Index.visible_remote_count_refresh_ids(posts, 10) == [1, 5]
+    assert Index.visible_remote_count_refresh_ids(posts, 1) == [1]
+  end
+
   test "portal renders a taller loading shell before feed hydration", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 

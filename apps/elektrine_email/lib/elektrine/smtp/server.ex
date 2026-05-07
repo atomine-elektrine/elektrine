@@ -466,15 +466,17 @@ defmodule Elektrine.SMTP.Server do
   end
 
   defp decode_auth_plain(credentials) do
-    decoded = Base.decode64!(credentials)
+    case decode_base64_without_padding(credentials) do
+      {:ok, decoded} ->
+        case String.split(decoded, "\0") do
+          ["", username, password] -> {:ok, username, password}
+          [_authzid, username, password] -> {:ok, username, password}
+          _ -> {:error, :invalid_format}
+        end
 
-    case String.split(decoded, "\0") do
-      ["", username, password] -> {:ok, username, password}
-      [_authzid, username, password] -> {:ok, username, password}
-      _ -> {:error, :invalid_format}
+      :error ->
+        {:error, :decode_failed}
     end
-  rescue
-    _ -> {:error, :decode_failed}
   end
 
   defp decode_base64_line(data) do
@@ -483,10 +485,35 @@ defmodule Elektrine.SMTP.Server do
     if line == "*" do
       {:ok, "*"}
     else
-      case Base.decode64(line) do
+      case decode_base64_without_padding(line) do
         {:ok, decoded} -> {:ok, decoded}
         :error -> :error
       end
+    end
+  end
+
+  defp decode_base64_without_padding(line) when is_binary(line) do
+    case Base.decode64(line) do
+      {:ok, decoded} ->
+        {:ok, decoded}
+
+      :error ->
+        padded = maybe_pad_base64(line)
+
+        if padded == line do
+          :error
+        else
+          Base.decode64(padded)
+        end
+    end
+  end
+
+  defp maybe_pad_base64(line) when is_binary(line) do
+    case rem(byte_size(line), 4) do
+      0 -> line
+      2 -> line <> "=="
+      3 -> line <> "="
+      _ -> line
     end
   end
 

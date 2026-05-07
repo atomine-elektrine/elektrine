@@ -446,6 +446,43 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
     :ok = close_socket(smtp_socket)
   end
 
+  test "SMTP accepts Thunderbird-style LOGIN and unpadded PLAIN app password auth" do
+    {user, _password, mailbox} = create_user_with_messages(0)
+    {:ok, app_password} = Elektrine.Accounts.create_app_password(user.id, %{name: "Thunderbird"})
+    typed_token = String.upcase(app_password.token)
+
+    clear_auth_limits(:smtp, mailbox.email)
+    {:ok, plain_socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(plain_socket), "220 ")
+    assert String.starts_with?(smtp_command(plain_socket, "STARTTLS"), "220 ")
+    {:ok, plain_socket} = upgrade_socket_to_tls(plain_socket)
+
+    ehlo_lines = smtp_multiline_command(plain_socket, "EHLO localhost")
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+
+    plain_cred = Base.encode64("\0#{mailbox.email}\0#{typed_token}", padding: false)
+    assert String.starts_with?(smtp_command(plain_socket, "AUTH PLAIN #{plain_cred}"), "235 ")
+    assert String.starts_with?(smtp_command(plain_socket, "QUIT"), "221 ")
+    :ok = close_socket(plain_socket)
+
+    clear_auth_limits(:smtp, mailbox.email)
+    {:ok, login_socket} = connect_tcp(smtp_port())
+    assert String.starts_with?(recv_line!(login_socket), "220 ")
+    assert String.starts_with?(smtp_command(login_socket, "STARTTLS"), "220 ")
+    {:ok, login_socket} = upgrade_socket_to_tls(login_socket)
+
+    ehlo_lines = smtp_multiline_command(login_socket, "EHLO localhost")
+    assert Enum.any?(ehlo_lines, &String.starts_with?(&1, "250-AUTH "))
+
+    assert String.starts_with?(smtp_command(login_socket, "AUTH LOGIN"), "334 ")
+    username_cred = Base.encode64(mailbox.email, padding: false)
+    assert String.starts_with?(smtp_command(login_socket, username_cred), "334 ")
+    password_cred = Base.encode64(typed_token, padding: false)
+    assert String.starts_with?(smtp_command(login_socket, password_cred), "235 ")
+    assert String.starts_with?(smtp_command(login_socket, "QUIT"), "221 ")
+    :ok = close_socket(login_socket)
+  end
+
   test "SMTPS supports implicit TLS submission on the dedicated TLS port" do
     {user, password, _mailbox} = create_user_with_messages(0)
     clear_auth_limits(:smtp, user.username)

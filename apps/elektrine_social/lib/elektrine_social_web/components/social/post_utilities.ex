@@ -558,6 +558,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
   """
   @spec display_primary_count(map(), map() | nil) :: integer()
   def display_primary_count(post, post_counts \\ nil) do
+    cached_like_count = cached_like_count(post)
+
     cond do
       lemmy_vote_post?(post) && vote_counts_available?(post_counts) ->
         net_vote_count(post_counts)
@@ -570,6 +572,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
 
       is_integer(Map.get(post, :like_count)) && post.like_count > 0 ->
         post.like_count
+
+      cached_like_count > 0 ->
+        cached_like_count
 
       is_integer(Map.get(post, :score)) && post.score != 0 ->
         post.score
@@ -584,6 +589,39 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
         0
     end
   end
+
+  defp cached_like_count(post) when is_map(post) do
+    metadata =
+      case Map.get(post, :media_metadata) || Map.get(post, "media_metadata") do
+        %{} = metadata -> metadata
+        _ -> %{}
+      end
+
+    [
+      parse_non_negative_count(Map.get(post, :like_count) || Map.get(post, "like_count")),
+      parse_non_negative_count(metadata["original_like_count"]),
+      parse_non_negative_count(metadata["like_count"]),
+      parse_non_negative_count(metadata["likes_count"]),
+      parse_non_negative_count(metadata["favourites_count"]),
+      parse_non_negative_count(metadata["favorites_count"]),
+      parse_non_negative_count(metadata["favourite_count"]),
+      parse_non_negative_count(metadata["favorite_count"]),
+      parse_non_negative_count(metadata["reaction_count"]),
+      parse_non_negative_count(metadata["reactionCount"]),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "likes"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "favourites"])),
+      parse_non_negative_count(get_in(metadata, ["remote_engagement", "favorites"])),
+      parse_non_negative_count(get_in(metadata, ["misskey", "reactionCount"])),
+      parse_non_negative_count(get_in(metadata, ["misskey", "reaction_count"])),
+      parse_non_negative_count(get_in(metadata, ["pleroma", "favourites_count"])),
+      extract_count_from_collection(metadata["likes"]),
+      extract_count_from_collection(metadata["favourites"]),
+      extract_count_from_collection(metadata["favorites"])
+    ]
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp cached_like_count(_), do: 0
 
   defp vote_counts_available?(counts) when is_map(counts) do
     non_zero_integer?(Map.get(counts, :upvotes)) || non_zero_integer?(Map.get(counts, :downvotes))
