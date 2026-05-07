@@ -398,7 +398,7 @@ defmodule Elektrine.ActivityPub.Helpers do
       nil ->
         case Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id) do
           {:ok, post_object} ->
-            actor_uri = post_object["actor"] || post_object["attributedTo"]
+            actor_uri = Elektrine.ActivityPub.Normalizer.actor_uri(post_object)
             store_or_resolve_remote_post(post_object, actor_uri)
 
           {:error, reason} ->
@@ -430,7 +430,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   end
 
   defp extracted_object_actor_uri(%{} = post_object) do
-    post_object["attributedTo"] || post_object["actor"]
+    Elektrine.ActivityPub.Normalizer.actor_uri(post_object)
   end
 
   defp extracted_object_actor_uri(_), do: nil

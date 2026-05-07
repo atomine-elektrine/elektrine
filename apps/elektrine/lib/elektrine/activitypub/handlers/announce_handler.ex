@@ -6,6 +6,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   require Logger
 
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.Normalizer
   alias Elektrine.Async
   alias Elektrine.Messaging
 
@@ -151,14 +152,17 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
   defp unwrap_object(object, depth) do
     case object["type"] do
       type when type in ["Note", "Page", "Article"] ->
-        {:ok, {object, object["attributedTo"]}}
+        {:ok, {object, Normalizer.actor_uri(object)}}
 
       "Create" ->
         inner_object = object["object"]
 
         if is_map(inner_object) do
           inherited_object = inherit_wrapper_fields(object, inner_object)
-          {:ok, {inherited_object, inherited_object["attributedTo"] || object["actor"]}}
+
+          {:ok,
+           {inherited_object,
+            Normalizer.actor_uri(inherited_object) || Normalizer.actor_ref_uri(object["actor"])}}
         else
           case Elektrine.ActivityPub.RemoteFetch.fetch_object(inner_object) do
             {:ok, fetched} ->
@@ -166,7 +170,9 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
               with {:ok, {resolved, actor_uri}} <- unwrap_object(inherited_object, depth + 1) do
                 {:ok,
-                 {resolved, actor_uri || inherited_object["attributedTo"] || object["actor"]}}
+                 {resolved,
+                  actor_uri || Normalizer.actor_uri(inherited_object) ||
+                    Normalizer.actor_ref_uri(object["actor"])}}
               end
 
             {:error, reason} ->

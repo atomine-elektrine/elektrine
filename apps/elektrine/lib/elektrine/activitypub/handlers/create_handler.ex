@@ -19,55 +19,67 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   @doc """
   Handles an incoming Create activity.
   """
-  def handle(%{"object" => object} = activity, actor_uri, _target_user) when is_map(object) do
+  def handle(%{"object" => object} = activity, actor_ref, _target_user) when is_map(object) do
+    actor_uri = Normalizer.actor_ref_uri(actor_ref)
     object = inherit_wrapper_fields(activity, object)
     activity_id = activity["id"] || object["id"]
     opts = ingestion_opts(activity)
 
-    case validate_object_author(object, actor_uri) do
-      :ok ->
-        case object["type"] do
-          "Note" -> create_note(object, actor_uri, opts)
-          "Page" -> create_note(object, actor_uri, opts)
-          "Article" -> create_note(object, actor_uri, opts)
-          "Question" -> create_question(object, actor_uri, opts)
-          # Akkoma/Pleroma explicitly sends Answer type for poll votes.
-          "Answer" -> handle_incoming_poll_vote(object, actor_uri, activity_id: activity_id)
-          _ -> {:ok, :unhandled}
-        end
+    if is_binary(actor_uri) do
+      case validate_object_author(object, actor_uri) do
+        :ok ->
+          case object["type"] do
+            "Note" -> create_note(object, actor_uri, opts)
+            "Page" -> create_note(object, actor_uri, opts)
+            "Article" -> create_note(object, actor_uri, opts)
+            "Question" -> create_question(object, actor_uri, opts)
+            # Akkoma/Pleroma explicitly sends Answer type for poll votes.
+            "Answer" -> handle_incoming_poll_vote(object, actor_uri, activity_id: activity_id)
+            _ -> {:ok, :unhandled}
+          end
 
-      {:error, :actor_mismatch} ->
-        Logger.warning(
-          "Rejecting Create #{inspect(activity_id)}: object attributedTo does not match verified actor #{actor_uri}"
-        )
+        {:error, :actor_mismatch} ->
+          Logger.warning(
+            "Rejecting Create #{inspect(activity_id)}: object attributedTo does not match verified actor #{actor_uri}"
+          )
 
-        {:ok, :unauthorized}
+          {:ok, :unauthorized}
+      end
+    else
+      Logger.warning("Rejecting Create #{inspect(activity_id)}: missing or invalid actor URI")
+      {:error, :invalid_actor_uri}
     end
   end
 
-  def handle(%{"object" => object_uri} = activity, actor_uri, target_user)
+  def handle(%{"object" => object_uri} = activity, actor_ref, target_user)
       when is_binary(object_uri) do
+    actor_uri = Normalizer.actor_ref_uri(actor_ref)
     activity_id = activity["id"] || object_uri
 
-    case ActivityPub.RemoteFetch.fetch_object(object_uri) do
-      {:ok, object} when is_map(object) ->
-        activity
-        |> Map.put("object", Map.put_new(object, "attributedTo", actor_uri))
-        |> handle(actor_uri, target_user)
+    if is_binary(actor_uri) do
+      case ActivityPub.RemoteFetch.fetch_object(object_uri) do
+        {:ok, object} when is_map(object) ->
+          activity
+          |> Map.put("object", Map.put_new(object, "attributedTo", actor_uri))
+          |> handle(actor_uri, target_user)
 
-      {:ok, _object} ->
-        Logger.warning(
-          "Rejecting Create #{inspect(activity_id)}: referenced object #{inspect(object_uri)} was not an object map"
-        )
+        {:ok, _object} ->
+          Logger.warning(
+            "Rejecting Create #{inspect(activity_id)}: referenced object #{inspect(object_uri)} was not an object map"
+          )
 
-        {:error, :fetch_failed}
+          {:error, :fetch_failed}
 
-      {:error, reason} ->
-        Logger.warning(
-          "Rejecting Create #{inspect(activity_id)}: failed to fetch referenced object #{inspect(object_uri)} (#{inspect(reason)})"
-        )
+        {:error, reason} ->
+          Logger.warning(
+            "Rejecting Create #{inspect(activity_id)}: failed to fetch referenced object #{inspect(object_uri)} (#{inspect(reason)})"
+          )
 
-        {:error, :create_object_fetch_failed}
+          {:error, :create_object_fetch_failed}
+      end
+    else
+      Logger.warning("Rejecting Create #{inspect(activity_id)}: missing or invalid actor URI")
+      {:error, :invalid_actor_uri}
     end
   end
 
@@ -84,7 +96,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   Supported opts:
   - `:fallback_community_uri` - fallback Group/community URI when object fields are incomplete
   """
-  def create_note(object, actor_uri, opts) when is_list(opts) do
+  def create_note(object, actor_ref, opts) when is_list(opts) do
+    actor_uri = Normalizer.actor_ref_uri(actor_ref)
+
     with :ok <- validate_object_author(object, actor_uri) do
       if Normalizer.poll_vote?(object) do
         handle_incoming_poll_vote(object, actor_uri, opts)
@@ -106,7 +120,9 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
   @doc """
   Creates a Question (poll) from an ActivityPub object.
   """
-  def create_question(object, actor_uri, opts \\ []) do
+  def create_question(object, actor_ref, opts \\ []) do
+    actor_uri = Normalizer.actor_ref_uri(actor_ref)
+
     if deleted_object_recorded?(object, actor_uri) do
       {:ok, :ignored_deleted_object}
     else

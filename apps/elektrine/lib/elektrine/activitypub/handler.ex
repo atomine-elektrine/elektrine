@@ -16,7 +16,7 @@ defmodule Elektrine.ActivityPub.Handler do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{MRF, ObjectValidator, UndoResolver}
+  alias Elektrine.ActivityPub.{MRF, Normalizer, ObjectValidator, UndoResolver}
 
   alias Elektrine.ActivityPub.Handlers.{
     AnnounceHandler,
@@ -35,7 +35,13 @@ defmodule Elektrine.ActivityPub.Handler do
   Used when we need to interact with remote posts (like, boost, reply).
   """
   def store_remote_post(post_object, actor_uri) do
-    CreateHandler.handle(%{"object" => post_object}, actor_uri, nil)
+    actor_uri = Normalizer.actor_ref_uri(actor_uri) || Normalizer.actor_uri(post_object)
+
+    if is_binary(actor_uri) do
+      CreateHandler.handle(%{"object" => post_object}, actor_uri, nil)
+    else
+      {:error, :invalid_actor_uri}
+    end
   end
 
   def refresh_remote_post(post_object, actor_uri) do

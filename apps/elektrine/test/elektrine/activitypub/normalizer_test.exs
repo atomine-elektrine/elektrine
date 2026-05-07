@@ -132,6 +132,37 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
     end
   end
 
+  describe "actor reference normalization" do
+    test "extracts actor URIs from PeerTube attributedTo lists" do
+      account_uri = "https://tilvids.com/accounts/thelinuxexperiment"
+      channel_uri = "https://tilvids.com/video-channels/thelinuxexperiment_channel"
+
+      object = %{
+        "attributedTo" => [
+          %{"id" => account_uri, "type" => "Person"},
+          %{"id" => channel_uri, "type" => "Group"}
+        ]
+      }
+
+      assert Normalizer.actor_uri(object) == account_uri
+      assert Normalizer.actor_ref_uri(object["attributedTo"]) == account_uri
+    end
+
+    test "validates signed actors contained in attributedTo lists" do
+      account_uri = "https://tilvids.com/accounts/thelinuxexperiment"
+      channel_uri = "https://tilvids.com/video-channels/thelinuxexperiment_channel"
+
+      object = %{
+        "attributedTo" => [
+          %{"id" => account_uri, "type" => "Person"},
+          %{"id" => channel_uri, "type" => "Group"}
+        ]
+      }
+
+      assert :ok = Normalizer.validate_object_author(object, channel_uri)
+    end
+  end
+
   describe "platform fixture normalization" do
     test "normalizes Misskey reactions and quote metadata" do
       actor_uri = "https://misskey.example/users/alice"

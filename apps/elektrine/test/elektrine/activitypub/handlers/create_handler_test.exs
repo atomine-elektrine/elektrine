@@ -15,6 +15,28 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
   alias Elektrine.Social.Poll
   alias Elektrine.SocialFixtures
 
+  describe "handle/3 actor reference normalization" do
+    test "stores posts whose actor and attributedTo are AP actor reference lists" do
+      author = remote_actor_fixture("peertubeaccount")
+      channel_uri = "https://tilvids.com/video-channels/thelinuxexperiment_channel"
+
+      actor_refs = [
+        %{"id" => author.uri, "type" => "Person"},
+        %{"id" => channel_uri, "type" => "Group"}
+      ]
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://tilvids.com/videos/watch/#{System.unique_integer([:positive])}",
+          "type" => "Note",
+          "attributedTo" => actor_refs
+        })
+
+      assert {:ok, message} = CreateHandler.handle(%{"object" => object}, actor_refs, nil)
+      assert message.remote_actor_id == author.id
+    end
+  end
+
   describe "create_note/2 community detection" do
     test "stores community_actor_uri from audience field" do
       author = remote_actor_fixture("alice")
