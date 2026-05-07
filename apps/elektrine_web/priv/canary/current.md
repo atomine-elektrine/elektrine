@@ -1,7 +1,7 @@
 # Elektrine Transparency Canary
 
-Published: 2026-04-28  
-Valid until: 2026-05-08
+Published: 2026-05-07  
+Valid until: 2026-05-17
 
 This signed statement is a periodic transparency signal about secret legal process, compelled disclosure, and compelled compromise affecting Elektrine.
 
@@ -26,9 +26,9 @@ For this statement, a gag order means any enforceable legal restraint that preve
 
 These public references show this statement was created after the listed events:
 
-- Bitcoin block 947006 hash: `000000000000000000000e9616fa4db726a14477baeced79d5ce060602e4714d`
-- NIST Randomness Beacon pulse 1763928, 2026-04-28T08:32:00.000Z: `59BA795B4617F0DB21840DC04F4F8DE5BDDC53DC6347E1339C23BDF51BFAC37EBD3DFA00A5373F254789B80A3EE747CAF33639198AC0708D1F8CB30C69DF4504`
-- Reuters headline, 2026-04-28: "Trump not happy with latest Iran proposal to end the war, US official says"
+- Bitcoin block 948278 hash: `000000000000000000021f548297200c8a957d5cff593801346515d418109801`
+- NIST Randomness Beacon pulse 1776794, 2026-05-07T06:58:00.000Z: `06DD1D914E9D37E1160D6AA49140C7BBFC69EA1F9512D35084DF8D42C7FA225DA65FF47A899F11A3F442D37AD2CA6FBFF24BE7255D90F6A1E448F6C3CB86FF4F`
+- Reuters headline, 2026-05-07: "Trump sees swift end to war as Iran reviews US peace proposal"
 
 ## Expiration
 

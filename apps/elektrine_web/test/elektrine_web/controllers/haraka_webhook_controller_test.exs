@@ -681,6 +681,40 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
       assert is_binary(message.metadata["ingest_idempotency_key"])
     end
 
+    test "queues inbound payload containing null bytes", %{conn: conn, mailbox: mailbox} do
+      params = %{
+        "from" => "sender@remote.test",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Null byte\0 payload",
+        "text_body" => "hello\0world",
+        "html_body" => "<p>hello\0world</p>",
+        "attachments" => [%{"filename" => "receipt\0.txt", "content" => "safe"}],
+        "message_id" => "async-null-byte-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      response = json_response(conn, 200)
+      assert response["status"] == "queued"
+
+      import Ecto.Query
+
+      message =
+        Elektrine.Email.Message
+        |> where(mailbox_id: ^mailbox.id)
+        |> where([m], m.message_id == ^params["message_id"])
+        |> Elektrine.Repo.one!()
+
+      refute String.contains?(message.subject, <<0>>)
+      refute String.contains?(message.text_body, <<0>>)
+      refute String.contains?(message.html_body, <<0>>)
+      assert message.text_body == "helloworld"
+    end
+
     test "marks duplicate enqueue outcome for repeated payload", %{conn: conn, mailbox: mailbox} do
       unique_suffix = System.system_time(:millisecond)
 

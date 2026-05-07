@@ -10,6 +10,27 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
   alias Elektrine.Social.Message
 
   describe "get_message_by_activitypub_ref/1" do
+    test "returns the existing federated message for duplicate activitypub_id inserts" do
+      actor = remote_actor_fixture()
+      activitypub_id = "https://remote.example/notes/#{System.unique_integer([:positive])}"
+
+      attrs = %{
+        content: "original",
+        visibility: "public",
+        federated: true,
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        remote_actor_id: actor.id
+      }
+
+      assert {:ok, first} = Messaging.create_federated_message(attrs)
+      assert {:ok, second} = Messaging.create_federated_message(%{attrs | content: "duplicate"})
+
+      assert second.id == first.id
+      assert Repo.aggregate(Message, :count, :id) == 1
+      assert Repo.get!(Message, first.id).content == "original"
+    end
+
     test "matches refs with query and fragment variants" do
       actor = remote_actor_fixture()
       activitypub_id = "https://aus.social/@feather1952/114173031"

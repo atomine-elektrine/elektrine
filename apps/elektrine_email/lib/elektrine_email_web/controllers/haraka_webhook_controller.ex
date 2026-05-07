@@ -6,6 +6,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.InboundRouting
   alias Elektrine.Email.InternalOrigin
+  alias Elektrine.Email.PayloadSanitizer
   alias Elektrine.Email.Sanitizer
   alias Elektrine.Email.Suppressions
   alias Elektrine.InternalAPI
@@ -393,6 +394,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   end
 
   defp process_haraka_email(params, ingest_context) do
+    params = PayloadSanitizer.strip_postgres_null_bytes(params)
+
     message_id =
       params["message_id"] ||
         "haraka-#{:rand.uniform(1_000_000)}-#{System.system_time(:millisecond)}"

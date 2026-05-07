@@ -172,7 +172,7 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorker do
     if attempt <= max_throttle_snoozes(activity) and
          job_age <= max_job_age_seconds(activity, :backoff) do
       snooze_seconds = max(@throttle_snooze_seconds, div(remaining_ms, 1000))
-      Logger.info("Domain #{domain} in backoff, snoozing for #{snooze_seconds}s")
+      Logger.debug("Domain #{domain} in backoff, snoozing for #{snooze_seconds}s")
 
       emit_perform_telemetry(started_at, activity_type, domain, :backoff, %{
         backoff_ms: remaining_ms,

@@ -8,6 +8,8 @@ defmodule ElektrineWeb.Telemetry do
 
   @impl true
   def init(_arg) do
+    ElektrineWeb.PostHogErrorReporter.attach()
+
     poller_period_ms = Application.get_env(:elektrine_web, :telemetry_poller_period_ms, 60_000)
 
     children = [

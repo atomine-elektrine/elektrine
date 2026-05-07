@@ -133,6 +133,35 @@ parse_bool_env = fn env_name, default ->
   end
 end
 
+parse_logger_level_env = fn env_name, default ->
+  case System.get_env(env_name) do
+    nil ->
+      default
+
+    "" ->
+      default
+
+    value when value in ["crash_only", "crashes", "none", "nil"] ->
+      nil
+
+    value ->
+      normalized = value |> String.trim() |> String.downcase()
+
+      case normalized do
+        "debug" -> :debug
+        "info" -> :info
+        "notice" -> :notice
+        "warning" -> :warning
+        "warn" -> :warning
+        "error" -> :error
+        "critical" -> :critical
+        "alert" -> :alert
+        "emergency" -> :emergency
+        _ -> default
+      end
+  end
+end
+
 # Keep Oban concurrency proportional to the DB pool available to the role
 # that actually executes jobs. Web-only nodes run enqueue-only Oban.
 oban_db_pool_size = parse_int_env.("POOL_SIZE", 10)
@@ -719,7 +748,9 @@ if config_env() == :prod do
       :elektrine_social,
       :elektrine_vpn
     ],
-    capture_level: :error,
+    # Plain Logger.error/1 events do not include stacktraces. Capture crashes by
+    # default, and opt back into log-level capture with POSTHOG_CAPTURE_LEVEL.
+    capture_level: parse_logger_level_env.("POSTHOG_CAPTURE_LEVEL", nil),
     metadata: [:request_id, :user_id],
     global_properties: %{environment: :prod},
     enable_source_code_context: posthog_enabled,
