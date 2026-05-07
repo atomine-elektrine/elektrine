@@ -123,7 +123,7 @@ defmodule Elektrine.ActivityPub.Normalizer do
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
 
-    normalized_actor_uri = normalize_uri(actor_uri)
+    normalized_actor_uri = actor_ref_uri(actor_uri)
 
     cond do
       is_nil(normalized_actor_uri) ->
@@ -146,10 +146,24 @@ defmodule Elektrine.ActivityPub.Normalizer do
   Extracts the actor URI from common ActivityPub object fields.
   """
   def actor_uri(object) when is_map(object) do
-    object["attributedTo"] || object["actor"]
+    actor_ref_uri(object["attributedTo"]) || actor_ref_uri(object["actor"])
   end
 
   def actor_uri(_), do: nil
+
+  @doc """
+  Extracts the first URI from an ActivityPub actor reference.
+
+  Actor references may be strings, maps with `id`/`url`/`href`, or lists of
+  those values. PeerTube commonly sends `attributedTo` as a list containing an
+  account Person and a channel Group.
+  """
+  def actor_ref_uri(value) do
+    value
+    |> expand_uri_candidates()
+    |> Enum.map(&normalize_uri/1)
+    |> Enum.find(&is_binary/1)
+  end
 
   @doc """
   Extracts normalized engagement counters from a raw ActivityPub object.
@@ -370,7 +384,7 @@ defmodule Elektrine.ActivityPub.Normalizer do
 
   defp detect_community_actor_uri(object, opts) when is_map(object) and is_list(opts) do
     author_uri =
-      normalize_uri(object["attributedTo"] || Keyword.get(opts, :author_uri))
+      actor_ref_uri(object["attributedTo"]) || actor_ref_uri(Keyword.get(opts, :author_uri))
 
     fallback_uri = normalize_uri(Keyword.get(opts, :fallback_community_uri))
 
@@ -452,7 +466,10 @@ defmodule Elektrine.ActivityPub.Normalizer do
   end
 
   defp expand_uri_candidates(value) when is_binary(value), do: [value]
-  defp expand_uri_candidates(value) when is_list(value), do: value
+
+  defp expand_uri_candidates(values) when is_list(values),
+    do: Enum.flat_map(values, &expand_uri_candidates/1)
+
   defp expand_uri_candidates(%{"id" => id}) when is_binary(id), do: [id]
 
   defp expand_uri_candidates(map) when is_map(map) do
