@@ -998,17 +998,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   defp maybe_schedule_background_refresh_jobs(socket, posts) do
-    message_ids =
-      posts
-      |> Enum.filter(&(&1.federated == true && is_integer(&1.id)))
-      |> Enum.map(& &1.id)
-      |> Enum.uniq()
-      |> Enum.take(20)
-
-    if message_ids != [] && Application.get_env(:elektrine, :environment) != :test do
-      Enum.each(message_ids, fn message_id ->
-        _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
-      end)
+    if Application.get_env(:elektrine, :environment) != :test do
+      Elektrine.ActivityPub.RefreshCountsWorker.schedule_visible_refreshes(posts)
     end
 
     socket

@@ -60,6 +60,23 @@ defmodule ElektrineWeb.AppPasswordsLiveTest do
 
     assert has_element?(
              view,
+             ~s(#copy-new-app-password-token[phx-hook="CopyToClipboard"][data-content])
+           )
+
+    assert has_element?(
+             view,
+             ~s(#copy-email-client-configuration[phx-hook="CopyToClipboard"][data-copy-target="email-client-configuration-copy-text"])
+           )
+
+    html = render(view)
+    assert html =~ ~s(id="email-client-configuration-copy-text")
+    assert html =~ "Username: #{user.username}"
+    assert html =~ "IMAP (Recommended)"
+    assert html =~ "SMTP (Outgoing)"
+    assert html =~ "POP3 (Alternative)"
+
+    assert has_element?(
+             view,
              "input[name='app_password[name]'][value='']"
            )
 

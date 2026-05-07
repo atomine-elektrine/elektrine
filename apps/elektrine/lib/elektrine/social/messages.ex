@@ -1866,6 +1866,7 @@ defmodule Elektrine.Social.Messages do
   """
   def update_message(message, attrs) do
     old_refs = cacheable_activitypub_refs(message)
+    activitypub_id = activitypub_id_from_attrs(attrs)
 
     message
     |> Message.changeset(attrs)
@@ -1876,9 +1877,35 @@ defmodule Elektrine.Social.Messages do
         invalidate_activitypub_ref_cache_for_message(updated_message)
         result
 
+      {:error, %Ecto.Changeset{} = changeset} = error ->
+        if duplicate_activitypub_id_changeset?(changeset) && is_binary(activitypub_id) do
+          case get_message_by_activitypub_id(activitypub_id) do
+            %Message{} = existing -> {:error, {:duplicate_activitypub_id, existing}}
+            nil -> error
+          end
+        else
+          error
+        end
+
       error ->
         error
     end
+  rescue
+    error in Postgrex.Error ->
+      activitypub_id = activitypub_id_from_attrs(attrs)
+
+      if unique_activitypub_violation?(error) && is_binary(activitypub_id) do
+        case get_message_by_activitypub_id(activitypub_id) do
+          %Message{} = existing -> {:error, {:duplicate_activitypub_id, existing}}
+          nil -> reraise error, __STACKTRACE__
+        end
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp duplicate_activitypub_id_changeset?(%Ecto.Changeset{errors: errors}) do
+    Keyword.has_key?(errors, :activitypub_id)
   end
 
   @doc """

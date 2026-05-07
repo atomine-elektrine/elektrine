@@ -5,7 +5,7 @@ defmodule Elektrine.ActivityPub.Mentions do
 
   require Logger
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Fetcher
+  alias Elektrine.ActivityPub.RemoteFetch
   alias Elektrine.Domains
 
   @remote_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9.-])/u
@@ -92,7 +92,7 @@ defmodule Elektrine.ActivityPub.Mentions do
 
     mentions
     |> Enum.map(fn mention ->
-      case Fetcher.webfinger_lookup(mention.handle) do
+      case RemoteFetch.webfinger_lookup(mention.handle) do
         {:ok, actor_uri} ->
           case ActivityPub.get_or_fetch_actor(actor_uri) do
             {:ok, actor} ->

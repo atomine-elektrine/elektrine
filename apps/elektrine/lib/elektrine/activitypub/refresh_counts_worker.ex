@@ -26,7 +26,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   import Ecto.Query
 
-  alias Elektrine.ActivityPub.{CollectionFetcher, Fetcher, Helpers, LemmyApi, MastodonApi}
+  alias Elektrine.ActivityPub.{CollectionFetcher, LemmyApi, MastodonApi, Normalizer, RemoteFetch}
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.Social.Messages
@@ -34,6 +34,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   @batch_size 50
   @recent_threshold_hours 24
   @stale_threshold_hours 6
+  @visible_refresh_limit 20
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"type" => "refresh_recent"}}) do
@@ -97,6 +98,43 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     %{"type" => "refresh_single", "message_id" => message_id}
     |> new(unique: [period: 300, keys: [:message_id]])
     |> Elektrine.JobQueue.insert()
+  end
+
+  @doc """
+  Returns refresh candidate ids from a visible post list.
+
+  Visible feed surfaces should use this before enqueueing refresh jobs so timeline,
+  portal, and communities all share the same ActivityPub eligibility rules.
+  """
+  def visible_refresh_candidate_ids(posts, opts \\ [])
+
+  def visible_refresh_candidate_ids(posts, opts) when is_list(posts) and is_list(opts) do
+    limit = Keyword.get(opts, :limit, @visible_refresh_limit)
+
+    if is_integer(limit) and limit > 0 do
+      posts
+      |> Enum.filter(&visible_refresh_candidate?/1)
+      |> Enum.map(&post_field(&1, :id))
+      |> Enum.uniq()
+      |> Enum.take(limit)
+    else
+      []
+    end
+  end
+
+  def visible_refresh_candidate_ids(_posts, _opts), do: []
+
+  @doc """
+  Enqueues count refreshes for visible federated posts and returns the message ids scheduled.
+  """
+  def schedule_visible_refreshes(posts, opts \\ []) do
+    message_ids = visible_refresh_candidate_ids(posts, opts)
+
+    Enum.each(message_ids, fn message_id ->
+      _ = schedule_single_refresh(message_id)
+    end)
+
+    message_ids
   end
 
   @doc """
@@ -285,6 +323,24 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       message ->
         refresh_post(message)
     end
+  end
+
+  defp visible_refresh_candidate?(post) when is_map(post) do
+    is_integer(post_field(post, :id)) &&
+      post_field(post, :federated) == true &&
+      has_activitypub_count_reference?(post)
+  end
+
+  defp visible_refresh_candidate?(_post), do: false
+
+  defp has_activitypub_count_reference?(post) do
+    [:activitypub_id, :activitypub_url]
+    |> Enum.map(&post_field(post, &1))
+    |> Enum.any?(&(is_binary(&1) && String.trim(&1) != ""))
+  end
+
+  defp post_field(post, key) when is_map(post) and is_atom(key) do
+    Map.get(post, key) || Map.get(post, Atom.to_string(key))
   end
 
   defp refresh_posts_batch(posts) do
@@ -575,15 +631,20 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   defp fetch_counts_smart(_), do: {:error, :invalid_activitypub_id}
 
   defp fetch_counts_activitypub(ap_id) do
-    case Fetcher.fetch_object(ap_id) do
+    case RemoteFetch.fetch_object(ap_id) do
       {:ok, object} ->
+        counts = Normalizer.engagement_counts(object)
+
         {:ok,
-         %{
-           like_count: Helpers.extract_interaction_count(object, "likes"),
-           reply_count: Helpers.extract_interaction_count(object, "replies"),
-           share_count: Helpers.extract_interaction_count(object, "shares"),
-           quote_count: activitypub_quote_count(object)
-         }}
+         Map.take(counts, [
+           :like_count,
+           :reply_count,
+           :share_count,
+           :quote_count,
+           :upvotes,
+           :downvotes,
+           :score
+         ])}
 
       {:error, reason} ->
         {:error, reason}
@@ -601,19 +662,6 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   defp normalize_remote_count(nil), do: 0
   defp normalize_remote_count(_), do: 0
-
-  defp activitypub_quote_count(object) when is_map(object) do
-    normalize_remote_count(
-      object["quotes_count"] ||
-        object["quote_count"] ||
-        object["quotesCount"] ||
-        object["quoteCount"] ||
-        object["quotedCount"] ||
-        get_in(object, ["pleroma", "quotes_count"])
-    )
-  end
-
-  defp activitypub_quote_count(_), do: 0
 
   defp normalize_status_metadata(metadata) when is_map(metadata), do: metadata
   defp normalize_status_metadata(_), do: %{}
@@ -701,9 +749,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp fetch_likers_activitypub(message) do
-    case Fetcher.fetch_object(message.activitypub_id) do
+    case RemoteFetch.fetch_object(message.activitypub_id) do
       {:ok, object} ->
-        likes_collection = object["likes"]
+        likes_collection = Normalizer.interaction_collection(object, :likes)
 
         case CollectionFetcher.fetch_interaction_actors(likes_collection, max_items: 50) do
           {:ok, actors} -> {:ok, actors}
@@ -734,9 +782,9 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp fetch_sharers_activitypub(message) do
-    case Fetcher.fetch_object(message.activitypub_id) do
+    case RemoteFetch.fetch_object(message.activitypub_id) do
       {:ok, object} ->
-        shares_collection = object["shares"] || object["announces"]
+        shares_collection = Normalizer.interaction_collection(object, :shares)
 
         case CollectionFetcher.fetch_interaction_actors(shares_collection, max_items: 50) do
           {:ok, actors} -> {:ok, actors}

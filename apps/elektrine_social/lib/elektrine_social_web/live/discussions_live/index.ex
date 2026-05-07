@@ -2,7 +2,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   use ElektrineSocialWeb, :live_view
   require Logger
   import Ecto.Query, warn: false
-  alias Elektrine.ActivityPub.{Actor, Instance}
+  alias Elektrine.ActivityPub.{Actor, Instance, RefreshCountsWorker}
   alias Elektrine.ActivityPub.LemmyApi
   alias Elektrine.ActivityPub.LemmyCache
   alias Elektrine.{AppCache, Messaging, Profiles, Repo, Social}
@@ -14,6 +14,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   import ElektrineWeb.Live.Helpers.PostStateHelpers, only: [get_post_reactions: 1]
   @community_feed_page_size 20
   @overview_page_size 6
+  @community_count_refresh_limit 20
   @session_interest_dwell_ms 10_000
   @impl true
   def mount(_params, session, socket) do
@@ -373,7 +374,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:filtered_remote_communities, filtered_remote_communities)
      |> assign(:filtered_discover_remote_communities, filtered_discover_remote_communities)
      |> assign(:filtered_community_posts, filtered_community_posts)
-     |> assign(:overview_no_more, overview_no_more?(overview_data))}
+     |> assign(:overview_no_more, overview_no_more?(overview_data))
+     |> maybe_schedule_community_count_refresh()}
   end
 
   def handle_event("set_feed_sort", %{"sort" => sort}, socket) do
@@ -389,7 +391,10 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         )
 
       {:noreply,
-       socket |> assign(:feed_sort, sort) |> assign(:filtered_community_posts, sorted_posts)}
+       socket
+       |> assign(:feed_sort, sort)
+       |> assign(:filtered_community_posts, sorted_posts)
+       |> maybe_schedule_community_count_refresh()}
     end
   end
 
@@ -1524,7 +1529,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
      |> assign(:lemmy_counts, lemmy_counts)
      |> assign(:post_replies, post_replies)
      |> assign(:post_interactions, post_interactions)
-     |> assign(:post_reactions, post_reactions)}
+     |> assign(:post_reactions, post_reactions)
+     |> maybe_schedule_community_count_refresh()}
   end
 
   def handle_info(_info, socket) do
@@ -1798,6 +1804,44 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
     data
     |> Enum.reduce(socket, fn {key, value}, socket -> assign(socket, key, value) end)
     |> assign(:loading_communities, false)
+    |> maybe_schedule_community_count_refresh()
+  end
+
+  defp maybe_schedule_community_count_refresh(socket) do
+    if connected?(socket) && !test_env?() do
+      socket
+      |> community_count_refresh_posts()
+      |> RefreshCountsWorker.schedule_visible_refreshes(limit: @community_count_refresh_limit)
+    end
+
+    socket
+  end
+
+  defp community_count_refresh_posts(socket) do
+    overview_limit = socket.assigns[:overview_card_limit] || @overview_page_size
+
+    feed_limit =
+      if socket.assigns[:current_view] == "feed",
+        do: @community_feed_page_size,
+        else: overview_limit
+
+    [
+      socket.assigns[:filtered_community_posts] |> Kernel.||([]) |> Enum.take(feed_limit),
+      socket.assigns[:filtered_federated_discussions]
+      |> Kernel.||([])
+      |> Enum.take(overview_limit),
+      socket.assigns[:filtered_discussions] |> Kernel.||([]) |> Enum.take(overview_limit)
+    ]
+    |> List.flatten()
+  end
+
+  @doc false
+  def visible_remote_count_refresh_ids(posts, limit \\ @community_count_refresh_limit) do
+    RefreshCountsWorker.visible_refresh_candidate_ids(posts, limit: limit)
+  end
+
+  defp test_env? do
+    Elektrine.RuntimeEnv.environment() == :test
   end
 
   defp normalize_quick_post_link_url(url) when is_binary(url), do: String.trim(url)
@@ -2548,15 +2592,17 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   defp seeded_score(post) when is_map(post) do
+    display_count = PostUtilities.display_primary_count(post)
+
     cond do
-      is_integer(Map.get(post, :score)) ->
+      is_integer(Map.get(post, :score)) && post.score != 0 ->
         post.score
 
       is_integer(Map.get(post, :upvotes)) or is_integer(Map.get(post, :downvotes)) ->
         (Map.get(post, :upvotes) || 0) - (Map.get(post, :downvotes) || 0)
 
-      is_integer(Map.get(post, :like_count)) ->
-        post.like_count
+      display_count != 0 ->
+        display_count
 
       true ->
         0
@@ -2565,9 +2611,11 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp seeded_comment_count(post) when is_map(post) do
     metadata = Map.get(post, :media_metadata) || %{}
+    {_likes, display_reply_count} = PostUtilities.get_display_counts(post, %{}, %{})
 
     case Map.get(post, :reply_count) do
-      value when is_integer(value) and value >= 0 -> value
+      value when is_integer(value) and value > 0 -> value
+      _ when display_reply_count > 0 -> display_reply_count
       _ -> parse_seeded_count(metadata["original_reply_count"])
     end
   end
@@ -2882,15 +2930,19 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   defp community_base_score(post, "top", lemmy_counts, _now) do
     case Map.get(lemmy_counts, post.activitypub_id) do
       %{score: score} -> score
-      _ -> post.like_count || 0
+      _ -> PostUtilities.display_primary_count(post)
     end
   end
 
   defp community_base_score(post, "hot", lemmy_counts, now) do
     score =
       case Map.get(lemmy_counts, post.activitypub_id) do
-        %{score: s, comments: c} -> s + c * 2
-        _ -> (post.like_count || 0) + (post.reply_count || 0) * 2 + (post.share_count || 0) * 3
+        %{score: s, comments: c} ->
+          s + c * 2
+
+        _ ->
+          {_likes, replies} = PostUtilities.get_display_counts(post, %{}, %{})
+          PostUtilities.display_primary_count(post) + replies * 2 + (post.share_count || 0) * 3
       end
 
     hours_ago = NaiveDateTime.diff(now, normalize_inserted_at(post.inserted_at), :hour)
@@ -2900,8 +2952,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
 
   defp community_base_score(post, "comments", lemmy_counts, _now) do
     case Map.get(lemmy_counts, post.activitypub_id) do
-      %{comments: comments} -> comments
-      _ -> post.reply_count || 0
+      %{comments: comments} ->
+        comments
+
+      _ ->
+        {_likes, replies} = PostUtilities.get_display_counts(post, %{}, %{})
+        replies
     end
   end
 
@@ -2946,11 +3002,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
         0
       end
 
-    underexposed_bonus =
-      total_engagement =
-      (post.like_count || 0) + (post.reply_count || 0) + (post.share_count || 0)
+    {_likes, replies} = PostUtilities.get_display_counts(post, %{}, %{})
 
-    if total_engagement <= 8, do: 6, else: 0
+    total_engagement =
+      PostUtilities.display_primary_count(post) + replies + (post.share_count || 0)
+
+    underexposed_bonus = if total_engagement <= 8, do: 6, else: 0
 
     media_bonus = if Enum.empty?(post.media_urls || []), do: 0, else: 4
 
@@ -3788,12 +3845,12 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
       [username, domain] when username != "" and domain != "" ->
         acct = "#{username}@#{domain}"
 
-        case Elektrine.ActivityPub.Fetcher.webfinger_lookup(acct) do
+        case Elektrine.ActivityPub.webfinger_lookup(acct) do
           {:ok, actor_uri} ->
             Elektrine.ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 
           {:error, _} ->
-            case Elektrine.ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
+            case Elektrine.ActivityPub.webfinger_lookup("!#{acct}") do
               {:ok, actor_uri} ->
                 Elektrine.ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 

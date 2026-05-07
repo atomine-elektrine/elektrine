@@ -10,7 +10,7 @@ defmodule Elektrine.ActivityPub.Outbox do
 
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Builder, Fetcher, Mentions, Publisher}
+  alias Elektrine.ActivityPub.{Builder, Mentions, Publisher, RemoteFetch}
   alias Elektrine.Bluesky.OutboundWorker
   alias Elektrine.Repo
   alias Elektrine.Social.Message
@@ -135,7 +135,7 @@ defmodule Elektrine.ActivityPub.Outbox do
   end
 
   defp fetch_community_inboxes(uri) do
-    case Fetcher.fetch_actor(uri) do
+    case RemoteFetch.fetch_actor(uri) do
       {:ok, actor_data} ->
         inbox = get_in(actor_data, ["endpoints", "sharedInbox"]) || actor_data["inbox"]
         maybe_single_inbox(inbox)

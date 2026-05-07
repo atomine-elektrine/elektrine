@@ -5,7 +5,8 @@ defmodule Elektrine.Accounts.AppPassword do
   use Ecto.Schema
   import Ecto.Changeset
 
-  @current_hash_prefix "v2$hmac-sha256$"
+  @current_hash_prefix "v3$argon2id$"
+  @hmac_hash_prefix "v2$hmac-sha256$"
 
   schema "app_passwords" do
     field :name, :string
@@ -37,9 +38,7 @@ defmodule Elektrine.Accounts.AppPassword do
   def create_changeset(attrs) do
     # Generate a secure random token
     token = generate_token()
-    # Hash the token WITHOUT dashes for storage
-    clean_token = normalize_current_token(token)
-    token_hash = hash_token(clean_token)
+    token_hash = hash_token(token)
 
     changeset =
       %__MODULE__{}
@@ -85,24 +84,20 @@ defmodule Elektrine.Accounts.AppPassword do
   Hashes a token for secure storage.
   """
   def hash_token(token) do
-    @current_hash_prefix <> hmac_token(token)
+    @current_hash_prefix <> Argon2.hash_pwd_salt(normalize_current_token(token))
   end
 
-  @doc "Returns all token hashes that can authenticate the given token.
+  @doc "Returns deterministic token hashes that can authenticate pre-v3 tokens.
 
-  Includes the legacy SHA-256 hash so existing app passwords continue to work
-  until users rotate them.
+  Argon2id app-password hashes are salted, so they must be verified row-by-row
+  with `verify_token/2` instead of looked up directly by hash.
   "
   def candidate_hashes(token) do
     clean_token = normalize_current_token(token)
     legacy_token = normalize_legacy_token(token)
 
-    [
-      hash_token(clean_token),
-      hash_token(legacy_token),
-      legacy_hash_token(legacy_token),
-      legacy_hash_token(clean_token)
-    ]
+    (hmac_hashes([clean_token, legacy_token]) ++
+       [legacy_hash_token(legacy_token), legacy_hash_token(clean_token)])
     |> Enum.uniq()
   end
 
@@ -112,32 +107,70 @@ defmodule Elektrine.Accounts.AppPassword do
     |> String.downcase()
   end
 
+  defp normalize_current_token(_token), do: ""
+
   defp normalize_legacy_token(token) when is_binary(token) do
     String.trim(token)
   end
+
+  defp normalize_legacy_token(_token), do: ""
 
   defp legacy_hash_token(token) do
     :crypto.hash(:sha256, token)
     |> Base.encode16(case: :lower)
   end
 
-  defp hmac_token(token) do
-    :crypto.mac(:hmac, :sha256, app_password_pepper(), token)
+  defp hmac_hashes(tokens) do
+    case app_password_pepper() do
+      pepper when is_binary(pepper) ->
+        Enum.map(tokens, fn token -> @hmac_hash_prefix <> hmac_token(token, pepper) end)
+
+      nil ->
+        []
+    end
+  end
+
+  defp hmac_token(token, pepper) do
+    :crypto.mac(:hmac, :sha256, pepper, token)
     |> Base.url_encode64(padding: false)
   end
 
   defp app_password_pepper do
     Application.get_env(:elektrine, :app_password_pepper) ||
       Application.get_env(:elektrine, :encryption_master_secret) ||
-      get_in(Application.get_env(:elektrine, ElektrineWeb.Endpoint, []), [:secret_key_base]) ||
-      raise "app password pepper is not configured"
+      get_in(Application.get_env(:elektrine, ElektrineWeb.Endpoint, []), [:secret_key_base])
   end
 
   @doc """
   Verifies if a given token matches the stored hash.
   """
   def verify_token(token, token_hash) do
-    Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
+    cond do
+      argon2_hash?(token_hash) ->
+        verify_argon2_token(token, token_hash)
+
+      hmac_hash?(token_hash) ->
+        Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
+
+      true ->
+        Enum.any?(candidate_hashes(token), &secure_compare(&1, token_hash))
+    end
+  end
+
+  defp argon2_hash?(token_hash) when is_binary(token_hash),
+    do: String.starts_with?(token_hash, @current_hash_prefix)
+
+  defp argon2_hash?(_), do: false
+
+  defp hmac_hash?(token_hash) when is_binary(token_hash),
+    do: String.starts_with?(token_hash, @hmac_hash_prefix)
+
+  defp hmac_hash?(_), do: false
+
+  defp verify_argon2_token(token, @current_hash_prefix <> argon2_hash) do
+    Argon2.verify_pass(normalize_current_token(token), argon2_hash)
+  rescue
+    ArgumentError -> false
   end
 
   defp secure_compare(left, right) when is_binary(left) and is_binary(right) do

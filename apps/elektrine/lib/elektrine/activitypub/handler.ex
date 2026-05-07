@@ -238,7 +238,7 @@ defmodule Elektrine.ActivityPub.Handler do
         handle_undo(%{activity | "object" => object}, actor_uri, target_user)
 
       :not_found ->
-        case Elektrine.ActivityPub.Fetcher.fetch_object(object_uri) do
+        case Elektrine.ActivityPub.RemoteFetch.fetch_object(object_uri) do
           {:ok, object} when is_map(object) ->
             handle_undo(%{activity | "object" => object}, actor_uri, target_user)
 

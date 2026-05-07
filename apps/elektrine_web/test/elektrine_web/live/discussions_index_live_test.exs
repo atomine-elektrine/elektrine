@@ -446,4 +446,16 @@ defmodule ElektrineWeb.DiscussionsIndexLiveTest do
     assert updated_socket.assigns.post_interactions["https://remote.example/posts/101"].vote_delta ==
              0
   end
+
+  test "community count refresh candidates include remote ActivityPub posts without actors" do
+    posts = [
+      %{id: 1, federated: true, remote_actor_id: nil, activitypub_id: "https://remote.test/1"},
+      %{id: 1, federated: true, remote_actor_id: nil, activitypub_id: "https://remote.test/1"},
+      %{id: 2, federated: true, remote_actor_id: 10, activitypub_url: "https://remote.test/2"},
+      %{id: 3, federated: true, remote_actor_id: 10, activitypub_id: ""},
+      %{id: 4, federated: false, remote_actor_id: 10, activitypub_id: "https://remote.test/4"}
+    ]
+
+    assert Index.visible_remote_count_refresh_ids(posts, 10) == [1, 2]
+  end
 end

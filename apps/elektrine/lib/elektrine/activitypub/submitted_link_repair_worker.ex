@@ -82,7 +82,7 @@ defmodule Elektrine.ActivityPub.SubmittedLinkRepairWorker do
 
   defp repair_message(%Message{activitypub_id: activitypub_id} = message)
        when is_binary(activitypub_id) do
-    with {:ok, post_object} <- Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id),
+    with {:ok, post_object} <- Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id),
          submitted_url when is_binary(submitted_url) <- extract_external_link(post_object) do
       metadata = Map.put(message.media_metadata || %{}, "external_link", submitted_url)
 

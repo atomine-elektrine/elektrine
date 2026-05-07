@@ -432,12 +432,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
       [username, domain] when username != "" and domain != "" ->
         acct = "#{username}@#{domain}"
 
-        case ActivityPub.Fetcher.webfinger_lookup(acct) do
+        case ActivityPub.webfinger_lookup(acct) do
           {:ok, actor_uri} ->
             ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 
           {:error, _} ->
-            case ActivityPub.Fetcher.webfinger_lookup("!#{acct}") do
+            case ActivityPub.webfinger_lookup("!#{acct}") do
               {:ok, actor_uri} ->
                 ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
 

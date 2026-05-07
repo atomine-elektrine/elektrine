@@ -94,7 +94,7 @@ defmodule Elektrine.Messaging.CommunitySearch do
     # Clean up handle - remove leading ! if present
     clean_handle = String.trim_leading(handle, "!")
 
-    case ActivityPub.Fetcher.webfinger_lookup(clean_handle) do
+    case ActivityPub.webfinger_lookup(clean_handle) do
       {:ok, actor_uri} ->
         case ActivityPub.get_or_fetch_actor(actor_uri) do
           {:ok, actor} ->

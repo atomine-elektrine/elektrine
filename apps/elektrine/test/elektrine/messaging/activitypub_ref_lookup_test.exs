@@ -8,6 +8,8 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Messaging
   alias Elektrine.Social.Message
+  alias Elektrine.Social.Messages
+  alias Elektrine.SocialFixtures
 
   describe "get_message_by_activitypub_ref/1" do
     test "returns the existing federated message for duplicate activitypub_id inserts" do
@@ -29,6 +31,48 @@ defmodule Elektrine.Messaging.ActivityPubRefLookupTest do
       assert second.id == first.id
       assert Repo.aggregate(Message, :count, :id) == 1
       assert Repo.get!(Message, first.id).content == "original"
+    end
+
+    test "normal message changesets return duplicate activitypub_id errors instead of raising" do
+      actor = remote_actor_fixture()
+      local_post = SocialFixtures.post_fixture()
+      activitypub_id = "https://remote.example/notes/#{System.unique_integer([:positive])}"
+
+      assert {:ok, existing} =
+               Messaging.create_federated_message(%{
+                 content: "remote post",
+                 visibility: "public",
+                 federated: true,
+                 activitypub_id: activitypub_id,
+                 activitypub_url: activitypub_id,
+                 remote_actor_id: actor.id
+               })
+
+      assert {:error, {:duplicate_activitypub_id, duplicate}} =
+               Messages.update_message(local_post, %{
+                 activitypub_id: activitypub_id,
+                 activitypub_url: activitypub_id
+               })
+
+      assert duplicate.id == existing.id
+
+      duplicate_attrs = %{
+        conversation_id: local_post.conversation_id,
+        sender_id: local_post.sender_id,
+        content: "duplicate local insert",
+        message_type: "text",
+        visibility: "public",
+        post_type: "post",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id
+      }
+
+      assert {:error, changeset} =
+               %Message{}
+               |> Message.changeset(duplicate_attrs)
+               |> Repo.insert()
+
+      assert Keyword.has_key?(changeset.errors, :activitypub_id)
     end
 
     test "matches refs with query and fragment variants" do

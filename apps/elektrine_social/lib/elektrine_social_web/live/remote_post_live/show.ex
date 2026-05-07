@@ -54,135 +54,31 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     ~H"""
     <%= for node <- @comments do %>
-      <% reply = node.reply %>
-      <% depth = node.depth %>
-      <% children = node.children %>
-      <% reply_state =
-        reply_interaction_state(@post_interactions, reply)
-
-      is_reply_liked = Map.get(reply_state, :liked, false)
-      is_reply_boosted = Map.get(reply_state, :boosted, false)
-      reply_like_delta = Map.get(reply_state, :like_delta, 0)
-      reply_boost_delta = Map.get(reply_state, :boost_delta, 0)
-      user_vote = Map.get(reply_state, :vote, nil)
-      vote_delta = Map.get(reply_state, :vote_delta, 0)
-      # Use embedded Lemmy counts if available, then try separate fetch, then fall back to ActivityPub
-      lemmy_data = reply["_lemmy"]
-      lemmy_comment_count = Map.get(@lemmy_comment_counts || %{}, reply_surface_ref(reply))
-
-      # For community posts, use vote_delta; for regular posts, use like_delta
-      score_delta = if @is_lemmy_post, do: vote_delta, else: reply_like_delta
-
-      reply_like_count =
-        cond do
-          is_integer(lemmy_data && lemmy_data["upvotes"]) ->
-            max(lemmy_data["upvotes"] + score_delta, 0)
-
-          is_integer(lemmy_data && lemmy_data["score"]) ->
-            max(lemmy_data["score"] + score_delta, 0)
-
-          lemmy_comment_count ->
-            max(
-              (Map.get(lemmy_comment_count, :upvotes) || Map.get(lemmy_comment_count, :score) || 0) +
-                score_delta,
-              0
-            )
-
-          is_integer(reply["_local_like_count"]) ->
-            max(reply["_local_like_count"] + score_delta, 0)
-
-          true ->
-            (get_collection_total_items(reply["likes"]) || 0) + score_delta
-        end
-
-      reply_boost_count =
-        cond do
-          is_integer(reply["_local_share_count"]) ->
-            max(reply["_local_share_count"] + reply_boost_delta, 0)
-
-          true ->
-            max((get_collection_total_items(reply["shares"]) || 0) + reply_boost_delta, 0)
-        end
-
-      reply_child_count =
-        cond do
-          lemmy_data && lemmy_data["child_count"] -> lemmy_data["child_count"]
-          lemmy_comment_count -> lemmy_comment_count.child_count
-          true -> length(children)
-        end
-
-      reply_reaction = SurfaceHelpers.thread_reply_reaction_surface(reply, @post_reactions)
-      reply_local_message_id = reply["_local_message_id"]
-      reply_submitted_url = reply["_submitted_url"]
-      reply_youtube_id = reply["_youtube_id"]
-      reply_link_preview = reply["_link_preview"]
-
-      reply_click =
-        cond do
-          is_integer(reply_local_message_id) ->
-            %{event: "navigate_to_post", id: reply_local_message_id, post_id: nil}
-
-          is_binary(reply["_local_activitypub_id"]) && reply["_local_activitypub_id"] != "" ->
-            %{event: "navigate_to_remote_post", id: nil, post_id: reply["_local_activitypub_id"]}
-
-          is_binary(reply["id"]) && reply["id"] != "" ->
-            %{event: "navigate_to_remote_post", id: nil, post_id: reply["id"]}
-
-          true ->
-            nil
-        end
-
-      is_local_reply = reply["_local"] == true
-      local_user = reply["_local_user"]
-
-      reply_author_uri =
-        normalize_in_reply_to_ref(reply["attributedTo"]) ||
-          normalize_in_reply_to_ref(reply["actor"])
-
-      reply_actor =
-        cond do
-          # We'll use local_user directly
-          is_local_reply && local_user -> nil
-          is_binary(reply_author_uri) -> Map.get(@thread_reply_actors, reply_author_uri)
-          true -> nil
-        end
-
-      reply_fallback = SurfaceHelpers.build_reply_author_fallback(reply, reply_author_uri)
-
-      reply_avatar_url =
-        cond do
-          reply_actor && Elektrine.Strings.present?(reply_actor.avatar_url) ->
-            reply_actor.avatar_url
-
-          true ->
-            reply_fallback.avatar_url
-        end
-
-      reply_profile_path =
-        cond do
-          reply_actor -> "/remote/#{reply_actor.username}@#{reply_actor.domain}"
-          is_binary(reply_fallback.profile_path) -> reply_fallback.profile_path
-          true -> nil
-        end
-
-      reply_display_name =
-        cond do
-          reply_actor -> reply_actor.display_name || reply_actor.username
-          true -> reply_fallback.display_name
-        end
-
-      reply_acct_label =
-        cond do
-          reply_actor -> "@#{reply_actor.username}@#{reply_actor.domain}"
-          true -> reply_fallback.acct_label
-        end
-
-      reply_render_domain = reply_render_domain(reply, reply_actor, @reply_content_domain)
-      reply_mention_hints = reply_mention_domain_hints(reply)
-
-      tree_depth = min(depth, 4) %>
+      <% reply_view = reply_view_model(assigns, node) %>
+      <% depth = reply_view.depth %>
+      <% children = reply_view.children %>
+      <% is_reply_liked = reply_view.liked %>
+      <% is_reply_boosted = reply_view.boosted %>
+      <% user_vote = reply_view.vote %>
+      <% reply_like_count = reply_view.like_count %>
+      <% reply_boost_count = reply_view.boost_count %>
+      <% reply_child_count = reply_view.child_count %>
+      <% reply_reaction = reply_view.reaction %>
+      <% reply_local_message_id = reply_view.local_message_id %>
+      <% reply_submitted_url = reply_view.submitted_url %>
+      <% reply_youtube_id = reply_view.youtube_id %>
+      <% reply_link_preview = reply_view.link_preview %>
+      <% reply_click = reply_view.click %>
+      <% is_local_reply = reply_view.local? %>
+      <% local_user = reply_view.local_user %>
+      <% reply_actor = reply_view.actor %>
+      <% reply_avatar_url = reply_view.avatar_url %>
+      <% reply_profile_path = reply_view.profile_path %>
+      <% reply_display_name = reply_view.display_name %>
+      <% reply_acct_label = reply_view.acct_label %>
+      <% tree_depth = reply_view.tree_depth %>
       <div
-        id={SurfaceHelpers.reply_dom_id(reply)}
+        id={reply_view.dom_id}
         class={[
           "timeline-thread-tree-node",
           if(depth == 0, do: "timeline-thread-reply-row"),
@@ -202,7 +98,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               <%= if @current_user do %>
                 <button
                   phx-click="vote_comment"
-                  phx-value-comment_id={reply["id"]}
+                  phx-value-comment_id={reply_view.activitypub_id}
                   phx-value-type="up"
                   class={[
                     "p-0.5 rounded transition-none",
@@ -236,7 +132,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               <%= if @current_user do %>
                 <button
                   phx-click="vote_comment"
-                  phx-value-comment_id={reply["id"]}
+                  phx-value-comment_id={reply_view.activitypub_id}
                   phx-value-type="down"
                   class={[
                     "p-0.5 rounded transition-none",
@@ -263,12 +159,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             
     <!-- Comment Content -->
             <div
-              id={"reply-card-" <> URI.encode_www_form(to_string(reply_local_message_id || reply["id"] || "unknown"))}
+              id={reply_view.card_dom_id}
               class={[
                 "card panel-card timeline-post-card relative flex-1 min-w-0 rounded-lg border border-base-300 shadow-sm px-2 py-1.5 transition-colors duration-150",
                 reply_click && "cursor-pointer hover:shadow-md"
               ]}
-              data-post-id={reply_local_message_id || reply["id"]}
+              data-post-id={reply_view.card_post_id}
               data-source="remote_post_reply"
               phx-hook={reply_click && "PostClick"}
               style="background: oklch(var(--b3)); box-shadow: 0 2px 12px oklch(var(--bc) / 0.08);"
@@ -372,23 +268,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <% end %>
                 <span class="text-base-content/40">·</span>
                 <span class="text-base-content/50">
-                  {if reply["published"], do: format_activitypub_date(reply["published"])}
+                  {reply_view.published_label}
                 </span>
               </div>
               
     <!-- Comment Text -->
-              <%= if reply["content"] do %>
+              <%= if reply_view.content_html do %>
                 <div class={[
                   "relative z-10 pointer-events-none text-sm leading-relaxed mb-1.5 post-content rounded-md transition-colors [&_a]:pointer-events-auto [&_a]:relative [&_a]:z-20",
                   reply_click && "hover:bg-base-200/80"
                 ]}>
-                  {raw(
-                    render_remote_post_content(
-                      reply["content"],
-                      reply_render_domain,
-                      reply_mention_hints
-                    )
-                  )}
+                  {raw(reply_view.content_html)}
                 </div>
               <% end %>
 
@@ -450,10 +340,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <div class="relative z-20 pointer-events-auto">
                   <button
                     phx-click="toggle_comment_reply"
-                    phx-value-comment_id={reply["id"]}
+                    phx-value-comment_id={reply_view.activitypub_id}
                     class={[
                       "text-xs transition-colors",
-                      if(@replying_to_comment_id == reply["id"],
+                      if(reply_view.replying?,
                         do: "text-secondary font-medium",
                         else: "text-base-content/50 hover:text-secondary"
                       )
@@ -486,7 +376,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               <% end %>
               
     <!-- Inline Reply Form -->
-              <%= if @current_user && @replying_to_comment_id == reply["id"] do %>
+              <%= if @current_user && reply_view.replying? do %>
                 <form phx-submit="submit_comment_reply" class="relative z-20 pointer-events-auto mt-2">
                   <textarea
                     name="content"
@@ -500,7 +390,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                     <button
                       type="button"
                       phx-click="toggle_comment_reply"
-                      phx-value-comment_id={reply["id"]}
+                      phx-value-comment_id={reply_view.activitypub_id}
                       class="btn btn-ghost btn-xs"
                     >
                       Cancel
@@ -516,12 +406,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         <% else %>
           <!-- Timeline-style comment (traditional social media with hearts) -->
           <div
-            id={"reply-card-" <> URI.encode_www_form(to_string(reply_local_message_id || reply["id"] || "unknown"))}
+            id={reply_view.card_dom_id}
             class={[
               "timeline-thread-tree-card card panel-card timeline-post-card relative rounded-xl p-3 mb-2 border border-base-300 shadow-sm transition-colors duration-150",
               reply_click && "cursor-pointer hover:shadow-md"
             ]}
-            data-post-id={reply_local_message_id || reply["id"]}
+            data-post-id={reply_view.card_post_id}
             data-source="remote_post_reply"
             phx-hook={reply_click && "PostClick"}
             style="background: oklch(var(--b3)); box-shadow: 0 4px 16px oklch(var(--bc) / 0.10);"
@@ -579,7 +469,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                     <span class="text-xs text-info ml-1">(you)</span>
                   <% end %>
                   <div class="text-xs opacity-50">
-                    {if reply["published"], do: format_activitypub_date(reply["published"])}
+                    {reply_view.published_label}
                   </div>
                 </div>
               <% else %>
@@ -639,7 +529,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                     <%= if Elektrine.Strings.present?(reply_acct_label) do %>
                       {reply_acct_label} ·
                     <% end %>
-                    {if reply["published"], do: format_activitypub_date(reply["published"])}
+                    {reply_view.published_label}
                   </div>
                 </div>
               <% end %>
@@ -655,18 +545,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             <% end %>
             
     <!-- Comment Content -->
-            <%= if reply["content"] do %>
+            <%= if reply_view.content_html do %>
               <div class={[
                 "relative z-10 pointer-events-none text-sm leading-relaxed mb-2 post-content rounded-md transition-colors [&_a]:pointer-events-auto [&_a]:relative [&_a]:z-20",
                 reply_click && "hover:bg-base-200/80"
               ]}>
-                {raw(
-                  render_remote_post_content(
-                    reply["content"],
-                    reply_render_domain,
-                    reply_mention_hints
-                  )
-                )}
+                {raw(reply_view.content_html)}
               </div>
             <% end %>
 
@@ -729,7 +613,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <button
                   phx-click={if is_reply_liked, do: "unlike_post", else: "like_post"}
                   phx-value-message_id={reply_local_message_id}
-                  phx-value-post_id={if(reply_local_message_id, do: nil, else: reply["id"])}
+                  phx-value-post_id={reply_view.action_post_id}
                   class={[
                     "flex items-center gap-1 transition-colors",
                     if(is_reply_liked, do: "text-error", else: "opacity-60 hover:text-error")
@@ -745,7 +629,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <button
                   phx-click={if is_reply_boosted, do: "unboost_post", else: "boost_post"}
                   phx-value-message_id={reply_local_message_id}
-                  phx-value-post_id={if(reply_local_message_id, do: nil, else: reply["id"])}
+                  phx-value-post_id={reply_view.action_post_id}
                   class={[
                     "flex items-center gap-1 transition-colors",
                     if(is_reply_boosted,
@@ -766,10 +650,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 </button>
                 <button
                   phx-click="toggle_comment_reply"
-                  phx-value-comment_id={reply["id"]}
+                  phx-value-comment_id={reply_view.activitypub_id}
                   class={[
                     "flex items-center gap-1 transition-colors",
-                    if(@replying_to_comment_id == reply["id"],
+                    if(reply_view.replying?,
                       do: "text-secondary",
                       else: "opacity-60 hover:text-secondary"
                     )
@@ -816,7 +700,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
             <% end %>
             
     <!-- Inline Reply Form -->
-            <%= if @current_user && @replying_to_comment_id == reply["id"] do %>
+            <%= if @current_user && reply_view.replying? do %>
               <form phx-submit="submit_comment_reply" class="relative z-20 pointer-events-auto mt-3">
                 <div class="flex gap-2">
                   <textarea
@@ -832,7 +716,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                   <button
                     type="button"
                     phx-click="toggle_comment_reply"
-                    phx-value-comment_id={reply["id"]}
+                    phx-value-comment_id={reply_view.activitypub_id}
                     class="btn btn-ghost btn-xs"
                   >
                     Cancel
@@ -853,6 +737,186 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       </div>
     <% end %>
     """
+  end
+
+  defp reply_view_model(assigns, node) when is_map(node) do
+    reply = Map.get(node, :reply, %{})
+    children = Map.get(node, :children, [])
+    depth = Map.get(node, :depth, 0)
+    activitypub_id = map_get_value(reply, "id")
+    local_message_id = map_get_value(reply, "_local_message_id")
+    local_activitypub_id = map_get_value(reply, "_local_activitypub_id")
+    surface_ref = reply_surface_ref(reply)
+    reply_state = reply_interaction_state(Map.get(assigns, :post_interactions, %{}), reply)
+    like_delta = Map.get(reply_state, :like_delta, 0)
+    boost_delta = Map.get(reply_state, :boost_delta, 0)
+    vote_delta = Map.get(reply_state, :vote_delta, 0)
+    lemmy_data = map_get_value(reply, "_lemmy")
+
+    lemmy_comment_count =
+      Map.get(Map.get(assigns, :lemmy_comment_counts, %{}) || %{}, surface_ref)
+
+    score_delta =
+      if Map.get(assigns, :is_lemmy_post, false), do: vote_delta, else: like_delta
+
+    reply_author_uri =
+      normalize_in_reply_to_ref(map_get_value(reply, "attributedTo")) ||
+        normalize_in_reply_to_ref(map_get_value(reply, "actor"))
+
+    local_user = map_get_value(reply, "_local_user")
+    local? = map_get_value(reply, "_local") == true
+    reply_actor = reply_view_actor(assigns, reply_author_uri, local?, local_user)
+    reply_fallback = SurfaceHelpers.build_reply_author_fallback(reply, reply_author_uri)
+
+    render_domain =
+      reply_render_domain(reply, reply_actor, Map.get(assigns, :reply_content_domain))
+
+    mention_hints = reply_mention_domain_hints(reply)
+    content = map_get_value(reply, "content")
+    published = map_get_value(reply, "published")
+    card_post_id = local_message_id || activitypub_id || "unknown"
+
+    %{
+      source: reply,
+      activitypub_id: activitypub_id,
+      local_message_id: local_message_id,
+      surface_ref: surface_ref,
+      dom_id: SurfaceHelpers.reply_dom_id(reply),
+      card_dom_id: "reply-card-" <> URI.encode_www_form(to_string(card_post_id)),
+      card_post_id: card_post_id,
+      action_post_id: if(local_message_id, do: nil, else: activitypub_id),
+      children: children,
+      depth: depth,
+      tree_depth: min(depth, 4),
+      liked: Map.get(reply_state, :liked, false),
+      boosted: Map.get(reply_state, :boosted, false),
+      vote: Map.get(reply_state, :vote, nil),
+      like_count: reply_like_count(reply, lemmy_data, lemmy_comment_count, score_delta),
+      boost_count: reply_boost_count(reply, boost_delta),
+      child_count: reply_child_count(lemmy_data, lemmy_comment_count, children),
+      reaction:
+        SurfaceHelpers.thread_reply_reaction_surface(
+          reply,
+          Map.get(assigns, :post_reactions, %{})
+        ),
+      submitted_url: map_get_value(reply, "_submitted_url"),
+      youtube_id: map_get_value(reply, "_youtube_id"),
+      link_preview: map_get_value(reply, "_link_preview"),
+      click: reply_click_target(local_message_id, local_activitypub_id, activitypub_id),
+      local?: local?,
+      local_user: local_user,
+      actor: reply_actor,
+      avatar_url: reply_avatar_url(reply_actor, reply_fallback),
+      profile_path: reply_profile_path(reply_actor, reply_fallback),
+      display_name: reply_display_name(reply_actor, reply_fallback),
+      acct_label: reply_acct_label(reply_actor, reply_fallback),
+      published_label: if(published, do: format_activitypub_date(published)),
+      content_html:
+        if(is_binary(content),
+          do: render_remote_post_content(content, render_domain, mention_hints)
+        ),
+      replying?: Map.get(assigns, :replying_to_comment_id) == activitypub_id
+    }
+  end
+
+  defp reply_view_model(_assigns, _), do: reply_view_model(%{}, %{reply: %{}})
+
+  defp reply_view_actor(assigns, reply_author_uri, local?, local_user) do
+    cond do
+      local? && local_user ->
+        nil
+
+      is_binary(reply_author_uri) ->
+        Map.get(Map.get(assigns, :thread_reply_actors, %{}) || %{}, reply_author_uri)
+
+      true ->
+        nil
+    end
+  end
+
+  defp reply_like_count(reply, lemmy_data, lemmy_comment_count, score_delta) do
+    cond do
+      is_integer(map_get_value(lemmy_data, "upvotes")) ->
+        max(map_get_value(lemmy_data, "upvotes") + score_delta, 0)
+
+      is_integer(map_get_value(lemmy_data, "score")) ->
+        max(map_get_value(lemmy_data, "score") + score_delta, 0)
+
+      lemmy_comment_count ->
+        max(
+          (map_get_value(lemmy_comment_count, "upvotes") ||
+             map_get_value(lemmy_comment_count, "score") || 0) + score_delta,
+          0
+        )
+
+      is_integer(map_get_value(reply, "_local_like_count")) ->
+        max(map_get_value(reply, "_local_like_count") + score_delta, 0)
+
+      true ->
+        (get_collection_total_items(map_get_value(reply, "likes")) || 0) + score_delta
+    end
+  end
+
+  defp reply_boost_count(reply, boost_delta) do
+    local_share_count = map_get_value(reply, "_local_share_count")
+
+    if is_integer(local_share_count) do
+      max(local_share_count + boost_delta, 0)
+    else
+      max((get_collection_total_items(map_get_value(reply, "shares")) || 0) + boost_delta, 0)
+    end
+  end
+
+  defp reply_child_count(lemmy_data, lemmy_comment_count, children) do
+    cond do
+      map_get_value(lemmy_data, "child_count") -> map_get_value(lemmy_data, "child_count")
+      lemmy_comment_count -> map_get_value(lemmy_comment_count, "child_count") || length(children)
+      true -> length(children)
+    end
+  end
+
+  defp reply_click_target(local_message_id, local_activitypub_id, activitypub_id) do
+    cond do
+      is_integer(local_message_id) ->
+        %{event: "navigate_to_post", id: local_message_id, post_id: nil}
+
+      Elektrine.Strings.present?(local_activitypub_id) ->
+        %{event: "navigate_to_remote_post", id: nil, post_id: local_activitypub_id}
+
+      Elektrine.Strings.present?(activitypub_id) ->
+        %{event: "navigate_to_remote_post", id: nil, post_id: activitypub_id}
+
+      true ->
+        nil
+    end
+  end
+
+  defp reply_avatar_url(reply_actor, reply_fallback) do
+    if reply_actor && Elektrine.Strings.present?(reply_actor.avatar_url) do
+      reply_actor.avatar_url
+    else
+      reply_fallback.avatar_url
+    end
+  end
+
+  defp reply_profile_path(reply_actor, reply_fallback) do
+    cond do
+      reply_actor -> "/remote/#{reply_actor.username}@#{reply_actor.domain}"
+      is_binary(reply_fallback.profile_path) -> reply_fallback.profile_path
+      true -> nil
+    end
+  end
+
+  defp reply_display_name(reply_actor, reply_fallback) do
+    if reply_actor,
+      do: reply_actor.display_name || reply_actor.username,
+      else: reply_fallback.display_name
+  end
+
+  defp reply_acct_label(reply_actor, reply_fallback) do
+    if reply_actor,
+      do: "@#{reply_actor.username}@#{reply_actor.domain}",
+      else: reply_fallback.acct_label
   end
 
   attr :in_reply_to, :string, default: nil
@@ -1139,8 +1203,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       <div class="timeline-thread-preview-list timeline-thread-preview-list--flush space-y-2 text-left">
         <div class="text-xs font-semibold opacity-60">Recent Replies:</div>
         <%= for reply <- @replies do %>
-          <% author_preview = quick_reply_author_preview(reply) %>
-          <% reply_click = quick_reply_click_target(reply) %>
+          <% reply_view = quick_reply_preview_view(assigns, reply) %>
+          <% author_preview = reply_view.author %>
+          <% reply_click = reply_view.click %>
           <div
             class={[
               "timeline-thread-preview-item relative timeline-thread-preview-item--flush text-left text-sm rounded-lg border border-base-300 bg-base-100/80 px-2 py-2 shadow-sm transition-all duration-150",
@@ -1148,7 +1213,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 "cursor-pointer hover:border-base-content/20 hover:bg-base-200/80 hover:shadow-md"
             ]}
             style="background-color: oklch(var(--b1));"
-            id={@id_prefix <> URI.encode_www_form(reply["id"] || reply["_local_activitypub_id"] || "unknown")}
+            id={reply_view.dom_id}
             phx-hook={reply_click && "PostClick"}
             data-click-event={reply_click && reply_click.event}
             data-id={reply_click && reply_click.id}
@@ -1200,20 +1265,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <% end %>
                 <span class="font-medium truncate">{author_preview.label}</span>
               <% end %>
-              <%= if reply["published"] do %>
+              <%= if reply_view.published_label do %>
                 <span class="text-xs opacity-50">
-                  · {format_activitypub_date(reply["published"])}
+                  · {reply_view.published_label}
                 </span>
               <% end %>
             </div>
             <div class="text-xs opacity-75 line-clamp-2 break-words">
-              {raw(
-                render_remote_post_content(
-                  reply["content"] || "",
-                  reply_render_domain(reply, nil, @reply_content_domain),
-                  reply_mention_domain_hints(reply)
-                )
-              )}
+              {raw(reply_view.content_html)}
             </div>
           </div>
         <% end %>
@@ -1221,6 +1280,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     <% end %>
     """
   end
+
+  defp quick_reply_preview_view(assigns, reply) when is_map(reply) do
+    published = map_get_value(reply, "published")
+    content = map_get_value(reply, "content") || ""
+
+    id_ref =
+      map_get_value(reply, "id") || map_get_value(reply, "_local_activitypub_id") || "unknown"
+
+    render_domain = reply_render_domain(reply, nil, Map.get(assigns, :reply_content_domain))
+    mention_hints = reply_mention_domain_hints(reply)
+
+    %{
+      author: quick_reply_author_preview(reply),
+      click: quick_reply_click_target(reply),
+      dom_id:
+        Map.get(assigns, :id_prefix, "remote-post-quick-reply-") <> URI.encode_www_form(id_ref),
+      published_label: if(published, do: format_activitypub_date(published)),
+      content_html: render_remote_post_content(content, render_domain, mention_hints)
+    }
+  end
+
+  defp quick_reply_preview_view(assigns, _),
+    do: quick_reply_preview_view(assigns, %{})
 
   attr :show_reply_form, :boolean, default: false
   attr :current_user, :map, default: nil
@@ -3479,7 +3561,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket,
         :post_reactions,
         merge_remote_post_reactions(
-          socket.assigns.post_reactions,
+          socket.assigns[:post_reactions] || %{},
           socket.assigns[:post],
           socket.assigns[:local_message]
         )
@@ -7442,7 +7524,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp quick_reply_click_target(_), do: nil
 
   defp strict_fetch_remote_object(post_id) when is_binary(post_id) do
-    ActivityPub.Fetcher.fetch_object(post_id, skip_cache: true, allow_recovery: false)
+    ActivityPub.fetch_remote_object_strict(post_id)
   end
 
   defp strict_fetch_remote_object(_post_id), do: {:error, :invalid_post_id}

@@ -23,6 +23,7 @@ defmodule Elektrine.ActivityPub do
     MastodonApi,
     MRF,
     RelaySubscription,
+    RemoteFetch,
     RequestReplayCache,
     UserBlock
   }
@@ -35,6 +36,25 @@ defmodule Elektrine.ActivityPub do
   alias Elektrine.Social.Conversations
   alias Elektrine.Telemetry.Events
   @public_audience_uri "https://www.w3.org/ns/activitystreams#Public"
+
+  @doc """
+  Fetches a single remote ActivityPub object for detail-page refresh paths.
+
+  UI layers should call this context boundary instead of invoking fetch modules
+  directly.
+  """
+  def fetch_remote_object_strict(uri) when is_binary(uri) do
+    RemoteFetch.fetch_object_strict(uri)
+  end
+
+  def fetch_remote_object_strict(_), do: {:error, :invalid_activitypub_id}
+
+  @doc """
+  Resolves a WebFinger handle through the federation fetch boundary.
+  """
+  def webfinger_lookup(acct, opts \\ []) do
+    RemoteFetch.webfinger_lookup(acct, opts)
+  end
 
   @doc """
   Gets the instance domain for this server.
@@ -631,7 +651,7 @@ defmodule Elektrine.ActivityPub do
   end
 
   defp do_fetch_and_cache_actor(uri, existing_actor, opts) do
-    with {:ok, actor_data} <- Fetcher.fetch_actor(uri, opts),
+    with {:ok, actor_data} <- RemoteFetch.fetch_actor(uri, opts),
          :ok <- validate_fetched_actor_identity(uri, actor_data),
          :ok <- validate_fetched_actor_urls(actor_data),
          {:ok, actor_data} <- apply_actor_policies(actor_data, uri),
@@ -1894,7 +1914,7 @@ defmodule Elektrine.ActivityPub do
   defp fetch_thread_seed_object(%{} = object), do: normalize_thread_reply_object(object)
 
   defp fetch_thread_seed_object(seed) when is_binary(seed) do
-    case Fetcher.fetch_object(seed) do
+    case RemoteFetch.fetch_object(seed) do
       {:ok, object} -> normalize_thread_reply_object(object)
       _ -> nil
     end
@@ -2044,7 +2064,7 @@ defmodule Elektrine.ActivityPub do
   # Try to fetch comments from the community's home instance
   defp try_fetch_from_community_instance(post_url, limit) do
     # Fetch the post object to get the audience (community)
-    case Fetcher.fetch_object(post_url) do
+    case RemoteFetch.fetch_object(post_url) do
       {:ok, post_object} ->
         # Get the community URL from audience field
         community_url = post_object["audience"]
@@ -2257,14 +2277,14 @@ defmodule Elektrine.ActivityPub do
 
   # Fetch replies from standard ActivityPub collection
   defp fetch_replies_from_collection(replies_url, limit) do
-    case Fetcher.fetch_object(replies_url) do
+    case RemoteFetch.fetch_object(replies_url) do
       {:ok, replies_data} ->
         {items, next_page} = extract_items_from_collection(replies_data)
 
         # If items is empty but there's a next page, fetch it
         {items, _} =
           if items == [] && next_page do
-            case Fetcher.fetch_object(next_page) do
+            case RemoteFetch.fetch_object(next_page) do
               {:ok, next_data} -> extract_items_from_collection(next_data)
               _ -> {[], nil}
             end
@@ -2288,7 +2308,7 @@ defmodule Elektrine.ActivityPub do
 
               # Item is just a URI - fetch it
               uri when is_binary(uri) ->
-                case Fetcher.fetch_object(uri) do
+                case RemoteFetch.fetch_object(uri) do
                   {:ok, fetched_obj} -> fetched_obj
                   _ -> nil
                 end

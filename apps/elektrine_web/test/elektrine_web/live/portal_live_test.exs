@@ -186,7 +186,7 @@ defmodule ElektrineWeb.PortalLiveTest do
       %{id: 5, federated: true, remote_actor_id: 11, activitypub_url: "https://remote.test/5"}
     ]
 
-    assert Index.visible_remote_count_refresh_ids(posts, 10) == [1, 5]
+    assert Index.visible_remote_count_refresh_ids(posts, 10) == [1, 3, 5]
     assert Index.visible_remote_count_refresh_ids(posts, 1) == [1]
   end
 

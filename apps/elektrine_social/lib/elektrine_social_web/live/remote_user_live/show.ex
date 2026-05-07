@@ -231,7 +231,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         {:ok, actor}
 
       nil ->
-        case ActivityPub.Fetcher.webfinger_lookup(acct) do
+        case ActivityPub.webfinger_lookup(acct) do
           {:ok, actor_uri} ->
             case ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false) do
               {:ok, actor} -> {:ok, actor}
@@ -2716,6 +2716,9 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp get_post_score(post) when is_map(post) do
+    cached_primary_count =
+      ElektrineSocialWeb.Components.Social.PostUtilities.display_primary_count(post)
+
     cond do
       ElektrineSocialWeb.Components.Social.PostUtilities.lemmy_vote_post?(post) &&
           (Map.has_key?(post, :upvotes) || Map.has_key?(post, :downvotes)) ->
@@ -2724,6 +2727,9 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       ElektrineSocialWeb.Components.Social.PostUtilities.lemmy_vote_post?(post) &&
         Map.has_key?(post, :score) && post.score ->
         post.score
+
+      cached_primary_count > 0 ->
+        cached_primary_count
 
       # Local post with like_count only
       Map.has_key?(post, :like_count) && post.like_count ->
