@@ -418,17 +418,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
   end
 
   defp maybe_schedule_background_refresh(socket, posts) when is_list(posts) do
-    message_ids =
-      posts
-      |> Enum.filter(&(&1.federated == true && is_integer(&1.id)))
-      |> Enum.map(& &1.id)
-      |> Enum.uniq()
-      |> Enum.take(20)
-
-    if connected?(socket) && message_ids != [] && !test_env?() do
-      Enum.each(message_ids, fn message_id ->
-        _ = Elektrine.ActivityPub.RefreshCountsWorker.schedule_single_refresh(message_id)
-      end)
+    if connected?(socket) && !test_env?() do
+      Elektrine.ActivityPub.RefreshCountsWorker.schedule_visible_refreshes(posts)
     end
 
     socket

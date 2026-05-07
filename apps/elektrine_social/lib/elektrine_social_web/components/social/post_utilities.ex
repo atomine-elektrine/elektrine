@@ -542,6 +542,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       parse_non_negative_count(metadata["reply_count"]),
       parse_non_negative_count(metadata["replies_count"]),
       parse_non_negative_count(get_in(metadata, ["remote_engagement", "replies"])),
+      extract_count_from_collection(Map.get(post, :replies) || Map.get(post, "replies")),
+      extract_count_from_collection(Map.get(post, :comments) || Map.get(post, "comments")),
       extract_count_from_collection(metadata["replies"]),
       extract_count_from_collection(metadata["comments"])
     ]
@@ -570,11 +572,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       is_map(post_counts) && is_integer(post_counts.score) && post_counts.score != 0 ->
         post_counts.score
 
-      is_integer(Map.get(post, :like_count)) && post.like_count > 0 ->
-        post.like_count
-
       cached_like_count > 0 ->
         cached_like_count
+
+      is_integer(Map.get(post, :like_count)) && post.like_count > 0 ->
+        post.like_count
 
       is_integer(Map.get(post, :score)) && post.score != 0 ->
         post.score
@@ -614,6 +616,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostUtilities do
       parse_non_negative_count(get_in(metadata, ["misskey", "reactionCount"])),
       parse_non_negative_count(get_in(metadata, ["misskey", "reaction_count"])),
       parse_non_negative_count(get_in(metadata, ["pleroma", "favourites_count"])),
+      extract_count_from_collection(Map.get(post, :likes) || Map.get(post, "likes")),
+      extract_count_from_collection(Map.get(post, :favourites) || Map.get(post, "favourites")),
+      extract_count_from_collection(Map.get(post, :favorites) || Map.get(post, "favorites")),
       extract_count_from_collection(metadata["likes"]),
       extract_count_from_collection(metadata["favourites"]),
       extract_count_from_collection(metadata["favorites"])

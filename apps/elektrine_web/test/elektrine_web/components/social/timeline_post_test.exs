@@ -6,6 +6,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Repo
   alias Elektrine.Social.LinkPreview
+  alias Elektrine.Social.Message
   alias ElektrineSocialWeb.Components.Social.PostUtilities
   alias ElektrineSocialWeb.Components.Social.TimelinePost
 
@@ -104,5 +105,56 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     assert html =~ ~s(aria-label="Score: 0")
     refute html =~ "Score unavailable"
     refute html =~ ">...<"
+  end
+
+  test "timeline actions prefer cached federated likes over stale local likes" do
+    post = %Message{
+      id: 789,
+      activitypub_id: "https://remote.example/users/alice/statuses/789",
+      activitypub_url: "https://remote.example/@alice/789",
+      post_type: "post",
+      content: "Remote post with cached engagement",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{"original_like_count" => 14},
+      like_count: 1,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      federated: true,
+      remote_actor: %Actor{id: 789, username: "alice", domain: "remote.example"}
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: %{id: 1},
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    like_button_text =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find("#post-actions-789-like")
+      |> Floki.text()
+
+    assert String.trim(like_button_text) == "14"
   end
 end

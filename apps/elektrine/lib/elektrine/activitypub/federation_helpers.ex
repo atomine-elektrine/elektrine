@@ -8,7 +8,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
 
   alias Elektrine.Accounts
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Builder, Fetcher, Publisher}
+  alias Elektrine.ActivityPub.{Builder, Publisher, RemoteFetch}
   alias Elektrine.Profiles
   alias Elektrine.Repo
 
@@ -19,7 +19,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
     with {:ok, local_user} <- get_local_user(local_username),
          {:ok, local_user} <- ActivityPub.KeyManager.ensure_user_has_keys(local_user),
          {:ok, acct} <- parse_remote_handle(remote_handle),
-         {:ok, actor_uri} <- Fetcher.webfinger_lookup(acct),
+         {:ok, actor_uri} <- RemoteFetch.webfinger_lookup(acct),
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
       # Check if already following (local user following remote actor)
       existing =
@@ -67,7 +67,7 @@ defmodule Elektrine.ActivityPub.FederationHelpers do
   def unfollow_remote_user(local_username, remote_handle) do
     with {:ok, local_user} <- get_local_user(local_username),
          {:ok, acct} <- parse_remote_handle(remote_handle),
-         {:ok, actor_uri} <- Fetcher.webfinger_lookup(acct),
+         {:ok, actor_uri} <- RemoteFetch.webfinger_lookup(acct),
          {:ok, remote_actor} <- ActivityPub.get_or_fetch_actor(actor_uri) do
       # Get the follow
       follow = Profiles.get_follow_by_remote_actor(remote_actor.id, local_user.id)

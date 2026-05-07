@@ -97,7 +97,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
   defp handle_remote_announce(object_uri, actor_uri, announce_activity_id) do
     with {:ok, booster_actor} <- ActivityPub.get_or_fetch_actor(actor_uri),
-         {:ok, object} <- Elektrine.ActivityPub.Fetcher.fetch_object(object_uri),
+         {:ok, object} <- Elektrine.ActivityPub.RemoteFetch.fetch_object(object_uri),
          {:ok, {actual_object, original_actor_uri}} <- unwrap_object(object) do
       cond do
         is_nil(actual_object) ->
@@ -160,7 +160,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
           inherited_object = inherit_wrapper_fields(object, inner_object)
           {:ok, {inherited_object, inherited_object["attributedTo"] || object["actor"]}}
         else
-          case Elektrine.ActivityPub.Fetcher.fetch_object(inner_object) do
+          case Elektrine.ActivityPub.RemoteFetch.fetch_object(inner_object) do
             {:ok, fetched} ->
               inherited_object = inherit_wrapper_fields(object, fetched)
 
@@ -194,7 +194,7 @@ defmodule Elektrine.ActivityPub.Handlers.AnnounceHandler do
 
   defp unwrap_announced_object(object_ref, fallback_actor_uri, depth)
        when is_binary(object_ref) do
-    case Elektrine.ActivityPub.Fetcher.fetch_object(object_ref) do
+    case Elektrine.ActivityPub.RemoteFetch.fetch_object(object_ref) do
       {:ok, fetched} ->
         with {:ok, {resolved, actor_uri}} <- unwrap_object(fetched, depth) do
           {:ok, {resolved, actor_uri || fallback_actor_uri}}

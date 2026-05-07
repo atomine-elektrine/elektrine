@@ -2397,6 +2397,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     base_count =
       cond do
+        like_only_mode && cached_primary_count != 0 ->
+          cached_primary_count
+
         like_only_mode && is_integer(post.like_count) && post.like_count != 0 ->
           post.like_count
 
@@ -2435,15 +2438,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
 
+        is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
+            Map.get(lemmy_counts, :score) != 0 ->
+          Map.get(lemmy_counts, :score)
+
+        !is_vote_post && cached_primary_count != 0 ->
+          cached_primary_count
+
         !is_vote_post && is_integer(post.like_count) && post.like_count != 0 ->
           post.like_count
 
         !is_vote_post && is_integer(post.score) && post.score != 0 ->
           post.score
-
-        is_map(lemmy_counts) && is_integer(Map.get(lemmy_counts, :score)) &&
-            Map.get(lemmy_counts, :score) != 0 ->
-          Map.get(lemmy_counts, :score)
 
         true ->
           cached_primary_count

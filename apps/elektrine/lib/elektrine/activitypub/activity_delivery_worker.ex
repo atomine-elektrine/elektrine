@@ -12,7 +12,12 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
   use Oban.Worker,
     queue: :activitypub_delivery,
     max_attempts: 1,
-    unique: [period: 300, fields: [:args], keys: [:delivery_id]]
+    unique: [
+      period: :infinity,
+      fields: [:args, :worker],
+      keys: [:delivery_id],
+      states: :incomplete
+    ]
 
   require Logger
 
@@ -253,12 +258,9 @@ defmodule Elektrine.ActivityPub.ActivityDeliveryWorker do
   Enqueue multiple deliveries for processing.
   """
   def enqueue_many(delivery_ids) when is_list(delivery_ids) do
-    jobs =
-      Enum.map(delivery_ids, fn id ->
-        new(%{delivery_id: id})
-      end)
-
-    Elektrine.JobQueue.insert_all(jobs)
+    delivery_ids
+    |> Enum.uniq()
+    |> Enum.map(&enqueue/1)
   end
 
   defp inbox_domain(inbox_url) when is_binary(inbox_url) do

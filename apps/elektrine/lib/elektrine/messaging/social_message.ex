@@ -213,6 +213,10 @@ defmodule Elektrine.Social.Message do
     |> foreign_key_constraint(:conversation_id)
     |> foreign_key_constraint(:sender_id)
     |> foreign_key_constraint(:reply_to_id)
+    |> unique_constraint(:activitypub_id,
+      name: :activitypub_id_index,
+      match: :suffix
+    )
   end
 
   @doc """

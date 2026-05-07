@@ -21,7 +21,7 @@ defmodule Elektrine.ActivityPub.Relay do
   """
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.{Fetcher, HTTPSignature, Publisher, RelaySubscription}
+  alias Elektrine.ActivityPub.{HTTPSignature, Publisher, RelaySubscription, RemoteFetch}
   alias Elektrine.Async
   alias Elektrine.Repo
 
@@ -540,7 +540,7 @@ defmodule Elektrine.ActivityPub.Relay do
   # Private functions
 
   defp fetch_relay_actor(relay_uri) do
-    case Fetcher.fetch_object(relay_uri) do
+    case RemoteFetch.fetch_object(relay_uri) do
       {:ok, actor_data} ->
         {:ok,
          %{

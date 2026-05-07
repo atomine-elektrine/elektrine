@@ -5,8 +5,8 @@ defmodule Elektrine.ActivityPub.FetchRemotePollService do
 
   require Logger
 
-  alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.ActivityPub.Handlers.{CreateHandler, UpdateHandler}
+  alias Elektrine.ActivityPub.RemoteFetch
   alias Elektrine.Repo
   alias Elektrine.Social.Message
 
@@ -18,7 +18,7 @@ defmodule Elektrine.ActivityPub.FetchRemotePollService do
          true <- poll_stale?(poll),
          activitypub_id when is_binary(activitypub_id) <- message.activitypub_id,
          actor_uri when is_binary(actor_uri) <- message.remote_actor && message.remote_actor.uri,
-         {:ok, object} when is_map(object) <- Fetcher.fetch_object(activitypub_id),
+         {:ok, object} when is_map(object) <- RemoteFetch.fetch_object(activitypub_id),
          {:ok, _} <- UpdateHandler.handle(%{"object" => object}, actor_uri, nil),
          {:ok, refreshed_poll} <- CreateHandler.upsert_federated_poll(message.id, object) do
       refreshed_poll

@@ -6,8 +6,8 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   require Logger
 
   alias Elektrine.ActivityPub
-  alias Elektrine.ActivityPub.Fetcher
   alias Elektrine.ActivityPub.Handlers.CreateHandler
+  alias Elektrine.ActivityPub.RemoteFetch
   alias Elektrine.Async
   alias Elektrine.Messaging
 
@@ -321,7 +321,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
   end
 
   defp fetch_reactable_object(uri) do
-    with {:ok, object} <- Fetcher.fetch_object(uri) do
+    with {:ok, object} <- RemoteFetch.fetch_object(uri) do
       normalize_reactable_object(object)
     end
   end
@@ -351,7 +351,7 @@ defmodule Elektrine.ActivityPub.Handlers.LikeHandler do
         normalize_reactable_object(inner_with_actor)
 
       inner_uri when is_binary(inner_uri) ->
-        with {:ok, fetched_inner} <- Fetcher.fetch_object(inner_uri) do
+        with {:ok, fetched_inner} <- RemoteFetch.fetch_object(inner_uri) do
           inner_with_actor =
             if creator_uri do
               Map.put_new(fetched_inner, "attributedTo", creator_uri)

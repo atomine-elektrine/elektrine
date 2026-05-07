@@ -396,7 +396,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   def get_or_store_remote_post(activitypub_id) do
     case cached_remote_post(activitypub_id) do
       nil ->
-        case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
+        case Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id) do
           {:ok, post_object} ->
             actor_uri = post_object["actor"] || post_object["attributedTo"]
             store_or_resolve_remote_post(post_object, actor_uri)
@@ -413,7 +413,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   def get_or_store_remote_post(activitypub_id, actor_uri) do
     case cached_remote_post(activitypub_id) do
       nil ->
-        case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
+        case Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id) do
           {:ok, post_object} ->
             preferred_actor_uri =
               extracted_object_actor_uri(post_object) || actor_uri
@@ -578,7 +578,7 @@ defmodule Elektrine.ActivityPub.Helpers do
   defp parse_signed_count(_), do: 0
 
   defp fetch_single_post_data(activitypub_id) do
-    case Elektrine.ActivityPub.Fetcher.fetch_object(activitypub_id) do
+    case Elektrine.ActivityPub.RemoteFetch.fetch_object(activitypub_id) do
       {:ok, object} ->
         # Extract counts
         likes = extract_interaction_count(object, "likes")

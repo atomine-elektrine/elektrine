@@ -60,7 +60,7 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
 
   def handle(%{"object" => object_uri} = activity, actor_uri, target_user)
       when is_binary(object_uri) do
-    case Elektrine.ActivityPub.Fetcher.fetch_object(object_uri) do
+    case Elektrine.ActivityPub.RemoteFetch.fetch_object(object_uri) do
       {:ok, object} when is_map(object) ->
         handle(
           %{activity | "object" => inherit_wrapper_fields(activity, object)},

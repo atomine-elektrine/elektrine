@@ -234,15 +234,45 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
               <label class="label">
                 <span class="label-text text-sm font-semibold">Your app password</span>
               </label>
-              <div class="rounded-lg bg-base-200 p-4 text-center">
-                <code class="text-lg font-mono select-all break-all">{@new_token}</code>
+              <div class="join w-full">
+                <div class="join-item flex-1 rounded-l-lg bg-base-200 p-4 text-center">
+                  <code id="new-app-password-token" class="text-lg font-mono select-all break-all">
+                    {@new_token}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  id="copy-new-app-password-token"
+                  class="btn btn-primary join-item h-auto px-4"
+                  phx-hook="CopyToClipboard"
+                  data-content={@new_token}
+                  title="Copy app password"
+                  aria-label="Copy app password"
+                >
+                  <.icon name="hero-clipboard-document" class="w-4 h-4" />
+                  <span class="hidden sm:inline">Copy</span>
+                </button>
               </div>
             </div>
 
             <div class="bg-base-200 rounded-lg p-3 mt-4">
-              <p class="text-xs text-base-content/70 font-semibold mb-3">
-                Email client configuration:
-              </p>
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <p class="text-xs text-base-content/70 font-semibold">
+                  Email client configuration:
+                </p>
+                <button
+                  type="button"
+                  id="copy-email-client-configuration"
+                  class="btn btn-ghost btn-xs"
+                  phx-hook="CopyToClipboard"
+                  data-copy-target="email-client-configuration-copy-text"
+                  title="Copy email client configuration"
+                  aria-label="Copy email client configuration"
+                >
+                  <.icon name="hero-clipboard-document" class="w-3 h-3" /> Copy
+                </button>
+              </div>
+              <textarea id="email-client-configuration-copy-text" class="hidden" readonly><%= app_password_client_configuration(@current_user, @new_token, @imap_settings, @smtp_settings, @pop3_settings) %></textarea>
               <div class="text-xs text-base-content/60 space-y-3">
                 <div>
                   <p class="font-semibold mb-1">IMAP (Recommended):</p>
@@ -272,7 +302,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
                   </p>
                 </div>
                 <div class="pt-2 border-t border-base-300">
-                  <p>• Username: Your elektrine username</p>
+                  <p>• Username: {mail_client_username(@current_user)}</p>
                   <p>• Password: The app password shown above</p>
                 </div>
               </div>
@@ -375,4 +405,37 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
     </.account_page>
     """
   end
+
+  defp app_password_client_configuration(user, token, imap_settings, smtp_settings, pop3_settings) do
+    username = mail_client_username(user)
+
+    [
+      "Email client configuration",
+      "",
+      "Username: #{username}",
+      "Password: #{token}",
+      "",
+      "IMAP (Recommended)",
+      "Server: #{imap_settings.host}",
+      "Port: #{imap_settings.port}",
+      "Security: #{MailClientSettings.security_label(imap_settings)}",
+      "",
+      "SMTP (Outgoing)",
+      "Server: #{smtp_settings.host}",
+      "Port: #{smtp_settings.port}",
+      "Security: #{MailClientSettings.security_label(smtp_settings)}",
+      "",
+      "POP3 (Alternative)",
+      "Server: #{pop3_settings.host}",
+      "Port: #{pop3_settings.port}",
+      "Security: #{MailClientSettings.security_label(pop3_settings)}"
+    ]
+    |> Enum.join("\n")
+  end
+
+  defp mail_client_username(%{username: username}) when is_binary(username) and username != "" do
+    username
+  end
+
+  defp mail_client_username(_), do: "Your elektrine username"
 end

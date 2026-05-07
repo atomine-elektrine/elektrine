@@ -10,7 +10,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   Based on: https://www.w3.org/TR/activitystreams-core/#paging
   """
 
-  alias Elektrine.ActivityPub.Fetcher
+  alias Elektrine.ActivityPub.RemoteFetch
   require Logger
 
   @max_collection_items Application.compile_env(
@@ -44,7 +44,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   def fetch_collection(collection, opts \\ [])
 
   def fetch_collection(url, opts) when is_binary(url) do
-    case Fetcher.fetch_object(url) do
+    case RemoteFetch.fetch_object(url) do
       {:ok, page} ->
         collect_from_page(page, opts)
 
@@ -74,7 +74,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   """
   @spec fetch_collection_count(String.t() | map()) :: {:ok, non_neg_integer()} | {:error, any()}
   def fetch_collection_count(url) when is_binary(url) do
-    case Fetcher.fetch_object(url) do
+    case RemoteFetch.fetch_object(url) do
       {:ok, collection} ->
         count_collection_items(collection)
 
@@ -183,7 +183,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
 
       # Has next page
       next_url = get_next_page(page) ->
-        case Fetcher.fetch_object(next_url) do
+        case RemoteFetch.fetch_object(next_url) do
           {:ok, next_page} ->
             do_collect(next_page, all_items, max_items, max_pages, page_count + 1)
 
@@ -198,7 +198,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
 
       # Has first page reference (for Collection pointing to first CollectionPage)
       first_url = get_first_page(page) ->
-        case Fetcher.fetch_object(first_url) do
+        case RemoteFetch.fetch_object(first_url) do
           {:ok, first_page} ->
             do_collect(first_page, all_items, max_items, max_pages, page_count + 1)
 

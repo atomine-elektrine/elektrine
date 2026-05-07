@@ -17,11 +17,11 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   alias Elektrine.ActivityPub.{
     Actor,
     CollectionFetcher,
-    Fetcher,
     Helpers,
     LemmyApi,
     MastodonApi,
-    Visibility
+    Normalizer,
+    RemoteFetch
   }
 
   alias Elektrine.Messaging
@@ -92,7 +92,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
       message ->
         if message.activitypub_id do
-          case Fetcher.fetch_object(message.activitypub_id, fetch_object_opts(opts)) do
+          case RemoteFetch.fetch_object(message.activitypub_id, fetch_object_opts(opts)) do
             {:ok, post_object} ->
               case fetch_and_store_replies(post_object, opts) do
                 {:ok, stored_count} ->
@@ -533,7 +533,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   # Normalize different reply item formats
   defp normalize_reply_item(item) when is_binary(item) do
     # Just a URL reference - need to fetch the full object
-    case Fetcher.fetch_object(item) do
+    case RemoteFetch.fetch_object(item) do
       {:ok, object} -> object
       {:error, _} -> nil
     end
@@ -551,7 +551,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
   defp normalize_reply_item(%{"object" => object_url}) when is_binary(object_url) do
     # Create activity with object URL
-    case Fetcher.fetch_object(object_url) do
+    case RemoteFetch.fetch_object(object_url) do
       {:ok, object} -> object
       {:error, _} -> nil
     end
@@ -560,7 +560,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   defp normalize_reply_item(_), do: nil
 
   defp store_reply(object, parent_message_id) do
-    actor_uri = object["attributedTo"] || object["actor"]
+    actor_uri = Normalizer.actor_uri(object)
 
     if is_nil(actor_uri) do
       Logger.debug("Reply has no author, skipping: #{object["id"]}")
@@ -597,30 +597,23 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     # Check if already exists
     case Messaging.get_message_by_activitypub_id(object["id"]) do
       nil ->
-        # Create new reply
-        content = strip_html(object["content"] || "")
-        visibility = determine_visibility(object)
+        payload =
+          Normalizer.message_payload(object, remote_actor.uri,
+            enrich_sparse_object: false,
+            assume_public_reply_without_audience: true
+          )
+
+        visibility = payload.attrs.visibility
 
         if visibility in ["public", "unlisted"] do
-          {media_urls, alt_texts} = extract_media_with_alt_text(object)
-
           attrs =
-            %{
-              content: content,
-              visibility: visibility,
-              activitypub_id: object["id"],
-              activitypub_url: object["url"] || object["id"],
+            payload.attrs
+            |> Map.merge(reply_count_attrs(object))
+            |> Map.merge(%{
               federated: true,
               remote_actor_id: remote_actor.id,
-              reply_to_id: parent_message_id,
-              media_urls: media_urls,
-              media_metadata:
-                if(map_size(alt_texts) > 0, do: %{"alt_texts" => alt_texts}, else: %{}),
-              inserted_at: Helpers.parse_published_date(object["published"]),
-              sensitive: object["sensitive"] || false,
-              content_warning: object["summary"]
-            }
-            |> Map.merge(reply_count_attrs(object))
+              reply_to_id: parent_message_id
+            })
 
           case Messaging.create_federated_message(attrs) do
             {:ok, message} ->
@@ -671,14 +664,9 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   defp refresh_existing_reply_counts(message, _), do: message
 
   defp reply_count_attrs(object) when is_map(object) do
-    %{
-      like_count: Helpers.extract_interaction_count(object, "likes"),
-      reply_count: Helpers.extract_interaction_count(object, "replies"),
-      share_count: Helpers.extract_interaction_count(object, "shares"),
-      upvotes: object["upvotes"] || 0,
-      downvotes: object["downvotes"] || 0,
-      score: object["score"] || 0
-    }
+    object
+    |> Normalizer.engagement_counts()
+    |> Map.take([:like_count, :reply_count, :share_count, :upvotes, :downvotes, :score])
   end
 
   defp reply_count_attrs(_), do: %{}
@@ -705,7 +693,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         parent.id
 
       true ->
-        actor_uri = object["attributedTo"] || object["actor"]
+        actor_uri = Normalizer.actor_uri(object)
 
         case Helpers.get_or_store_remote_post(in_reply_to_ref, actor_uri) do
           {:ok, parent} when is_map(parent) -> parent.id
@@ -838,60 +826,4 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   end
 
   defp normalize_mastodon_profile_url(_), do: nil
-
-  # Helper functions (simplified versions from CreateHandler)
-
-  defp strip_html(html) do
-    html
-    |> String.replace(~r/<br\s*\/?>/, "\n")
-    |> String.replace(~r/<p[^>]*>/, "\n")
-    |> String.replace(~r/<\/p>/, "\n")
-    |> String.replace(~r/<[^>]*>/, "")
-    |> HtmlEntities.decode()
-    |> String.trim()
-  end
-
-  defp determine_visibility(object) do
-    Visibility.visibility(object, assume_public_reply_without_audience: true)
-  end
-
-  defp extract_media_with_alt_text(object) do
-    attachments = object["attachment"] || []
-
-    attachments
-    |> Enum.with_index()
-    |> Enum.map(fn {attachment, idx} ->
-      url =
-        cond do
-          is_binary(attachment["url"]) -> attachment["url"]
-          is_map(attachment["url"]) -> attachment["url"]["href"]
-          is_binary(attachment["href"]) -> attachment["href"]
-          true -> nil
-        end
-
-      alt_text = attachment["name"] || attachment["summary"] || attachment["content"]
-      {url, alt_text, idx}
-    end)
-    |> Enum.filter(fn {url, _alt, _idx} -> is_binary(url) && valid_media_url?(url) end)
-    |> Enum.take(10)
-    |> Enum.reduce({[], %{}}, fn {url, alt_text, idx}, {urls, alt_map} ->
-      new_urls = urls ++ [url]
-
-      new_alt_map =
-        if Elektrine.Strings.present?(alt_text) do
-          Map.put(alt_map, to_string(idx), String.trim(alt_text))
-        else
-          alt_map
-        end
-
-      {new_urls, new_alt_map}
-    end)
-  end
-
-  defp valid_media_url?(url) when is_binary(url) do
-    uri = URI.parse(url)
-    uri.scheme in ["https", "http"] && uri.host != nil
-  end
-
-  defp valid_media_url?(_), do: false
 end

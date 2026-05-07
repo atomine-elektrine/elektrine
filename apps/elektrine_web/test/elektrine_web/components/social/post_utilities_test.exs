@@ -218,4 +218,37 @@ defmodule ElektrineWeb.Components.Social.PostUtilitiesTest do
 
     assert PostUtilities.get_display_counts(post, %{}, %{}) == {14, 0}
   end
+
+  test "get_display_counts/3 prefers cached federated likes over stale non-zero local likes" do
+    post = %{
+      id: 127,
+      activitypub_id: "https://remote.example/users/alice/statuses/127",
+      post_type: "post",
+      like_count: 1,
+      reply_count: 0,
+      score: 0,
+      media_metadata: %{
+        "original_like_count" => 14,
+        "remote_engagement" => %{"likes" => 11}
+      }
+    }
+
+    assert PostUtilities.get_display_counts(post, %{}, %{}) == {14, 0}
+  end
+
+  test "get_display_counts/3 reads top-level ActivityPub collection counts" do
+    post =
+      %{
+        id: 128,
+        activitypub_id: "https://remote.example/users/alice/statuses/128",
+        post_type: "post",
+        like_count: 1,
+        reply_count: 0,
+        media_metadata: %{}
+      }
+      |> Map.put("likes", %{"totalItems" => 14})
+      |> Map.put("replies", %{"totalItems" => 6})
+
+    assert PostUtilities.get_display_counts(post, %{}, %{}) == {14, 6}
+  end
 end
