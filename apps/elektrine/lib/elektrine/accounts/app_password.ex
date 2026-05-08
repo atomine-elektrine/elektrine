@@ -157,6 +157,19 @@ defmodule Elektrine.Accounts.AppPassword do
     end
   end
 
+  @doc "Returns the stored app-password hash version for diagnostics."
+  def hash_version(token_hash) when is_binary(token_hash) do
+    cond do
+      String.starts_with?(token_hash, @current_hash_prefix) -> :v3_argon2id
+      argon2_hash?(token_hash) -> :argon2id
+      hmac_hash?(token_hash) -> :v2_hmac
+      legacy_sha256_hash?(token_hash) -> :legacy_sha256
+      true -> :unknown
+    end
+  end
+
+  def hash_version(_token_hash), do: :unknown
+
   defp argon2_hash?(token_hash) when is_binary(token_hash),
     do: not is_nil(argon2_hash_body(token_hash))
 
@@ -166,6 +179,11 @@ defmodule Elektrine.Accounts.AppPassword do
     do: String.starts_with?(token_hash, @hmac_hash_prefix)
 
   defp hmac_hash?(_), do: false
+
+  defp legacy_sha256_hash?(token_hash) when is_binary(token_hash),
+    do: String.match?(token_hash, ~r/\A[0-9a-f]{64}\z/)
+
+  defp legacy_sha256_hash?(_), do: false
 
   defp verify_argon2_token(token, token_hash) do
     case argon2_hash_body(token_hash) do
