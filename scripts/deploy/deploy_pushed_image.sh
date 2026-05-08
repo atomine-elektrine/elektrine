@@ -79,34 +79,18 @@ fi
 
 cd "$DEPLOY_PATH"
 
-override_file="$(mktemp /tmp/elektrine.manual-image.override.XXXXXX.yml)"
-trap 'rm -f "$override_file"' EXIT
-
-cat > "$override_file" <<OVERRIDE
-services:
-  app:
-    image: ${TARGET_IMAGE}
-  worker:
-    image: ${TARGET_IMAGE}
-  mail:
-    image: ${TARGET_IMAGE}
-  dns:
-    image: ${TARGET_IMAGE}
-OVERRIDE
-
 PROFILE_ARGS=()
 for profile in $DOCKER_PROFILES_VALUE; do
   PROFILE_ARGS+=(--profile "$profile")
 done
 
-COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$DEPLOY_PATH/deploy/docker/generated.Caddyfile" \
+ELEKTRINE_IMAGE="$TARGET_IMAGE" COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$DEPLOY_PATH/deploy/docker/generated.Caddyfile" \
   bash scripts/deploy/docker_deploy.sh \
   --modules "$ELEKTRINE_ENABLED_MODULES" \
   --env-file "$DEPLOY_PATH/.env.production" \
   --output "$DEPLOY_PATH/deploy/docker/generated.docker.yml" \
   --pull \
   --skip-build \
-  --compose-override "$override_file" \
   "${PROFILE_ARGS[@]}"
 EOF
 

@@ -71,6 +71,14 @@ done
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
 awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" -v turn_enabled="$COTURN_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
+  /ELEKTRINE_IMAGE:/ {
+    if (ENVIRON["ELEKTRINE_IMAGE"] != "") {
+      sub(/\$\{ELEKTRINE_IMAGE:-[^}]*\}/, ENVIRON["ELEKTRINE_IMAGE"])
+    }
+    print
+    next
+  }
+
   /ELEKTRINE_RELEASE_MODULES:/ {
     sub(/\$\{ELEKTRINE_RELEASE_MODULES:-[^}]*\}/, "${ELEKTRINE_RELEASE_MODULES:-" release_modules "}")
     print
