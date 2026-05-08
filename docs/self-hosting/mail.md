@@ -77,7 +77,7 @@ Same-server networking guidance:
 
 Suggested split:
 
-- Elektrine: `80/443` for web, SMTP submission on `587`, plus mailbox access on `143/110` and native secure mailbox access on `993/995`
+- Elektrine: `80/443` for web, public SMTPS submission on `465`, optional SMTP submission on `587`, plus mailbox access on `143/110` and native secure mailbox access on `993/995`
 - Haraka: `25` for inbound SMTP, plus outbound relay/API as needed
 
 SMTP submission terminates at Elektrine in this split setup.
@@ -102,9 +102,10 @@ Recommended client settings:
 
 - prefer `993` (IMAPS) or `995` (POP3S)
 - use `143` / `110` only for clients that need plain IMAP/POP compatibility
-- use `587` with `STARTTLS` for SMTP submission
+- use `465` with `SSL/TLS` for SMTP submission; Docker exposes this publicly by default
+- use `587` with `STARTTLS` only if you publish it externally, for example `SMTP_BIND=587:2587`
 
-Required env for native TLS mailbox access:
+Required env for native TLS mailbox access and encrypted SMTP submission:
 
 ```dotenv
 MAIL_TLS_CERT_PATH=/opt/elektrine/certs/mail.crt
@@ -120,6 +121,8 @@ be readable by root inside the container.
 Optional per-protocol cert overrides:
 
 ```dotenv
+SMTP_TLS_CERT_PATH=/opt/elektrine/certs/smtp.crt
+SMTP_TLS_KEY_PATH=/opt/elektrine/certs/smtp.key
 IMAP_TLS_CERT_PATH=/opt/elektrine/certs/imap.crt
 IMAP_TLS_KEY_PATH=/opt/elektrine/certs/imap.key
 POP3_TLS_CERT_PATH=/opt/elektrine/certs/pop.crt
