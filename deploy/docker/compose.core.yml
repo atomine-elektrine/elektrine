@@ -4,6 +4,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: elektrine_db
+    shm_size: ${POSTGRES_SHM_SIZE:-512m}
     command:
       [
         "postgres",
@@ -36,7 +37,7 @@ services:
       dockerfile: deploy/docker/Dockerfile
       args:
         RELEASE_NAME: ${RELEASE_NAME:-elektrine}
-        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-chat,social,vault}
+        ELEKTRINE_RELEASE_MODULES: ${ELEKTRINE_RELEASE_MODULES:-chat,social,vault,atomine}
         PRIMARY_DOMAIN: ${PRIMARY_DOMAIN:-localhost}
         EMAIL_DOMAIN: ${EMAIL_DOMAIN:-${PRIMARY_DOMAIN:-localhost}}
         SUPPORTED_DOMAINS: ${SUPPORTED_DOMAINS:-${PRIMARY_DOMAIN:-localhost}}
@@ -55,7 +56,7 @@ services:
       PHX_HTTP_IP: ${DOCKER_PHX_HTTP_IP:-0.0.0.0}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}
       MIX_ENV: prod
-      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault}
+      ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,vault,atomine}
       ACME_HOME: ${ACME_HOME:-/data/acme.sh}
       ACME_WILDCARD_RENEWAL_ENABLED: ${ACME_WILDCARD_RENEWAL_ENABLED:-false}
       ACME_RENEW_COMMAND: ${ACME_RENEW_COMMAND:-/data/acme.sh/acme.sh --cron --home /data/acme.sh}

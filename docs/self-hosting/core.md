@@ -38,7 +38,7 @@ you override profiles.
 
 - Add Caddy with `--profile caddy`
 - Add self-hosted STUN/TURN for chat calls with `--profile turn`
-- Add Docker-managed WireGuard with `--modules chat,social,vault,vpn`
+- Add Docker-managed WireGuard with `--modules chat,social,vault,vpn,atomine`
 - Add the dedicated DNS service with `--profile dns`
 - Add the Bluesky PDS with `--profile bluesky`
 

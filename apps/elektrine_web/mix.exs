@@ -19,7 +19,7 @@ defmodule ElektrineWeb.MixProject do
 
   def application do
     [
-      extra_applications: [:logger, :atomine]
+      extra_applications: [:logger]
     ]
   end
 
@@ -124,17 +124,20 @@ defmodule ElektrineWeb.MixProject do
   defp deps do
     [
       internal_dep(:elektrine),
-      internal_dep(:atomine),
+      internal_dep(:atomine, runtime: false),
       internal_dep(:elektrine_password_manager),
       {:posthog, "~> 2.5"}
     ]
   end
 
-  defp internal_dep(app) do
-    if Mix.Project.umbrella?() do
-      {app, in_umbrella: true}
-    else
-      {app, path: "../#{app}"}
-    end
+  defp internal_dep(app, opts \\ []) do
+    dep_opts =
+      if Mix.Project.umbrella?() do
+        [in_umbrella: true]
+      else
+        [path: "../#{app}"]
+      end
+
+    {app, Keyword.merge(dep_opts, opts)}
   end
 end

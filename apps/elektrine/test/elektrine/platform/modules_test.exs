@@ -25,11 +25,12 @@ defmodule Elektrine.Platform.ModulesTest do
   end
 
   test "normalizes hoster module lists from strings" do
-    assert Modules.normalize_enabled_modules("chat, email, password-manager, vpn") == [
+    assert Modules.normalize_enabled_modules("chat, email, password-manager, vpn, proofs") == [
              :chat,
              :email,
              :vault,
-             :vpn
+             :vpn,
+             :atomine
            ]
   end
 

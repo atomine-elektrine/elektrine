@@ -2,6 +2,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: elektrine_db
+    shm_size: ${POSTGRES_SHM_SIZE:-512m}
     command:
       [
         "postgres",

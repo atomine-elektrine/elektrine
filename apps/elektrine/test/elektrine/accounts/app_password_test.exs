@@ -84,6 +84,44 @@ defmodule Elektrine.Accounts.AppPasswordTest do
       assert authenticated_user.id == user.id
     end
 
+    test "accepts v3 Argon2id hashes created from legacy displayed tokens" do
+      user = user_fixture()
+      token = "abcd-efgh-ijkl-mnop-qrst-uvwx-yz23-4567"
+
+      {:ok, _app_password} =
+        %AppPassword{}
+        |> AppPassword.changeset(%{
+          name: "Legacy displayed Argon2id token",
+          user_id: user.id,
+          token_hash: "v3$argon2id$" <> Argon2.hash_pwd_salt(token)
+        })
+        |> Repo.insert()
+
+      assert {:ok, authenticated_user} =
+               Accounts.authenticate_with_app_password(user.username, String.upcase(token))
+
+      assert authenticated_user.id == user.id
+    end
+
+    test "accepts raw Argon2id app password hashes without v3 prefix" do
+      user = user_fixture()
+      token = "abcd-efgh-ijkl-mnop-qrst-uvwx-yz23-4567"
+
+      {:ok, _app_password} =
+        %AppPassword{}
+        |> AppPassword.changeset(%{
+          name: "Raw Argon2id token",
+          user_id: user.id,
+          token_hash: Argon2.hash_pwd_salt(token)
+        })
+        |> Repo.insert()
+
+      assert {:ok, authenticated_user} =
+               Accounts.authenticate_with_app_password(user.username, token)
+
+      assert authenticated_user.id == user.id
+    end
+
     test "still accepts existing v2 HMAC app password hashes when the pepper exists" do
       user = user_fixture()
       token = "abcd-efgh-ijkl-mnop-qrst-uvwx-yz23-4567"

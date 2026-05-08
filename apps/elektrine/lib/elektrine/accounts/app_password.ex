@@ -158,7 +158,7 @@ defmodule Elektrine.Accounts.AppPassword do
   end
 
   defp argon2_hash?(token_hash) when is_binary(token_hash),
-    do: String.starts_with?(token_hash, @current_hash_prefix)
+    do: not is_nil(argon2_hash_body(token_hash))
 
   defp argon2_hash?(_), do: false
 
@@ -167,10 +167,46 @@ defmodule Elektrine.Accounts.AppPassword do
 
   defp hmac_hash?(_), do: false
 
-  defp verify_argon2_token(token, @current_hash_prefix <> argon2_hash) do
-    Argon2.verify_pass(normalize_current_token(token), argon2_hash)
+  defp verify_argon2_token(token, token_hash) do
+    case argon2_hash_body(token_hash) do
+      nil ->
+        false
+
+      argon2_hash ->
+        token
+        |> argon2_token_candidates()
+        |> Enum.any?(&verify_argon2_candidate(&1, argon2_hash))
+    end
+  end
+
+  defp argon2_hash_body(@current_hash_prefix <> argon2_hash),
+    do: normalize_argon2_hash_body(argon2_hash)
+
+  defp argon2_hash_body("$argon2id$" <> _ = argon2_hash), do: argon2_hash
+  defp argon2_hash_body(_), do: nil
+
+  defp normalize_argon2_hash_body("$argon2id$" <> _ = argon2_hash), do: argon2_hash
+  defp normalize_argon2_hash_body("argon2id$" <> _ = argon2_hash), do: "$" <> argon2_hash
+  defp normalize_argon2_hash_body(_), do: nil
+
+  defp argon2_token_candidates(token) when is_binary(token) do
+    trimmed = String.trim(token)
+
+    [
+      normalize_current_token(token),
+      trimmed,
+      String.downcase(trimmed)
+    ]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp argon2_token_candidates(_), do: []
+
+  defp verify_argon2_candidate(candidate, argon2_hash) do
+    Argon2.verify_pass(candidate, argon2_hash)
   rescue
-    ArgumentError -> false
+    _ -> false
   end
 
   defp secure_compare(left, right) when is_binary(left) and is_binary(right) do

@@ -235,9 +235,18 @@ config :elektrine, :profile_base_domains, profile_base_domains
 config :elektrine, :profile_host_scope, profile_host_scope
 config :elektrine, :primary_domain, primary_domain
 
-config :elektrine, :compiled_platform_modules, [:chat, :social, :email, :vault, :vpn, :dns]
+config :elektrine, :compiled_platform_modules, [
+  :chat,
+  :social,
+  :email,
+  :vault,
+  :vpn,
+  :dns,
+  :atomine
+]
 
-config :elektrine, :platform_modules, enabled: [:chat, :social, :email, :vault, :vpn, :dns]
+config :elektrine, :platform_modules,
+  enabled: [:chat, :social, :email, :vault, :vpn, :dns, :atomine]
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.

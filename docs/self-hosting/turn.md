@@ -13,7 +13,7 @@ Minimum setup:
 Example:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile turn
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile turn
 ```
 
 What the profile does:
