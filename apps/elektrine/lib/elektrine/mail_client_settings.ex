@@ -9,7 +9,7 @@ defmodule Elektrine.MailClientSettings do
   @default_settings [
     imap: [port: 993, security: :ssl],
     pop3: [port: 995, security: :ssl],
-    smtp: [port: 587, security: :starttls]
+    smtp: [port: 465, security: :ssl]
   ]
 
   def imap(domain \\ Domains.primary_email_domain()), do: build(:imap, domain)
@@ -22,7 +22,7 @@ defmodule Elektrine.MailClientSettings do
   def socket_type(:plain), do: "plain"
 
   def security_label(%{security: security}), do: security_label(security)
-  def security_label(:ssl), do: "TLS"
+  def security_label(:ssl), do: "SSL/TLS"
   def security_label(:starttls), do: "STARTTLS"
   def security_label(:plain), do: "plain text"
 

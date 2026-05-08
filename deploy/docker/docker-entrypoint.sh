@@ -77,6 +77,8 @@ link_release_uploads_dir
 
 stage_mail_tls_file MAIL_TLS_CERT_PATH
 stage_mail_tls_file MAIL_TLS_KEY_PATH
+stage_mail_tls_file SMTP_TLS_CERT_PATH
+stage_mail_tls_file SMTP_TLS_KEY_PATH
 stage_mail_tls_file IMAP_TLS_CERT_PATH
 stage_mail_tls_file IMAP_TLS_KEY_PATH
 stage_mail_tls_file POP3_TLS_CERT_PATH
