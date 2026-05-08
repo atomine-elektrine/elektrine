@@ -1656,19 +1656,25 @@ defmodule Elektrine.Social.Messages do
   Gets a message by an ActivityPub reference that may be either the canonical ID
   or the URL form used by some servers.
   """
-  def get_message_by_activitypub_ref(activitypub_ref) when is_binary(activitypub_ref) do
+  def get_message_by_activitypub_ref(activitypub_ref, opts \\ [])
+
+  def get_message_by_activitypub_ref(activitypub_ref, opts) when is_binary(activitypub_ref) do
     case canonical_activitypub_ref(activitypub_ref) do
       nil ->
         nil
 
       canonical_ref ->
-        AppCache.get_activitypub_message_ref(activitypub_ref, fn ->
+        if Keyword.get(opts, :cache, true) do
+          AppCache.get_activitypub_message_ref(activitypub_ref, fn ->
+            lookup_message_by_activitypub_ref(canonical_ref)
+          end)
+        else
           lookup_message_by_activitypub_ref(canonical_ref)
-        end)
+        end
     end
   end
 
-  def get_message_by_activitypub_ref(_), do: nil
+  def get_message_by_activitypub_ref(_, _), do: nil
 
   defp lookup_message_by_activitypub_ref(canonical_ref) when is_binary(canonical_ref) do
     case message_id_by_activitypub_ref(canonical_ref, [

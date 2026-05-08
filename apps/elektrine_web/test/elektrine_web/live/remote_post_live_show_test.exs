@@ -938,6 +938,88 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert Repo.get!(Message, root_message.id).reply_count == 2
   end
 
+  test "replies_loaded re-resolves stale local message before persisting reply count" do
+    unique = System.unique_integer([:positive])
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/reresolve#{unique}",
+        username: "reresolve#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/reresolve#{unique}/inbox",
+        public_key: "test-public-key-reresolve-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, stale_message} =
+      Messaging.create_federated_message(%{
+        content: "stale socket post",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/stale-#{unique}",
+        activitypub_url: "https://remote.example/posts/stale-#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 0
+      })
+
+    {:ok, root_message} =
+      Messaging.create_federated_message(%{
+        content: "resolved root",
+        visibility: "public",
+        activitypub_id: "https://remote.example/posts/resolved-#{unique}",
+        activitypub_url: "https://remote.example/posts/resolved-#{unique}",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_count: 0
+      })
+
+    {:ok, _first_reply} =
+      Messaging.create_federated_message(%{
+        content: "first reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/resolved-#{unique}-1",
+        activitypub_url: "https://remote.example/comments/resolved-#{unique}-1",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    {:ok, _second_reply} =
+      Messaging.create_federated_message(%{
+        content: "second reply",
+        visibility: "public",
+        activitypub_id: "https://remote.example/comments/resolved-#{unique}-2",
+        activitypub_url: "https://remote.example/comments/resolved-#{unique}-2",
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        reply_to_id: root_message.id
+      })
+
+    post_ref = root_message.activitypub_id <> "?ctx=reply#context"
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{
+        __changed__: %{},
+        local_message: stale_message,
+        post: %{"id" => post_ref, "reply_count" => 0},
+        replies: [],
+        comment_sort: "hot",
+        current_user: nil,
+        post_interactions: %{},
+        post_reactions: %{}
+      }
+    }
+
+    assert {:noreply, updated_socket} =
+             Show.handle_info({:replies_loaded, [], post_ref}, socket)
+
+    assert updated_socket.assigns.local_message.id == root_message.id
+    assert updated_socket.assigns.local_message.reply_count == 2
+    assert Repo.get!(Message, root_message.id).reply_count == 2
+    assert Repo.get!(Message, stale_message.id).reply_count == 0
+  end
+
   test "remote_post_loaded denies cached non-public federated posts to unauthorized viewers" do
     unique = System.unique_integer([:positive])
     activitypub_id = "https://remote.example/posts/private-#{unique}"

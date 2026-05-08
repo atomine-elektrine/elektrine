@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUTPUT_PATH="$ROOT_DIR/.env.production"
 PRIMARY_DOMAIN=""
 ACME_EMAIL=""
-MODULES="chat,social,vault"
+MODULES="chat,social,vault,atomine"
 PROFILES="caddy"
 FORCE=0
 
@@ -18,7 +18,7 @@ Creates a minimal .env.production for first-run Docker self-hosting.
 Options:
   --domain DOMAIN       Primary domain for the instance.
   --email EMAIL         ACME account email for Caddy-managed TLS.
-  --modules LIST        Enabled modules. Default: chat,social,vault
+  --modules LIST        Enabled modules. Default: chat,social,vault,atomine
   --profiles LIST       Docker profiles separated by spaces. Default: caddy
   --output PATH         Env file path. Default: .env.production
   --force               Overwrite an existing output file.

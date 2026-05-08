@@ -1,5 +1,5 @@
 defmodule ElektrineReleaseBuilder.ModuleSelection do
-  @known_modules [:chat, :social, :email, :vault, :vpn, :dns]
+  @known_modules [:chat, :social, :email, :vault, :vpn, :dns, :atomine]
   @module_order @known_modules |> Enum.with_index() |> Map.new()
   @core_apps [:elektrine, :elektrine_web]
   @module_apps %{
@@ -8,7 +8,8 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
     email: :elektrine_email,
     vault: :elektrine_password_manager,
     vpn: :elektrine_vpn,
-    dns: :elektrine_dns
+    dns: :elektrine_dns,
+    atomine: :atomine
   }
 
   def selected_modules(value \\ requested_module_value()) do
@@ -75,6 +76,9 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
       "password-manager" -> :vault
       "vpn" -> :vpn
       "dns" -> :dns
+      "atomine" -> :atomine
+      "proofs" -> :atomine
+      "personhood" -> :atomine
       _ -> nil
     end
   end

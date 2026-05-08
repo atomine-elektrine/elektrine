@@ -1115,6 +1115,7 @@ defmodule Elektrine.Messaging do
   Gets a message by ActivityPub ID or URL reference.
   """
   defdelegate get_message_by_activitypub_ref(activitypub_ref), to: Messages
+  defdelegate get_message_by_activitypub_ref(activitypub_ref, opts), to: Messages
 
   @doc """
   Gets multiple messages by their ActivityPub IDs.

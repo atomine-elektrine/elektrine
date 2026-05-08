@@ -2062,6 +2062,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp maybe_repair_local_message_submitted_link(local_message, post_object, remote_actor_domain)
        when is_map(local_message) and is_map(post_object) do
+    local_message = resolve_local_message_for_post(local_message, post_object)
+
     case {message_submitted_link(local_message),
           detect_submitted_url(post_object, local_message, remote_actor_domain)} do
       {nil, submitted_url} when is_binary(submitted_url) ->
@@ -2087,6 +2089,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       _ ->
         local_message
     end
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        resolve_local_message_for_post(local_message, post_object) || local_message
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp maybe_repair_local_message_submitted_link(local_message, _, _), do: local_message
@@ -3264,6 +3273,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
          community_actor,
          local_message
        ) do
+    local_message = resolve_local_message_for_post(local_message, post_object)
     local_community_uri = DiscussionSource.community_uri_from_local_message(local_message)
 
     community_actor =
@@ -3701,7 +3711,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end)
 
     if map_size(metadata) > 0 do
-      case sync_local_message_platform_counts(socket.assigns[:local_message], %{}, metadata) do
+      local_message =
+        resolve_local_message_for_post(socket.assigns[:local_message], socket.assigns[:post])
+
+      case sync_local_message_platform_counts(local_message, %{}, metadata) do
         %{} = local_message -> assign(socket, :local_message, local_message)
         _ -> socket
       end
@@ -3725,7 +3738,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           post
       end)
 
-    case sync_local_message_platform_counts(socket.assigns[:local_message], counts, metadata) do
+    local_message =
+      resolve_local_message_for_post(socket.assigns[:local_message], socket.assigns[:post])
+
+    case sync_local_message_platform_counts(local_message, counts, metadata) do
       %{} = local_message -> assign(socket, :local_message, local_message)
       _ -> socket
     end
@@ -3762,6 +3778,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     else
       updated_message
     end
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        case resolve_local_message_for_post(local_message, nil) do
+          %{id: resolved_id} = resolved_message when resolved_id != message_id ->
+            sync_local_message_platform_counts(resolved_message, counts, metadata)
+
+          _ ->
+            local_message
+        end
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp sync_local_message_platform_counts(local_message, _counts, _metadata), do: local_message
@@ -4209,7 +4238,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_info({:hydrate_loaded_remote_post, post_object, remote_actor}, socket) do
     local_message =
-      socket.assigns[:local_message] ||
+      resolve_local_message_for_post(socket.assigns[:local_message], post_object) ||
         ensure_local_message_for_remote_post(post_object, remote_actor)
 
     local_message =
@@ -4662,7 +4691,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     force_sync = Keyword.get(opts, :force_sync, false)
 
     local_message =
-      socket.assigns[:local_message] ||
+      resolve_local_message_for_post(socket.assigns[:local_message], post_object) ||
         latest_local_message_for_post(post_id)
 
     if is_nil(local_message) do
@@ -4735,8 +4764,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_info({:replies_loaded, replies, post_id}, socket) do
+    local_message = resolve_local_message_for_post(socket.assigns[:local_message], post_id)
+
     local_first_replies =
-      case local_replies_from_local_message(socket.assigns[:local_message]) do
+      case local_replies_from_local_message(local_message) do
         [] -> SurfaceHelpers.merge_local_replies([], post_id)
         message_replies -> message_replies
       end
@@ -4783,7 +4814,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     reveal_after_comment_counts? =
       socket.assigns[:awaiting_initial_comment_counts] && merged_replies != []
 
-    refreshed_local_message = refresh_local_message(socket.assigns[:local_message])
+    refreshed_local_message = refresh_local_message(local_message)
 
     {:noreply,
      socket
@@ -5226,19 +5257,51 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp latest_local_message_for_post(_), do: nil
 
-  defp local_message_by_activitypub_ref(post_id) when is_binary(post_id) do
-    if Elektrine.RuntimeEnv.environment() == :test do
-      import Ecto.Query
-
-      from(m in Elektrine.Social.Message,
-        where: m.activitypub_id == ^post_id or m.activitypub_url == ^post_id,
-        order_by: [desc: m.inserted_at],
-        limit: 1
-      )
-      |> Elektrine.Repo.one()
-    else
-      Messaging.get_message_by_activitypub_ref(post_id)
+  defp resolve_local_message_for_post(local_message, post_ref_or_object) do
+    case latest_local_message_for_refs(
+           activitypub_refs_for_post(post_ref_or_object, local_message)
+         ) do
+      %{} = resolved_message -> resolved_message
+      _ -> local_message
     end
+  end
+
+  defp latest_local_message_for_refs(refs) when is_list(refs) do
+    refs
+    |> Enum.flat_map(&activitypub_ref_values/1)
+    |> Enum.map(&normalize_in_reply_to_ref/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> Enum.find_value(&latest_local_message_for_post/1)
+  end
+
+  defp activitypub_refs_for_post(post_ref_or_object, local_message) do
+    [
+      field_value(post_ref_or_object, ["id", :id]),
+      field_value(post_ref_or_object, ["url", :url]),
+      field_value(post_ref_or_object, ["activitypub_id", :activitypub_id]),
+      field_value(post_ref_or_object, ["activitypub_url", :activitypub_url]),
+      post_ref_or_object,
+      field_value(local_message, [:activitypub_id, "activitypub_id"]),
+      field_value(local_message, [:activitypub_url, "activitypub_url"])
+    ]
+  end
+
+  defp activitypub_ref_values(value) when is_binary(value), do: [value]
+
+  defp activitypub_ref_values(values) when is_list(values),
+    do: Enum.flat_map(values, &activitypub_ref_values/1)
+
+  defp activitypub_ref_values(%{"id" => id}), do: activitypub_ref_values(id)
+  defp activitypub_ref_values(%{"href" => href}), do: activitypub_ref_values(href)
+  defp activitypub_ref_values(%{"url" => url}), do: activitypub_ref_values(url)
+  defp activitypub_ref_values(%{id: id}), do: activitypub_ref_values(id)
+  defp activitypub_ref_values(%{href: href}), do: activitypub_ref_values(href)
+  defp activitypub_ref_values(%{url: url}), do: activitypub_ref_values(url)
+  defp activitypub_ref_values(_), do: []
+
+  defp local_message_by_activitypub_ref(post_id) when is_binary(post_id) do
+    Messaging.get_message_by_activitypub_ref(post_id, cache: false)
   rescue
     error in Postgrex.Error ->
       if postgres_error_code(error) == :index_corrupted do
@@ -5535,10 +5598,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp sync_post_reply_counts(socket, local_replies) when is_list(local_replies) do
     reply_count = length(local_replies)
-    persist_loaded_reply_count(socket.assigns[:local_message], reply_count)
 
     local_message =
-      case socket.assigns[:local_message] do
+      resolve_local_message_for_post(socket.assigns[:local_message], socket.assigns[:post])
+
+    persist_loaded_reply_count(local_message, reply_count)
+
+    local_message =
+      case local_message do
         %{} = message -> %{message | reply_count: max(message.reply_count || 0, reply_count)}
         other -> other
       end
@@ -5583,6 +5650,19 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         })
       end
     end
+  rescue
+    error in Postgrex.Error ->
+      if unique_activitypub_violation?(error) do
+        case resolve_local_message_for_post(local_message, nil) do
+          %{id: resolved_id} = resolved_message when resolved_id != message_id ->
+            persist_loaded_reply_count(resolved_message, reply_count)
+
+          _ ->
+            :ok
+        end
+      else
+        reraise error, __STACKTRACE__
+      end
   end
 
   defp persist_loaded_reply_count(_, _), do: :ok

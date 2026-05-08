@@ -30,8 +30,8 @@ jobs:
       BUILD_EMAIL_DOMAIN: ${{ vars.DOCKER_BUILD_EMAIL_DOMAIN || secrets.DOCKER_BUILD_EMAIL_DOMAIN || 'example.com' }}
       BUILD_SUPPORTED_DOMAINS: ${{ vars.DOCKER_BUILD_SUPPORTED_DOMAINS || secrets.DOCKER_BUILD_SUPPORTED_DOMAINS || 'example.com' }}
       BUILD_PROFILE_BASE_DOMAINS: ${{ vars.DOCKER_BUILD_PROFILE_BASE_DOMAINS || secrets.DOCKER_BUILD_PROFILE_BASE_DOMAINS || 'example.com' }}
-      ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'chat,social,vault' }}
-      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
+      ELEKTRINE_ENABLED_MODULES: all
+      ELEKTRINE_RELEASE_MODULES: all
 
     steps:
       - uses: actions/checkout@v6
@@ -81,9 +81,9 @@ jobs:
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine' }}
       DEPLOY_BRANCH: ${{ secrets.DEPLOY_BRANCH || 'main' }}
-      ELEKTRINE_ENABLED_MODULES: ${{ vars.ELEKTRINE_ENABLED_MODULES || secrets.ELEKTRINE_ENABLED_MODULES || vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || 'chat,social,vault' }}
-      ELEKTRINE_RELEASE_MODULES: ${{ vars.ELEKTRINE_RELEASE_MODULES || secrets.ELEKTRINE_RELEASE_MODULES || '' }}
-      DOCKER_PROFILES: ${{ vars.DOCKER_PROFILES || secrets.DOCKER_PROFILES || 'caddy' }}
+      ELEKTRINE_ENABLED_MODULES: all
+      ELEKTRINE_RELEASE_MODULES: all
+      DOCKER_PROFILES: caddy dns email tor turn bluesky vpn
       DEPLOY_COMPOSE_OVERRIDES: ${{ vars.DEPLOY_COMPOSE_OVERRIDES || secrets.DEPLOY_COMPOSE_OVERRIDES || '' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}

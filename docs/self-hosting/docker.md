@@ -29,7 +29,7 @@ mail.
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
-| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn`, `dns` |
+| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn`, `dns`, `atomine` |
 | long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `vpn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
@@ -41,6 +41,9 @@ Rule of thumb:
 `vpn` is the one intentional hybrid here: the app module stays enabled in
 Elektrine, and the Docker deploy adds the bundled `vpn` service so WireGuard
 runs in the same stack.
+
+`atomine` powers Proofs and account trust/credit features. It runs inside the
+main app release and does not have a separate Docker profile.
 
 ## Host Layout
 
@@ -57,7 +60,7 @@ the full root example:
 ```bash
 scripts/deploy/generate_env.sh --domain example.com --email admin@example.com
 scripts/deploy/doctor.sh
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy
 ```
 
 Use the smaller files under `env/` as reference for feature-specific overrides,
@@ -112,7 +115,7 @@ docker compose -f docker-compose.yml -f docker-compose.network.yml up -d --build
 
 cd /path/to/elektrine
 scripts/deploy/docker_deploy.sh \
-	--modules chat,social,vault \
+	--modules chat,social,vault,atomine \
 	--profile caddy
 ```
 
@@ -136,7 +139,7 @@ If the shared network has a different name, set the same
 ## Deploy
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile dns
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile dns
 ```
 
 When `vpn` is in the module list, `scripts/deploy/docker_deploy.sh` also enables the `vpn`
@@ -145,7 +148,7 @@ profile automatically so the bundled WireGuard container comes up with the stack
 To enable VPN explicitly:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn,atomine --profile caddy
 ```
 
 ## Fast Iteration
@@ -190,7 +193,7 @@ The deploy wrapper can do this automatically, including a backup, validation,
 and Docker restart:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --configure-docker-source-ips
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --configure-docker-source-ips
 ```
 
 You can also keep it enabled in `.env.production`:
@@ -257,7 +260,7 @@ compose file becomes unwritable because of ownership drift, render to a
 writable temporary path instead:
 
 ```bash
-scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault --profile caddy
+scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault,atomine --profile caddy
 ```
 
 ## Optional Services
@@ -265,7 +268,7 @@ scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --m
 Enable Elektrine's separate mail protocol container with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,email,vault --profile caddy --profile email
+scripts/deploy/docker_deploy.sh --modules chat,social,email,vault,atomine --profile caddy --profile email
 ```
 
 Enable the separate authoritative DNS service with:
@@ -278,13 +281,13 @@ Enable onion hosting in the Docker deploy by setting the onion variables already
 present in `.env.example`, then deploy with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile tor
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile tor
 ```
 
 Enable self-hosted STUN/TURN for chat calls with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault --profile caddy --profile turn
+scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile turn
 ```
 
 This runs coturn on the host network and auto-wires the app's WebRTC ICE
@@ -310,6 +313,7 @@ The Docker deploy keeps Tor off by default. Turn it on with the `tor` profile pl
 ## Postgres
 
 - Docker deploy uses `pgvector/pgvector:pg16` for the `postgres` service
+- The Postgres container gets `POSTGRES_SHM_SIZE`, defaulting to `512m`, to avoid Docker's small default `/dev/shm` causing `ERROR 53100 (disk_full) could not resize shared memory segment` during larger/parallel queries
 - fresh databases load `vector` from `deploy/docker/initdb/010-extensions.sql`
 - every deploy also runs `CREATE EXTENSION IF NOT EXISTS` for extensions listed in `POSTGRES_EXTENSIONS`
 - `POSTGRES_EXTENSIONS` defaults to `vector`; set a comma-separated list in `.env.production` if you need more
@@ -328,7 +332,6 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 - `DEPLOY_SSH_KEY`
 - `DEPLOY_PATH` optional, defaults to `/opt/elektrine/app`
 - `DEPLOY_PORT` optional, defaults to `22`
-- `DOCKER_PROFILES` optional, defaults to `caddy`; add `dns`, `email`, `tor`, `turn`, or `bluesky` only when this host should run those services
 - `MAIL_TLS_CERT_PATH` / `MAIL_TLS_KEY_PATH` required for native IMAPS/POP3S on the `email` profile; plain IMAP/POP remain on `143/110`
 - `MAIL_TLS_MOUNT_DIR` optional, defaults to `/opt/elektrine/certs`, and is bind-mounted into the mail container for native IMAPS/POP3S cert access
 - secure mail ports map to non-privileged internal listeners (`993 -> 2993`, `995 -> 2995`)
@@ -336,8 +339,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 Variables for `.github/workflows/docker-deploy.yml`:
 
-- `ELEKTRINE_ENABLED_MODULES` optional, defaults to `chat,social,vault`
-- `ELEKTRINE_RELEASE_MODULES` optional advanced build override
+- The workflow pins `ELEKTRINE_ENABLED_MODULES=all`, `ELEKTRINE_RELEASE_MODULES=all`, and `DOCKER_PROFILES="caddy dns email tor turn bluesky vpn"` so Actions deploys every app module and every profile-backed service consistently.
 - `DOCKER_BUILD_PRIMARY_DOMAIN`
 - `DOCKER_BUILD_EMAIL_DOMAIN`
 - `DOCKER_BUILD_SUPPORTED_DOMAINS`
