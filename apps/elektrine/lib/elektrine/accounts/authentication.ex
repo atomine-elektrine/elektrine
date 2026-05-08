@@ -489,6 +489,15 @@ defmodule Elektrine.Accounts.Authentication do
         {:error, :invalid_token}
 
       app_password ->
+        hash_vsn =
+          cond do
+            is_nil(app_password.token_hash) -> :unknown
+            String.starts_with?(app_password.token_hash, "v2$hmac-sha256$") -> :v2_hmac
+            true -> :legacy
+          end
+
+        Logger.debug("App password verified (hash_vsn=#{hash_vsn}) for user_id=#{user_id}")
+
         case update_app_password_last_used(app_password, ip_address) do
           {:ok, updated} ->
             {:ok, updated}
