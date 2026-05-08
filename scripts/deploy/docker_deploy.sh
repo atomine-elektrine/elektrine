@@ -449,6 +449,16 @@ compose_has_service() {
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" config --services | grep -qx "$service_name"
 }
 
+compose_release_services() {
+  local service_name=""
+
+  for service_name in app worker vpn mail dns; do
+    if compose_has_service "$service_name"; then
+      printf '%s\n' "$service_name"
+    fi
+  done
+}
+
 remove_caddy_with_stale_config_mount() {
   local container_name="elektrine_caddy_edge"
   local mounted_config=""
@@ -572,9 +582,11 @@ if [[ "$DO_UP" -eq 1 ]]; then
   fi
 
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build app worker
+    mapfile -t release_services < <(compose_release_services)
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build "${release_services[@]}"
   elif [[ "$DO_PULL" -eq 1 ]]; then
-    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull app worker
+    mapfile -t release_services < <(compose_release_services)
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull "${release_services[@]}"
   fi
 fi
 

@@ -32,6 +32,7 @@ services:
       retries: 5
 
   app:
+    image: ${ELEKTRINE_IMAGE:-elektrine:local}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
@@ -84,6 +85,7 @@ services:
     restart: unless-stopped
 
   worker:
+    image: ${ELEKTRINE_IMAGE:-elektrine:local}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
@@ -127,6 +129,7 @@ services:
 
   vpn:
     profiles: ["vpn"]
+    image: ${ELEKTRINE_IMAGE:-elektrine:local}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
@@ -174,6 +177,7 @@ services:
 
   mail:
     profiles: ["email"]
+    image: ${ELEKTRINE_IMAGE:-elektrine:local}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
@@ -220,6 +224,7 @@ services:
 
   dns:
     profiles: ["dns"]
+    image: ${ELEKTRINE_IMAGE:-elektrine:local}
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
