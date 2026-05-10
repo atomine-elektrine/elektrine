@@ -8,15 +8,15 @@
     "deploy": "cd .. && mix assets.deploy && rm -f _build/esbuild*"
   },
   "dependencies": {
-    "@iconify-json/simple-icons": "^1.2.80",
+    "@iconify-json/simple-icons": "^1.2.81",
     "@iconify-json/svg-spinners": "^1.2.4",
     "@noble/hashes": "^2.2.0",
     "daisyui": "^5.5.14",
     "uplot": "^1.6.32"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "4.2.4",
+    "@tailwindcss/cli": "4.3.0",
     "@tailwindcss/forms": "0.5.11",
-    "tailwindcss": "4.2.4"
+    "tailwindcss": "4.3.0"
   }
 }
