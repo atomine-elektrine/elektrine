@@ -12,6 +12,7 @@ defmodule Elektrine.Email.MimeBodyExtractor do
     message
     |> mail_body(&Mail.get_text/1)
     |> first_present(fn -> find_part_body(message, "text/plain") end)
+    |> first_present(fn -> root_text_body_without_content_type(message) end)
   end
 
   def html_body(message) do
@@ -59,6 +60,14 @@ defmodule Elektrine.Email.MimeBodyExtractor do
     not attachment?(message) and content_type_matches?(message, expected_type)
   end
 
+  defp root_text_body_without_content_type(%Mail.Message{multipart: false} = message) do
+    if not attachment?(message) and missing_content_type?(message) do
+      present_body(message.body)
+    end
+  end
+
+  defp root_text_body_without_content_type(_), do: nil
+
   defp attachment?(%Mail.Message{} = message) do
     message
     |> Mail.Message.get_header(:content_disposition)
@@ -79,6 +88,13 @@ defmodule Elektrine.Email.MimeBodyExtractor do
       value when is_binary(value) -> String.downcase(value) == expected_type
       _ -> false
     end
+  end
+
+  defp missing_content_type?(%Mail.Message{} = message) do
+    message.headers
+    |> Map.keys()
+    |> Enum.any?(&(String.downcase(to_string(&1)) == "content-type"))
+    |> Kernel.not()
   end
 
   defp present_body(body) when is_binary(body) do

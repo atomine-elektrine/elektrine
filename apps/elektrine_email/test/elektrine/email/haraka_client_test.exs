@@ -120,6 +120,30 @@ defmodule Elektrine.Email.HarakaClientTest do
            end)
   end
 
+  test "includes common Haraka body aliases with structured body fields" do
+    Application.put_env(:elektrine, Elektrine.Mailer,
+      api_key: "mailer-api-key",
+      base_url: "https://mail.elektrine.test"
+    )
+
+    assert {:ok, %{message_id: "queued-message"}} =
+             HarakaClient.send_email(%{
+               from: "sender@example.com",
+               to: "dest@example.net",
+               subject: "Body aliases",
+               text_body: "Plain body",
+               html_body: "<p>HTML body</p>"
+             })
+
+    [request] = MockHarakaHTTPClient.requests()
+    decoded_request = Jason.decode!(request.body)
+
+    assert decoded_request["text_body"] == "Plain body"
+    assert decoded_request["text"] == "Plain body"
+    assert decoded_request["html_body"] == "<p>HTML body</p>"
+    assert decoded_request["html"] == "<p>HTML body</p>"
+  end
+
   test "rewrites the legacy haraka host to the mail subdomain" do
     Application.put_env(:elektrine, Elektrine.Mailer,
       api_key: "mailer-api-key",
