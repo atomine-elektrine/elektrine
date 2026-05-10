@@ -3,6 +3,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub
+  alias Elektrine.ActivityPub.CollectionFetcher
   alias Elektrine.ActivityPub.Helpers, as: APHelpers
   alias Elektrine.ActivityPub.Instances
   alias Elektrine.Messaging
@@ -176,6 +177,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       resolved_community_stats(remote_actor, socket.assigns[:community_stats])
     )
     |> assign(:actor_loading, false)
+    |> maybe_schedule_remote_relationship_counts(remote_actor)
   end
 
   defp parse_remote_handle(handle) when is_binary(handle) do
@@ -417,6 +419,40 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
        :community_stats,
        merge_community_stats(socket.assigns[:community_stats] || %{members: 0, posts: 0}, stats)
      )}
+  end
+
+  def handle_info({:load_remote_relationship_counts, actor_id}, socket) do
+    current_actor = socket.assigns[:remote_actor]
+
+    if current_actor && current_actor.id == actor_id do
+      live_view = self()
+
+      Task.start(fn ->
+        counts = fetch_remote_relationship_counts(actor_id)
+        send(live_view, {:remote_relationship_counts_loaded, actor_id, counts})
+      end)
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:remote_relationship_counts_loaded, actor_id, counts}, socket) do
+    current_actor = socket.assigns[:remote_actor]
+
+    if current_actor && current_actor.id == actor_id && is_map(counts) do
+      updated_metadata = merge_remote_relationship_counts(current_actor.metadata || %{}, counts)
+      updated_actor = %{current_actor | metadata: updated_metadata}
+
+      {:noreply,
+       socket
+       |> assign(:remote_actor, updated_actor)
+       |> assign(
+         :community_stats,
+         resolved_community_stats(updated_actor, socket.assigns[:community_stats])
+       )}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info(:refresh_remote_counts, socket) do
@@ -2527,6 +2563,92 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp community_stats_ready?(_), do: false
+
+  defp maybe_schedule_remote_relationship_counts(socket, remote_actor) do
+    if connected?(socket) && remote_relationship_counts_stale?(remote_actor) do
+      send(self(), {:load_remote_relationship_counts, remote_actor.id})
+    end
+
+    socket
+  end
+
+  defp remote_relationship_counts_stale?(
+         %{followers_url: followers_url, following_url: following_url} = actor
+       ) do
+    has_collection_url? =
+      Elektrine.Strings.present?(followers_url) || Elektrine.Strings.present?(following_url)
+
+    has_collection_url? && relationship_counts_stale_at?(actor.metadata || %{})
+  end
+
+  defp remote_relationship_counts_stale?(_), do: false
+
+  defp relationship_counts_stale_at?(metadata) when is_map(metadata) do
+    case metadata["relationship_counts_fetched_at"] do
+      fetched_at when is_binary(fetched_at) ->
+        case DateTime.from_iso8601(fetched_at) do
+          {:ok, datetime, _offset} -> DateTime.diff(DateTime.utc_now(), datetime, :hour) >= 6
+          _ -> true
+        end
+
+      _ ->
+        true
+    end
+  end
+
+  defp relationship_counts_stale_at?(_), do: true
+
+  defp fetch_remote_relationship_counts(actor_id) do
+    case ActivityPub.get_remote_actor(actor_id) do
+      %{id: ^actor_id} = actor ->
+        counts = %{
+          "followers_count" =>
+            fetch_remote_collection_count(
+              actor.followers_url || get_in(actor.metadata || %{}, ["followers"]),
+              get_follower_count(actor.metadata || %{})
+            ),
+          "following_count" =>
+            fetch_remote_collection_count(
+              actor.following_url || get_in(actor.metadata || %{}, ["following"]),
+              get_following_count(actor.metadata || %{})
+            )
+        }
+
+        metadata = merge_remote_relationship_counts(actor.metadata || %{}, counts)
+
+        actor
+        |> Elektrine.ActivityPub.Actor.changeset(%{metadata: metadata})
+        |> Repo.update()
+        |> case do
+          {:ok, updated_actor} -> Map.take(updated_actor.metadata || %{}, Map.keys(counts))
+          {:error, _changeset} -> counts
+        end
+
+      _ ->
+        %{}
+    end
+  end
+
+  defp fetch_remote_collection_count(nil, fallback), do: max(fallback || 0, 0)
+
+  defp fetch_remote_collection_count(source, fallback) do
+    case CollectionFetcher.fetch_collection_count(source) do
+      {:ok, count} when is_integer(count) -> max(count, 0)
+      {:error, _reason} -> max(fallback || 0, 0)
+    end
+  end
+
+  defp merge_remote_relationship_counts(metadata, counts)
+       when is_map(metadata) and is_map(counts) do
+    counts
+    |> Enum.reduce(metadata, fn {key, value}, acc ->
+      Map.put(acc, to_string(key), normalize_community_stat_value(value))
+    end)
+    |> Map.put(
+      "relationship_counts_fetched_at",
+      DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601()
+    )
+  end
 
   # Helper functions - delegating to shared APHelpers module
 

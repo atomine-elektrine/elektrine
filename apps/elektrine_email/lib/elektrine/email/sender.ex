@@ -434,6 +434,7 @@ defmodule Elektrine.Email.Sender do
 
           text_body = MimeBodyExtractor.text_body(message)
           html_body = MimeBodyExtractor.html_body(message)
+          fallback_text_body = raw_text_body_fallback(raw_email, text_body, html_body)
 
           # Extract attachments
           attachments = Elektrine.IMAP.Commands.extract_attachments(nil, nil, message)
@@ -445,7 +446,7 @@ defmodule Elektrine.Email.Sender do
           |> Map.delete("raw_email")
           |> Map.put(:subject, subject)
           |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
-          |> Map.put(:text_body, text_body)
+          |> Map.put(:text_body, text_body || fallback_text_body)
           |> Map.put(:html_body, html_body)
           |> Map.put(:attachments, attachments)
           |> put_if_present(:in_reply_to, extract_raw_header_from_email(raw_email, "In-Reply-To"))
@@ -534,6 +535,23 @@ defmodule Elektrine.Email.Sender do
   end
 
   defp extract_raw_header_from_email(_, _), do: nil
+
+  defp raw_text_body_fallback(raw_email, nil, nil) when is_binary(raw_email) do
+    case String.split(raw_email, ~r/\r?\n\r?\n/, parts: 2) do
+      [_headers, body] ->
+        body
+        |> String.trim()
+        |> case do
+          "" -> nil
+          value -> value
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp raw_text_body_fallback(_raw_email, _text_body, _html_body), do: nil
 
   defp put_if_present(params, _key, value) when not is_binary(value), do: params
 

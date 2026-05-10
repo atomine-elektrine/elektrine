@@ -70,6 +70,39 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert sanitized_body =~ "Hello"
     end
 
+    test "keeps raw SMTP body when MIME parsing finds no display body", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      raw_email =
+        [
+          "From: #{sender_mailbox.email}",
+          "To: #{recipient_mailbox.email}",
+          "Subject: Body fallback",
+          "MIME-Version: 1.0",
+          "X-Client: Thunderbird",
+          "",
+          "Hello from Thunderbird fallback"
+        ]
+        |> Enum.join("\r\n")
+
+      assert {:ok, _sent_message} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to: recipient_mailbox.email,
+                 raw_email: raw_email
+               })
+
+      received_message =
+        recipient_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.find(&(&1.subject == "Body fallback" && &1.status == "received"))
+        |> then(&Email.get_message(&1.id, recipient_mailbox.id))
+
+      assert received_message.text_body == "Hello from Thunderbird fallback"
+    end
+
     test "filters suppressed external recipients before routing", %{
       sender: sender,
       sender_mailbox: sender_mailbox,

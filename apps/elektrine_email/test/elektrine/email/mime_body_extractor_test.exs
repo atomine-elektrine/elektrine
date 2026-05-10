@@ -44,4 +44,14 @@ defmodule Elektrine.Email.MimeBodyExtractorTest do
 
     assert MimeBodyExtractor.text_body(message) == "visible text"
   end
+
+  test "uses a non-multipart root body as text when content type is missing" do
+    message = %Mail.Message{
+      headers: %{"x-client" => "Thunderbird"},
+      body: "visible root text",
+      multipart: false
+    }
+
+    assert MimeBodyExtractor.text_body(message) == "visible root text"
+  end
 end

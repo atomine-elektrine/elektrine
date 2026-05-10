@@ -256,22 +256,38 @@ defmodule Elektrine.Email.HarakaClient do
             body
             |> Map.put("html_body", ensure_field_utf8_safe(params[:html_body]))
             |> Map.put("text_body", ensure_field_utf8_safe(params[:text_body]))
+            |> Map.put("html", ensure_field_utf8_safe(params[:html_body]))
+            |> Map.put("text", ensure_field_utf8_safe(params[:text_body]))
 
           has_html ->
             # HTML only
-            Map.put(body, "html_body", ensure_field_utf8_safe(params[:html_body]))
+            html_body = ensure_field_utf8_safe(params[:html_body])
+
+            body
+            |> Map.put("html_body", html_body)
+            |> Map.put("html", html_body)
 
           has_text ->
             # Plain text only
-            Map.put(body, "text_body", ensure_field_utf8_safe(params[:text_body]))
+            text_body = ensure_field_utf8_safe(params[:text_body])
+
+            body
+            |> Map.put("text_body", text_body)
+            |> Map.put("text", text_body)
 
           params[:text_body] ->
             # Even if text_body is empty string, include it
-            Map.put(body, "text_body", ensure_field_utf8_safe(params[:text_body]))
+            text_body = ensure_field_utf8_safe(params[:text_body])
+
+            body
+            |> Map.put("text_body", text_body)
+            |> Map.put("text", text_body)
 
           true ->
             # Fallback - add empty text body
-            Map.put(body, "text_body", "")
+            body
+            |> Map.put("text_body", "")
+            |> Map.put("text", "")
         end
 
       # Add custom headers (for threading, forwarding info, etc.)
