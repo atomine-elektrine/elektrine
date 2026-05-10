@@ -73,13 +73,13 @@ defmodule Elektrine.MixProject do
 
   defp deps do
     [
-      {:phoenix, "== 1.8.5"},
+      {:phoenix, "== 1.8.7"},
       {:phoenix_ecto, "== 4.7.0"},
       {:ecto_sql, "== 3.13.5"},
-      {:postgrex, "== 0.22.0"},
+      {:postgrex, "== 0.22.1"},
       {:phoenix_html, "== 4.3.0"},
       {:phoenix_live_reload, "== 1.6.2", only: :dev},
-      {:phoenix_live_view, "== 1.1.28"},
+      {:phoenix_live_view, "== 1.1.30"},
       {:floki, "== 0.38.1", only: :test},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "== 0.8.7"},
@@ -99,7 +99,7 @@ defmodule Elektrine.MixProject do
       {:telemetry_metrics, "== 1.1.0"},
       {:telemetry_poller, "== 1.3.0"},
       {:gettext, "== 1.0.2"},
-      {:jason, "== 1.4.4"},
+      {:jason, "== 1.4.5"},
       {:dns_cluster, "== 0.2.0"},
       {:bandit, "== 1.11.0"},
       {:bcrypt_elixir, "== 3.3.2"},
