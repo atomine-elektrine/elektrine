@@ -81,57 +81,106 @@ defmodule Elektrine.Email.HarakaClient do
   def send_email(params) do
     from_address = params[:from] || ""
 
-    case get_api_config_for_domain(from_address) do
+    with :ok <- validate_message_content(params),
+         {:ok, {api_key, base_url}} <- get_api_config_for_domain(from_address) do
+      params_with_origin = add_internal_origin_headers(params)
+      body = build_api_body(params_with_origin)
+      headers = request_headers(api_key)
+      url = "#{base_url}#{@api_path}"
+
+      case http_client().request(:post, url, headers, body, receive_timeout: 60_000) do
+        {:ok, %Finch.Response{status: 200, body: response_body}} ->
+          case Jason.decode(response_body) do
+            {:ok, %{"success" => true, "message_id" => message_id}} ->
+              {:ok, %{id: message_id, message_id: message_id}}
+
+            {:ok, %{"success" => false, "error" => error}} ->
+              Logger.error("Haraka HTTP API error: #{inspect(error)}")
+              {:error, error}
+
+            {:ok, response} ->
+              Logger.error("Unexpected Haraka HTTP API response: #{inspect(response)}")
+              {:error, "Unexpected response format"}
+
+            {:error, decode_error} ->
+              Logger.error("Failed to decode Haraka HTTP API response: #{inspect(decode_error)}")
+
+              {:error, "Invalid JSON response"}
+          end
+
+        {:ok, %Finch.Response{status: status_code, body: response_body}} ->
+          # Try to parse the error response for more details
+          error_detail =
+            case Jason.decode(response_body) do
+              {:ok, %{"error" => error}} -> error
+              {:ok, %{"message" => msg}} -> msg
+              _ -> response_body
+            end
+
+          Logger.error("Haraka HTTP API returned status #{status_code}: #{error_detail}")
+          {:error, "Haraka HTTP API returned status #{status_code}: #{error_detail}"}
+
+        {:error, reason} ->
+          Logger.error("HTTP request to Haraka failed: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      {:error, :missing_message_body} ->
+        Logger.error(
+          "Refusing to send structured Haraka email without body or attachments " <>
+            "from_domain=#{inspect(email_domain(params[:from]))} " <>
+            "to_count=#{recipient_count(params[:to])} subject_present=#{Elektrine.Strings.present?(params[:subject])}"
+        )
+
+        {:error, :missing_message_body}
+
       {:error, reason} ->
         Logger.error("Cannot send email via Haraka HTTP API: #{reason}")
         {:error, reason}
-
-      {:ok, {api_key, base_url}} ->
-        params_with_origin = add_internal_origin_headers(params)
-        body = build_api_body(params_with_origin)
-        headers = request_headers(api_key)
-        url = "#{base_url}#{@api_path}"
-
-        case http_client().request(:post, url, headers, body, receive_timeout: 60_000) do
-          {:ok, %Finch.Response{status: 200, body: response_body}} ->
-            case Jason.decode(response_body) do
-              {:ok, %{"success" => true, "message_id" => message_id}} ->
-                {:ok, %{id: message_id, message_id: message_id}}
-
-              {:ok, %{"success" => false, "error" => error}} ->
-                Logger.error("Haraka HTTP API error: #{inspect(error)}")
-                {:error, error}
-
-              {:ok, response} ->
-                Logger.error("Unexpected Haraka HTTP API response: #{inspect(response)}")
-                {:error, "Unexpected response format"}
-
-              {:error, decode_error} ->
-                Logger.error(
-                  "Failed to decode Haraka HTTP API response: #{inspect(decode_error)}"
-                )
-
-                {:error, "Invalid JSON response"}
-            end
-
-          {:ok, %Finch.Response{status: status_code, body: response_body}} ->
-            # Try to parse the error response for more details
-            error_detail =
-              case Jason.decode(response_body) do
-                {:ok, %{"error" => error}} -> error
-                {:ok, %{"message" => msg}} -> msg
-                _ -> response_body
-              end
-
-            Logger.error("Haraka HTTP API returned status #{status_code}: #{error_detail}")
-            {:error, "Haraka HTTP API returned status #{status_code}: #{error_detail}"}
-
-          {:error, reason} ->
-            Logger.error("HTTP request to Haraka failed: #{inspect(reason)}")
-            {:error, reason}
-        end
     end
   end
+
+  defp validate_message_content(params) do
+    cond do
+      raw_email_present?(params) -> :ok
+      body_present?(params[:text_body]) -> :ok
+      body_present?(params[:html_body]) -> :ok
+      attachments_present?(params[:attachments]) -> :ok
+      true -> {:error, :missing_message_body}
+    end
+  end
+
+  defp raw_email_present?(params) do
+    body_present?(params[:raw_email]) || body_present?(params["raw_email"])
+  end
+
+  defp body_present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp body_present?(_value), do: false
+
+  defp attachments_present?(attachments) when is_map(attachments), do: map_size(attachments) > 0
+  defp attachments_present?(attachments) when is_list(attachments), do: attachments != []
+  defp attachments_present?(_attachments), do: false
+
+  defp email_domain(value) when is_binary(value) do
+    value
+    |> String.split("@")
+    |> List.last()
+    |> to_string()
+    |> String.downcase()
+  end
+
+  defp email_domain(_value), do: nil
+
+  defp recipient_count(nil), do: 0
+  defp recipient_count(recipients) when is_list(recipients), do: length(recipients)
+
+  defp recipient_count(recipients) when is_binary(recipients) do
+    recipients
+    |> String.split(~r/[,;]/, trim: true)
+    |> length()
+  end
+
+  defp recipient_count(_recipients), do: 0
 
   defp get_api_config_for_domain(_from_address) do
     base_url = configured_base_url()
