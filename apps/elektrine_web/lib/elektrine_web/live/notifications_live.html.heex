@@ -223,6 +223,30 @@
                     <%= if group.type == :email_group && group.sender do %>
                       <span>From @{group.sender.handle || group.sender.username}</span>
                     <% end %>
+                    <%= if group.type == :social_group and not Enum.empty?(group.actors || []) do %>
+                      <span class="inline-flex items-center gap-2">
+                        <span class="flex -space-x-2">
+                          <%= for actor <- Enum.take(group.actors, 3) do %>
+                            <.user_avatar
+                              user={actor}
+                              size="xs"
+                              class="ring-2 ring-base-100"
+                            />
+                          <% end %>
+                        </span>
+                        <span>
+                          <%= for {actor, index} <- Enum.with_index(Enum.take(group.actors, 3)) do %>
+                            <%= if index > 0 do %>
+                              ,
+                            <% end %>
+                            @{actor.handle || actor.username}
+                          <% end %>
+                          <%= if length(group.actors) > 3 do %>
+                            and {length(group.actors) - 3} more
+                          <% end %>
+                        </span>
+                      </span>
+                    <% end %>
                   </div>
 
                   <%= if group.type != :single and is_expanded do %>

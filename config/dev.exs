@@ -38,7 +38,9 @@ dev_check_origins = [
   "http://127.0.0.1:#{dev_port}",
   "http://z.local:#{dev_port}",
   "http://*.z.local:#{dev_port}",
-  "http://elektrine.local:#{dev_port}"
+  "http://elektrine.local:#{dev_port}",
+  "https://elektrine.ngrok.app",
+  "https://*.ngrok.app"
 ]
 
 dev_check_origins =

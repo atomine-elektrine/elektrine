@@ -7,12 +7,14 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   def mount(params, _session, socket) do
     user = socket.assigns.current_user
     domains = domain_targets(user)
+    domain_breakdown = domain_breakdown(domains)
     active_domain = select_active_domain(domains, params["host"], params["zone_id"])
 
     {:ok,
      socket
      |> assign(:page_title, "Domain Analytics")
      |> assign(:domains, domains)
+     |> assign(:domain_breakdown, domain_breakdown)
      |> assign(:analytics_cache, %{})
      |> assign_pending_domain_analytics(active_domain)}
   end
@@ -21,11 +23,13 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   def handle_params(params, _uri, socket) do
     user = socket.assigns.current_user
     domains = domain_targets(user)
+    domain_breakdown = domain_breakdown(domains)
     active_domain = select_active_domain(domains, params["host"], params["zone_id"])
 
     {:noreply,
      socket
      |> assign(:domains, domains)
+     |> assign(:domain_breakdown, domain_breakdown)
      |> assign_pending_domain_analytics(active_domain)
      |> maybe_load_domain_analytics(domains, active_domain)}
   end
@@ -124,10 +128,9 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     """
   end
 
-  defp maybe_load_domain_analytics(socket, domains, nil) do
+  defp maybe_load_domain_analytics(socket, _domains, nil) do
     socket
     |> assign(:analytics_loading, false)
-    |> assign(:domain_breakdown, merge_domain_breakdown(domains, []))
   end
 
   defp maybe_load_domain_analytics(socket, domains, active_domain) do
@@ -148,8 +151,15 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     cached_analytics = Map.get(analytics_cache, load_key)
 
     analytics_data =
-      cached_analytics ||
+      if cached_analytics do
+        Map.put(
+          cached_analytics,
+          :domain_breakdown,
+          socket.assigns[:domain_breakdown] || Map.get(cached_analytics, :domain_breakdown)
+        )
+      else
         empty_domain_analytics_data(domains, socket.assigns[:domain_breakdown])
+      end
 
     socket
     |> assign(:analytics_cache, analytics_cache)
@@ -203,14 +213,13 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp domain_analytics_data(domains, active_domain) do
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
-    domain_breakdown = Profiles.get_public_site_domain_breakdown(domain_hosts)
     daily_views = Profiles.get_public_site_daily_view_counts(30, active_site_scope)
     dns_daily_queries = dns_daily_queries(active_domain)
     dns_hourly_queries = dns_hourly_queries(active_domain)
 
     %{
       stats: Profiles.get_public_site_view_stats(active_site_scope),
-      domain_breakdown: merge_domain_breakdown(domains, domain_breakdown),
+      domain_breakdown: domain_breakdown(domains),
       top_pages: Profiles.get_public_site_top_pages(active_site_scope, 10),
       top_referrers: Profiles.get_public_site_top_referrers(active_site_scope, 10),
       daily_views: daily_views,
@@ -358,6 +367,13 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       stats = domain_stats(domain, domains, rows_by_host)
       Map.merge(domain, stats)
     end)
+  end
+
+  defp domain_breakdown(domains) do
+    domain_hosts = Enum.map(domains, & &1.host)
+
+    domains
+    |> merge_domain_breakdown(Profiles.get_public_site_domain_breakdown(domain_hosts))
   end
 
   defp domain_stats(%{host: host, kind: :dns_only}, domains, rows_by_host) when is_binary(host) do

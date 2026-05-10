@@ -483,6 +483,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     end
   end
 
+  def handle_event("toggle_hide_boosts", _params, socket) do
+    {:noreply,
+     socket
+     |> update(:hide_boosts, &(!&1))
+     |> Helpers.apply_timeline_filter(true)}
+  end
+
+  def handle_event("toggle_hide_replies", _params, socket) do
+    {:noreply,
+     socket
+     |> update(:hide_replies, &(!&1))
+     |> Helpers.apply_timeline_filter(true)}
+  end
+
   def handle_event("save_draft", _params, socket) do
     user = socket.assigns.current_user
 

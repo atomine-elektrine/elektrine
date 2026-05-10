@@ -74,6 +74,7 @@ import { UPlotChart } from "./analytics_hooks";
 // Timeline/Feed hooks
 import {
   PostClick,
+  AnimatedCount,
   RemoteFollowButton,
   InfiniteScroll,
   PreserveStreamAnchor,
@@ -174,6 +175,7 @@ export const Hooks = {
 
   // Timeline/Feed
   PostClick,
+  AnimatedCount,
   RemoteFollowButton,
   InfiniteScroll,
   PreserveStreamAnchor,

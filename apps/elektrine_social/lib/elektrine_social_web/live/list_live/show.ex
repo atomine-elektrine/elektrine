@@ -496,114 +496,140 @@ defmodule ElektrineSocialWeb.ListLive.Show do
     end
   end
 
+  def handle_event("like_post", %{"post_id" => post_id}, socket) do
+    handle_event("like_post", %{"message_id" => post_id}, socket)
+  end
+
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
     message_id = String.to_integer(message_id)
 
-    case Map.get(socket.assigns.user_likes, message_id, false) do
-      true ->
-        case Social.unlike_post(user_id, message_id) do
-          {:ok, _} ->
-            {updated_posts, updated_replies} =
-              update_message_count(
-                socket.assigns.posts,
-                socket.assigns.post_replies,
-                message_id,
-                :like_count,
-                -1
-              )
+    if Map.get(socket.assigns.user_likes, message_id, false) do
+      {:noreply, socket}
+    else
+      case Social.like_post(user_id, message_id) do
+        {:ok, _} ->
+          {updated_posts, updated_replies} =
+            update_message_count(
+              socket.assigns.posts,
+              socket.assigns.post_replies,
+              message_id,
+              :like_count,
+              1
+            )
 
-            {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> assign(:post_replies, updated_replies)
-             |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, false))}
+          {:noreply,
+           socket
+           |> assign(:posts, updated_posts)
+           |> assign(:post_replies, updated_replies)
+           |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, true))}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to unlike post")}
-        end
-
-      false ->
-        case Social.like_post(user_id, message_id) do
-          {:ok, _} ->
-            {updated_posts, updated_replies} =
-              update_message_count(
-                socket.assigns.posts,
-                socket.assigns.post_replies,
-                message_id,
-                :like_count,
-                1
-              )
-
-            {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> assign(:post_replies, updated_replies)
-             |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, true))}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to like post")}
-        end
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to like post")}
+      end
     end
   end
 
-  def handle_event("unlike_post", params, socket) do
-    handle_event("like_post", params, socket)
+  def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
+    handle_event("unlike_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
+    user_id = socket.assigns.current_user.id
+    message_id = String.to_integer(message_id)
+
+    if Map.get(socket.assigns.user_likes, message_id, false) do
+      case Social.unlike_post(user_id, message_id) do
+        {:ok, _} ->
+          {updated_posts, updated_replies} =
+            update_message_count(
+              socket.assigns.posts,
+              socket.assigns.post_replies,
+              message_id,
+              :like_count,
+              -1
+            )
+
+          {:noreply,
+           socket
+           |> assign(:posts, updated_posts)
+           |> assign(:post_replies, updated_replies)
+           |> assign(:user_likes, Map.put(socket.assigns.user_likes, message_id, false))}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to unlike post")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("boost_post", %{"post_id" => post_id}, socket) do
+    handle_event("boost_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
     user_id = socket.assigns.current_user.id
     message_id = String.to_integer(message_id)
 
-    case Map.get(socket.assigns.user_boosts, message_id, false) do
-      true ->
-        case Social.unboost_post(user_id, message_id) do
-          {:ok, _} ->
-            {updated_posts, updated_replies} =
-              update_message_count(
-                socket.assigns.posts,
-                socket.assigns.post_replies,
-                message_id,
-                :share_count,
-                -1
-              )
+    if Map.get(socket.assigns.user_boosts, message_id, false) do
+      {:noreply, socket}
+    else
+      case Social.boost_post(user_id, message_id) do
+        {:ok, _} ->
+          {updated_posts, updated_replies} =
+            update_message_count(
+              socket.assigns.posts,
+              socket.assigns.post_replies,
+              message_id,
+              :share_count,
+              1
+            )
 
-            {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> assign(:post_replies, updated_replies)
-             |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, false))}
+          {:noreply,
+           socket
+           |> assign(:posts, updated_posts)
+           |> assign(:post_replies, updated_replies)
+           |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, true))}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to unboost")}
-        end
-
-      false ->
-        case Social.boost_post(user_id, message_id) do
-          {:ok, _} ->
-            {updated_posts, updated_replies} =
-              update_message_count(
-                socket.assigns.posts,
-                socket.assigns.post_replies,
-                message_id,
-                :share_count,
-                1
-              )
-
-            {:noreply,
-             socket
-             |> assign(:posts, updated_posts)
-             |> assign(:post_replies, updated_replies)
-             |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, true))}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to boost")}
-        end
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to boost")}
+      end
     end
   end
 
-  def handle_event("unboost_post", params, socket) do
-    handle_event("boost_post", params, socket)
+  def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
+    handle_event("unboost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
+    user_id = socket.assigns.current_user.id
+    message_id = String.to_integer(message_id)
+
+    if Map.get(socket.assigns.user_boosts, message_id, false) do
+      case Social.unboost_post(user_id, message_id) do
+        {:ok, _} ->
+          {updated_posts, updated_replies} =
+            update_message_count(
+              socket.assigns.posts,
+              socket.assigns.post_replies,
+              message_id,
+              :share_count,
+              -1
+            )
+
+          {:noreply,
+           socket
+           |> assign(:posts, updated_posts)
+           |> assign(:post_replies, updated_replies)
+           |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, false))}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to unboost")}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do

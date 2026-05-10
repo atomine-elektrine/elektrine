@@ -51,47 +51,29 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
     # First, get all cached results in one GenServer call
     {cached, uncached} = GenServer.call(__MODULE__, {:get_batch_cached, domains}, 10_000)
 
-    # Fetch uncached domains in parallel (outside of GenServer)
-    fetched =
-      if uncached != [] do
-        uncached
-        |> Task.async_stream(
-          fn domain ->
-            result = fetch_nodeinfo(domain)
-            {domain, result}
-          end,
-          max_concurrency: 20,
-          timeout: 6000,
-          on_timeout: :kill_task
-        )
-        |> Enum.reduce(%{}, fn
-          {:ok, {domain, {:ok, software}}}, acc ->
-            Map.put(acc, domain, String.downcase(software))
-
-          {:ok, {_domain, {:error, _}}}, acc ->
-            acc
-
-          {:exit, _reason}, acc ->
-            acc
-        end)
-      else
-        %{}
-      end
-
-    # Store fetched results back in cache
-    if map_size(fetched) > 0 do
-      GenServer.cast(__MODULE__, {:cache_batch, fetched})
-    end
-
-    # Also cache failures to avoid repeated lookups
-    failed = uncached -- Map.keys(fetched)
-
-    if failed != [] do
-      GenServer.cast(__MODULE__, {:cache_failures, failed})
-    end
+    fetched = fetch_and_cache_software_batch(uncached)
 
     # Merge cached and fetched results
     Map.merge(cached, fetched)
+  catch
+    :exit, _ -> %{}
+  end
+
+  @doc """
+  Returns cached software names immediately and refreshes uncached domains in the background.
+
+  Use this on request/render paths where waiting on remote nodeinfo endpoints would make the UI
+  feel stuck.
+  """
+  def get_cached_software_batch(domains) when is_list(domains) do
+    domains = Enum.uniq(domains)
+    {cached, uncached} = GenServer.call(__MODULE__, {:get_batch_cached, domains}, 500)
+
+    if uncached != [] do
+      Task.start(fn -> fetch_and_cache_software_batch(uncached) end)
+    end
+
+    cached
   catch
     :exit, _ -> %{}
   end
@@ -185,6 +167,44 @@ defmodule Elektrine.ActivityPub.Nodeinfo do
           :miss
         end
     end
+  end
+
+  defp fetch_and_cache_software_batch([]), do: %{}
+
+  defp fetch_and_cache_software_batch(domains) do
+    fetched =
+      domains
+      |> Task.async_stream(
+        fn domain ->
+          result = fetch_nodeinfo(domain)
+          {domain, result}
+        end,
+        max_concurrency: 20,
+        timeout: 6000,
+        on_timeout: :kill_task
+      )
+      |> Enum.reduce(%{}, fn
+        {:ok, {domain, {:ok, software}}}, acc ->
+          Map.put(acc, domain, String.downcase(software))
+
+        {:ok, {_domain, {:error, _}}}, acc ->
+          acc
+
+        {:exit, _reason}, acc ->
+          acc
+      end)
+
+    if map_size(fetched) > 0 do
+      GenServer.cast(__MODULE__, {:cache_batch, fetched})
+    end
+
+    failed = domains -- Map.keys(fetched)
+
+    if failed != [] do
+      GenServer.cast(__MODULE__, {:cache_failures, failed})
+    end
+
+    fetched
   end
 
   defp fetch_nodeinfo(domain) do

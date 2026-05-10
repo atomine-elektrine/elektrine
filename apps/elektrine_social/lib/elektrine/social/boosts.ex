@@ -24,7 +24,7 @@ defmodule Elektrine.Social.Boosts do
   Returns:
   - `{:ok, boost}` on success
   - `{:error, :empty_post}` if the post has no content or media
-  - `{:error, :already_boosted}` if already boosted
+  - already boosted posts return the existing boost
   """
   def boost_post(user_id, message_id) do
     # Get original message to validate it has content
@@ -39,50 +39,63 @@ defmodule Elektrine.Social.Boosts do
       if !has_content && !has_media do
         {:error, :empty_post}
       else
-        %PostBoost{}
-        |> PostBoost.changeset(%{
-          user_id: user_id,
-          message_id: message_id
-        })
-        |> Repo.insert()
-        |> case do
-          {:ok, boost} ->
-            reconcile_share_count(original, 1)
-
-            safe_broadcast_share_count_update(message_id)
-
-            # Create boost as a shared post on timeline
-            case Elektrine.Social.share_to_timeline(message_id, user_id,
-                   visibility: "public",
-                   comment: ""
-                 ) do
-              {:ok, _share_post} ->
-                # Successfully created boost post
-                :ok
-
-              {:error, reason} ->
-                # Log error but don't fail the boost
-                Logger.error("Failed to create boost timeline entry: #{inspect(reason)}")
-                :ok
-            end
-
-            # Federate the boost
-            Elektrine.Async.run(fn ->
-              Elektrine.ActivityPub.Outbox.federate_announce(message_id, user_id)
-              _ = Elektrine.Bluesky.OutboundWorker.enqueue_repost(message_id, user_id)
-            end)
-
+        case Repo.get_by(PostBoost, user_id: user_id, message_id: message_id) do
+          %PostBoost{} = boost ->
             {:ok, boost}
 
-          {:error, %Ecto.Changeset{errors: [user_id: {"has already been taken", _}]}} ->
-            {:error, :already_boosted}
-
-          error ->
-            error
+          nil ->
+            insert_boost(user_id, message_id, original)
         end
       end
     else
       {:error, :not_found}
+    end
+  end
+
+  defp insert_boost(user_id, message_id, original) do
+    %PostBoost{}
+    |> PostBoost.changeset(%{
+      user_id: user_id,
+      message_id: message_id
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, boost} ->
+        reconcile_share_count(original, 1)
+
+        safe_broadcast_share_count_update(message_id)
+
+        # Create boost as a shared post on timeline
+        case Elektrine.Social.share_to_timeline(message_id, user_id,
+               visibility: "public",
+               comment: ""
+             ) do
+          {:ok, _share_post} ->
+            # Successfully created boost post
+            :ok
+
+          {:error, reason} ->
+            # Log error but don't fail the boost
+            Logger.error("Failed to create boost timeline entry: #{inspect(reason)}")
+            :ok
+        end
+
+        # Federate the boost
+        Elektrine.Async.run(fn ->
+          Elektrine.ActivityPub.Outbox.federate_announce(message_id, user_id)
+          _ = Elektrine.Bluesky.OutboundWorker.enqueue_repost(message_id, user_id)
+        end)
+
+        {:ok, boost}
+
+      {:error, %Ecto.Changeset{}} = error ->
+        case Repo.get_by(PostBoost, user_id: user_id, message_id: message_id) do
+          %PostBoost{} = boost -> {:ok, boost}
+          nil -> error
+        end
+
+      error ->
+        error
     end
   end
 
@@ -96,7 +109,7 @@ defmodule Elektrine.Social.Boosts do
 
     case Repo.get_by(PostBoost, user_id: user_id, message_id: message_id) do
       nil ->
-        {:error, :not_boosted}
+        {:ok, nil}
 
       boost ->
         case Repo.delete(boost) do

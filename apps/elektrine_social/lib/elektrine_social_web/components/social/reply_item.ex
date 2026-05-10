@@ -52,6 +52,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   def reply_item(assigns) do
     # Normalize the reply to a consistent format
     normalized = normalize_reply(assigns.reply)
+    deleted? = reply_deleted?(assigns.reply)
 
     container_class =
       case assigns.variant do
@@ -62,9 +63,13 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
     assigns =
       assigns
       |> assign(:normalized, normalized)
+      |> assign(:deleted?, deleted?)
       |> assign(:container_class, container_class)
-      |> assign(:display_reply, display_reply?(normalized))
-      |> assign(:reply_click, reply_click_target(assigns.reply, normalized))
+      |> assign(:display_reply, deleted? || display_reply?(normalized))
+      |> assign(
+        :reply_click,
+        if(deleted?, do: nil, else: reply_click_target(assigns.reply, normalized))
+      )
 
     ~H"""
     <%= if @display_reply do %>
@@ -77,63 +82,15 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
         phx-value-id={@reply_click && @reply_click.id}
         phx-value-post_id={@reply_click && @reply_click.post_id}
       >
-        <!-- Reply Header -->
-        <div class="flex items-center gap-2 mb-2">
-          <!-- Author Avatar -->
-          <%= case @normalized.author_type do %>
-            <% :local -> %>
-              <.user_hover_card
-                user={@reply.sender}
-                user_statuses={@user_statuses}
-                user_follows={@user_follows}
-                current_user={@current_user}
-              >
-                <.link navigate={"/#{@normalized.handle}"} class="w-8 h-8">
-                  <.user_avatar user={@reply.sender} size="xs" />
-                </.link>
-              </.user_hover_card>
-            <% :remote -> %>
-              <.user_hover_card
-                remote_actor={@reply.remote_actor}
-                user_follows={@user_follows}
-                pending_follows={@pending_follows}
-                remote_follow_overrides={@remote_follow_overrides}
-                current_user={@current_user}
-              >
-                <.link
-                  navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
-                  class="w-8 h-8 block"
-                >
-                  <%= if @normalized.avatar_url do %>
-                    <img
-                      src={@normalized.avatar_url}
-                      alt={@normalized.handle}
-                      class="w-8 h-8 rounded-full"
-                    />
-                  <% else %>
-                    <.placeholder_avatar size="sm" />
-                  <% end %>
-                </.link>
-              </.user_hover_card>
-            <% :lemmy -> %>
-              <.link
-                navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
-                class="w-8 h-8 block"
-              >
-                <%= if @normalized.avatar_url do %>
-                  <img
-                    src={@normalized.avatar_url}
-                    alt={@normalized.handle}
-                    class="w-8 h-8 rounded-full object-cover"
-                  />
-                <% else %>
-                  <.placeholder_avatar size="sm" />
-                <% end %>
-              </.link>
-          <% end %>
-          
-    <!-- Author Info -->
-          <div class="flex-1 min-w-0 flex flex-col justify-center">
+        <%= if @deleted? do %>
+          <div class="flex items-center gap-2 text-sm italic text-base-content/55">
+            <.icon name="hero-no-symbol" class="h-4 w-4" />
+            <span>This reply was deleted.</span>
+          </div>
+        <% else %>
+          <!-- Reply Header -->
+          <div class="flex items-center gap-2 mb-2">
+            <!-- Author Avatar -->
             <%= case @normalized.author_type do %>
               <% :local -> %>
                 <.user_hover_card
@@ -142,23 +99,10 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                   user_follows={@user_follows}
                   current_user={@current_user}
                 >
-                  <.link
-                    navigate={"/#{@normalized.handle}"}
-                    class="font-medium text-sm text-left truncate"
-                  >
-                    <.username_with_effects
-                      user={@reply.sender}
-                      display_name={true}
-                      verified_size="xs"
-                    />
+                  <.link navigate={"/#{@normalized.handle}"} class="w-8 h-8">
+                    <.user_avatar user={@reply.sender} size="xs" />
                   </.link>
                 </.user_hover_card>
-                <div class="text-xs opacity-70 truncate">
-                  {AccountIdentifiers.at_local_handle(@normalized.handle)}
-                  <%= if @normalized.timestamp do %>
-                    · {format_timestamp(@normalized.timestamp)}
-                  <% end %>
-                </div>
               <% :remote -> %>
                 <.user_hover_card
                   remote_actor={@reply.remote_actor}
@@ -169,57 +113,130 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
                 >
                   <.link
                     navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
-                    class="font-medium text-sm truncate block"
+                    class="w-8 h-8 block"
                   >
-                    {raw(
-                      render_display_name_with_emojis(
-                        @normalized.display_name,
-                        @normalized.domain
-                      )
-                    )}
+                    <%= if @normalized.avatar_url do %>
+                      <img
+                        src={@normalized.avatar_url}
+                        alt={@normalized.handle}
+                        class="w-8 h-8 rounded-full"
+                      />
+                    <% else %>
+                      <.placeholder_avatar size="sm" />
+                    <% end %>
                   </.link>
                 </.user_hover_card>
-                <div class="text-xs opacity-70 truncate">
-                  @{@normalized.handle}@{@normalized.domain}
-                  <%= if @normalized.timestamp do %>
-                    · {format_timestamp(@normalized.timestamp)}
-                  <% end %>
-                </div>
               <% :lemmy -> %>
                 <.link
                   navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
-                  class="font-medium text-sm truncate block"
+                  class="w-8 h-8 block"
                 >
-                  {@normalized.display_name}
-                </.link>
-                <div class="text-xs opacity-70 truncate">
-                  @{@normalized.handle}@{@normalized.domain}
-                  <%= if reply_like_display_count(@normalized) > 0 do %>
-                    · {reply_like_display_count(@normalized)} upvotes
+                  <%= if @normalized.avatar_url do %>
+                    <img
+                      src={@normalized.avatar_url}
+                      alt={@normalized.handle}
+                      class="w-8 h-8 rounded-full object-cover"
+                    />
+                  <% else %>
+                    <.placeholder_avatar size="sm" />
                   <% end %>
-                </div>
+                </.link>
             <% end %>
+            
+    <!-- Author Info -->
+            <div class="flex-1 min-w-0 flex flex-col justify-center">
+              <%= case @normalized.author_type do %>
+                <% :local -> %>
+                  <.user_hover_card
+                    user={@reply.sender}
+                    user_statuses={@user_statuses}
+                    user_follows={@user_follows}
+                    current_user={@current_user}
+                  >
+                    <.link
+                      navigate={"/#{@normalized.handle}"}
+                      class="font-medium text-sm text-left truncate"
+                    >
+                      <.username_with_effects
+                        user={@reply.sender}
+                        display_name={true}
+                        verified_size="xs"
+                      />
+                    </.link>
+                  </.user_hover_card>
+                  <div class="text-xs opacity-70 truncate">
+                    {AccountIdentifiers.at_local_handle(@normalized.handle)}
+                    <%= if @normalized.timestamp do %>
+                      · {format_timestamp(@normalized.timestamp)}
+                    <% end %>
+                  </div>
+                <% :remote -> %>
+                  <.user_hover_card
+                    remote_actor={@reply.remote_actor}
+                    user_follows={@user_follows}
+                    pending_follows={@pending_follows}
+                    remote_follow_overrides={@remote_follow_overrides}
+                    current_user={@current_user}
+                  >
+                    <.link
+                      navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
+                      class="font-medium text-sm truncate block"
+                    >
+                      {raw(
+                        render_display_name_with_emojis(
+                          @normalized.display_name,
+                          @normalized.domain
+                        )
+                      )}
+                    </.link>
+                  </.user_hover_card>
+                  <div class="text-xs opacity-70 truncate">
+                    @{@normalized.handle}@{@normalized.domain}
+                    <%= if @normalized.timestamp do %>
+                      · {format_timestamp(@normalized.timestamp)}
+                    <% end %>
+                  </div>
+                <% :lemmy -> %>
+                  <.link
+                    navigate={"/remote/#{@normalized.handle}@#{@normalized.domain}"}
+                    class="font-medium text-sm truncate block"
+                  >
+                    {@normalized.display_name}
+                  </.link>
+                  <div class="text-xs opacity-70 truncate">
+                    @{@normalized.handle}@{@normalized.domain}
+                    <%= if reply_like_display_count(@normalized) > 0 do %>
+                      · {reply_like_display_count(@normalized)} upvotes
+                    <% end %>
+                  </div>
+              <% end %>
+            </div>
           </div>
-        </div>
-        
+          
     <!-- Reply Content -->
-        <%= if Elektrine.Strings.present?(@normalized.content) do %>
-          <div class="text-sm break-words mb-2 [&_img]:max-w-[200px] [&_img]:max-h-[150px] [&_img]:rounded [&_img]:object-cover">
-            {raw(render_reply_content_html(@normalized))}
-          </div>
-        <% end %>
-        
+          <%= if Elektrine.Strings.present?(@normalized.content) do %>
+            <div class="text-sm break-words mb-2 [&_img]:max-w-[200px] [&_img]:max-h-[150px] [&_img]:rounded [&_img]:object-cover">
+              {raw(render_reply_content_html(@normalized))}
+            </div>
+            <%= if @normalized.edited_at do %>
+              <div class="mb-2 text-[11px] text-base-content/50">
+                Edited {format_timestamp(@normalized.edited_at)}
+              </div>
+            <% end %>
+          <% end %>
+          
     <!-- Reply Actions -->
-        <%= if @show_actions && @current_user do %>
-          <.reply_actions
-            reply={@reply}
-            normalized={@normalized}
-            post={@post}
-            current_user={@current_user}
-            user_likes={@user_likes}
-            user_boosts={@user_boosts}
-            on_reply_click={@on_reply_click}
-          />
+          <%= if @show_actions && @current_user do %>
+            <.reply_actions
+              reply={@reply}
+              normalized={@normalized}
+              post={@post}
+              current_user={@current_user}
+              user_likes={@user_likes}
+              user_boosts={@user_boosts}
+              on_reply_click={@on_reply_click}
+            />
+          <% end %>
         <% end %>
       </div>
     <% end %>
@@ -369,6 +386,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           avatar_url: nil,
           content: reply.content,
           timestamp: reply.inserted_at,
+          edited_at: Map.get(reply, :edited_at),
           like_count: reply.like_count || 0,
           upvotes: 0,
           reply_count: reply.reply_count || 0,
@@ -390,6 +408,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           avatar_url: reply.remote_actor.avatar_url,
           content: reply.content,
           timestamp: reply.inserted_at,
+          edited_at: Map.get(reply, :edited_at),
           like_count: reply.like_count || 0,
           upvotes: reply.upvotes || 0,
           reply_count: reply.reply_count || 0,
@@ -410,6 +429,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           avatar_url: reply[:author_avatar] || reply[:avatar_url],
           content: reply.content,
           timestamp: nil,
+          edited_at: nil,
           like_count: 0,
           upvotes: reply[:upvotes] || 0,
           reply_count: reply[:child_count] || 0,
@@ -430,6 +450,7 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
           avatar_url: nil,
           content: Map.get(reply, :content),
           timestamp: nil,
+          edited_at: nil,
           like_count: 0,
           upvotes: 0,
           reply_count: 0,
@@ -445,6 +466,12 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
   defp format_timestamp(datetime) do
     Integrations.social_time_ago(datetime)
   end
+
+  defp reply_deleted?(reply) when is_map(reply) do
+    not is_nil(Map.get(reply, :deleted_at) || Map.get(reply, "deleted_at"))
+  end
+
+  defp reply_deleted?(_), do: false
 
   # Federated replies can be interactive when we've materialized them as local messages.
   defp interactive_reply_id(reply) when is_map(reply) do

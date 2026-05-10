@@ -261,11 +261,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
           </div>
         <% end %>
 
-        <% replies = Map.get(@post_replies, @post.id, []) %>
+        <% replies = direct_replies_first(Map.get(@post_replies, @post.id, []), @post.id) %>
+        <% visible_replies = Enum.take(replies, 3) %>
+        <% hidden_reply_count = max(length(replies) - length(visible_replies), 0) %>
         <%= if length(replies) > 0 do %>
           <div class="timeline-thread-replies mt-3 space-y-3">
             <span class="timeline-thread-replies__rail" aria-hidden="true"></span>
-            <%= for reply <- replies do %>
+            <%= for reply <- visible_replies do %>
               <% normalized = ElektrineSocialWeb.Components.Social.ReplyItem.normalize_reply(reply)
 
               reply_target_id =
@@ -334,6 +336,18 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
               <% end %>
             <% end %>
 
+            <%= if hidden_reply_count > 0 do %>
+              <.link
+                navigate={Elektrine.Paths.post_path(@post)}
+                class="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium"
+              >
+                <.icon name="hero-chevron-down" class="h-4 w-4" />
+                Show {hidden_reply_count} more {if hidden_reply_count == 1,
+                  do: "reply",
+                  else: "replies"}
+              </.link>
+            <% end %>
+
             <%= if @post.reply_count > length(replies) do %>
               <.link
                 navigate={Elektrine.Paths.post_path(@post)}
@@ -369,4 +383,24 @@ defmodule ElektrineSocialWeb.Components.Social.TimelineStreamPost do
     </div>
     """
   end
+
+  defp direct_replies_first(replies, post_id) when is_list(replies) do
+    {direct, nested} =
+      Enum.split_with(replies, fn reply ->
+        reply_parent_id(reply) in [nil, post_id]
+      end)
+
+    direct ++ nested
+  end
+
+  defp direct_replies_first(_, _), do: []
+
+  defp reply_parent_id(reply) when is_map(reply) do
+    Map.get(reply, :reply_to_id) ||
+      Map.get(reply, "reply_to_id") ||
+      Map.get(reply, :parent_id) ||
+      Map.get(reply, "parent_id")
+  end
+
+  defp reply_parent_id(_), do: nil
 end

@@ -55,7 +55,7 @@ defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
               )}
             </.link>
             <span class="badge badge-xs badge-purple flex-shrink-0">
-              <.icon name="hero-globe-americas" class="w-2.5 h-2.5 mr-0.5" /> Federated
+              <.asterism class="w-2.5 h-2.5 mr-0.5" /> Federated
             </span>
           </div>
           <div class="text-sm opacity-70 truncate">

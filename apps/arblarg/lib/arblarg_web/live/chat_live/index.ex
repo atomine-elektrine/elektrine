@@ -673,27 +673,11 @@ defmodule ArblargWeb.ChatLive.Index do
         |> assign(:loading_older_messages, false)
         |> assign(:loading_newer_messages, false)
         |> assign(:initial_messages_loading, false)
-
-      Process.send_after(self(), :trigger_initial_scroll, 100)
+        |> push_event("restore_conversation_scroll", %{conversation_id: conversation_id})
 
       {:noreply, updated_socket}
     else
       {:noreply, socket}
-    end
-  end
-
-  def handle_info(:trigger_initial_scroll, socket) do
-    # Determine the appropriate scroll action based on unread status
-    if socket.assigns[:first_unread_message_id] do
-      # There are unread messages, scroll to the unread indicator
-      {:noreply,
-       push_event(socket, "scroll_to_element", %{
-         element_id: "unread-indicator",
-         position: "top-third"
-       })}
-    else
-      # No unread messages, scroll to bottom
-      {:noreply, push_event(socket, "scroll_to_bottom", %{})}
     end
   end
 

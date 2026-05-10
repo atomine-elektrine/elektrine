@@ -73,6 +73,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:reply_content, "")
       |> assign(:reply_to_reply_id, nil)
       |> assign(:timeline_filter, "all")
+      |> assign(:hide_boosts, false)
+      |> assign(:hide_replies, false)
       |> assign(:timeline_sort, "new")
       |> assign(:filter_dropdown_open, false)
       |> assign(:filtered_posts, [])
@@ -400,11 +402,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
     socket
     |> assign(:timeline_load_ref, load_ref)
+    |> assign(:timeline_hydration_ref, nil)
     |> assign(:current_filter, filter)
     |> assign(:timeline_filter, timeline_view)
-    |> assign(:loading_timeline, Enum.empty?(socket.assigns.timeline_posts))
+    |> assign(:timeline_posts, [])
+    |> assign(:filtered_posts, [])
+    |> assign(:filtered_post_ids, [])
+    |> assign(:loading_timeline, true)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)
+    |> stream(:timeline_filtered_posts, [], reset: true)
   end
 
   defp maybe_queue_reply_context_previews(socket, posts) do
@@ -1208,16 +1215,31 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   @impl true
   def handle_info({:reply_count_updated, message_id, new_count}, socket) do
-    updated_posts =
-      Enum.map(socket.assigns.timeline_posts, fn post ->
-        if post.id == message_id do
-          %{post | reply_count: new_count}
-        else
-          post
-        end
-      end)
+    message =
+      find_message_post(socket.assigns.timeline_posts, message_id) ||
+        find_message_post(socket.assigns.base_timeline_posts || [], message_id) ||
+        find_message_reply(socket.assigns.post_replies, message_id)
 
-    {:noreply, socket |> assign(:timeline_posts, updated_posts) |> apply_timeline_filter()}
+    counts = %{
+      like_count: Map.get(message || %{}, :like_count, 0),
+      share_count: Map.get(message || %{}, :share_count, 0),
+      reply_count: new_count
+    }
+
+    update_fn = &update_posts_for_counts(&1, message_id, counts)
+
+    updated_replies =
+      update_reply_previews_for_counts(socket.assigns.post_replies, message_id, counts)
+
+    updated_filtered_posts =
+      update_posts_for_counts(socket.assigns.filtered_posts || [], message_id, counts)
+
+    {:noreply,
+     socket
+     |> TimelineHelpers.update_cached_posts(update_fn)
+     |> assign(:post_replies, updated_replies)
+     |> TimelineHelpers.assign_filtered_posts(updated_filtered_posts)
+     |> TimelineHelpers.refresh_interaction_posts(message_id)}
   end
 
   @impl true
@@ -1844,7 +1866,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> Enum.map(& &1.remote_actor.domain)
       |> Enum.uniq()
 
-    software_map = Elektrine.ActivityPub.Nodeinfo.get_software_batch(domains)
+    software_map = Elektrine.ActivityPub.Nodeinfo.get_cached_software_batch(domains)
 
     Enum.filter(posts, fn post ->
       cond do

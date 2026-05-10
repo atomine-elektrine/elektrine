@@ -348,44 +348,22 @@ defmodule ElektrineWeb.PortalLive.Index do
           post = find_portal_post(socket.assigns.all_posts, message_id)
 
           if post && PostUtilities.community_post?(post) do
-            {:noreply, apply_portal_like_interaction(socket, post, message_id)}
+            {:noreply, apply_portal_like_interaction(socket, post, message_id, :like)}
           else
             user_id = socket.assigns.current_user.id
             currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
 
-            update_likes_fn = fn posts ->
-              Enum.map(posts, fn post ->
-                if post.id == message_id do
-                  if currently_liked do
-                    %{post | like_count: max(0, (post.like_count || 0) - 1)}
-                  else
-                    %{post | like_count: (post.like_count || 0) + 1}
-                  end
-                else
-                  post
-                end
-              end)
-            end
-
             if currently_liked do
-              case Integrations.social_unlike_post(user_id, message_id) do
-                {:ok, _} ->
-                  {:noreply,
-                   socket
-                   |> update(:user_likes, &Map.put(&1, message_id, false))
-                   |> update(:all_posts, update_likes_fn)
-                   |> update(:filtered_all_posts, update_likes_fn)
-                   |> sync_portal_posts_stream()}
-
-                {:error, _} ->
-                  {:noreply, put_flash(socket, :error, "Failed to unlike post")}
-              end
+              {:noreply, socket}
             else
               case Integrations.social_like_post(user_id, message_id) do
                 {:ok, _} ->
+                  update_likes_fn = update_portal_post_count_fn(message_id, :like_count, 1)
+
                   {:noreply,
                    socket
                    |> update(:user_likes, &Map.put(&1, message_id, true))
+                   |> put_portal_like_interaction(post, message_id, true)
                    |> update(:all_posts, update_likes_fn)
                    |> update(:filtered_all_posts, update_likes_fn)
                    |> sync_portal_posts_stream()
@@ -406,11 +384,59 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
-    handle_event("like_post", %{"message_id" => post_id}, socket)
+    case parse_positive_int(post_id) do
+      {:ok, message_id} ->
+        if Map.get(socket.assigns.user_likes || %{}, message_id, false) do
+          handle_event("unlike_post", %{"message_id" => post_id}, socket)
+        else
+          handle_event("like_post", %{"message_id" => post_id}, socket)
+        end
+
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid post id")}
+    end
   end
 
-  def handle_event("unlike_post", params, socket) do
-    handle_event("like_post", params, socket)
+  def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
+    handle_event("unlike_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          post = find_portal_post(socket.assigns.all_posts, message_id)
+
+          if post && PostUtilities.community_post?(post) do
+            {:noreply, apply_portal_like_interaction(socket, post, message_id, :unlike)}
+          else
+            if Map.get(socket.assigns.user_likes, message_id, false) do
+              case Integrations.social_unlike_post(socket.assigns.current_user.id, message_id) do
+                {:ok, _} ->
+                  update_likes_fn = update_portal_post_count_fn(message_id, :like_count, -1)
+
+                  {:noreply,
+                   socket
+                   |> update(:user_likes, &Map.put(&1, message_id, false))
+                   |> put_portal_like_interaction(post, message_id, false)
+                   |> update(:all_posts, update_likes_fn)
+                   |> update(:filtered_all_posts, update_likes_fn)
+                   |> sync_portal_posts_stream()}
+
+                {:error, _} ->
+                  {:noreply, put_flash(socket, :error, "Failed to unlike post")}
+              end
+            else
+              {:noreply, socket}
+            end
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
@@ -422,8 +448,11 @@ defmodule ElektrineWeb.PortalLive.Index do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
           case find_portal_post(socket.assigns.all_posts, message_id) do
-            nil -> {:noreply, put_flash(socket, :error, "Invalid post id")}
-            post -> {:noreply, apply_portal_downvote_interaction(socket, post, message_id)}
+            nil ->
+              {:noreply, put_flash(socket, :error, "Invalid post id")}
+
+            post ->
+              {:noreply, apply_portal_downvote_interaction(socket, post, message_id, :downvote)}
           end
 
         :error ->
@@ -434,8 +463,28 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
-  def handle_event("undownvote_post", params, socket) do
-    handle_event("downvote_post", params, socket)
+  def handle_event("undownvote_post", %{"post_id" => post_id}, socket) do
+    handle_event("undownvote_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("undownvote_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          case find_portal_post(socket.assigns.all_posts, message_id) do
+            nil ->
+              {:noreply, put_flash(socket, :error, "Invalid post id")}
+
+            post ->
+              {:noreply, apply_portal_downvote_interaction(socket, post, message_id, :undownvote)}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
@@ -446,36 +495,13 @@ defmodule ElektrineWeb.PortalLive.Index do
           currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
           post = find_portal_post(socket.assigns.all_posts, message_id)
 
-          update_boosts_fn = fn posts ->
-            Enum.map(posts, fn post ->
-              if post.id == message_id do
-                if currently_boosted do
-                  %{post | share_count: max(0, (post.share_count || 0) - 1)}
-                else
-                  %{post | share_count: (post.share_count || 0) + 1}
-                end
-              else
-                post
-              end
-            end)
-          end
-
           if currently_boosted do
-            case Integrations.social_unboost_post(user_id, message_id) do
-              {:ok, _} ->
-                {:noreply,
-                 socket
-                 |> update(:user_boosts, &Map.put(&1, message_id, false))
-                 |> update(:all_posts, update_boosts_fn)
-                 |> update(:filtered_all_posts, update_boosts_fn)
-                 |> sync_portal_posts_stream()}
-
-              {:error, _} ->
-                {:noreply, put_flash(socket, :error, "Failed to unboost post")}
-            end
+            {:noreply, socket}
           else
             case Integrations.social_boost_post(user_id, message_id) do
               {:ok, _} ->
+                update_boosts_fn = update_portal_post_count_fn(message_id, :share_count, 1)
+
                 {:noreply,
                  socket
                  |> update(:user_boosts, &Map.put(&1, message_id, true))
@@ -497,28 +523,67 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
-  def handle_event("unboost_post", params, socket) do
-    handle_event("boost_post", params, socket)
+  def handle_event("boost_post", %{"post_id" => post_id}, socket) do
+    handle_event("boost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
+    handle_event("unboost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      case parse_positive_int(message_id) do
+        {:ok, message_id} ->
+          if Map.get(socket.assigns.user_boosts, message_id, false) do
+            case Integrations.social_unboost_post(socket.assigns.current_user.id, message_id) do
+              {:ok, _} ->
+                update_boosts_fn = update_portal_post_count_fn(message_id, :share_count, -1)
+
+                {:noreply,
+                 socket
+                 |> update(:user_boosts, &Map.put(&1, message_id, false))
+                 |> update(:all_posts, update_boosts_fn)
+                 |> update(:filtered_all_posts, update_boosts_fn)
+                 |> sync_portal_posts_stream()}
+
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to unboost post")}
+            end
+          else
+            {:noreply, socket}
+          end
+
+        :error ->
+          {:noreply, put_flash(socket, :error, "Invalid post id")}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("save_post", %{"post_id" => post_id}, socket) do
+    handle_event("save_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("save_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
-          case Integrations.social_save_post(socket.assigns.current_user.id, message_id) do
-            {:ok, _} ->
-              {:noreply,
-               socket
-               |> update(:user_saves, &Map.put(&1, message_id, true))
-               |> sync_portal_posts_stream()
-               |> put_flash(:info, "Saved")}
+          if Map.get(socket.assigns.user_saves, message_id, false) do
+            {:noreply, socket}
+          else
+            case Integrations.social_save_post(socket.assigns.current_user.id, message_id) do
+              {:ok, _} ->
+                {:noreply,
+                 socket
+                 |> update(:user_saves, &Map.put(&1, message_id, true))
+                 |> sync_portal_posts_stream()
+                 |> put_flash(:info, "Saved")}
 
-            {:error, _} ->
-              {:noreply,
-               socket
-               |> update(:user_saves, &Map.put(&1, message_id, true))
-               |> sync_portal_posts_stream()
-               |> put_flash(:info, "Already saved")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to save")}
+            end
           end
 
         :error ->
@@ -529,20 +594,28 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
+  def handle_event("unsave_post", %{"post_id" => post_id}, socket) do
+    handle_event("unsave_post", %{"message_id" => post_id}, socket)
+  end
+
   def handle_event("unsave_post", %{"message_id" => message_id}, socket) do
     if socket.assigns[:current_user] do
       case parse_positive_int(message_id) do
         {:ok, message_id} ->
-          case Integrations.social_unsave_post(socket.assigns.current_user.id, message_id) do
-            {:ok, _} ->
-              {:noreply,
-               socket
-               |> update(:user_saves, &Map.put(&1, message_id, false))
-               |> sync_portal_posts_stream()
-               |> put_flash(:info, "Removed from saved")}
+          if Map.get(socket.assigns.user_saves, message_id, false) do
+            case Integrations.social_unsave_post(socket.assigns.current_user.id, message_id) do
+              {:ok, _} ->
+                {:noreply,
+                 socket
+                 |> update(:user_saves, &Map.put(&1, message_id, false))
+                 |> sync_portal_posts_stream()
+                 |> put_flash(:info, "Removed from saved")}
 
-            {:error, _} ->
-              {:noreply, put_flash(socket, :error, "Failed to unsave")}
+              {:error, _} ->
+                {:noreply, put_flash(socket, :error, "Failed to unsave")}
+            end
+          else
+            {:noreply, socket}
           end
 
         :error ->
@@ -1434,13 +1507,22 @@ defmodule ElektrineWeb.PortalLive.Index do
     get_user_likes(user_id, posts)
   end
 
-  defp get_user_downvotes_map(_user_id, posts) do
-    Enum.reduce(posts, %{}, fn post, acc ->
-      Map.put(acc, post.id, false)
+  defp get_user_downvotes_map(user_id, posts) do
+    message_ids = Enum.map(posts, & &1.id)
+
+    user_votes =
+      case Integrations.social_get_user_votes(user_id, message_ids) do
+        votes when is_map(votes) -> votes
+        _ -> %{}
+      end
+
+    Map.new(message_ids, fn message_id ->
+      {message_id, Map.get(user_votes, message_id) == "down"}
     end)
   end
 
-  defp apply_portal_like_interaction(socket, post, message_id) do
+  defp apply_portal_like_interaction(socket, post, message_id, direction)
+       when direction in [:like, :unlike] do
     interaction_key = portal_post_interaction_key(post)
 
     current_state =
@@ -1453,56 +1535,89 @@ defmodule ElektrineWeb.PortalLive.Index do
     currently_liked =
       Map.get(socket.assigns.user_likes, message_id, Map.get(current_state, :liked, false))
 
-    delta_change = if currently_liked, do: -1, else: 1
+    next_liked = direction == :like
 
-    post_interactions =
-      Map.put(socket.assigns.post_interactions, interaction_key, %{
-        liked: !currently_liked,
-        downvoted: false,
-        like_delta: 0
-      })
+    if currently_liked == next_liked do
+      socket
+    else
+      delta_change = if next_liked, do: 1, else: -1
 
-    update_likes_fn = fn posts ->
-      Enum.map(posts, fn post_candidate ->
-        if post_candidate.id == message_id do
-          base_like_count = post_candidate.like_count || post_candidate.score || 0
-          updated_like_count = max(base_like_count + delta_change, 0)
+      post_interactions =
+        Map.put(socket.assigns.post_interactions, interaction_key, %{
+          liked: next_liked,
+          downvoted: false,
+          like_delta: 0
+        })
 
-          post_candidate
-          |> Map.put(:like_count, updated_like_count)
-          |> Map.put(:score, updated_like_count)
-        else
-          post_candidate
-        end
-      end)
-    end
+      update_likes_fn = fn posts ->
+        Enum.map(posts, fn post_candidate ->
+          if post_candidate.id == message_id do
+            base_like_count = post_candidate.like_count || post_candidate.score || 0
+            updated_like_count = max(base_like_count + delta_change, 0)
 
-    result =
-      if currently_liked do
-        Integrations.social_unlike_post(socket.assigns.current_user.id, message_id)
-      else
-        Integrations.social_like_post(socket.assigns.current_user.id, message_id)
+            post_candidate
+            |> Map.put(:like_count, updated_like_count)
+            |> Map.put(:score, updated_like_count)
+          else
+            post_candidate
+          end
+        end)
       end
 
-    case result do
-      {:ok, _} ->
-        socket
-        |> update(:user_likes, &Map.put(&1, message_id, !currently_liked))
-        |> assign(:post_interactions, post_interactions)
-        |> update(:all_posts, update_likes_fn)
-        |> update(:filtered_all_posts, update_likes_fn)
-        |> sync_portal_posts_stream()
+      result =
+        if next_liked do
+          Integrations.social_like_post(socket.assigns.current_user.id, message_id)
+        else
+          Integrations.social_unlike_post(socket.assigns.current_user.id, message_id)
+        end
 
-      {:error, _} ->
-        put_flash(
-          socket,
-          :error,
-          if(currently_liked, do: "Failed to unlike post", else: "Failed to like post")
-        )
+      case result do
+        {:ok, _} ->
+          socket
+          |> update(:user_likes, &Map.put(&1, message_id, next_liked))
+          |> assign(:post_interactions, post_interactions)
+          |> update(:all_posts, update_likes_fn)
+          |> update(:filtered_all_posts, update_likes_fn)
+          |> sync_portal_posts_stream()
+
+        {:error, _} ->
+          put_flash(
+            socket,
+            :error,
+            if(next_liked, do: "Failed to like post", else: "Failed to unlike post")
+          )
+      end
     end
   end
 
-  defp apply_portal_downvote_interaction(socket, post, message_id) do
+  defp update_portal_post_count_fn(message_id, count_field, delta) do
+    fn posts ->
+      Enum.map(posts, fn post ->
+        if post.id == message_id do
+          current_count = Map.get(post, count_field, 0) || 0
+          Map.put(post, count_field, max(current_count + delta, 0))
+        else
+          post
+        end
+      end)
+    end
+  end
+
+  defp put_portal_like_interaction(socket, post, message_id, liked?) do
+    interaction_key = portal_post_interaction_key(post || %{id: message_id})
+
+    update(socket, :post_interactions, fn post_interactions ->
+      Map.update(
+        post_interactions,
+        interaction_key,
+        %{liked: liked?, downvoted: false, like_delta: 0},
+        &(&1 |> Map.put(:liked, liked?) |> Map.put(:downvoted, false))
+      )
+    end)
+  end
+
+  defp apply_portal_downvote_interaction(socket, post, message_id, direction)
+       when direction in [:downvote, :undownvote] do
     interaction_key = portal_post_interaction_key(post)
 
     current_state =
@@ -1522,70 +1637,70 @@ defmodule ElektrineWeb.PortalLive.Index do
         Map.get(current_state, :downvoted, false)
       )
 
-    next_downvoted = !currently_downvoted
+    next_downvoted = direction == :downvote
 
-    score_delta =
-      cond do
-        currently_downvoted -> 1
-        currently_liked -> -2
-        true -> -1
-      end
-
-    update_posts_fn = fn posts ->
-      Enum.map(posts, fn post_candidate ->
-        if post_candidate.id == message_id do
-          like_count = post_candidate.like_count || 0
-          downvote_count = post_candidate.downvotes || post_candidate.dislike_count || 0
-
-          updated_like_count = if currently_liked, do: max(like_count - 1, 0), else: like_count
-
-          updated_downvotes =
-            if next_downvoted, do: downvote_count + 1, else: max(downvote_count - 1, 0)
-
-          post_candidate
-          |> Map.put(:score, (post_candidate.score || like_count) + score_delta)
-          |> Map.put(:like_count, updated_like_count)
-          |> Map.put(
-            :upvotes,
-            if(currently_liked,
-              do: max((post_candidate.upvotes || like_count) - 1, 0),
-              else: post_candidate.upvotes || like_count
-            )
-          )
-          |> Map.put(:downvotes, updated_downvotes)
-          |> Map.put(:dislike_count, updated_downvotes)
-        else
-          post_candidate
+    if currently_downvoted == next_downvoted do
+      socket
+    else
+      score_delta =
+        cond do
+          next_downvoted && currently_liked -> -2
+          next_downvoted -> -1
+          true -> 1
         end
-      end)
-    end
 
-    result =
-      if next_downvoted do
-        Integrations.social_vote_on_message(socket.assigns.current_user.id, message_id, "down")
-      else
-        Integrations.social_unlike_post(socket.assigns.current_user.id, message_id)
+      update_posts_fn = fn posts ->
+        Enum.map(posts, fn post_candidate ->
+          if post_candidate.id == message_id do
+            like_count = post_candidate.like_count || 0
+            downvote_count = post_candidate.downvotes || post_candidate.dislike_count || 0
+
+            updated_like_count =
+              if next_downvoted && currently_liked, do: max(like_count - 1, 0), else: like_count
+
+            updated_downvotes =
+              if next_downvoted, do: downvote_count + 1, else: max(downvote_count - 1, 0)
+
+            updated_upvotes =
+              if next_downvoted && currently_liked,
+                do: max((post_candidate.upvotes || like_count) - 1, 0),
+                else: post_candidate.upvotes || like_count
+
+            post_candidate
+            |> Map.put(:score, (post_candidate.score || like_count) + score_delta)
+            |> Map.put(:like_count, updated_like_count)
+            |> Map.put(:upvotes, updated_upvotes)
+            |> Map.put(:downvotes, updated_downvotes)
+            |> Map.put(:dislike_count, updated_downvotes)
+          else
+            post_candidate
+          end
+        end)
       end
 
-    case result do
-      {:ok, _} ->
-        post_interactions =
-          Map.put(socket.assigns.post_interactions, interaction_key, %{
-            liked: false,
-            downvoted: next_downvoted,
-            like_delta: 0
-          })
+      result =
+        Integrations.social_vote_on_message(socket.assigns.current_user.id, message_id, "down")
 
-        socket
-        |> update(:user_likes, &Map.put(&1, message_id, false))
-        |> update(:user_downvotes, &Map.put(&1, message_id, next_downvoted))
-        |> assign(:post_interactions, post_interactions)
-        |> update(:all_posts, update_posts_fn)
-        |> update(:filtered_all_posts, update_posts_fn)
-        |> sync_portal_posts_stream()
+      case result do
+        {:ok, _} ->
+          post_interactions =
+            Map.put(socket.assigns.post_interactions, interaction_key, %{
+              liked: false,
+              downvoted: next_downvoted,
+              like_delta: 0
+            })
 
-      {:error, _} ->
-        put_flash(socket, :error, "Failed to vote")
+          socket
+          |> update(:user_likes, &Map.put(&1, message_id, false))
+          |> update(:user_downvotes, &Map.put(&1, message_id, next_downvoted))
+          |> assign(:post_interactions, post_interactions)
+          |> update(:all_posts, update_posts_fn)
+          |> update(:filtered_all_posts, update_posts_fn)
+          |> sync_portal_posts_stream()
+
+        {:error, _} ->
+          put_flash(socket, :error, "Failed to vote")
+      end
     end
   end
 
@@ -2919,7 +3034,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     user_likes = get_user_likes_map(user_id, all_posts)
     user_downvotes = get_user_downvotes_map(user_id, all_posts)
 
-    post_interactions = get_portal_post_interactions(all_posts, user_likes)
+    post_interactions = get_portal_post_interactions(all_posts, user_likes, user_downvotes)
 
     user_boosts = get_user_boosts_map(user_id, all_posts)
     user_saves = get_user_saves(user_id, all_posts)
@@ -2960,14 +3075,14 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp load_portal_lemmy_counts(_), do: %{}
 
-  defp get_portal_post_interactions(posts, user_likes) do
+  defp get_portal_post_interactions(posts, user_likes, user_downvotes) do
     Map.new(posts, fn post ->
       interaction_key = portal_post_interaction_key(post)
 
       {interaction_key,
        %{
          liked: Map.get(user_likes, post.id, false),
-         downvoted: false,
+         downvoted: Map.get(user_downvotes, post.id, false),
          like_delta: 0
        }}
     end)

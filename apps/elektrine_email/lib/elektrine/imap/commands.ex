@@ -4,6 +4,7 @@ defmodule Elektrine.IMAP.Commands do
   alias Elektrine.Constants
   alias Elektrine.Domains
   alias Elektrine.Email.AttachmentStorage
+  alias Elektrine.Email.MimeBodyExtractor
   alias Elektrine.IMAP.{Helpers, RecentTracker, Response}
   alias Elektrine.Mail.Socket
   alias Elektrine.Mail.Telemetry, as: MailTelemetry
@@ -2531,10 +2532,7 @@ defmodule Elektrine.IMAP.Commands do
 
   def extract_text_body(_body, _headers, message \\ nil) do
     if message do
-      case Mail.get_text(message) do
-        %Mail.Message{body: text_body} -> text_body
-        nil -> nil
-      end
+      MimeBodyExtractor.text_body(message)
     else
       nil
     end
@@ -2542,10 +2540,7 @@ defmodule Elektrine.IMAP.Commands do
 
   def extract_html_body(_body, _headers, message \\ nil) do
     if message do
-      case Mail.get_html(message) do
-        %Mail.Message{body: html_body} -> html_body
-        nil -> nil
-      end
+      MimeBodyExtractor.html_body(message)
     else
       nil
     end

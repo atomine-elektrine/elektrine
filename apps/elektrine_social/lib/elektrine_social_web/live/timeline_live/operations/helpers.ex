@@ -119,6 +119,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
 
     filtered_posts = filter_posts_by_software(filtered_posts, socket.assigns.software_filter)
     filtered_posts = filter_posts_by_search_query(filtered_posts, socket.assigns[:search_query])
+    filtered_posts = apply_feed_display_toggles(filtered_posts, socket)
     filtered_posts = maybe_prioritize_non_community_posts(filtered_posts, socket)
     filtered_posts = dedupe_posts(filtered_posts)
     filtered_posts = sort_timeline_posts(filtered_posts, socket.assigns[:timeline_sort])
@@ -140,6 +141,32 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
   end
 
   def sort_timeline_posts(posts, _sort), do: posts
+
+  defp apply_feed_display_toggles(posts, socket) when is_list(posts) do
+    posts
+    |> maybe_hide_boosts(socket.assigns[:hide_boosts])
+    |> maybe_hide_replies(socket.assigns[:hide_replies])
+  end
+
+  defp apply_feed_display_toggles(posts, _socket), do: posts
+
+  defp maybe_hide_boosts(posts, true), do: Enum.reject(posts, &pure_boost_post?/1)
+  defp maybe_hide_boosts(posts, _), do: posts
+
+  defp maybe_hide_replies(posts, true) do
+    Enum.reject(posts, fn post ->
+      !is_nil(Map.get(post, :reply_to_id)) || !is_nil(get_in(post.media_metadata, ["inReplyTo"]))
+    end)
+  end
+
+  defp maybe_hide_replies(posts, _), do: posts
+
+  defp pure_boost_post?(post) when is_map(post) do
+    not is_nil(Map.get(post, :shared_message_id)) &&
+      Elektrine.Strings.present?(Map.get(post, :content)) == false
+  end
+
+  defp pure_boost_post?(_), do: false
 
   def assign_filtered_posts(socket, filtered_posts),
     do: assign_filtered_posts(socket, filtered_posts, false)
@@ -365,6 +392,41 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
     |> assign(:base_timeline_posts, updated_base_posts)
     |> assign(:special_view_cache, updated_cache)
   end
+
+  def replace_cached_message(socket, %{id: message_id} = message) do
+    update_fn = &replace_message_in_posts(&1, message)
+
+    socket
+    |> update_cached_posts(update_fn)
+    |> update_special_view_cache_replies(&replace_message_in_replies(&1, message))
+    |> maybe_update_assign(:queued_posts, update_fn)
+    |> maybe_update_assign(:post_replies, &replace_message_in_replies(&1, message))
+    |> maybe_replace_assign_message(:modal_post, message_id, message)
+    |> maybe_replace_assign_message(:quote_target_post, message_id, message)
+    |> maybe_replace_assign_message(:reply_to_post, message_id, message)
+    |> maybe_update_assign(:reply_to_post_recent_replies, update_fn)
+  end
+
+  def replace_cached_message(socket, _message), do: socket
+
+  def replace_message_in_posts(posts, %{id: message_id} = message) when is_list(posts) do
+    posts
+    |> Enum.map(fn post -> replace_post_message(post, message_id, message) end)
+    |> dedupe_posts()
+  end
+
+  def replace_message_in_posts(posts, _message), do: posts || []
+
+  def replace_message_in_replies(replies_by_post, %{id: message_id} = message)
+      when is_map(replies_by_post) do
+    update_replies_with_posts(replies_by_post, fn replies ->
+      Enum.map(replies || [], fn reply ->
+        if post_matches_id?(reply, message_id), do: message, else: reply
+      end)
+    end)
+  end
+
+  def replace_message_in_replies(replies_by_post, _message), do: replies_by_post || %{}
 
   def assign_current_and_base_posts(socket, current_posts, base_posts) do
     cache_key = {
@@ -592,6 +654,72 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       |> Map.new(fn {actor_id, _status} -> {{:remote, actor_id}, true} end)
     end
   end
+
+  defp update_replies_with_posts(replies_by_post, update_fn) when is_map(replies_by_post) do
+    Map.new(replies_by_post, fn {post_id, replies} ->
+      {post_id, update_fn.(replies || [])}
+    end)
+  end
+
+  defp maybe_update_assign(socket, assign_name, update_fn) when is_function(update_fn, 1) do
+    if Map.has_key?(socket.assigns, assign_name) do
+      update(socket, assign_name, update_fn)
+    else
+      socket
+    end
+  end
+
+  defp update_special_view_cache_replies(socket, update_fn) when is_function(update_fn, 1) do
+    updated_cache =
+      socket.assigns[:special_view_cache]
+      |> Kernel.||(%{})
+      |> Map.new(fn {key, entry} ->
+        updated_entry =
+          Map.update(entry, :post_replies, %{}, fn
+            replies when is_map(replies) -> update_fn.(replies)
+            replies -> replies
+          end)
+
+        {key, updated_entry}
+      end)
+
+    assign(socket, :special_view_cache, updated_cache)
+  end
+
+  defp maybe_replace_assign_message(socket, assign_name, message_id, message) do
+    if Map.has_key?(socket.assigns, assign_name) &&
+         post_matches_id?(socket.assigns[assign_name], message_id) do
+      assign(socket, assign_name, message)
+    else
+      socket
+    end
+  end
+
+  defp replace_post_message(post, message_id, message) when is_map(post) do
+    shared_message = Map.get(post, :shared_message)
+
+    cond do
+      post_matches_id?(post, message_id) ->
+        message
+
+      is_map(shared_message) && Ecto.assoc_loaded?(shared_message) &&
+          post_matches_id?(shared_message, message_id) ->
+        Map.put(post, :shared_message, message)
+
+      true ->
+        post
+    end
+  end
+
+  defp replace_post_message(post, _message_id, _message), do: post
+
+  defp post_matches_id?(post, message_id) when is_map(post) do
+    post
+    |> Map.get(:id)
+    |> normalize_post_id() == normalize_post_id(message_id)
+  end
+
+  defp post_matches_id?(_, _), do: false
 
   defp ids_prefixed?(prefix_ids, full_ids) do
     prefix_length = length(prefix_ids)

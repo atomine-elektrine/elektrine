@@ -125,7 +125,7 @@ defmodule Elektrine.Notifications do
       notifications
       |> Enum.group_by(fn n ->
         case n.type do
-          type when type in ["new_message", "reply"] ->
+          type when type in ["new_message", "reply"] and n.source_type == "message" ->
             # Group chat messages by conversation (extract from URL)
             conversation_id = extract_conversation_id(n.url)
             {:chat, conversation_id}
@@ -133,6 +133,11 @@ defmodule Elektrine.Notifications do
           "email_received" ->
             # Group emails by sender (actor_id)
             {:email, n.actor_id}
+
+          type when type in ["like", "mention", "comment", "discussion_reply", "reply"] ->
+            # Group social activity by target source/post so multiple actors collapse into
+            # Mastodon-style "X and N others" notification groups.
+            {:social, type, n.source_type, n.source_id || n.url || n.id}
 
           _ ->
             # Don't group other types
@@ -146,6 +151,9 @@ defmodule Elektrine.Notifications do
 
           {:email, actor_id} when actor_id != nil ->
             [build_email_group(notifs)]
+
+          {:social, _type, _source_type, target} when not is_nil(target) ->
+            [build_social_group(notifs)]
 
           {:single, _} ->
             # Single notification (not grouped)
@@ -224,6 +232,29 @@ defmodule Elektrine.Notifications do
       latest_at: latest.inserted_at,
       latest_notification: latest,
       sender: latest.actor
+    }
+  end
+
+  defp build_social_group(notifs) do
+    sorted = Enum.sort_by(notifs, & &1.inserted_at, :desc)
+    latest = hd(sorted)
+    unread_count = Enum.count(sorted, &is_nil(&1.read_at))
+
+    %{
+      type: :social_group,
+      social_type: latest.type,
+      source_type: latest.source_type,
+      source_id: latest.source_id,
+      notifications: sorted,
+      count: length(sorted),
+      unread_count: unread_count,
+      latest_at: latest.inserted_at,
+      latest_notification: latest,
+      actors:
+        notifs
+        |> Enum.map(& &1.actor)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq_by(& &1.id)
     }
   end
 

@@ -24,58 +24,25 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
         currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
 
         if currently_liked do
-          updated_socket =
-            socket
-            |> update_user_like_status(message_id, false)
-            |> update_post_count(message_id, :like_count, -1)
-            |> update_post_interaction(message_id, :liked, false, -1)
-            |> update_lemmy_score(message_id, -1)
-
-          case Social.unlike_post(user_id, message_id) do
-            {:ok, _} ->
-              {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
-
-            {:error, _} ->
-              {:noreply,
-               socket
-               |> update_user_like_status(message_id, true)
-               |> update_post_count(message_id, :like_count, 1)
-               |> update_post_interaction(message_id, :liked, true, 1)
-               |> update_lemmy_score(message_id, 1)
-               |> Helpers.touch_interaction_posts(message_id)
-               |> put_flash(:error, "Failed to unlike post")}
-          end
+          {:noreply, socket}
         else
-          currently_downvoted = Map.get(socket.assigns.user_downvotes, message_id, false)
-          like_delta_adjustment = 1
-          lemmy_score_delta = if(currently_downvoted, do: 2, else: 1)
-
-          updated_socket =
-            socket
-            |> update_user_like_status(message_id, true)
-            |> update_user_downvote_status(message_id, false)
-            |> update_post_count(message_id, :like_count, 1)
-            |> update_post_count(
-              message_id,
-              :dislike_count,
-              if currently_downvoted do
-                -1
-              else
-                0
-              end
-            )
-            |> update_post_interaction(message_id, :liked, true, like_delta_adjustment)
-            |> update_lemmy_score(message_id, lemmy_score_delta)
-
-          updated_socket =
-            if currently_downvoted do
-              update_post_interaction(updated_socket, message_id, :downvoted, false, 0)
-            else
-              updated_socket
-            end
-
           case Social.like_post(user_id, message_id) do
             {:ok, _} ->
+              currently_downvoted = Map.get(socket.assigns.user_downvotes, message_id, false)
+
+              updated_socket =
+                socket
+                |> update_user_like_status(message_id, true)
+                |> update_user_downvote_status(message_id, false)
+                |> update_post_interaction(message_id, :liked, true, 0)
+
+              updated_socket =
+                if currently_downvoted do
+                  update_post_interaction(updated_socket, message_id, :downvoted, false, 0)
+                else
+                  updated_socket
+                end
+
               Elektrine.Accounts.TrustLevel.increment_stat(user_id, :likes_given)
               post = Enum.find(socket.assigns.timeline_posts, &(&1.id == message_id))
 
@@ -83,7 +50,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
                 if post do
                   post
                 else
-                  socket.assigns.post_replies
+                  (socket.assigns[:post_replies] || %{})
                   |> Map.values()
                   |> List.flatten()
                   |> Enum.find(&(&1.id == message_id))
@@ -94,35 +61,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
                 Elektrine.Accounts.TrustLevel.increment_stat(message.sender_id, :likes_received)
               end
 
-              {:noreply, Helpers.touch_interaction_posts(updated_socket, message_id)}
+              {:noreply,
+               updated_socket
+               |> refresh_interaction_message(message_id)
+               |> put_flash(:info, remote_delivery_label(message, "Liked"))}
 
             {:error, _} ->
-              error_socket =
-                socket
-                |> update_user_like_status(message_id, false)
-                |> update_user_downvote_status(message_id, currently_downvoted)
-                |> update_post_count(message_id, :like_count, -1)
-                |> update_post_count(
-                  message_id,
-                  :dislike_count,
-                  if currently_downvoted do
-                    1
-                  else
-                    0
-                  end
-                )
-                |> update_post_interaction(message_id, :liked, false, -like_delta_adjustment)
-                |> update_lemmy_score(message_id, -lemmy_score_delta)
-
-              error_socket =
-                if currently_downvoted do
-                  update_post_interaction(error_socket, message_id, :downvoted, true, 0)
-                else
-                  error_socket
-                end
-
               {:noreply,
-               error_socket
+               socket
                |> Helpers.touch_interaction_posts(message_id)
                |> put_flash(:error, "Failed to like post")}
           end
@@ -133,12 +79,58 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
     end
   end
 
-  def handle_event("unlike_post", params, socket) do
-    handle_event("like_post", params, socket)
+  def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
+    handle_event("unlike_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      message_id = SafeConvert.to_integer!(message_id, message_id)
+
+      if message_id == :temp do
+        {:noreply, socket}
+      else
+        currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
+
+        if currently_liked do
+          case Social.unlike_post(user_id, message_id) do
+            {:ok, _} ->
+              updated_socket =
+                socket
+                |> update_user_like_status(message_id, false)
+                |> update_post_interaction(message_id, :liked, false, 0)
+
+              message = interaction_message(socket, message_id)
+
+              {:noreply,
+               updated_socket
+               |> refresh_interaction_message(message_id)
+               |> put_flash(:info, remote_delivery_label(message, "Unliked"))}
+
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> Helpers.touch_interaction_posts(message_id)
+               |> put_flash(:error, "Failed to unlike post")}
+          end
+        else
+          {:noreply, socket}
+        end
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
-    handle_event("like_post", %{"message_id" => post_id}, socket)
+    message_id = SafeConvert.to_integer!(post_id, post_id)
+
+    if Map.get(socket.assigns.user_likes, message_id, false) do
+      handle_event("unlike_post", %{"message_id" => post_id}, socket)
+    else
+      handle_event("like_post", %{"message_id" => post_id}, socket)
+    end
   end
 
   def handle_event("downvote_post", %{"post_id" => post_id}, socket) do
@@ -262,114 +254,18 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
         currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
 
         if currently_boosted do
-          case Social.unboost_post(user_id, message_id) do
-            {:ok, _} ->
-              update_fn = fn posts ->
-                posts
-                |> Enum.reject(fn post ->
-                  post.sender_id == user_id && post.shared_message_id == message_id
-                end)
-                |> Enum.map(fn post ->
-                  cond do
-                    post.id == message_id ->
-                      Map.put(post, :share_count, max(0, (post.share_count || 0) - 1))
-
-                    post.shared_message_id == message_id &&
-                      Ecto.assoc_loaded?(post.shared_message) && is_map(post.shared_message) ->
-                      updated_shared =
-                        Map.put(
-                          post.shared_message,
-                          :share_count,
-                          max(0, (post.shared_message.share_count || 0) - 1)
-                        )
-
-                      Map.put(post, :shared_message, updated_shared)
-
-                    true ->
-                      post
-                  end
-                end)
-                |> Helpers.dedupe_posts()
-              end
-
-              updated_current_posts = update_fn.(socket.assigns.timeline_posts || [])
-              updated_base_posts = update_fn.(socket.assigns.base_timeline_posts || [])
-
-              {:noreply,
-               socket
-               |> Phoenix.Component.update(:user_boosts, &Map.put(&1, message_id, false))
-               |> Helpers.assign_current_and_base_posts(updated_current_posts, updated_base_posts)
-               |> Helpers.apply_timeline_filter()
-               |> put_flash(:info, "Unboosted")}
-
-            {:error, _} ->
-              {:noreply, put_flash(socket, :error, "Failed to unboost")}
-          end
+          {:noreply, socket}
         else
           case Social.boost_post(user_id, message_id) do
             {:ok, _} ->
-              import Ecto.Query
-
-              boost_post =
-                from(m in Elektrine.Social.Message,
-                  where: m.sender_id == ^user_id and m.shared_message_id == ^message_id,
-                  order_by: [desc: m.id],
-                  limit: 1,
-                  preload: [
-                    sender: [:profile],
-                    conversation: [],
-                    link_preview: [],
-                    hashtags: [],
-                    reply_to: [sender: [:profile]],
-                    shared_message: [sender: [:profile], conversation: [], remote_actor: []]
-                  ]
-                )
-                |> Elektrine.Repo.one()
-
-              update_fn = fn posts ->
-                posts =
-                  if boost_post do
-                    [boost_post | posts]
-                  else
-                    posts
-                  end
-
-                posts
-                |> Enum.map(fn post ->
-                  cond do
-                    post.id == message_id ->
-                      Map.put(post, :share_count, (post.share_count || 0) + 1)
-
-                    post.shared_message_id == message_id &&
-                      Ecto.assoc_loaded?(post.shared_message) && is_map(post.shared_message) ->
-                      updated_shared =
-                        Map.put(
-                          post.shared_message,
-                          :share_count,
-                          (post.shared_message.share_count || 0) + 1
-                        )
-
-                      Map.put(post, :shared_message, updated_shared)
-
-                    true ->
-                      post
-                  end
-                end)
-                |> Helpers.dedupe_posts()
-              end
-
-              updated_current_posts = update_fn.(socket.assigns.timeline_posts || [])
-              updated_base_posts = update_fn.(socket.assigns.base_timeline_posts || [])
+              message = interaction_message(socket, message_id)
 
               {:noreply,
                socket
-               |> Phoenix.Component.update(:user_boosts, &Map.put(&1, message_id, true))
-               |> Helpers.assign_current_and_base_posts(updated_current_posts, updated_base_posts)
-               |> Helpers.apply_timeline_filter()
-               |> put_flash(:info, "Boosted!")}
-
-            {:error, :already_boosted} ->
-              {:noreply, put_flash(socket, :info, "Already boosted")}
+               |> update_user_boost_status(message_id, true)
+               |> refresh_interaction_message(message_id)
+               |> maybe_insert_latest_boost_post(user_id, message_id)
+               |> put_flash(:info, remote_delivery_label(message, "Boosted!"))}
 
             {:error, :empty_post} ->
               {:noreply, put_flash(socket, :error, "Cannot boost empty posts")}
@@ -387,8 +283,40 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
     end
   end
 
-  def handle_event("unboost_post", params, socket) do
-    handle_event("boost_post", params, socket)
+  def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
+    handle_event("unboost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      message_id = SafeConvert.to_integer!(message_id, message_id)
+
+      if message_id == :temp do
+        {:noreply, socket}
+      else
+        currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
+
+        if currently_boosted do
+          case Social.unboost_post(user_id, message_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update_user_boost_status(message_id, false)
+               |> remove_boost_timeline_posts(user_id, message_id)
+               |> refresh_interaction_message(message_id)
+               |> put_flash(:info, "Unboosted")}
+
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to unboost")}
+          end
+        else
+          {:noreply, socket}
+        end
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("save_post", %{"post_id" => post_id}, socket) do
@@ -403,20 +331,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
       if message_id == :temp do
         {:noreply, socket}
       else
-        case Social.save_post(user_id, message_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update_user_save_status(message_id, true)
-             |> Helpers.touch_interaction_posts(message_id)
-             |> put_flash(:info, "Saved")}
+        if Map.get(socket.assigns.user_saves, message_id, false) do
+          {:noreply, socket}
+        else
+          case Social.save_post(user_id, message_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update_user_save_status(message_id, true)
+               |> Helpers.touch_interaction_posts(message_id)
+               |> put_flash(:info, "Saved")}
 
-          {:error, _changeset} ->
-            {:noreply,
-             socket
-             |> update_user_save_status(message_id, true)
-             |> Helpers.touch_interaction_posts(message_id)
-             |> put_flash(:info, "Already saved")}
+            {:error, _changeset} ->
+              {:noreply, put_flash(socket, :error, "Failed to save")}
+          end
         end
       end
     else
@@ -436,16 +364,20 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
       if message_id == :temp do
         {:noreply, socket}
       else
-        case Social.unsave_post(user_id, message_id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> update_user_save_status(message_id, false)
-             |> Helpers.touch_interaction_posts(message_id)
-             |> put_flash(:info, "Removed from saved")}
+        if Map.get(socket.assigns.user_saves, message_id, false) do
+          case Social.unsave_post(user_id, message_id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> update_user_save_status(message_id, false)
+               |> Helpers.touch_interaction_posts(message_id)
+               |> put_flash(:info, "Removed from saved")}
 
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to unsave")}
+            {:error, _} ->
+              {:noreply, put_flash(socket, :error, "Failed to unsave")}
+          end
+        else
+          {:noreply, socket}
         end
       end
     else
@@ -616,12 +548,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
             |> Elektrine.Repo.preload(MessagingMessages.timeline_post_preloads(), force: true)
             |> Elektrine.Social.Message.decrypt_content()
 
-          update_post = fn posts ->
-            Enum.map(posts || [], fn post ->
-              if post.id == message_id, do: updated_message, else: post
-            end)
-          end
-
           send_update(
             ElektrineSocialWeb.Components.Social.TimelineStreamPost,
             id: "timeline-stream-post-#{message_id}",
@@ -630,14 +556,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
 
           {:noreply,
            socket
-           |> assign(
-             :timeline_posts,
-             socket.assigns.timeline_posts |> update_post.() |> Helpers.dedupe_posts()
-           )
-           |> assign(
-             :base_timeline_posts,
-             socket.assigns.base_timeline_posts |> update_post.() |> Helpers.dedupe_posts()
-           )
+           |> Helpers.replace_cached_message(updated_message)
+           |> Helpers.apply_timeline_filter()
            |> put_flash(:info, "Vote recorded")}
 
         {:error, :poll_closed} ->
@@ -847,7 +767,83 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
     assign(socket, :user_downvotes, Map.put(socket.assigns.user_downvotes, message_id, downvoted))
   end
 
-  defp update_post_interaction(socket, message_id, :liked, liked, delta) do
+  defp update_user_boost_status(socket, message_id, boosted) do
+    assign(socket, :user_boosts, Map.put(socket.assigns.user_boosts, message_id, boosted))
+  end
+
+  defp maybe_insert_latest_boost_post(socket, user_id, message_id) do
+    case latest_boost_post(user_id, message_id) do
+      nil ->
+        socket
+
+      boost_post ->
+        update_fn = fn posts ->
+          [boost_post | posts || []]
+          |> Helpers.dedupe_posts()
+        end
+
+        socket
+        |> Helpers.update_cached_posts(update_fn)
+        |> Helpers.apply_timeline_filter()
+    end
+  end
+
+  defp latest_boost_post(user_id, message_id) do
+    import Ecto.Query
+
+    preloads = MessagingMessages.timeline_post_preloads()
+
+    from(m in Elektrine.Social.Message,
+      where:
+        m.sender_id == ^user_id and m.shared_message_id == ^message_id and is_nil(m.deleted_at),
+      order_by: [desc: m.id],
+      limit: 1,
+      preload: ^preloads
+    )
+    |> Elektrine.Repo.one()
+    |> case do
+      nil -> nil
+      post -> Elektrine.Social.Message.decrypt_content(post)
+    end
+  end
+
+  defp remove_boost_timeline_posts(socket, user_id, message_id) do
+    update_fn = fn posts ->
+      posts
+      |> List.wrap()
+      |> Enum.reject(&(&1.sender_id == user_id && &1.shared_message_id == message_id))
+      |> Helpers.dedupe_posts()
+    end
+
+    Helpers.update_cached_posts(socket, update_fn)
+  end
+
+  defp refresh_interaction_message(socket, message_id) do
+    case reload_timeline_message(message_id) do
+      nil ->
+        Helpers.touch_interaction_posts(socket, message_id)
+
+      message ->
+        socket
+        |> Helpers.replace_cached_message(message)
+        |> Helpers.apply_timeline_filter()
+        |> Helpers.touch_interaction_posts(message_id)
+    end
+  end
+
+  defp reload_timeline_message(message_id) do
+    case Elektrine.Repo.get(Elektrine.Social.Message, message_id) do
+      nil ->
+        nil
+
+      message ->
+        message
+        |> Elektrine.Repo.preload(MessagingMessages.timeline_post_preloads(), force: true)
+        |> Elektrine.Social.Message.decrypt_content()
+    end
+  end
+
+  defp update_post_interaction(socket, message_id, :liked, liked, _delta) do
     post = Enum.find(socket.assigns.timeline_posts || [], fn p -> p.id == message_id end)
 
     key =
@@ -864,12 +860,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
         downvoted: false
       })
 
-    new_delta = current.like_delta + delta
-    updated = Map.merge(current, %{liked: liked, like_delta: new_delta})
+    updated = Map.merge(current, %{liked: liked, like_delta: 0})
     assign(socket, :post_interactions, Map.put(socket.assigns.post_interactions, key, updated))
   end
 
-  defp update_post_interaction(socket, message_id, :downvoted, downvoted, delta) do
+  defp update_post_interaction(socket, message_id, :downvoted, downvoted, _delta) do
     post = Enum.find(socket.assigns.timeline_posts || [], fn p -> p.id == message_id end)
 
     key =
@@ -886,8 +881,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
         downvoted: false
       })
 
-    new_delta = current.like_delta + delta
-    updated = Map.merge(current, %{downvoted: downvoted, like_delta: new_delta})
+    updated = Map.merge(current, %{downvoted: downvoted, like_delta: 0})
     assign(socket, :post_interactions, Map.put(socket.assigns.post_interactions, key, updated))
   end
 
@@ -925,13 +919,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
   end
 
   defp interaction_message_activitypub_id(socket, message_id) do
-    message =
-      Enum.find(socket.assigns.timeline_posts || [], &(&1.id == message_id)) ||
-        socket.assigns.post_replies
-        |> Kernel.||(%{})
-        |> Map.values()
-        |> List.flatten()
-        |> Enum.find(&(&1.id == message_id))
+    message = interaction_message(socket, message_id)
 
     case message do
       %{activitypub_id: activitypub_id} when is_binary(activitypub_id) and activitypub_id != "" ->
@@ -941,4 +929,23 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.VotingOperations do
         nil
     end
   end
+
+  defp interaction_message(socket, message_id) do
+    Enum.find(socket.assigns.timeline_posts || [], &(&1.id == message_id)) ||
+      socket.assigns.post_replies
+      |> Kernel.||(%{})
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.find(&(&1.id == message_id))
+  end
+
+  defp remote_delivery_label(message, label) when is_map(message) do
+    if Map.get(message, :federated) == true || not is_nil(Map.get(message, :remote_actor_id)) do
+      "#{label} · remote delivery queued"
+    else
+      label
+    end
+  end
+
+  defp remote_delivery_label(_message, label), do: label
 end

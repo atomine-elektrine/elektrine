@@ -23,6 +23,7 @@ defmodule Elektrine.Email.Sender do
   alias Elektrine.Email.HeaderSanitizer
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.Mailbox
+  alias Elektrine.Email.MimeBodyExtractor
   alias Elektrine.Email.PGP
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Sanitizer
@@ -431,18 +432,8 @@ defmodule Elektrine.Email.Sender do
                 "(No Subject)"
             end
 
-          # Extract text and HTML bodies using Mail library
-          text_body =
-            case Mail.get_text(message) do
-              %Mail.Message{body: body} -> body
-              _ -> nil
-            end
-
-          html_body =
-            case Mail.get_html(message) do
-              %Mail.Message{body: body} -> body
-              _ -> nil
-            end
+          text_body = MimeBodyExtractor.text_body(message)
+          html_body = MimeBodyExtractor.html_body(message)
 
           # Extract attachments
           attachments = Elektrine.IMAP.Commands.extract_attachments(nil, nil, message)
