@@ -22,9 +22,9 @@ defmodule Elektrine.Notes do
 
     Note
     |> where([note], note.user_id == ^user_id)
-    |> maybe_filter_query(query)
     |> order_by([note], desc: note.pinned, desc: note.updated_at, desc: note.id)
     |> Repo.all()
+    |> filter_decrypted_notes(query)
   end
 
   def get_note(user_id, id) when is_integer(id) do
@@ -126,17 +126,23 @@ defmodule Elektrine.Notes do
     Note.changeset(note, attrs)
   end
 
-  defp maybe_filter_query(query, ""), do: query
+  defp filter_decrypted_notes(notes, ""), do: notes
 
-  defp maybe_filter_query(query, search_query) do
-    pattern = "%#{search_query}%"
+  defp filter_decrypted_notes(notes, search_query) do
+    normalized_query = String.downcase(search_query)
 
-    where(
-      query,
-      [note],
-      ilike(fragment("coalesce(?, '')", note.title), ^pattern) or
-        ilike(fragment("coalesce(?, '')", note.body), ^pattern)
-    )
+    Enum.filter(notes, fn note ->
+      note
+      |> note_search_text()
+      |> String.downcase()
+      |> String.contains?(normalized_query)
+    end)
+  end
+
+  defp note_search_text(%Note{} = note) do
+    [note.title, note.body]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join("\n")
   end
 
   defp normalize_query(nil), do: ""

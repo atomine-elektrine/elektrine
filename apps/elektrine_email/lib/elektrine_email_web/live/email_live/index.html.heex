@@ -978,9 +978,20 @@
                                 )
                               ]}>
                                 <%= if @current_tab == "sent" do %>
-                                  {gettext("To")}: {message.to}
+                                  {gettext("To")}:
+                                  <span
+                                    data-private-address="to"
+                                    data-private-address-placeholder={message.to}
+                                  >
+                                    {message.to}
+                                  </span>
                                 <% else %>
-                                  {message.from}
+                                  <span
+                                    data-private-address="from"
+                                    data-private-address-placeholder={message.from}
+                                  >
+                                    {message.from}
+                                  </span>
                                 <% end %>
                               </span>
                               

@@ -253,7 +253,12 @@
                   </span>
                 </div>
                 <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
-                  {format_email_display(@message.from)}
+                  <span
+                    data-private-address="from"
+                    data-private-address-placeholder={format_email_display(@message.from)}
+                  >
+                    {format_email_display(@message.from)}
+                  </span>
                 </p>
               </div>
 
@@ -265,7 +270,12 @@
                   </span>
                 </div>
                 <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
-                  {format_email_display(@message.to)}
+                  <span
+                    data-private-address="to"
+                    data-private-address-placeholder={format_email_display(@message.to)}
+                  >
+                    {format_email_display(@message.to)}
+                  </span>
                 </p>
               </div>
 
@@ -278,7 +288,12 @@
                     </span>
                   </div>
                   <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
-                    {format_email_display(@message.cc)}
+                    <span
+                      data-private-address="cc"
+                      data-private-address-placeholder={format_email_display(@message.cc)}
+                    >
+                      {format_email_display(@message.cc)}
+                    </span>
                   </p>
                 </div>
               <% end %>
@@ -292,7 +307,12 @@
                     </span>
                   </div>
                   <p class="text-sm font-medium bg-base-200/70 p-2.5 rounded-lg border border-base-300 break-all">
-                    {format_email_display(@message.bcc)}
+                    <span
+                      data-private-address="bcc"
+                      data-private-address-placeholder={format_email_display(@message.bcc)}
+                    >
+                      {format_email_display(@message.bcc)}
+                    </span>
                   </p>
                 </div>
               <% end %>
@@ -335,7 +355,14 @@
                       >
                         <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
                           <p class="text-xs text-base-content/60">
-                            {format_email_display(thread_message.from)}
+                            <span
+                              data-private-address="from"
+                              data-private-address-placeholder={
+                                format_email_display(thread_message.from)
+                              }
+                            >
+                              {format_email_display(thread_message.from)}
+                            </span>
                           </p>
                           <.local_time
                             datetime={thread_message.inserted_at}
@@ -385,7 +412,14 @@
                     >
                       <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between mb-1">
                         <p class="text-xs text-base-content/60">
-                          {format_email_display(thread_message.from)}
+                          <span
+                            data-private-address="from"
+                            data-private-address-placeholder={
+                              format_email_display(thread_message.from)
+                            }
+                          >
+                            {format_email_display(thread_message.from)}
+                          </span>
                         </p>
                         <.local_time
                           datetime={thread_message.inserted_at}

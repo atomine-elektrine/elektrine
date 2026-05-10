@@ -5,9 +5,11 @@ defmodule Elektrine.Notes.Note do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Elektrine.Secrets.EncryptedString
+
   schema "notes" do
-    field :title, :string
-    field :body, :string, default: ""
+    field :title, EncryptedString
+    field :body, EncryptedString
     field :pinned, :boolean, default: false
 
     belongs_to :user, Elektrine.Accounts.User
@@ -21,6 +23,7 @@ defmodule Elektrine.Notes.Note do
     |> cast(attrs, [:title, :body, :pinned, :user_id])
     |> update_change(:title, &normalize_optional_string/1)
     |> update_change(:body, &normalize_body/1)
+    |> put_default_body()
     |> validate_required([:user_id])
     |> validate_length(:title, max: 255)
     |> validate_note_present()
@@ -50,6 +53,14 @@ defmodule Elektrine.Notes.Note do
 
   defp normalize_body(value) when is_binary(value), do: String.trim(value)
   defp normalize_body(value), do: value
+
+  defp put_default_body(changeset) do
+    if is_nil(get_field(changeset, :body)) do
+      put_change(changeset, :body, "")
+    else
+      changeset
+    end
+  end
 
   defp blank?(value), do: value in [nil, ""]
 end

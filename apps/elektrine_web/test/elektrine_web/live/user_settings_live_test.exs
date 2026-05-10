@@ -157,7 +157,7 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       assert html =~ "Optional"
       assert html =~ "Depends"
       assert html =~ "Available now"
-      assert html =~ "Chat messages are encrypted at rest by default"
+      assert html =~ "Regular notes and chat messages are encrypted at rest by default"
     end
   end
 end

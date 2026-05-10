@@ -69,6 +69,47 @@ export const PreserveFocus = {
   }
 }
 
+export const PreserveSearchFocus = {
+  mounted() {
+    this.snapshot = null
+  },
+
+  beforeUpdate() {
+    const active = document.activeElement
+
+    if (!(active instanceof HTMLInputElement) || !this.el.contains(active)) {
+      this.snapshot = null
+      return
+    }
+
+    this.snapshot = {
+      id: active.id,
+      name: active.name,
+      value: active.value,
+      selectionStart: active.selectionStart,
+      selectionEnd: active.selectionEnd
+    }
+  },
+
+  updated() {
+    if (!this.snapshot) return
+
+    const { id, name, value, selectionStart, selectionEnd } = this.snapshot
+    const selector = id ? `#${CSS.escape(id)}` : `input[name="${CSS.escape(name)}"]`
+    const input = this.el.querySelector(selector)
+
+    if (!(input instanceof HTMLInputElement)) return
+
+
+    input.value = value
+    input.focus({ preventScroll: true })
+
+    if (selectionStart !== null && selectionEnd !== null) {
+      input.setSelectionRange(selectionStart, selectionEnd)
+    }
+  }
+}
+
 export const FlashAutoDismiss = {
   mounted() {
     this.schedule()

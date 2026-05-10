@@ -78,6 +78,39 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       assert {:ok, _view, _html} = live(conn, ~p"/remote/post/#{encoded_id}")
     end
 
+    test "renders remote media for cached federated posts opened by local id", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      media_url = "https://remote.example/media/#{unique}.jpg"
+      activitypub_id = "https://remote.example/notes/#{unique}"
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://remote.example/users/alice",
+          username: "alice",
+          domain: "remote.example",
+          inbox_url: "https://remote.example/inbox",
+          public_key: "test-public-key-media-#{unique}"
+        })
+        |> Repo.insert!()
+
+      {:ok, message} =
+        Messaging.create_federated_message(%{
+          content: "Remote image post",
+          visibility: "public",
+          post_type: "gallery",
+          activitypub_id: activitypub_id,
+          activitypub_url: activitypub_id,
+          federated: true,
+          remote_actor_id: remote_actor.id,
+          media_urls: [media_url]
+        })
+
+      {:ok, _view, html} = live(conn, ~p"/remote/post/#{message.id}")
+
+      assert html =~ ~s(src="#{media_url}")
+    end
+
     test "shows submitted link for cached federated link posts", %{conn: conn} do
       unique = System.unique_integer([:positive])
       activitypub_id = "https://feditown.com/post/#{unique}"

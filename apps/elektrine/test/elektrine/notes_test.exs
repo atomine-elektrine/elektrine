@@ -1,7 +1,8 @@
 defmodule Elektrine.NotesTest do
   use Elektrine.DataCase, async: true
 
-  alias Elektrine.{AccountsFixtures, Notes}
+  alias Elektrine.{AccountsFixtures, Notes, Repo}
+  alias Elektrine.Secrets.EncryptedString
 
   test "list_notes returns pinned notes first and filters by query" do
     user = AccountsFixtures.user_fixture()
@@ -21,6 +22,26 @@ defmodule Elektrine.NotesTest do
 
     assert {:error, changeset} = Notes.create_note(user.id, %{title: "   ", body: "   "})
     assert "can't be blank" in errors_on(changeset).body
+  end
+
+  test "create_note encrypts title and body at rest" do
+    user = AccountsFixtures.user_fixture()
+
+    assert {:ok, note} = Notes.create_note(user.id, %{title: "Private", body: "secret body"})
+
+    raw_note =
+      Repo.query!("SELECT title, body FROM notes WHERE id = $1", [note.id])
+      |> Map.fetch!(:rows)
+      |> List.first()
+
+    assert [raw_title, raw_body] = raw_note
+    assert EncryptedString.encrypted?(raw_title)
+    assert EncryptedString.encrypted?(raw_body)
+    refute raw_title == "Private"
+    refute raw_body == "secret body"
+
+    assert Notes.get_note(user.id, note.id).title == "Private"
+    assert Notes.get_note(user.id, note.id).body == "secret body"
   end
 
   test "creates and revokes a public note share" do

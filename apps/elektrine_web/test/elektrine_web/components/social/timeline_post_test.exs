@@ -5,6 +5,7 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Repo
+  alias Elektrine.Social.Conversation
   alias Elektrine.Social.LinkPreview
   alias Elektrine.Social.Message
   alias ElektrineSocialWeb.Components.Social.PostUtilities
@@ -156,5 +157,99 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       |> Floki.text()
 
     assert String.trim(like_button_text) == "14"
+  end
+
+  test "timeline reply card click opens the reply detail instead of the parent thread" do
+    post = %Message{
+      id: 456,
+      reply_to_id: 123,
+      conversation: %Conversation{type: "timeline"},
+      sender: nil,
+      remote_actor: nil,
+      post_type: "post",
+      content: "Reply body",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: nil,
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: true,
+        on_image_click: nil
+      )
+
+    assert html =~ "data-post-nav-link"
+    assert html =~ ~s(href="/remote/post/456")
+    refute html =~ ~s(href="/post/123#message-456")
+  end
+
+  test "federated timeline posts render remote media urls directly" do
+    media_url = "https://remote.example/media/photo.jpg"
+
+    post = %Message{
+      id: 987,
+      federated: true,
+      activitypub_id: "https://remote.example/notes/987",
+      activitypub_url: "https://remote.example/notes/987",
+      post_type: "message",
+      content: "Remote photo",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [media_url],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      remote_actor: %Actor{id: 987, username: "alice", domain: "remote.example"}
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: nil,
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    assert html =~ ~s(src="#{media_url}")
   end
 end

@@ -1216,7 +1216,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                 <%= if @loaded_reply_count > 0 do %>
                   Showing {@loaded_reply_count} of {@reported_reply_count} comments cached locally.
                 <% else %>
-                  Syncing comments from the remote thread...
+                  Importing comments from the remote thread...
                 <% end %>
               </p>
               <button type="button" phx-click="refresh_comments" class="btn btn-ghost btn-sm">
@@ -1886,9 +1886,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     attachments =
       if msg.media_urls && msg.media_urls != [] do
         Enum.map(msg.media_urls, fn url ->
-          full_url = Elektrine.Uploads.attachment_url(url, msg)
+          full_url = message_attachment_url(url, msg)
           %{"type" => "Image", "url" => full_url, "mediaType" => "image/jpeg"}
         end)
+        |> Enum.filter(&(is_binary(&1["url"]) && &1["url"] != ""))
       else
         []
       end
@@ -1949,6 +1950,14 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp cached_remote_status_fields(_), do: %{}
+
+  defp message_attachment_url(url, %{federated: true}) when is_binary(url) do
+    if String.starts_with?(url, ["http://", "https://"]),
+      do: url,
+      else: Elektrine.Uploads.attachment_url(url)
+  end
+
+  defp message_attachment_url(url, message), do: Elektrine.Uploads.attachment_url(url, message)
 
   defp maybe_enrich_cached_federated_post(post_object, msg)
        when is_map(post_object) and is_map(msg) do
@@ -3298,7 +3307,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     Enum.find_value(urls, fn
       url when is_binary(url) ->
         if Elektrine.Strings.present?(url) do
-          full_url = Elektrine.Uploads.attachment_url(url, context)
+          full_url = message_attachment_url(url, context)
 
           if is_binary(full_url) &&
                String.match?(full_url, ~r/\.(jpe?g|png|gif|webp|svg)(\?.*)?$/i) do

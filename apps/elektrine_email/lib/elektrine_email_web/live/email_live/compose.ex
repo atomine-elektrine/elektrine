@@ -1519,7 +1519,7 @@ Subject: #{message.subject}#{attachment_info}
 
   defp markdown_to_html(markdown) do
     markdown
-    |> Earmark.as_html!()
+    |> Earmark.as_html!(breaks: true)
     |> Elektrine.Email.Sanitizer.sanitize_html_content()
   end
 
