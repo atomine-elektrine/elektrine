@@ -194,6 +194,22 @@ defmodule Elektrine.Email.HarakaClientTest do
     assert Base.decode64!(attachment["data"]) == attachment_data
   end
 
+  test "rejects structured sends without body content or attachments" do
+    Application.put_env(:elektrine, Elektrine.Mailer,
+      api_key: "mailer-api-key",
+      base_url: "https://mail.elektrine.test"
+    )
+
+    assert {:error, :missing_message_body} =
+             HarakaClient.send_email(%{
+               from: "sender@example.com",
+               to: "dest@example.net",
+               subject: "Blank"
+             })
+
+    assert MockHarakaHTTPClient.requests() == []
+  end
+
   defp restore_env(key, nil), do: System.delete_env(key)
   defp restore_env(key, value), do: System.put_env(key, value)
 end

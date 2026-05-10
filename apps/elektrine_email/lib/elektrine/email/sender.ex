@@ -435,6 +435,7 @@ defmodule Elektrine.Email.Sender do
           text_body = MimeBodyExtractor.text_body(message)
           html_body = MimeBodyExtractor.html_body(message)
           fallback_text_body = raw_text_body_fallback(raw_email, text_body, html_body)
+          maybe_log_empty_smtp_body(raw_email, message, text_body, html_body, fallback_text_body)
 
           # Extract attachments
           attachments = Elektrine.IMAP.Commands.extract_attachments(nil, nil, message)
@@ -552,6 +553,37 @@ defmodule Elektrine.Email.Sender do
   end
 
   defp raw_text_body_fallback(_raw_email, _text_body, _html_body), do: nil
+
+  defp maybe_log_empty_smtp_body(raw_email, message, text_body, html_body, fallback_text_body) do
+    unless Enum.any?([text_body, html_body, fallback_text_body], &Elektrine.Strings.present?/1) do
+      {raw_body_size, raw_body_preview_hash} = raw_body_diagnostics(raw_email)
+
+      Logger.warning(
+        "SMTP: raw message parsed without display body " <>
+          "raw_size=#{byte_size(raw_email)} raw_body_size=#{raw_body_size} " <>
+          "raw_body_hash=#{raw_body_preview_hash} " <>
+          "content_type=#{inspect(Mail.Message.get_header(message, :content_type))} " <>
+          "content_transfer_encoding=#{inspect(Mail.Message.get_header(message, :content_transfer_encoding))} " <>
+          "multipart=#{inspect(Map.get(message, :multipart))} parts=#{length(Map.get(message, :parts) || [])}"
+      )
+    end
+  end
+
+  defp raw_body_diagnostics(raw_email) when is_binary(raw_email) do
+    raw_body =
+      case String.split(raw_email, ~r/\r?\n\r?\n/, parts: 2) do
+        [_headers, body] -> body
+        _ -> ""
+      end
+
+    hash =
+      raw_body
+      |> String.slice(0, 4096)
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+
+    {byte_size(raw_body), hash}
+  end
 
   defp put_if_present(params, _key, value) when not is_binary(value), do: params
 
