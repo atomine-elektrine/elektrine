@@ -20,6 +20,10 @@ default_enabled_modules() {
   fi
 }
 
+default_docker_profiles() {
+  printf '%s' "${DOCKER_PROFILES:-caddy dns email tor turn bluesky vpn}"
+}
+
 normalize_platform_modules() {
   local raw="$1"
   local trimmed="${raw//[[:space:]]/}"

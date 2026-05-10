@@ -6,6 +6,7 @@ REQUESTED_MODULES=""
 OUTPUT_PATH="$ROOT_DIR/deploy/docker/generated.docker.yml"
 ENV_FILE="$ROOT_DIR/.env.production"
 PROFILE_ARGS=()
+PROFILE_ARGS_SPECIFIED=0
 COMPOSE_OVERRIDE_FILES=()
 COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIRECTORY:-$ROOT_DIR}"
 COMPOSE_BASE_ARGS=()
@@ -40,6 +41,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --profile)
       PROFILE_ARGS+=("--profile" "$2")
+      PROFILE_ARGS_SPECIFIED=1
       shift 2
       ;;
     --output)
@@ -149,6 +151,12 @@ append_profile_if_missing() {
   PROFILE_ARGS+=("--profile" "$wanted")
 }
 
+if [[ "$PROFILE_ARGS_SPECIFIED" -eq 0 ]]; then
+  for profile_name in $(default_docker_profiles); do
+    append_profile_if_missing "$profile_name"
+  done
+fi
+
 if platform_module_selected vpn; then
   append_profile_if_missing "vpn"
 fi
@@ -166,7 +174,7 @@ for ((i = 0; i < ${#PROFILE_ARGS[@]}; i += 2)); do
 done
 
 if [[ -z "$RENDER_PROFILES" ]]; then
-  RENDER_PROFILES="${DOCKER_PROFILES:-caddy}"
+  RENDER_PROFILES="$(default_docker_profiles)"
 fi
 
 infer_caddy_config_default() {
@@ -555,6 +563,8 @@ done
 remove_caddy_with_stale_config_mount
 
 if [[ "$DO_UP" -eq 1 ]]; then
+  mapfile -t release_services < <(compose_release_services)
+
   # Do not let the partial postgres bootstrap recreate the shared project network
   # while other profile services are still attached. The full stack is converged
   # after migrations below.
@@ -582,10 +592,8 @@ if [[ "$DO_UP" -eq 1 ]]; then
   fi
 
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    mapfile -t release_services < <(compose_release_services)
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build "${release_services[@]}"
   elif [[ "$DO_PULL" -eq 1 ]]; then
-    mapfile -t release_services < <(compose_release_services)
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull "${release_services[@]}"
   fi
 fi
@@ -598,12 +606,18 @@ fi
 if [[ "$DO_UP" -eq 1 ]]; then
   issue_initial_wildcard_cert
 
+  mapfile -t release_services < <(compose_release_services)
+
+  if [[ "${#release_services[@]}" -gt 0 ]]; then
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-deps "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}" "${release_services[@]}"
+  fi
+
   if [[ "$DO_BUILD" -eq 1 ]]; then
-    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build --no-recreate "${PASSTHROUGH_ARGS[@]}"
     exit $?
   fi
 
-  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}"
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-recreate "${PASSTHROUGH_ARGS[@]}"
   exit $?
 fi
 

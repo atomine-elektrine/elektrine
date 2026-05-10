@@ -197,14 +197,21 @@ jobs:
             "${PROFILE_ARGS[@]}"
 
           expected_image="$TARGET_IMAGE"
-          for container in elektrine_app elektrine_worker elektrine_mail elektrine_dns; do
-            if ${DEPLOY_PREFIX} docker inspect "$container" >/dev/null 2>&1; then
-              actual_image="$(${DEPLOY_PREFIX} docker inspect "$container" --format '{{.Config.Image}}')"
+          expected_containers=(elektrine_app elektrine_worker)
+          case " $DOCKER_PROFILES " in *" email "*) expected_containers+=(elektrine_mail) ;; esac
+          case " $DOCKER_PROFILES " in *" dns "*) expected_containers+=(elektrine_dns) ;; esac
 
-              if [ "$actual_image" != "$expected_image" ]; then
-                echo "Container $container is running $actual_image, expected $expected_image" >&2
-                exit 1
-              fi
+          for container in "${expected_containers[@]}"; do
+            if ! ${DEPLOY_PREFIX} docker inspect "$container" >/dev/null 2>&1; then
+              echo "Expected container $container was not created" >&2
+              exit 1
+            fi
+
+            actual_image="$(${DEPLOY_PREFIX} docker inspect "$container" --format '{{.Config.Image}}')"
+
+            if [ "$actual_image" != "$expected_image" ]; then
+              echo "Container $container is running $actual_image, expected $expected_image" >&2
+              exit 1
             fi
           done
           EOF

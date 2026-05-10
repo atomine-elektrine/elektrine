@@ -4,7 +4,7 @@ The Docker deployment keeps the main app and background services in one Compose
 stack.
 
 `scripts/deploy/docker_deploy.sh` is the module-aware wrapper around that stack.
-If you run it without explicit profiles, it defaults to `caddy`.
+If you run it without explicit modules or profiles, it defaults to all modules and all profiles.
 
 ## Services
 
@@ -339,7 +339,7 @@ Deploy secrets for `.github/workflows/docker-deploy.yml`:
 
 Variables for `.github/workflows/docker-deploy.yml`:
 
-- The workflow pins `ELEKTRINE_ENABLED_MODULES=all`, `ELEKTRINE_RELEASE_MODULES=all`, and `DOCKER_PROFILES="caddy dns email tor turn bluesky vpn"` so Actions deploys every app module and every profile-backed service consistently.
+- The workflow pins `ELEKTRINE_ENABLED_MODULES=all`, `ELEKTRINE_RELEASE_MODULES=all`, and `DOCKER_PROFILES="caddy dns email tor turn bluesky vpn"`; those are also the deploy-script defaults when unset.
 - `DOCKER_BUILD_PRIMARY_DOMAIN`
 - `DOCKER_BUILD_EMAIL_DOMAIN`
 - `DOCKER_BUILD_SUPPORTED_DOMAINS`
