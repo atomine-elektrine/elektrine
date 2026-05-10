@@ -2,6 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# shellcheck source=scripts/lib/module_selection.sh
+source "$ROOT_DIR/scripts/lib/module_selection.sh"
+
 IMAGE_REPO="${IMAGE_REPO:-ghcr.io/atomine-elektrine/elektrine}"
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)}"
 TARGET_IMAGE="$IMAGE_REPO:$IMAGE_TAG"
@@ -11,7 +15,7 @@ DEPLOY_PORT="${DEPLOY_PORT:-22}"
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/elektrine}"
 ENABLED_MODULES="${ELEKTRINE_ENABLED_MODULES:-${ELEKTRINE_RELEASE_MODULES:-all}}"
 RELEASE_MODULES="${ELEKTRINE_RELEASE_MODULES:-all}"
-DOCKER_PROFILES_VALUE="${DOCKER_PROFILES:-caddy dns email tor turn bluesky vpn}"
+DOCKER_PROFILES_VALUE="$(default_docker_profiles)"
 
 usage() {
   cat <<'EOF'

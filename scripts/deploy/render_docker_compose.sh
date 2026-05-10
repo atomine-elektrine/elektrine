@@ -4,11 +4,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TEMPLATE_PATH="$ROOT_DIR/deploy/docker/compose.full.yml"
 REQUESTED_ENABLED_MODULES=""
-RAW_PROFILES="${DOCKER_PROFILES:-caddy}"
+RAW_PROFILES="${DOCKER_PROFILES:-}"
 OUTPUT_PATH="${OUTPUT_PATH:-$ROOT_DIR/deploy/docker/generated.docker.yml}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
+
+if [[ -z "$RAW_PROFILES" ]]; then
+  RAW_PROFILES="$(default_docker_profiles)"
+fi
 
 usage() {
   cat <<'EOF'
@@ -71,7 +75,7 @@ done
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
 awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" -v turn_enabled="$COTURN_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
-  /ELEKTRINE_IMAGE:/ {
+  /\$\{ELEKTRINE_IMAGE:-[^}]*\}/ {
     if (ENVIRON["ELEKTRINE_IMAGE"] != "") {
       sub(/\$\{ELEKTRINE_IMAGE:-[^}]*\}/, ENVIRON["ELEKTRINE_IMAGE"])
     }

@@ -7,6 +7,9 @@ DOCKER_BIN=(docker)
 ERRORS=0
 WARNINGS=0
 
+# shellcheck source=scripts/lib/module_selection.sh
+source "$ROOT_DIR/scripts/lib/module_selection.sh"
+
 usage() {
   cat <<'EOF'
 Usage: scripts/deploy/doctor.sh [--env-file .env.production]
@@ -69,7 +72,7 @@ has_profile() {
   local wanted="$1"
   local profile=""
 
-  for profile in ${DOCKER_PROFILES:-caddy}; do
+  for profile in $(default_docker_profiles); do
     if [[ "$profile" == "$wanted" ]]; then
       return 0
     fi

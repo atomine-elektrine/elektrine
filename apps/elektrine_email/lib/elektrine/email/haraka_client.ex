@@ -85,6 +85,7 @@ defmodule Elektrine.Email.HarakaClient do
          {:ok, {api_key, base_url}} <- get_api_config_for_domain(from_address) do
       params_with_origin = add_internal_origin_headers(params)
       body = build_api_body(params_with_origin)
+      log_payload_summary(params_with_origin, body)
       headers = request_headers(api_key)
       url = "#{base_url}#{@api_path}"
 
@@ -181,6 +182,26 @@ defmodule Elektrine.Email.HarakaClient do
   end
 
   defp recipient_count(_recipients), do: 0
+
+  defp log_payload_summary(params, encoded_body) do
+    Logger.info(
+      "HarakaClient payload summary " <>
+        "from_domain=#{inspect(email_domain(params[:from] || params["from"]))} " <>
+        "to_count=#{recipient_count(params[:to] || params["to"])} " <>
+        "text_bytes=#{body_size(params[:text_body] || params["text_body"])} " <>
+        "html_bytes=#{body_size(params[:html_body] || params["html_body"])} " <>
+        "raw_bytes=#{body_size(params[:raw_email] || params["raw_email"])} " <>
+        "attachments=#{attachment_count(params[:attachments] || params["attachments"])} " <>
+        "json_bytes=#{byte_size(encoded_body)}"
+    )
+  end
+
+  defp body_size(value) when is_binary(value), do: byte_size(value)
+  defp body_size(_value), do: 0
+
+  defp attachment_count(attachments) when is_map(attachments), do: map_size(attachments)
+  defp attachment_count(attachments) when is_list(attachments), do: length(attachments)
+  defp attachment_count(_attachments), do: 0
 
   defp get_api_config_for_domain(_from_address) do
     base_url = configured_base_url()

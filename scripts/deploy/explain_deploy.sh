@@ -3,10 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REQUESTED_MODULES=""
-RAW_PROFILES="${DOCKER_PROFILES:-caddy}"
+RAW_PROFILES="${DOCKER_PROFILES:-}"
 
 # shellcheck source=scripts/lib/module_selection.sh
 source "$ROOT_DIR/scripts/lib/module_selection.sh"
+
+if [[ -z "$RAW_PROFILES" ]]; then
+  RAW_PROFILES="$(default_docker_profiles)"
+fi
 
 usage() {
   cat <<'EOF'

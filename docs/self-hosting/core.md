@@ -6,7 +6,7 @@ Postgres only.
 This guide covers the plain app-plus-Postgres baseline in
 `deploy/docker/compose.core.yml`. For a normal public Docker host, use
 `docs/self-hosting/docker.md`; the wrapper renders the larger stack and defaults
-to the `caddy` profile unless you override profiles.
+to all modules and profiles unless you override them.
 
 It does not include:
 
@@ -31,8 +31,8 @@ only for local testing or when an external firewall/proxy already protects the
 port.
 
 If you want the module-aware wrapper, use `docs/self-hosting/docker.md` instead.
-That path is for the generated multi-service stack and defaults to `caddy` unless
-you override profiles.
+That path is for the generated multi-service stack and defaults to all modules
+and profiles unless you override them.
 
 ## Add-ons
 
