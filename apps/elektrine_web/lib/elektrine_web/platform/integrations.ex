@@ -545,6 +545,16 @@ defmodule ElektrineWeb.Platform.Integrations do
     )
   end
 
+  def social_get_user_votes(user_id, message_ids) do
+    call_optional(
+      :social,
+      @social_module,
+      :get_user_votes,
+      [user_id, message_ids],
+      %{}
+    )
+  end
+
   def social_boost_post(user_id, message_id) do
     call_optional(
       :social,

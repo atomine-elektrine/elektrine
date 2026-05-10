@@ -360,6 +360,15 @@ defmodule ElektrineWeb.NotificationsLive do
     "email-#{notification.id}"
   end
 
+  defp notification_group_key(%{type: :social_group, social_type: type, source_id: source_id})
+       when not is_nil(source_id) do
+    "social-#{type}-#{source_id}"
+  end
+
+  defp notification_group_key(%{type: :social_group, latest_notification: notification}) do
+    "social-#{notification.type}-#{notification.id}"
+  end
+
   defp notification_group_key(%{type: :single, notification: notification}) do
     "single-#{notification.id}"
   end
@@ -371,6 +380,7 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp notification_source_for_group(%{type: :chat_group}), do: "chat"
   defp notification_source_for_group(%{type: :email_group}), do: "email"
+  defp notification_source_for_group(%{type: :social_group}), do: "social"
 
   defp notification_source_for_group(%{type: :single, notification: notification}) do
     case {notification.type, notification.source_type} do
@@ -400,6 +410,19 @@ defmodule ElektrineWeb.NotificationsLive do
     "Email"
   end
 
+  defp notification_group_title(%{type: :social_group} = group) do
+    actor_label = social_actor_summary(group.actors || [])
+
+    case group.social_type do
+      "like" -> "#{actor_label} liked your post"
+      "mention" -> "#{actor_label} mentioned you"
+      "comment" -> "#{actor_label} commented on your post"
+      "discussion_reply" -> "#{actor_label} replied in a discussion"
+      "reply" -> "#{actor_label} replied to you"
+      _ -> "#{actor_label} interacted with you"
+    end
+  end
+
   defp notification_group_title(%{type: :single, notification: notification}) do
     single_notification_title(notification)
   end
@@ -410,6 +433,17 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp notification_group_detail(%{type: :email_group, latest_notification: notification}) do
     notification.body || "New email activity"
+  end
+
+  defp notification_group_detail(%{type: :social_group, count: count}) when count > 1 do
+    "One notification group for this post"
+  end
+
+  defp notification_group_detail(%{type: :social_group, latest_notification: notification}) do
+    body = normalize_notification_text(notification.body)
+    title = normalize_notification_text(notification.title)
+
+    if is_nil(body) or body == title, do: nil, else: body
   end
 
   defp notification_group_detail(%{type: :single, notification: notification}) do
@@ -425,6 +459,9 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp notification_icon_for_group(%{type: :chat_group}), do: "hero-chat-bubble-left-right"
   defp notification_icon_for_group(%{type: :email_group}), do: "hero-envelope"
+
+  defp notification_icon_for_group(%{type: :social_group, social_type: type}),
+    do: notification_icon(type)
 
   defp notification_icon_for_group(%{type: :single, notification: notification}) do
     notification.icon || notification_icon(notification.type)
@@ -547,6 +584,14 @@ defmodule ElektrineWeb.NotificationsLive do
 
   defp notification_action_button_class do
     "btn btn-xs btn-surface"
+  end
+
+  defp social_actor_summary([]), do: "Someone"
+
+  defp social_actor_summary([actor]), do: "@#{actor.handle || actor.username}"
+
+  defp social_actor_summary([actor | rest]) do
+    "@#{actor.handle || actor.username} and #{length(rest)} #{if length(rest) == 1, do: "other", else: "others"}"
   end
 
   defp single_notification_title(%{type: "follow"} = notification) do

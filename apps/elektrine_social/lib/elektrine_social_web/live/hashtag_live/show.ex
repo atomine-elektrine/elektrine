@@ -94,12 +94,28 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     end
   end
 
-  def handle_event("unlike_post", params, socket) do
-    handle_event("like_post", params, socket)
+  def handle_event("like_post", %{"post_id" => post_id}, socket) do
+    handle_event("like_post", %{"message_id" => post_id}, socket)
   end
 
-  def handle_event("unboost_post", params, socket) do
-    handle_event("boost_post", params, socket)
+  def handle_event("unlike_post", %{"post_id" => post_id}, socket) do
+    handle_event("unlike_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("boost_post", %{"post_id" => post_id}, socket) do
+    handle_event("boost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unboost_post", %{"post_id" => post_id}, socket) do
+    handle_event("unboost_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("save_post", %{"post_id" => post_id}, socket) do
+    handle_event("save_post", %{"message_id" => post_id}, socket)
+  end
+
+  def handle_event("unsave_post", %{"post_id" => post_id}, socket) do
+    handle_event("unsave_post", %{"message_id" => post_id}, socket)
   end
 
   def handle_event("show_reply_form", %{"message_id" => message_id}, socket) do
@@ -124,51 +140,11 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("like_post", %{"message_id" => message_id}, socket) do
-    case socket.assigns[:current_user] do
-      nil ->
-        {:noreply, socket |> put_flash(:error, "You must be logged in to like posts")}
+    handle_hashtag_like(socket, message_id, :like)
+  end
 
-      %{id: user_id} ->
-        message_id = SafeConvert.to_integer!(message_id, message_id)
-
-        case Map.get(socket.assigns.user_likes, message_id, false) do
-          true ->
-            updated_socket =
-              socket
-              |> update_post_in_hashtag_feed(message_id, :decrement_likes)
-              |> update_user_like_status(message_id, false)
-
-            case Social.unlike_post(user_id, message_id) do
-              {:ok, _} ->
-                {:noreply, updated_socket}
-
-              {:error, _} ->
-                {:noreply,
-                 updated_socket
-                 |> update_post_in_hashtag_feed(message_id, :increment_likes)
-                 |> update_user_like_status(message_id, true)
-                 |> put_flash(:error, "Failed to unlike post")}
-            end
-
-          false ->
-            updated_socket =
-              socket
-              |> update_post_in_hashtag_feed(message_id, :increment_likes)
-              |> update_user_like_status(message_id, true)
-
-            case Social.like_post(user_id, message_id) do
-              {:ok, _} ->
-                {:noreply, updated_socket}
-
-              {:error, _} ->
-                {:noreply,
-                 updated_socket
-                 |> update_post_in_hashtag_feed(message_id, :decrement_likes)
-                 |> update_user_like_status(message_id, false)
-                 |> put_flash(:error, "Failed to like post")}
-            end
-        end
-    end
+  def handle_event("unlike_post", %{"message_id" => message_id}, socket) do
+    handle_hashtag_like(socket, message_id, :unlike)
   end
 
   def handle_event("toggle_modal_like", %{"post_id" => post_id}, socket) do
@@ -179,18 +155,19 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
-      case Social.save_post(socket.assigns.current_user.id, message_id) do
-        {:ok, _} ->
-          {:noreply,
-           socket
-           |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, true))
-           |> put_flash(:info, "Saved")}
+      if Map.get(socket.assigns.user_saves, message_id, false) do
+        {:noreply, socket}
+      else
+        case Social.save_post(socket.assigns.current_user.id, message_id) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, true))
+             |> put_flash(:info, "Saved")}
 
-        {:error, _} ->
-          {:noreply,
-           socket
-           |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, true))
-           |> put_flash(:info, "Already saved")}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to save")}
+        end
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to save posts")}
@@ -201,15 +178,19 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
-      case Social.unsave_post(socket.assigns.current_user.id, message_id) do
-        {:ok, _} ->
-          {:noreply,
-           socket
-           |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, false))
-           |> put_flash(:info, "Removed from saved")}
+      if Map.get(socket.assigns.user_saves, message_id, false) do
+        case Social.unsave_post(socket.assigns.current_user.id, message_id) do
+          {:ok, _} ->
+            {:noreply,
+             socket
+             |> assign(:user_saves, Map.put(socket.assigns.user_saves, message_id, false))
+             |> put_flash(:info, "Removed from saved")}
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to unsave")}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to unsave")}
+        end
+      else
+        {:noreply, socket}
       end
     else
       {:noreply, socket}
@@ -470,38 +451,11 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("boost_post", %{"message_id" => message_id}, socket) do
-    if socket.assigns[:current_user] do
-      user_id = socket.assigns.current_user.id
-      message_id = String.to_integer(message_id)
+    handle_hashtag_boost(socket, message_id, :boost)
+  end
 
-      case Map.get(socket.assigns.user_boosts, message_id, false) do
-        true ->
-          case Social.unboost_post(user_id, message_id) do
-            {:ok, _} ->
-              {:noreply,
-               socket
-               |> update_post_in_hashtag_feed(message_id, :decrement_boosts)
-               |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, false))}
-
-            {:error, _} ->
-              {:noreply, put_flash(socket, :error, "Failed to unboost")}
-          end
-
-        false ->
-          case Social.boost_post(user_id, message_id) do
-            {:ok, _} ->
-              {:noreply,
-               socket
-               |> update_post_in_hashtag_feed(message_id, :increment_boosts)
-               |> assign(:user_boosts, Map.put(socket.assigns.user_boosts, message_id, true))}
-
-            {:error, _} ->
-              {:noreply, put_flash(socket, :error, "Failed to boost")}
-          end
-      end
-    else
-      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
-    end
+  def handle_event("unboost_post", %{"message_id" => message_id}, socket) do
+    handle_hashtag_boost(socket, message_id, :unboost)
   end
 
   def handle_event("vote_poll", params, socket) do
@@ -641,6 +595,90 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
 
   def handle_event(_event, _params, socket) do
     {:noreply, socket}
+  end
+
+  defp handle_hashtag_like(socket, message_id, direction) when direction in [:like, :unlike] do
+    case socket.assigns[:current_user] do
+      nil ->
+        {:noreply, socket |> put_flash(:error, "You must be logged in to like posts")}
+
+      %{id: user_id} ->
+        message_id = SafeConvert.to_integer!(message_id, message_id)
+        currently_liked = Map.get(socket.assigns.user_likes, message_id, false)
+        next_liked = direction == :like
+
+        if currently_liked == next_liked do
+          {:noreply, socket}
+        else
+          result =
+            if next_liked do
+              Social.like_post(user_id, message_id)
+            else
+              Social.unlike_post(user_id, message_id)
+            end
+
+          case result do
+            {:ok, _} ->
+              update_action = if next_liked, do: :increment_likes, else: :decrement_likes
+
+              {:noreply,
+               socket
+               |> update_post_in_hashtag_feed(message_id, update_action)
+               |> update_user_like_status(message_id, next_liked)}
+
+            {:error, _} ->
+              {:noreply,
+               put_flash(
+                 socket,
+                 :error,
+                 if(next_liked, do: "Failed to like post", else: "Failed to unlike post")
+               )}
+          end
+        end
+    end
+  end
+
+  defp handle_hashtag_boost(socket, message_id, direction) when direction in [:boost, :unboost] do
+    if socket.assigns[:current_user] do
+      user_id = socket.assigns.current_user.id
+      message_id = String.to_integer(message_id)
+      currently_boosted = Map.get(socket.assigns.user_boosts, message_id, false)
+      next_boosted = direction == :boost
+
+      if currently_boosted == next_boosted do
+        {:noreply, socket}
+      else
+        result =
+          if next_boosted do
+            Social.boost_post(user_id, message_id)
+          else
+            Social.unboost_post(user_id, message_id)
+          end
+
+        case result do
+          {:ok, _} ->
+            update_action = if next_boosted, do: :increment_boosts, else: :decrement_boosts
+
+            {:noreply,
+             socket
+             |> update_post_in_hashtag_feed(message_id, update_action)
+             |> assign(
+               :user_boosts,
+               Map.put(socket.assigns.user_boosts, message_id, next_boosted)
+             )}
+
+          {:error, _} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               if(next_boosted, do: "Failed to boost", else: "Failed to unboost")
+             )}
+        end
+      end
+    else
+      {:noreply, put_flash(socket, :error, "You must be signed in to boost posts")}
+    end
   end
 
   defp get_hashtag_info(hashtag_name) do

@@ -84,6 +84,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
   attr :size, :atom, default: :sm
   attr :style, :atom, default: :default
   attr :dom_id_prefix, :string, default: nil
+  attr :counts_loading, :boolean, default: false
 
   def post_actions(assigns) do
     {icon_size, btn_class, text_class} =
@@ -139,6 +140,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_liked, do: @on_unlike, else: @on_like}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             id={action_button_id(@dom_id_prefix, "like")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "like")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
@@ -154,13 +156,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
                 class={[@icon_size, @is_liked && "text-secondary"]}
               />
-              <span class={@text_class}>{normalize_interaction_count(@like_count)}</span>
+              <.animated_count
+                id={count_id(@dom_id_prefix, "like")}
+                class={@text_class}
+                count={@like_count}
+              />
             </span>
           </button>
         <% else %>
           <div class={[@btn_class, "cursor-default opacity-60"]}>
             <.icon name="hero-heart" class={@icon_size} />
-            <span class={@text_class}>{@like_count}</span>
+            <.animated_count
+              id={count_id(@dom_id_prefix, "like")}
+              class={@text_class}
+              count={@like_count}
+            />
           </div>
         <% end %>
       <% end %>
@@ -175,13 +185,18 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             ]}
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
-            <span class={@text_class}>{@comment_count}</span>
+            <.animated_count
+              id={count_id(@dom_id_prefix, "comment")}
+              class={@text_class}
+              count={@comment_count}
+            />
           </.link>
         <% else %>
           <%= if @current_user do %>
             <button
               phx-click={@on_comment}
               {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              data-action-lock-key={action_lock_key(@dom_id_prefix, "comment")}
               class={[
                 @btn_class,
                 "cursor-pointer transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
@@ -189,12 +204,20 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               type="button"
             >
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <span class={@text_class}>{@comment_count}</span>
+              <.animated_count
+                id={count_id(@dom_id_prefix, "comment")}
+                class={@text_class}
+                count={@comment_count}
+              />
             </button>
           <% else %>
             <div class={[@btn_class, "cursor-default opacity-60"]}>
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <span class={@text_class}>{@comment_count}</span>
+              <.animated_count
+                id={count_id(@dom_id_prefix, "comment")}
+                class={@text_class}
+                count={@comment_count}
+              />
             </div>
           <% end %>
         <% end %>
@@ -206,6 +229,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_boosted, do: @on_unboost, else: @on_boost}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             id={action_button_id(@dom_id_prefix, "boost")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "boost")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
@@ -221,13 +245,21 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
                 class={[@icon_size, @is_boosted && "text-success"]}
               />
-              <span class={@text_class}>{normalize_interaction_count(@boost_count)}</span>
+              <.animated_count
+                id={count_id(@dom_id_prefix, "boost")}
+                class={@text_class}
+                count={@boost_count}
+              />
             </span>
           </button>
         <% else %>
           <div class={[@btn_class, "cursor-default opacity-60"]}>
             <.icon name="hero-arrow-path" class={@icon_size} />
-            <span class={@text_class}>{@boost_count}</span>
+            <.animated_count
+              id={count_id(@dom_id_prefix, "boost")}
+              class={@text_class}
+              count={@boost_count}
+            />
           </div>
         <% end %>
       <% end %>
@@ -237,6 +269,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
           <button
             phx-click={@on_quote}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "quote")}
             class={[
               @btn_class,
               "cursor-pointer hidden sm:flex transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
@@ -245,12 +278,20 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             title="Quote post"
           >
             <.icon name="hero-chat-bubble-bottom-center-text" class={@icon_size} />
-            <span class={@text_class}>{@quote_count}</span>
+            <.animated_count
+              id={count_id(@dom_id_prefix, "quote")}
+              class={@text_class}
+              count={@quote_count}
+            />
           </button>
         <% else %>
           <div class={[@btn_class, "cursor-default opacity-60 hidden sm:flex"]}>
             <.icon name="hero-chat-bubble-bottom-center-text" class={@icon_size} />
-            <span class={@text_class}>{@quote_count}</span>
+            <.animated_count
+              id={count_id(@dom_id_prefix, "quote")}
+              class={@text_class}
+              count={@quote_count}
+            />
           </div>
         <% end %>
       <% end %>
@@ -261,6 +302,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_saved, do: @on_unsave, else: @on_save}
             {[{"phx-value-#{@actual_save_value_name}", @actual_save_post_id}]}
             id={action_button_id(@dom_id_prefix, "save")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "save")}
             class={[
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
@@ -297,6 +339,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_liked, do: @on_unlike, else: @on_like}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             id={action_button_id(@dom_id_prefix, "like")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "like")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_liked,
@@ -311,13 +354,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_liked, do: "hero-heart-solid", else: "hero-heart"}
                 class={[@icon_size, @is_liked && "text-secondary"]}
               />
-              <span>{normalize_interaction_count(@like_count)}</span>
+              <.animated_count id={count_id(@dom_id_prefix, "like")} count={@like_count} />
             </span>
           </button>
         <% else %>
           <div class="flex items-center gap-1.5 opacity-50 cursor-default">
             <.icon name="hero-heart" class={@icon_size} />
-            <span>{@like_count}</span>
+            <.animated_count id={count_id(@dom_id_prefix, "like")} count={@like_count} />
           </div>
         <% end %>
       <% end %>
@@ -329,7 +372,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer"
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
-            <span>{@comment_count}</span>
+            <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
           </.link>
         <% end %>
         <%= if !@comment_path do %>
@@ -337,16 +380,17 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             <button
               phx-click={@on_comment}
               {[{"phx-value-#{@actual_comment_value_name}", @post_id}]}
+              data-action-lock-key={action_lock_key(@dom_id_prefix, "comment")}
               class="flex items-center gap-1.5 text-base-content/60 hover:text-primary transition-colors cursor-pointer phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
               type="button"
             >
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <span>{@comment_count}</span>
+              <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
             </button>
           <% else %>
             <div class="flex items-center gap-1.5 opacity-50 cursor-default">
               <.icon name="hero-chat-bubble-left" class={@icon_size} />
-              <span>{@comment_count}</span>
+              <.animated_count id={count_id(@dom_id_prefix, "comment")} count={@comment_count} />
             </div>
           <% end %>
         <% end %>
@@ -358,6 +402,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_boosted, do: @on_unboost, else: @on_boost}
             {@value_name == "message_id" && [{"phx-value-message_id", @post_id}] || [{"phx-value-post_id", @post_id}]}
             id={action_button_id(@dom_id_prefix, "boost")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "boost")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_boosted,
@@ -372,13 +417,13 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
                 name={if @is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
                 class={@icon_size}
               />
-              <span>{normalize_interaction_count(@boost_count)}</span>
+              <.animated_count id={count_id(@dom_id_prefix, "boost")} count={@boost_count} />
             </span>
           </button>
         <% else %>
           <div class="flex items-center gap-1.5 opacity-50 cursor-default">
             <.icon name="hero-arrow-path" class={@icon_size} />
-            <span>{@boost_count}</span>
+            <.animated_count id={count_id(@dom_id_prefix, "boost")} count={@boost_count} />
           </div>
         <% end %>
       <% end %>
@@ -389,6 +434,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             phx-click={if @is_saved, do: @on_unsave, else: @on_save}
             {[{"phx-value-#{@actual_save_value_name}", @actual_save_post_id}]}
             id={action_button_id(@dom_id_prefix, "save")}
+            data-action-lock-key={action_lock_key(@dom_id_prefix, "save")}
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_saved,
@@ -698,6 +744,29 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
 
   defp action_button_id(nil, action), do: "post-action-#{action}"
   defp action_button_id(prefix, action), do: "#{prefix}-#{action}"
+
+  defp count_id(prefix, action), do: "#{action_button_id(prefix, action)}-count"
+  defp action_lock_key(prefix, action), do: "#{action_button_id(prefix, action)}-lock"
+
+  attr :id, :string, required: true
+  attr :class, :any, default: nil
+  attr :count, :any, required: true
+
+  defp animated_count(assigns) do
+    assigns = assign(assigns, :count_value, normalize_interaction_count(assigns.count))
+
+    ~H"""
+    <span
+      id={@id}
+      class={@class}
+      phx-hook="AnimatedCount"
+      phx-update="ignore"
+      data-count={@count_value}
+    >
+      {@count_value}
+    </span>
+    """
+  end
 
   defp default_dom_id_prefix(assigns) do
     digest =

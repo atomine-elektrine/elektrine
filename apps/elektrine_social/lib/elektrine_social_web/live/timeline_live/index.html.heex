@@ -147,7 +147,7 @@
               aria-label="Show federated posts"
               aria-pressed={@current_filter == "federated"}
             >
-              <.icon name="hero-globe-americas" class="w-5 h-5 mb-1" /> <span>Fediverse</span>
+              <.asterism class="w-5 h-5 mb-1" /> <span>Fediverse</span>
             </button>
             <%= if @current_user do %>
               <button
@@ -599,7 +599,7 @@
                   )
                 ]}
               >
-                <.icon name="hero-globe-americas" class="w-4 h-4" /> <span>Fediverse</span>
+                <.asterism class="w-4 h-4" /> <span>Fediverse</span>
               </button>
               <%= if @current_user do %>
                 <button
@@ -1121,17 +1121,51 @@
                 </.link>
               <% end %>
             </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-base-content/60 mr-1">
+                Display
+              </p>
+              <button
+                type="button"
+                phx-click="toggle_hide_boosts"
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                  if(@hide_boosts,
+                    do: "btn-primary border-primary",
+                    else: "bg-base-200 text-base-content hover:bg-base-300"
+                  )
+                ]}
+                aria-pressed={to_string(@hide_boosts)}
+              >
+                <.icon name="hero-arrow-path" class="w-4 h-4 mr-1" /> Hide Boosts
+              </button>
+              <button
+                type="button"
+                phx-click="toggle_hide_replies"
+                class={[
+                  "btn btn-sm min-h-10 px-3 rounded-full border border-base-300",
+                  if(@hide_replies,
+                    do: "btn-primary border-primary",
+                    else: "bg-base-200 text-base-content hover:bg-base-300"
+                  )
+                ]}
+                aria-pressed={to_string(@hide_replies)}
+              >
+                <.icon name="hero-chat-bubble-left-right" class="w-4 h-4 mr-1" /> Hide Replies
+              </button>
+            </div>
           </div>
           <!-- New Posts Button -->
           <%= if length(@queued_posts) > 0 do %>
-            <div class="mx-4 mb-2 flex justify-center sm:hidden">
+            <div class="sticky top-2 z-20 mx-4 mb-2 flex justify-center">
               <button
                 id="load-queued-posts-button"
                 type="button"
                 phx-hook="PreserveQueuedPostsButtonScroll"
                 phx-click="load_queued_posts"
                 data-load-queued-posts
-                class="btn btn-secondary btn-sm sm:btn-md gap-2-sm animate-bounce-subtle"
+                class="btn btn-secondary btn-sm sm:btn-md gap-2 shadow-lg animate-bounce-subtle"
               >
                 <.icon name="hero-arrow-up" class="w-4 h-4" />
                 <span>
@@ -1448,19 +1482,19 @@
               <!-- Follow Remote User/Community Section -->
               <.fediverse_follow loading={@remote_user_loading} preview={@remote_user_preview} />
               <div class="card panel-card rounded-lg">
-                <div class="card-body p-4 space-y-4">
-                  <h3 class="font-semibold">Suggested Follows</h3>
+                <div class="card-body p-3 space-y-3">
+                  <h3 class="font-semibold text-sm px-1">Suggested Follows</h3>
 
                   <div
-                    class="space-y-3 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
+                    class="space-y-1 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1"
                     style="scrollbar-gutter: stable"
                   >
                     <%= if @suggested_follows && length(@suggested_follows) > 0 do %>
                       <%= for suggestion <- @suggested_follows do %>
-                        <div class="flex items-center gap-3 rounded-lg bg-base-50/80 p-3 transition-colors hover:bg-base-200/80">
+                        <div class="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-base-200/60">
                           <.link
                             href={~p"/#{suggestion.handle || suggestion.username}"}
-                            class="w-10 h-10 flex-shrink-0 overflow-visible block"
+                            class="w-8 h-8 flex-shrink-0 overflow-visible block"
                           >
                             <.user_avatar
                               user={
@@ -1470,11 +1504,11 @@
                                   id: suggestion.id
                                 }
                               }
-                              size="sm"
+                              size="xs"
                               user_statuses={@user_statuses}
                             />
                           </.link>
-                          <div class="flex-1 min-w-0 space-y-1">
+                          <div class="flex-1 min-w-0">
                             <.link
                               href={~p"/#{suggestion.handle || suggestion.username}"}
                               class="font-medium text-sm hover:underline block truncate"
@@ -1484,14 +1518,13 @@
                             <p class="text-xs opacity-70 truncate">
                               @{suggestion.handle || suggestion.username}
                             </p>
-
-                            <p class="text-xs text-error">{suggestion.reason}</p>
                           </div>
 
                           <ElektrineSocialWeb.Components.Social.FollowButton.local_follow_button
                             id={"suggested-follow-#{suggestion.id}"}
                             user_id={suggestion.id}
                             user_follows={@user_follows}
+                            show_label={false}
                             class="flex-shrink-0"
                           />
                         </div>

@@ -116,6 +116,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
       "set_software_filter" ->
         PostOperations.handle_event(event_name, params, socket)
 
+      "toggle_hide_boosts" ->
+        PostOperations.handle_event(event_name, params, socket)
+
+      "toggle_hide_replies" ->
+        PostOperations.handle_event(event_name, params, socket)
+
       # Draft Operations
       "save_draft" ->
         PostOperations.handle_event(event_name, params, socket)

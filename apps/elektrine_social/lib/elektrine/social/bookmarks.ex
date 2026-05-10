@@ -20,32 +20,72 @@ defmodule Elektrine.Social.Bookmarks do
       {:ok, %SavedItem{}}
       
       iex> save_post(user_id, already_saved_id)
-      {:error, %Ecto.Changeset{}}
+      {:ok, %SavedItem{}}
   """
   def save_post(user_id, message_id) do
+    case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
+      %SavedItem{} = saved ->
+        {:ok, saved}
+
+      nil ->
+        insert_saved_message(user_id, message_id)
+    end
+  end
+
+  defp insert_saved_message(user_id, message_id) do
     %SavedItem{}
     |> SavedItem.message_changeset(%{user_id: user_id, message_id: message_id})
     |> Repo.insert()
+    |> case do
+      {:error, %Ecto.Changeset{}} = error ->
+        case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
+          %SavedItem{} = saved -> {:ok, saved}
+          nil -> error
+        end
+
+      result ->
+        result
+    end
   end
 
   @doc """
   Saves an RSS item for later.
   """
   def save_rss_item(user_id, rss_item_id) do
+    case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
+      %SavedItem{} = saved ->
+        {:ok, saved}
+
+      nil ->
+        insert_saved_rss_item(user_id, rss_item_id)
+    end
+  end
+
+  defp insert_saved_rss_item(user_id, rss_item_id) do
     %SavedItem{}
     |> SavedItem.rss_item_changeset(%{user_id: user_id, rss_item_id: rss_item_id})
     |> Repo.insert()
+    |> case do
+      {:error, %Ecto.Changeset{}} = error ->
+        case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
+          %SavedItem{} = saved -> {:ok, saved}
+          nil -> error
+        end
+
+      result ->
+        result
+    end
   end
 
   @doc """
   Unsaves a post.
 
   Returns `{:ok, saved_item}` if the post was saved and is now removed,
-  or `{:error, :not_saved}` if the post wasn't saved.
+  or `{:ok, nil}` if the post was already unsaved.
   """
   def unsave_post(user_id, message_id) do
     case Repo.get_by(SavedItem, user_id: user_id, message_id: message_id) do
-      nil -> {:error, :not_saved}
+      nil -> {:ok, nil}
       saved -> Repo.delete(saved)
     end
   end
@@ -55,7 +95,7 @@ defmodule Elektrine.Social.Bookmarks do
   """
   def unsave_rss_item(user_id, rss_item_id) do
     case Repo.get_by(SavedItem, user_id: user_id, rss_item_id: rss_item_id) do
-      nil -> {:error, :not_saved}
+      nil -> {:ok, nil}
       saved -> Repo.delete(saved)
     end
   end

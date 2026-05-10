@@ -79,7 +79,7 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     <div class="card panel-card rounded-lg">
       <div class="card-body p-4 space-y-4">
         <div class="flex items-center gap-2">
-          <.icon name="hero-globe-americas" class="w-4 h-4 text-primary" />
+          <.asterism class="w-4 h-4" />
           <h3 class="font-semibold text-sm">{@title}</h3>
         </div>
         {render_form(assigns)}
@@ -92,7 +92,7 @@ defmodule ElektrineSocialWeb.Components.Social.FediverseFollow do
     ~H"""
     <div class="space-y-4">
       <div class="flex items-center gap-2">
-        <.icon name="hero-globe-americas" class="w-4 h-4 text-primary" />
+        <.asterism class="w-4 h-4" />
         <h3 class="font-semibold text-sm">{@title}</h3>
       </div>
       {render_form(assigns)}

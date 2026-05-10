@@ -1968,11 +1968,26 @@ export const MessageList = {
     const container = this.el
     this.isLoadingOlder = false
     this.initialScrollDone = false
+    this.isRestoringScroll = false
     this.currentConversationId = container.dataset.conversationId
+    this.scrollPositions = window.elektrineChatScrollPositions || new Map()
+    window.elektrineChatScrollPositions = this.scrollPositions
 
     // Check if user is near bottom (within 150px)
     const isNearBottom = () => {
       return container.scrollHeight - container.scrollTop - container.clientHeight < 150
+    }
+
+    const maxScrollTop = () => Math.max(0, container.scrollHeight - container.clientHeight)
+
+    const saveCurrentScrollPosition = () => {
+      if (!this.currentConversationId) return
+      if (this.isRestoringScroll) return
+
+      this.scrollPositions.set(String(this.currentConversationId), {
+        top: container.scrollTop,
+        atBottom: isNearBottom()
+      })
     }
 
     // Smoothly scroll to bottom
@@ -1982,18 +1997,61 @@ export const MessageList = {
           top: container.scrollHeight,
           behavior: behavior
         })
+        saveCurrentScrollPosition()
       })
     }
 
-    this.performInitialBottomScroll = () => {
-      scrollToBottom('auto')
+    const scrollElementInContainer = (element, block = 'center', behavior = 'smooth') => {
+      const containerRect = container.getBoundingClientRect()
+      const elementRect = element.getBoundingClientRect()
+      const elementTop = elementRect.top - containerRect.top + container.scrollTop
+      let targetTop
+
+      if (block === 'top-third') {
+        targetTop = elementTop - container.clientHeight / 3
+      } else if (block === 'start') {
+        targetTop = elementTop
+      } else {
+        targetTop = elementTop - container.clientHeight / 2 + elementRect.height / 2
+      }
+
+      container.scrollTo({
+        top: Math.max(0, Math.min(targetTop, maxScrollTop())),
+        behavior
+      })
+      saveCurrentScrollPosition()
+    }
+
+    this.restoreConversationScroll = (conversationId = this.currentConversationId) => {
+      const savedPosition = conversationId && this.scrollPositions.get(String(conversationId))
+      const restoreToken = Symbol('restore-scroll')
+      this.restoreToken = restoreToken
+      this.isRestoringScroll = true
+
+      const restore = () => {
+        if (savedPosition && !savedPosition.atBottom) {
+          container.scrollTo({
+            top: Math.min(savedPosition.top, maxScrollTop()),
+            behavior: 'auto'
+          })
+          saveCurrentScrollPosition()
+        } else {
+          scrollToBottom('auto')
+        }
+      }
+
+      restore()
 
       ;[50, 120, 250, 500].forEach(delay => {
-        setTimeout(() => scrollToBottom('auto'), delay)
+        setTimeout(restore, delay)
       })
 
       setTimeout(() => {
+        if (this.restoreToken !== restoreToken) return
+
+        this.isRestoringScroll = false
         this.initialScrollDone = true
+        saveCurrentScrollPosition()
       }, 600)
     }
 
@@ -2032,6 +2090,7 @@ export const MessageList = {
     // Add scroll event listener with debouncing
     let scrollTimeout
     container.addEventListener('scroll', () => {
+      saveCurrentScrollPosition()
       clearTimeout(scrollTimeout)
       scrollTimeout = setTimeout(checkScrollPosition, 100)
     })
@@ -2051,7 +2110,7 @@ export const MessageList = {
     this.handleEvent("scroll_to_message", ({message_id}) => {
       const messageEl = document.getElementById(`message-${message_id}`)
       if (messageEl) {
-        messageEl.scrollIntoView({behavior: 'smooth', block: 'center'})
+        scrollElementInContainer(messageEl, 'center', 'smooth')
         messageEl.classList.add('highlight-message')
         setTimeout(() => messageEl.classList.remove('highlight-message'), 2000)
         this.initialScrollDone = true
@@ -2106,7 +2165,7 @@ export const MessageList = {
     // Scroll to the latest messages on initial load.
     // Server-driven unread scrolling can still override this afterward.
     if (this.currentConversationId) {
-      this.performInitialBottomScroll()
+      this.restoreConversationScroll()
     }
 
     // Add image listeners when new content is added
@@ -2122,6 +2181,13 @@ export const MessageList = {
     })
 
     this.imageObserver = imageObserver
+
+    this.handleEvent("restore_conversation_scroll", ({conversation_id}) => {
+      if (String(conversation_id) === String(this.currentConversationId)) {
+        this.initialScrollDone = false
+        this.restoreConversationScroll(conversation_id)
+      }
+    })
 
     // Handle scroll to bottom (server controls initial scroll)
     this.handleEvent("scroll_to_bottom", () => {
@@ -2160,7 +2226,7 @@ export const MessageList = {
         const element = document.getElementById(element_id)
         if (element) {
           const block = position === 'top-third' ? 'center' : 'start'
-          element.scrollIntoView({behavior: 'smooth', block: block})
+          scrollElementInContainer(element, position === 'top-third' ? 'top-third' : block, 'smooth')
           setTimeout(() => {
             this.initialScrollDone = true
           }, 500)
@@ -2226,7 +2292,7 @@ export const MessageList = {
 
       // The imageObserver will automatically catch new images in the new conversation
       // No need to manually call addImageListeners - MutationObserver handles it
-      this.performInitialBottomScroll()
+      this.restoreConversationScroll(newConversationId)
     }
   },
 

@@ -187,6 +187,11 @@
                 post_reactions={@post_reactions}
                 current_user={@current_user}
                 remote_poll_vote={@pending_remote_poll_vote}
+                lemmy_counts={@lemmy_counts}
+                user_follows={@user_follows}
+                pending_follows={@pending_follows}
+                remote_follow_overrides={@remote_follow_overrides}
+                counts_loading={!is_nil(@platform_counts_load_ref)}
               />
             </div>
           <% else %>
@@ -391,8 +396,30 @@
               
 <!-- Post Stats -->
               <div class="flex items-center gap-4 text-sm opacity-70 pt-4 border-t border-base-300">
-                <span>{@local_message.like_count || 0} likes</span>
-                <span>{max(length(@replies), @local_message.reply_count || 0)} comments</span>
+                <% stats_like_count = @local_message.like_count || 0
+                stats_comment_count = max(length(@replies), @local_message.reply_count || 0) %>
+                <span>
+                  <span
+                    id={"remote-local-post-#{@local_message.id}-stats-like-count"}
+                    phx-hook="AnimatedCount"
+                    phx-update="ignore"
+                    data-count={stats_like_count}
+                  >
+                    {stats_like_count}
+                  </span>
+                  likes
+                </span>
+                <span>
+                  <span
+                    id={"remote-local-post-#{@local_message.id}-stats-comment-count"}
+                    phx-hook="AnimatedCount"
+                    phx-update="ignore"
+                    data-count={stats_comment_count}
+                  >
+                    {stats_comment_count}
+                  </span>
+                  comments
+                </span>
                 <span>
                   {Calendar.strftime(@local_message.inserted_at, "%B %d, %Y at %I:%M %p")}
                 </span>
@@ -425,6 +452,7 @@
                   on_comment="toggle_reply_form"
                   show_quote={false}
                   size={:sm}
+                  counts_loading={!is_nil(@platform_counts_load_ref)}
                 />
 
                 <.post_reactions
@@ -560,6 +588,7 @@
                     pending_follows={@pending_follows}
                     remote_follow_overrides={@remote_follow_overrides}
                     remote_poll_vote={@pending_remote_poll_vote}
+                    counts_loading={!is_nil(@platform_counts_load_ref)}
                   />
                 </div>
               <% else %>
@@ -622,7 +651,10 @@
                             )
                         end
 
-                      score = base_score + vote_delta %>
+                      score = base_score + vote_delta
+
+                      score_dom_id =
+                        "remote-post-score-#{:erlang.phash2(@post["id"] || (@local_message && @local_message.id) || "main")}" %>
                       <div class="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
                         <%= if @current_user && @community_actor do %>
                           <button
@@ -651,7 +683,15 @@
                             <.icon name="hero-arrow-up" class="w-4 h-4 sm:w-5 sm:h-5" />
                           </div>
                         <% end %>
-                        <span class="text-sm sm:text-lg font-bold">{score}</span>
+                        <span
+                          id={score_dom_id}
+                          class="text-sm sm:text-lg font-bold"
+                          phx-hook="AnimatedCount"
+                          phx-update="ignore"
+                          data-count={score}
+                        >
+                          {score}
+                        </span>
                         <%= if @current_user && @community_actor do %>
                           <button
                             phx-click="vote_post"
@@ -1288,6 +1328,7 @@
                           show_quote={false}
                           on_comment="toggle_reply_form"
                           size={:sm}
+                          counts_loading={!is_nil(@platform_counts_load_ref)}
                         />
                         
 <!-- Emoji Reactions inline with actions -->

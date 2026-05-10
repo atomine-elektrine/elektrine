@@ -253,13 +253,27 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
                       <% else %>
                         <.icon name="hero-heart" class="w-4 h-4" />
                       <% end %>
-                      <span>{@display_like_count}</span>
+                      <span
+                        id={"#{@modal_id}-like-count"}
+                        phx-hook="AnimatedCount"
+                        phx-update="ignore"
+                        data-count={@display_like_count}
+                      >
+                        {@display_like_count}
+                      </span>
                     </button>
                   <% else %>
                     <%= if @post do %>
                       <div class="flex items-center gap-1 text-sm opacity-70">
                         <.icon name="hero-heart" class="w-4 h-4" />
-                        <span>{@display_like_count}</span>
+                        <span
+                          id={"#{@modal_id}-like-count"}
+                          phx-hook="AnimatedCount"
+                          phx-update="ignore"
+                          data-count={@display_like_count}
+                        >
+                          {@display_like_count}
+                        </span>
                       </div>
                     <% end %>
                   <% end %>

@@ -91,6 +91,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Icon component
   defdelegate icon(assigns), to: Icon
+  defdelegate asterism(assigns), to: Icon
 
   # Card components
   defdelegate card(assigns), to: Card

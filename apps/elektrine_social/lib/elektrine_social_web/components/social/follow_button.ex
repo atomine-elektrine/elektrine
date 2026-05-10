@@ -9,6 +9,7 @@ defmodule ElektrineSocialWeb.Components.Social.FollowButton do
   attr :variant, :string, default: "timeline"
   attr :id, :string, default: nil
   attr :class, :any, default: nil
+  attr :show_label, :boolean, default: true
 
   def local_follow_button(assigns) do
     is_following = local_following?(assigns.user_follows, assigns.user_id)
@@ -35,10 +36,10 @@ defmodule ElektrineSocialWeb.Components.Social.FollowButton do
       <span class={@content_classes}>
         <%= if @is_following do %>
           <.icon name="hero-user-minus" class={@icon_classes} />
-          <span class={@label_classes}>Unfollow</span>
+          <span :if={@show_label} class={@label_classes}>Unfollow</span>
         <% else %>
           <.icon name="hero-user-plus" class={@icon_classes} />
-          <span class={@label_classes}>Follow</span>
+          <span :if={@show_label} class={@label_classes}>Follow</span>
         <% end %>
       </span>
     </button>

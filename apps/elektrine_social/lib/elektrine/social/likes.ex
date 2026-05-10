@@ -26,16 +26,28 @@ defmodule Elektrine.Social.Likes do
   4. Creates a notification for the post author (async)
   5. Federates the like via ActivityPub (async)
 
-  Returns `{:ok, like}` on success, or `{:error, changeset}` if already liked.
+  Returns `{:ok, like}` on success. Already-liked posts return the existing like.
   """
   def like_post(user_id, message_id) do
     message = Repo.get!(Message, message_id)
+
+    case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
+      %PostLike{} = like ->
+        {:ok, like}
+
+      nil ->
+        insert_like(user_id, message_id, message)
+    end
+  end
+
+  defp insert_like(user_id, message_id, message) do
+    now = DateTime.utc_now()
 
     %PostLike{}
     |> PostLike.changeset(%{
       user_id: user_id,
       message_id: message_id,
-      created_at: DateTime.utc_now()
+      created_at: now
     })
     |> Repo.insert()
     |> case do
@@ -62,22 +74,25 @@ defmodule Elektrine.Social.Likes do
 
         {:ok, like}
 
-      error ->
-        error
+      {:error, _} = error ->
+        case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
+          %PostLike{} = like -> {:ok, like}
+          nil -> error
+        end
     end
   end
 
   @doc """
   Unlikes a post.
 
-  Returns `{:ok, deleted_like}` on success, or `{:error, :not_liked}` if not liked.
+  Returns `{:ok, deleted_like}` on success. Already-unliked posts return `{:ok, nil}`.
   """
   def unlike_post(user_id, message_id) do
     message = Repo.get!(Message, message_id)
 
     case Repo.get_by(PostLike, user_id: user_id, message_id: message_id) do
       nil ->
-        {:error, :not_liked}
+        {:ok, nil}
 
       like ->
         case Repo.delete(like) do

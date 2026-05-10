@@ -116,6 +116,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :save_action_post_id, :any, default: nil
   attr :save_action_value_name, :string, default: nil
   attr :saved_override, :any, default: nil
+  attr :counts_loading, :boolean, default: false
 
   def timeline_post(assigns) do
     # Dispatch based on layout variant
@@ -128,6 +129,91 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   # Standard timeline layout (default)
   defp render_timeline_layout(assigns) do
+    if pure_boost_post?(assigns.post) do
+      render_boost_wrapper_layout(assigns)
+    else
+      render_standard_timeline_layout(assigns)
+    end
+  end
+
+  defp render_boost_wrapper_layout(assigns) do
+    assigns =
+      assigns
+      |> assign(:boosted_post, assigns.post.shared_message)
+      |> assign(:booster, Map.get(assigns.post, :sender))
+
+    ~H"""
+    <div id={"#{@id_prefix}-entry-#{@post.id}"} class="space-y-2">
+      <div class="flex min-w-0 items-center gap-2 px-4 text-sm leading-none text-base-content/65">
+        <.icon name="hero-arrow-path" class="h-4 w-4 shrink-0 text-success" />
+        <%= if @booster do %>
+          <.user_hover_card user={@booster} current_user={@current_user}>
+            <.link
+              navigate={"/#{@booster.handle || @booster.username}"}
+              class="inline-flex min-w-0 shrink items-center gap-1.5 font-medium leading-none text-success hover:underline"
+            >
+              <.user_avatar user={@booster} size="xs" />
+              <span class="truncate leading-none">
+                <.username_with_effects user={@booster} display_name={true} verified_size="xs" />
+              </span>
+            </.link>
+          </.user_hover_card>
+          <span class="shrink-0 leading-none">boosted</span>
+        <% else %>
+          <span class="shrink-0 font-medium leading-none text-success">Someone</span>
+          <span class="shrink-0 leading-none">boosted</span>
+        <% end %>
+      </div>
+
+      <.timeline_post
+        post={@boosted_post}
+        layout={:timeline}
+        current_user={@current_user}
+        timezone={@timezone}
+        time_format={@time_format}
+        user_likes={@user_likes}
+        user_boosts={@user_boosts}
+        user_downvotes={@user_downvotes}
+        user_saves={@user_saves}
+        user_follows={@user_follows}
+        pending_follows={@pending_follows}
+        remote_follow_overrides={@remote_follow_overrides}
+        user_statuses={@user_statuses}
+        lemmy_counts={@lemmy_counts}
+        post_replies={@post_replies}
+        post_interactions={@post_interactions}
+        post_reactions_map={@post_reactions_map}
+        reactions={Map.get(@post_reactions_map, @boosted_post.id, [])}
+        id_prefix={"#{@id_prefix}-boosted-#{@post.id}"}
+        show_follow_button={@show_follow_button}
+        show_admin_actions={@show_admin_actions}
+        show_post_dropdown={@show_post_dropdown}
+        show_view_button={@show_view_button}
+        on_navigate_profile={@on_navigate_profile}
+        on_image_click={@on_image_click}
+        on_like={@on_like}
+        on_unlike={@on_unlike}
+        on_comment={@on_comment}
+        clickable={@clickable}
+        source={@source}
+        resolve_reply_refs={@resolve_reply_refs}
+        show_ancestor_actions={@show_ancestor_actions}
+        show_quote_button={@show_quote_button}
+        show_save_button={@show_save_button}
+        show_thread_context={false}
+        interaction_mode={@interaction_mode}
+        remote_poll_vote={@remote_poll_vote}
+        action_post_id={@boosted_post.id}
+        action_value_name="message_id"
+        save_action_post_id={@boosted_post.id}
+        save_action_value_name="message_id"
+        counts_loading={@counts_loading}
+      />
+    </div>
+    """
+  end
+
+  defp render_standard_timeline_layout(assigns) do
     post = assigns.post
 
     # Determine if this is a reply
@@ -273,6 +359,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               action_value_name={@action_value_name}
               save_action_post_id={@save_action_post_id}
               save_action_value_name={@save_action_value_name}
+              counts_loading={@counts_loading}
             />
             
     <!-- Emoji Reactions -->
@@ -299,6 +386,15 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       </div>
     </div>
     """
+  end
+
+  defp pure_boost_post?(post) do
+    shared_message = Map.get(post, :shared_message)
+
+    not is_nil(Map.get(post, :shared_message_id)) &&
+      is_map(shared_message) &&
+      Ecto.assoc_loaded?(shared_message) &&
+      !Elektrine.Strings.present?(Map.get(post, :content))
   end
 
   # Boost indicator component
@@ -1543,12 +1639,16 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="mb-3 flex items-center gap-2 bg-warning/10 border border-warning/30 rounded-lg p-3">
         <.icon name="hero-exclamation-triangle" class="w-4 h-4 text-warning flex-shrink-0" />
         <span class="font-medium text-sm">{@post.content_warning}</span>
+        <span class="text-xs opacity-70">Hover or focus to reveal</span>
         <span class="badge badge-sm badge-warning ml-auto">Sensitive</span>
       </div>
     <% end %>
 
     <!-- Main Content -->
-    <div class={"mb-3 min-w-0 #{if Elektrine.Strings.present?(@post.content_warning), do: "blur-sm hover:blur-none transition-all", else: ""}"}>
+    <div
+      class={"mb-3 min-w-0 #{if Elektrine.Strings.present?(@post.content_warning), do: "blur-sm hover:blur-none focus-within:blur-none transition-all", else: ""}"}
+      tabindex={if Elektrine.Strings.present?(@post.content_warning), do: "0", else: nil}
+    >
       <!-- Quoted post content -->
       <%= if @post.quoted_message_id && Ecto.assoc_loaded?(@post.quoted_message) && @post.quoted_message do %>
         <%= if Elektrine.Strings.present?(@post.content) do %>
@@ -1629,8 +1729,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <%= if @post.quoted_message.media_urls && length(@post.quoted_message.media_urls) > 0 do %>
             <div class="mt-2 flex gap-1">
               <%= for media_url <- Enum.take(@post.quoted_message.media_urls, 2) do %>
-                <% full_url = Elektrine.Uploads.attachment_url(media_url, @post.quoted_message) %>
-                <img src={full_url} alt="" class="w-16 h-16 rounded object-cover" />
+                <%= if full_url = attachment_url_for_render(media_url, @post.quoted_message) do %>
+                  <img src={full_url} alt="" class="w-16 h-16 rounded object-cover" />
+                <% end %>
               <% end %>
               <%= if length(@post.quoted_message.media_urls) > 2 do %>
                 <div class="w-16 h-16 rounded bg-base-300 flex items-center justify-center text-xs opacity-60">
@@ -1820,15 +1921,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp media_attachments(assigns) do
     media_entries = build_media_entries(assigns.post)
     full_media_urls = Enum.map(media_entries, & &1.full_url)
+    sensitive? = sensitive_post?(assigns.post)
 
     assigns =
       assigns
       |> assign(:media_entries, media_entries)
       |> assign(:full_media_urls, full_media_urls)
+      |> assign(:sensitive?, sensitive?)
 
     ~H"""
     <%= if @media_entries != [] do %>
-      <div class="mt-3 grid grid-cols-1 gap-2">
+      <div
+        class={[
+          "mt-3 grid grid-cols-1 gap-2 transition-all",
+          @sensitive? && "blur-sm hover:blur-none focus-within:blur-none"
+        ]}
+        tabindex={if @sensitive?, do: "0", else: nil}
+      >
         <%= for media_entry <- @media_entries do %>
           <%= cond do %>
             <% media_entry.is_video -> %>
@@ -1880,6 +1989,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     <% end %>
     """
   end
+
+  defp sensitive_post?(post) when is_map(post) do
+    Elektrine.Strings.present?(Map.get(post, :content_warning)) ||
+      Map.get(post, :sensitive) == true ||
+      Map.get(post, "sensitive") == true
+  end
+
+  defp sensitive_post?(_), do: false
 
   # Link preview component
   attr :post, :map, required: true
@@ -1946,7 +2063,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     (post.media_urls || [])
     |> Enum.with_index()
     |> Enum.reduce([], fn {media_url, index}, entries ->
-      case Elektrine.Uploads.attachment_url(media_url, post) do
+      case attachment_url_for_render(media_url, post) do
         full_url when is_binary(full_url) and full_url != "" ->
           {width, height} = media_dimensions(metadata, attachments, index)
           is_video = video_url?(full_url)
@@ -1977,6 +2094,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       end
     end)
     |> Enum.reverse()
+  end
+
+  defp attachment_url_for_render(media_url, post) do
+    case Elektrine.Uploads.attachment_url(media_url, post) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
   end
 
   defp media_metadata(post) do
@@ -2100,6 +2224,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :save_action_post_id, :any, default: nil
   attr :save_action_value_name, :string, default: nil
   attr :id_prefix, :string, default: "post"
+  attr :counts_loading, :boolean, default: false
 
   defp post_footer(assigns) do
     ~H"""
@@ -2123,6 +2248,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           save_value_name={@save_action_value_name || "message_id"}
           dom_id_prefix={"#{@id_prefix}-actions-#{@post.id}"}
           size={:xs}
+          counts_loading={@counts_loading}
         />
         
     <!-- View Post Button (only shown on post detail page) -->
@@ -2466,8 +2592,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         end
       end
 
-    score = if is_integer(base_count), do: base_count + score_delta, else: nil
-    score_available = is_integer(score)
+    score = if is_integer(base_count), do: base_count + score_delta, else: 0
 
     # Prefer attached media, but fall back to link preview images for link submissions.
     image_urls = PostUtilities.filter_image_urls(post.media_urls || [])
@@ -2533,7 +2658,6 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_liked, is_liked)
       |> assign(:is_downvoted, is_downvoted)
       |> assign(:score, score)
-      |> assign(:score_available, score_available)
       |> assign(:is_vote_post, is_vote_post)
       |> assign(:like_only_mode, like_only_mode)
       |> assign(:has_image, has_image)
@@ -2634,14 +2758,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             </div>
           <% end %>
           <span
+            id={"#{@unique_id}-score-count"}
             class="text-sm sm:text-lg font-bold"
-            aria-label={if @score_available, do: "Score: #{@score}", else: "Score: 0"}
+            phx-hook="AnimatedCount"
+            phx-update="ignore"
+            data-count={@score}
+            aria-label={"Score: #{@score}"}
           >
-            <%= if @score_available do %>
-              {@score}
-            <% else %>
-              0
-            <% end %>
+            {@score}
           </span>
           <%= if !@like_only_mode and @current_user do %>
             <button
@@ -2816,7 +2940,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <% end %>
             <.local_time datetime={@post.inserted_at} format="relative" timezone={@timezone} />
             <span>·</span>
-            <span>{@reply_count} comments</span>
+            <span>
+              <span
+                id={"#{@unique_id}-comments-count"}
+                phx-hook="AnimatedCount"
+                phx-update="ignore"
+                data-count={@reply_count}
+              >
+                {@reply_count}
+              </span>
+              comments
+            </span>
             <span>·</span>
             <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
               Open
@@ -3084,11 +3218,25 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <span>·</span>
           <span class="flex items-center gap-1">
             <.icon name="hero-heart" class="w-3 h-3" />
-            {@display_like_count}
+            <span
+              id={"compact-post-#{@post.id}-like-count"}
+              phx-hook="AnimatedCount"
+              phx-update="ignore"
+              data-count={@display_like_count || 0}
+            >
+              {@display_like_count || 0}
+            </span>
           </span>
           <span class="flex items-center gap-1">
             <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
-            {@display_comment_count}
+            <span
+              id={"compact-post-#{@post.id}-comment-count"}
+              phx-hook="AnimatedCount"
+              phx-update="ignore"
+              data-count={@display_comment_count || 0}
+            >
+              {@display_comment_count || 0}
+            </span>
           </span>
           <span>·</span>
           <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
