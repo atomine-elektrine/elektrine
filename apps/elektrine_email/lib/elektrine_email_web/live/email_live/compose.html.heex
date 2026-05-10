@@ -108,6 +108,8 @@
               }
               data-private-original-from={@original_message.from || ""}
               data-private-original-to={@original_message.to || ""}
+              data-private-original-cc={@original_message.cc || ""}
+              data-private-original-bcc={@original_message.bcc || ""}
               data-private-original-subject={decode_subject(@original_message.subject || "")}
               data-private-original-inserted-at={
                 DateTime.to_iso8601(@original_message.inserted_at)

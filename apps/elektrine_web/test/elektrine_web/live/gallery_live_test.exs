@@ -160,10 +160,8 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
       |> Floki.attribute("class")
       |> List.first()
 
-    assert liked_button_classes =~ "btn-secondary"
-    refute liked_button_classes =~ "btn-ghost"
-    assert unliked_button_classes =~ "btn-ghost"
-    refute unliked_button_classes =~ "btn-secondary"
+    assert liked_button_classes =~ "text-secondary"
+    refute unliked_button_classes =~ "text-secondary"
   end
 
   test "gallery strips malformed html from captions and title fallbacks", %{conn: conn} do
@@ -209,7 +207,7 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
     refute html =~ bad_display_name
   end
 
-  test "remote gallery posts render custom emojis in creator names", %{conn: conn} do
+  test "gallery image tiles link directly to remote post detail", %{conn: conn} do
     photo =
       remote_gallery_post_fixture(
         username: "alice",
@@ -232,9 +230,8 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
     html = render_async(view)
 
     assert html =~ photo.title
-    assert html =~ "Alice"
-    assert html =~ "custom-emoji"
-    assert html =~ "blobcat.png"
+    assert html =~ ~s(href="/remote/post/#{photo.id}")
+    refute html =~ "custom-emoji"
   end
 
   test "gallery loads more photos through the infinite scroll event", %{conn: conn} do

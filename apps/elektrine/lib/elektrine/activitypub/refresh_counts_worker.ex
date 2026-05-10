@@ -30,6 +30,8 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   alias Elektrine.Repo
   alias Elektrine.Social.Message
   alias Elektrine.Social.Messages
+  alias Elektrine.Social.PostBoost
+  alias Elektrine.Social.PostLike
 
   @batch_size 50
   @recent_threshold_hours 24
@@ -148,6 +150,25 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       message -> do_refresh_post(message)
     end
   end
+
+  @doc false
+  def reconcile_refreshed_engagement_counts(post, remote_counts) when is_map(remote_counts) do
+    remote_counts
+    |> Map.put(
+      :like_count,
+      reconciled_refreshed_like_count(post, Map.get(remote_counts, :like_count))
+    )
+    |> Map.put(
+      :reply_count,
+      reconciled_refreshed_reply_count(post, Map.get(remote_counts, :reply_count))
+    )
+    |> Map.put(
+      :share_count,
+      reconciled_refreshed_share_count(post, Map.get(remote_counts, :share_count))
+    )
+  end
+
+  def reconcile_refreshed_engagement_counts(_post, remote_counts), do: remote_counts
 
   # Private implementation
 
@@ -389,27 +410,31 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp refresh_lemmy_post(post, %{score: score, comments: comments} = counts) do
-    if counts_changed?(post, score, comments, 0) ||
-         (post.upvotes || 0) != (counts.upvotes || 0) ||
-         (post.downvotes || 0) != (counts.downvotes || 0) ||
-         (post.score || 0) != (score || 0) do
-      updated_counts = %{
-        like_count: normalize_remote_count(score),
-        reply_count: normalize_remote_count(comments),
-        share_count: post.share_count || 0,
-        upvotes: normalize_remote_count(counts.upvotes),
-        downvotes: normalize_remote_count(counts.downvotes),
-        score: normalize_remote_count(score)
-      }
+    updated_counts = %{
+      like_count: normalize_remote_count(score),
+      reply_count: normalize_remote_count(comments),
+      share_count: 0,
+      upvotes: normalize_remote_count(counts.upvotes),
+      downvotes: normalize_remote_count(counts.downvotes),
+      score: normalize_remote_count(score)
+    }
 
+    updated_counts = reconcile_refreshed_engagement_counts(post, updated_counts)
+
+    media_metadata = merge_original_count_metadata(post.media_metadata, score, comments, 0)
+    metadata_changed? = media_metadata != normalize_status_metadata(post.media_metadata)
+
+    if refreshed_counts_changed?(post, updated_counts) || metadata_changed? do
       Repo.update_all(
         from(m in Message, where: m.id == ^post.id),
         set: [
           like_count: updated_counts.like_count,
           reply_count: updated_counts.reply_count,
+          share_count: updated_counts.share_count,
           upvotes: updated_counts.upvotes,
           downvotes: updated_counts.downvotes,
           score: updated_counts.score,
+          media_metadata: media_metadata,
           updated_at: DateTime.utc_now() |> DateTime.truncate(:second)
         ]
       )
@@ -442,19 +467,26 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
        ) do
     quotes = normalize_remote_count(Map.get(counts, :quotes_count))
     status_metadata = normalize_status_metadata(Map.get(counts, :status_metadata))
-    media_metadata = merge_status_metadata(post.media_metadata, status_metadata, quotes)
+
+    media_metadata =
+      post.media_metadata
+      |> merge_status_metadata(status_metadata, quotes)
+      |> merge_original_count_metadata(fav, rep, reb)
+
     metadata_changed? = media_metadata != normalize_status_metadata(post.media_metadata)
 
-    if counts_changed?(post, fav, rep, reb) ||
+    updated_counts = %{
+      like_count: normalize_remote_count(fav),
+      reply_count: normalize_remote_count(rep),
+      share_count: normalize_remote_count(reb),
+      quote_count: quotes
+    }
+
+    updated_counts = reconcile_refreshed_engagement_counts(post, updated_counts)
+
+    if refreshed_counts_changed?(post, updated_counts) ||
          (post.quote_count || 0) != quotes ||
          metadata_changed? do
-      updated_counts = %{
-        like_count: normalize_remote_count(fav),
-        reply_count: normalize_remote_count(rep),
-        share_count: normalize_remote_count(reb),
-        quote_count: quotes
-      }
-
       Repo.update_all(
         from(m in Message, where: m.id == ^post.id),
         set: [
@@ -527,25 +559,31 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
          score: score,
          status_metadata: status_metadata
        }) do
-    media_metadata = merge_status_metadata(post.media_metadata, status_metadata, quotes)
+    media_metadata =
+      post.media_metadata
+      |> merge_status_metadata(status_metadata, quotes)
+      |> merge_original_count_metadata(likes, replies, shares)
+
     metadata_changed? = media_metadata != normalize_status_metadata(post.media_metadata)
 
-    if counts_changed?(post, likes, replies, shares) ||
+    updated_counts = %{
+      like_count: normalize_remote_count(likes),
+      reply_count: normalize_remote_count(replies),
+      share_count: normalize_remote_count(shares),
+      quote_count: normalize_remote_count(quotes),
+      upvotes: normalize_remote_count(upvotes),
+      downvotes: normalize_remote_count(downvotes),
+      score: normalize_remote_count(score)
+    }
+
+    updated_counts = reconcile_refreshed_engagement_counts(post, updated_counts)
+
+    if refreshed_counts_changed?(post, updated_counts) ||
          (post.quote_count || 0) != quotes ||
          (post.upvotes || 0) != upvotes ||
          (post.downvotes || 0) != downvotes ||
          (post.score || 0) != score ||
          metadata_changed? do
-      updated_counts = %{
-        like_count: normalize_remote_count(likes),
-        reply_count: normalize_remote_count(replies),
-        share_count: normalize_remote_count(shares),
-        quote_count: normalize_remote_count(quotes),
-        upvotes: normalize_remote_count(upvotes),
-        downvotes: normalize_remote_count(downvotes),
-        score: normalize_remote_count(score)
-      }
-
       Repo.update_all(
         from(m in Message, where: m.id == ^id),
         set: [
@@ -699,6 +737,104 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   defp maybe_put_status_metadata(metadata, key, value), do: Map.put(metadata, key, value)
 
+  defp merge_original_count_metadata(metadata, likes, replies, shares) do
+    metadata
+    |> normalize_status_metadata()
+    |> maybe_put_original_count("original_like_count", likes)
+    |> maybe_put_original_count("original_reply_count", replies)
+    |> maybe_put_original_count("original_share_count", shares)
+  end
+
+  defp maybe_put_original_count(metadata, key, value) do
+    existing = normalize_remote_count(Map.get(metadata, key))
+    value = normalize_remote_count(value)
+    merged = max(existing, value)
+
+    if merged > 0 do
+      Map.put(metadata, key, merged)
+    else
+      metadata
+    end
+  end
+
+  defp reconciled_refreshed_like_count(%{id: message_id} = post, remote_like_count)
+       when is_integer(message_id) do
+    [
+      post.like_count,
+      remote_like_count,
+      get_in(normalize_status_metadata(post.media_metadata), ["original_like_count"]),
+      local_like_count(message_id)
+    ]
+    |> Enum.map(&normalize_remote_count/1)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp reconciled_refreshed_like_count(_post, remote_like_count),
+    do: normalize_remote_count(remote_like_count)
+
+  defp reconciled_refreshed_reply_count(%{id: message_id} = post, remote_reply_count)
+       when is_integer(message_id) do
+    [
+      post.reply_count,
+      remote_reply_count,
+      get_in(normalize_status_metadata(post.media_metadata), ["original_reply_count"]),
+      local_reply_count(message_id)
+    ]
+    |> Enum.map(&normalize_remote_count/1)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp reconciled_refreshed_reply_count(_post, remote_reply_count),
+    do: normalize_remote_count(remote_reply_count)
+
+  defp reconciled_refreshed_share_count(%{id: message_id} = post, remote_share_count)
+       when is_integer(message_id) do
+    [
+      post.share_count,
+      remote_share_count,
+      get_in(normalize_status_metadata(post.media_metadata), ["original_share_count"]),
+      local_share_count(message_id)
+    ]
+    |> Enum.map(&normalize_remote_count/1)
+    |> Enum.max(fn -> 0 end)
+  end
+
+  defp reconciled_refreshed_share_count(_post, remote_share_count),
+    do: normalize_remote_count(remote_share_count)
+
+  defp local_like_count(message_id) do
+    from(l in PostLike,
+      where: l.message_id == ^message_id,
+      select: count(l.id)
+    )
+    |> Repo.one()
+    |> normalize_remote_count()
+  end
+
+  defp local_reply_count(message_id) do
+    from(m in Message,
+      where: m.reply_to_id == ^message_id and is_nil(m.deleted_at),
+      select: count(m.id)
+    )
+    |> Repo.one()
+    |> normalize_remote_count()
+  end
+
+  defp local_share_count(message_id) do
+    from(b in PostBoost,
+      where: b.message_id == ^message_id,
+      select: count(b.id)
+    )
+    |> Repo.one()
+    |> normalize_remote_count()
+  end
+
+  defp refreshed_counts_changed?(post, counts) when is_map(counts) do
+    (post.like_count || 0) != Map.get(counts, :like_count, 0) ||
+      (post.reply_count || 0) != Map.get(counts, :reply_count, 0) ||
+      (post.share_count || 0) != Map.get(counts, :share_count, 0)
+  end
+
   defp lemmy_url?(url) when is_binary(url) do
     LemmyApi.community_post_url?(url) or Regex.match?(~r{/comment/\d+(?:$|[/?#])}, url)
   end
@@ -713,12 +849,6 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   defp count_reference(post) do
     [Map.get(post, :activitypub_id), Map.get(post, :activitypub_url)]
     |> Enum.find(&(is_binary(&1) and String.trim(&1) != ""))
-  end
-
-  defp counts_changed?(post, new_likes, new_replies, new_shares) do
-    (post.like_count || 0) != new_likes ||
-      (post.reply_count || 0) != new_replies ||
-      (post.share_count || 0) != new_shares
   end
 
   defp extract_domain(%{activitypub_id: nil}), do: "unknown"

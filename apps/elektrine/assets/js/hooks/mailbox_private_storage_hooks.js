@@ -266,6 +266,11 @@ function bodyText(payload) {
   return htmlText || "Encrypted mailbox content"
 }
 
+function payloadString(payload, field) {
+  const value = payload?.[field]
+  return typeof value === "string" ? value : ""
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -1030,6 +1035,15 @@ export const PrivateMailboxMessages = {
             previewEl.textContent = previewText(payload)
           }
 
+          element.querySelectorAll("[data-private-address]").forEach((addressEl) => {
+            const field = addressEl.dataset.privateAddress
+            const value = payloadString(payload, field).trim()
+
+            if (value) {
+              addressEl.textContent = value
+            }
+          })
+
           const bodyEl = element.querySelector("[data-private-body]")
           const iframe = element.querySelector("[data-private-html-body-iframe]")
           const iframeContainer = element.querySelector("[data-private-html-body-container]")
@@ -1101,6 +1115,12 @@ export const PrivateMailboxMessages = {
       previewEl.textContent = previewEl.dataset.privatePreviewPlaceholder
     }
 
+    element.querySelectorAll("[data-private-address]").forEach((addressEl) => {
+      if (addressEl.dataset.privateAddressPlaceholder) {
+        addressEl.textContent = addressEl.dataset.privateAddressPlaceholder
+      }
+    })
+
     const bodyEl = element.querySelector("[data-private-body]")
     if (bodyEl && bodyEl.dataset.privateBodyPlaceholder) {
       bodyEl.textContent = bodyEl.dataset.privateBodyPlaceholder
@@ -1125,6 +1145,8 @@ export const PrivateMailboxCompose = {
     this.metadata = {
       from: this.el.dataset.privateOriginalFrom || "",
       to: this.el.dataset.privateOriginalTo || "",
+      cc: this.el.dataset.privateOriginalCc || "",
+      bcc: this.el.dataset.privateOriginalBcc || "",
       status: this.el.dataset.privateOriginalStatus || "",
       insertedAt: this.el.dataset.privateOriginalInsertedAt || ""
     }
@@ -1198,6 +1220,13 @@ export const PrivateMailboxCompose = {
 
       const originalSubject = typeof payload.subject === "string" ? payload.subject : ""
       const subject = prefixedSubject(this.mode, originalSubject)
+      const metadata = {
+        ...this.metadata,
+        from: payloadString(payload, "from") || this.metadata.from,
+        to: payloadString(payload, "to") || this.metadata.to,
+        cc: payloadString(payload, "cc") || this.metadata.cc,
+        bcc: payloadString(payload, "bcc") || this.metadata.bcc
+      }
 
       maybeSetValue(this.subjectInput, subject, (currentValue) =>
         currentValue.includes("Encrypted message")
@@ -1207,8 +1236,8 @@ export const PrivateMailboxCompose = {
 
       const body =
         this.mode === "forward"
-          ? buildForwardBody(payload, this.metadata, decryptedAttachments)
-          : buildReplyBody(payload, this.metadata)
+          ? buildForwardBody(payload, metadata, decryptedAttachments)
+          : buildReplyBody(payload, metadata)
 
       const protectedForwardAttachments = decryptedAttachments.filter((attachment) => attachment.data)
 

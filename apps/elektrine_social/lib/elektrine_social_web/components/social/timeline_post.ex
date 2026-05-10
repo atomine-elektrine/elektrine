@@ -264,6 +264,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_liked, is_liked)
       |> assign(:is_boosted, is_boosted)
       |> assign(:is_saved, is_saved)
+      |> assign(:card_post_path, card_post_path(post))
 
     ~H"""
     <div
@@ -292,7 +293,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         >
           <%= if @clickable do %>
             <.link
-              navigate={Elektrine.Paths.post_path(@post)}
+              navigate={@card_post_path}
               class="hidden"
               data-post-nav-link
               tabindex="-1"
@@ -1619,7 +1620,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       assigns
       |> assign_new(:remote_poll_vote, fn -> nil end)
       |> assign(:title, title)
-      |> assign(:post_path, Elektrine.Paths.post_path(assigns.post))
+      |> assign(:post_path, card_post_path(assigns.post))
 
     ~H"""
     <!-- Title -->
@@ -2097,9 +2098,14 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp attachment_url_for_render(media_url, post) do
-    case Elektrine.Uploads.attachment_url(media_url, post) do
-      url when is_binary(url) and url != "" -> url
-      _ -> nil
+    if Map.get(post, :federated) == true && is_binary(media_url) &&
+         String.starts_with?(media_url, ["http://", "https://"]) do
+      media_url
+    else
+      case Elektrine.Uploads.attachment_url(media_url, post) do
+        url when is_binary(url) and url != "" -> url
+        _ -> nil
+      end
     end
   end
 
@@ -2672,6 +2678,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:community_label, PostUtilities.extract_community_name(community_uri))
       |> assign(:external_link, external_link)
       |> assign(:resolved_link_preview, resolved_link_preview)
+      |> assign(:card_post_path, card_post_path(post))
       |> assign(:reply_count, reply_count)
       |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
@@ -2696,7 +2703,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     >
       <%= if @clickable do %>
         <.link
-          navigate={Elektrine.Paths.post_path(@post)}
+          navigate={@card_post_path}
           class="hidden"
           data-post-nav-link
           tabindex="-1"
@@ -2864,7 +2871,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 </h3>
               </a>
             <% else %>
-              <.link navigate={Elektrine.Paths.post_path(@post)} class="block">
+              <.link navigate={@card_post_path} class="block">
                 <h3 class="font-medium text-sm mb-1 line-clamp-2 hover:text-secondary">{@title}</h3>
               </.link>
             <% end %>
@@ -2952,7 +2959,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               comments
             </span>
             <span>·</span>
-            <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
+            <.link navigate={@card_post_path} class="hover:text-primary">
               Open
             </.link>
             <%= if @post.activitypub_url do %>
@@ -3153,6 +3160,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:title, title)
       |> assign(:has_image, has_image)
       |> assign(:thumbnail, thumbnail)
+      |> assign(:card_post_path, card_post_path(post))
 
     ~H"""
     <div
@@ -3168,7 +3176,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     >
       <%= if @clickable do %>
         <.link
-          navigate={Elektrine.Paths.post_path(@post)}
+          navigate={@card_post_path}
           class="hidden"
           data-post-nav-link
           tabindex="-1"
@@ -3188,7 +3196,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex-1 min-w-0">
         <!-- Title or content preview -->
         <%= if @title do %>
-          <.link navigate={Elektrine.Paths.post_path(@post)} class="block">
+          <.link navigate={@card_post_path} class="block">
             <h3 class="font-medium text-sm line-clamp-2 mb-1">{@title}</h3>
           </.link>
         <% else %>
@@ -3239,7 +3247,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             </span>
           </span>
           <span>·</span>
-          <.link navigate={Elektrine.Paths.post_path(@post)} class="hover:text-primary">
+          <.link navigate={@card_post_path} class="hover:text-primary">
             Open
           </.link>
         </div>
@@ -3274,6 +3282,12 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp community_path(_, _), do: nil
+
+  defp card_post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
+       when is_integer(id) and not is_nil(reply_to_id),
+       do: Elektrine.Paths.remote_post_path(id)
+
+  defp card_post_path(post), do: Elektrine.Paths.post_path(post)
 
   defp video_url?(url), do: PostUtilities.video_url?(url)
 

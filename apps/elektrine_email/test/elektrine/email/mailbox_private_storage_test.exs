@@ -36,6 +36,8 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
 
     assert message.subject == "Encrypted message"
     assert stored_message.subject == "Encrypted message"
+    assert stored_message.from == "Encrypted sender"
+    assert stored_message.to == "Encrypted recipients"
     assert is_nil(stored_message.text_body)
     assert is_nil(stored_message.html_body)
     assert stored_message.search_index == []
@@ -56,6 +58,36 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
            )
 
     refute Map.has_key?(stored_attachment, "data")
+  end
+
+  test "create_message protects sent-copy metadata for private mailboxes" do
+    user = AccountsFixtures.user_fixture()
+    mailbox = private_mailbox_fixture(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: mailbox.email,
+        to: "recipient@example.com",
+        cc: "copy@example.com",
+        bcc: "blind@example.com",
+        subject: "Sent secret",
+        text_body: "Sent body should stay private",
+        message_id: "<private-sent-#{System.unique_integer([:positive])}@example.com>",
+        status: "sent"
+      })
+
+    stored_message = Repo.get!(Email.Message, message.id)
+
+    assert stored_message.status == "sent"
+    assert stored_message.from == "Encrypted sender"
+    assert stored_message.to == "Encrypted recipients"
+    assert stored_message.cc == "Encrypted recipients"
+    assert stored_message.bcc == "Encrypted recipients"
+    assert stored_message.subject == "Encrypted message"
+    assert is_nil(stored_message.text_body)
+    assert stored_message.search_index == []
+    assert payload_value(stored_message.client_encrypted_payload, "ciphertext", :ciphertext)
   end
 
   test "save_draft updates stay encrypted for private mailboxes" do

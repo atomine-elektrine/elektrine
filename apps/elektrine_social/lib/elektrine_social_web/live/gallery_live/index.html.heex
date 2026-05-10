@@ -13,6 +13,45 @@
       @current_user || value in ["discover", "trending"]
     end)
 
+  category_options = [
+    {"all", "All Categories"},
+    {"photography", "Photography"},
+    {"art", "Art"},
+    {"design", "Design"},
+    {"anime", "Anime"},
+    {"meme", "Memes"}
+  ]
+
+  software_options = [
+    {"all", "All Sources"},
+    {"local", "Local"},
+    {"pixelfed", "Pixelfed"},
+    {"mastodon", "Mastodon"},
+    {"pleroma", "Pleroma"},
+    {"misskey", "Misskey"}
+  ]
+
+  sort_options = [
+    {"fresh", "Fresh"},
+    {"popular", "Popular"},
+    {"discussed", "Discussed"}
+  ]
+
+  selected_category_label =
+    Enum.find_value(category_options, "All Categories", fn {value, label} ->
+      if value == @gallery_filter, do: label
+    end)
+
+  selected_software_label =
+    Enum.find_value(software_options, "All Sources", fn {value, label} ->
+      if value == @software_filter, do: label
+    end)
+
+  selected_sort_label =
+    Enum.find_value(sort_options, "Fresh", fn {value, label} ->
+      if value == @gallery_sort, do: label
+    end)
+
   image_posts = Enum.filter(@filtered_posts, &gallery_image?/1)
 
   recent_uploads = Enum.take(@recent_uploads || [], 3)
@@ -22,7 +61,7 @@
     gallery_empty_state(%{gallery_search: @gallery_search, current_filter: @current_filter}) %>
 
   <div class="space-y-6">
-    <section class="card panel-card">
+    <section class="hidden">
       <div class="card-body p-4 sm:p-5 gap-5">
         <ElektrineWeb.Components.Platform.ENav.product_header
           eyebrow="Gallery"
@@ -305,40 +344,71 @@
       </div>
     </section>
 
-    <section class="card panel-card">
-      <div class="card-body p-4 sm:p-5 gap-4">
-        <div class="flex flex-wrap gap-2">
-          <%= for {value, label, icon} <- filter_options do %>
-            <button
-              id={"gallery-filter-#{value}"}
-              phx-click="set_filter"
-              phx-value-filter={value}
-              class={[
-                "btn btn-sm rounded-full",
-                if(@current_filter == value, do: "btn-secondary", else: "btn-ghost")
-              ]}
-            >
-              <.icon name={icon} class="w-4 h-4" /> {label}
-            </button>
-          <% end %>
+    <section class="card panel-card overflow-visible">
+      <div class="p-4 border-b border-base-300 space-y-4">
+        <ElektrineWeb.Components.Platform.ENav.product_header
+          eyebrow="Gallery"
+          title="Image Feed"
+          description="Browse image posts, follow creative work, and keep track of uploads you like."
+        >
+          <:actions>
+            <%= if @current_user do %>
+              <button phx-click="toggle_upload_modal" class="btn btn-secondary btn-sm">
+                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload
+              </button>
+            <% else %>
+              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary btn-sm">
+                Sign In
+              </.link>
+            <% end %>
+          </:actions>
+        </ElektrineWeb.Components.Platform.ENav.product_header>
+
+        <div>
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Feed
+          </p>
+          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Gallery filters">
+            <%= for {value, label, icon} <- filter_options do %>
+              <button
+                id={"gallery-filter-#{value}"}
+                phx-click="set_filter"
+                phx-value-filter={value}
+                role="tab"
+                aria-selected={@current_filter == value}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-3",
+                  if(@current_filter == value,
+                    do: "btn-secondary border-secondary",
+                    else: "bg-base-200 text-base-content hover:bg-base-300"
+                  )
+                ]}
+              >
+                <.icon name={icon} class="w-4 h-4" /> {label}
+              </button>
+            <% end %>
+          </div>
         </div>
 
-        <.form
+        <form
           id="gallery-search-form"
-          for={%{}}
+          phx-hook="PreserveSearchFocus"
           phx-change="search_gallery"
           phx-submit="search_gallery"
-          class="flex flex-col lg:flex-row gap-3"
+          class="flex flex-col gap-3 lg:flex-row"
         >
-          <label class="input input-bordered flex items-center gap-2 flex-1 bg-base-200/70">
+          <label class="input input-bordered flex min-h-[2.75rem] flex-1 items-center gap-2 bg-base-100">
             <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
             <input
+              id="gallery-search-input"
               type="text"
               name="query"
               value={@gallery_search}
               placeholder="Search titles, creators, categories, or source"
               phx-debounce="250"
               autocomplete="off"
+              data-search-input="true"
+              class="grow bg-transparent"
             />
           </label>
           <div class="flex gap-2">
@@ -350,74 +420,116 @@
                 type="button"
                 phx-click="clear_gallery_search"
                 data-search-clear="true"
+                data-search-clear-target="#gallery-search-input"
                 class="btn btn-ghost"
               >
                 Clear
               </button>
             <% end %>
           </div>
-        </.form>
+        </form>
 
         <div class="grid gap-3 md:grid-cols-3">
-          <form phx-change="set_gallery_filter">
+          <div>
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Category</span>
             </label>
-            <div class="select select-bordered w-full">
-              <select name="filter">
-                <option value="all" selected={@gallery_filter == "all"}>All Categories</option>
-                <option value="photography" selected={@gallery_filter == "photography"}>
-                  Photography
-                </option>
-                <option value="art" selected={@gallery_filter == "art"}>Art</option>
-                <option value="design" selected={@gallery_filter == "design"}>Design</option>
-                <option value="anime" selected={@gallery_filter == "anime"}>Anime</option>
-                <option value="meme" selected={@gallery_filter == "meme"}>Memes</option>
-              </select>
+            <div class="dropdown dropdown-end w-full">
+              <label
+                tabindex="0"
+                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
+              >
+                <span>{selected_category_label}</span>
+                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
+              </label>
+              <ul
+                tabindex="0"
+                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
+              >
+                <%= for {value, label} <- category_options do %>
+                  <li>
+                    <button
+                      type="button"
+                      phx-click="set_gallery_filter"
+                      phx-value-filter={value}
+                      class={if @gallery_filter == value, do: "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
             </div>
-          </form>
+          </div>
 
-          <form phx-change="set_software_filter">
+          <div>
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Source</span>
             </label>
-            <div class="select select-bordered w-full">
-              <select name="software">
-                <option value="all" selected={@software_filter == "all"}>All Sources</option>
-                <option value="local" selected={@software_filter == "local"}>Local</option>
-                <option value="pixelfed" selected={@software_filter == "pixelfed"}>
-                  Pixelfed
-                </option>
-                <option value="mastodon" selected={@software_filter == "mastodon"}>
-                  Mastodon
-                </option>
-                <option value="pleroma" selected={@software_filter == "pleroma"}>Pleroma</option>
-                <option value="misskey" selected={@software_filter == "misskey"}>Misskey</option>
-              </select>
+            <div class="dropdown dropdown-end w-full">
+              <label
+                tabindex="0"
+                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
+              >
+                <span>{selected_software_label}</span>
+                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
+              </label>
+              <ul
+                tabindex="0"
+                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
+              >
+                <%= for {value, label} <- software_options do %>
+                  <li>
+                    <button
+                      type="button"
+                      phx-click="set_software_filter"
+                      phx-value-software={value}
+                      class={if @software_filter == value, do: "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
             </div>
-          </form>
+          </div>
 
-          <form phx-change="set_gallery_sort">
+          <div>
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Sort</span>
             </label>
-            <div class="select select-bordered w-full">
-              <select name="sort">
-                <option value="fresh" selected={@gallery_sort == "fresh"}>Fresh</option>
-                <option value="popular" selected={@gallery_sort == "popular"}>Popular</option>
-                <option value="discussed" selected={@gallery_sort == "discussed"}>
-                  Discussed
-                </option>
-              </select>
+            <div class="dropdown dropdown-end w-full">
+              <label
+                tabindex="0"
+                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
+              >
+                <span>{selected_sort_label}</span>
+                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
+              </label>
+              <ul
+                tabindex="0"
+                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
+              >
+                <%= for {value, label} <- sort_options do %>
+                  <li>
+                    <button
+                      type="button"
+                      phx-click="set_gallery_sort"
+                      phx-value-sort={value}
+                      class={if @gallery_sort == value, do: "active"}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                <% end %>
+              </ul>
             </div>
-          </form>
+          </div>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-base-content/60">
-          <div>
-            Showing <span class="font-medium text-base-content">{length(image_posts)}</span>
-            image posts.
-          </div>
+        <div class="text-sm text-base-content/60">
+          Showing <span class="font-medium text-base-content">{length(image_posts)}</span>
+          image posts.
         </div>
       </div>
     </section>
@@ -460,150 +572,88 @@
             <% end %>
           </div>
         <% else %>
-          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 md:gap-1.5 lg:grid-cols-4 xl:grid-cols-5">
             <%= for photo <- image_posts do %>
               <% full_url = gallery_primary_image(photo)
-              all_urls = Jason.encode!(gallery_image_urls(photo))
               is_liked = MapSet.member?(@user_likes, photo.id)
               is_saved = MapSet.member?(@user_saved_posts, photo.id) %>
               <div
-                class="card border border-base-300 bg-base-200/80 shadow-sm overflow-hidden"
+                class="group relative aspect-square overflow-hidden bg-base-200"
                 data-post-id={photo.id}
               >
-                <%= if Elektrine.Strings.present?(photo.content_warning) do %>
-                  <div class="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
-                    <.icon
-                      name="hero-exclamation-triangle"
-                      class="w-4 h-4 text-warning flex-shrink-0"
-                    />
-                    <span class="font-medium text-sm">{photo.content_warning}</span>
-                    <span class="badge badge-sm badge-warning ml-auto">Sensitive</span>
-                  </div>
-                <% end %>
-
-                <div
+                <.link
+                  navigate={gallery_post_path(photo)}
                   class={[
-                    "relative aspect-[4/5] cursor-pointer",
+                    "block h-full w-full focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-base-100",
                     if(Elektrine.Strings.present?(photo.content_warning),
                       do: "blur-sm hover:blur-none transition-all"
                     )
                   ]}
-                  phx-click="open_image_modal"
-                  phx-value-images={all_urls}
-                  phx-value-index="0"
-                  phx-value-photo_id={photo.id}
                 >
                   <img
                     src={full_url}
                     alt={gallery_display_title(photo)}
-                    class="absolute inset-0 h-full w-full object-cover"
+                    class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                     loading="lazy"
                   />
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent">
-                  </div>
-                  <div class="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
-                    <span class="badge badge-outline backdrop-blur-sm">
-                      {gallery_source_label(photo)}
+                  <span class="sr-only">Open {gallery_display_title(photo)}</span>
+                </.link>
+
+                <div class="pointer-events-none absolute inset-0 flex items-end bg-gradient-to-t from-black/60 via-transparent to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                  <div class="flex w-full items-center justify-between gap-2 text-xs font-medium text-white drop-shadow">
+                    <span class="truncate">
+                      {gallery_creator_handle(photo) || gallery_source_label(photo)}
                     </span>
-                    <span class="badge badge-outline backdrop-blur-sm">
-                      {String.capitalize(photo.category || "gallery")}
+                    <span class="flex shrink-0 items-center gap-2">
+                      <span class="inline-flex items-center gap-1">
+                        <.icon name="hero-heart-solid" class="h-3.5 w-3.5" />
+                        {format_gallery_count(photo.like_count || 0)}
+                      </span>
+                      <span class="inline-flex items-center gap-1">
+                        <.icon name="hero-chat-bubble-left" class="h-3.5 w-3.5" />
+                        {format_gallery_count(photo.reply_count || 0)}
+                      </span>
                     </span>
-                  </div>
-                  <div class="absolute inset-x-0 bottom-0 p-4 text-white">
-                    <div class="text-xs text-white/80">
-                      {raw(gallery_creator_name_markup(photo))}
-                    </div>
-                    <h3 class="font-semibold line-clamp-1 mt-1">
-                      {gallery_display_title(photo)}
-                    </h3>
                   </div>
                 </div>
 
-                <div class="card-body p-4 gap-4">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <%= cond do %>
-                        <% photo.sender && Ecto.assoc_loaded?(photo.sender) -> %>
-                          <.link
-                            navigate={"/#{photo.sender.handle || photo.sender.username}"}
-                            class="text-left font-medium hover:underline line-clamp-1 block"
-                          >
-                            {raw(gallery_creator_name_markup(photo))}
-                          </.link>
-                        <% photo.remote_actor && Ecto.assoc_loaded?(photo.remote_actor) -> %>
-                          <.link
-                            navigate={"/remote/#{photo.remote_actor.username}@#{photo.remote_actor.domain}"}
-                            class="font-medium hover:underline line-clamp-1 block"
-                          >
-                            {raw(gallery_creator_name_markup(photo))}
-                          </.link>
-                        <% true -> %>
-                          <span class="font-medium line-clamp-1 block">
-                            {raw(gallery_creator_name_markup(photo))}
-                          </span>
-                      <% end %>
-                      <div class="text-xs text-base-content/50 mt-1 line-clamp-1">
-                        {gallery_creator_handle(photo)}
-                      </div>
-                      <%= if gallery_content_preview(photo) != "" do %>
-                        <p class={[
-                          "text-sm text-base-content/70 mt-3 line-clamp-2",
-                          if(Elektrine.Strings.present?(photo.content_warning),
-                            do: "blur-sm hover:blur-none transition-all"
-                          )
-                        ]}>
-                          {raw(gallery_content_preview(photo))}
-                        </p>
-                      <% end %>
-                    </div>
+                <%= if Elektrine.Strings.present?(photo.content_warning) do %>
+                  <span class="absolute left-2 top-2 rounded-full bg-warning px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-warning-content shadow">
+                    Sensitive
+                  </span>
+                <% end %>
 
-                    <div class="flex items-center gap-1">
-                      <button
-                        type="button"
-                        phx-click="like_photo"
-                        phx-value-photo_id={photo.id}
-                        class={[
-                          "btn btn-sm",
-                          if(is_liked, do: "btn-secondary", else: "btn-ghost")
-                        ]}
-                      >
-                        <.icon
-                          name={if is_liked, do: "hero-heart-solid", else: "hero-heart"}
-                          class="w-4 h-4"
-                        />
-                      </button>
-                      <%= if @current_user do %>
-                        <button
-                          type="button"
-                          phx-click={if is_saved, do: "unsave_post", else: "save_post"}
-                          phx-value-photo_id={photo.id}
-                          class={[
-                            "btn btn-sm",
-                            if(is_saved, do: "btn-secondary", else: "btn-ghost")
-                          ]}
-                        >
-                          <.icon
-                            name={if is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-                            class="w-4 h-4"
-                          />
-                        </button>
-                      <% end %>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center justify-between gap-3 text-xs text-base-content/60">
-                    <div class="flex items-center gap-3">
-                      <span class="flex items-center gap-1">
-                        <.icon name="hero-heart" class="w-3.5 h-3.5" />
-                        {format_gallery_count(photo.like_count || 0)}
-                      </span>
-                      <span class="flex items-center gap-1">
-                        <.icon name="hero-chat-bubble-left" class="w-3.5 h-3.5" />
-                        {format_gallery_count(photo.reply_count || 0)}
-                      </span>
-                    </div>
-                    <div>{Elektrine.Social.time_ago_in_words(photo.inserted_at)}</div>
-                  </div>
+                <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                  <button
+                    type="button"
+                    phx-click="like_photo"
+                    phx-value-photo_id={photo.id}
+                    class={[
+                      "btn btn-circle btn-xs border-0 bg-black/45 text-white backdrop-blur hover:bg-black/65",
+                      if(is_liked, do: "text-secondary", else: "")
+                    ]}
+                  >
+                    <.icon
+                      name={if is_liked, do: "hero-heart-solid", else: "hero-heart"}
+                      class="h-4 w-4"
+                    />
+                  </button>
+                  <%= if @current_user do %>
+                    <button
+                      type="button"
+                      phx-click={if is_saved, do: "unsave_post", else: "save_post"}
+                      phx-value-photo_id={photo.id}
+                      class={[
+                        "btn btn-circle btn-xs border-0 bg-black/45 text-white backdrop-blur hover:bg-black/65",
+                        if(is_saved, do: "text-secondary", else: "")
+                      ]}
+                    >
+                      <.icon
+                        name={if is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
+                        class="h-4 w-4"
+                      />
+                    </button>
+                  <% end %>
                 </div>
               </div>
             <% end %>

@@ -191,7 +191,7 @@
                 user_follows={@user_follows}
                 pending_follows={@pending_follows}
                 remote_follow_overrides={@remote_follow_overrides}
-                counts_loading={!is_nil(@platform_counts_load_ref)}
+                counts_loading={!is_nil(assigns[:platform_counts_load_ref])}
               />
             </div>
           <% else %>
@@ -452,7 +452,7 @@
                   on_comment="toggle_reply_form"
                   show_quote={false}
                   size={:sm}
-                  counts_loading={!is_nil(@platform_counts_load_ref)}
+                  counts_loading={!is_nil(assigns[:platform_counts_load_ref])}
                 />
 
                 <.post_reactions
@@ -588,7 +588,7 @@
                     pending_follows={@pending_follows}
                     remote_follow_overrides={@remote_follow_overrides}
                     remote_poll_vote={@pending_remote_poll_vote}
-                    counts_loading={!is_nil(@platform_counts_load_ref)}
+                    counts_loading={!is_nil(assigns[:platform_counts_load_ref])}
                   />
                 </div>
               <% else %>
@@ -1328,7 +1328,7 @@
                           show_quote={false}
                           on_comment="toggle_reply_form"
                           size={:sm}
-                          counts_loading={!is_nil(@platform_counts_load_ref)}
+                          counts_loading={!is_nil(assigns[:platform_counts_load_ref])}
                         />
                         
 <!-- Emoji Reactions inline with actions -->
@@ -1537,14 +1537,14 @@
                       />
                       <span class="text-sm">
                         <%= if missing_remote_replies > 0 do %>
-                          Syncing comments from the remote thread. {missing_remote_replies} more {if missing_remote_replies ==
-                                                                                                       1,
-                                                                                                     do:
-                                                                                                       "reply is",
-                                                                                                     else:
-                                                                                                       "replies are"} still loading.
+                          Importing comments from the remote thread. {missing_remote_replies} {if missing_remote_replies ==
+                                                                                                    1,
+                                                                                                  do:
+                                                                                                    "comment is",
+                                                                                                  else:
+                                                                                                    "comments are"} not cached yet.
                         <% else %>
-                          Syncing comments from the remote thread...
+                          Importing comments from the remote thread...
                         <% end %>
                       </span>
                     </div>

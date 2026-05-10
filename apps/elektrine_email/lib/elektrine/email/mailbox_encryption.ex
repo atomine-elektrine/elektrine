@@ -10,6 +10,8 @@ defmodule Elektrine.Email.MailboxEncryption do
   alias Elektrine.Email.Mailbox
 
   @placeholder_subject "Encrypted message"
+  @placeholder_sender "Encrypted sender"
+  @placeholder_recipients "Encrypted recipients"
   @placeholder_attachment_filename "Encrypted attachment"
   @placeholder_attachment_content_type "application/octet-stream"
 
@@ -26,6 +28,16 @@ defmodule Elektrine.Email.MailboxEncryption do
   Returns the generic subject shown server-side when the real subject is protected.
   """
   def placeholder_subject, do: @placeholder_subject
+
+  @doc """
+  Returns the generic sender shown server-side when the real sender is protected.
+  """
+  def placeholder_sender, do: @placeholder_sender
+
+  @doc """
+  Returns the generic recipient text shown server-side when real recipients are protected.
+  """
+  def placeholder_recipients, do: @placeholder_recipients
 
   @doc """
   Returns true when an attachment entry is protected by mailbox encryption.
@@ -83,6 +95,10 @@ defmodule Elektrine.Email.MailboxEncryption do
   def valid_payload?(_payload, _expected_kind), do: false
 
   defp encrypt_payload(attrs, public_key_pem) do
+    from = get_attr(attrs, "from", :from)
+    to = get_attr(attrs, "to", :to)
+    cc = get_attr(attrs, "cc", :cc)
+    bcc = get_attr(attrs, "bcc", :bcc)
     subject = get_attr(attrs, "subject", :subject)
     text_body = get_attr(attrs, "text_body", :text_body)
     html_body = get_attr(attrs, "html_body", :html_body)
@@ -90,10 +106,24 @@ defmodule Elektrine.Email.MailboxEncryption do
 
     with {:ok, public_key} <- decode_public_key(public_key_pem),
          {:ok, envelope} <-
-           maybe_encrypt_message_fields(subject, text_body, html_body, attachments, public_key),
+           maybe_encrypt_message_fields(
+             from,
+             to,
+             cc,
+             bcc,
+             subject,
+             text_body,
+             html_body,
+             attachments,
+             public_key
+           ),
          {:ok, encrypted_attachments} <- encrypt_attachments(attachments, public_key) do
       {:ok,
        attrs
+       |> put_attr(:from, placeholder_or_original(from, @placeholder_sender))
+       |> put_attr(:to, placeholder_or_original(to, @placeholder_recipients))
+       |> put_attr(:cc, placeholder_or_original(cc, @placeholder_recipients))
+       |> put_attr(:bcc, placeholder_or_original(bcc, @placeholder_recipients))
        |> put_attr(:subject, @placeholder_subject)
        |> put_attr(:text_body, nil)
        |> put_attr(:html_body, nil)
@@ -108,16 +138,31 @@ defmodule Elektrine.Email.MailboxEncryption do
     _ -> {:error, :private_storage_encryption_failed}
   end
 
-  defp sensitive_content_blank?(subject, text_body, html_body) do
-    blank?(subject) and blank?(text_body) and blank?(html_body)
+  defp sensitive_content_blank?(from, to, cc, bcc, subject, text_body, html_body) do
+    Enum.all?([from, to, cc, bcc, subject, text_body, html_body], &blank?/1)
   end
 
-  defp maybe_encrypt_message_fields(subject, text_body, html_body, attachments, public_key) do
-    if sensitive_content_blank?(subject, text_body, html_body) and attachments in [nil, %{}] do
+  defp maybe_encrypt_message_fields(
+         from,
+         to,
+         cc,
+         bcc,
+         subject,
+         text_body,
+         html_body,
+         attachments,
+         public_key
+       ) do
+    if sensitive_content_blank?(from, to, cc, bcc, subject, text_body, html_body) and
+         attachments in [nil, %{}] do
       {:ok, nil}
     else
       encrypt_json(
         %{
+          "from" => from,
+          "to" => to,
+          "cc" => cc,
+          "bcc" => bcc,
           "subject" => subject,
           "text_body" => text_body,
           "html_body" => html_body
@@ -225,6 +270,9 @@ defmodule Elektrine.Email.MailboxEncryption do
   defp blank?(value) when is_binary(value), do: not Elektrine.Strings.present?(value)
   defp blank?(nil), do: true
   defp blank?(_value), do: false
+
+  defp placeholder_or_original(value, _placeholder) when value in [nil, ""], do: value
+  defp placeholder_or_original(_value, placeholder), do: placeholder
 
   defp decode_public_key(public_key_pem) when is_binary(public_key_pem) do
     case :public_key.pem_decode(public_key_pem) do

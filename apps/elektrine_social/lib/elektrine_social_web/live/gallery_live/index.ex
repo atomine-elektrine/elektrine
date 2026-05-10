@@ -2,11 +2,10 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   use ElektrineSocialWeb, :live_view
   alias Elektrine.PubSubTopics
   alias Elektrine.Social
-  import Phoenix.HTML, only: [raw: 1]
   import ElektrineSocialWeb.Components.Platform.ENav
 
   import ElektrineWeb.HtmlHelpers,
-    only: [actor_display_name_text: 1, plain_text_content: 1, render_display_name_with_emojis: 2]
+    only: [actor_display_name_text: 1, plain_text_content: 1]
 
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   import ElektrineWeb.Live.NotificationHelpers
@@ -86,6 +85,17 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   @impl true
+  def handle_params(params, _uri, socket) do
+    search = normalize_gallery_search(params["q"])
+
+    if search == socket.assigns.gallery_search do
+      {:noreply, socket}
+    else
+      {:noreply, socket |> assign(:gallery_search, search) |> apply_gallery_filter()}
+    end
+  end
+
+  @impl true
   def handle_event("set_filter", %{"filter" => filter}, socket) do
     if socket.assigns.current_filter == filter do
       {:noreply, socket}
@@ -125,12 +135,11 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   def handle_event("search_gallery", %{"query" => query}, socket) do
-    {:noreply,
-     socket |> assign(:gallery_search, String.trim(query || "")) |> apply_gallery_filter()}
+    {:noreply, push_patch(socket, to: gallery_search_path(query))}
   end
 
   def handle_event("clear_gallery_search", _params, socket) do
-    {:noreply, socket |> assign(:gallery_search, "") |> apply_gallery_filter()}
+    {:noreply, push_patch(socket, to: gallery_search_path(""))}
   end
 
   def handle_event("stop_propagation", _params, socket) do
@@ -139,7 +148,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
 
   def handle_event("apply_tag_search", %{"tag" => tag}, socket) do
     normalized_tag = tag |> to_string() |> String.trim_leading("#") |> String.trim()
-    {:noreply, socket |> assign(:gallery_search, normalized_tag) |> apply_gallery_filter()}
+    {:noreply, push_patch(socket, to: gallery_search_path(normalized_tag))}
   end
 
   def handle_event("toggle_upload_modal", _params, socket) do
@@ -1367,6 +1376,16 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     assign(socket, :filtered_posts, filtered_posts)
   end
 
+  defp gallery_search_path(query) do
+    case normalize_gallery_search(query) do
+      "" -> "/gallery"
+      search -> "/gallery?#{URI.encode_query(%{"q" => search})}"
+    end
+  end
+
+  defp normalize_gallery_search(query) when is_binary(query), do: String.trim(query)
+  defp normalize_gallery_search(_), do: ""
+
   defp filter_posts_by_category(posts, "all") do
     posts
   end
@@ -1534,13 +1553,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     end
   end
 
-  defp gallery_creator_name_markup(post) do
-    render_display_name_with_emojis(
-      gallery_creator_name(post) || "Unknown creator",
-      gallery_creator_domain(post)
-    )
-  end
-
   defp gallery_source_label(post) do
     cond do
       post.federated && post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) ->
@@ -1551,14 +1563,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
 
       true ->
         "Local"
-    end
-  end
-
-  defp gallery_creator_domain(post) do
-    if post.remote_actor && Ecto.assoc_loaded?(post.remote_actor) do
-      post.remote_actor.domain
-    else
-      nil
     end
   end
 
@@ -1578,14 +1582,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     end
   end
 
-  defp gallery_content_preview(post) do
-    ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
-      post.content,
-      ElektrineWeb.Components.Social.PostUtilities.get_instance_domain(post),
-      140
-    )
-  end
-
   defp gallery_plain_text(nil), do: ""
   defp gallery_plain_text(""), do: ""
 
@@ -1599,12 +1595,6 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     (post.media_urls || [])
     |> Enum.map(&gallery_attachment_url(&1, post))
     |> Enum.find(&gallery_image_url?/1)
-  end
-
-  defp gallery_image_urls(post) do
-    (post.media_urls || [])
-    |> Enum.map(&gallery_attachment_url(&1, post))
-    |> Enum.filter(&gallery_image_url?/1)
   end
 
   defp gallery_attachment_url(url, %{federated: true}) when is_binary(url) do
@@ -1623,6 +1613,10 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     do: String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)
 
   defp gallery_image_url?(_), do: false
+
+  defp gallery_post_path(%{id: id}) when is_integer(id), do: Elektrine.Paths.remote_post_path(id)
+
+  defp gallery_post_path(post), do: Elektrine.Paths.post_path(post)
 
   defp gallery_empty_state(assigns) do
     cond do

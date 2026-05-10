@@ -20,12 +20,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
         to_string(post.id) == to_string(id)
       end) || fetch_post_for_navigation(id)
 
-    reply_thread_path = reply_thread_path(post, id)
-
-    path =
-      if is_binary(reply_thread_path), do: reply_thread_path, else: timeline_post_path(post || id)
-
-    {:noreply, push_navigate(socket, to: path)}
+    {:noreply, push_navigate(socket, to: timeline_post_path(post || id))}
   end
 
   def handle_event("navigate_to_post", _params, socket) do
@@ -126,65 +121,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     {:noreply, push_navigate(socket, to: "/remote/#{username}@#{domain}")}
   end
 
-  defp reply_thread_path(nil, _id), do: nil
-
-  defp reply_thread_path(post, id) do
-    cond do
-      parent_id = local_reply_parent_id(post) ->
-        parent_path = Paths.remote_post_path(parent_id)
-        parent_path <> Paths.post_anchor(id)
-
-      in_reply_to = metadata_in_reply_to(post) ->
-        Paths.anchored_post_path(in_reply_to, id)
-
-      true ->
-        nil
-    end
-  end
-
-  defp local_reply_parent_id(%{reply_to_id: reply_to_id}) when is_integer(reply_to_id),
-    do: reply_to_id
-
-  defp local_reply_parent_id(%{reply_to_id: reply_to_id}) when is_binary(reply_to_id) do
-    case Integer.parse(reply_to_id) do
-      {value, ""} -> value
-      _ -> nil
-    end
-  end
-
-  defp local_reply_parent_id(_), do: nil
-
-  defp metadata_in_reply_to(post) do
-    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata")
-
-    if is_map(metadata) do
-      [
-        Map.get(metadata, "inReplyTo"),
-        Map.get(metadata, "in_reply_to"),
-        Map.get(metadata, :inReplyTo),
-        Map.get(metadata, :in_reply_to)
-      ]
-      |> Enum.find_value(&normalize_in_reply_to_ref/1)
-    else
-      nil
-    end
-  end
-
-  defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
-  defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)
-  defp normalize_in_reply_to_ref(%{id: id}), do: normalize_in_reply_to_ref(id)
-  defp normalize_in_reply_to_ref(%{href: href}), do: normalize_in_reply_to_ref(href)
-  defp normalize_in_reply_to_ref([first | _]), do: normalize_in_reply_to_ref(first)
-
-  defp normalize_in_reply_to_ref(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp normalize_in_reply_to_ref(_), do: nil
-
   defp fetch_post_for_navigation(id) do
     with {post_id, ""} <- Integer.parse(to_string(id)),
          %Elektrine.Social.Message{} = post <-
@@ -195,16 +131,12 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     end
   end
 
-  defp timeline_post_path(%{federated: true, activitypub_id: activitypub_id})
-       when is_binary(activitypub_id) and activitypub_id != "",
-       do: "/remote/post/#{URI.encode_www_form(activitypub_id)}"
-
-  defp timeline_post_path(%{id: id}) when is_integer(id), do: timeline_post_path(id)
-  defp timeline_post_path(id) when is_integer(id), do: "/timeline/post/#{id}"
+  defp timeline_post_path(%{id: id}) when is_integer(id), do: Paths.remote_post_path(id)
+  defp timeline_post_path(id) when is_integer(id), do: Paths.remote_post_path(id)
 
   defp timeline_post_path(id) when is_binary(id) do
     case Integer.parse(id) do
-      {int, ""} -> timeline_post_path(int)
+      {int, ""} -> Paths.remote_post_path(int)
       _ -> Paths.post_path(id)
     end
   end

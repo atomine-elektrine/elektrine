@@ -971,7 +971,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     refute html =~ "Local reply to federated parent"
   end
 
-  test "navigate_to_post routes federated posts to remote post detail", %{conn: conn} do
+  test "navigate_to_post routes federated posts to local remote post detail", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -993,10 +993,10 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert render(view) =~ "Federated timeline post"
 
     render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
-    assert_redirect(view, "/remote/post/#{URI.encode_www_form(activitypub_id)}")
+    assert_redirect(view, "/remote/post/#{post.id}")
   end
 
-  test "navigate_to_post routes local posts to timeline post detail", %{conn: conn} do
+  test "navigate_to_post routes local posts to remote post detail", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -1011,10 +1011,10 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert render(view) =~ "Local timeline post"
 
     render_hook(view, "navigate_to_post", %{"id" => to_string(post.id)})
-    assert_redirect(view, ~p"/timeline/post/#{post.id}")
+    assert_redirect(view, ~p"/remote/post/#{post.id}")
   end
 
-  test "navigate_to_post opens parent thread for local replies", %{conn: conn} do
+  test "navigate_to_post opens local replies directly", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -1033,10 +1033,10 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
-    assert_redirect(view, "/remote/post/#{parent_post.id}#message-#{reply_post.id}")
+    assert_redirect(view, "/remote/post/#{reply_post.id}")
   end
 
-  test "navigate_to_post opens metadata parent thread for federated replies", %{conn: conn} do
+  test "navigate_to_post opens metadata-backed federated replies directly", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()
 
@@ -1062,10 +1062,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     render_hook(view, "navigate_to_post", %{"id" => to_string(reply_post.id)})
 
-    assert_redirect(
-      view,
-      "/remote/post/#{URI.encode_www_form(parent_ref)}#message-#{reply_post.id}"
-    )
+    assert_redirect(view, "/remote/post/#{reply_post.id}")
   end
 
   test "timeline replies render ancestor context stack cards", %{conn: conn} do
