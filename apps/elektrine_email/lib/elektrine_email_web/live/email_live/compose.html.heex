@@ -832,7 +832,7 @@
                               class="textarea w-full resize-none text-sm border-x border-b border-base-300 rounded-b-lg focus:outline-none focus:border-secondary"
                               placeholder="Type your new message here..."
                               phx-hook="ReplyMarkdownEditor"
-                            ></textarea>
+                            ><%= @form[:new_message].value %></textarea>
                           </div>
                           <!-- Preview Panel -->
                           <div id="reply-editor-preview" class="hidden">

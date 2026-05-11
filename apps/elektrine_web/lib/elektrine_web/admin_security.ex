@@ -236,6 +236,30 @@ defmodule ElektrineWeb.AdminSecurity do
 
   def recent_admin_confirmation?(_session), do: false
 
+  def validate_live_admin_action(assigns, opts \\ [])
+
+  def validate_live_admin_action(assigns, opts) when is_map(assigns) do
+    user = assigns[:current_user] || assigns["current_user"]
+
+    with %{is_admin: true, banned: false} <- user,
+         :ok <- ensure_live_passkey_enrolled(user),
+         :ok <- ensure_live_assign_passkey_auth_method(assigns),
+         :ok <- ensure_live_assign_access_ttl(assigns),
+         :ok <- ensure_live_assign_elevation(assigns) do
+      if Keyword.get(opts, :require_recent_confirmation, true) and
+           not recent_admin_confirmation?(live_assign_session(assigns)) do
+        {:error, :action_grant_required}
+      else
+        :ok
+      end
+    else
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  def validate_live_admin_action(_assigns, _opts), do: {:error, :unauthorized}
+
   defp ensure_passkey_enrolled(conn, user) do
     if passkey_required?() and not Passkeys.has_passkeys?(user) do
       {:error, :passkey_required, conn}
@@ -262,6 +286,14 @@ defmodule ElektrineWeb.AdminSecurity do
 
   defp ensure_live_passkey_auth_method(session) do
     if passkey_required?() and session_value(session, @admin_auth_method_key) != "passkey" do
+      {:error, :passkey_auth_required}
+    else
+      :ok
+    end
+  end
+
+  defp ensure_live_assign_passkey_auth_method(assigns) do
+    if passkey_required?() and live_assign_value(assigns, @admin_auth_method_key) != "passkey" do
       {:error, :passkey_auth_required}
     else
       :ok
@@ -317,6 +349,22 @@ defmodule ElektrineWeb.AdminSecurity do
     end
   end
 
+  defp ensure_live_assign_access_ttl(assigns) do
+    now = now_seconds()
+
+    case live_assign_value(assigns, @admin_access_expires_at_key) do
+      expires_at when is_integer(expires_at) ->
+        if expires_at >= now do
+          :ok
+        else
+          {:error, :admin_access_expired}
+        end
+
+      _ ->
+        {:error, :admin_access_expired}
+    end
+  end
+
   defp ensure_elevated(conn) do
     if String.starts_with?(conn.request_path, @admin_security_path) do
       {:ok, conn}
@@ -341,6 +389,22 @@ defmodule ElektrineWeb.AdminSecurity do
     now = now_seconds()
 
     case session_value(session, @admin_elevated_until_key) do
+      elevated_until when is_integer(elevated_until) ->
+        if elevated_until >= now do
+          :ok
+        else
+          {:error, :elevation_required}
+        end
+
+      _ ->
+        {:error, :elevation_required}
+    end
+  end
+
+  defp ensure_live_assign_elevation(assigns) do
+    now = now_seconds()
+
+    case live_assign_value(assigns, @admin_elevated_until_key) do
       elevated_until when is_integer(elevated_until) ->
         if elevated_until >= now do
           :ok
@@ -544,6 +608,16 @@ defmodule ElektrineWeb.AdminSecurity do
 
   defp session_value(session, key) when is_map(session) do
     session[Atom.to_string(key)] || session[key]
+  end
+
+  defp live_assign_session(assigns) do
+    %{
+      @admin_last_resign_at_key => live_assign_value(assigns, @admin_last_resign_at_key)
+    }
+  end
+
+  defp live_assign_value(assigns, key) when is_map(assigns) do
+    assigns[key] || assigns[Atom.to_string(key)]
   end
 
   defp nonce do

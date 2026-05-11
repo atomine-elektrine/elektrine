@@ -41,11 +41,13 @@ defmodule ElektrineSocialWeb.MastodonAPI.ScheduledStatusController do
 
   def update(%{assigns: %{user: user}} = conn, %{"id" => id} = params) do
     with {:ok, draft} <- fetch_draft(user.id, id),
+         {:ok, scheduled_at} <- parse_scheduled_at_update(params),
          {:ok, updated} <-
            Drafts.update_draft(draft.id, user.id,
-             scheduled_at: parse_datetime(params["scheduled_at"]),
+             scheduled_at: scheduled_at,
              content: params["status"] || draft.content,
-             content_warning: params["spoiler_text"] || draft.content_warning
+             content_warning: params["spoiler_text"] || draft.content_warning,
+             sensitive: parse_sensitive(params, draft.sensitive)
            ) do
       json(conn, render_scheduled_status(updated))
     end
@@ -100,12 +102,36 @@ defmodule ElektrineSocialWeb.MastodonAPI.ScheduledStatusController do
     end
   end
 
-  defp parse_datetime(nil), do: nil
+  defp parse_scheduled_at_update(%{"scheduled_at" => value}) do
+    parse_scheduled_at(value)
+  end
 
-  defp parse_datetime(value) when is_binary(value) do
+  defp parse_scheduled_at_update(_params),
+    do: {:error, :unprocessable_entity, "scheduled_at is required"}
+
+  defp parse_scheduled_at(nil), do: {:error, :unprocessable_entity, "scheduled_at is required"}
+  defp parse_scheduled_at(""), do: {:error, :unprocessable_entity, "scheduled_at is required"}
+
+  defp parse_scheduled_at(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
+      {:ok, datetime, _offset} ->
+        if DateTime.compare(datetime, DateTime.utc_now()) == :gt do
+          {:ok, DateTime.truncate(datetime, :second)}
+        else
+          {:error, :unprocessable_entity, "scheduled_at must be in the future"}
+        end
+
+      _ ->
+        {:error, :unprocessable_entity, "scheduled_at must be a valid ISO 8601 datetime"}
+    end
+  end
+
+  defp parse_scheduled_at(_value), do: {:error, :unprocessable_entity, "scheduled_at is invalid"}
+
+  defp parse_sensitive(params, default) do
+    case Map.fetch(params, "sensitive") do
+      {:ok, value} -> value in [true, "true", "1", 1]
+      :error -> default || false
     end
   end
 end

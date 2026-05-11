@@ -1658,6 +1658,64 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert json_response(conn, 400) == %{"error" => "Invalid activity"}
     end
 
+    test "applies actor domain rate limit after early IP rate limit check", %{
+      conn: conn,
+      user: user
+    } do
+      previous_config =
+        Application.get_env(:elektrine, Elektrine.ActivityPub.InboxRateLimiter, [])
+
+      Application.put_env(:elektrine, Elektrine.ActivityPub.InboxRateLimiter,
+        max_per_domain_per_minute: 1,
+        max_per_minute: 1_000,
+        max_global_per_second: 1_000
+      )
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, Elektrine.ActivityPub.InboxRateLimiter, previous_config)
+        reset_inbox_rate_limit!()
+      end)
+
+      remote_actor = remote_actor_fixture("domainlimited")
+      path = "/users/#{user.username}/inbox"
+
+      first_activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Follow",
+        "actor" => remote_actor.uri,
+        "object" => "https://localhost/users/#{user.username}"
+      }
+
+      first_conn =
+        conn
+        |> Plug.Conn.assign(:activitypub_rate_limit_checked, true)
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post(path, first_activity)
+
+      assert json_response(first_conn, 202) == %{}
+
+      second_activity = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "id" => "https://remote.example/activities/#{System.unique_integer([:positive])}",
+        "type" => "Follow",
+        "actor" => remote_actor.uri,
+        "object" => "https://localhost/users/#{user.username}"
+      }
+
+      second_conn =
+        build_conn()
+        |> Plug.Conn.assign(:activitypub_rate_limit_checked, true)
+        |> Plug.Conn.assign(:valid_signature, true)
+        |> Plug.Conn.assign(:signature_actor, remote_actor)
+        |> put_req_header("content-type", "application/activity+json")
+        |> post(path, second_activity)
+
+      assert json_response(second_conn, 429) == %{"error" => "Rate limited"}
+    end
+
     test "accepts signed activities when actor uses Mastodon profile URL form", %{
       conn: conn,
       user: user

@@ -313,7 +313,8 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
     has_content =
       Elektrine.Strings.present?(email_params["subject"]) ||
-        Elektrine.Strings.present?(email_params["body"])
+        Elektrine.Strings.present?(email_params["body"]) ||
+        Elektrine.Strings.present?(email_params["new_message"])
 
     if has_content do
       socket = assign(socket, :draft_status, :saving)
@@ -971,10 +972,10 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       cc: Enum.join(socket.assigns.cc_tags, ", "),
       bcc: Enum.join(socket.assigns.bcc_tags, ", "),
       subject: email_params["subject"] || "",
-      text_body: email_params["body"] || "",
+      text_body: draft_body(email_params, socket.assigns.mode),
       html_body:
         html_body_for_format(
-          email_params["body"] || "",
+          draft_body(email_params, socket.assigns.mode),
           body_format(email_params, socket.assigns.body_format)
         ),
       metadata: %{"body_format" => body_format(email_params, socket.assigns.body_format)},
@@ -1553,6 +1554,14 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp blank_reply?(_mode, _email_params), do: false
+
+  defp draft_body(email_params, mode) when mode in ["reply", "reply_all", "forward"] do
+    email_params
+    |> Map.get("new_message", email_params["body"] || "")
+    |> normalize_message_body()
+  end
+
+  defp draft_body(email_params, _mode), do: email_params["body"] || ""
 
   defp combine_reply_text(new_message, quoted_body) do
     [normalize_message_body(new_message), normalize_message_body(quoted_body)]

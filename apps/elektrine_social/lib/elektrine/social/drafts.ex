@@ -1,5 +1,6 @@
 defmodule Elektrine.Social.Drafts do
   @moduledoc "Context for managing post drafts.\nAllows users to save, edit, and publish draft posts.\n"
+  import Ecto.Changeset
   import Ecto.Query, warn: false
   alias Elektrine.Repo
   alias Elektrine.Social
@@ -22,6 +23,35 @@ defmodule Elektrine.Social.Drafts do
     |> Repo.all()
   end
 
+  @doc "Lists scheduled drafts that are due to publish."
+  def list_due_scheduled_drafts(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    now = Keyword.get(opts, :now, DateTime.utc_now()) |> DateTime.truncate(:second)
+
+    from(m in Message,
+      join: c in Conversation,
+      on: c.id == m.conversation_id,
+      where:
+        m.is_draft == true and c.type == "timeline" and not is_nil(m.scheduled_at) and
+          m.scheduled_at <= ^now and is_nil(m.deleted_at),
+      order_by: [asc: m.scheduled_at, asc: m.id],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
+  @doc "Publishes scheduled drafts whose scheduled time has arrived."
+  def publish_due_scheduled_drafts(opts \\ []) do
+    opts
+    |> list_due_scheduled_drafts()
+    |> Enum.reduce(%{published: 0, failed: 0}, fn draft, acc ->
+      case publish_draft(draft.id, draft.sender_id) do
+        {:ok, _post} -> %{acc | published: acc.published + 1}
+        {:error, _reason} -> %{acc | failed: acc.failed + 1}
+      end
+    end)
+  end
+
   @doc "Gets a single draft by ID.\nReturns nil if not found or not owned by user.\n"
   def get_draft(draft_id, user_id) do
     from(m in Message,
@@ -33,7 +63,7 @@ defmodule Elektrine.Social.Drafts do
     |> Repo.one()
   end
 
-  @doc "Saves a new draft or updates an existing one.\n\n## Options\n  * `:content` - The post content\n  * `:title` - Optional title\n  * `:visibility` - Post visibility (defaults to \"followers\")\n  * `:media_urls` - List of media URLs\n  * `:alt_texts` - Map of media alt texts\n  * `:content_warning` - Optional content warning\n  * `:category` - Gallery category\n"
+  @doc "Saves a new draft or updates an existing one.\n\n## Options\n  * `:content` - The post content\n  * `:title` - Optional title\n  * `:visibility` - Post visibility (defaults to \"followers\")\n  * `:media_urls` - List of media URLs\n  * `:alt_texts` - Map of media alt texts\n  * `:content_warning` - Optional content warning\n  * `:sensitive` - Whether media/content should be treated as sensitive\n  * `:category` - Gallery category\n"
   def save_draft(user_id, opts \\ []) do
     draft_id = Keyword.get(opts, :draft_id)
 
@@ -53,6 +83,7 @@ defmodule Elektrine.Social.Drafts do
     base_media_metadata = Keyword.get(opts, :media_metadata, %{})
     alt_texts = Keyword.get(opts, :alt_texts, %{})
     content_warning = Keyword.get(opts, :content_warning)
+    sensitive = Keyword.get(opts, :sensitive, false)
     scheduled_at = Keyword.get(opts, :scheduled_at)
     category = Keyword.get(opts, :category)
     post_type = Keyword.get(opts, :post_type, "post")
@@ -81,6 +112,7 @@ defmodule Elektrine.Social.Drafts do
       visibility: visibility,
       post_type: post_type,
       content_warning: content_warning,
+      sensitive: sensitive,
       category: category,
       is_draft: true,
       scheduled_at: scheduled_at
@@ -112,6 +144,7 @@ defmodule Elektrine.Social.Drafts do
           )
 
         content_warning = Keyword.get(opts, :content_warning, draft.content_warning)
+        sensitive = Keyword.get(opts, :sensitive, draft.sensitive)
         scheduled_at = Keyword.get(opts, :scheduled_at, draft.scheduled_at)
         category = Keyword.get(opts, :category, draft.category)
 
@@ -135,6 +168,7 @@ defmodule Elektrine.Social.Drafts do
           media_metadata: media_metadata,
           visibility: visibility,
           content_warning: content_warning,
+          sensitive: sensitive,
           category: category,
           scheduled_at: scheduled_at
         }
@@ -153,40 +187,56 @@ defmodule Elektrine.Social.Drafts do
         has_content = Elektrine.Strings.present?(draft.content)
         has_media = draft.media_urls && draft.media_urls != []
 
-        if !has_content && !has_media do
-          {:error, :empty_draft}
-        else
-          result = draft |> Message.changeset(%{is_draft: false}) |> Repo.update()
+        cond do
+          scheduled_for_future?(draft.scheduled_at) ->
+            {:error, :scheduled_for_future}
 
-          case result do
-            {:ok, published_post} ->
-              if !Enum.empty?(draft.extracted_hashtags || []) do
-                HashtagExtractor.process_hashtags_for_message(
-                  published_post.id,
-                  draft.extracted_hashtags
-                )
-              end
+          !has_content && !has_media ->
+            {:error, :empty_draft}
 
-              if published_post.content do
-                Social.notify_mentions(published_post.content, user_id, published_post.id)
-              end
+          true ->
+            now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 
-              Social.broadcast_timeline_post(published_post)
+            result =
+              draft
+              |> change(%{is_draft: false, scheduled_at: nil, inserted_at: now, updated_at: now})
+              |> Repo.update()
 
-              if published_post.visibility in ["public", "followers"] do
-                Elektrine.Async.start(fn ->
-                  preloaded = Repo.preload(published_post, :sender)
-                  Elektrine.ActivityPub.Outbox.federate_post(preloaded)
-                end)
-              end
+            case result do
+              {:ok, published_post} ->
+                if !Enum.empty?(draft.extracted_hashtags || []) do
+                  HashtagExtractor.process_hashtags_for_message(
+                    published_post.id,
+                    draft.extracted_hashtags
+                  )
+                end
 
-              {:ok, published_post}
+                if published_post.content do
+                  Social.notify_mentions(published_post.content, user_id, published_post.id)
+                end
 
-            error ->
-              error
-          end
+                Social.broadcast_timeline_post(published_post)
+
+                if published_post.visibility in ["public", "followers"] do
+                  Elektrine.Async.start(fn ->
+                    preloaded = Repo.preload(published_post, :sender)
+                    Elektrine.ActivityPub.Outbox.federate_post(preloaded)
+                  end)
+                end
+
+                {:ok, published_post}
+
+              error ->
+                error
+            end
         end
     end
+  end
+
+  defp scheduled_for_future?(nil), do: false
+
+  defp scheduled_for_future?(%DateTime{} = scheduled_at) do
+    DateTime.compare(scheduled_at, DateTime.utc_now()) == :gt
   end
 
   @doc "Deletes a draft (soft delete).\n"

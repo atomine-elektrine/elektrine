@@ -370,6 +370,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
         parse_session_int(session[Atom.to_string(UserAuth.recent_auth_session_key())])
       )
 
+    socket = maybe_assign_admin_security_metadata(socket, session)
+
     # Add impersonation status
     socket = assign(socket, :is_impersonating, session["impersonating_admin_id"] != nil)
 
@@ -398,6 +400,15 @@ defmodule ElektrineWeb.Live.AuthHooks do
       socket
     end
   end
+
+  defp maybe_assign_admin_security_metadata(
+         %{assigns: %{current_user: %{is_admin: true}}} = socket,
+         session
+       ) do
+    assign_admin_security_metadata(socket, session)
+  end
+
+  defp maybe_assign_admin_security_metadata(socket, _session), do: socket
 
   # Helper function to fetch user by token (copied from user_auth.ex)
   defp fetch_user_by_token(token) do

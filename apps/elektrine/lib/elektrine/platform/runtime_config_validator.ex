@@ -16,6 +16,12 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     "INTERNAL_API_KEY"
   ]
   @derived_secret_roots ["ELEKTRINE_MASTER_SECRET"]
+  @encryption_secret_keys [
+    "ENCRYPTION_MASTER_SECRET",
+    "ENCRYPTION_KEY_SALT",
+    "ENCRYPTION_SEARCH_SALT"
+  ]
+  @unencrypted_prod_override_key "ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA"
 
   def validate!(opts \\ []) do
     case validate(opts) do
@@ -45,6 +51,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     errors =
       []
       |> maybe_validate_session_secrets(environment, env)
+      |> maybe_validate_encryption_secrets(environment, env)
       |> maybe_validate_email(enabled_modules, env)
       |> maybe_validate_vpn(enabled_modules, env)
 
@@ -69,6 +76,27 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
   end
 
   defp maybe_validate_session_secrets(errors, _environment, _env), do: errors
+
+  defp maybe_validate_encryption_secrets(errors, :prod, env) do
+    cond do
+      override_enabled?(env, @unencrypted_prod_override_key) ->
+        errors
+
+      Enum.any?(@derived_secret_roots, &present?(env_value(env, &1))) ->
+        errors
+
+      Enum.all?(@encryption_secret_keys, &present?(env_value(env, &1))) ->
+        errors
+
+      true ->
+        [
+          "production requires ENCRYPTION_MASTER_SECRET, ENCRYPTION_KEY_SALT, and ENCRYPTION_SEARCH_SALT, or ELEKTRINE_MASTER_SECRET; set ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA=true only if unencrypted production data is intentional"
+          | errors
+        ]
+    end
+  end
+
+  defp maybe_validate_encryption_secrets(errors, _environment, _env), do: errors
 
   defp maybe_validate_email(errors, enabled_modules, env) do
     if :email in enabled_modules do
@@ -158,6 +186,19 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp present?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
   defp present?(_value), do: false
+
+  defp override_enabled?(env, key) do
+    env
+    |> env_value(key)
+    |> truthy?()
+  end
+
+  defp truthy?(value) when is_binary(value) do
+    normalized = value |> String.trim() |> String.downcase()
+    normalized in ["1", "true", "yes"]
+  end
+
+  defp truthy?(_value), do: false
 
   defp format_errors(errors) do
     """

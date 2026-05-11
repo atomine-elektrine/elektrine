@@ -58,6 +58,7 @@ defmodule Elektrine.Social.HashtagExtractor do
         where:
           h.normalized_name == ^normalized_name and
             m.visibility in ["public", "unlisted"] and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             (m.sender_id not in ^blocked_user_ids or is_nil(m.sender_id)) and

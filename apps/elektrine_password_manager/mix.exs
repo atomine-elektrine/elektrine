@@ -37,7 +37,7 @@ defmodule ElektrinePasswordManager.MixProject do
   defp deps do
     [
       internal_dep(:elektrine),
-      {:phoenix, "== 1.8.5"},
+      {:phoenix, "== 1.8.7"},
       {:phoenix_html, "== 4.3.0"},
       {:phoenix_live_view, "== 1.1.28"},
       {:jason, "== 1.4.4"}

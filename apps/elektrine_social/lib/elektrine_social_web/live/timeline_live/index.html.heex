@@ -760,6 +760,33 @@
                   id="timeline-post-textarea"
                   phx-debounce="2000"
                 ><%= @new_post_content %></textarea>
+                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <label class="form-control w-full">
+                    <div class="label py-1">
+                      <span class="label-text text-xs font-medium">Schedule send</span>
+                      <span class="label-text-alt text-xs opacity-60">UTC</span>
+                    </div>
+                    <input
+                      type="datetime-local"
+                      name="scheduled_at"
+                      value={@new_post_scheduled_at || ""}
+                      phx-change="update_scheduled_at"
+                      class="input input-bordered input-sm w-full"
+                      id="post-composer-scheduled-at"
+                    />
+                  </label>
+
+                  <%= if Elektrine.Strings.present?(@new_post_scheduled_at) do %>
+                    <button
+                      type="button"
+                      phx-click="update_scheduled_at"
+                      phx-value-scheduled_at=""
+                      class="btn btn-ghost btn-sm"
+                    >
+                      Clear Schedule
+                    </button>
+                  <% end %>
+                </div>
                 <!-- Pending Media Preview -->
                 <%= if !Enum.empty?(@pending_media_urls) do %>
                   <div class="flex items-center gap-2 p-2 bg-base-50 rounded-lg">
@@ -850,7 +877,12 @@
                       phx-disable-with="Posting..."
                       disabled={String.length(@new_post_content || "") < 3}
                     >
-                      <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" /> {gettext("Post")}
+                      <.icon name="hero-paper-airplane" class="w-4 h-4 mr-1" />
+                      <%= if Elektrine.Strings.present?(@new_post_scheduled_at) do %>
+                        {gettext("Schedule")}
+                      <% else %>
+                        {gettext("Post")}
+                      <% end %>
                     </button>
                   </div>
                 </div>
@@ -896,6 +928,13 @@
                             {Elektrine.TextHelpers.time_ago_short(draft.updated_at)}
                             <span class="mx-1">-</span> {draft.visibility}
                           </p>
+
+                          <%= if draft.scheduled_at do %>
+                            <p class="mt-1 inline-flex items-center gap-1 rounded-full bg-secondary/10 px-2 py-0.5 text-xs font-medium text-secondary">
+                              <.icon name="hero-clock" class="w-3 h-3" />
+                              Scheduled for {DateTime.to_iso8601(draft.scheduled_at)}
+                            </p>
+                          <% end %>
                         </div>
 
                         <div class="flex gap-1 flex-shrink-0">
