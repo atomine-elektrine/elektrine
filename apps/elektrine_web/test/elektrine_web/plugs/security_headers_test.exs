@@ -21,7 +21,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeadersTest do
     refute csp =~ ~r/script-src[^;]*'unsafe-inline'/
 
     assert csp =~
-             ~r/connect-src 'self' ws:\/\/(localhost|example\.com) wss:\/\/(localhost|example\.com) https:\/\/challenges\.cloudflare\.com/
+             ~r/connect-src 'self' ws:\/\/(localhost|example\.com) wss:\/\/(localhost|example\.com)/
 
     refute csp =~ ~r/connect-src[^;]*https:;/
   end

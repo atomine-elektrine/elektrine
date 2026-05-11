@@ -49,7 +49,7 @@ defmodule Atomine.Attestations do
     }
   end
 
-  @doc "Issues a stateless browser proof-of-work challenge."
+  @doc "Issues a stateless Atomine proof challenge."
   def issue_pow_challenge(opts \\ []) do
     now = now()
     difficulty = normalize_difficulty(Keyword.get(opts, :difficulty, @default_pow_difficulty))

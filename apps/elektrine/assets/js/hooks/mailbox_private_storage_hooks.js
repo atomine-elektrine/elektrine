@@ -1008,9 +1008,13 @@ export const PrivateMailboxMessages = {
     const attachmentElements = Array.from(
       this.el.querySelectorAll("[data-private-attachment='true']")
     )
+    const standaloneAddressElements = Array.from(
+      this.el.querySelectorAll("[data-private-address-payload]")
+    )
 
     if (!this.mailboxId || !getStoredPrivateKey(this.mailboxId)) {
       this.restorePlaceholders(messageElements)
+      standaloneAddressElements.forEach((element) => this.restoreAddressPlaceholder(element))
       attachmentElements.forEach((element) => restoreAttachmentPlaceholder(element))
       return
     }
@@ -1074,6 +1078,24 @@ export const PrivateMailboxMessages = {
     )
 
     await Promise.all(
+      standaloneAddressElements.map(async (element) => {
+        const envelope = parsePayload(element.dataset.privateAddressPayload)
+        if (!envelope) return
+
+        try {
+          const payload = await decryptMessagePayload(envelope, this.mailboxId)
+          const value = payloadString(payload, element.dataset.privateAddress).trim()
+
+          if (value) {
+            element.textContent = value
+          }
+        } catch (_error) {
+          this.restoreAddressPlaceholder(element)
+        }
+      })
+    )
+
+    await Promise.all(
       attachmentElements.map(async (element) => {
         try {
           const payload = await this.decryptAttachmentElement(element)
@@ -1116,9 +1138,7 @@ export const PrivateMailboxMessages = {
     }
 
     element.querySelectorAll("[data-private-address]").forEach((addressEl) => {
-      if (addressEl.dataset.privateAddressPlaceholder) {
-        addressEl.textContent = addressEl.dataset.privateAddressPlaceholder
-      }
+      this.restoreAddressPlaceholder(addressEl)
     })
 
     const bodyEl = element.querySelector("[data-private-body]")
@@ -1132,6 +1152,12 @@ export const PrivateMailboxMessages = {
     if (iframe && iframeContainer) {
       iframe.srcdoc = ""
       iframeContainer.classList.add("hidden")
+    }
+  },
+
+  restoreAddressPlaceholder(addressEl) {
+    if (addressEl.dataset.privateAddressPlaceholder) {
+      addressEl.textContent = addressEl.dataset.privateAddressPlaceholder
     }
   }
 }

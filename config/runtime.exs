@@ -1253,17 +1253,9 @@ if config_env() == :prod do
     intent_ttl_seconds: parse_int_env.("ADMIN_INTENT_TTL_SECONDS", 3 * 60),
     replay_ttl_seconds: parse_int_env.("ADMIN_ACTION_REPLAY_TTL_SECONDS", 10 * 60)
 
-  turnstile_site_key = System.get_env("TURNSTILE_SITE_KEY")
-  turnstile_secret_key = System.get_env("TURNSTILE_SECRET_KEY")
-  turnstile_enabled = present?.(turnstile_site_key) and present?.(turnstile_secret_key)
-
-  # Cloudflare Turnstile configuration for production (optional)
-  config :elektrine, :turnstile,
-    enabled: turnstile_enabled,
-    skip_verification: not turnstile_enabled,
-    site_key: turnstile_site_key,
-    secret_key: turnstile_secret_key,
-    verify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+  config :elektrine, :atomine_pow,
+    difficulty: parse_int_env.("ATOMINE_POW_DIFFICULTY", 20),
+    skip_verification: parse_bool_env.("ATOMINE_POW_SKIP_VERIFICATION", false)
 
   # ## SSL Support
   #

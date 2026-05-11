@@ -1,22 +1,19 @@
 defmodule ElektrineWeb.AuthLive.PasswordReset do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.Strings
+  alias ElektrineWeb.AtominePow
 
   def mount(_params, session, socket) do
     via_tor = via_tor_request?(socket, session)
-    turnstile_config = Application.get_env(:elektrine, :turnstile, [])
-    site_key = turnstile_config[:site_key]
-
-    turnstile_enabled =
-      not Keyword.get(turnstile_config, :skip_verification, false) and Strings.present?(site_key)
+    atomine_pow_enabled = AtominePow.enabled?()
+    atomine_pow_difficulty = AtominePow.difficulty()
 
     {:ok,
      assign(socket,
        page_title: "Reset Password",
        via_tor: via_tor,
-       turnstile_site_key: site_key,
-       turnstile_enabled: turnstile_enabled
+       atomine_pow_enabled: atomine_pow_enabled,
+       atomine_pow_difficulty: atomine_pow_difficulty
      )}
   end
 
@@ -76,16 +73,29 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                     />
                   </div>
                 <% else %>
-                  <%= if @turnstile_enabled do %>
-                    <div class="turnstile-wrapper">
+                  <%= if @atomine_pow_enabled do %>
+                    <div class="rounded-box border border-base-300 bg-base-200/50 p-3">
                       <div
-                        id="turnstile-container"
-                        phx-hook="Turnstile"
-                        class="cf-turnstile"
-                        data-sitekey={@turnstile_site_key}
-                        data-theme="dark"
-                        data-size="normal"
+                        id="password-reset-atomine-pow"
+                        phx-hook="AtominePow"
+                        data-difficulty={@atomine_pow_difficulty}
                       >
+                        <div class="flex items-start gap-3 text-left">
+                          <div class="rounded-box bg-base-300/70 p-2 text-base-content/70">
+                            <.icon name="hero-cpu-chip" class="h-4 w-4" />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2 text-sm">
+                              <span class="font-semibold">Atomine Proof</span>
+                              <span class="badge badge-outline badge-xs font-mono">
+                                difficulty {@atomine_pow_difficulty}
+                              </span>
+                            </div>
+                            <p class="text-xs text-base-content/70" data-atomine-pow-status>
+                              client computes SHA-256 nonce, exchanges it for an anonymous effort token, then submits the form.
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   <% end %>

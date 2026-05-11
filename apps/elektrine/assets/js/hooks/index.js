@@ -91,7 +91,7 @@ import {
   TagInputHook,
   SuggestionDropdown,
   VPNDownload,
-  Turnstile,
+  AtominePow,
 } from "./form_hooks";
 
 // Password manager hooks
@@ -191,7 +191,7 @@ export const Hooks = {
   TagInputHook,
   SuggestionDropdown,
   VPNDownload,
-  Turnstile,
+  AtominePow,
   PasswordVault,
   MailboxPrivateStorage,
   PrivateMailboxCompose,

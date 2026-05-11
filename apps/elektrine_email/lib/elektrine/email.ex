@@ -46,6 +46,18 @@ defmodule Elektrine.Email do
   defdelegate change_mailbox_forwarding(mailbox, attrs \\ %{}), to: Elektrine.Email.Mailboxes
   defdelegate update_mailbox_category_filters(mailbox, attrs), to: Elektrine.Email.Mailboxes
 
+  defdelegate enqueue_system_email_to_all_users(attrs, opts \\ []),
+    to: Elektrine.Email.SystemDelivery,
+    as: :enqueue_email_to_all_users
+
+  defdelegate deliver_system_email_to_all_users(attrs),
+    to: Elektrine.Email.SystemDelivery,
+    as: :deliver_email_to_all_users
+
+  defdelegate system_email_from_address(),
+    to: Elektrine.Email.SystemDelivery,
+    as: :system_from_address
+
   defdelegate change_mailbox_category_filters(mailbox, attrs \\ %{}),
     to: Elektrine.Email.Mailboxes
 

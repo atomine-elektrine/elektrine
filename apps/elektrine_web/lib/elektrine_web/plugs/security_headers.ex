@@ -70,7 +70,7 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
     base_directives = [
       "default-src 'self'",
       # Scripts: inline scripts must carry this request nonce.
-      "script-src 'self' 'nonce-#{script_nonce()}' https://challenges.cloudflare.com blob:",
+      "script-src 'self' 'nonce-#{script_nonce()}' blob:",
       # Styles: allow self and unsafe-inline for LiveView and Tailwind
       "style-src 'self' 'unsafe-inline'",
       # Images: allow self, data URIs, HTTPS (for S3-compatible storage and remote avatars)
@@ -78,14 +78,14 @@ defmodule ElektrineWeb.Plugs.SecurityHeaders do
       # Fonts: allow self and data URIs
       "font-src 'self' data:",
       # Connect: allow self and the explicit third-party endpoints used by the app
-      "connect-src 'self' ws://#{host} wss://#{host} https://challenges.cloudflare.com",
+      "connect-src 'self' ws://#{host} wss://#{host}",
       # Media: allow self and HTTPS (for video backgrounds from S3-compatible storage)
       "media-src 'self' https: blob:",
-      # Frames: allow Turnstile and any HTTPS embeds (for emails/chat/profiles)
-      "frame-src 'self' https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com",
-      # Child/Worker: allow Turnstile workers
-      "child-src 'self' https://challenges.cloudflare.com blob:",
-      "worker-src 'self' https://challenges.cloudflare.com blob:",
+      # Frames: allow any HTTPS embeds used by emails/chat/profiles
+      "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://open.spotify.com",
+      # Child/Worker: allow app workers and Blob workers
+      "child-src 'self' blob:",
+      "worker-src 'self' blob:",
       # Objects: block all
       "object-src 'none'",
       # Base URI: restrict to self
