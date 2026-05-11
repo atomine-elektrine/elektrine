@@ -6,8 +6,8 @@ defmodule Elektrine.Social do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts
-  alias Elektrine.Accounts.{BlockedUsersCache, User}
-  alias Elektrine.ActivityPub.{Instance, Mentions}
+  alias Elektrine.Accounts.{BlockedUsersCache, User, UserMute}
+  alias Elektrine.ActivityPub.{Instance, Mentions, UserBlock}
   alias Elektrine.ActivityPub.Outbox
   alias Elektrine.Async
   alias Elektrine.Friends
@@ -362,8 +362,9 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = from(m in query, where: ^timeline_scope_filter)
-    query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_exclude_blocked_instances(query)
+    query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
+    query = maybe_exclude_public_timeline_removed_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -431,7 +432,8 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
-    query = maybe_exclude_blocked_instances(query)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
+    query = maybe_exclude_public_timeline_removed_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -469,8 +471,9 @@ defmodule Elektrine.Social do
         limit: ^limit,
         preload: ^preloads
 
-    query = maybe_exclude_blocked_senders(query, all_blocked_ids)
-    query = maybe_exclude_blocked_instances(query)
+    query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
+    query = maybe_exclude_public_timeline_removed_instances(query)
     query = maybe_before_id(query, pagination.before_id)
 
     Repo.all(query)
@@ -516,7 +519,8 @@ defmodule Elektrine.Social do
       end
 
     query = maybe_exclude_blocked_senders_or_nil(query, all_blocked_ids)
-    query = maybe_exclude_blocked_instances(query)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
+    query = maybe_exclude_public_timeline_removed_instances(query)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -1159,6 +1163,59 @@ defmodule Elektrine.Social do
     from(m in query, where: m.sender_id not in ^blocked_ids or is_nil(m.sender_id))
   end
 
+  defp maybe_apply_viewer_timeline_policy(query, nil), do: maybe_exclude_blocked_instances(query)
+
+  defp maybe_apply_viewer_timeline_policy(query, user_id) do
+    query
+    |> maybe_exclude_muted_senders(user_id)
+    |> maybe_exclude_blocked_remote_actors(user_id)
+    |> maybe_exclude_user_blocked_domains(user_id)
+    |> maybe_exclude_blocked_instances()
+  end
+
+  defp maybe_exclude_muted_senders(query, nil), do: query
+
+  defp maybe_exclude_muted_senders(query, user_id) do
+    from(m in query,
+      left_join: mute in UserMute,
+      on: mute.muter_id == ^user_id and mute.muted_id == m.sender_id,
+      where: is_nil(mute.id)
+    )
+  end
+
+  defp maybe_exclude_blocked_remote_actors(query, nil), do: query
+
+  defp maybe_exclude_blocked_remote_actors(query, user_id) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_remote_actor in UserBlock,
+      on:
+        blocked_remote_actor.user_id == ^user_id and blocked_remote_actor.block_type == "user" and
+          blocked_remote_actor.blocked_uri == remote_actor.uri,
+      where: is_nil(remote_actor.id) or is_nil(blocked_remote_actor.id)
+    )
+  end
+
+  defp maybe_exclude_user_blocked_domains(query, nil), do: query
+
+  defp maybe_exclude_user_blocked_domains(query, user_id) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_domain in UserBlock,
+      on:
+        blocked_domain.user_id == ^user_id and blocked_domain.block_type == "domain" and
+          (fragment("lower(?)", blocked_domain.blocked_uri) ==
+             fragment("lower(?)", remote_actor.domain) or
+             fragment(
+               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+               blocked_domain.blocked_uri,
+               remote_actor.domain,
+               blocked_domain.blocked_uri
+             )),
+      where: is_nil(remote_actor.id) or is_nil(blocked_domain.id)
+    )
+  end
+
   defp maybe_exclude_blocked_instances(query) do
     if blocked_instances_exist?() do
       from(m in query,
@@ -1185,6 +1242,35 @@ defmodule Elektrine.Social do
     Repo.exists?(from(i in Instance, where: i.blocked == true))
   end
 
+  defp maybe_exclude_public_timeline_removed_instances(query) do
+    if public_timeline_removed_instances_exist?() do
+      from(m in query,
+        left_join: remote_actor in assoc(m, :remote_actor),
+        left_join: removed_instance in Instance,
+        on:
+          (removed_instance.silenced == true or
+             removed_instance.federated_timeline_removal == true) and
+            (fragment("lower(?)", removed_instance.domain) ==
+               fragment("lower(?)", remote_actor.domain) or
+               fragment(
+                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+                 removed_instance.domain,
+                 remote_actor.domain,
+                 removed_instance.domain
+               )),
+        where: is_nil(remote_actor.id) or is_nil(removed_instance.id)
+      )
+    else
+      query
+    end
+  end
+
+  defp public_timeline_removed_instances_exist? do
+    Repo.exists?(
+      from(i in Instance, where: i.silenced == true or i.federated_timeline_removal == true)
+    )
+  end
+
   defp visibility_levels_for_viewer(user_id, viewer_id) do
     cond do
       viewer_id == user_id -> ["public", "followers", "friends", "private"]
@@ -1199,7 +1285,7 @@ defmodule Elektrine.Social do
     dynamic(
       [m],
       m.sender_id == ^user_id or
-        (m.sender_id in ^following_ids and m.visibility in ["public", "followers"]) or
+        (m.sender_id in ^following_ids and m.visibility in ["public", "unlisted", "followers"]) or
         (m.sender_id in ^friend_ids and m.visibility == "friends")
     )
   end
@@ -2600,7 +2686,7 @@ defmodule Elektrine.Social do
       _ ->
         remote_actor_ids
         |> federated_timeline_query(limit, preloads)
-        |> maybe_exclude_blocked_instances()
+        |> maybe_apply_viewer_timeline_policy(user_id)
         |> apply_id_pagination(pagination)
         |> apply_id_order(pagination.order)
         |> Repo.all()
@@ -2631,7 +2717,7 @@ defmodule Elektrine.Social do
       |> maybe_apply_timeline_search(search_query)
 
     query = combined_feed_query(local_query, federated_query, limit, preloads)
-    query = maybe_exclude_blocked_instances(query)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
     Repo.all(query)
@@ -2649,7 +2735,7 @@ defmodule Elektrine.Social do
     from(m in Message,
       where: m.federated == true and m.remote_actor_id in ^remote_actor_ids,
       where: is_nil(m.deleted_at),
-      where: m.visibility in ["public", "unlisted"],
+      where: m.visibility in ["public", "unlisted", "followers"],
       order_by: [desc: m.id],
       limit: ^limit,
       preload: ^preloads
@@ -2666,7 +2752,7 @@ defmodule Elektrine.Social do
           is_nil(m.deleted_at) and
           m.sender_id in ^following_ids and
           m.sender_id not in ^blocked_ids and
-          m.visibility in ["public", "followers"] and
+          m.visibility in ["public", "unlisted", "followers"] and
           is_nil(m.reply_to_id),
       select: m
     )
@@ -2680,7 +2766,7 @@ defmodule Elektrine.Social do
         m.federated == true and
           m.remote_actor_id in ^remote_actor_ids and
           is_nil(m.deleted_at) and
-          m.visibility in ["public", "unlisted"] and
+          m.visibility in ["public", "unlisted", "followers"] and
           is_nil(m.reply_to_id),
       select: m
     )
@@ -2735,6 +2821,7 @@ defmodule Elektrine.Social do
         preload: ^preloads
 
     query = maybe_exclude_blocked_senders(query, all_blocked_ids)
+    query = maybe_apply_viewer_timeline_policy(query, user_id)
     query = maybe_apply_timeline_search(query, search_query)
     query = query |> apply_id_pagination(pagination) |> apply_id_order(pagination.order)
 
@@ -2764,7 +2851,8 @@ defmodule Elektrine.Social do
 
     query =
       query
-      |> maybe_exclude_blocked_instances()
+      |> maybe_apply_viewer_timeline_policy(Keyword.get(opts, :user_id))
+      |> maybe_exclude_public_timeline_removed_instances()
       |> maybe_apply_timeline_search(search_query)
       |> apply_id_pagination(pagination)
       |> apply_id_order(pagination.order)
@@ -2794,8 +2882,15 @@ defmodule Elektrine.Social do
               is_nil(m.deleted_at) and
               (m.approval_status == "approved" or is_nil(m.approval_status))
 
+      base_query =
+        if user_id do
+          from(m in base_query, where: m.visibility in ["public", "unlisted", "followers"])
+        else
+          from(m in base_query, where: m.visibility in ["public", "unlisted"])
+        end
+
       base_query = maybe_exclude_blocked_senders_or_nil(base_query, all_blocked_ids)
-      base_query = maybe_exclude_blocked_instances(base_query)
+      base_query = maybe_apply_viewer_timeline_policy(base_query, user_id)
 
       # Keep only the first N replies per parent in SQL instead of loading all replies.
       ranked_ids_query =

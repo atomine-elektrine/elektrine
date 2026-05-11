@@ -396,7 +396,16 @@
               
 <!-- Post Stats -->
               <div class="flex items-center gap-4 text-sm opacity-70 pt-4 border-t border-base-300">
-                <% stats_like_count = @local_message.like_count || 0
+                <% stats_interaction_state =
+                  detail_message_interaction(@post_interactions, @local_message)
+
+                stats_like_count =
+                  max(
+                    (@local_message.like_count || 0) +
+                      Map.get(stats_interaction_state, :like_delta, 0),
+                    0
+                  )
+
                 stats_comment_count = max(length(@replies), @local_message.reply_count || 0) %>
                 <span>
                   <span
@@ -427,16 +436,12 @@
 
               <% local_post_id = to_string(@local_message.id)
 
-              post_state =
-                Map.get(@post_interactions, local_post_id, %{
-                  liked: false,
-                  boosted: false,
-                  like_delta: 0,
-                  boost_delta: 0
-                })
+              post_state = detail_message_interaction(@post_interactions, @local_message)
 
               is_liked = Map.get(post_state, :liked, false)
               is_boosted = Map.get(post_state, :boosted, false)
+              like_delta = Map.get(post_state, :like_delta, 0)
+              boost_delta = Map.get(post_state, :boost_delta, 0)
               reply_count = max(length(@replies), @local_message.reply_count || 0) %>
               <div class="flex flex-wrap items-center gap-2 pt-3 mt-3 border-t border-base-300">
                 <.post_actions
@@ -445,10 +450,10 @@
                   current_user={@current_user}
                   is_liked={is_liked}
                   is_boosted={is_boosted}
-                  like_count={@local_message.like_count || 0}
+                  like_count={max((@local_message.like_count || 0) + like_delta, 0)}
                   comment_count={reply_count}
-                  boost_count={@local_message.share_count || 0}
-                  is_saved={Map.get(@user_saves, local_post_id, false)}
+                  boost_count={max((@local_message.share_count || 0) + boost_delta, 0)}
+                  is_saved={detail_message_saved?(@user_saves, @local_message)}
                   on_comment="toggle_reply_form"
                   show_quote={false}
                   size={:sm}
@@ -458,7 +463,7 @@
                 <.post_reactions
                   post_id={local_post_id}
                   value_name="message_id"
-                  reactions={Map.get(@post_reactions, local_post_id, [])}
+                  reactions={detail_message_reactions(@post_reactions, @local_message)}
                   current_user={@current_user}
                   size={:sm}
                 />

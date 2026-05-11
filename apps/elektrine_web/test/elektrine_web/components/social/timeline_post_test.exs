@@ -159,6 +159,57 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     assert String.trim(like_button_text) == "14"
   end
 
+  test "timeline actions prefer cached federated shares over stale local shares" do
+    post = %Message{
+      id: 790,
+      activitypub_id: "https://remote.example/users/alice/statuses/790",
+      activitypub_url: "https://remote.example/@alice/790",
+      post_type: "post",
+      content: "Remote post with cached boosts",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{"original_share_count" => 27},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 2,
+      score: 0,
+      federated: true,
+      remote_actor: %Actor{id: 790, username: "alice", domain: "remote.example"}
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: %{id: 1},
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    boost_button_text =
+      html
+      |> Floki.parse_fragment!()
+      |> Floki.find("#post-actions-790-boost")
+      |> Floki.text()
+
+    assert String.trim(boost_button_text) == "27"
+  end
+
   test "timeline reply card click opens the reply detail instead of the parent thread" do
     post = %Message{
       id: 456,
@@ -251,5 +302,86 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       )
 
     assert html =~ ~s(src="#{media_url}")
+  end
+
+  test "timeline child ids are scoped by id prefix" do
+    quoted = %Message{
+      id: 3319,
+      post_type: "post",
+      content: "Quoted body",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{},
+      sender: nil,
+      remote_actor: %Actor{id: 668, username: "bob", domain: "remote.example"}
+    }
+
+    post = %Message{
+      id: 3343,
+      federated: true,
+      activitypub_id: "https://remote.example/notes/3343",
+      activitypub_url: "https://remote.example/notes/3343",
+      post_type: "message",
+      content: "Remote photo https://remote.example/content-photo.jpg",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: ["https://remote.example/media/photo.jpg"],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      remote_actor: %Actor{id: 667, username: "alice", domain: "remote.example"},
+      quoted_message_id: quoted.id,
+      quoted_message: quoted,
+      link_preview: %LinkPreview{
+        url: "https://remote.example/story",
+        status: "success",
+        title: "Remote story",
+        image_url: "https://remote.example/story.jpg",
+        favicon_url: "https://remote.example/favicon.ico"
+      }
+    }
+
+    first = render_timeline_post(post, "first")
+    second = render_timeline_post(post, "second")
+
+    assert duplicate_ids(first <> second) == []
+  end
+
+  defp render_timeline_post(post, id_prefix) do
+    render_component(&TimelinePost.timeline_post/1,
+      post: post,
+      id_prefix: id_prefix,
+      layout: :timeline,
+      source: "timeline",
+      current_user: %{id: 1, is_admin: false},
+      user_likes: %{},
+      user_boosts: %{},
+      user_saves: %{},
+      user_follows: %{},
+      pending_follows: %{},
+      remote_follow_overrides: %{},
+      user_statuses: %{},
+      lemmy_counts: %{},
+      post_replies: %{},
+      post_interactions: %{},
+      post_reactions_map: %{},
+      reactions: [],
+      show_follow_button: true,
+      show_post_dropdown: true,
+      clickable: false,
+      on_image_click: nil
+    )
+  end
+
+  defp duplicate_ids(html) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find("[id]")
+    |> Enum.flat_map(&Floki.attribute(&1, "id"))
+    |> Enum.frequencies()
+    |> Enum.filter(fn {_id, count} -> count > 1 end)
+    |> Enum.map(fn {id, _count} -> id end)
+    |> Enum.sort()
   end
 end

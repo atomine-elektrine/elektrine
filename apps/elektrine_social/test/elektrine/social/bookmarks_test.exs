@@ -19,10 +19,11 @@ defmodule Elektrine.Social.BookmarksTest do
       assert saved.message_id == post.id
     end
 
-    test "cannot save the same post twice", %{user: user, post: post} do
+    test "saving the same post twice is idempotent", %{user: user, post: post} do
       {:ok, _} = Bookmarks.save_post(user.id, post.id)
-      assert {:error, changeset} = Bookmarks.save_post(user.id, post.id)
-      assert changeset.errors != []
+      assert {:ok, saved} = Bookmarks.save_post(user.id, post.id)
+      assert saved.user_id == user.id
+      assert saved.message_id == post.id
     end
 
     test "different users can save the same post", %{post: post} do
@@ -48,9 +49,9 @@ defmodule Elektrine.Social.BookmarksTest do
       refute Bookmarks.post_saved?(user.id, post.id)
     end
 
-    test "returns error when post is not saved", %{user: user} do
+    test "unsaving a post that is not saved is idempotent", %{user: user} do
       other_post = post_fixture()
-      assert {:error, :not_saved} = Bookmarks.unsave_post(user.id, other_post.id)
+      assert {:ok, nil} = Bookmarks.unsave_post(user.id, other_post.id)
     end
   end
 

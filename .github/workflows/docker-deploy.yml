@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      repair_indexes:
+        description: Rebuild all PostgreSQL indexes during deploy
+        required: false
+        default: false
+        type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -85,6 +91,7 @@ jobs:
       ELEKTRINE_RELEASE_MODULES: all
       DOCKER_PROFILES: caddy dns email tor turn bluesky vpn
       DEPLOY_COMPOSE_OVERRIDES: ${{ vars.DEPLOY_COMPOSE_OVERRIDES || secrets.DEPLOY_COMPOSE_OVERRIDES || '' }}
+      REPAIR_INDEXES_ON_DEPLOY: ${{ github.event.inputs.repair_indexes || vars.REPAIR_INDEXES_ON_DEPLOY || secrets.REPAIR_INDEXES_ON_DEPLOY || 'false' }}
       TARGET_IMAGE: ghcr.io/${{ github.repository }}:${{ github.sha }}
       DEPLOY_REF: ${{ github.sha }}
     concurrency:
@@ -109,7 +116,7 @@ jobs:
       - name: Deploy over SSH
         run: |
           ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" \
-            bash -s -- "$DEPLOY_PATH" "$DEPLOY_REF" "$DEPLOY_BRANCH" "$TARGET_IMAGE" "$ELEKTRINE_ENABLED_MODULES" "$ELEKTRINE_RELEASE_MODULES" "$DOCKER_PROFILES" "$DEPLOY_COMPOSE_OVERRIDES" <<'EOF'
+            bash -s -- "$DEPLOY_PATH" "$DEPLOY_REF" "$DEPLOY_BRANCH" "$TARGET_IMAGE" "$ELEKTRINE_ENABLED_MODULES" "$ELEKTRINE_RELEASE_MODULES" "$DOCKER_PROFILES" "$DEPLOY_COMPOSE_OVERRIDES" "$REPAIR_INDEXES_ON_DEPLOY" <<'EOF'
           set -euo pipefail
 
           DEPLOY_PATH="$1"
@@ -120,6 +127,7 @@ jobs:
           ELEKTRINE_RELEASE_MODULES="$6"
           DOCKER_PROFILES="$7"
           DEPLOY_COMPOSE_OVERRIDES="$8"
+          REPAIR_INDEXES_ON_DEPLOY="$9"
 
           if docker info >/dev/null 2>&1; then
             DEPLOY_PREFIX=""
@@ -187,12 +195,18 @@ jobs:
             PROFILE_ARGS+=(--profile "$profile")
           done
 
+          REPAIR_INDEX_ARGS=()
+          case "$REPAIR_INDEXES_ON_DEPLOY" in
+            1|true|TRUE|yes|YES) REPAIR_INDEX_ARGS+=(--repair-indexes) ;;
+          esac
+
           ELEKTRINE_IMAGE="$TARGET_IMAGE" COMPOSE_PROJECT_NAME="docker" COMPOSE_PROJECT_DIRECTORY="$DEPLOY_PATH/deploy/docker" CADDY_RENDERED_CONFIG_PATH="$CADDY_OUTPUT_FILE" bash scripts/deploy/docker_deploy.sh \
             --modules "$ELEKTRINE_ENABLED_MODULES" \
             --env-file "$DEPLOY_PATH/.env.production" \
             --output "$OUTPUT_FILE" \
             --pull \
             --skip-build \
+            "${REPAIR_INDEX_ARGS[@]}" \
             "${EXTRA_OVERRIDE_ARGS[@]}" \
             "${PROFILE_ARGS[@]}"
 

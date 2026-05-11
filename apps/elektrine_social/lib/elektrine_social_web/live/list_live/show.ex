@@ -25,16 +25,15 @@ defmodule ElektrineSocialWeb.ListLive.Show do
 
         list ->
           is_owner = list.user_id == user.id
-          posts = Social.get_list_timeline(list_id, limit: 20)
+          posts = Social.get_list_timeline(list_id, limit: 20, viewer_id: user.id)
           post_ids = Enum.map(posts, & &1.id)
 
           post_replies =
             Social.get_direct_replies_for_posts(post_ids, user_id: user.id, limit_per_post: 3)
 
-          all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
-          all_message_ids = post_ids ++ all_reply_ids
-          user_likes = get_user_likes(user.id, posts ++ List.flatten(Map.values(post_replies)))
-          user_boosts = get_user_boosts(user.id, all_message_ids)
+          all_messages = posts ++ List.flatten(Map.values(post_replies))
+          user_likes = get_user_likes(user.id, all_messages)
+          user_boosts = get_user_boosts(user.id, all_messages)
 
           {:ok,
            socket
@@ -172,7 +171,13 @@ defmodule ElektrineSocialWeb.ListLive.Show do
         case Social.add_to_list(socket.assigns.list.id, %{remote_actor_id: result.remote_actor.id}) do
           {:ok, _} ->
             list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-            posts = Social.get_list_timeline(socket.assigns.list.id, limit: 20)
+
+            posts =
+              Social.get_list_timeline(socket.assigns.list.id,
+                limit: 20,
+                viewer_id: socket.assigns.current_user.id
+              )
+
             post_ids = Enum.map(posts, & &1.id)
 
             post_replies =
@@ -181,16 +186,15 @@ defmodule ElektrineSocialWeb.ListLive.Show do
                 limit_per_post: 3
               )
 
-            all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
-            all_message_ids = post_ids ++ all_reply_ids
+            all_messages = posts ++ List.flatten(Map.values(post_replies))
 
             user_likes =
               get_user_likes(
                 socket.assigns.current_user.id,
-                posts ++ List.flatten(Map.values(post_replies))
+                all_messages
               )
 
-            user_boosts = get_user_boosts(socket.assigns.current_user.id, all_message_ids)
+            user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
 
             {:noreply,
              socket
@@ -231,7 +235,12 @@ defmodule ElektrineSocialWeb.ListLive.Show do
                 list =
                   Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
 
-                posts = Social.get_list_timeline(socket.assigns.list.id, limit: 20)
+                posts =
+                  Social.get_list_timeline(socket.assigns.list.id,
+                    limit: 20,
+                    viewer_id: socket.assigns.current_user.id
+                  )
+
                 post_ids = Enum.map(posts, & &1.id)
 
                 post_replies =
@@ -240,18 +249,15 @@ defmodule ElektrineSocialWeb.ListLive.Show do
                     limit_per_post: 3
                   )
 
-                all_reply_ids =
-                  post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
-
-                all_message_ids = post_ids ++ all_reply_ids
+                all_messages = posts ++ List.flatten(Map.values(post_replies))
 
                 user_likes =
                   get_user_likes(
                     socket.assigns.current_user.id,
-                    posts ++ List.flatten(Map.values(post_replies))
+                    all_messages
                   )
 
-                user_boosts = get_user_boosts(socket.assigns.current_user.id, all_message_ids)
+                user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
 
                 {:noreply,
                  socket
@@ -369,7 +375,13 @@ defmodule ElektrineSocialWeb.ListLive.Show do
       successful = Enum.count(results, &(&1 == :ok))
       total = length(handles)
       list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-      posts = Social.get_list_timeline(socket.assigns.list.id, limit: 20)
+
+      posts =
+        Social.get_list_timeline(socket.assigns.list.id,
+          limit: 20,
+          viewer_id: socket.assigns.current_user.id
+        )
+
       post_ids = Enum.map(posts, & &1.id)
 
       post_replies =
@@ -378,16 +390,15 @@ defmodule ElektrineSocialWeb.ListLive.Show do
           limit_per_post: 3
         )
 
-      all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
-      all_message_ids = post_ids ++ all_reply_ids
+      all_messages = posts ++ List.flatten(Map.values(post_replies))
 
       user_likes =
         get_user_likes(
           socket.assigns.current_user.id,
-          posts ++ List.flatten(Map.values(post_replies))
+          all_messages
         )
 
-      user_boosts = get_user_boosts(socket.assigns.current_user.id, all_message_ids)
+      user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
 
       {:noreply,
        socket
@@ -462,7 +473,13 @@ defmodule ElektrineSocialWeb.ListLive.Show do
     case Social.remove_from_list(member_id) do
       {:ok, _} ->
         list = Social.get_user_list(socket.assigns.current_user.id, socket.assigns.list.id)
-        posts = Social.get_list_timeline(socket.assigns.list.id, limit: 20)
+
+        posts =
+          Social.get_list_timeline(socket.assigns.list.id,
+            limit: 20,
+            viewer_id: socket.assigns.current_user.id
+          )
+
         post_ids = Enum.map(posts, & &1.id)
 
         post_replies =
@@ -471,16 +488,15 @@ defmodule ElektrineSocialWeb.ListLive.Show do
             limit_per_post: 3
           )
 
-        all_reply_ids = post_replies |> Map.values() |> List.flatten() |> Enum.map(& &1.id)
-        _all_message_ids = post_ids ++ all_reply_ids
+        all_messages = posts ++ List.flatten(Map.values(post_replies))
 
         user_likes =
           get_user_likes(
             socket.assigns.current_user.id,
-            posts ++ List.flatten(Map.values(post_replies))
+            all_messages
           )
 
-        user_boosts = get_user_boosts(socket.assigns.current_user.id, post_ids ++ all_reply_ids)
+        user_boosts = get_user_boosts(socket.assigns.current_user.id, all_messages)
 
         {:noreply,
          socket

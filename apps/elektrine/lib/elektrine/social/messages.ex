@@ -1645,9 +1645,15 @@ defmodule Elektrine.Social.Messages do
   @doc """
   Gets a message by its ActivityPub ID.
   """
+  def get_message_by_activitypub_id(activitypub_id)
+      when not is_binary(activitypub_id) or activitypub_id == "",
+      do: nil
+
   def get_message_by_activitypub_id(activitypub_id) do
     from(m in Message,
-      where: m.activitypub_id == ^activitypub_id
+      where: m.activitypub_id == ^activitypub_id,
+      order_by: [desc: m.updated_at, desc: m.id],
+      limit: 1
     )
     |> Repo.one()
   end

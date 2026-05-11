@@ -788,127 +788,131 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   @impl true
   def handle_event("update_profile", params, socket) do
-    profile_params = params["profile"] || %{}
+    if upload_in_progress?(socket, [:background, :favicon]) do
+      {:noreply, notify_error(socket, "Wait for uploads to finish before saving")}
+    else
+      profile_params = params["profile"] || %{}
 
-    # Handle background upload
-    uploaded_backgrounds =
-      consume_uploaded_entries(socket, :background, fn %{path: path}, entry ->
-        user_id = socket.assigns.current_user.id
+      # Handle background upload
+      uploaded_backgrounds =
+        consume_uploaded_entries(socket, :background, fn %{path: path}, entry ->
+          user_id = socket.assigns.current_user.id
 
-        upload_struct = %Plug.Upload{
-          path: path,
-          content_type: entry.client_type,
-          filename: entry.client_name
-        }
+          upload_struct = %Plug.Upload{
+            path: path,
+            content_type: entry.client_type,
+            filename: entry.client_name
+          }
 
-        case Elektrine.Uploads.upload_background(upload_struct, user_id) do
-          {:ok, metadata} ->
-            {:ok, metadata}
+          case Elektrine.Uploads.upload_background(upload_struct, user_id) do
+            {:ok, metadata} ->
+              {:ok, metadata}
 
-          {:error, _reason} ->
-            {:postpone, :error}
+            {:error, _reason} ->
+              {:postpone, :error}
+          end
+        end)
+
+      # Add background URL and size to params if uploaded
+      profile_params =
+        case uploaded_backgrounds do
+          [metadata | _] when is_map(metadata) ->
+            url = metadata.key
+            # Also ensure background_type is set based on upload
+            profile_params
+            |> Map.put("background_url", to_string(url))
+            |> Map.put("background_size", metadata.size)
+            |> then(fn params ->
+              # If background_type not explicitly set, infer from URL
+              if Map.get(params, "background_type") in [nil, "gradient", "solid"] do
+                type = if String.match?(url, ~r/\.(mp4|webm)$/i), do: "video", else: "image"
+                Map.put(params, "background_type", type)
+              else
+                params
+              end
+            end)
+
+          _ ->
+            profile_params
         end
-      end)
 
-    # Add background URL and size to params if uploaded
-    profile_params =
-      case uploaded_backgrounds do
-        [metadata | _] when is_map(metadata) ->
-          url = metadata.key
-          # Also ensure background_type is set based on upload
-          profile_params
-          |> Map.put("background_url", to_string(url))
-          |> Map.put("background_size", metadata.size)
-          |> then(fn params ->
-            # If background_type not explicitly set, infer from URL
-            if Map.get(params, "background_type") in [nil, "gradient", "solid"] do
-              type = if String.match?(url, ~r/\.(mp4|webm)$/i), do: "video", else: "image"
-              Map.put(params, "background_type", type)
-            else
-              params
-            end
-          end)
+      # Handle favicon upload
+      uploaded_favicons =
+        consume_uploaded_entries(socket, :favicon, fn %{path: path}, entry ->
+          user_id = socket.assigns.current_user.id
 
-        _ ->
-          profile_params
-      end
+          upload_struct = %Plug.Upload{
+            path: path,
+            content_type: entry.client_type,
+            filename: entry.client_name
+          }
 
-    # Handle favicon upload
-    uploaded_favicons =
-      consume_uploaded_entries(socket, :favicon, fn %{path: path}, entry ->
-        user_id = socket.assigns.current_user.id
+          case Elektrine.Uploads.upload_favicon(upload_struct, user_id) do
+            {:ok, metadata} ->
+              {:ok, metadata}
 
-        upload_struct = %Plug.Upload{
-          path: path,
-          content_type: entry.client_type,
-          filename: entry.client_name
-        }
+            {:error, _reason} ->
+              {:postpone, :error}
+          end
+        end)
 
-        case Elektrine.Uploads.upload_favicon(upload_struct, user_id) do
-          {:ok, metadata} ->
-            {:ok, metadata}
+      # Add favicon URL to params if uploaded
+      profile_params =
+        case uploaded_favicons do
+          [metadata | _] when is_map(metadata) ->
+            Map.put(profile_params, "favicon_url", to_string(metadata.key))
 
-          {:error, _reason} ->
-            {:postpone, :error}
+          _ ->
+            profile_params
         end
-      end)
 
-    # Add favicon URL to params if uploaded
-    profile_params =
-      case uploaded_favicons do
-        [metadata | _] when is_map(metadata) ->
-          Map.put(profile_params, "favicon_url", to_string(metadata.key))
-
-        _ ->
-          profile_params
-      end
-
-    # Convert checkbox values to booleans - only for fields present in the form
-    profile_params =
-      profile_params
-      |> convert_checkbox_to_boolean_if_present("show_discord_presence")
-      |> convert_checkbox_to_boolean_if_present("use_discord_avatar")
-      |> convert_checkbox_to_boolean_if_present("hide_view_counter")
-      |> convert_checkbox_to_boolean_if_present("hide_uid")
-      |> convert_checkbox_to_boolean_if_present("hide_followers")
-      |> convert_checkbox_to_boolean_if_present("hide_avatar")
-      |> convert_checkbox_to_boolean_if_present("hide_timeline")
-      |> convert_checkbox_to_boolean_if_present("hide_community_posts")
-      |> convert_checkbox_to_boolean_if_present("hide_share_button")
-      |> convert_checkbox_to_boolean_if_present("extend_layout")
-      |> convert_checkbox_to_boolean_if_present("text_background")
-      |> convert_checkbox_to_boolean_if_present("typewriter_effect")
-      |> convert_checkbox_to_boolean_if_present("typewriter_title")
-      |> convert_checkbox_to_boolean_if_present("pattern_animated")
-
-    # Convert empty string font_family to nil for "System Default"
-    profile_params =
-      if Map.has_key?(profile_params, "font_family") &&
-           not Elektrine.Strings.present?(profile_params["font_family"]) do
-        Map.put(profile_params, "font_family", nil)
-      else
+      # Convert checkbox values to booleans - only for fields present in the form
+      profile_params =
         profile_params
+        |> convert_checkbox_to_boolean_if_present("show_discord_presence")
+        |> convert_checkbox_to_boolean_if_present("use_discord_avatar")
+        |> convert_checkbox_to_boolean_if_present("hide_view_counter")
+        |> convert_checkbox_to_boolean_if_present("hide_uid")
+        |> convert_checkbox_to_boolean_if_present("hide_followers")
+        |> convert_checkbox_to_boolean_if_present("hide_avatar")
+        |> convert_checkbox_to_boolean_if_present("hide_timeline")
+        |> convert_checkbox_to_boolean_if_present("hide_community_posts")
+        |> convert_checkbox_to_boolean_if_present("hide_share_button")
+        |> convert_checkbox_to_boolean_if_present("extend_layout")
+        |> convert_checkbox_to_boolean_if_present("text_background")
+        |> convert_checkbox_to_boolean_if_present("typewriter_effect")
+        |> convert_checkbox_to_boolean_if_present("typewriter_title")
+        |> convert_checkbox_to_boolean_if_present("pattern_animated")
+
+      # Convert empty string font_family to nil for "System Default"
+      profile_params =
+        if Map.has_key?(profile_params, "font_family") &&
+             not Elektrine.Strings.present?(profile_params["font_family"]) do
+          Map.put(profile_params, "font_family", nil)
+        else
+          profile_params
+        end
+
+      result = Profiles.upsert_user_profile(socket.assigns.user.id, profile_params)
+
+      case result do
+        {:ok, _updated_profile} ->
+          # Force reload profile with links
+          refreshed_profile = Profiles.get_user_profile(socket.assigns.user.id)
+
+          {:noreply,
+           socket
+           |> assign(:profile, refreshed_profile)
+           |> assign(:profile_save_status, "Saved")
+           |> push_event("profile_updated", %{})}
+
+        {:error, changeset} ->
+          error_msg = "Failed to update profile: #{inspect(changeset.errors)}"
+
+          {:noreply,
+           socket
+           |> notify_error(error_msg)}
       end
-
-    result = Profiles.upsert_user_profile(socket.assigns.user.id, profile_params)
-
-    case result do
-      {:ok, _updated_profile} ->
-        # Force reload profile with links
-        refreshed_profile = Profiles.get_user_profile(socket.assigns.user.id)
-
-        {:noreply,
-         socket
-         |> assign(:profile, refreshed_profile)
-         |> assign(:profile_save_status, "Saved")
-         |> push_event("profile_updated", %{})}
-
-      {:error, changeset} ->
-        error_msg = "Failed to update profile: #{inspect(changeset.errors)}"
-
-        {:noreply,
-         socket
-         |> notify_error(error_msg)}
     end
   end
 
@@ -954,70 +958,74 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   def handle_event("upload_static_site", _params, socket) do
-    user = socket.assigns.user
-    require Logger
-    Logger.info("Static site upload started for user #{user.id}")
+    if upload_in_progress?(socket, [:static_site]) do
+      {:noreply, notify_error(socket, "Wait for the site upload to finish before publishing")}
+    else
+      user = socket.assigns.user
+      require Logger
+      Logger.info("Static site upload started for user #{user.id}")
 
-    uploaded_files =
-      consume_uploaded_entries(socket, :static_site, fn %{path: path}, entry ->
-        Logger.info("Processing uploaded file: #{entry.client_name}")
-        # Read the zip file and upload to storage
-        case File.read(path) do
-          {:ok, zip_binary} ->
-            Logger.info("Read zip file, size: #{byte_size(zip_binary)} bytes")
+      uploaded_files =
+        consume_uploaded_entries(socket, :static_site, fn %{path: path}, entry ->
+          Logger.info("Processing uploaded file: #{entry.client_name}")
+          # Read the zip file and upload to storage
+          case File.read(path) do
+            {:ok, zip_binary} ->
+              Logger.info("Read zip file, size: #{byte_size(zip_binary)} bytes")
 
-            case StaticSites.upload_zip(user, zip_binary) do
-              {:ok, count} ->
-                Logger.info("Successfully uploaded #{count} files")
-                {:ok, {:success, count}}
+              case StaticSites.upload_zip(user, zip_binary) do
+                {:ok, count} ->
+                  Logger.info("Successfully uploaded #{count} files")
+                  {:ok, {:success, count}}
 
-              {:error, :partial_upload, errors} ->
-                Logger.error("Partial upload, errors: #{inspect(errors)}")
-                {:ok, {:error, :partial_upload}}
+                {:error, :partial_upload, errors} ->
+                  Logger.error("Partial upload, errors: #{inspect(errors)}")
+                  {:ok, {:error, :partial_upload}}
 
-              {:error, reason} ->
-                Logger.error("Upload failed: #{inspect(reason)}")
-                {:ok, {:error, reason}}
-            end
+                {:error, reason} ->
+                  Logger.error("Upload failed: #{inspect(reason)}")
+                  {:ok, {:error, reason}}
+              end
 
-          {:error, reason} ->
-            Logger.error("Failed to read file: #{inspect(reason)}")
-            {:ok, {:error, reason}}
-        end
-      end)
+            {:error, reason} ->
+              Logger.error("Failed to read file: #{inspect(reason)}")
+              {:ok, {:error, reason}}
+          end
+        end)
 
-    Logger.info("Upload results: #{inspect(uploaded_files)}")
+      Logger.info("Upload results: #{inspect(uploaded_files)}")
 
-    case uploaded_files do
-      [{:success, count}] ->
-        static_site_files = StaticSites.list_files(user.id)
-        static_site_storage = StaticSites.total_storage_used(user.id)
-        profile = ensure_static_profile_mode(user.id)
+      case uploaded_files do
+        [{:success, count}] ->
+          static_site_files = StaticSites.list_files(user.id)
+          static_site_storage = StaticSites.total_storage_used(user.id)
+          profile = ensure_static_profile_mode(user.id)
 
-        {:noreply,
-         socket
-         |> assign(:profile, profile)
-         |> assign(:static_site_files, static_site_files)
-         |> assign(:static_site_storage, static_site_storage)
-         |> notify_info("Site published. Uploaded #{count} files successfully")}
+          {:noreply,
+           socket
+           |> assign(:profile, profile)
+           |> assign(:static_site_files, static_site_files)
+           |> assign(:static_site_storage, static_site_storage)
+           |> notify_info("Site published. Uploaded #{count} files successfully")}
 
-      [{:error, :storage_limit_exceeded}] ->
-        {:noreply, notify_error(socket, "Storage limit exceeded")}
+        [{:error, :storage_limit_exceeded}] ->
+          {:noreply, notify_error(socket, "Storage limit exceeded")}
 
-      [{:error, :file_limit_exceeded}] ->
-        {:noreply, notify_error(socket, "File limit exceeded (1000 files max)")}
+        [{:error, :file_limit_exceeded}] ->
+          {:noreply, notify_error(socket, "File limit exceeded (1000 files max)")}
 
-      [{:error, {:upload_failed, reason}}] ->
-        {:noreply, notify_error(socket, "Storage backend error: #{inspect(reason)}")}
+        [{:error, {:upload_failed, reason}}] ->
+          {:noreply, notify_error(socket, "Storage backend error: #{inspect(reason)}")}
 
-      [{:error, :partial_upload}] ->
-        {:noreply, notify_error(socket, "Only part of the site uploaded")}
+        [{:error, :partial_upload}] ->
+          {:noreply, notify_error(socket, "Only part of the site uploaded")}
 
-      [{:error, _reason}] ->
-        {:noreply, notify_error(socket, "Failed to upload static site")}
+        [{:error, _reason}] ->
+          {:noreply, notify_error(socket, "Failed to upload static site")}
 
-      [] ->
-        {:noreply, socket}
+        [] ->
+          {:noreply, socket}
+      end
     end
   end
 
@@ -1058,66 +1066,72 @@ defmodule ElektrineWeb.ProfileLive.Edit do
   end
 
   def handle_event("upload_static_files", _params, socket) do
-    user = socket.assigns.user
+    if upload_in_progress?(socket, [:static_files]) do
+      {:noreply, notify_error(socket, "Wait for file uploads to finish before publishing")}
+    else
+      user = socket.assigns.user
 
-    upload_results =
-      consume_uploaded_entries(socket, :static_files, fn %{path: path}, entry ->
-        case File.read(path) do
-          {:ok, binary} ->
-            if String.ends_with?(String.downcase(entry.client_name || ""), ".zip") do
-              case StaticSites.upload_zip(user, binary) do
-                {:ok, count} -> {:ok, {:ok, count}}
-                {:error, reason} -> {:ok, {:error, reason}}
-                {:error, :partial_upload, errors} -> {:ok, {:error, {:partial_upload, errors}}}
+      upload_results =
+        consume_uploaded_entries(socket, :static_files, fn %{path: path}, entry ->
+          case File.read(path) do
+            {:ok, binary} ->
+              if String.ends_with?(String.downcase(entry.client_name || ""), ".zip") do
+                case StaticSites.upload_zip(user, binary) do
+                  {:ok, count} -> {:ok, {:ok, count}}
+                  {:error, reason} -> {:ok, {:error, reason}}
+                  {:error, :partial_upload, errors} -> {:ok, {:error, {:partial_upload, errors}}}
+                end
+              else
+                file_path = entry.client_name
+                content_type = entry.client_type || MIME.from_path(file_path)
+
+                case StaticSites.upload_file(user, file_path, binary, content_type) do
+                  {:ok, _file} -> {:ok, {:ok, 1}}
+                  {:error, reason} -> {:ok, {:error, reason}}
+                end
               end
-            else
-              file_path = entry.client_name
-              content_type = entry.client_type || MIME.from_path(file_path)
 
-              case StaticSites.upload_file(user, file_path, binary, content_type) do
-                {:ok, _file} -> {:ok, {:ok, 1}}
-                {:error, reason} -> {:ok, {:error, reason}}
-              end
-            end
+            {:error, reason} ->
+              {:ok, {:error, reason}}
+          end
+        end)
 
-          {:error, reason} ->
-            {:ok, {:error, reason}}
-        end
-      end)
+      success_count =
+        Enum.reduce(upload_results, 0, fn
+          {:ok, count}, acc when is_integer(count) -> acc + count
+          _, acc -> acc
+        end)
 
-    success_count =
-      Enum.reduce(upload_results, 0, fn
-        {:ok, count}, acc when is_integer(count) -> acc + count
-        _, acc -> acc
-      end)
+      error_count = Enum.count(upload_results, &match?({:error, _}, &1))
 
-    error_count = Enum.count(upload_results, &match?({:error, _}, &1))
+      static_site_files = StaticSites.list_files(user.id)
+      static_site_storage = StaticSites.total_storage_used(user.id)
 
-    static_site_files = StaticSites.list_files(user.id)
-    static_site_storage = StaticSites.total_storage_used(user.id)
+      profile =
+        if success_count > 0,
+          do: ensure_static_profile_mode(user.id),
+          else: socket.assigns.profile
 
-    profile =
-      if success_count > 0, do: ensure_static_profile_mode(user.id), else: socket.assigns.profile
+      socket =
+        socket
+        |> assign(:profile, profile)
+        |> assign(:static_site_files, static_site_files)
+        |> assign(:static_site_storage, static_site_storage)
 
-    socket =
-      socket
-      |> assign(:profile, profile)
-      |> assign(:static_site_files, static_site_files)
-      |> assign(:static_site_storage, static_site_storage)
+      cond do
+        success_count > 0 and error_count == 0 ->
+          {:noreply, notify_info(socket, "Site updated. Uploaded #{success_count} file(s)")}
 
-    cond do
-      success_count > 0 and error_count == 0 ->
-        {:noreply, notify_info(socket, "Site updated. Uploaded #{success_count} file(s)")}
+        success_count > 0 and error_count > 0 ->
+          {:noreply,
+           notify_info(
+             socket,
+             "Site updated. Uploaded #{success_count} file(s), #{error_count} failed"
+           )}
 
-      success_count > 0 and error_count > 0 ->
-        {:noreply,
-         notify_info(
-           socket,
-           "Site updated. Uploaded #{success_count} file(s), #{error_count} failed"
-         )}
-
-      true ->
-        {:noreply, notify_error(socket, "Failed to upload files")}
+        true ->
+          {:noreply, notify_error(socket, "Failed to upload files")}
+      end
     end
   end
 
@@ -1210,6 +1224,15 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       {:error, _reason} ->
         {:noreply, notify_error(socket, "Failed to create file")}
     end
+  end
+
+  defp upload_in_progress?(socket, upload_names) when is_list(upload_names) do
+    Enum.any?(upload_names, &upload_in_progress?(socket, &1))
+  end
+
+  defp upload_in_progress?(socket, upload_name) when is_atom(upload_name) do
+    {_completed, in_progress} = uploaded_entries(socket, upload_name)
+    in_progress != []
   end
 
   defp ensure_static_profile_mode(user_id) do

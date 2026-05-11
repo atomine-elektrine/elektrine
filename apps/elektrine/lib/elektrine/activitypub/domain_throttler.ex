@@ -85,7 +85,8 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
 
     # Check if domain is in backoff
     case :ets.lookup(:domain_failures, domain) do
-      [{^domain, failures, last_failure, _last_success}] when failures >= @failure_threshold ->
+      [{^domain, failures, last_failure, _last_success}]
+      when is_integer(failures) and is_integer(last_failure) and failures >= @failure_threshold ->
         backoff_ms = calculate_backoff(failures)
         time_since_failure = now - last_failure
 
@@ -107,7 +108,8 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
 
     result =
       case :ets.lookup(:domain_failures, domain) do
-        [{^domain, failures, last_failure, _}] when failures >= @failure_threshold ->
+        [{^domain, failures, last_failure, _}]
+        when is_integer(failures) and is_integer(last_failure) and failures >= @failure_threshold ->
           backoff_ms = calculate_backoff(failures)
           now - last_failure < backoff_ms
 
@@ -123,7 +125,8 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
 
     delay =
       case :ets.lookup(:domain_failures, domain) do
-        [{^domain, failures, last_failure, _}] when failures >= @failure_threshold ->
+        [{^domain, failures, last_failure, _}]
+        when is_integer(failures) and is_integer(last_failure) and failures >= @failure_threshold ->
           backoff_ms = calculate_backoff(failures)
           remaining = backoff_ms - (now - last_failure)
           max(0, remaining)
@@ -141,7 +144,7 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
     failures =
       :ets.tab2list(:domain_failures)
       |> Enum.filter(fn {_domain, count, _last_fail, _last_success} ->
-        count >= @failure_threshold
+        is_integer(count) and count >= @failure_threshold
       end)
 
     stats = %{
@@ -174,7 +177,8 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
     if success? do
       # Reset or decrement failure count on success
       case :ets.lookup(:domain_failures, domain) do
-        [{^domain, failures, last_failure, _last_success}] ->
+        [{^domain, failures, last_failure, _last_success}]
+        when is_integer(failures) and is_integer(last_failure) ->
           if failures > 0 do
             :ets.insert(:domain_failures, {domain, max(0, failures - 1), last_failure, now})
           end
@@ -185,7 +189,8 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
     else
       # Increment failure count
       case :ets.lookup(:domain_failures, domain) do
-        [{^domain, failures, _last_failure, last_success}] ->
+        [{^domain, failures, _last_failure, last_success}]
+        when is_integer(failures) and is_integer(last_success) ->
           :ets.insert(:domain_failures, {domain, failures + 1, now, last_success})
 
         _ ->
@@ -201,7 +206,7 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
   defp try_acquire(domain, state) do
     current =
       case :ets.lookup(:domain_concurrent, domain) do
-        [{^domain, count}] -> count
+        [{^domain, count}] when is_integer(count) and count > 0 -> count
         _ -> 0
       end
 
@@ -215,7 +220,7 @@ defmodule Elektrine.ActivityPub.DomainThrottler do
 
   defp calculate_backoff(failures) do
     # Exponential backoff: base * 2^(failures - threshold)
-    exponent = failures - @failure_threshold
+    exponent = (failures - @failure_threshold) |> max(0) |> min(16)
     delay = @base_backoff_ms * :math.pow(2, exponent)
     min(round(delay), @max_backoff_ms)
   end

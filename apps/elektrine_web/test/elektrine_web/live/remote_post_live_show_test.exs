@@ -3,6 +3,8 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
   import Phoenix.LiveViewTest
 
+  import Elektrine.SocialFixtures, only: [post_fixture: 1]
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.AppCache
@@ -14,6 +16,20 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
   alias Elektrine.Social.Votes
   alias ElektrineSocialWeb.RemotePostLive.Interactions
   alias ElektrineSocialWeb.RemotePostLive.Show
+
+  defp log_in_user(conn, user) do
+    token =
+      Phoenix.Token.sign(ElektrineWeb.Endpoint, "user auth", %{
+        "user_id" => user.id,
+        "password_changed_at" =>
+          user.last_password_change && DateTime.to_unix(user.last_password_change),
+        "auth_valid_after" => user.auth_valid_after && DateTime.to_unix(user.auth_valid_after)
+      })
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_token, token)
+  end
 
   test "renders custom emoji in remote comment author display name" do
     actor =
@@ -1582,6 +1598,252 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
       |> rendered_to_string()
 
     assert html =~ ~r/>\s*4321\s*</
+  end
+
+  test "remote detail prefers updated local interaction state for display counts" do
+    user = AccountsFixtures.user_fixture()
+    activitypub_id = "https://remote.example/posts/local-state"
+
+    local_message = %{
+      id: 54_323,
+      federated: true,
+      activitypub_id: activitypub_id,
+      activitypub_url: activitypub_id,
+      sender: nil,
+      remote_actor: %{
+        id: 54_323,
+        username: "alice",
+        domain: "remote.example",
+        display_name: "Alice",
+        avatar_url: nil,
+        avatar: nil,
+        uri: "https://remote.example/users/alice"
+      },
+      title: nil,
+      content: "Post body",
+      post_type: nil,
+      poll: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      media_urls: [],
+      media_metadata: %{},
+      primary_url: nil,
+      link_preview: nil,
+      like_count: 10,
+      reply_count: 0,
+      share_count: 0,
+      upvotes: 0,
+      downvotes: 0,
+      score: 10,
+      inserted_at: ~N[2026-02-25 03:31:05]
+    }
+
+    assigns = %{
+      __changed__: %{},
+      z: %{},
+      loading: false,
+      load_error: nil,
+      is_local_post: true,
+      local_message: local_message,
+      post: %{
+        "id" => activitypub_id,
+        "url" => activitypub_id,
+        "type" => "Note",
+        "content" => "Post body",
+        "published" => "2026-02-25T03:31:05Z",
+        "likes" => %{"totalItems" => 10},
+        "shares" => %{"totalItems" => 0},
+        "replies" => %{"totalItems" => 0},
+        "attributedTo" => "https://remote.example/users/alice"
+      },
+      remote_actor: local_message.remote_actor,
+      community_actor: nil,
+      community_stats: %{members: 0, posts: 0},
+      is_community_post: false,
+      is_following_community: false,
+      is_pending_community: false,
+      is_following_author: false,
+      is_pending_author: false,
+      user_follows: %{},
+      pending_follows: %{},
+      remote_follow_overrides: %{},
+      replies: [],
+      threaded_replies: [],
+      replies_loading: false,
+      replies_loaded: true,
+      comment_sort: "hot",
+      post_interactions: %{
+        activitypub_id => %{liked: false, boosted: false, like_delta: 0, boost_delta: 0},
+        Integer.to_string(local_message.id) => %{
+          liked: true,
+          boosted: false,
+          like_delta: 1,
+          boost_delta: 0
+        }
+      },
+      user_saves: %{},
+      lemmy_counts: nil,
+      lemmy_comment_counts: %{},
+      mastodon_counts: nil,
+      show_reply_form: false,
+      reply_content: "",
+      quick_reply_recent_replies: [],
+      replying_to_comment_id: nil,
+      comment_reply_content: "",
+      show_image_modal: false,
+      modal_image_url: nil,
+      modal_images: [],
+      modal_image_index: 0,
+      modal_post: nil,
+      post_reactions: %{},
+      pending_remote_poll_vote: nil,
+      in_reply_to: nil,
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [],
+      current_user: user,
+      platform_counts_load_ref: nil
+    }
+
+    html =
+      assigns
+      |> Show.render()
+      |> rendered_to_string()
+
+    assert html =~ ~s(data-count="11")
+    assert html =~ "hero-heart-solid"
+  end
+
+  test "local post detail opened from portal activity increments like and boost counts", %{
+    conn: conn
+  } do
+    author = AccountsFixtures.user_fixture()
+    viewer = AccountsFixtures.user_fixture()
+    post = post_fixture(%{user: author, content: "Queue opened post"})
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/post/#{post.id}")
+
+    html = render_hook(view, "like_post", %{"message_id" => Integer.to_string(post.id)})
+
+    assert Repo.get(Message, post.id).like_count == 1
+    assert html =~ ~s(phx-click="unlike_post")
+    assert html =~ ~s(data-count="1")
+
+    html = render_hook(view, "boost_post", %{"message_id" => Integer.to_string(post.id)})
+
+    assert Repo.get(Message, post.id).share_count == 1
+    assert html =~ ~s(phx-click="unboost_post")
+    assert html =~ ~s(data-count="1")
+  end
+
+  test "boost wrapper detail updates original post like and boost counts", %{conn: conn} do
+    author = AccountsFixtures.user_fixture()
+    booster = AccountsFixtures.user_fixture()
+    viewer = AccountsFixtures.user_fixture()
+    original = post_fixture(%{user: author, content: "Original boosted post"})
+
+    assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
+
+    wrapper =
+      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original.id)
+      |> Repo.preload([:sender, shared_message: [:sender]])
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/post/#{wrapper.id}")
+
+    html = render_hook(view, "like_post", %{"message_id" => Integer.to_string(original.id)})
+
+    assert Repo.get(Message, original.id).like_count == 1
+    assert html =~ ~s(phx-click="unlike_post")
+    assert html =~ ~s(data-count="1")
+
+    html = render_hook(view, "boost_post", %{"message_id" => Integer.to_string(original.id)})
+
+    assert Repo.get(Message, original.id).share_count == 2
+    assert html =~ ~s(phx-click="unboost_post")
+    assert html =~ ~s(data-count="2")
+  end
+
+  test "boost wrapper detail shows existing original like and boost state", %{conn: conn} do
+    author = AccountsFixtures.user_fixture()
+    booster = AccountsFixtures.user_fixture()
+    viewer = AccountsFixtures.user_fixture()
+    original = post_fixture(%{user: author, content: "Already boosted original"})
+
+    assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
+    assert {:ok, _like} = Elektrine.Social.like_post(viewer.id, original.id)
+    assert {:ok, _viewer_boost} = Elektrine.Social.boost_post(viewer.id, original.id)
+
+    wrapper =
+      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original.id)
+      |> Repo.preload([:sender, shared_message: [:sender]])
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/post/#{wrapper.id}")
+
+    assert html =~
+             ~s(id="remote-post-detail-boosted-#{wrapper.id}-actions-#{original.id}-like")
+
+    assert html =~
+             ~s(id="remote-post-detail-boosted-#{wrapper.id}-actions-#{original.id}-boost")
+
+    assert html =~ ~s(phx-click="unlike_post")
+    assert html =~ ~s(phx-click="unboost_post")
+    assert html =~ "hero-heart-solid"
+    assert html =~ "hero-arrow-path-solid"
+    assert html =~ "text-secondary"
+    assert html =~ "text-success"
+  end
+
+  test "boost wrapper detail reactions target the original message", %{conn: conn} do
+    author = AccountsFixtures.user_fixture()
+    booster = AccountsFixtures.user_fixture()
+    viewer = AccountsFixtures.user_fixture()
+    original = post_fixture(%{user: author, content: "Reactable boosted original"})
+
+    assert {:ok, _boost} = Elektrine.Social.boost_post(booster.id, original.id)
+
+    wrapper =
+      Repo.get_by!(Message, sender_id: booster.id, shared_message_id: original.id)
+      |> Repo.preload([:sender, shared_message: [:sender]])
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(viewer)
+      |> live("/remote/post/#{wrapper.id}")
+
+    document = Floki.parse_document!(html)
+
+    assert Floki.find(
+             document,
+             ~s(button[phx-click="react_to_post"][phx-value-emoji="🔥"][phx-value-message_id="#{original.id}"])
+           ) != []
+
+    assert Floki.find(
+             document,
+             ~s(button[phx-click="react_to_post"][phx-value-emoji="🔥"][phx-value-post_id="#{original.id}"])
+           ) == []
+
+    html =
+      render_hook(view, "react_to_post", %{
+        "message_id" => Integer.to_string(original.id),
+        "emoji" => "🔥"
+      })
+
+    assert Repo.get_by(Elektrine.Social.MessageReaction,
+             message_id: original.id,
+             user_id: viewer.id,
+             emoji: "🔥"
+           )
+
+    assert html =~ "🔥"
   end
 
   test "renders a stable loading placeholder while comments are loading" do

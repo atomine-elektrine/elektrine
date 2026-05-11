@@ -881,6 +881,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
               Social.get_public_federated_posts(
                 limit: 20,
                 before_id: before_id,
+                user_id: current_user && current_user.id,
                 search_query: search_query
               )
 
@@ -942,6 +943,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     no_more_posts = Enum.empty?(more_posts)
     updated_timeline_posts = Helpers.dedupe_posts(current_posts ++ more_posts)
 
+    updated_gap_marker_ids =
+      append_gap_marker(socket.assigns[:timeline_gap_marker_ids], current_posts, more_posts)
+
     updated_base_timeline_posts =
       if special_timeline_view?(timeline_view) do
         Map.get(socket.assigns, :base_timeline_posts, [])
@@ -991,6 +995,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
     |> assign(:pending_follows, merged_pending_follows)
     |> assign(:post_replies, merged_post_replies)
     |> assign(:timeline_posts, updated_timeline_posts)
+    |> assign(:timeline_gap_marker_ids, updated_gap_marker_ids)
     |> Helpers.apply_timeline_filter()
     |> maybe_queue_reply_context_preview_fetch(more_posts)
     |> maybe_schedule_background_refresh_jobs(more_posts)
@@ -1000,6 +1005,21 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   defp special_timeline_view?(view) do
     view in ["communities", "replies", "friends", "my_posts", "trusted"]
   end
+
+  defp append_gap_marker(existing_markers, current_posts, [first_new_post | _])
+       when is_list(current_posts) and current_posts != [] do
+    existing_markers
+    |> normalize_gap_markers()
+    |> MapSet.put(first_new_post.id)
+  end
+
+  defp append_gap_marker(existing_markers, _current_posts, _more_posts) do
+    normalize_gap_markers(existing_markers)
+  end
+
+  defp normalize_gap_markers(%MapSet{} = markers), do: markers
+  defp normalize_gap_markers(markers) when is_list(markers), do: MapSet.new(markers)
+  defp normalize_gap_markers(_markers), do: MapSet.new()
 
   defp maybe_queue_reply_context_preview_fetch(socket, posts) do
     refs = ReplyContextPreviews.candidate_refs(posts)

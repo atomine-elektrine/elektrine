@@ -12,7 +12,8 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @impl true
   def mount(%{"hashtag" => hashtag_name}, _session, socket) do
-    posts = Social.get_posts_for_hashtag(hashtag_name, limit: 20)
+    user_id = socket.assigns[:current_user] && socket.assigns.current_user.id
+    posts = Social.get_posts_for_hashtag(hashtag_name, limit: 20, user_id: user_id)
     hashtag_info = get_hashtag_info(hashtag_name)
     trending_hashtags = Social.get_trending_hashtags(limit: 10)
 
@@ -71,7 +72,11 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
         end
 
       more_posts =
-        Social.get_posts_for_hashtag(socket.assigns.hashtag_name, limit: 20, before_id: before_id)
+        Social.get_posts_for_hashtag(socket.assigns.hashtag_name,
+          limit: 20,
+          before_id: before_id,
+          user_id: socket.assigns[:current_user] && socket.assigns.current_user.id
+        )
 
       socket =
         case socket.assigns[:current_user] do
@@ -260,7 +265,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
     if socket.assigns[:current_user] do
       message_id = SafeConvert.to_integer!(message_id, message_id)
 
-      case Enum.find(socket.assigns.posts, &(&1.id == message_id)) do
+      case find_hashtag_post(socket.assigns.posts, message_id) do
         nil ->
           {:noreply, put_flash(socket, :error, "Post not found")}
 
@@ -712,14 +717,29 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   defp update_hashtag_post(socket, message_id, updater) when is_function(updater, 1) do
     updated_modal_post =
       case socket.assigns[:modal_post] do
-        %{id: ^message_id} = post -> updater.(post)
-        post -> post
+        %{id: ^message_id} = post ->
+          updater.(post)
+
+        %{shared_message: %{id: ^message_id} = shared_message} = post ->
+          Map.put(post, :shared_message, updater.(shared_message))
+
+        post ->
+          post
       end
 
     socket
     |> update(:posts, fn posts ->
       Enum.map(posts, fn post ->
-        if post.id == message_id, do: updater.(post), else: post
+        cond do
+          post.id == message_id ->
+            updater.(post)
+
+          match?(%{id: ^message_id}, hashtag_shared_message(post)) ->
+            Map.put(post, :shared_message, updater.(hashtag_shared_message(post)))
+
+          true ->
+            post
+        end
       end)
     end)
     |> assign(:modal_post, updated_modal_post)
@@ -783,6 +803,23 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   defp reload_hashtag_post(_), do: nil
+
+  defp find_hashtag_post(posts, message_id) do
+    Enum.find_value(posts || [], fn post ->
+      cond do
+        post.id == message_id -> post
+        match?(%{id: ^message_id}, hashtag_shared_message(post)) -> hashtag_shared_message(post)
+        true -> nil
+      end
+    end)
+  end
+
+  defp hashtag_shared_message(%{shared_message: %Ecto.Association.NotLoaded{}}), do: nil
+
+  defp hashtag_shared_message(%{shared_message: %{id: id} = shared_message}) when is_integer(id),
+    do: shared_message
+
+  defp hashtag_shared_message(_), do: nil
 
   defp parse_positive_int(value) when is_integer(value) and value > 0, do: {:ok, value}
 

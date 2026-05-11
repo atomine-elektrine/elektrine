@@ -12,6 +12,7 @@ COMPOSE_PROJECT_DIR="${COMPOSE_PROJECT_DIRECTORY:-$ROOT_DIR}"
 COMPOSE_BASE_ARGS=()
 DO_UP=1
 DO_MIGRATE=1
+DO_REPAIR_INDEXES=0
 DO_BUILD=1
 DO_PULL=0
 DO_CONFIGURE_DOCKER_SOURCE_IPS=0
@@ -27,7 +28,7 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--skip-up] [--configure-docker-source-ips] [additional docker compose args...]
+Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--repair-indexes] [--skip-up] [--configure-docker-source-ips] [additional docker compose args...]
 
 Renders a module-aware Compose file and deploys the Docker stack.
 EOF
@@ -70,6 +71,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-migrate)
       DO_MIGRATE=0
+      shift
+      ;;
+    --repair-indexes)
+      DO_REPAIR_INDEXES=1
       shift
       ;;
     --skip-up)
@@ -127,6 +132,10 @@ fi
 
 if truthy "${ELEKTRINE_AUTO_CONFIGURE_DOCKER_SOURCE_IPS:-false}"; then
   DO_CONFIGURE_DOCKER_SOURCE_IPS=1
+fi
+
+if truthy "${ELEKTRINE_REPAIR_INDEXES_ON_DEPLOY:-false}"; then
+  DO_REPAIR_INDEXES=1
 fi
 
 if [[ -z "$REQUESTED_MODULES" ]]; then
@@ -644,6 +653,10 @@ fi
 if [[ "$DO_MIGRATE" -eq 1 ]]; then
   MIGRATION_POOL_SIZE="${MIGRATION_POOL_SIZE:-2}"
   "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "MIGRATION_POOL_SIZE=$MIGRATION_POOL_SIZE" -e "POOL_SIZE=2" app bin/elektrine eval "Elektrine.Release.migrate()"
+fi
+
+if [[ "$DO_REPAIR_INDEXES" -eq 1 ]]; then
+  "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" run --rm -e "POOL_SIZE=2" app bin/elektrine eval "Application.ensure_all_started(:elektrine); Elektrine.Database.IndexRepair.reindex_database()"
 fi
 
 if [[ "$DO_UP" -eq 1 ]]; then

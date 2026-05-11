@@ -30,6 +30,43 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
     assert RefreshCountsWorker.visible_refresh_candidate_ids(:not_posts, limit: 10) == []
   end
 
+  test "visible_refresh_candidate_ids/2 includes federated shared messages from boost wrappers" do
+    posts = [
+      %{
+        id: 10,
+        federated: false,
+        activitypub_id: "https://local.example/users/alice/statuses/10",
+        shared_message: %{
+          id: 11,
+          federated: true,
+          activitypub_id: "https://remote.example/statuses/11"
+        }
+      },
+      %{
+        id: 12,
+        federated: false,
+        shared_message: %{
+          id: 13,
+          federated: false,
+          activitypub_id: "https://local.example/statuses/13"
+        }
+      },
+      %{
+        id: 14,
+        federated: true,
+        activitypub_id: "https://remote.example/statuses/14",
+        shared_message: %{
+          id: 15,
+          federated: true,
+          activitypub_url: "https://remote.example/@alice/15"
+        }
+      }
+    ]
+
+    assert RefreshCountsWorker.visible_refresh_candidate_ids(posts, limit: 10) == [11, 14, 15]
+    assert RefreshCountsWorker.visible_refresh_candidate_ids(posts, limit: 2) == [11, 14]
+  end
+
   test "reconciles zero remote refreshes with local engagement rows" do
     user = AccountsFixtures.user_fixture()
     actor = remote_actor_fixture()

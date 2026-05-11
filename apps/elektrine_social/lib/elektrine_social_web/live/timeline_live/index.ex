@@ -79,6 +79,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:filter_dropdown_open, false)
       |> assign(:filtered_posts, [])
       |> assign(:filtered_post_ids, [])
+      |> assign(:timeline_gap_marker_ids, MapSet.new())
       |> assign(:user_communities, [])
       |> assign(:available_conversations, [])
       |> assign(:user_likes, %{})
@@ -364,6 +365,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:no_more_posts, false)
     |> assign(:recently_loaded_post_ids, [])
     |> assign(:recently_loaded_count, 0)
+    |> assign(:timeline_gap_marker_ids, MapSet.new())
     |> assign(
       :lemmy_counts,
       Map.merge(socket.assigns[:lemmy_counts] || %{}, load_state.cached_lemmy_counts)
@@ -408,6 +410,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:timeline_posts, [])
     |> assign(:filtered_posts, [])
     |> assign(:filtered_post_ids, [])
+    |> assign(:timeline_gap_marker_ids, MapSet.new())
     |> assign(:loading_timeline, true)
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)
@@ -1455,7 +1458,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
             end
 
           "federated" ->
-            Social.get_public_federated_posts(limit: 20, search_query: search_query)
+            Social.get_public_federated_posts(
+              limit: 20,
+              user_id: user && user.id,
+              search_query: search_query
+            )
 
           "saved" ->
             if user do
