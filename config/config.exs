@@ -82,6 +82,8 @@ config :elektrine, Oban,
        {"*/30 * * * *", Elektrine.Jobs.EmailRecategorizer},
        # Process due reply-later messages every 5 minutes
        {"*/5 * * * *", Elektrine.Jobs.ReplyLaterProcessor},
+       # Publish due scheduled social posts every minute
+       {"* * * * *", Elektrine.Social.ScheduledPostPublisherWorker},
        # Clean up stale calls every 30 minutes
        {"*/30 * * * *", Elektrine.Jobs.StaleCallCleanup},
        # Re-enqueue due messaging federation outbox rows

@@ -3,6 +3,14 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
 
   alias Elektrine.Platform.RuntimeConfigValidator
 
+  @encryption_error "production requires ENCRYPTION_MASTER_SECRET, ENCRYPTION_KEY_SALT, and ENCRYPTION_SEARCH_SALT, or ELEKTRINE_MASTER_SECRET; set ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA=true only if unencrypted production data is intentional"
+
+  @prod_encryption_env %{
+    "ENCRYPTION_MASTER_SECRET" => "encryption-master-secret",
+    "ENCRYPTION_KEY_SALT" => "encryption-key-salt",
+    "ENCRYPTION_SEARCH_SALT" => "encryption-search-salt"
+  }
+
   test "allows deployments with no enabled optional modules" do
     assert :ok =
              RuntimeConfigValidator.validate(
@@ -25,6 +33,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
 
     assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET so cookie sessions can be decrypted consistently across instances" in errors
 
+    assert @encryption_error in errors
+
     assert "email module requires PRIMARY_DOMAIN" in errors
     assert "email module requires HARAKA_BASE_URL" in errors
   end
@@ -32,11 +42,12 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
   test "requires Haraka credentials when email is enabled" do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(
-               env: %{
-                 "PRIMARY_DOMAIN" => "example.com",
-                 "SESSION_SIGNING_SALT" => "signing-salt",
-                 "SESSION_ENCRYPTION_SALT" => "encryption-salt"
-               },
+               env:
+                 Map.merge(@prod_encryption_env, %{
+                   "PRIMARY_DOMAIN" => "example.com",
+                   "SESSION_SIGNING_SALT" => "signing-salt",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt"
+                 }),
                enabled_modules: [:email],
                environment: :prod
              )
@@ -60,6 +71,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
 
     assert "production requires SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET so cookie sessions can be decrypted consistently across instances" in errors
 
+    assert @encryption_error in errors
+
     assert "vpn module requires either VPN_FLEET_REGISTRATION_KEY or self-hosted WireGuard credentials via VPN_SELFHOST_PRIVATE_KEY/VPN_SELFHOST_PUBLIC_KEY; set VPN_SELFHOST_ENDPOINT_HOST or VPN_SELFHOST_PUBLIC_IP to avoid endpoint autodetection" in errors
   end
 
@@ -76,15 +89,16 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
   test "accepts valid email and vpn configuration" do
     assert :ok =
              RuntimeConfigValidator.validate(
-               env: %{
-                 "PRIMARY_DOMAIN" => "example.com",
-                 "SESSION_SIGNING_SALT" => "signing-salt",
-                 "SESSION_ENCRYPTION_SALT" => "encryption-salt",
-                 "HARAKA_BASE_URL" => "https://mail.example.com",
-                 "HARAKA_HTTP_API_KEY" => "outbound-key",
-                 "PHOENIX_API_KEY" => "inbound-key",
-                 "VPN_FLEET_REGISTRATION_KEY" => "fleet-key"
-               },
+               env:
+                 Map.merge(@prod_encryption_env, %{
+                   "PRIMARY_DOMAIN" => "example.com",
+                   "SESSION_SIGNING_SALT" => "signing-salt",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "HARAKA_BASE_URL" => "https://mail.example.com",
+                   "HARAKA_HTTP_API_KEY" => "outbound-key",
+                   "PHOENIX_API_KEY" => "inbound-key",
+                   "VPN_FLEET_REGISTRATION_KEY" => "fleet-key"
+                 }),
                enabled_modules: [:email, :vpn],
                environment: :prod
              )
@@ -93,12 +107,13 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
   test "accepts self-hosted wireguard configuration without a fleet key" do
     assert :ok =
              RuntimeConfigValidator.validate(
-               env: %{
-                 "SESSION_SIGNING_SALT" => "signing-salt",
-                 "SESSION_ENCRYPTION_SALT" => "encryption-salt",
-                 "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.10",
-                 "VPN_SELFHOST_PRIVATE_KEY" => "server-private-key"
-               },
+               env:
+                 Map.merge(@prod_encryption_env, %{
+                   "SESSION_SIGNING_SALT" => "signing-salt",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.10",
+                   "VPN_SELFHOST_PRIVATE_KEY" => "server-private-key"
+                 }),
                enabled_modules: [:vpn],
                environment: :prod
              )
@@ -107,14 +122,40 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
   test "accepts internal api key as shared Haraka credential" do
     assert :ok =
              RuntimeConfigValidator.validate(
+               env:
+                 Map.merge(@prod_encryption_env, %{
+                   "PRIMARY_DOMAIN" => "example.com",
+                   "SESSION_SIGNING_SALT" => "signing-salt",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "HARAKA_BASE_URL" => "https://mail.example.com",
+                   "INTERNAL_API_KEY" => "shared-internal-key"
+                 }),
+               enabled_modules: [:email],
+               environment: :prod
+             )
+  end
+
+  test "requires production encryption secrets unless unencrypted data is explicit" do
+    assert {:error, errors} =
+             RuntimeConfigValidator.validate(
                env: %{
-                 "PRIMARY_DOMAIN" => "example.com",
+                 "SESSION_SIGNING_SALT" => "signing-salt",
+                 "SESSION_ENCRYPTION_SALT" => "encryption-salt"
+               },
+               enabled_modules: [],
+               environment: :prod
+             )
+
+    assert @encryption_error in errors
+
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
                  "SESSION_SIGNING_SALT" => "signing-salt",
                  "SESSION_ENCRYPTION_SALT" => "encryption-salt",
-                 "HARAKA_BASE_URL" => "https://mail.example.com",
-                 "INTERNAL_API_KEY" => "shared-internal-key"
+                 "ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA" => "true"
                },
-               enabled_modules: [:email],
+               enabled_modules: [],
                environment: :prod
              )
   end

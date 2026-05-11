@@ -318,6 +318,7 @@ defmodule Elektrine.Social do
         where:
           c.type == "timeline" and
             m.post_type == "post" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             m.sender_id not in ^all_blocked_ids,
@@ -351,6 +352,7 @@ defmodule Elektrine.Social do
         # Exclude federated comments (Lemmy comments have inReplyTo in metadata)
         where:
           m.visibility == "public" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             is_nil(m.reply_to_id) and
@@ -415,6 +417,7 @@ defmodule Elektrine.Social do
       dynamic(
         [m, c],
         m.visibility == "public" and
+          m.is_draft != true and
           is_nil(m.deleted_at) and
           (m.approval_status == "approved" or is_nil(m.approval_status)) and
           is_nil(m.reply_to_id) and
@@ -463,6 +466,7 @@ defmodule Elektrine.Social do
           ((c.type == "timeline" and m.post_type == "post") or
              (is_nil(m.conversation_id) and m.federated == true)) and
             m.visibility in ["public", "followers"] and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
@@ -503,6 +507,7 @@ defmodule Elektrine.Social do
         on: c.id == m.conversation_id,
         where:
           m.visibility == "public" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             ((not is_nil(m.reply_to_id) and parent.federated == true) or
@@ -550,6 +555,7 @@ defmodule Elektrine.Social do
               m.post_type == "post" and
               m.sender_id in ^friend_ids and
               m.visibility in ["public", "followers", "friends"] and
+              m.is_draft != true and
               is_nil(m.deleted_at) and
               (m.approval_status == "approved" or is_nil(m.approval_status)) and
               is_nil(m.reply_to_id) and
@@ -589,6 +595,7 @@ defmodule Elektrine.Social do
             m.post_type == "post" and
             is_nil(m.remote_actor_id) and
             m.visibility == "public" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             is_nil(m.reply_to_id) and
@@ -627,6 +634,7 @@ defmodule Elektrine.Social do
         where:
           c.type == "timeline" and
             m.post_type == "gallery" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
             m.sender_id not in ^all_blocked_ids,
@@ -669,6 +677,7 @@ defmodule Elektrine.Social do
         c.type == "timeline" and
           m.sender_id == ^user_id and
           m.is_pinned == true and
+          m.is_draft != true and
           m.visibility in ^visibility_levels and
           is_nil(m.deleted_at),
       order_by: [desc: m.inserted_at],
@@ -693,6 +702,7 @@ defmodule Elektrine.Social do
         where:
           m.sender_id == ^user_id and
             m.post_type == "post" and
+            m.is_draft != true and
             m.visibility in ^visibility_levels and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
@@ -721,6 +731,7 @@ defmodule Elektrine.Social do
       where:
         m.sender_id == ^user_id and
           m.visibility in ^visibility_levels and
+          m.is_draft != true and
           is_nil(m.deleted_at) and
           (m.approval_status == "approved" or is_nil(m.approval_status)) and
           fragment("array_length(?, 1)", m.media_urls) > 0,
@@ -2735,6 +2746,7 @@ defmodule Elektrine.Social do
     from(m in Message,
       where: m.federated == true and m.remote_actor_id in ^remote_actor_ids,
       where: is_nil(m.deleted_at),
+      where: m.is_draft != true,
       where: m.visibility in ["public", "unlisted", "followers"],
       order_by: [desc: m.id],
       limit: ^limit,
@@ -2750,6 +2762,7 @@ defmodule Elektrine.Social do
         c.type == "timeline" and
           m.post_type == "post" and
           is_nil(m.deleted_at) and
+          m.is_draft != true and
           m.sender_id in ^following_ids and
           m.sender_id not in ^blocked_ids and
           m.visibility in ["public", "unlisted", "followers"] and
@@ -2766,6 +2779,7 @@ defmodule Elektrine.Social do
         m.federated == true and
           m.remote_actor_id in ^remote_actor_ids and
           is_nil(m.deleted_at) and
+          m.is_draft != true and
           m.visibility in ["public", "unlisted", "followers"] and
           is_nil(m.reply_to_id),
       select: m
@@ -2812,6 +2826,7 @@ defmodule Elektrine.Social do
             not is_nil(m.sender_id) and
             is_nil(m.remote_actor_id) and
             m.visibility == "public" and
+            m.is_draft != true and
             is_nil(m.deleted_at) and
             is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
@@ -2841,7 +2856,7 @@ defmodule Elektrine.Social do
       from(m in Message,
         where: m.federated == true and m.visibility == "public",
         where:
-          is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+          m.is_draft != true and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
             fragment("(?->>'inReplyTo' IS NULL)", m.media_metadata) and
             (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
@@ -2879,6 +2894,7 @@ defmodule Elektrine.Social do
         from m in Message,
           where:
             m.reply_to_id in ^post_ids and
+              m.is_draft != true and
               is_nil(m.deleted_at) and
               (m.approval_status == "approved" or is_nil(m.approval_status))
 

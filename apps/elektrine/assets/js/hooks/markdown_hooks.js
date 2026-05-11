@@ -347,24 +347,6 @@ export const ReplyMarkdownEditor = {
     // Focus on the textarea when mounted (FocusOnMount functionality)
     this.el.focus()
 
-    // Add event listener to combine new message with original when form is submitted
-    const form = this.el.closest('form')
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        const newMessage = this.el.value.trim()
-        const hiddenBodyField = form.querySelector('#full-message-body')
-        const originalMessage = hiddenBodyField.value
-
-        // Combine new message with original
-        if (newMessage) {
-          hiddenBodyField.value = newMessage + originalMessage
-        } else {
-          // If no new message, just use original (for forwarding without adding text)
-          hiddenBodyField.value = originalMessage
-        }
-      })
-    }
-
     // Setup markdown toolbar functionality
     this.setupReplyToolbars()
     this.setupReplyPreview()

@@ -3,6 +3,7 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
 
   alias Elektrine.Accounts
   alias Elektrine.MailClientSettings
+  alias ElektrineWeb.UserAuth
 
   @impl true
   def mount(_params, _session, socket) do
@@ -31,19 +32,23 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
 
   @impl true
   def handle_event("delete", %{"id" => id}, socket) do
-    user = socket.assigns.current_user
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
 
-    case Accounts.delete_app_password(id, user.id) do
-      {:ok, _} ->
-        app_passwords = Accounts.list_app_passwords(user.id)
+      case Accounts.delete_app_password(id, user.id) do
+        {:ok, _} ->
+          app_passwords = Accounts.list_app_passwords(user.id)
 
-        {:noreply,
-         socket
-         |> assign(:app_passwords, app_passwords)
-         |> put_flash(:info, "App password deleted")}
+          {:noreply,
+           socket
+           |> assign(:app_passwords, app_passwords)
+           |> put_flash(:info, "App password deleted")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to delete app password")}
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "Failed to delete app password")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, recent_auth_required_message())}
     end
   end
 
@@ -53,31 +58,48 @@ defmodule ElektrineWeb.SettingsLive.AppPasswords do
   end
 
   defp create_app_password(params, socket) do
-    user = socket.assigns.current_user
-    name = params["name"]
-    expires_option = params["expires_at"]
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      name = params["name"]
+      expires_option = params["expires_at"]
 
-    expires_at = expires_at_from_option(expires_option)
+      expires_at = expires_at_from_option(expires_option)
 
-    case Accounts.create_app_password(user.id, %{name: name, expires_at: expires_at}) do
-      {:ok, app_password} ->
-        app_passwords = Accounts.list_app_passwords(user.id)
-        fresh_form = app_password_form()
+      case Accounts.create_app_password(user.id, %{name: name, expires_at: expires_at}) do
+        {:ok, app_password} ->
+          app_passwords = Accounts.list_app_passwords(user.id)
+          fresh_form = app_password_form()
 
-        {:noreply,
-         socket
-         |> assign(:app_passwords, app_passwords)
-         |> assign(:form, fresh_form)
-         |> update(:form_version, &(&1 + 1))
-         |> assign(:new_token, app_password.token)
-         |> put_flash(:info, "App password created successfully")}
+          {:noreply,
+           socket
+           |> assign(:app_passwords, app_passwords)
+           |> assign(:form, fresh_form)
+           |> update(:form_version, &(&1 + 1))
+           |> assign(:new_token, app_password.token)
+           |> put_flash(:info, "App password created successfully")}
 
-      {:error, _changeset} ->
-        {:noreply,
-         socket
-         |> assign(:form, app_password_form(params))
-         |> put_flash(:error, "Failed to create app password")}
+        {:error, _changeset} ->
+          {:noreply,
+           socket
+           |> assign(:form, app_password_form(params))
+           |> put_flash(:error, "Failed to create app password")}
+      end
+    else
+      {:noreply,
+       socket
+       |> assign(:form, app_password_form(params))
+       |> put_flash(:error, recent_auth_required_message())}
     end
+  end
+
+  defp recent_auth_valid?(socket) do
+    socket.assigns
+    |> Map.get(:user_recent_auth_at)
+    |> UserAuth.recent_auth_valid?()
+  end
+
+  defp recent_auth_required_message do
+    "Managing app passwords requires a recent login. Sign in again and retry."
   end
 
   defp app_password_form(params \\ %{}) do

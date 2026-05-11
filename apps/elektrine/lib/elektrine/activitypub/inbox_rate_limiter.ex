@@ -57,6 +57,21 @@ defmodule Elektrine.ActivityPub.InboxRateLimiter do
     end
   end
 
+  def check_domain_rate_limit(nil), do: {:ok, :allowed}
+
+  def check_domain_rate_limit(actor_domain) do
+    minute_bucket = div(System.system_time(:second), 60)
+
+    max_per_domain_per_minute =
+      configured_limit(:max_per_domain_per_minute, @default_max_per_domain_per_minute)
+
+    if domain_over_limit?(actor_domain, minute_bucket, max_per_domain_per_minute) do
+      {:error, :rate_limited}
+    else
+      {:ok, :allowed}
+    end
+  end
+
   defp domain_over_limit?(domain, minute_bucket, max_per_domain_per_minute) do
     count =
       :ets.update_counter(

@@ -10,6 +10,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   alias Elektrine.Timeline.RateLimiter, as: TimelineRateLimiter
   alias ElektrineSocialWeb.TimelineLive.Operations.Helpers
   alias ElektrineSocialWeb.TimelineLive.ReplyContextPreviews
+  alias ElektrineWeb.AdminSecurity
 
   @starter_pack_drafts [
     {"Introduce yourself",
@@ -35,6 +36,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
      |> assign(:new_post_content, "")
      |> assign(:new_post_content_warning, nil)
      |> assign(:new_post_sensitive, false)
+     |> assign(:new_post_scheduled_at, "")
      |> assign(:show_cw_input, false)
      |> assign(
        :new_post_visibility,
@@ -54,6 +56,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
   def handle_event("update_visibility", %{"visibility" => visibility}, socket) do
     {:noreply, assign(socket, :new_post_visibility, visibility)}
+  end
+
+  def handle_event("update_scheduled_at", %{"scheduled_at" => scheduled_at}, socket) do
+    {:noreply, assign(socket, :new_post_scheduled_at, scheduled_at || "")}
   end
 
   def handle_event("toggle_content_warning", _params, socket) do
@@ -111,6 +117,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       content = params["content"] || socket.assigns.new_post_content || ""
       title = params["title"] || socket.assigns.new_post_title
       cw = params["cw"]
+      scheduled_at_input = params["scheduled_at"] || socket.assigns[:new_post_scheduled_at] || ""
 
       has_content =
         Elektrine.Strings.present?(content) || not is_nil(title) ||
@@ -123,6 +130,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           |> assign(:new_post_title, Elektrine.Strings.present(title))
           |> assign(:new_post_content_warning, cw)
           |> assign(:new_post_sensitive, Elektrine.Strings.present?(cw))
+          |> assign(:new_post_scheduled_at, scheduled_at_input)
           |> assign(:draft_saving, true)
 
         urls = Elektrine.Social.LinkPreviewFetcher.extract_urls(content)
@@ -154,7 +162,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           media_urls: media_urls,
           media_metadata: media_metadata,
           alt_texts: alt_texts,
-          content_warning: socket.assigns.new_post_content_warning
+          content_warning: socket.assigns.new_post_content_warning,
+          sensitive: socket.assigns.new_post_sensitive,
+          scheduled_at: parse_schedule_input_for_autosave(scheduled_at_input)
         ]
 
         opts =
@@ -234,6 +244,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       uploaded_files = socket.assigns.pending_media_urls
       media_metadata = pending_media_metadata(socket)
       alt_texts = socket.assigns.pending_media_alt_texts || %{}
+      scheduled_at_input = params["scheduled_at"] || socket.assigns[:new_post_scheduled_at] || ""
       post_opts = [visibility: visibility, media_urls: uploaded_files]
 
       post_opts =
@@ -271,37 +282,16 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           post_opts
         end
 
-      case Social.create_timeline_post(user.id, content, post_opts) do
-        {:ok, real_post} ->
-          if socket.assigns[:editing_draft_id] do
-            Drafts.delete_draft(socket.assigns.editing_draft_id, user.id)
+      case parse_schedule_input(scheduled_at_input) do
+        {:ok, scheduled_at} ->
+          if scheduled_at do
+            schedule_post(socket, user, content, post_opts, scheduled_at)
+          else
+            publish_post_now(socket, user, content, post_opts)
           end
 
-          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
-          Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
-
-          {:noreply,
-           socket
-           |> assign(:new_post_content, "")
-           |> assign(:new_post_title, nil)
-           |> assign(:new_post_content_warning, nil)
-           |> assign(:new_post_sensitive, false)
-           |> assign(:show_cw_input, false)
-           |> assign(:show_post_composer, false)
-           |> assign(:pending_media_urls, [])
-           |> assign(:pending_media_attachments, [])
-           |> assign(:pending_media_alt_texts, %{})
-           |> assign(:editing_draft_id, nil)
-           |> assign(:draft_auto_saved, false)
-           |> assign(:draft_saving, false)
-           |> assign(:recently_loaded_post_ids, [])
-           |> assign(:recently_loaded_count, 0)
-           |> update(:timeline_posts, fn posts -> [real_post | posts] end)
-           |> Helpers.apply_timeline_filter()
-           |> put_flash(:info, "Post published to your timeline.")}
-
-        {:error, _changeset} ->
-          {:noreply, put_flash(socket, :error, "Couldn't publish your post. Please try again.")}
+        {:error, message} ->
+          {:noreply, put_flash(socket, :error, message)}
       end
     end
   end
@@ -330,24 +320,26 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
   end
 
   def handle_event("delete_post_admin", %{"message_id" => message_id}, socket) do
-    if socket.assigns.current_user && socket.assigns.current_user.is_admin do
-      message_id = String.to_integer(message_id)
+    case AdminSecurity.validate_live_admin_action(socket.assigns) do
+      :ok ->
+        message_id = String.to_integer(message_id)
 
-      case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
-        {:ok, _deleted_message} ->
-          updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.id == message_id))
+        case Messaging.delete_message(message_id, socket.assigns.current_user.id, true) do
+          {:ok, _deleted_message} ->
+            updated_posts = Enum.reject(socket.assigns.timeline_posts, &(&1.id == message_id))
 
-          {:noreply,
-           socket
-           |> assign(:timeline_posts, updated_posts)
-           |> Helpers.apply_timeline_filter()
-           |> put_flash(:info, "Post deleted successfully")}
+            {:noreply,
+             socket
+             |> assign(:timeline_posts, updated_posts)
+             |> Helpers.apply_timeline_filter()
+             |> put_flash(:info, "Post deleted successfully")}
 
-        {:error, _} ->
-          {:noreply, put_flash(socket, :error, "Failed to delete post")}
-      end
-    else
-      {:noreply, put_flash(socket, :error, "Unauthorized")}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Failed to delete post")}
+        end
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, AdminSecurity.error_message(reason))}
     end
   end
 
@@ -509,6 +501,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       alt_texts = socket.assigns.pending_media_alt_texts || %{}
       content_warning = socket.assigns.new_post_content_warning
       draft_id = socket.assigns[:editing_draft_id]
+      scheduled_at_input = socket.assigns[:new_post_scheduled_at] || ""
 
       opts = [
         content: content,
@@ -517,7 +510,8 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
         media_urls: media_urls,
         media_metadata: media_metadata,
         alt_texts: alt_texts,
-        content_warning: content_warning
+        content_warning: content_warning,
+        sensitive: socket.assigns.new_post_sensitive
       ]
 
       opts =
@@ -527,25 +521,40 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           opts
         end
 
-      case Drafts.save_draft(user.id, opts) do
-        {:ok, draft} ->
-          {:noreply,
-           socket
-           |> assign(:new_post_content, "")
-           |> assign(:new_post_title, nil)
-           |> assign(:new_post_content_warning, nil)
-           |> assign(:new_post_sensitive, false)
-           |> assign(:show_cw_input, false)
-           |> assign(:show_post_composer, false)
-           |> assign(:pending_media_urls, [])
-           |> assign(:pending_media_attachments, [])
-           |> assign(:pending_media_alt_texts, %{})
-           |> assign(:editing_draft_id, nil)
-           |> update(:user_drafts, fn drafts -> [draft | drafts || []] end)
-           |> put_flash(:info, "Draft saved")}
+      case parse_schedule_input(scheduled_at_input) do
+        {:ok, scheduled_at} ->
+          opts = Keyword.put(opts, :scheduled_at, scheduled_at)
 
-        {:error, _changeset} ->
-          {:noreply, put_flash(socket, :error, "Failed to save draft")}
+          case Drafts.save_draft(user.id, opts) do
+            {:ok, draft} ->
+              {:noreply,
+               socket
+               |> assign(:new_post_content, "")
+               |> assign(:new_post_title, nil)
+               |> assign(:new_post_content_warning, nil)
+               |> assign(:new_post_sensitive, false)
+               |> assign(:new_post_scheduled_at, "")
+               |> assign(:show_cw_input, false)
+               |> assign(:show_post_composer, false)
+               |> assign(:pending_media_urls, [])
+               |> assign(:pending_media_attachments, [])
+               |> assign(:pending_media_alt_texts, %{})
+               |> assign(:editing_draft_id, nil)
+               |> update(:user_drafts, fn drafts ->
+                 drafts = drafts || []
+                 [draft | Enum.reject(drafts, &(&1.id == draft.id))]
+               end)
+               |> put_flash(
+                 :info,
+                 if(scheduled_at, do: "Scheduled draft saved", else: "Draft saved")
+               )}
+
+            {:error, _changeset} ->
+              {:noreply, put_flash(socket, :error, "Failed to save draft")}
+          end
+
+        {:error, message} ->
+          {:noreply, put_flash(socket, :error, message)}
       end
     else
       {:noreply, put_flash(socket, :error, "You must be logged in to save drafts")}
@@ -568,7 +577,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
          |> assign(:new_post_title, draft.title)
          |> assign(:new_post_visibility, draft.visibility || "followers")
          |> assign(:new_post_content_warning, draft.content_warning)
-         |> assign(:new_post_sensitive, Elektrine.Strings.present?(draft.content_warning))
+         |> assign(
+           :new_post_sensitive,
+           draft.sensitive || Elektrine.Strings.present?(draft.content_warning)
+         )
+         |> assign(:new_post_scheduled_at, format_schedule_input(draft.scheduled_at))
          |> assign(:show_cw_input, Elektrine.Strings.present?(draft.content_warning))
          |> assign(:pending_media_urls, draft.media_urls || [])
          |> assign(:pending_media_attachments, draft_attachment_metadata(draft))
@@ -598,6 +611,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
 
       {:error, :empty_draft} ->
         {:noreply, put_flash(socket, :error, "Cannot publish an empty draft")}
+
+      {:error, :scheduled_for_future} ->
+        {:noreply,
+         put_flash(socket, :error, "Scheduled posts stay queued until their scheduled time")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to publish draft")}
@@ -696,6 +713,80 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
           :error,
           "You're switching timeline pages too quickly. Please retry in #{retry_after}s."
         )
+    end
+  end
+
+  defp publish_post_now(socket, user, content, post_opts) do
+    case Social.create_timeline_post(user.id, content, post_opts) do
+      {:ok, real_post} ->
+        if socket.assigns[:editing_draft_id] do
+          Drafts.delete_draft(socket.assigns.editing_draft_id, user.id)
+        end
+
+        Elektrine.Accounts.TrustLevel.increment_stat(user.id, :posts_created)
+        Elektrine.Accounts.TrustLevel.increment_stat(user.id, :topics_created)
+
+        {:noreply,
+         socket
+         |> assign(:new_post_content, "")
+         |> assign(:new_post_title, nil)
+         |> assign(:new_post_content_warning, nil)
+         |> assign(:new_post_sensitive, false)
+         |> assign(:new_post_scheduled_at, "")
+         |> assign(:show_cw_input, false)
+         |> assign(:show_post_composer, false)
+         |> assign(:pending_media_urls, [])
+         |> assign(:pending_media_attachments, [])
+         |> assign(:pending_media_alt_texts, %{})
+         |> assign(:editing_draft_id, nil)
+         |> assign(:draft_auto_saved, false)
+         |> assign(:draft_saving, false)
+         |> assign(:recently_loaded_post_ids, [])
+         |> assign(:recently_loaded_count, 0)
+         |> update(:timeline_posts, fn posts -> [real_post | posts] end)
+         |> Helpers.apply_timeline_filter()
+         |> put_flash(:info, "Post published to your timeline.")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Couldn't publish your post. Please try again.")}
+    end
+  end
+
+  defp schedule_post(socket, user, content, post_opts, scheduled_at) do
+    draft_id = socket.assigns[:editing_draft_id]
+    opts = Keyword.merge(post_opts, content: content, scheduled_at: scheduled_at)
+
+    opts = if draft_id, do: Keyword.put(opts, :draft_id, draft_id), else: opts
+
+    case Drafts.save_draft(user.id, opts) do
+      {:ok, draft} ->
+        updated_drafts =
+          socket.assigns.user_drafts
+          |> Kernel.||([])
+          |> Enum.reject(&(&1.id == draft.id))
+          |> then(&[draft | &1])
+
+        {:noreply,
+         socket
+         |> assign(:new_post_content, "")
+         |> assign(:new_post_title, nil)
+         |> assign(:new_post_content_warning, nil)
+         |> assign(:new_post_sensitive, false)
+         |> assign(:new_post_scheduled_at, "")
+         |> assign(:show_cw_input, false)
+         |> assign(:show_post_composer, false)
+         |> assign(:pending_media_urls, [])
+         |> assign(:pending_media_attachments, [])
+         |> assign(:pending_media_alt_texts, %{})
+         |> assign(:editing_draft_id, nil)
+         |> assign(:draft_auto_saved, false)
+         |> assign(:draft_saving, false)
+         |> assign(:user_drafts, updated_drafts)
+         |> assign(:show_drafts_panel, true)
+         |> put_flash(:info, "Post scheduled for #{format_scheduled_at(draft.scheduled_at)}")}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Couldn't schedule your post. Please try again.")}
     end
   end
 
@@ -1107,6 +1198,82 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
       end
 
     Elektrine.Paths.timeline_path(Enum.into(params, []))
+  end
+
+  defp parse_schedule_input_for_autosave(value) do
+    case parse_schedule_input(value) do
+      {:ok, scheduled_at} -> scheduled_at
+      {:error, _message} -> nil
+    end
+  end
+
+  defp parse_schedule_input(nil), do: {:ok, nil}
+  defp parse_schedule_input(""), do: {:ok, nil}
+
+  defp parse_schedule_input(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" ->
+        {:ok, nil}
+
+      String.ends_with?(value, "Z") or String.contains?(value, "+") ->
+        parse_schedule_iso8601(value)
+
+      true ->
+        parse_schedule_naive(value)
+    end
+  end
+
+  defp parse_schedule_input(_value), do: {:error, "Scheduled time is invalid"}
+
+  defp parse_schedule_iso8601(value) do
+    case DateTime.from_iso8601(value) do
+      {:ok, datetime, _offset} -> validate_future_schedule(datetime)
+      _ -> {:error, "Scheduled time is invalid"}
+    end
+  end
+
+  defp parse_schedule_naive(value) do
+    value = if String.length(value) == 16, do: value <> ":00", else: value
+
+    case NaiveDateTime.from_iso8601(value) do
+      {:ok, naive_datetime} ->
+        naive_datetime
+        |> DateTime.from_naive!("Etc/UTC")
+        |> validate_future_schedule()
+
+      _ ->
+        {:error, "Scheduled time is invalid"}
+    end
+  end
+
+  defp validate_future_schedule(datetime) do
+    datetime = DateTime.truncate(datetime, :second)
+
+    if DateTime.compare(datetime, DateTime.utc_now()) == :gt do
+      {:ok, datetime}
+    else
+      {:error, "Scheduled time must be in the future"}
+    end
+  end
+
+  defp format_schedule_input(nil), do: ""
+
+  defp format_schedule_input(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.truncate(:second)
+    |> DateTime.to_naive()
+    |> NaiveDateTime.to_iso8601()
+    |> String.slice(0, 16)
+  end
+
+  defp format_scheduled_at(nil), do: "later"
+
+  defp format_scheduled_at(%DateTime{} = datetime) do
+    datetime
+    |> DateTime.truncate(:second)
+    |> DateTime.to_iso8601()
   end
 
   defp pending_media_metadata(socket) do

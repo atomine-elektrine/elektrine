@@ -37,21 +37,6 @@
     {"discussed", "Discussed"}
   ]
 
-  selected_category_label =
-    Enum.find_value(category_options, "All Categories", fn {value, label} ->
-      if value == @gallery_filter, do: label
-    end)
-
-  selected_software_label =
-    Enum.find_value(software_options, "All Sources", fn {value, label} ->
-      if value == @software_filter, do: label
-    end)
-
-  selected_sort_label =
-    Enum.find_value(sort_options, "Fresh", fn {value, label} ->
-      if value == @gallery_sort, do: label
-    end)
-
   image_posts = Enum.filter(@filtered_posts, &gallery_image?/1)
 
   recent_uploads = Enum.take(@recent_uploads || [], 3)
@@ -434,96 +419,45 @@
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Category</span>
             </label>
-            <div class="dropdown dropdown-end w-full">
-              <label
-                tabindex="0"
-                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
-              >
-                <span>{selected_category_label}</span>
-                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
-              </label>
-              <ul
-                tabindex="0"
-                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
-              >
-                <%= for {value, label} <- category_options do %>
-                  <li>
-                    <button
-                      type="button"
-                      phx-click="set_gallery_filter"
-                      phx-value-filter={value}
-                      class={if @gallery_filter == value, do: "active"}
-                    >
-                      {label}
-                    </button>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
+            <form phx-change="set_gallery_filter">
+              <div class="select select-bordered w-full">
+                <select name="filter">
+                  <%= for {value, label} <- category_options do %>
+                    <option value={value} selected={@gallery_filter == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </form>
           </div>
 
           <div>
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Source</span>
             </label>
-            <div class="dropdown dropdown-end w-full">
-              <label
-                tabindex="0"
-                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
-              >
-                <span>{selected_software_label}</span>
-                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
-              </label>
-              <ul
-                tabindex="0"
-                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
-              >
-                <%= for {value, label} <- software_options do %>
-                  <li>
-                    <button
-                      type="button"
-                      phx-click="set_software_filter"
-                      phx-value-software={value}
-                      class={if @software_filter == value, do: "active"}
-                    >
-                      {label}
-                    </button>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
+            <form phx-change="set_software_filter">
+              <div class="select select-bordered w-full">
+                <select name="software">
+                  <%= for {value, label} <- software_options do %>
+                    <option value={value} selected={@software_filter == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </form>
           </div>
 
           <div>
             <label class="label">
               <span class="label-text text-xs uppercase tracking-wide">Sort</span>
             </label>
-            <div class="dropdown dropdown-end w-full">
-              <label
-                tabindex="0"
-                class="btn btn-ghost min-h-10 w-full justify-between border border-base-300 bg-base-200 text-sm font-medium hover:bg-base-300"
-              >
-                <span>{selected_sort_label}</span>
-                <.icon name="hero-chevron-down" class="w-4 h-4 opacity-70" />
-              </label>
-              <ul
-                tabindex="0"
-                class="dropdown-content menu z-30 mt-2 w-full rounded-box border border-base-300 bg-base-100 p-2 shadow-xl"
-              >
-                <%= for {value, label} <- sort_options do %>
-                  <li>
-                    <button
-                      type="button"
-                      phx-click="set_gallery_sort"
-                      phx-value-sort={value}
-                      class={if @gallery_sort == value, do: "active"}
-                    >
-                      {label}
-                    </button>
-                  </li>
-                <% end %>
-              </ul>
-            </div>
+            <form phx-change="set_gallery_sort">
+              <div class="select select-bordered w-full">
+                <select name="sort">
+                  <%= for {value, label} <- sort_options do %>
+                    <option value={value} selected={@gallery_sort == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </form>
           </div>
         </div>
 
@@ -557,19 +491,23 @@
         </div>
       <% else %>
         <%= if image_posts == [] do %>
-          <div class="rounded-lg border border-dashed border-base-300 bg-base-100 px-6 py-16 text-center shadow-sm">
-            <.icon name="hero-photo" class="w-16 h-16 opacity-20 mx-auto mb-4" />
-            <h3 class="text-xl font-semibold">{empty_title}</h3>
-            <p class="text-sm text-base-content/60 mt-2 max-w-md mx-auto">{empty_copy}</p>
-            <%= if @current_user do %>
-              <button phx-click="toggle_upload_modal" class="btn btn-secondary mt-5">
-                <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload Something
-              </button>
-            <% else %>
-              <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-5">
-                Sign In
-              </.link>
-            <% end %>
+          <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card-body items-center px-6 py-14 text-center sm:py-16">
+              <div class="mb-4 rounded-full bg-base-200 p-4 text-base-content/40">
+                <.icon name="hero-photo" class="h-10 w-10" />
+              </div>
+              <h3 class="text-lg font-semibold sm:text-xl">{empty_title}</h3>
+              <p class="mt-2 max-w-md text-sm leading-6 text-base-content/70">{empty_copy}</p>
+              <%= if @current_user do %>
+                <button phx-click="toggle_upload_modal" class="btn btn-secondary mt-4">
+                  <.icon name="hero-plus" class="w-4 h-4 mr-2" /> Upload Image
+                </button>
+              <% else %>
+                <.link href={Elektrine.Paths.login_path()} class="btn btn-secondary mt-4">
+                  Sign In
+                </.link>
+              <% end %>
+            </div>
           </div>
         <% else %>
           <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 md:gap-1.5 lg:grid-cols-4 xl:grid-cols-5">

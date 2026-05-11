@@ -136,6 +136,7 @@ defmodule Elektrine.Social.Lists do
             where:
               c.type == "timeline" and m.post_type == "post" and m.sender_id in ^local_user_ids and
                 is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
+                m.is_draft != true and
                 m.sender_id not in ^blocked_user_ids and
                 (m.approval_status == "approved" or is_nil(m.approval_status)),
             where: ^local_visibility_filter,
@@ -177,6 +178,7 @@ defmodule Elektrine.Social.Lists do
             where:
               m.federated == true and m.remote_actor_id in ^remote_actor_ids and
                 is_nil(m.deleted_at) and is_nil(m.reply_to_id),
+            where: m.is_draft != true,
             where: ^remote_visibility_filter,
             preload: [
               remote_actor: [],

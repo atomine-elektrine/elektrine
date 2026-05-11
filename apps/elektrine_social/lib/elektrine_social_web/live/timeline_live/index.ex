@@ -63,6 +63,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
       |> assign(:new_post_visibility, (user && user.default_post_visibility) || "public")
       |> assign(:new_post_content_warning, nil)
       |> assign(:new_post_sensitive, false)
+      |> assign(:new_post_scheduled_at, "")
       |> assign(:show_cw_input, false)
       |> assign(:show_post_composer, false)
       |> assign(:composer_intent, "post")

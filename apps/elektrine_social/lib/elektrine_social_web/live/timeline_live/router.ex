@@ -59,6 +59,9 @@ defmodule ElektrineSocialWeb.TimelineLive.Router do
       "update_visibility" ->
         PostOperations.handle_event(event_name, params, socket)
 
+      "update_scheduled_at" ->
+        PostOperations.handle_event(event_name, params, socket)
+
       "toggle_content_warning" ->
         PostOperations.handle_event(event_name, params, socket)
 

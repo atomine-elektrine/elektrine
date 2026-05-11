@@ -20,7 +20,7 @@ services:
       PDS_CRAWLERS: "https://bsky.network"
       LOG_ENABLED: true
     ports:
-      - "${BLUESKY_PDS_PORT:-3000}:3000"
+      - "127.0.0.1:${BLUESKY_PDS_PORT:-3000}:3000"
     volumes:
       - bluesky_pds_data:/pds
     networks:

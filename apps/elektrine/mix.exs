@@ -73,7 +73,7 @@ defmodule Elektrine.MixProject do
 
   defp deps do
     [
-      {:phoenix, "== 1.8.5"},
+      {:phoenix, "== 1.8.7"},
       {:phoenix_ecto, "== 4.7.0"},
       {:ecto_sql, "== 3.13.5"},
       {:postgrex, "== 0.22.0"},

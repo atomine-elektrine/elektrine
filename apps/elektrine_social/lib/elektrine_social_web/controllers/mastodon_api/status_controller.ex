@@ -35,37 +35,65 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusController do
     visibility = normalize_visibility(params["visibility"])
     in_reply_to_id = parse_int(params["in_reply_to_id"])
     media_ids = normalize_media_ids(params["media_ids"])
-    scheduled_at = parse_datetime(params["scheduled_at"])
     poll_params = params["poll"] || %{}
 
-    if scheduled_at do
-      with {:ok, draft} <-
-             Drafts.create_draft(user.id,
-               content: status,
-               visibility: visibility,
-               media_urls: media_ids,
-               content_warning: params["spoiler_text"],
-               scheduled_at: scheduled_at
-             ) do
-        conn
-        |> put_status(:accepted)
-        |> json(render_scheduled_status(draft))
+    with {:ok, scheduled_at} <- parse_scheduled_at(params["scheduled_at"]) do
+      if scheduled_at do
+        create_scheduled_status(conn, user, status, visibility, media_ids, params, scheduled_at)
+      else
+        create_immediate_status(
+          conn,
+          user,
+          status,
+          visibility,
+          media_ids,
+          params,
+          in_reply_to_id,
+          poll_params
+        )
       end
-    else
-      opts =
-        []
-        |> Keyword.put(:visibility, visibility)
-        |> Keyword.put(:media_urls, media_ids)
-        |> maybe_put_reply_to(in_reply_to_id)
-        |> maybe_put_content_warning(params["spoiler_text"])
-        |> maybe_put_sensitive(params["sensitive"])
+    end
+  end
 
-      with {:ok, post} <- Social.create_timeline_post(user.id, status, opts),
-           {:ok, post} <- maybe_create_poll(post, poll_params) do
-        conn
-        |> put_status(:created)
-        |> json(render_status(post, user))
-      end
+  defp create_scheduled_status(conn, user, status, visibility, media_ids, params, scheduled_at) do
+    with {:ok, draft} <-
+           Drafts.create_draft(user.id,
+             content: status,
+             visibility: visibility,
+             media_urls: media_ids,
+             content_warning: params["spoiler_text"],
+             sensitive: parse_boolean(params["sensitive"]),
+             scheduled_at: scheduled_at
+           ) do
+      conn
+      |> put_status(:accepted)
+      |> json(render_scheduled_status(draft))
+    end
+  end
+
+  defp create_immediate_status(
+         conn,
+         user,
+         status,
+         visibility,
+         media_ids,
+         params,
+         in_reply_to_id,
+         poll_params
+       ) do
+    opts =
+      []
+      |> Keyword.put(:visibility, visibility)
+      |> Keyword.put(:media_urls, media_ids)
+      |> maybe_put_reply_to(in_reply_to_id)
+      |> maybe_put_content_warning(params["spoiler_text"])
+      |> maybe_put_sensitive(params["sensitive"])
+
+    with {:ok, post} <- Social.create_timeline_post(user.id, status, opts),
+         {:ok, post} <- maybe_create_poll(post, poll_params) do
+      conn
+      |> put_status(:created)
+      |> json(render_status(post, user))
     end
   end
 
@@ -186,6 +214,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusController do
 
   defp maybe_put_sensitive(opts, _), do: opts
 
+  defp parse_boolean(value), do: value in [true, "true", "1", 1]
+
   defp like_or_accept_existing(user_id, post_id) do
     case Social.like_post(user_id, post_id) do
       {:ok, result} -> {:ok, result}
@@ -267,14 +297,24 @@ defmodule ElektrineSocialWeb.MastodonAPI.StatusController do
 
   defp maybe_create_poll(post, _poll_params), do: {:ok, post}
 
-  defp parse_datetime(nil), do: nil
+  defp parse_scheduled_at(nil), do: {:ok, nil}
+  defp parse_scheduled_at(""), do: {:ok, nil}
 
-  defp parse_datetime(value) when is_binary(value) do
+  defp parse_scheduled_at(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do
-      {:ok, dt, _} -> dt
-      _ -> nil
+      {:ok, datetime, _offset} ->
+        if DateTime.compare(datetime, DateTime.utc_now()) == :gt do
+          {:ok, DateTime.truncate(datetime, :second)}
+        else
+          {:error, :unprocessable_entity, "scheduled_at must be in the future"}
+        end
+
+      _ ->
+        {:error, :unprocessable_entity, "scheduled_at must be a valid ISO 8601 datetime"}
     end
   end
+
+  defp parse_scheduled_at(_value), do: {:error, :unprocessable_entity, "scheduled_at is invalid"}
 
   defp parse_poll_expiry(nil), do: nil
 

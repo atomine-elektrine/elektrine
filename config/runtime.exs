@@ -657,7 +657,8 @@ if config_env() != :test and :email in enabled_platform_modules do
 end
 
 # Configure encryption.
-# In production, encryption is optional: if secrets are missing, encryption is disabled.
+# In production, missing encryption secrets fail validation unless unencrypted data
+# has been explicitly allowed with ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA=true.
 encryption_master_secret = RuntimeSecrets.encryption_master_secret(runtime_env)
 encryption_key_salt = RuntimeSecrets.encryption_key_salt(runtime_env)
 encryption_search_salt = RuntimeSecrets.encryption_search_salt(runtime_env)
@@ -682,9 +683,14 @@ encryption_configured =
     &(is_binary(&1) and String.trim(&1) != "")
   )
 
+allow_unencrypted_prod_data =
+  config_env() == :prod and
+    parse_bool_env.("ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA", false) and
+    not encryption_configured
+
 if config_env() == :prod do
   config :elektrine,
-    encryption_enabled: encryption_configured,
+    encryption_enabled: encryption_configured and not allow_unencrypted_prod_data,
     encryption_master_secret: encryption_master_secret,
     encryption_key_salt: encryption_key_salt,
     encryption_search_salt: encryption_search_salt
