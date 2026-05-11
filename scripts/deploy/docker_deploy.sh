@@ -397,6 +397,53 @@ render_caddy_config() {
   ' "$source_path" > "$CADDY_RENDERED_CONFIG_PATH"
 }
 
+ensure_writable_output_path() {
+  local output_path="$1"
+  local label="$2"
+  local output_dir=""
+  local owner=""
+
+  output_dir="$(dirname "$output_path")"
+  owner="$(id -u):$(id -g)"
+
+  if [[ ! -d "$output_dir" ]]; then
+    if ! mkdir -p "$output_dir" 2>/dev/null; then
+      if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo -n mkdir -p "$output_dir"
+        sudo -n chown "$owner" "$output_dir"
+      else
+        echo "Error: $label directory does not exist: $output_dir" >&2
+        echo "Hint: create it or set $label to a path under a writable deploy directory." >&2
+        return 1
+      fi
+    fi
+  fi
+
+  if [[ ! -w "$output_dir" ]]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo -n chown "$owner" "$output_dir"
+    fi
+
+    if [[ ! -w "$output_dir" ]]; then
+      echo "Error: $label directory is not writable: $output_dir" >&2
+      echo "Hint: fix deploy directory ownership for the SSH deploy user instead of running git operations as root." >&2
+      return 1
+    fi
+  fi
+
+  if [[ -e "$output_path" && ! -w "$output_path" ]]; then
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      sudo -n chown "$owner" "$output_path"
+    fi
+
+    if [[ ! -w "$output_path" ]]; then
+      echo "Error: $label is not writable: $output_path" >&2
+      echo "Hint: remove the generated file or chown it to the SSH deploy user." >&2
+      return 1
+    fi
+  fi
+}
+
 infer_cert_base_name() {
   local site_values="$1"
   local token=""
@@ -516,6 +563,7 @@ validate_external_caddy_cert_paths "$INFERRED_CADDY_CONFIG_PATH"
 validate_media_storage_config
 validate_caddy_admin_cidrs
 maybe_enable_magpie_network_override
+ensure_writable_output_path "$CADDY_RENDERED_CONFIG_PATH" "Caddy output path"
 render_caddy_config
 INFERRED_CADDY_CONFIG_PATH="$CADDY_RENDERED_CONFIG_PATH"
 
@@ -535,12 +583,7 @@ fi
 
 COMPOSE_BASE_ARGS=(--project-directory "$COMPOSE_PROJECT_DIR" --env-file "$ENV_FILE")
 
-if [[ -e "$OUTPUT_PATH" && ! -w "$OUTPUT_PATH" ]]; then
-  echo "Error: output path is not writable: $OUTPUT_PATH" >&2
-  echo "Hint: render to a writable temporary file with --output /tmp/elektrine.generated.docker.yml" >&2
-  echo "Hint: if this is a repo-owned generated file, fix ownership instead of running git operations as root" >&2
-  exit 1
-fi
+ensure_writable_output_path "$OUTPUT_PATH" "Compose output path"
 
 maybe_configure_docker_source_ips
 
