@@ -243,7 +243,15 @@
           </div>
           
 <!-- Email metadata -->
-          <div class="bg-base-200/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border border-base-300">
+          <div
+            class="bg-base-200/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 border border-base-300"
+            data-private-message={to_string(private_message?(@message))}
+            data-private-message-payload={
+              if private_message?(@message),
+                do: Jason.encode!(@message.client_encrypted_payload),
+                else: ""
+            }
+          >
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div class="space-y-2">
                 <div class="flex items-center space-x-2">
@@ -256,6 +264,11 @@
                   <span
                     data-private-address="from"
                     data-private-address-placeholder={format_email_display(@message.from)}
+                    data-private-address-payload={
+                      if private_message?(@message),
+                        do: Jason.encode!(@message.client_encrypted_payload),
+                        else: ""
+                    }
                   >
                     {format_email_display(@message.from)}
                   </span>
@@ -273,6 +286,11 @@
                   <span
                     data-private-address="to"
                     data-private-address-placeholder={format_email_display(@message.to)}
+                    data-private-address-payload={
+                      if private_message?(@message),
+                        do: Jason.encode!(@message.client_encrypted_payload),
+                        else: ""
+                    }
                   >
                     {format_email_display(@message.to)}
                   </span>
@@ -291,6 +309,11 @@
                     <span
                       data-private-address="cc"
                       data-private-address-placeholder={format_email_display(@message.cc)}
+                      data-private-address-payload={
+                        if private_message?(@message),
+                          do: Jason.encode!(@message.client_encrypted_payload),
+                          else: ""
+                      }
                     >
                       {format_email_display(@message.cc)}
                     </span>
@@ -310,6 +333,11 @@
                     <span
                       data-private-address="bcc"
                       data-private-address-placeholder={format_email_display(@message.bcc)}
+                      data-private-address-payload={
+                        if private_message?(@message),
+                          do: Jason.encode!(@message.client_encrypted_payload),
+                          else: ""
+                      }
                     >
                       {format_email_display(@message.bcc)}
                     </span>

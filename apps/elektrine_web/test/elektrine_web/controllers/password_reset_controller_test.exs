@@ -52,7 +52,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       conn =
         post(conn, ~p"/password/reset", %{
           "password_reset" => %{"username_or_email" => user.username},
-          "cf-turnstile-response" => "test-token"
+          "atomine_pow_token" => "test-token"
         })
 
       assert redirected_to(conn) == ~p"/login"
@@ -74,7 +74,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       conn =
         post(conn, ~p"/password/reset", %{
           "password_reset" => %{"username_or_email" => recovery_email},
-          "cf-turnstile-response" => "test-token"
+          "atomine_pow_token" => "test-token"
         })
 
       assert redirected_to(conn) == ~p"/login"
@@ -85,7 +85,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       conn =
         post(conn, ~p"/password/reset", %{
           "password_reset" => %{"username_or_email" => "nonexistent"},
-          "cf-turnstile-response" => "test-token"
+          "atomine_pow_token" => "test-token"
         })
 
       assert redirected_to(conn) == ~p"/login"
@@ -99,7 +99,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       conn =
         post(conn, ~p"/password/reset", %{
           "password_reset[username_or_email]" => user.username,
-          "cf-turnstile-response" => "test-token"
+          "atomine_pow_token" => "test-token"
         })
 
       assert redirected_to(conn) == ~p"/login"
@@ -138,7 +138,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       conn =
         post(conn, ~p"/password/reset", %{
           "password_reset" => %{"username_or_email" => user.username},
-          "cf-turnstile-response" => "test-token"
+          "atomine_pow_token" => "test-token"
         })
 
       assert redirected_to(conn) == ~p"/password/reset"

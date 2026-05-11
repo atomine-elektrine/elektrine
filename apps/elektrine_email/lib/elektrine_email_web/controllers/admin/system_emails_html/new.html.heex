@@ -1,0 +1,80 @@
+<div class="admin-page">
+  <div class="mb-6">
+    <div class="flex items-center mb-2">
+      <.link href={~p"/pripyat"} class="btn btn-ghost btn-sm mr-4">
+        <.icon name="hero-arrow-left" class="h-4 w-4 mr-2" /> Back
+      </.link>
+      <h1 class="text-2xl font-bold">System Email</h1>
+    </div>
+
+    <p class="opacity-70">
+      Send a platform-originated email directly to every local user mailbox.
+    </p>
+  </div>
+
+  <div class="alert alert-warning mb-6">
+    <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
+    <span>
+      This queues one inbox message for each user mailbox. Use it only for service-wide notices.
+    </span>
+  </div>
+
+  <div class="card panel-card">
+    <div class="card-body">
+      <.form
+        :let={_f}
+        for={%{}}
+        action={~p"/pripyat/system-email"}
+        method="post"
+        class="space-y-5"
+      >
+        <div>
+          <label class="label"><span class="label-text">From</span></label>
+          <input type="text" class="input input-bordered w-full" value={@from_address} disabled />
+        </div>
+
+        <div>
+          <label class="label"><span class="label-text">Subject</span></label>
+          <input
+            type="text"
+            name="system_email[subject]"
+            class="input input-bordered w-full"
+            value={@params["subject"] || ""}
+            maxlength="500"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="label"><span class="label-text">Plain Text Body</span></label>
+          <textarea
+            name="system_email[text_body]"
+            class="textarea textarea-bordered min-h-52 w-full"
+            required
+          ><%= @params["text_body"] || "" %></textarea>
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text">HTML Body</span><span class="label-text-alt">Optional</span>
+          </label>
+          <textarea
+            name="system_email[html_body]"
+            class="textarea textarea-bordered min-h-52 w-full font-mono text-sm"
+          ><%= @params["html_body"] || "" %></textarea>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 pt-2">
+          <button
+            type="submit"
+            class="btn btn-primary"
+            data-confirm="Queue this email for every user mailbox?"
+          >
+            <.icon name="hero-paper-airplane" class="h-4 w-4 mr-2" /> Send To All Users
+          </button>
+          <.link href={~p"/pripyat"} class="btn btn-ghost">Cancel</.link>
+        </div>
+      </.form>
+    </div>
+  </div>
+</div>

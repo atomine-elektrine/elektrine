@@ -262,9 +262,7 @@ config :ex_aws,
     port: s3_port
   ]
 
-# Cloudflare Turnstile test keys for development
-config :elektrine, :turnstile,
-  site_key: "1x00000000000000000000AA",
-  secret_key: "1x0000000000000000000000000000000AA",
-  verify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-  skip_verification: true
+# Keep local signup/password-reset proof-of-work cheap while developing.
+config :elektrine, :atomine_pow,
+  difficulty: 8,
+  skip_verification: false

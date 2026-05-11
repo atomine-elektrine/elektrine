@@ -410,11 +410,10 @@ config :elektrine, :bluesky,
   managed_domain: nil,
   managed_admin_password: nil
 
-# Cloudflare Turnstile configuration
-config :elektrine, :turnstile,
-  site_key: System.get_env("TURNSTILE_SITE_KEY"),
-  secret_key: System.get_env("TURNSTILE_SECRET_KEY"),
-  verify_url: "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+# Atomine browser proof-of-work anti-bot configuration
+config :elektrine, :atomine_pow,
+  difficulty: 20,
+  skip_verification: false
 
 # Stripe configuration (defaults for development, override in runtime.exs)
 config :stripity_stripe,

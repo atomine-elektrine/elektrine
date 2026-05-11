@@ -94,8 +94,8 @@ Local uploads without S3-compatible object storage:
 - keep the `uploads` volume if you want avatars, attachments, and media to survive container replacement
 
 To use S3-compatible object storage, set the `S3_*` variables in
-`.env.production`. This can point at Magpie, MinIO, Garage, AWS S3, Cloudflare
-R2, Backblaze B2, or another compatible service. If `S3_PUBLIC_URL` points at a
+`.env.production`. This can point at Magpie, MinIO, Garage, AWS S3,
+Backblaze B2, or another compatible service. If `S3_PUBLIC_URL` points at a
 public CDN/object-storage URL, no extra Docker networking is needed.
 
 Magpie is optional. If you run a private Magpie service in another Compose

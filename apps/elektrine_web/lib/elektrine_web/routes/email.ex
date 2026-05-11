@@ -108,6 +108,8 @@ defmodule ElektrineWeb.Routes.Email do
         delete("/mailboxes/:id", ElektrineEmailWeb.Admin.MailboxesController, :delete)
         get("/custom-domains", ElektrineEmailWeb.Admin.CustomDomainsController, :index)
         get("/haraka", ElektrineWeb.Admin.HarakaController, :index)
+        get("/system-email", ElektrineEmailWeb.Admin.SystemEmailsController, :new)
+        post("/system-email", ElektrineEmailWeb.Admin.SystemEmailsController, :create)
 
         get("/messages", ElektrineEmailWeb.Admin.MessagesController, :index)
         get("/messages/:id/view", ElektrineEmailWeb.Admin.MessagesController, :view)
@@ -236,6 +238,7 @@ defmodule ElektrineWeb.Routes.Email do
       "/pripyat/mailboxes",
       "/pripyat/custom-domains",
       "/pripyat/haraka",
+      "/pripyat/system-email",
       "/pripyat/aliases",
       "/pripyat/forwarded-messages",
       "/pripyat/messages",

@@ -130,8 +130,8 @@ config :elektrine, :uploads,
   adapter: :local,
   uploads_dir: "tmp/test_uploads"
 
-# Skip Turnstile captcha verification in tests
-config :elektrine, :turnstile, skip_verification: true
+# Skip browser proof-of-work verification in tests
+config :elektrine, :atomine_pow, skip_verification: true
 
 # Set environment for profile access control
 config :elektrine, :environment, :test

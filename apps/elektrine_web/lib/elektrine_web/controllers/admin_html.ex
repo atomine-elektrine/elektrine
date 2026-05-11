@@ -210,6 +210,12 @@ defmodule ElektrineWeb.AdminHTML do
             platform_module: :email
           },
           %{
+            label: "System Email",
+            path: "/pripyat/system-email",
+            icon: "hero-paper-airplane",
+            platform_module: :email
+          },
+          %{
             label: "Aliases",
             path: "/pripyat/aliases",
             icon: "hero-at-symbol",

@@ -5,7 +5,7 @@ defmodule ElektrineWeb.PasswordResetController do
   alias Elektrine.Accounts.User
   alias Elektrine.Auth.RateLimiter
   alias Elektrine.Telemetry.Events
-  alias Elektrine.Turnstile
+  alias ElektrineWeb.AtominePow
 
   def new(conn, _params) do
     render(conn, :new, error_message: nil)
@@ -27,14 +27,14 @@ defmodule ElektrineWeb.PasswordResetController do
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
-        |> put_flash(:error, "Captcha verification failed. Please try again.")
+        |> put_flash(:error, "Atomine proof failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
 
       {:error, {:verification_failed, _error_codes}} ->
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
-        |> put_flash(:error, "Captcha verification failed. Please try again.")
+        |> put_flash(:error, "Atomine proof failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
 
       {:error, :missing_captcha} ->
@@ -55,7 +55,7 @@ defmodule ElektrineWeb.PasswordResetController do
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_error})
 
         conn
-        |> put_flash(:error, "Captcha verification failed. Please try again.")
+        |> put_flash(:error, "Atomine proof failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
     end
   end
@@ -127,8 +127,13 @@ defmodule ElektrineWeb.PasswordResetController do
   end
 
   defp verify_password_reset_captcha(_conn, params, _password_reset_params, false, ip_address) do
-    captcha_token = Map.get(params, "cf-turnstile-response")
-    Turnstile.verify(captcha_token, ip_address)
+    pow_token = Map.get(params, "atomine_pow_token")
+
+    if AtominePow.enabled?() do
+      AtominePow.verify(pow_token, "password_reset", ip_address)
+    else
+      {:ok, :verified}
+    end
   end
 
   defp process_password_reset_request(conn, username_or_email, ip_address) do
@@ -198,7 +203,7 @@ defmodule ElektrineWeb.PasswordResetController do
   end
 
   defp missing_captcha_message(true), do: "Please solve the captcha."
-  defp missing_captcha_message(false), do: "Please complete the captcha verification."
+  defp missing_captcha_message(false), do: "Please complete the Atomine proof."
 
   defp reset_confirmation_message do
     "If an account with that username or recovery email exists, you will receive password reset instructions."

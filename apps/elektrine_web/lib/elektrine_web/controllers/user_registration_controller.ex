@@ -3,7 +3,7 @@ defmodule ElektrineWeb.UserRegistrationController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
-  alias Elektrine.Turnstile
+  alias ElektrineWeb.AtominePow
   alias ElektrineWeb.UserAuth
 
   def new(conn, _params), do: redirect(conn, to: ~p"/register")
@@ -11,7 +11,7 @@ defmodule ElektrineWeb.UserRegistrationController do
   def create(conn, %{"user" => user_params} = params) do
     remote_ip = get_remote_ip(conn)
     registration_ip = normalize_ipv6_subnet(remote_ip)
-    captcha_token = Map.get(params, "cf-turnstile-response")
+    pow_token = Map.get(params, "atomine_pow_token")
     captcha_answer = Map.get(params, "captcha_answer")
     via_tor = conn.assigns[:via_tor] || false
 
@@ -19,7 +19,7 @@ defmodule ElektrineWeb.UserRegistrationController do
     preliminary_changeset = User.registration_changeset(%User{}, user_params_with_ip)
 
     if preliminary_changeset.valid? do
-      captcha_result = verify_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor)
+      captcha_result = verify_captcha(conn, pow_token, captcha_answer, remote_ip, via_tor)
       complete_registration(conn, user_params_with_ip, captcha_result)
     else
       render_registration(conn,
@@ -42,10 +42,8 @@ defmodule ElektrineWeb.UserRegistrationController do
   defp verify_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor) do
     require Logger
 
-    turnstile_config = Application.get_env(:elektrine, :turnstile) || []
-
-    if Keyword.get(turnstile_config, :skip_verification, false) do
-      Logger.debug("Captcha verification skipped (dev/test mode)")
+    if not via_tor and not AtominePow.enabled?() do
+      Logger.debug("Atomine proof-of-work verification skipped")
       {:ok, :verified}
     else
       verify_required_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor)
@@ -71,19 +69,19 @@ defmodule ElektrineWeb.UserRegistrationController do
     end
   end
 
-  defp verify_required_captcha(_conn, captcha_token, _captcha_answer, remote_ip, false) do
+  defp verify_required_captcha(_conn, pow_token, _captcha_answer, remote_ip, false) do
     require Logger
 
     Logger.info(
-      "Turnstile check: token_present=#{not is_nil(captcha_token)}, ip_present=#{not is_nil(remote_ip)}"
+      "Atomine proof-of-work check: token_present=#{not is_nil(pow_token)}, ip_present=#{not is_nil(remote_ip)}"
     )
 
-    result = Turnstile.verify(captcha_token, turnstile_remote_ip(remote_ip))
+    result = AtominePow.verify(pow_token, "registration", remote_ip)
 
     verification_status =
       if match?({:ok, :verified}, result), do: "verified", else: "failed"
 
-    Logger.info("Turnstile result: #{verification_status}")
+    Logger.info("Atomine proof-of-work result: #{verification_status}")
     result
   end
 
@@ -187,46 +185,15 @@ defmodule ElektrineWeb.UserRegistrationController do
     end)
   end
 
-  defp captcha_error_message({:verification_failed, error_codes}) when is_list(error_codes) do
-    cond do
-      "timeout-or-duplicate" in error_codes ->
-        "The captcha expired. Please complete a fresh captcha verification."
+  defp captcha_error_message(:already_redeemed),
+    do: "The browser proof was already used. Please solve a fresh proof."
 
-      "invalid-input-response" in error_codes or "missing-input-response" in error_codes ->
-        "Please complete the captcha verification."
+  defp captcha_error_message(:expired),
+    do: "The browser proof expired. Please solve a fresh proof."
 
-      true ->
-        "Captcha verification failed. Please try again."
-    end
-  end
-
-  defp captcha_error_message(:missing_token), do: "Please complete the captcha verification"
+  defp captcha_error_message(:missing_token), do: "Please complete the Atomine proof"
   defp captcha_error_message(:missing_captcha), do: "Please complete the captcha verification"
-  defp captcha_error_message(_reason), do: "Captcha verification failed. Please try again."
-
-  defp turnstile_remote_ip(ip) when is_binary(ip) do
-    with false <- ip in ["", "unknown"],
-         {:ok, parsed_ip} <- :inet.parse_address(String.to_charlist(ip)),
-         true <- public_ip?(parsed_ip) do
-      ip
-    else
-      _ -> nil
-    end
-  end
-
-  defp turnstile_remote_ip(_ip), do: nil
-
-  defp public_ip?({10, _, _, _}), do: false
-  defp public_ip?({a, b, _, _}) when a == 100 and b >= 64 and b <= 127, do: false
-  defp public_ip?({127, _, _, _}), do: false
-  defp public_ip?({169, 254, _, _}), do: false
-  defp public_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: false
-  defp public_ip?({192, 168, _, _}), do: false
-  defp public_ip?({_, _, _, _}), do: true
-  defp public_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: false
-  defp public_ip?({a, _, _, _, _, _, _, _}) when Bitwise.band(a, 0xFE00) == 0xFC00, do: false
-  defp public_ip?({a, _, _, _, _, _, _, _}) when Bitwise.band(a, 0xFFC0) == 0xFE80, do: false
-  defp public_ip?({_, _, _, _, _, _, _, _}), do: true
+  defp captcha_error_message(_reason), do: "Atomine proof failed. Please try again."
 
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)

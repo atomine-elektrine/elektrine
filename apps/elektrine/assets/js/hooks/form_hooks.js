@@ -4,6 +4,10 @@
  */
 import { spinnerSvg } from '../utils/spinner'
 
+const ATOMINE_MIN_DIFFICULTY = 0
+const ATOMINE_MAX_DIFFICULTY = 30
+const ATOMINE_PROGRESS_INTERVAL = 1000
+
 /**
  * FormSubmit Hook
  * Shows loading spinner on form submit buttons when the form is submitted.
@@ -125,117 +129,65 @@ export const VPNDownload = {
 }
 
 /**
- * Turnstile Hook
- * Cloudflare Turnstile CAPTCHA integration
+ * Atomine proof-of-work Hook
+ * Solves a small local browser challenge and submits an anonymous effort token.
  */
-export const Turnstile = {
+export const AtominePow = {
   mounted() {
     this.form = this.el.closest('form') || document.getElementById('register-form')
-    this.handleSubmit = (event) => {
-      if (!this.responseToken()) {
-        event.preventDefault()
-        this.showError('Please complete the security verification before submitting.')
-      }
-    }
+    this.statusEl = this.el.querySelector('[data-atomine-pow-status]')
+    this.difficulty = normalizeDifficulty(this.el.dataset.difficulty)
+    this.inFlight = null
+    this.handleSubmit = (event) => this.onSubmit(event)
 
     if (this.form) {
       this.form.addEventListener('submit', this.handleSubmit, true)
     }
+  },
 
-    this.renderWidget()
+  async onSubmit(event) {
+    if (!this.form) return
+
+    if (this.form?.dataset.atominePowSkip === 'true') {
+      delete this.form.dataset.atominePowSkip
+      return
+    }
+
+    if (this.responseToken()) return
+
+    event.preventDefault()
+    event.stopImmediatePropagation()
+
+    try {
+      await this.ensureToken()
+      this.form.dataset.atominePowSkip = 'true'
+      this.requestSubmit(event.submitter)
+    } catch (_error) {
+      this.setResponseToken('')
+      this.showError('atomine proof failed; retry')
+    }
   },
 
   updated() {
-    // Re-render if the widget was removed (e.g., after form submission error)
-    if (!this.el.querySelector('iframe')) {
-      this.renderWidget()
-    }
+    this.statusEl = this.el.querySelector('[data-atomine-pow-status]')
   },
 
-  renderWidget() {
-    const sitekey = this.el.dataset.sitekey
-    const theme = this.el.dataset.theme || 'auto'
-    const size = this.el.dataset.size || 'normal'
-
-    // Find the form element to append hidden input
-    let form = this.form || this.el.closest('form')
-    if (!form) {
-      form = document.getElementById('register-form')
-    }
-    if (!form) {
-      console.error('Turnstile: Could not find parent form element')
-      return
+  ensureToken() {
+    if (!this.inFlight) {
+      this.inFlight = this.solveAndIssueToken().finally(() => {
+        this.inFlight = null
+      })
     }
 
-    // Check if sitekey is missing
-    if (!sitekey) {
-      console.error('Turnstile: No sitekey provided')
-      this.el.innerHTML = '<div class="text-error text-sm p-2 bg-error/10 rounded">Security verification not configured.</div>'
-      return
-    }
-
-    // Check if Turnstile script is loaded
-    if (typeof window.turnstile !== 'undefined') {
-      // Only remove if we have an existing widget ID
-      if (this.widgetId) {
-        try {
-          window.turnstile.remove(this.widgetId)
-        } catch (e) {
-          // Ignore removal errors
-        }
-        this.widgetId = null
-      }
-
-      // Render new widget
-      try {
-        this.ensureResponseInput(form)
-        this.setResponseToken('')
-
-        this.widgetId = window.turnstile.render(this.el, {
-          sitekey: sitekey,
-          theme: theme,
-          size: size,
-          'response-field': false,
-          callback: (token) => {
-            this.ensureResponseInput(form)
-            this.setResponseToken(token)
-
-            this.clearError()
-          },
-          'error-callback': (errorCode) => {
-            console.error('Turnstile error:', errorCode)
-
-            this.setResponseToken('')
-
-            this.showError('Verification unavailable. Please try again or refresh the page.')
-          },
-          'expired-callback': () => {
-            // Token expired, clear the hidden input
-            this.setResponseToken('')
-          }
-        })
-      } catch (e) {
-        console.error('Turnstile render error:', e)
-      }
-    } else {
-      // Script not loaded yet, wait and retry
-      this.retryCount = (this.retryCount || 0) + 1
-      if (this.retryCount < 10) {
-        setTimeout(() => this.renderWidget(), 500)
-      } else {
-        console.error('Turnstile: Script failed to load after 10 retries')
-        // Show error message to user
-        this.el.innerHTML = '<div class="text-error text-sm p-2 bg-error/10 rounded">Security verification failed to load. Please refresh the page.</div>'
-      }
-    }
+    return this.inFlight
   },
 
   responseInput() {
-    return this.form?.querySelector('input[name="cf-turnstile-response"]')
+    return this.form?.querySelector('input[name="atomine_pow_token"]')
   },
 
   responseInputs() {
-    return Array.from(this.form?.querySelectorAll('input[name="cf-turnstile-response"]') || [])
+    return Array.from(this.form?.querySelectorAll('input[name="atomine_pow_token"]') || [])
   },
 
   responseToken() {
@@ -249,32 +201,80 @@ export const Turnstile = {
   },
 
   ensureResponseInput(form) {
-    let input = form.querySelector('input[name="cf-turnstile-response"]')
+    let input = form.querySelector('input[name="atomine_pow_token"]')
 
     if (!input) {
       input = document.createElement('input')
       input.type = 'hidden'
-      input.name = 'cf-turnstile-response'
+      input.name = 'atomine_pow_token'
       form.appendChild(input)
     }
 
-    input.id = 'cf-turnstile-response'
+    input.id = 'atomine-pow-token'
     return input
   },
 
+  async solveAndIssueToken() {
+    if (!window.crypto?.subtle) {
+      throw new Error('Web Crypto is unavailable')
+    }
+
+    this.ensureResponseInput(this.form)
+    this.clearError()
+    this.setStatus('atomine: requesting challenge')
+
+    const challengeResponse = await postJson('/api/atomine/pow/challenge', {
+      difficulty: this.difficulty
+    })
+
+    const challenge = challengeResponse.challenge
+    const difficulty = normalizeDifficulty(challengeResponse.difficulty ?? this.difficulty)
+    this.setStatus(`atomine: solving sha256 nonce, difficulty=${difficulty}`)
+
+    const solution = await solvePow(challenge, difficulty, (attempts) => {
+      this.setStatus(`atomine: attempts=${attempts.toLocaleString()}`)
+    })
+
+    this.setStatus('atomine: redeeming anonymous effort token')
+
+    const tokenResponse = await postJson('/api/atomine/anonymous-tokens', {
+      challenge,
+      solution
+    })
+
+    if (!tokenResponse.token) {
+      throw new Error('Missing Atomine token')
+    }
+
+    this.setResponseToken(tokenResponse.token)
+    this.setStatus('atomine: proof accepted, submitting')
+  },
+
+  requestSubmit(submitter) {
+    if (typeof this.form.requestSubmit === 'function') {
+      this.form.requestSubmit(submitter || undefined)
+    } else {
+      this.form.submit()
+    }
+  },
+
+  setStatus(message) {
+    if (this.statusEl) this.statusEl.textContent = message
+  },
+
   showError(message) {
-    let error = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+    let error = this.el.parentElement?.querySelector('[data-atomine-pow-error="true"]')
     if (!error && this.el.parentElement) {
       error = document.createElement('div')
       error.className = 'text-warning text-xs mt-1'
-      error.dataset.turnstileError = 'true'
+      error.dataset.atominePowError = 'true'
       this.el.parentElement.appendChild(error)
     }
     if (error) error.textContent = message
   },
 
   clearError() {
-    const error = this.el.parentElement?.querySelector('[data-turnstile-error="true"]')
+    const error = this.el.parentElement?.querySelector('[data-atomine-pow-error="true"]')
     if (error) error.remove()
   },
 
@@ -282,9 +282,68 @@ export const Turnstile = {
     if (this.form && this.handleSubmit) {
       this.form.removeEventListener('submit', this.handleSubmit, true)
     }
+  }
+}
 
-    if (typeof window.turnstile !== 'undefined' && this.widgetId) {
-      window.turnstile.remove(this.widgetId)
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+
+  const json = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(json.error || 'request failed')
+  }
+
+  return json
+}
+
+async function solvePow(challenge, difficulty, onProgress) {
+  const encoder = new TextEncoder()
+  let nonce = 0
+
+  while (true) {
+    const solution = String(nonce)
+    const digest = await crypto.subtle.digest('SHA-256', encoder.encode(`${challenge}:${solution}`))
+
+    if (leadingZeroBits(new Uint8Array(digest)) >= difficulty) {
+      return solution
+    }
+
+    nonce += 1
+
+    if (nonce % ATOMINE_PROGRESS_INTERVAL === 0) {
+      if (onProgress) onProgress(nonce)
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
   }
+}
+
+function normalizeDifficulty(value) {
+  const parsed = Number.parseInt(value ?? '18', 10)
+  if (Number.isNaN(parsed)) return 18
+  return Math.min(ATOMINE_MAX_DIFFICULTY, Math.max(ATOMINE_MIN_DIFFICULTY, parsed))
+}
+
+function leadingZeroBits(bytes) {
+  let total = 0
+
+  for (const byte of bytes) {
+    if (byte === 0) {
+      total += 8
+      continue
+    }
+
+    for (let bit = 7; bit >= 0; bit -= 1) {
+      if ((byte & (1 << bit)) === 0) {
+        total += 1
+      } else {
+        return total
+      }
+    }
+  }
+
+  return total
 }

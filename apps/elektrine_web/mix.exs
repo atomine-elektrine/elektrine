@@ -48,6 +48,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineEmailWeb.Admin.CustomDomainsController,
       ElektrineEmailWeb.Admin.MailboxesController,
       ElektrineEmailWeb.Admin.MessagesController,
+      ElektrineEmailWeb.Admin.SystemEmailsController,
       ElektrineVPNWeb.Admin.VPNController,
       ElektrineEmailWeb.API.AliasController,
       ArblargWeb.API.ConversationController,

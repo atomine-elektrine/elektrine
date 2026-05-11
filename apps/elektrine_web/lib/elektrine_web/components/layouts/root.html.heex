@@ -49,15 +49,6 @@
     />
 
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <%= unless via_tor_request?(assigns) do %>
-      <script
-        nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
-        async
-        defer
-      >
-      </script>
-    <% end %>
     <script
       nonce={ElektrineWeb.Plugs.SecurityHeaders.script_nonce()}
       defer
