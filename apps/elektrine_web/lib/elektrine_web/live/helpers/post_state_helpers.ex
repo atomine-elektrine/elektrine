@@ -18,16 +18,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   Handles both list of post structs and list of message IDs.
   """
   def get_user_likes(user_id, posts) when is_list(posts) do
-    # Handle both post structs and raw IDs
-    message_ids =
-      posts
-      |> Enum.map(fn
-        # Post struct
-        %{id: id} -> id
-        # Raw ID
-        id when is_integer(id) -> id
-      end)
-      |> Enum.uniq()
+    message_ids = message_ids_for_state(posts)
 
     if Enum.empty?(message_ids) do
       %{}
@@ -47,16 +38,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   Handles both list of post structs and list of message IDs.
   """
   def get_user_boosts(user_id, posts) when is_list(posts) do
-    # Handle both post structs and raw IDs
-    message_ids =
-      posts
-      |> Enum.map(fn
-        # Post struct
-        %{id: id} -> id
-        # Raw ID
-        id when is_integer(id) -> id
-      end)
-      |> Enum.uniq()
+    message_ids = message_ids_for_state(posts)
 
     if Enum.empty?(message_ids) do
       %{}
@@ -77,9 +59,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   Only works with post structs (not raw IDs).
   """
   def get_user_follows(user_id, posts) when is_list(posts) do
-    # Extract local user IDs and remote actor IDs from posts
-    # Filter out non-struct items
-    post_structs = Enum.filter(posts, &is_map/1)
+    post_structs = posts_for_state(posts)
 
     user_ids =
       post_structs
@@ -272,13 +252,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   Returns a map of message_id => list of reactions (with user/remote_actor preloaded).
   """
   def get_post_reactions(posts) when is_list(posts) do
-    message_ids =
-      posts
-      |> Enum.map(fn
-        %{id: id} -> id
-        id when is_integer(id) -> id
-      end)
-      |> Enum.uniq()
+    message_ids = message_ids_for_state(posts)
 
     if Enum.empty?(message_ids) do
       %{}
@@ -304,13 +278,7 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
   Performs a single batch query for efficiency.
   """
   def get_user_saves(user_id, posts) when is_list(posts) do
-    message_ids =
-      posts
-      |> Enum.map(fn
-        %{id: id} -> id
-        id when is_integer(id) -> id
-      end)
-      |> Enum.uniq()
+    message_ids = message_ids_for_state(posts)
 
     if Enum.empty?(message_ids) do
       %{}
@@ -322,4 +290,41 @@ defmodule ElektrineWeb.Live.Helpers.PostStateHelpers do
       end)
     end
   end
+
+  defp message_ids_for_state(posts) when is_list(posts) do
+    posts
+    |> Enum.flat_map(fn
+      id when is_integer(id) -> [id]
+      post when is_map(post) -> Enum.map(posts_for_state([post]), &Map.get(&1, :id))
+      _ -> []
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
+
+  defp posts_for_state(posts) when is_list(posts) do
+    posts
+    |> Enum.flat_map(fn
+      post when is_map(post) -> [post, shared_message_for_state(post)]
+      _ -> []
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(&Map.get(&1, :id))
+  end
+
+  defp shared_message_for_state(%{shared_message: %Ecto.Association.NotLoaded{}}), do: nil
+
+  defp shared_message_for_state(%{shared_message: %{id: id} = shared_message})
+       when is_integer(id),
+       do: shared_message
+
+  defp shared_message_for_state(%{"shared_message" => %{id: id} = shared_message})
+       when is_integer(id),
+       do: shared_message
+
+  defp shared_message_for_state(%{"shared_message" => %{"id" => id} = shared_message})
+       when is_integer(id),
+       do: Map.put(shared_message, :id, id)
+
+  defp shared_message_for_state(_), do: nil
 end

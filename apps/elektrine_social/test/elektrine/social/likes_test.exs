@@ -29,12 +29,17 @@ defmodule Elektrine.Social.LikesTest do
       assert updated_post.like_count == 1
     end
 
-    test "cannot like the same post twice" do
+    test "liking the same post twice is idempotent" do
       user = user_fixture()
       post = post_fixture()
 
       {:ok, _} = Likes.like_post(user.id, post.id)
-      assert {:error, _changeset} = Likes.like_post(user.id, post.id)
+      assert {:ok, like} = Likes.like_post(user.id, post.id)
+      assert like.user_id == user.id
+      assert like.message_id == post.id
+
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
+      assert updated_post.like_count == 1
     end
 
     test "different users can like the same post" do
@@ -74,9 +79,9 @@ defmodule Elektrine.Social.LikesTest do
       assert updated_post.like_count == 0
     end
 
-    test "returns error when post is not liked", %{user: user} do
+    test "unliking a post that is not liked is idempotent", %{user: user} do
       other_post = post_fixture()
-      assert {:error, :not_liked} = Likes.unlike_post(user.id, other_post.id)
+      assert {:ok, nil} = Likes.unlike_post(user.id, other_post.id)
     end
   end
 

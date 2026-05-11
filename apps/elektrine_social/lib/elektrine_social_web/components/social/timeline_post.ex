@@ -183,7 +183,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         post_replies={@post_replies}
         post_interactions={@post_interactions}
         post_reactions_map={@post_reactions_map}
-        reactions={Map.get(@post_reactions_map, @boosted_post.id, [])}
+        reactions={reactions_for_keys(@post_reactions_map, interaction_keys(@boosted_post))}
         id_prefix={"#{@id_prefix}-boosted-#{@post.id}"}
         show_follow_button={@show_follow_button}
         show_admin_actions={@show_admin_actions}
@@ -332,6 +332,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               is_gallery_post={@is_gallery_post}
               on_image_click={@on_image_click}
               remote_poll_vote={@remote_poll_vote}
+              id_prefix={@id_prefix}
             />
             
     <!-- Post Actions -->
@@ -366,9 +367,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     <!-- Emoji Reactions -->
             <div class="mt-2 pt-2 border-t border-base-200">
               <.post_reactions
-                post_id={@post.id}
+                post_id={@action_post_id || @post.id}
+                value_name={@action_value_name}
                 reactions={@reactions}
                 current_user={@current_user}
+                on_react={@on_react}
                 size={:xs}
               />
             </div>
@@ -380,6 +383,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 post={@post}
                 current_user={@current_user}
                 show_admin_actions={@show_admin_actions}
+                id_prefix={@id_prefix}
               />
             </div>
           <% end %>
@@ -667,12 +671,13 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :post, :map, required: true
   attr :current_user, :map, required: true
   attr :show_admin_actions, :boolean, default: true
+  attr :id_prefix, :string, default: "post"
 
   defp post_dropdown(assigns) do
     ~H"""
     <div
       class="dropdown timeline-post-dropdown dropdown-end flex-shrink-0"
-      id={"post-dropdown-#{@post.id}"}
+      id={"#{@id_prefix}-post-dropdown-#{@post.id}"}
     >
       <label tabindex="0" class="btn btn-ghost btn-xs btn-square h-7 w-7 min-h-0 sm:h-8 sm:w-8">
         <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
@@ -1612,6 +1617,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
   attr :remote_poll_vote, :map, default: nil
+  attr :id_prefix, :string, default: "post"
 
   defp post_content(assigns) do
     title = resolve_federated_title(assigns.post)
@@ -1658,7 +1664,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           </div>
         <% end %>
         <div
-          id={"quoted-post-#{@post.id}-#{@post.quoted_message_id}"}
+          id={"#{@id_prefix}-quoted-post-#{@post.id}-#{@post.quoted_message_id}"}
           class="border border-base-300 rounded-lg p-3 bg-base-200/30 hover:bg-base-200/50 transition-colors"
         >
           <div class="flex items-center gap-2 mb-2">
@@ -1751,7 +1757,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               >
                 <%= if @post.quoted_message.link_preview.image_url do %>
                   <img
-                    id={"timeline-quoted-preview-image-#{@post.id || :erlang.phash2(@post.quoted_message.link_preview.image_url)}"}
+                    id={"#{@id_prefix}-quoted-preview-image-#{@post.id || :erlang.phash2(@post.quoted_message.link_preview.image_url)}"}
                     src={ensure_https(@post.quoted_message.link_preview.image_url)}
                     alt=""
                     class="w-12 h-12 rounded object-cover flex-shrink-0"
@@ -1829,6 +1835,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         post={@post}
         is_gallery_post={@is_gallery_post}
         on_image_click={@on_image_click}
+        id_prefix={@id_prefix}
       />
       
     <!-- Media attachments -->
@@ -1836,10 +1843,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         post={@post}
         is_gallery_post={@is_gallery_post}
         on_image_click={@on_image_click}
+        id_prefix={@id_prefix}
       />
       
     <!-- Link Preview -->
-      <.link_preview post={@post} />
+      <.link_preview post={@post} id_prefix={@id_prefix} />
     </div>
     """
   end
@@ -1870,6 +1878,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :post, :map, required: true
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
+  attr :id_prefix, :string, default: "post"
 
   defp content_images(assigns) do
     image_urls = Elektrine.Social.Message.extract_image_urls(assigns.post.content)
@@ -1898,7 +1907,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             style={@content_image_frame_style}
           >
             <img
-              id={"timeline-content-image-#{@post.id}-#{idx}-#{:erlang.phash2(image_url)}"}
+              id={"#{@id_prefix}-content-image-#{@post.id}-#{idx}-#{:erlang.phash2(image_url)}"}
               src={image_url}
               alt="Image preview"
               class="h-full w-full object-contain hover:opacity-90 transition-opacity cursor-pointer"
@@ -1918,6 +1927,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :post, :map, required: true
   attr :is_gallery_post, :boolean, default: false
   attr :on_image_click, :string, default: "open_image_modal"
+  attr :id_prefix, :string, default: "post"
 
   defp media_attachments(assigns) do
     media_entries = build_media_entries(assigns.post)
@@ -1972,7 +1982,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                 style={media_entry.frame_style}
               >
                 <img
-                  id={"timeline-media-image-#{@post.id}-#{media_entry.index}-#{:erlang.phash2(media_entry.full_url)}"}
+                  id={"#{@id_prefix}-media-image-#{@post.id}-#{media_entry.index}-#{:erlang.phash2(media_entry.full_url)}"}
                   src={media_entry.full_url}
                   alt={media_entry.alt_text}
                   width={media_entry.width}
@@ -2001,6 +2011,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   # Link preview component
   attr :post, :map, required: true
+  attr :id_prefix, :string, default: "post"
 
   defp link_preview(assigns) do
     ~H"""
@@ -2015,7 +2026,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <%= if @post.link_preview.image_url do %>
             <div class="aspect-video bg-base-50">
               <img
-                id={"timeline-link-preview-image-#{@post.id || :erlang.phash2(@post.link_preview.image_url)}"}
+                id={"#{@id_prefix}-link-preview-image-#{@post.id || :erlang.phash2(@post.link_preview.image_url)}"}
                 src={ensure_https(@post.link_preview.image_url)}
                 alt={@post.link_preview.title || ""}
                 class="w-full h-full object-cover"
@@ -2028,7 +2039,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             <div class="flex items-center gap-2 mb-2">
               <%= if @post.link_preview.favicon_url do %>
                 <img
-                  id={"timeline-link-preview-favicon-#{@post.id || :erlang.phash2(@post.link_preview.favicon_url)}"}
+                  id={"#{@id_prefix}-link-preview-favicon-#{@post.id || :erlang.phash2(@post.link_preview.favicon_url)}"}
                   src={ensure_https(@post.link_preview.favicon_url)}
                   alt=""
                   class="w-4 h-4 flex-shrink-0"
@@ -2289,6 +2300,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           user_follows={@user_follows}
           pending_follows={@pending_follows}
           remote_follow_overrides={@remote_follow_overrides}
+          id_prefix={@id_prefix}
         />
       <% end %>
     </div>
@@ -2301,6 +2313,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :user_follows, :map, default: %{}
   attr :pending_follows, :map, default: %{}
   attr :remote_follow_overrides, :map, default: %{}
+  attr :id_prefix, :string, default: "post"
 
   defp follow_actions(assigns) do
     ~H"""
@@ -2317,7 +2330,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       is_pending = follow_state == "pending" %>
       <div class="flex items-center gap-1">
         <button
-          id={"timeline-remote-follow-#{@post.id}-#{@post.remote_actor.id}"}
+          id={"#{@id_prefix}-remote-follow-#{@post.id}-#{@post.remote_actor.id}"}
           phx-click="toggle_follow_remote"
           phx-value-remote_actor_id={@post.remote_actor.id}
           phx-hook="RemoteFollowButton"
@@ -2438,33 +2451,52 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp current_post_flag(_, _), do: false
 
   defp interaction_keys(post) do
-    [post.activitypub_id, Integer.to_string(post.id), post.id]
+    [post.id, Integer.to_string(post.id), post.activitypub_id, post.activitypub_url]
     |> Enum.reject(&is_nil/1)
   end
 
   defp base_share_count(post) when is_map(post) do
-    cond do
-      is_integer(Map.get(post, :share_count)) ->
-        Map.get(post, :share_count)
+    metadata = Map.get(post, :media_metadata) || Map.get(post, "media_metadata") || %{}
 
-      is_integer(Map.get(post, "share_count")) ->
-        Map.get(post, "share_count")
-
-      is_map(Map.get(post, "shares")) ->
-        Map.get(Map.get(post, "shares"), "totalItems", 0)
-
-      is_map(Map.get(post, "sharesCount")) ->
-        Map.get(Map.get(post, "sharesCount"), "totalItems", 0)
-
-      is_integer(Map.get(post, "announcesCount")) ->
-        Map.get(post, "announcesCount")
-
-      true ->
-        0
-    end
+    [
+      Map.get(post, :share_count),
+      Map.get(post, "share_count"),
+      Map.get(metadata, "original_share_count"),
+      Map.get(metadata, "share_count"),
+      Map.get(metadata, "shares_count"),
+      Map.get(metadata, "reblogs_count"),
+      Map.get(metadata, "reblog_count"),
+      get_in(metadata, ["remote_engagement", "shares"]),
+      get_in(metadata, ["remote_engagement", "reblogs"]),
+      collection_total_items(Map.get(post, "shares")),
+      collection_total_items(Map.get(post, "sharesCount")),
+      collection_total_items(Map.get(metadata, "shares")),
+      collection_total_items(Map.get(metadata, "reblogs")),
+      Map.get(post, "announcesCount")
+    ]
+    |> Enum.map(&normalize_count/1)
+    |> Enum.max(fn -> 0 end)
   end
 
   defp base_share_count(_), do: 0
+
+  defp collection_total_items(%{} = collection) do
+    Map.get(collection, "totalItems") || Map.get(collection, :totalItems) ||
+      Map.get(collection, "total_items") || Map.get(collection, :total_items)
+  end
+
+  defp collection_total_items(_), do: 0
+
+  defp normalize_count(value) when is_integer(value), do: max(value, 0)
+
+  defp normalize_count(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {parsed, _} -> max(parsed, 0)
+      _ -> 0
+    end
+  end
+
+  defp normalize_count(_), do: 0
 
   # Lemmy/Reddit style layout with vote column
   defp render_lemmy_layout(assigns) do
@@ -2473,7 +2505,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     # Get interaction state
     post_state =
-      [post.activitypub_id, Integer.to_string(post.id), post.id]
+      [post.id, Integer.to_string(post.id), post.activitypub_id, post.activitypub_url]
       |> Enum.reject(&is_nil/1)
       |> Enum.find_value(%{liked: false, downvoted: false, like_delta: 0}, fn key ->
         Map.get(assigns.post_interactions, key)
@@ -2645,7 +2677,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     reply_count = max(local_reply_count, remote_reply_count)
 
     reaction_keys =
-      [post.activitypub_id, Integer.to_string(post.id), post.id]
+      [post.id, Integer.to_string(post.id), post.activitypub_id, post.activitypub_url]
       |> Enum.reject(&is_nil/1)
 
     reactions =
@@ -2764,15 +2796,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               />
             </div>
           <% end %>
-          <span
-            id={"#{@unique_id}-score-count"}
-            class="text-sm sm:text-lg font-bold"
-            phx-hook="AnimatedCount"
-            phx-update="ignore"
-            data-count={@score}
-            aria-label={"Score: #{@score}"}
-          >
-            {@score}
+          <span aria-label={"Score: #{@score}"}>
+            <span
+              id={"#{@unique_id}-score-count"}
+              class="text-sm sm:text-lg font-bold"
+              phx-hook="AnimatedCount"
+              phx-update="ignore"
+              data-count={@score}
+              aria-hidden="true"
+            >
+              {@score}
+            </span>
           </span>
           <%= if !@like_only_mode and @current_user do %>
             <button
@@ -3164,7 +3198,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
     ~H"""
     <div
-      id={"compact-post-#{@post.id}"}
+      id={"#{@id_prefix}-compact-post-#{@post.id}"}
       class={[
         "flex items-start gap-3 p-3 border-b border-base-200 hover:bg-base-100 transition-colors",
         if(@clickable, do: "cursor-pointer"),
@@ -3227,7 +3261,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <span class="flex items-center gap-1">
             <.icon name="hero-heart" class="w-3 h-3" />
             <span
-              id={"compact-post-#{@post.id}-like-count"}
+              id={"#{@id_prefix}-compact-post-#{@post.id}-like-count"}
               phx-hook="AnimatedCount"
               phx-update="ignore"
               data-count={@display_like_count || 0}
@@ -3238,7 +3272,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <span class="flex items-center gap-1">
             <.icon name="hero-chat-bubble-left" class="w-3 h-3" />
             <span
-              id={"compact-post-#{@post.id}-comment-count"}
+              id={"#{@id_prefix}-compact-post-#{@post.id}-comment-count"}
               phx-hook="AnimatedCount"
               phx-update="ignore"
               data-count={@display_comment_count || 0}

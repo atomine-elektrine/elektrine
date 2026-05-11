@@ -56,12 +56,17 @@ defmodule Elektrine.Social.BoostsTest do
       assert updated_post.share_count == 1
     end
 
-    test "cannot boost the same post twice" do
+    test "boosting the same post twice is idempotent" do
       user = user_fixture()
       post = post_fixture()
 
       {:ok, _} = Boosts.boost_post(user.id, post.id)
-      assert {:error, :already_boosted} = Boosts.boost_post(user.id, post.id)
+      assert {:ok, boost} = Boosts.boost_post(user.id, post.id)
+      assert boost.user_id == user.id
+      assert boost.message_id == post.id
+
+      updated_post = Repo.get!(Elektrine.Social.Message, post.id)
+      assert updated_post.share_count == 1
     end
 
     test "different users can boost the same post" do
@@ -101,9 +106,9 @@ defmodule Elektrine.Social.BoostsTest do
       assert updated_post.share_count == 0
     end
 
-    test "returns error when post is not boosted", %{user: user} do
+    test "unboosting a post that is not boosted is idempotent", %{user: user} do
       other_post = post_fixture()
-      assert {:error, :not_boosted} = Boosts.unboost_post(user.id, other_post.id)
+      assert {:ok, nil} = Boosts.unboost_post(user.id, other_post.id)
     end
   end
 

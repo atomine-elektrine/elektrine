@@ -1156,26 +1156,6 @@
               </button>
             </div>
           </div>
-          <!-- New Posts Button -->
-          <%= if length(@queued_posts) > 0 do %>
-            <div class="sticky top-2 z-20 mx-4 mb-2 flex justify-center">
-              <button
-                id="load-queued-posts-button"
-                type="button"
-                phx-hook="PreserveQueuedPostsButtonScroll"
-                phx-click="load_queued_posts"
-                data-load-queued-posts
-                class="btn btn-secondary btn-sm sm:btn-md gap-2 shadow-lg animate-bounce-subtle"
-              >
-                <.icon name="hero-arrow-up" class="w-4 h-4" />
-                <span>
-                  Show {length(@queued_posts)} new {if length(@queued_posts) == 1,
-                    do: "post",
-                    else: "posts"}
-                </span>
-              </button>
-            </div>
-          <% end %>
           <!-- Timeline Feed -->
           <div
             class="p-4 space-y-4 isolate timeline-feed-region"
@@ -1301,6 +1281,14 @@
                 >
                   <%= for {stream_id, post} <- @streams.timeline_filtered_posts do %>
                     <div id={stream_id} class="timeline-stream-entry">
+                      <%= if MapSet.member?(@timeline_gap_marker_ids || MapSet.new(), post.id) do %>
+                        <div class="my-4 flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-base-content/50">
+                          <span class="h-px flex-1 bg-base-300"></span>
+                          <span>Older Posts</span>
+                          <span class="h-px flex-1 bg-base-300"></span>
+                        </div>
+                      <% end %>
+
                       <.live_component
                         module={ElektrineSocialWeb.Components.Social.TimelineStreamPost}
                         id={"timeline-stream-post-#{post.id}"}

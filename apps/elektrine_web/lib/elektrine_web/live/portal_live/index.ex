@@ -1593,14 +1593,27 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp update_portal_post_count_fn(message_id, count_field, delta) do
     fn posts ->
       Enum.map(posts, fn post ->
-        if post.id == message_id do
-          current_count = Map.get(post, count_field, 0) || 0
-          Map.put(post, count_field, max(current_count + delta, 0))
-        else
-          post
+        cond do
+          post.id == message_id ->
+            update_portal_post_count(post, count_field, delta)
+
+          match?(%{id: ^message_id}, portal_shared_message(post)) ->
+            Map.put(
+              post,
+              :shared_message,
+              update_portal_post_count(portal_shared_message(post), count_field, delta)
+            )
+
+          true ->
+            post
         end
       end)
     end
+  end
+
+  defp update_portal_post_count(post, count_field, delta) do
+    current_count = Map.get(post, count_field, 0) || 0
+    Map.put(post, count_field, max(current_count + delta, 0))
   end
 
   defp put_portal_like_interaction(socket, post, message_id, liked?) do
@@ -3255,8 +3268,27 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp find_portal_post(posts, post_id) do
     normalized_post_id = normalize_post_id(post_id)
-    Enum.find(posts || [], &(&1.id == normalized_post_id))
+
+    Enum.find_value(posts || [], fn post ->
+      cond do
+        post.id == normalized_post_id ->
+          post
+
+        match?(%{id: ^normalized_post_id}, portal_shared_message(post)) ->
+          portal_shared_message(post)
+
+        true ->
+          nil
+      end
+    end)
   end
+
+  defp portal_shared_message(%{shared_message: %Ecto.Association.NotLoaded{}}), do: nil
+
+  defp portal_shared_message(%{shared_message: %{id: id} = shared_message}) when is_integer(id),
+    do: shared_message
+
+  defp portal_shared_message(_), do: nil
 
   defp normalize_post_id(post_id) do
     case parse_positive_int(post_id) do

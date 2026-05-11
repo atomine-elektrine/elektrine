@@ -44,7 +44,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   def fetch_collection(collection, opts \\ [])
 
   def fetch_collection(url, opts) when is_binary(url) do
-    case RemoteFetch.fetch_object(url) do
+    case RemoteFetch.fetch_object(url, fetch_object_opts(opts)) do
       {:ok, page} ->
         collect_from_page(page, opts)
 
@@ -155,16 +155,18 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   defp collect_from_page(page, opts) do
     max_items = Keyword.get(opts, :max_items, @max_collection_items)
     max_pages = Keyword.get(opts, :max_pages, @max_pages)
+    fetch_opts = fetch_object_opts(opts)
 
-    do_collect(page, [], max_items, max_pages, 0)
+    do_collect(page, [], max_items, max_pages, 0, fetch_opts)
   end
 
-  defp do_collect(_page, items, max_items, _max_pages, _page_count)
+  defp do_collect(_page, items, max_items, _max_pages, _page_count, _fetch_opts)
        when length(items) >= max_items do
     {:ok, Enum.take(items, max_items)}
   end
 
-  defp do_collect(_page, items, _max_items, max_pages, page_count) when page_count >= max_pages do
+  defp do_collect(_page, items, _max_items, max_pages, page_count, _fetch_opts)
+       when page_count >= max_pages do
     if items == [] do
       {:ok, []}
     else
@@ -172,7 +174,7 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
     end
   end
 
-  defp do_collect(page, items, max_items, max_pages, page_count) do
+  defp do_collect(page, items, max_items, max_pages, page_count, fetch_opts) do
     current_items = items_from_page(page)
     all_items = items ++ current_items
 
@@ -183,9 +185,9 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
 
       # Has next page
       next_url = get_next_page(page) ->
-        case RemoteFetch.fetch_object(next_url) do
+        case RemoteFetch.fetch_object(next_url, fetch_opts) do
           {:ok, next_page} ->
-            do_collect(next_page, all_items, max_items, max_pages, page_count + 1)
+            do_collect(next_page, all_items, max_items, max_pages, page_count + 1, fetch_opts)
 
           {:error, _reason} ->
             # Failed to fetch next page, return what we have
@@ -198,9 +200,9 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
 
       # Has first page reference (for Collection pointing to first CollectionPage)
       first_url = get_first_page(page) ->
-        case RemoteFetch.fetch_object(first_url) do
+        case RemoteFetch.fetch_object(first_url, fetch_opts) do
           {:ok, first_page} ->
-            do_collect(first_page, all_items, max_items, max_pages, page_count + 1)
+            do_collect(first_page, all_items, max_items, max_pages, page_count + 1, fetch_opts)
 
           {:error, _reason} ->
             if all_items == [] do
@@ -227,6 +229,12 @@ defmodule Elektrine.ActivityPub.CollectionFetcher do
   defp get_first_page(%{"first" => first}) when is_binary(first), do: first
   defp get_first_page(%{"first" => %{"id" => id}}) when is_binary(id), do: id
   defp get_first_page(_), do: nil
+
+  defp fetch_object_opts(opts) do
+    opts
+    |> Keyword.take([:request_fun, :skip_cache, :sign, :validate_url, :allow_recovery])
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+  end
 
   defp extract_actors(items) do
     items

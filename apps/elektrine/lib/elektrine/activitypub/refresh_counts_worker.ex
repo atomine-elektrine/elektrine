@@ -115,8 +115,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
     if is_integer(limit) and limit > 0 do
       posts
-      |> Enum.filter(&visible_refresh_candidate?/1)
-      |> Enum.map(&post_field(&1, :id))
+      |> Enum.flat_map(&visible_refresh_candidate_targets/1)
       |> Enum.uniq()
       |> Enum.take(limit)
     else
@@ -353,6 +352,15 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
   end
 
   defp visible_refresh_candidate?(_post), do: false
+
+  defp visible_refresh_candidate_targets(post) when is_map(post) do
+    [post, post_field(post, :shared_message)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.filter(&visible_refresh_candidate?/1)
+    |> Enum.map(&post_field(&1, :id))
+  end
+
+  defp visible_refresh_candidate_targets(_post), do: []
 
   defp has_activitypub_count_reference?(post) do
     [:activitypub_id, :activitypub_url]

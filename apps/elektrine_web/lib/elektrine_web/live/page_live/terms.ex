@@ -20,10 +20,6 @@ defmodule ElektrineWeb.PageLive.Terms do
             <h1 class="card-title text-3xl mb-6">Terms of Service</h1>
 
             <div class="prose prose-lg max-w-none">
-              <p class="text-sm text-base-content/70 mb-4">
-                Effective Date: {Date.utc_today() |> Date.to_string()}
-              </p>
-
               <section class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4">1. Acceptance of Terms</h2>
                 <p>

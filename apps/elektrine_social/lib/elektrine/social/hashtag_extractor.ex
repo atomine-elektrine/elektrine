@@ -4,6 +4,8 @@ defmodule Elektrine.Social.HashtagExtractor do
   """
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.{BlockedUsersCache, UserMute}
+  alias Elektrine.ActivityPub.{Instance, UserBlock}
   alias Elektrine.Repo
   alias Elektrine.Social.{Hashtag, PostHashtag}
   alias Elektrine.Social.Message
@@ -39,7 +41,11 @@ defmodule Elektrine.Social.HashtagExtractor do
   def get_posts_for_hashtag(hashtag_name, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     before_id = Keyword.get(opts, :before_id)
+    user_id = Keyword.get(opts, :user_id)
     preloads = Elektrine.Social.Messages.timeline_post_preloads()
+
+    blocked_user_ids =
+      if user_id, do: BlockedUsersCache.get_all_blocked_user_ids(user_id), else: []
 
     normalized_name = String.downcase(hashtag_name)
 
@@ -54,6 +60,7 @@ defmodule Elektrine.Social.HashtagExtractor do
             m.visibility in ["public", "unlisted"] and
             is_nil(m.deleted_at) and
             (m.approval_status == "approved" or is_nil(m.approval_status)) and
+            (m.sender_id not in ^blocked_user_ids or is_nil(m.sender_id)) and
             (not is_nil(m.sender_id) or not is_nil(m.remote_actor_id)),
         order_by: [desc: m.id],
         limit: ^limit
@@ -69,6 +76,8 @@ defmodule Elektrine.Social.HashtagExtractor do
       else
         query
       end
+
+    query = apply_viewer_policy(query, user_id)
 
     Repo.all(query)
   end
@@ -116,6 +125,105 @@ defmodule Elektrine.Social.HashtagExtractor do
   end
 
   # Private functions
+
+  defp apply_viewer_policy(query, user_id) do
+    query
+    |> exclude_muted_senders(user_id)
+    |> exclude_blocked_remote_actors(user_id)
+    |> exclude_blocked_domains(user_id)
+    |> exclude_blocked_instances()
+    |> exclude_public_timeline_removed_instances()
+  end
+
+  defp exclude_muted_senders(query, nil), do: query
+
+  defp exclude_muted_senders(query, user_id) do
+    from(m in query,
+      left_join: mute in UserMute,
+      on: mute.muter_id == ^user_id and mute.muted_id == m.sender_id,
+      where: is_nil(mute.id)
+    )
+  end
+
+  defp exclude_blocked_remote_actors(query, nil), do: query
+
+  defp exclude_blocked_remote_actors(query, user_id) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_remote_actor in UserBlock,
+      on:
+        blocked_remote_actor.user_id == ^user_id and blocked_remote_actor.block_type == "user" and
+          blocked_remote_actor.blocked_uri == remote_actor.uri,
+      where: is_nil(remote_actor.id) or is_nil(blocked_remote_actor.id)
+    )
+  end
+
+  defp exclude_blocked_domains(query, nil), do: query
+
+  defp exclude_blocked_domains(query, user_id) do
+    from(m in query,
+      left_join: remote_actor in assoc(m, :remote_actor),
+      left_join: blocked_domain in UserBlock,
+      on:
+        blocked_domain.user_id == ^user_id and blocked_domain.block_type == "domain" and
+          (fragment("lower(?)", blocked_domain.blocked_uri) ==
+             fragment("lower(?)", remote_actor.domain) or
+             fragment(
+               "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+               blocked_domain.blocked_uri,
+               remote_actor.domain,
+               blocked_domain.blocked_uri
+             )),
+      where: is_nil(remote_actor.id) or is_nil(blocked_domain.id)
+    )
+  end
+
+  defp exclude_blocked_instances(query) do
+    if Repo.exists?(from(i in Instance, where: i.blocked == true)) do
+      from(m in query,
+        left_join: remote_actor in assoc(m, :remote_actor),
+        left_join: blocked_instance in Instance,
+        on:
+          blocked_instance.blocked == true and
+            (fragment("lower(?)", blocked_instance.domain) ==
+               fragment("lower(?)", remote_actor.domain) or
+               fragment(
+                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+                 blocked_instance.domain,
+                 remote_actor.domain,
+                 blocked_instance.domain
+               )),
+        where: is_nil(remote_actor.id) or is_nil(blocked_instance.id)
+      )
+    else
+      query
+    end
+  end
+
+  defp exclude_public_timeline_removed_instances(query) do
+    if Repo.exists?(
+         from(i in Instance, where: i.silenced == true or i.federated_timeline_removal == true)
+       ) do
+      from(m in query,
+        left_join: remote_actor in assoc(m, :remote_actor),
+        left_join: removed_instance in Instance,
+        on:
+          (removed_instance.silenced == true or
+             removed_instance.federated_timeline_removal == true) and
+            (fragment("lower(?)", removed_instance.domain) ==
+               fragment("lower(?)", remote_actor.domain) or
+               fragment(
+                 "? LIKE '*.%' AND lower(?) LIKE ('%.' || substring(lower(?) from 3))",
+                 removed_instance.domain,
+                 remote_actor.domain,
+                 removed_instance.domain
+               )),
+        where: is_nil(remote_actor.id) or is_nil(removed_instance.id)
+      )
+    else
+      query
+    end
+  end
 
   defp valid_hashtag?(hashtag) do
     # Basic validation: length between 1-50 chars, alphanumeric + underscore

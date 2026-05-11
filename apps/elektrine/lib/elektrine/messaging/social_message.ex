@@ -190,10 +190,12 @@ defmodule Elektrine.Social.Message do
     |> validate_inclusion(:message_type, ["text", "image", "file", "system"])
     |> validate_inclusion(:visibility, [
       "conversation",
+      "direct",
       "followers",
       "friends",
       "private",
-      "public"
+      "public",
+      "unlisted"
     ])
     |> validate_inclusion(:post_type, [
       "message",
@@ -261,7 +263,7 @@ defmodule Elektrine.Social.Message do
     |> normalize_activitypub_refs()
     |> validate_required([:activitypub_id, :remote_actor_id])
     |> put_change(:federated, true)
-    |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private"])
+    |> validate_inclusion(:visibility, ["public", "unlisted", "followers", "private", "direct"])
     |> validate_length(:content, max: @federated_content_max)
     |> foreign_key_constraint(:conversation_id)
     |> unique_constraint(:activitypub_id,

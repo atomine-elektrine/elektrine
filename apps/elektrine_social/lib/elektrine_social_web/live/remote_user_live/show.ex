@@ -1,6 +1,8 @@
 defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   use ElektrineSocialWeb, :live_view
 
+  require Logger
+
   alias Elektrine.AccountIdentifiers
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.CollectionFetcher
@@ -251,12 +253,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
     post_interactions =
       if socket.assigns[:current_user] && local_posts != [] do
-        all_posts_for_interactions =
-          Enum.map(local_posts, fn post ->
-            %{"id" => post.activitypub_id}
-          end)
-
-        load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
+        load_post_interactions(local_posts, socket.assigns.current_user.id)
       else
         socket.assigns.post_interactions
       end
@@ -345,12 +342,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       post_interactions =
         if socket.assigns[:current_user] && local_posts != [] &&
              map_size(socket.assigns.post_interactions) == 0 do
-          all_posts_for_interactions =
-            Enum.map(local_posts, fn post ->
-              %{"id" => post.activitypub_id}
-            end)
-
-          load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
+          load_post_interactions(local_posts, socket.assigns.current_user.id)
         else
           socket.assigns.post_interactions
         end
@@ -514,8 +506,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
       post_interactions =
         if socket.assigns[:current_user] && local_posts != [] do
-          all_posts_for_interactions = Enum.map(local_posts, &%{"id" => &1.activitypub_id})
-          load_post_interactions(all_posts_for_interactions, socket.assigns.current_user.id)
+          load_post_interactions(local_posts, socket.assigns.current_user.id)
         else
           socket.assigns.post_interactions
         end
@@ -2627,6 +2618,13 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       _ ->
         %{}
     end
+  rescue
+    error in Postgrex.Error ->
+      Logger.warning(
+        "Skipping remote relationship count refresh for actor #{inspect(actor_id)} after database error: #{Exception.message(error)}"
+      )
+
+      %{}
   end
 
   defp fetch_remote_collection_count(nil, fallback), do: max(fallback || 0, 0)
@@ -2660,6 +2658,57 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   defp get_status_count(meta), do: APHelpers.get_status_count(meta)
   defp extract_username_from_uri(uri), do: APHelpers.extract_username_from_uri(uri)
 
+  defp load_post_interactions(posts, user_id)
+       when is_list(posts) and is_integer(user_id) do
+    import Ecto.Query
+
+    messages = messages_for_local_state(posts)
+    message_ids = Enum.map(messages, & &1.id)
+
+    if message_ids == [] do
+      APHelpers.load_post_interactions(posts, user_id)
+    else
+      liked_ids =
+        from(l in Elektrine.Social.PostLike,
+          where: l.user_id == ^user_id and l.message_id in ^message_ids,
+          select: l.message_id
+        )
+        |> Repo.all()
+        |> MapSet.new()
+
+      boosted_ids =
+        from(b in Elektrine.Social.PostBoost,
+          where: b.user_id == ^user_id and b.message_id in ^message_ids,
+          select: b.message_id
+        )
+        |> Repo.all()
+        |> MapSet.new()
+
+      votes =
+        from(v in Elektrine.Social.MessageVote,
+          where: v.user_id == ^user_id and v.message_id in ^message_ids,
+          select: {v.message_id, v.vote_type}
+        )
+        |> Repo.all()
+        |> Map.new()
+
+      Enum.reduce(messages, %{}, fn message, acc ->
+        state = %{
+          liked: MapSet.member?(liked_ids, message.id),
+          boosted: MapSet.member?(boosted_ids, message.id),
+          like_delta: 0,
+          boost_delta: 0,
+          vote: Map.get(votes, message.id),
+          vote_delta: 0
+        }
+
+        message
+        |> local_message_state_keys()
+        |> Enum.reduce(acc, fn key, key_acc -> Map.put(key_acc, key, state) end)
+      end)
+    end
+  end
+
   defp load_post_interactions(posts, user_id),
     do: APHelpers.load_post_interactions(posts, user_id)
 
@@ -2667,10 +2716,9 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
        when is_list(posts) and is_integer(user_id) do
     keyed_posts =
       posts
-      |> Enum.filter(&is_struct(&1, Elektrine.Social.Message))
-      |> Enum.map(fn post ->
-        key = post.activitypub_id || Integer.to_string(post.id)
-        {key, post.id}
+      |> messages_for_local_state()
+      |> Enum.flat_map(fn post ->
+        Enum.map(local_message_state_keys(post), fn key -> {key, post.id} end)
       end)
 
     message_ids =
@@ -2686,6 +2734,39 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp load_user_saves_for_posts(_, _), do: %{}
+
+  defp messages_for_local_state(posts) when is_list(posts) do
+    posts
+    |> Enum.flat_map(fn
+      %Elektrine.Social.Message{} = post -> [post, shared_message_for_state(post)]
+      _ -> []
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.id)
+  end
+
+  defp messages_for_local_state(_), do: []
+
+  defp shared_message_for_state(%{shared_message: %Ecto.Association.NotLoaded{}}), do: nil
+
+  defp shared_message_for_state(%{shared_message: %Elektrine.Social.Message{} = shared_message}) do
+    shared_message
+  end
+
+  defp shared_message_for_state(_), do: nil
+
+  defp local_message_state_keys(%{id: id} = message) when is_integer(id) do
+    [
+      id,
+      Integer.to_string(id),
+      Map.get(message, :activitypub_id),
+      Map.get(message, :activitypub_url)
+    ]
+    |> Enum.reject(&(is_nil(&1) || &1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp local_message_state_keys(_), do: []
 
   defp record_remote_profile_dwell_view(user_id, params)
        when is_integer(user_id) and is_map(params) do
@@ -3163,11 +3244,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp interaction_state_for_local_post(post, post_interactions) do
     key_candidates =
-      [
-        post.activitypub_id,
-        Integer.to_string(post.id),
-        post.id
-      ]
+      (local_message_state_keys(post) ++
+         (post |> shared_message_for_state() |> local_message_state_keys()))
       |> Enum.reject(&is_nil/1)
 
     Enum.find_value(key_candidates, PostInteractions.default_interaction_state(), fn key ->
@@ -3177,7 +3255,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp local_visible_message_id(socket, raw_message_id) do
     with {:ok, message_id} <- parse_local_message_id(raw_message_id),
-         true <- Enum.any?(socket.assigns.local_posts || [], &(&1.id == message_id)) do
+         %{} <- local_visible_post(socket, message_id) do
       {:ok, message_id}
     else
       _ -> :error
@@ -3185,7 +3263,18 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   end
 
   defp local_visible_post(socket, message_id) when is_integer(message_id) do
-    Enum.find(socket.assigns.local_posts || [], &(&1.id == message_id))
+    Enum.find_value(socket.assigns.local_posts || [], fn post ->
+      cond do
+        post.id == message_id ->
+          post
+
+        match?(%{id: ^message_id}, shared_message_for_state(post)) ->
+          shared_message_for_state(post)
+
+        true ->
+          nil
+      end
+    end)
   end
 
   defp local_visible_post_state(socket, message_id) when is_integer(message_id) do
@@ -3206,12 +3295,27 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     socket
     |> update(:local_posts, fn posts ->
       Enum.map(posts || [], fn post ->
-        if post.id == message_id, do: updater.(post), else: post
+        cond do
+          post.id == message_id ->
+            updater.(post)
+
+          match?(%{id: ^message_id}, shared_message_for_state(post)) ->
+            Map.put(post, :shared_message, updater.(shared_message_for_state(post)))
+
+          true ->
+            post
+        end
       end)
     end)
     |> update(:modal_post, fn
-      %{id: ^message_id} = post -> updater.(post)
-      post -> post
+      %{id: ^message_id} = post ->
+        updater.(post)
+
+      %{shared_message: %{id: ^message_id} = shared_message} = post ->
+        Map.put(post, :shared_message, updater.(shared_message))
+
+      post ->
+        post
     end)
   end
 
@@ -3234,8 +3338,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         socket
 
       post ->
-        keys =
-          [post.activitypub_id, Integer.to_string(post.id), post.id] |> Enum.reject(&is_nil/1)
+        keys = local_message_state_keys(post)
 
         current = interaction_state_for_local_post(post, socket.assigns.post_interactions)
         updated = updater.(current)
@@ -3255,8 +3358,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         socket
 
       post ->
-        keys =
-          [post.activitypub_id, Integer.to_string(post.id), post.id] |> Enum.reject(&is_nil/1)
+        keys = local_message_state_keys(post)
 
         updated_map =
           Enum.reduce(keys, socket.assigns.user_saves || %{}, fn key, acc ->
@@ -3269,11 +3371,8 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp post_saved?(post, user_saves) do
     key_candidates =
-      [
-        post.activitypub_id,
-        Integer.to_string(post.id),
-        post.id
-      ]
+      (local_message_state_keys(post) ++
+         (post |> shared_message_for_state() |> local_message_state_keys()))
       |> Enum.reject(&is_nil/1)
 
     Enum.find_value(key_candidates, false, fn key ->
@@ -3314,11 +3413,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp replies_for_post(post, post_replies) do
     key_candidates =
-      [
-        post.activitypub_id,
-        Integer.to_string(post.id),
-        post.id
-      ]
+      local_message_state_keys(post)
       |> Enum.reject(&is_nil/1)
 
     Enum.find_value(key_candidates, [], fn key ->
@@ -3339,7 +3434,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   defp reactions_for_entry(%{id: id} = post, post_reactions) when is_integer(id) do
     keys =
-      [post.activitypub_id, Integer.to_string(id), id]
+      local_message_state_keys(post)
       |> Enum.reject(&is_nil/1)
 
     reactions_for_keys(post_reactions, keys)

@@ -1162,6 +1162,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       user_downvotes={%{@message.id => Map.get(@interaction_state, :vote) == "down"}}
       user_saves={@detail_user_saves}
       post_interactions={@post_interactions}
+      post_reactions_map={@post_reactions}
       user_follows={@user_follows}
       pending_follows={@pending_follows}
       remote_follow_overrides={@remote_follow_overrides}
@@ -1456,7 +1457,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp detail_message_interaction(post_interactions, message) do
-    [message.activitypub_id, message.id]
+    detail_message_keys(message)
     |> Enum.filter(& &1)
     |> Enum.map(&PostInteractions.normalize_key/1)
     |> Enum.find_value(fn key -> Map.get(post_interactions, key) end)
@@ -1491,9 +1492,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     do: %{liked: false, like_delta: 0, boosted: false, boost_delta: 0, vote: nil, vote_delta: 0}
 
   defp detail_message_reactions(post_reactions, message) do
-    [message.id, message.activitypub_id]
-    |> Enum.filter(& &1)
-    |> Enum.map(&PostInteractions.normalize_key/1)
+    message
+    |> detail_message_keys()
     |> Enum.find_value([], &Map.get(post_reactions, &1))
   end
 
@@ -1610,40 +1610,46 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp detail_message_saved?(user_saves, message) do
-    [message.activitypub_id, message.id]
-    |> Enum.filter(& &1)
-    |> Enum.map(&PostInteractions.normalize_key/1)
+    message
+    |> detail_message_keys()
     |> Enum.any?(&Map.get(user_saves, &1, false))
   end
 
   defp detail_message_save_map(user_saves, message) when is_map(user_saves) do
     saved? = detail_message_saved?(user_saves, message)
 
-    [message.activitypub_id, message.id]
-    |> Enum.filter(& &1)
-    |> Enum.map(&PostInteractions.normalize_key/1)
-    |> Enum.uniq()
+    detail_message_keys(message)
     |> Enum.reduce(user_saves, fn key, acc ->
       Map.put(acc, key, saved?)
     end)
   end
 
   defp detail_message_save_map(_, message) do
-    [message.activitypub_id, message.id]
-    |> Enum.filter(& &1)
-    |> Enum.map(&PostInteractions.normalize_key/1)
-    |> Enum.uniq()
+    detail_message_keys(message)
     |> Enum.reduce(%{}, fn key, acc ->
       Map.put(acc, key, false)
     end)
   end
 
+  defp detail_message_keys(message) do
+    [
+      field_value(message, [:id, "id"]),
+      field_value(message, [:activitypub_id, "activitypub_id"]),
+      field_value(message, [:activitypub_url, "activitypub_url"])
+    ]
+    |> Enum.filter(& &1)
+    |> Enum.map(&PostInteractions.normalize_key/1)
+    |> Enum.uniq()
+  end
+
   defp main_post_interaction_state(post_interactions, post, local_message)
        when is_map(post_interactions) do
     [
-      post && post["id"],
+      local_message && local_message.id,
       local_message && local_message.activitypub_id,
-      local_message && local_message.id
+      local_message && local_message.activitypub_url,
+      post && post["id"],
+      post && post["url"]
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&PostInteractions.normalize_key/1)
@@ -1655,16 +1661,84 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp main_post_interaction_state(_, _post, _local_message),
     do: %{liked: false, boosted: false, like_delta: 0, boost_delta: 0}
 
-  defp reset_main_post_vote_delta(post_interactions, post, local_message)
-       when is_map(post_interactions) do
+  defp load_detail_post_interactions(post_object, local_message, user_id) do
+    shared_message = shared_detail_message(local_message)
+
+    lookup_posts =
+      [
+        post_object,
+        local_message && %{"id" => local_message.activitypub_id},
+        local_message && %{"id" => local_message.activitypub_url},
+        shared_message && %{"id" => shared_message.activitypub_id},
+        shared_message && %{"id" => shared_message.activitypub_url}
+      ]
+      |> Enum.reject(fn
+        %{"id" => id} -> !Elektrine.Strings.present?(id)
+        value -> is_nil(value)
+      end)
+      |> Enum.uniq_by(& &1["id"])
+
+    interactions = load_post_interactions(lookup_posts, user_id)
+    state = main_post_interaction_state(interactions, post_object, local_message)
+
+    interactions =
+      detail_post_keys(post_object, local_message)
+      |> Enum.reduce(interactions, fn key, acc -> Map.put(acc, key, state) end)
+
+    if shared_message do
+      shared_state = main_post_interaction_state(interactions, nil, shared_message)
+
+      detail_post_keys(nil, shared_message)
+      |> Enum.reduce(interactions, fn key, acc -> Map.put(acc, key, shared_state) end)
+    else
+      interactions
+    end
+  end
+
+  defp load_local_detail_user_state(user_id, local_message, post_interactions, user_saves) do
+    [local_message, shared_detail_message(local_message)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.reduce({post_interactions || %{}, user_saves || %{}}, fn message,
+                                                                     {interactions_acc, saves_acc} ->
+      state = %{
+        liked: Social.user_liked_post?(user_id, message.id),
+        boosted: Social.user_boosted?(user_id, message.id),
+        like_delta: 0,
+        boost_delta: 0
+      }
+
+      saved = Social.post_saved?(user_id, message.id)
+      keys = detail_message_keys(message)
+
+      {
+        Enum.reduce(keys, interactions_acc, &Map.put(&2, &1, state)),
+        Enum.reduce(keys, saves_acc, &Map.put(&2, &1, saved))
+      }
+    end)
+  end
+
+  defp shared_detail_message(%{shared_message: shared_message}) do
+    if loaded_assoc?(shared_message) && is_map(shared_message), do: shared_message
+  end
+
+  defp shared_detail_message(_), do: nil
+
+  defp detail_post_keys(post_object, local_message) do
     [
-      post && post["id"],
-      local_message && local_message.activitypub_id,
-      local_message && local_message.id
+      field_value(post_object, ["id", :id]),
+      field_value(post_object, ["url", :url]),
+      field_value(local_message, [:activitypub_id, "activitypub_id"]),
+      field_value(local_message, [:activitypub_url, "activitypub_url"]),
+      field_value(local_message, [:id, "id"])
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.map(&PostInteractions.normalize_key/1)
     |> Enum.uniq()
+  end
+
+  defp reset_main_post_vote_delta(post_interactions, post, local_message)
+       when is_map(post_interactions) do
+    detail_post_keys(post, local_message)
     |> Enum.reduce(post_interactions, fn key, acc ->
       if Map.has_key?(acc, key) do
         Map.update!(acc, key, fn state ->
@@ -1883,16 +1957,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     in_reply_to = message_in_reply_to(msg)
     community_uri = DiscussionSource.community_uri_from_local_message(msg)
 
-    attachments =
-      if msg.media_urls && msg.media_urls != [] do
-        Enum.map(msg.media_urls, fn url ->
-          full_url = message_attachment_url(url, msg)
-          %{"type" => "Image", "url" => full_url, "mediaType" => "image/jpeg"}
-        end)
-        |> Enum.filter(&(is_binary(&1["url"]) && &1["url"] != ""))
-      else
-        []
-      end
+    attachments = cached_message_attachments(msg)
 
     %{
       "id" => msg.activitypub_id,
@@ -1951,6 +2016,75 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp cached_remote_status_fields(_), do: %{}
 
+  defp cached_message_attachments(msg) do
+    metadata = msg.media_metadata || %{}
+
+    media_url_attachments =
+      (msg.media_urls || [])
+      |> Enum.map(fn url ->
+        full_url = message_attachment_url(url, msg)
+
+        if Elektrine.Strings.present?(full_url) do
+          %{
+            "type" => media_attachment_type(full_url),
+            "url" => full_url,
+            "mediaType" => media_attachment_type(full_url) |> default_media_type()
+          }
+        end
+      end)
+
+    metadata_attachments =
+      [
+        field_value(metadata, ["attachment", :attachment]),
+        field_value(metadata, ["attachments", :attachments]),
+        field_value(metadata, ["media_attachments", :media_attachments])
+      ]
+      |> Enum.flat_map(&normalize_attachment_list/1)
+      |> Enum.map(&normalize_cached_attachment/1)
+
+    (media_url_attachments ++ metadata_attachments)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(&attachment_url/1)
+  end
+
+  defp normalize_cached_attachment(attachment) when is_map(attachment) do
+    url =
+      attachment_url(attachment) ||
+        field_value(attachment, ["remote_url", :remote_url]) ||
+        field_value(attachment, ["preview_url", :preview_url])
+
+    if Elektrine.Strings.present?(url) do
+      type =
+        field_value(attachment, ["type", :type]) ||
+          media_attachment_type(url)
+
+      media_type =
+        field_value(attachment, ["mediaType", :mediaType, "media_type", :media_type]) ||
+          default_media_type(type)
+
+      %{
+        "type" => type,
+        "url" => url,
+        "mediaType" => media_type,
+        "name" => field_value(attachment, ["name", :name, "description", :description])
+      }
+    end
+  end
+
+  defp normalize_cached_attachment(_), do: nil
+
+  defp media_attachment_type(url) when is_binary(url) do
+    cond do
+      String.match?(url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i) -> "Video"
+      String.match?(url, ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i) -> "Audio"
+      true -> "Image"
+    end
+  end
+
+  defp default_media_type("Video"), do: "video/mp4"
+  defp default_media_type("Audio"), do: "audio/mpeg"
+  defp default_media_type(_), do: "image/jpeg"
+
   defp message_attachment_url(url, %{federated: true}) when is_binary(url) do
     if String.starts_with?(url, ["http://", "https://"]),
       do: url,
@@ -1962,12 +2096,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp maybe_enrich_cached_federated_post(post_object, msg)
        when is_map(post_object) and is_map(msg) do
     needs_origin_body = !Elektrine.Strings.present?(map_get_value(post_object, "content"))
+    needs_origin_media = normalize_attachment_list(map_get_value(post_object, "attachment")) == []
 
     remote_ref =
       [msg.activitypub_id, msg.activitypub_url]
       |> Enum.find(&(is_binary(&1) && String.trim(&1) != ""))
 
-    if needs_origin_body && is_binary(remote_ref) do
+    if (needs_origin_body || needs_origin_media) && is_binary(remote_ref) do
       case strict_fetch_remote_object(remote_ref) do
         {:ok, remote_post} when is_map(remote_post) ->
           maybe_preserve_cached_post_fields(post_object, remote_post)
@@ -2410,6 +2545,9 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> maybe_put_field_from_existing(existing_post, "inReplyToAuthor")
     |> maybe_put_field_from_existing(existing_post, "inReplyToContent")
     |> maybe_put_field_from_existing(existing_post, "inReplyToTitle")
+    |> maybe_put_non_empty_field_from_existing(existing_post, "attachment")
+    |> maybe_put_non_empty_field_from_existing(existing_post, "sensitive")
+    |> maybe_put_non_empty_field_from_existing(existing_post, "summary")
     |> maybe_preserve_higher_reply_count(existing_post)
   end
 
@@ -2427,6 +2565,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       end
     end
   end
+
+  defp maybe_put_non_empty_field_from_existing(post_object, existing_post, key) do
+    current = map_get_value(post_object, key)
+    fallback = map_get_value(existing_post, key)
+
+    if non_empty_value?(current) || !non_empty_value?(fallback) do
+      post_object
+    else
+      Map.put(post_object, key, fallback)
+    end
+  end
+
+  defp non_empty_value?(value) when is_binary(value), do: Elektrine.Strings.present?(value)
+  defp non_empty_value?(value) when is_list(value), do: value != []
+  defp non_empty_value?(value) when is_map(value), do: map_size(value) > 0
+  defp non_empty_value?(value), do: not is_nil(value) and value != false
 
   defp maybe_preserve_higher_reply_count(post_object, existing_post)
        when is_map(post_object) and is_map(existing_post) do
@@ -3486,13 +3640,18 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
     socket =
       if socket.assigns[:current_user] do
-        interactions = load_post_interactions([post_object], socket.assigns.current_user.id)
+        interactions =
+          load_detail_post_interactions(
+            post_object,
+            local_message,
+            socket.assigns.current_user.id
+          )
 
         user_saves =
           if local_message do
             saved = Social.post_saved?(socket.assigns.current_user.id, local_message.id)
 
-            [local_message.id, local_message.activitypub_id]
+            [local_message.id, local_message.activitypub_id, local_message.activitypub_url]
             |> Enum.reject(&is_nil/1)
             |> Enum.map(&PostInteractions.normalize_key/1)
             |> Enum.uniq()
@@ -4229,30 +4388,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
         {post_interactions, user_saves} =
           if socket.assigns[:current_user] do
-            user_id = socket.assigns.current_user.id
-
-            post_state = %{
-              liked: Social.user_liked_post?(user_id, message.id),
-              boosted: Social.user_boosted?(user_id, message.id),
-              like_delta: 0,
-              boost_delta: 0
-            }
-
-            interaction_keys =
-              [local_post_key, message.activitypub_id]
-              |> Enum.reject(&is_nil/1)
-              |> Enum.uniq()
-
-            {
-              Enum.reduce(interaction_keys, socket.assigns.post_interactions, fn key, acc ->
-                Map.put(acc, key, post_state)
-              end),
-              Map.put(
-                socket.assigns.user_saves,
-                local_post_key,
-                Social.post_saved?(user_id, message.id)
-              )
-            }
+            load_local_detail_user_state(
+              socket.assigns.current_user.id,
+              message,
+              socket.assigns.post_interactions,
+              socket.assigns.user_saves
+            )
           else
             {socket.assigns.post_interactions, socket.assigns.user_saves}
           end
@@ -7398,10 +7539,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     local_message = socket.assigns[:local_message]
 
     if is_map(local_message) do
-      [local_message.id, local_message.activitypub_id]
-      |> Enum.filter(& &1)
-      |> Enum.map(&PostInteractions.normalize_key/1)
-      |> Enum.uniq()
+      detail_post_keys(socket.assigns[:post], local_message)
       |> Enum.reduce(socket.assigns[:user_saves] || %{}, fn key, acc ->
         Map.put(acc, key, saved)
       end)
@@ -7415,11 +7553,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     local_message = socket.assigns[:local_message]
 
     if is_map(local_message) do
-      keys =
-        [local_message.id, local_message.activitypub_id]
-        |> Enum.filter(& &1)
-        |> Enum.map(&PostInteractions.normalize_key/1)
-        |> Enum.uniq()
+      keys = detail_post_keys(socket.assigns[:post], local_message)
 
       current_state =
         detail_message_interaction(socket.assigns[:post_interactions] || %{}, local_message)
@@ -7585,30 +7719,29 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp apply_displayed_local_message(socket, %{id: _message_id} = message) do
     local_message = socket.assigns[:local_message]
 
-    if is_map(local_message) && local_message.id == message.id do
-      counts = displayed_local_message_counts(message)
+    cond do
+      is_map(local_message) && local_message.id == message.id ->
+        counts = displayed_local_message_counts(message)
 
-      updated_local_message =
-        local_message
-        |> Map.put(:like_count, Map.get(counts, :like_count))
-        |> Map.put(:share_count, Map.get(counts, :share_count))
-        |> Map.put(:reply_count, Map.get(counts, :reply_count))
-        |> Map.put(:quote_count, Map.get(counts, :quote_count))
-        |> Map.put(:upvotes, Map.get(counts, :upvotes))
-        |> Map.put(:downvotes, Map.get(counts, :downvotes))
-        |> Map.put(:score, Map.get(counts, :score))
+        socket
+        |> assign(:local_message, apply_display_counts_to_message(local_message, counts))
+        |> assign(:post, apply_counts_to_post_object(socket.assigns[:post], counts))
+        |> assign(
+          :modal_post,
+          apply_display_counts_to_modal_post(socket.assigns[:modal_post], counts)
+        )
+        |> maybe_update_existing_lemmy_counts(counts)
+        |> maybe_update_existing_mastodon_counts(counts)
 
-      socket
-      |> assign(:local_message, updated_local_message)
-      |> assign(:post, apply_counts_to_post_object(socket.assigns[:post], counts))
-      |> assign(
-        :modal_post,
-        apply_display_counts_to_modal_post(socket.assigns[:modal_post], counts)
-      )
-      |> maybe_update_existing_lemmy_counts(counts)
-      |> maybe_update_existing_mastodon_counts(counts)
-    else
-      socket
+      is_map(local_message) && Map.get(local_message, :shared_message_id) == message.id &&
+          loaded_assoc?(Map.get(local_message, :shared_message)) ->
+        counts = displayed_local_message_counts(message)
+        shared_message = apply_display_counts_to_message(local_message.shared_message, counts)
+
+        assign(socket, :local_message, %{local_message | shared_message: shared_message})
+
+      true ->
+        socket
     end
   end
 
@@ -7627,6 +7760,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       downvotes: Map.get(message, :downvotes) || 0,
       score: max(Map.get(message, :score) || 0, like_count)
     }
+  end
+
+  defp apply_display_counts_to_message(message, counts) when is_map(message) do
+    message
+    |> Map.put(:like_count, Map.get(counts, :like_count))
+    |> Map.put(:share_count, Map.get(counts, :share_count))
+    |> Map.put(:reply_count, Map.get(counts, :reply_count))
+    |> Map.put(:quote_count, Map.get(counts, :quote_count))
+    |> Map.put(:upvotes, Map.get(counts, :upvotes))
+    |> Map.put(:downvotes, Map.get(counts, :downvotes))
+    |> Map.put(:score, Map.get(counts, :score))
   end
 
   defp apply_display_counts_to_modal_post(nil, _counts), do: nil

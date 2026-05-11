@@ -99,7 +99,8 @@ defmodule ElektrineSocialWeb.MastodonAPI.ListController do
       posts =
         Lists.get_list_timeline(list.id,
           limit: parse_limit(params["limit"], 20),
-          before_id: parse_int(params["max_id"])
+          before_id: parse_int(params["max_id"]),
+          viewer_id: user.id
         )
 
       json(conn, StatusView.render_statuses(posts, user))

@@ -69,7 +69,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
         parent_message.id,
         max_replies,
         max_depth,
-        max_pages
+        max_pages,
+        opts
       )
     end
   end
@@ -152,13 +153,38 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
       parent_message_id,
       max_replies,
       max_depth,
-      max_pages
+      max_pages,
+      opts
     )
   end
 
   # Private implementation
 
-  defp do_fetch_and_store_replies(nil, _parent_message_id, _max_replies, _max_depth, _max_pages) do
+  defp do_fetch_and_store_replies(
+         collection,
+         parent_message_id,
+         max_replies,
+         max_depth,
+         max_pages
+       ) do
+    do_fetch_and_store_replies(
+      collection,
+      parent_message_id,
+      max_replies,
+      max_depth,
+      max_pages,
+      []
+    )
+  end
+
+  defp do_fetch_and_store_replies(
+         nil,
+         _parent_message_id,
+         _max_replies,
+         _max_depth,
+         _max_pages,
+         _opts
+       ) do
     {:ok, 0}
   end
 
@@ -167,7 +193,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
          _parent_message_id,
          max_replies,
          _max_depth,
-         _max_pages
+         _max_pages,
+         _opts
        )
        when max_replies <= 0 do
     {:ok, 0}
@@ -178,12 +205,18 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
          parent_message_id,
          max_replies,
          max_depth,
-         max_pages
+         max_pages,
+         opts
        )
        when is_binary(collection) or is_map(collection) do
     case CollectionFetcher.fetch_collection(collection,
            max_items: max_replies,
-           max_pages: max_pages
+           max_pages: max_pages,
+           skip_cache: Keyword.get(opts, :skip_cache, false),
+           request_fun: Keyword.get(opts, :request_fun),
+           sign: Keyword.get(opts, :sign),
+           validate_url: Keyword.get(opts, :validate_url),
+           allow_recovery: Keyword.get(opts, :allow_recovery)
          ) do
       {:ok, items} ->
         {stored_count, _remaining} =
@@ -220,7 +253,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
               parent_message_id,
               max_replies,
               max_depth,
-              max_pages
+              max_pages,
+              opts
             )
 
           replies ->
@@ -268,7 +302,8 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
           parent_message_id,
           max_replies,
           max_depth,
-          max_pages
+          max_pages,
+          opts
         )
     end
   end
@@ -350,9 +385,12 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
          parent_message_id,
          max_replies,
          max_depth,
-         max_pages
+         max_pages,
+         opts
        ) do
-    case ActivityPub.fetch_remote_post_replies(post_object, limit: max_replies) do
+    fetch_opts = Keyword.merge(opts, limit: max_replies)
+
+    case ActivityPub.fetch_remote_post_replies(post_object, fetch_opts) do
       {:ok, replies} when is_list(replies) ->
         process_fetched_reply_items(replies, parent_message_id, max_replies, max_depth, max_pages)
 

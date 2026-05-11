@@ -6,6 +6,7 @@ defmodule Elektrine.Notifications do
   require Logger
 
   import Ecto.Query, warn: false
+  alias Elektrine.Accounts.{UserBlock, UserMute}
   alias Elektrine.Messaging
   alias Elektrine.Notifications.Notification
   alias Elektrine.Repo
@@ -284,10 +285,23 @@ defmodule Elektrine.Notifications do
       end
 
     query = apply_source_filter(query, source_filter)
+    query = apply_actor_safety_filter(query, user_id)
 
     query
     |> Repo.all()
     |> resolve_legacy_message_notification_urls()
+  end
+
+  defp apply_actor_safety_filter(query, user_id) do
+    from(n in query,
+      left_join: mute in UserMute,
+      on:
+        mute.muter_id == ^user_id and mute.muted_id == n.actor_id and
+          mute.mute_notifications == true,
+      left_join: block in UserBlock,
+      on: block.blocker_id == ^user_id and block.blocked_id == n.actor_id,
+      where: is_nil(mute.id) and is_nil(block.id)
+    )
   end
 
   defp apply_source_filter(query, source_filter) do
