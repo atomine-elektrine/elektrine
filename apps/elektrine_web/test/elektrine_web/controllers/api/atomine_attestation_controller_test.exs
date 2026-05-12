@@ -20,11 +20,14 @@ defmodule ElektrineWeb.API.AtomineAttestationControllerTest do
     test "issues, verifies, and spends a token for an external audience", %{conn: conn} do
       challenge_conn = post(conn, "/api/atomine/pow/challenge", %{difficulty: 0})
       challenge = json_response(challenge_conn, 200)
+      assert challenge["gate"]["version"] == "atomine-gate-v1"
+      assert challenge["gate"]["layers"] == ["pow", "browser_instrumentation"]
 
       token_conn =
         post(conn, "/api/atomine/anonymous-tokens", %{
           challenge: challenge["challenge"],
-          solution: "any-solution"
+          solution: "any-solution",
+          gate_proof: gate_proof(challenge["challenge"])
         })
 
       token_response = json_response(token_conn, 200)
@@ -61,5 +64,24 @@ defmodule ElektrineWeb.API.AtomineAttestationControllerTest do
       conn = post(conn, "/api/atomine/anonymous-tokens/spend", %{token: "token"})
       assert json_response(conn, 422)["error"] == "missing audience"
     end
+  end
+
+  defp gate_proof(challenge) do
+    %{
+      "version" => "atomine-gate-v1",
+      "layers" => ["pow", "browser_instrumentation"],
+      "browser_instrumentation" => %{
+        "challenge_hash" => sha256_base64url(challenge),
+        "checks" =>
+          Enum.map(
+            ~w(layout.getComputedStyle canvas.toDataURL event.isTrusted navigator.webdriver dom.querySelector),
+            &%{"name" => &1, "ok" => true, "duration_ms" => 1}
+          )
+      }
+    }
+  end
+
+  defp sha256_base64url(value) do
+    :crypto.hash(:sha256, value) |> Base.url_encode64(padding: false)
   end
 end

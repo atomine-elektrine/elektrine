@@ -129,8 +129,8 @@ export const VPNDownload = {
 }
 
 /**
- * Atomine proof-of-work Hook
- * Solves a small local browser challenge and submits an anonymous effort token.
+ * Atomine Gate Hook
+ * Solves configured anti-abuse layers before submitting.
  */
 export const AtominePow = {
   mounted() {
@@ -164,7 +164,7 @@ export const AtominePow = {
       this.requestSubmit(event.submitter)
     } catch (_error) {
       this.setResponseToken('')
-      this.showError('atomine proof failed; retry')
+      this.showError('atomine gate failed; retry')
     }
   },
 
@@ -229,6 +229,9 @@ export const AtominePow = {
 
     const challenge = challengeResponse.challenge
     const difficulty = normalizeDifficulty(challengeResponse.difficulty ?? this.difficulty)
+    this.setStatus('atomine gate: running browser instrumentation')
+    const gateProof = await collectGateProof(challenge)
+
     this.setStatus(`atomine: solving sha256 nonce, difficulty=${difficulty}`)
 
     const solution = await solvePow(challenge, difficulty, (attempts) => {
@@ -239,7 +242,8 @@ export const AtominePow = {
 
     const tokenResponse = await postJson('/api/atomine/anonymous-tokens', {
       challenge,
-      solution
+      solution,
+      gate_proof: gateProof
     })
 
     if (!tokenResponse.token) {
@@ -298,6 +302,114 @@ async function postJson(url, body) {
   }
 
   return json
+}
+
+async function collectGateProof(challenge) {
+  const checks = []
+
+  checks.push(measureBrowserCheck('layout.getComputedStyle', () => {
+    const probe = document.createElement('div')
+    probe.style.cssText = 'position:absolute;left:-9999px;width:37px;height:11px;padding:3px;display:block;'
+    document.body.appendChild(probe)
+    const style = window.getComputedStyle(probe)
+    const ok = style.display === 'block' && style.width === '37px' && style.paddingLeft === '3px'
+    probe.remove()
+    return { ok }
+  }))
+
+  checks.push(measureBrowserCheck('canvas.toDataURL', () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 16
+    canvas.height = 16
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return { ok: false }
+    ctx.fillStyle = '#1f6feb'
+    ctx.fillRect(0, 0, 16, 16)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText('A', 3, 12)
+    const data = canvas.toDataURL('image/png')
+    return { ok: data.startsWith('data:image/png;base64,'), bytes: data.length }
+  }))
+
+  checks.push(measureBrowserCheck('event.isTrusted', () => {
+    let syntheticTrusted = null
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.addEventListener('click', (event) => {
+      syntheticTrusted = event.isTrusted
+    }, { once: true })
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    return { ok: syntheticTrusted === false, synthetic_trusted: syntheticTrusted }
+  }))
+
+  checks.push(measureBrowserCheck('navigator.webdriver', () => {
+    const webdriver = navigator.webdriver === true
+    return { ok: !webdriver, webdriver }
+  }))
+
+  checks.push(measureBrowserCheck('dom.querySelector', () => {
+    const id = `atomine-gate-${Math.random().toString(36).slice(2)}`
+    const probe = document.createElement('span')
+    probe.id = id
+    probe.dataset.atomineBrowserProof = 'true'
+    document.body.appendChild(probe)
+    const ok = document.querySelector(`#${id}`)?.dataset.atomineBrowserProof === 'true'
+    probe.remove()
+    return { ok }
+  }))
+
+  if (checks.some((check) => !check.ok)) {
+    throw new Error('browser instrumentation failed')
+  }
+
+  return {
+    version: 'atomine-gate-v1',
+    layers: ['pow', 'browser_instrumentation'],
+    browser_instrumentation: {
+      challenge_hash: await sha256Base64Url(challenge),
+      checks,
+      signals: {
+        user_agent_hash: await sha256Base64Url(navigator.userAgent || ''),
+        languages: Array.isArray(navigator.languages) ? navigator.languages.slice(0, 5) : [],
+        hardware_concurrency: navigator.hardwareConcurrency || null,
+        device_memory: navigator.deviceMemory || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null
+      }
+    }
+  }
+}
+
+function measureBrowserCheck(name, fn) {
+  const startedAt = performance.now()
+
+  try {
+    const result = fn() || {}
+    return {
+      name,
+      ok: result.ok === true,
+      duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      ...result
+    }
+  } catch (error) {
+    return {
+      name,
+      ok: false,
+      duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      error: error?.name || 'Error'
+    }
+  }
+}
+
+async function sha256Base64Url(value) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  const bytes = new Uint8Array(digest)
+  let binary = ''
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
 async function solvePow(challenge, difficulty, onProgress) {

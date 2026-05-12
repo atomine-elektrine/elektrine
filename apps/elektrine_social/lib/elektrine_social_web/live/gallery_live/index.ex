@@ -1609,6 +1609,14 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
     is_binary(gallery_primary_image(post))
   end
 
+  defp gallery_sensitive?(post) when is_map(post) do
+    Elektrine.Strings.present?(Map.get(post, :content_warning)) ||
+      Map.get(post, :sensitive) == true ||
+      Map.get(post, "sensitive") == true
+  end
+
+  defp gallery_sensitive?(_), do: false
+
   defp gallery_image_url?(url) when is_binary(url),
     do: String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|avif|svg|bmp)(\?.*)?$/i)
 

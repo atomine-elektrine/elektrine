@@ -595,6 +595,76 @@ defmodule Elektrine.IMAP.CommandsTest do
     :gen_tcp.close(server_socket)
   end
 
+  test "Thunderbird sent APPEND reuses server-created internal sent copy" do
+    sender = user_fixture()
+    recipient = user_fixture()
+    {:ok, sender_mailbox} = Email.ensure_user_has_mailbox(sender)
+    {:ok, recipient_mailbox} = Email.ensure_user_has_mailbox(recipient)
+    {server_socket, client_socket} = socket_pair()
+
+    state = %{
+      socket: server_socket,
+      state: :selected,
+      user: %{id: sender.id},
+      mailbox: sender_mailbox,
+      uid_validity: sender_mailbox.id,
+      selected_folder: "Sent",
+      messages: []
+    }
+
+    email =
+      "From: #{sender_mailbox.email}\r\n" <>
+        "To: #{recipient_mailbox.email}\r\n" <>
+        "Subject: Thunderbird internal reply\r\n" <>
+        "Message-ID: <thunderbird-internal-reply@example.com>\r\n" <>
+        "In-Reply-To: <original-message@example.net>\r\n\r\n" <>
+        "Hello from Thunderbird"
+
+    assert {:ok, _sent} =
+             Elektrine.Email.Sender.send_email(sender.id, %{
+               from: sender_mailbox.email,
+               to: recipient_mailbox.email,
+               subject: "(SMTP raw message)",
+               raw_email: email
+             })
+
+    assert [server_sent_copy] =
+             sender_mailbox.id
+             |> Email.list_sent_messages_paginated(1, 20)
+             |> Map.fetch!(:messages)
+             |> Enum.filter(&(&1.subject == "Thunderbird internal reply"))
+
+    assert server_sent_copy.message_id == "thunderbird-internal-reply@example.com"
+
+    task =
+      Task.async(fn ->
+        Commands.process_command(
+          "A080",
+          "APPEND",
+          "\"Sent\" (\\Seen) {#{byte_size(email)}}",
+          state
+        )
+      end)
+
+    assert read_until(client_socket, "+ Ready for literal data") =~ "+ Ready for literal data"
+    assert :ok = :gen_tcp.send(client_socket, email <> "\r\n")
+    assert {:continue, _state} = Task.await(task)
+
+    response = read_until(client_socket, "A080 OK [APPENDUID")
+    assert response =~ "A080 OK [APPENDUID"
+
+    assert [sent_copy_after_append] =
+             sender_mailbox.id
+             |> Email.list_sent_messages_paginated(1, 20)
+             |> Map.fetch!(:messages)
+             |> Enum.filter(&(&1.subject == "Thunderbird internal reply"))
+
+    assert sent_copy_after_append.id == server_sent_copy.id
+
+    :gen_tcp.close(client_socket)
+    :gen_tcp.close(server_socket)
+  end
+
   test "APPEND accepts sent-folder aliases" do
     user = user_fixture()
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)

@@ -86,13 +86,13 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                           </div>
                           <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2 text-sm">
-                              <span class="font-semibold">Atomine Proof</span>
+                              <span class="font-semibold">Atomine Gate</span>
                               <span class="badge badge-outline badge-xs font-mono">
                                 difficulty {@atomine_pow_difficulty}
                               </span>
                             </div>
                             <p class="text-xs text-base-content/70" data-atomine-pow-status>
-                              client computes SHA-256 nonce, exchanges it for an anonymous effort token, then submits the form.
+                              two-layer gate: SHA-256 proof-of-work plus browser instrumentation, exchanged for an anonymous effort token.
                             </p>
                           </div>
                         </div>

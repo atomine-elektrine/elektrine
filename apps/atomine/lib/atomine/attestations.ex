@@ -24,6 +24,15 @@ defmodule Atomine.Attestations do
   @default_pow_ttl_seconds 300
   @default_receipt_ttl_seconds 7 * 24 * 60 * 60
   @default_token_ttl_seconds 24 * 60 * 60
+  @gate_version "atomine-gate-v1"
+  @gate_layers ~w(pow browser_instrumentation)
+  @browser_instrumentation_checks ~w(
+    layout.getComputedStyle
+    canvas.toDataURL
+    event.isTrusted
+    navigator.webdriver
+    dom.querySelector
+  )
 
   @doc "Returns public issuer metadata for external verifiers."
   def issuer_metadata(endpoint_base \\ nil) do
@@ -34,8 +43,9 @@ defmodule Atomine.Attestations do
       protocol: "atomine-attestations",
       version: "v1",
       signing_alg: "hmac-sha256-dev",
-      artifacts: ["pow_receipt", "anonymous_effort_token", "passkey_receipt"],
+      artifacts: ["pow_receipt", "gate_proof", "anonymous_effort_token", "passkey_receipt"],
       privacy: %{
+        gate_proof: "challenge-bound layer results stored as summarized metadata",
         anonymous_effort_token: "bearer-token-mvp",
         blind_tokens: "planned"
       },
@@ -66,9 +76,16 @@ defmodule Atomine.Attestations do
 
     {:ok,
      %{
-       challenge: sign_statement(@pow_challenge_prefix, payload),
-       difficulty: difficulty,
-       expires_at: payload["expires_at"]
+       "challenge" => sign_statement(@pow_challenge_prefix, payload),
+       "difficulty" => difficulty,
+       "expires_at" => payload["expires_at"],
+       "gate" => %{
+         "version" => @gate_version,
+         "layers" => @gate_layers,
+         "browser_instrumentation" => %{
+           "required_checks" => @browser_instrumentation_checks
+         }
+       }
      }}
   end
 
@@ -115,7 +132,8 @@ defmodule Atomine.Attestations do
              Map.get(attrs, "challenge"),
              solution,
              challenge_payload["difficulty"]
-           ) do
+           ),
+         :ok <- validate_gate_proof(Map.get(attrs, "gate_proof"), Map.get(attrs, "challenge")) do
       now = now()
       public_id = public_id("aet")
 
@@ -141,7 +159,9 @@ defmodule Atomine.Attestations do
         difficulty: challenge_payload["difficulty"],
         issued_at: now,
         expires_at: decode_time!(payload["expires_at"]),
-        metadata: %{"challenge_hash" => artifact_hash(Map.get(attrs, "challenge"))}
+        metadata:
+          %{"challenge_hash" => artifact_hash(Map.get(attrs, "challenge"))}
+          |> maybe_put_gate_proof_metadata(Map.get(attrs, "gate_proof"))
       })
     else
       false -> {:error, :invalid_pow_solution}
@@ -338,6 +358,86 @@ defmodule Atomine.Attestations do
 
   defp ensure_map(value) when is_map(value), do: value
   defp ensure_map(_value), do: %{}
+
+  defp validate_gate_proof(nil, _challenge), do: {:error, :missing_gate_proof}
+
+  defp validate_gate_proof(proof, challenge) when is_map(proof) and is_binary(challenge) do
+    browser_layer = Map.get(proof, "browser_instrumentation")
+    checks = if is_map(browser_layer), do: Map.get(browser_layer, "checks"), else: nil
+    check_names = gate_check_names(checks)
+
+    cond do
+      Map.get(proof, "version") != @gate_version ->
+        {:error, :invalid_gate_proof}
+
+      not Enum.all?(@gate_layers, &(&1 in Map.get(proof, "layers", []))) ->
+        {:error, :invalid_gate_proof}
+
+      not is_map(browser_layer) ->
+        {:error, :invalid_gate_proof}
+
+      Map.get(browser_layer, "challenge_hash") != artifact_hash(challenge) ->
+        {:error, :invalid_gate_proof}
+
+      not is_list(checks) ->
+        {:error, :invalid_gate_proof}
+
+      not Enum.all?(@browser_instrumentation_checks, &(&1 in check_names)) ->
+        {:error, :invalid_gate_proof}
+
+      not Enum.all?(checks, &gate_check_ok?/1) ->
+        {:error, :invalid_gate_proof}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_gate_proof(_proof, _challenge), do: {:error, :invalid_gate_proof}
+
+  defp gate_check_names(checks) when is_list(checks) do
+    checks
+    |> Enum.map(fn
+      check when is_map(check) -> Map.get(check, "name")
+      _ -> nil
+    end)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp gate_check_names(_checks), do: []
+
+  defp gate_check_ok?(%{"ok" => true, "duration_ms" => duration})
+       when is_integer(duration) and duration >= 0,
+       do: true
+
+  defp gate_check_ok?(_check), do: false
+
+  defp maybe_put_gate_proof_metadata(metadata, proof) when is_map(proof) do
+    browser_layer = Map.get(proof, "browser_instrumentation", %{})
+    checks = Map.get(browser_layer, "checks", [])
+
+    Map.put(metadata, "gate_proof", %{
+      "version" => Map.get(proof, "version"),
+      "layers" => Map.get(proof, "layers", []),
+      "browser_instrumentation" => %{
+        "challenge_hash" => Map.get(browser_layer, "challenge_hash"),
+        "checks" => Enum.map(checks, &gate_check_summary/1),
+        "signals" => Map.get(browser_layer, "signals", %{})
+      }
+    })
+  end
+
+  defp maybe_put_gate_proof_metadata(metadata, _proof), do: metadata
+
+  defp gate_check_summary(check) when is_map(check) do
+    %{
+      "name" => Map.get(check, "name"),
+      "ok" => Map.get(check, "ok"),
+      "duration_ms" => Map.get(check, "duration_ms")
+    }
+  end
+
+  defp gate_check_summary(_check), do: %{}
 
   defp valid_pow_solution?(challenge, solution, difficulty) do
     bits = normalize_difficulty(difficulty)

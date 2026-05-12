@@ -412,7 +412,7 @@ config :elektrine, :bluesky,
   managed_domain: nil,
   managed_admin_password: nil
 
-# Atomine browser proof-of-work anti-bot configuration
+# Atomine Gate anti-bot configuration
 config :elektrine, :atomine_pow,
   difficulty: 20,
   skip_verification: false

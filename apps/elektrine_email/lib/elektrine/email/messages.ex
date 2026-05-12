@@ -131,9 +131,15 @@ defmodule Elektrine.Email.Messages do
   This is used to prevent duplicate message creation.
   """
   def get_message_by_id(message_id, mailbox_id) do
-    Message
-    |> where(message_id: ^message_id, mailbox_id: ^mailbox_id)
-    |> Repo.one()
+    case message_id_lookup_candidates(message_id) do
+      [] ->
+        nil
+
+      candidates ->
+        Message
+        |> where([m], m.message_id in ^candidates and m.mailbox_id == ^mailbox_id)
+        |> Repo.one()
+    end
   end
 
   @doc """

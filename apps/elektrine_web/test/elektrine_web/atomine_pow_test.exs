@@ -30,10 +30,30 @@ defmodule ElektrineWeb.AtominePowTest do
 
     {:ok, attestation} =
       Attestations.issue_anonymous_effort_token(%{
-        "challenge" => challenge.challenge,
-        "solution" => "0"
+        "challenge" => challenge["challenge"],
+        "solution" => "0",
+        "gate_proof" => gate_proof(challenge["challenge"])
       })
 
     attestation.artifact
+  end
+
+  defp gate_proof(challenge) do
+    %{
+      "version" => "atomine-gate-v1",
+      "layers" => ["pow", "browser_instrumentation"],
+      "browser_instrumentation" => %{
+        "challenge_hash" => sha256_base64url(challenge),
+        "checks" =>
+          Enum.map(
+            ~w(layout.getComputedStyle canvas.toDataURL event.isTrusted navigator.webdriver dom.querySelector),
+            &%{"name" => &1, "ok" => true, "duration_ms" => 1}
+          )
+      }
+    }
+  end
+
+  defp sha256_base64url(value) do
+    :crypto.hash(:sha256, value) |> Base.url_encode64(padding: false)
   end
 end

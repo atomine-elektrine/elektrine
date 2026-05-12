@@ -45,6 +45,8 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
         post_type: "gallery",
         title: title,
         category: attrs[:category] || "photography",
+        content_warning: attrs[:content_warning],
+        sensitive: attrs[:sensitive] || false,
         like_count: attrs[:like_count] || 0,
         reply_count: attrs[:reply_count] || 0,
         share_count: attrs[:share_count] || 0,
@@ -232,6 +234,29 @@ defmodule ElektrineSocialWeb.GalleryLiveTest do
     assert html =~ photo.title
     assert html =~ ~s(href="/remote/post/#{photo.id}")
     refute html =~ "custom-emoji"
+  end
+
+  test "sensitive gallery image tiles are blurred", %{conn: conn} do
+    creator = AccountsFixtures.user_fixture()
+
+    sensitive_photo =
+      gallery_post_fixture(creator,
+        title: "Sensitive Gallery Photo",
+        sensitive: true
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/gallery")
+    html = render_async(view)
+    document = Floki.parse_document!(html)
+
+    tile_link_classes =
+      document
+      |> Floki.find(~s(div[data-post-id="#{sensitive_photo.id}"] a))
+      |> Floki.attribute("class")
+      |> List.first()
+
+    assert tile_link_classes =~ "blur-sm"
+    assert html =~ "Sensitive"
   end
 
   test "gallery loads more photos through the infinite scroll event", %{conn: conn} do
