@@ -1195,7 +1195,8 @@ defmodule Elektrine.Email.Sender do
     attachments_to_store = email_params[:attachments] || db_attachments || %{}
 
     message_attrs = %{
-      message_id: generate_message_id(),
+      message_id:
+        email_params[:message_id] || email_params["message_id"] || generate_message_id(),
       from: email_params[:from],
       to: email_params[:to],
       cc: email_params[:cc],

@@ -61,6 +61,29 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     assert html =~ missing_email
   end
 
+  test "attachment picker accepts common document archive and media types", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/compose")
+
+    accept =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find(~s(input[type="file"]))
+      |> Floki.attribute("accept")
+      |> List.first()
+
+    assert accept =~ ".zip"
+    assert accept =~ ".7z"
+    assert accept =~ ".pptx"
+    assert accept =~ ".webp"
+    assert accept =~ ".mp4"
+    assert html =~ "Allowed: Images, PDFs, Office docs, Text, Archives, Audio/Video"
+  end
+
   test "shows inline unlock controls when replying to a protected message", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = private_mailbox_fixture(user)

@@ -27,14 +27,14 @@ defmodule ElektrineWeb.PasswordResetController do
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
-        |> put_flash(:error, "Atomine proof failed. Please try again.")
+        |> put_flash(:error, "Atomine Gate failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
 
       {:error, {:verification_failed, _error_codes}} ->
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_failed})
 
         conn
-        |> put_flash(:error, "Atomine proof failed. Please try again.")
+        |> put_flash(:error, "Atomine Gate failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
 
       {:error, :missing_captcha} ->
@@ -55,7 +55,7 @@ defmodule ElektrineWeb.PasswordResetController do
         Events.auth(:password_reset_request, :failure, %{reason: :captcha_error})
 
         conn
-        |> put_flash(:error, "Atomine proof failed. Please try again.")
+        |> put_flash(:error, "Atomine Gate failed. Please try again.")
         |> redirect(to: ~p"/password/reset")
     end
   end
@@ -203,7 +203,7 @@ defmodule ElektrineWeb.PasswordResetController do
   end
 
   defp missing_captcha_message(true), do: "Please solve the captcha."
-  defp missing_captcha_message(false), do: "Please complete the Atomine proof."
+  defp missing_captcha_message(false), do: "Please complete the Atomine Gate."
 
   defp reset_confirmation_message do
     "If an account with that username or recovery email exists, you will receive password reset instructions."

@@ -1382,9 +1382,9 @@
                     />
                   <% end %>
                   
-<!-- Link Preview (only for timeline posts with link previews) -->
+<!-- Link Preview (skip when rendered as a YouTube embed) -->
                   <% link_preview = Map.get(message, :link_preview) %>
-                  <%= if social_link_preview_success?(link_preview) do %>
+                  <%= if !youtube_url && social_link_preview_success?(link_preview) do %>
                     <a
                       href={link_preview.url}
                       target="_blank"

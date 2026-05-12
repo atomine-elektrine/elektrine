@@ -43,7 +43,7 @@ defmodule ElektrineWeb.UserRegistrationController do
     require Logger
 
     if not via_tor and not AtominePow.enabled?() do
-      Logger.debug("Atomine proof-of-work verification skipped")
+      Logger.debug("Atomine Gate verification skipped")
       {:ok, :verified}
     else
       verify_required_captcha(conn, captcha_token, captcha_answer, remote_ip, via_tor)
@@ -73,7 +73,7 @@ defmodule ElektrineWeb.UserRegistrationController do
     require Logger
 
     Logger.info(
-      "Atomine proof-of-work check: token_present=#{not is_nil(pow_token)}, ip_present=#{not is_nil(remote_ip)}"
+      "Atomine Gate check: token_present=#{not is_nil(pow_token)}, ip_present=#{not is_nil(remote_ip)}"
     )
 
     result = AtominePow.verify(pow_token, "registration", remote_ip)
@@ -81,7 +81,7 @@ defmodule ElektrineWeb.UserRegistrationController do
     verification_status =
       if match?({:ok, :verified}, result), do: "verified", else: "failed"
 
-    Logger.info("Atomine proof-of-work result: #{verification_status}")
+    Logger.info("Atomine Gate result: #{verification_status}")
     result
   end
 
@@ -186,14 +186,14 @@ defmodule ElektrineWeb.UserRegistrationController do
   end
 
   defp captcha_error_message(:already_redeemed),
-    do: "The browser proof was already used. Please solve a fresh proof."
+    do: "The Atomine Gate token was already used. Please solve a fresh gate."
 
   defp captcha_error_message(:expired),
-    do: "The browser proof expired. Please solve a fresh proof."
+    do: "The Atomine Gate token expired. Please solve a fresh gate."
 
-  defp captcha_error_message(:missing_token), do: "Please complete the Atomine proof"
+  defp captcha_error_message(:missing_token), do: "Please complete the Atomine Gate"
   defp captcha_error_message(:missing_captcha), do: "Please complete the captcha verification"
-  defp captcha_error_message(_reason), do: "Atomine proof failed. Please try again."
+  defp captcha_error_message(_reason), do: "Atomine Gate failed. Please try again."
 
   defp get_remote_ip(conn) do
     ElektrineWeb.ClientIP.client_ip(conn)

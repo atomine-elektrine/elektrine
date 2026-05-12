@@ -10,6 +10,27 @@ defmodule ElektrineWeb.ProofsLive do
     {"Social/profile page", "social"}
   ]
 
+  @earning_proof_actions [
+    %{
+      kind: "dns",
+      label: "DNS control proof",
+      reward: "10 Atomine Credits",
+      description: "Publish a TXT record on a domain you control."
+    },
+    %{
+      kind: "web",
+      label: "Web page proof",
+      reward: "8 Atomine Credits",
+      description: "Place the signed statement on a public page you control."
+    },
+    %{
+      kind: "social",
+      label: "Social/profile proof",
+      reward: "5 Atomine Credits",
+      description: "Publish the statement on a stable public profile or GitHub gist."
+    }
+  ]
+
   @impl true
   def mount(_params, _session, socket) do
     case socket.assigns.current_user do
@@ -360,6 +381,7 @@ defmodule ElektrineWeb.ProofsLive do
 
               <details
                 :if={@credits_available && @credit_earning_paths != []}
+                open
                 class="mt-5 border-t border-base-300 pt-4"
               >
                 <summary class="cursor-pointer text-sm font-medium">How to earn credits</summary>
@@ -367,6 +389,42 @@ defmodule ElektrineWeb.ProofsLive do
                   <p :for={path <- active_earning_paths(@credit_earning_paths)}>
                     <span class="font-medium text-base-content">{path.label}:</span> {path.reward}
                   </p>
+                  <div class="space-y-2 pt-1">
+                    <a
+                      :for={action <- earning_proof_actions()}
+                      href="#proof-target"
+                      phx-click="change_kind"
+                      phx-value-proof-kind={action.kind}
+                      class="block rounded-lg border border-base-300 bg-base-200/40 p-3 transition-all hover:-translate-y-0.5 hover:border-secondary/70 hover:bg-secondary/10 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                    >
+                      <span class="flex items-start justify-between gap-3">
+                        <span>
+                          <span class="block font-medium text-base-content">{action.label}</span>
+                          <span class="mt-0.5 block">{action.description}</span>
+                        </span>
+                        <span class="badge badge-sm badge-secondary shrink-0">{action.reward}</span>
+                      </span>
+                    </a>
+                    <.link
+                      navigate={~p"/account/connections/github/start?return_to=/account/proofs"}
+                      class={[
+                        "block rounded-lg border border-base-300 bg-base-200/40 p-3 transition-all hover:-translate-y-0.5 hover:border-secondary/70 hover:bg-secondary/10 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-secondary/30",
+                        !github_oauth_configured?() && "pointer-events-none opacity-50"
+                      ]}
+                    >
+                      <span class="flex items-start justify-between gap-3">
+                        <span>
+                          <span class="block font-medium text-base-content">
+                            GitHub account proof
+                          </span>
+                          <span class="mt-0.5 block">
+                            Connect GitHub to create a verified social proof automatically.
+                          </span>
+                        </span>
+                        <span class="badge badge-sm badge-secondary shrink-0">5 Atomine Credits</span>
+                      </span>
+                    </.link>
+                  </div>
                   <p :if={planned_earning_path_labels(@credit_earning_paths) != ""}>
                     Planned: {planned_earning_path_labels(@credit_earning_paths)}.
                   </p>
@@ -696,6 +754,8 @@ defmodule ElektrineWeb.ProofsLive do
   end
 
   defp active_earning_paths(paths), do: Enum.filter(paths, &(&1.status == :active))
+
+  defp earning_proof_actions, do: @earning_proof_actions
 
   defp planned_earning_path_labels(paths) do
     paths

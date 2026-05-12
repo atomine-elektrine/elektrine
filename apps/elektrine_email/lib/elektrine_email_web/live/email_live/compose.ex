@@ -20,13 +20,52 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     ".jpeg" => ["image/jpeg"],
     ".png" => ["image/png"],
     ".gif" => ["image/gif"],
+    ".webp" => ["image/webp"],
+    ".avif" => ["image/avif"],
+    ".heic" => ["image/heic", "image/heif"],
+    ".heif" => ["image/heif", "image/heic"],
+    ".svg" => ["image/svg+xml", "application/xml", "text/xml"],
     ".pdf" => ["application/pdf"],
     ".doc" => ["application/msword"],
     ".docx" => ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+    ".ppt" => ["application/vnd.ms-powerpoint"],
+    ".pptx" => ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
     ".xls" => ["application/vnd.ms-excel"],
     ".xlsx" => ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-    ".txt" => ["text/plain"]
+    ".odt" => ["application/vnd.oasis.opendocument.text"],
+    ".ods" => ["application/vnd.oasis.opendocument.spreadsheet"],
+    ".odp" => ["application/vnd.oasis.opendocument.presentation"],
+    ".rtf" => ["application/rtf", "text/rtf"],
+    ".txt" => ["text/plain"],
+    ".md" => ["text/markdown", "text/plain"],
+    ".markdown" => ["text/markdown", "text/plain"],
+    ".csv" => ["text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"],
+    ".json" => ["application/json", "text/json", "text/plain"],
+    ".xml" => ["application/xml", "text/xml", "text/plain"],
+    ".log" => ["text/plain"],
+    ".zip" => ["application/zip", "application/x-zip-compressed"],
+    ".rar" => ["application/vnd.rar", "application/x-rar-compressed"],
+    ".7z" => ["application/x-7z-compressed"],
+    ".tar" => ["application/x-tar"],
+    ".gz" => ["application/gzip", "application/x-gzip"],
+    ".tgz" => ["application/gzip", "application/x-gzip"],
+    ".bz2" => ["application/x-bzip2"],
+    ".xz" => ["application/x-xz"],
+    ".mp3" => ["audio/mpeg"],
+    ".wav" => ["audio/wav", "audio/x-wav"],
+    ".m4a" => ["audio/mp4", "audio/x-m4a"],
+    ".ogg" => ["audio/ogg", "application/ogg"],
+    ".flac" => ["audio/flac", "audio/x-flac"],
+    ".mp4" => ["video/mp4"],
+    ".mov" => ["video/quicktime"],
+    ".webm" => ["video/webm"],
+    ".mkv" => ["video/x-matroska"],
+    ".ics" => ["text/calendar", "application/ics"],
+    ".vcf" => ["text/vcard", "text/x-vcard"],
+    ".eml" => ["message/rfc822"]
   }
+  @allowed_attachment_extensions Map.keys(@allowed_attachment_types)
+  @generic_attachment_content_types ~w(application/octet-stream binary/octet-stream)
 
   @impl true
   def mount(params, session, socket) do
@@ -124,7 +163,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       |> assign(:draft_status, nil)
       |> assign(:sending, false)
       |> allow_upload(:attachments,
-        accept: ~w(.jpg .jpeg .png .gif .pdf .doc .docx .xls .xlsx .txt),
+        accept: @allowed_attachment_extensions,
         max_entries: 5,
         max_file_size: email_attachment_limit,
         auto_upload: true
@@ -1908,13 +1947,14 @@ Subject: #{message.subject}#{attachment_info}
 
   defp validate_attachment_type(filename, content_type) when is_binary(filename) do
     ext = Path.extname(filename) |> String.downcase()
+    content_type = normalize_attachment_content_type(content_type)
 
     case Map.get(@allowed_attachment_types, ext) do
       nil ->
         {:error, "File type not allowed"}
 
       allowed_types ->
-        if content_type in allowed_types do
+        if content_type in allowed_types or content_type in @generic_attachment_content_types do
           :ok
         else
           {:error, "File type mismatch (extension: #{ext}, type: #{content_type})"}
@@ -1923,6 +1963,16 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp validate_attachment_type(_filename, _content_type), do: {:error, "File type not allowed"}
+
+  defp normalize_attachment_content_type(content_type) when is_binary(content_type) do
+    content_type
+    |> String.split(";", parts: 2)
+    |> List.first()
+    |> String.trim()
+    |> String.downcase()
+  end
+
+  defp normalize_attachment_content_type(_content_type), do: ""
 
   defp error_to_string(:too_large) do
     gettext("File is too large (max 10MB)")

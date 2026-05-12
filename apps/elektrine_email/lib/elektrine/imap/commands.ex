@@ -2485,6 +2485,7 @@ defmodule Elektrine.IMAP.Commands do
     headers =
       message.headers
       |> Enum.into(%{}, fn {k, v} -> {to_string(k), stringify_header_value(v)} end)
+      |> Map.new(fn {k, v} -> {String.downcase(k), v} end)
 
     body = message.body || ""
     {headers, body, message}

@@ -514,7 +514,8 @@
             <%= for photo <- image_posts do %>
               <% full_url = gallery_primary_image(photo)
               is_liked = MapSet.member?(@user_likes, photo.id)
-              is_saved = MapSet.member?(@user_saved_posts, photo.id) %>
+              is_saved = MapSet.member?(@user_saved_posts, photo.id)
+              sensitive = gallery_sensitive?(photo) %>
               <div
                 class="group relative aspect-square overflow-hidden bg-base-200"
                 data-post-id={photo.id}
@@ -523,8 +524,8 @@
                   navigate={gallery_post_path(photo)}
                   class={[
                     "block h-full w-full focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2 focus:ring-offset-base-100",
-                    if(Elektrine.Strings.present?(photo.content_warning),
-                      do: "blur-sm hover:blur-none transition-all"
+                    if(sensitive,
+                      do: "blur-sm hover:blur-none focus-within:blur-none transition-all"
                     )
                   ]}
                 >
@@ -555,8 +556,8 @@
                   </div>
                 </div>
 
-                <%= if Elektrine.Strings.present?(photo.content_warning) do %>
-                  <span class="absolute left-2 top-2 rounded-full bg-warning px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-warning-content shadow">
+                <%= if sensitive do %>
+                  <span class="badge badge-sm badge-warning absolute left-2 top-2 shadow">
                     Sensitive
                   </span>
                 <% end %>
