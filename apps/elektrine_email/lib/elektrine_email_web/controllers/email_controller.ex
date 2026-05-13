@@ -6,6 +6,50 @@ defmodule ElektrineEmailWeb.EmailController do
 
   import ElektrineEmailWeb.Components.Email.Display
 
+  def delivery_status(conn, %{"id" => id}) do
+    user = conn.assigns.current_user
+
+    with {:ok, message_id} <- SafeConvert.parse_id(id),
+         {:ok, message} <- Email.get_user_message(message_id, user.id) do
+      deliveries = Email.list_external_deliveries_for_message(message.id)
+
+      json(conn, %{
+        message_id: message.id,
+        status: message.status,
+        summary: Email.external_delivery_summary(message.id),
+        deliveries:
+          Enum.map(deliveries, fn delivery ->
+            %{
+              id: delivery.id,
+              recipient: delivery.recipient,
+              recipient_type: delivery.recipient_type,
+              domain: delivery.domain,
+              status: delivery.status,
+              trace_id: delivery.trace_id,
+              attempts: Enum.map(Email.list_external_delivery_attempts(delivery), &attempt_json/1)
+            }
+          end)
+      })
+    else
+      _ ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{error: "Message not found"})
+    end
+  end
+
+  defp attempt_json(attempt) do
+    %{
+      attempt: attempt.attempt,
+      status: attempt.status,
+      provider: attempt.provider,
+      provider_message_id: attempt.provider_message_id,
+      response_code: attempt.response_code,
+      error: attempt.error,
+      attempted_at: attempt.attempted_at
+    }
+  end
+
   def delete(conn, %{"id" => id}) do
     user = conn.assigns.current_user
 

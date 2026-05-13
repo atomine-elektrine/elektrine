@@ -3,8 +3,10 @@ defmodule Elektrine.Email.SenderPipelineTest do
 
   alias Elektrine.Accounts
   alias Elektrine.Email
+  alias Elektrine.Email.CustomDomain
   alias Elektrine.Email.Sender
   alias Elektrine.Notifications
+  alias Elektrine.Repo
   import Swoosh.TestAssertions
 
   setup :set_swoosh_global
@@ -103,6 +105,42 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert received_message.text_body == "Hello from Thunderbird fallback"
     end
 
+    test "deduplicates duplicate Thunderbird internal recipients by Message-ID", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      raw_email =
+        [
+          "From: #{sender_mailbox.email}",
+          "To: #{recipient_mailbox.email}",
+          "Subject: Thunderbird internal duplicate",
+          "Message-ID: <thunderbird-internal-duplicate@example.com>",
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=UTF-8",
+          "",
+          "Hello once"
+        ]
+        |> Enum.join("\r\n")
+
+      assert {:ok, _sent_message} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to: "#{recipient_mailbox.email}, #{recipient_mailbox.email}",
+                 raw_email: raw_email
+               })
+
+      received_messages =
+        recipient_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.filter(
+          &(&1.subject == "Thunderbird internal duplicate" && &1.status == "received")
+        )
+
+      assert [received_message] = received_messages
+      assert received_message.message_id == "thunderbird-internal-duplicate@example.com"
+    end
+
     test "filters suppressed external recipients before routing", %{
       sender: sender,
       sender_mailbox: sender_mailbox,
@@ -139,7 +177,7 @@ defmodule Elektrine.Email.SenderPipelineTest do
         text_body: "hello"
       }
 
-      assert {:ok, %{status: "sent"}} = Sender.send_email(sender.id, params)
+      assert {:ok, %{status: "queued", id: sent_id}} = Sender.send_email(sender.id, params)
 
       recipient_messages = Email.list_messages(recipient_mailbox.id, 50, 0)
 
@@ -148,7 +186,190 @@ defmodule Elektrine.Email.SenderPipelineTest do
                &(&1.subject == "Mixed internal and external recipients")
              )
 
-      assert_email_sent(cc: "outside@example.com")
+      assert [internal_delivery] = Email.list_internal_deliveries_for_message(sent_id)
+      assert internal_delivery.status == "delivered"
+      assert internal_delivery.recipient == recipient_mailbox.email
+      assert Email.internal_delivery_summary(sent_id) == %{"delivered" => 1}
+
+      assert Enum.map(Email.list_internal_delivery_attempts(internal_delivery), & &1.status) == [
+               "delivering",
+               "delivered"
+             ]
+
+      assert_email_sent(to: "outside@example.com")
+    end
+
+    test "tracks internal delivery per recipient with attempt history", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      params = %{
+        from: sender_mailbox.email,
+        to: recipient_mailbox.email,
+        subject: "Tracked internal delivery",
+        text_body: "hello"
+      }
+
+      assert {:ok, sent_message} = Sender.send_email(sender.id, params)
+
+      assert [delivery] = Email.list_internal_deliveries_for_message(sent_message.id)
+      assert delivery.status == "delivered"
+      assert delivery.recipient_type == "to"
+      assert delivery.recipient == recipient_mailbox.email
+      assert is_integer(delivery.delivered_message_id)
+
+      attempts = Email.list_internal_delivery_attempts(delivery)
+      assert Enum.map(attempts, & &1.status) == ["delivering", "delivered"]
+      assert Email.internal_delivery_summary(sent_message.id) == %{"delivered" => 1}
+    end
+
+    test "rejects undeliverable internal recipients before storing sent copy", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      domain = sender_mailbox.email |> String.split("@") |> List.last()
+
+      params = %{
+        from: sender_mailbox.email,
+        to: "missing-#{System.unique_integer([:positive])}@#{domain}",
+        subject: "Missing internal recipient",
+        text_body: "hello"
+      }
+
+      assert {:error, :recipient_not_found} = Sender.send_email(sender.id, params)
+
+      refute Enum.any?(
+               Email.list_messages(sender_mailbox.id, 50, 0),
+               &(&1.subject == "Missing internal recipient")
+             )
+    end
+
+    test "rejects mixed sends with undeliverable internal recipients before external enqueue", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      domain = sender_mailbox.email |> String.split("@") |> List.last()
+
+      params = %{
+        from: sender_mailbox.email,
+        to: "outside@example.com",
+        cc: "missing-#{System.unique_integer([:positive])}@#{domain}",
+        subject: "Mixed missing internal recipient",
+        text_body: "hello"
+      }
+
+      assert {:error, :recipient_not_found} = Sender.send_email(sender.id, params)
+
+      refute_email_sent()
+
+      refute Enum.any?(
+               Email.list_messages(sender_mailbox.id, 50, 0),
+               &(&1.subject == "Mixed missing internal recipient")
+             )
+    end
+
+    test "deduplicates duplicate external submissions by stored sent message", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      params = %{
+        from: sender_mailbox.email,
+        to: "outside@example.com",
+        subject: "External duplicate guard",
+        message_id: "external-duplicate@example.com",
+        text_body: "hello",
+        skip_rate_limit: true
+      }
+
+      assert {:ok, %{status: "queued", id: sent_id}} = Sender.send_email(sender.id, params)
+      assert_email_sent(to: "outside@example.com", subject: "External duplicate guard")
+
+      assert {:ok, %{status: "queued", id: ^sent_id}} = Sender.send_email(sender.id, params)
+      refute_email_sent()
+
+      assert [delivery] = Email.get_external_delivery_by_sent_message_id(sent_id)
+      assert delivery.status == "sent"
+      assert delivery.attempts == 1
+      assert delivery.recipient == "outside@example.com"
+      assert delivery.domain == "example.com"
+      assert is_binary(delivery.trace_id)
+
+      assert %{delivery: ^delivery, attempts: attempts} =
+               Email.trace_external_delivery(delivery.trace_id)
+
+      assert Enum.any?(attempts, &(&1.status == "sent"))
+    end
+
+    test "tracks external delivery per recipient with attempt history", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox
+    } do
+      params = %{
+        from: sender_mailbox.email,
+        to: "reader@example.com",
+        cc: "copy@example.net",
+        subject: "External recipient tracking",
+        message_id: "external-recipient-tracking@example.com",
+        text_body: "hello",
+        skip_rate_limit: true
+      }
+
+      assert {:ok, %{status: "queued", id: sent_id}} = Sender.send_email(sender.id, params)
+      assert_email_sent(to: "reader@example.com")
+      assert_email_sent(to: "copy@example.net")
+
+      deliveries = Email.list_external_deliveries_for_message(sent_id)
+
+      assert Enum.map(deliveries, & &1.recipient) |> Enum.sort() == [
+               "copy@example.net",
+               "reader@example.com"
+             ]
+
+      assert Email.external_delivery_summary(sent_id) == %{"sent" => 2}
+
+      assert Enum.all?(deliveries, fn delivery ->
+               delivery.trace_id && Email.list_external_delivery_attempts(delivery) != []
+             end)
+
+      metrics = Email.external_delivery_operational_metrics()
+      assert metrics.totals["sent"] >= 2
+
+      assert {:ok, bounced_delivery} =
+               Email.mark_external_delivery_bounced_by_signal(
+                 %{message_id: params.message_id, recipient: "reader@example.com"},
+                 "550 user unknown"
+               )
+
+      assert bounced_delivery.status == "bounced"
+    end
+
+    test "blocks external sends from custom domains before DKIM is ready", %{
+      sender: sender
+    } do
+      domain = "#{unique_username("mail")}.example.net"
+
+      {:ok, _custom_domain} =
+        %CustomDomain{}
+        |> CustomDomain.changeset(%{
+          domain: domain,
+          verification_token: "token-#{System.unique_integer([:positive])}",
+          status: "verified",
+          verified_at: DateTime.utc_now() |> DateTime.truncate(:second),
+          user_id: sender.id
+        })
+        |> Repo.insert()
+
+      assert {:error, :custom_domain_dkim_not_ready} =
+               Sender.send_email(sender.id, %{
+                 from: "#{sender.username}@#{domain}",
+                 to: "outside@example.com",
+                 subject: "Custom domain not ready",
+                 text_body: "hello",
+                 skip_rate_limit: true
+               })
+
+      refute_email_sent()
     end
 
     test "stores parsed SMTP attachments as base64-safe data", %{

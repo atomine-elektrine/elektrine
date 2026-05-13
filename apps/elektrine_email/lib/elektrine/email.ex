@@ -54,6 +54,108 @@ defmodule Elektrine.Email do
     to: Elektrine.Email.SystemDelivery,
     as: :deliver_email_to_all_users
 
+  defdelegate get_external_delivery(id), to: Elektrine.Email.ExternalDelivery, as: :get
+
+  defdelegate get_external_delivery_by_sent_message_id(sent_message_id),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :get_by_sent_message_id
+
+  defdelegate list_external_deliveries_for_message(sent_message_id),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :list_for_message
+
+  defdelegate list_external_delivery_attempts(delivery),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :list_attempts
+
+  defdelegate trace_external_delivery(trace_id), to: Elektrine.Email.ExternalDelivery, as: :trace
+
+  defdelegate external_delivery_summary(sent_message_id),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :delivery_summary
+
+  defdelegate external_delivery_operational_metrics(opts \\ []),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :operational_metrics
+
+  defdelegate recent_external_deliveries(opts \\ []),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :recent_deliveries
+
+  defdelegate requeue_external_delivery(delivery),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :requeue
+
+  defdelegate apply_external_provider_event(attrs),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :apply_provider_event
+
+  defdelegate find_external_delivery_for_signal(attrs),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :find_for_signal
+
+  defdelegate mark_external_delivery_bounced_by_trace(trace_id, reason \\ "bounce"),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :mark_bounced_by_trace
+
+  defdelegate mark_external_delivery_complained_by_trace(trace_id, reason \\ "complaint"),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :mark_complained_by_trace
+
+  defdelegate mark_external_delivery_bounced_by_signal(attrs, reason \\ "bounce"),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :mark_bounced_by_signal
+
+  defdelegate mark_external_delivery_complained_by_signal(attrs, reason \\ "complaint"),
+    to: Elektrine.Email.ExternalDelivery,
+    as: :mark_complained_by_signal
+
+  defdelegate get_internal_delivery(id), to: Elektrine.Email.InternalDelivery, as: :get
+
+  defdelegate list_internal_deliveries_for_message(sent_message_id),
+    to: Elektrine.Email.InternalDelivery,
+    as: :list_for_message
+
+  defdelegate list_internal_delivery_attempts(delivery),
+    to: Elektrine.Email.InternalDelivery,
+    as: :list_attempts
+
+  defdelegate internal_delivery_summary(sent_message_id),
+    to: Elektrine.Email.InternalDelivery,
+    as: :delivery_summary
+
+  defdelegate recent_internal_deliveries(opts \\ []),
+    to: Elektrine.Email.InternalDelivery,
+    as: :recent_deliveries
+
+  defdelegate requeue_internal_delivery(delivery),
+    to: Elektrine.Email.InternalDelivery,
+    as: :requeue
+
+  defdelegate check_deliverability_domain(domain),
+    to: Elektrine.Email.Deliverability,
+    as: :check_domain
+
+  defdelegate validate_outbound_deliverability(from_address, user_id),
+    to: Elektrine.Email.Deliverability,
+    as: :outbound_allowed?
+
+  defdelegate pause_external_delivery(scope_type, scope_value, attrs \\ []),
+    to: Elektrine.Email.ExternalDeliveryControl,
+    as: :pause
+
+  defdelegate resume_external_delivery(scope_type, scope_value),
+    to: Elektrine.Email.ExternalDeliveryControl,
+    as: :resume
+
+  defdelegate active_external_delivery_controls(),
+    to: Elektrine.Email.ExternalDeliveryControl,
+    as: :active_controls
+
+  defdelegate recent_external_delivery_metric_snapshots(limit \\ 50),
+    to: Elektrine.Email.ExternalDeliveryMetricSnapshot,
+    as: :recent
+
   defdelegate system_email_from_address(),
     to: Elektrine.Email.SystemDelivery,
     as: :system_from_address

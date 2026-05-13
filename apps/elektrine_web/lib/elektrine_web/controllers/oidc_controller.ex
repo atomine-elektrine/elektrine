@@ -172,7 +172,7 @@ defmodule ElektrineWeb.OIDCController do
          {:ok, redirect_uri} <- resolve_redirect_uri(app, params["redirect_uri"]),
          scopes <- OAuth.fetch_scopes(params, app.scopes),
          true <- Enum.all?(scopes, &(&1 in app.scopes)),
-         :ok <- validate_pkce(params) do
+         :ok <- validate_pkce(params, scopes) do
       {:ok,
        %{
          app: app,
@@ -209,30 +209,35 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
-  defp validate_pkce(%{"code_challenge_method" => method} = params) when method == "S256" do
-    if blank_to_nil(params["code_challenge"]) do
-      :ok
+  defp validate_pkce(params, scopes) do
+    if OIDC.openid_request?(scopes) do
+      validate_required_pkce(params)
     else
-      invalid_request_error(params)
+      validate_optional_pkce(params)
     end
   end
 
-  defp validate_pkce(%{"code_challenge" => code_challenge} = params) do
-    if blank_to_nil(code_challenge) do
-      invalid_request_error(params)
-    else
-      :ok
+  defp validate_required_pkce(params) do
+    code_challenge = blank_to_nil(params["code_challenge"])
+    code_challenge_method = blank_to_nil(params["code_challenge_method"])
+
+    cond do
+      is_nil(code_challenge) -> invalid_request_error(params)
+      code_challenge_method in [nil, "S256"] -> :ok
+      true -> invalid_request_error(params)
     end
   end
 
-  defp validate_pkce(%{
-         "code_challenge_method" => _invalid,
-         "redirect_uri" => redirect_uri,
-         "state" => state
-       }),
-       do: invalid_request_error(%{"redirect_uri" => redirect_uri, "state" => state})
+  defp validate_optional_pkce(params) do
+    code_challenge = blank_to_nil(params["code_challenge"])
+    code_challenge_method = blank_to_nil(params["code_challenge_method"])
 
-  defp validate_pkce(_params), do: invalid_request_error(%{})
+    cond do
+      is_nil(code_challenge) and is_nil(code_challenge_method) -> :ok
+      is_binary(code_challenge) and code_challenge_method in [nil, "S256"] -> :ok
+      true -> invalid_request_error(params)
+    end
+  end
 
   defp invalid_scope_error(params) do
     case safe_error_redirect_uri(params) do

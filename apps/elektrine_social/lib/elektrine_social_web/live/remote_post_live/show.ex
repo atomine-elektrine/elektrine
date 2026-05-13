@@ -1892,7 +1892,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         Phoenix.PubSub.subscribe(Elektrine.PubSub, "timeline:public")
 
         cond do
-          Elektrine.RuntimeEnv.environment() == :test && is_local_post ->
+          is_local_post ->
             {:noreply, socket} =
               handle_info({:load_local_post, String.to_integer(decoded_post_id)}, socket)
 
@@ -1901,10 +1901,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           Elektrine.RuntimeEnv.environment() == :test ->
             load_cached_remote_post_socket(socket, decoded_post_id) ||
               (send(self(), {:load_remote_post, decoded_post_id}) && socket)
-
-          is_local_post ->
-            send(self(), {:load_local_post, String.to_integer(decoded_post_id)})
-            socket
 
           true ->
             send(self(), {:load_remote_post, decoded_post_id})
@@ -2096,13 +2092,15 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp maybe_enrich_cached_federated_post(post_object, msg)
        when is_map(post_object) and is_map(msg) do
     needs_origin_body = !Elektrine.Strings.present?(map_get_value(post_object, "content"))
-    needs_origin_media = normalize_attachment_list(map_get_value(post_object, "attachment")) == []
+    cached_attachments = normalize_attachment_list(map_get_value(post_object, "attachment"))
+    needs_origin_media = cached_attachments == []
 
     remote_ref =
       [msg.activitypub_id, msg.activitypub_url]
       |> Enum.find(&(is_binary(&1) && String.trim(&1) != ""))
 
-    if (needs_origin_body || needs_origin_media) && is_binary(remote_ref) do
+    if (needs_origin_media || (needs_origin_body && cached_attachments == [])) &&
+         is_binary(remote_ref) do
       case strict_fetch_remote_object(remote_ref) do
         {:ok, remote_post} when is_map(remote_post) ->
           maybe_preserve_cached_post_fields(post_object, remote_post)
@@ -3264,8 +3262,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       nil ->
         socket
 
-      %{federated: true} ->
-        socket
+      %{federated: true} = message ->
+        apply_cached_federated_local_post_for_initial_render(socket, message)
 
       message ->
         if can_view_local_post?(message, socket.assigns[:current_user]) do
@@ -3302,6 +3300,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       load_cached_remote_post_socket(socket, post_id) || socket
     else
       fetch_remote_post_for_meta_tags(socket, post_id)
+    end
+  end
+
+  defp apply_cached_federated_local_post_for_initial_render(socket, message) do
+    message = preload_cached_message_associations(message)
+
+    cond do
+      is_nil(message.remote_actor) ->
+        socket
+
+      can_view_local_post?(message, socket.assigns[:current_user]) ->
+        post_object = build_post_object_from_message(message)
+        apply_loaded_remote_post(socket, post_object, message.remote_actor, nil)
+
+      true ->
+        socket
     end
   end
 
@@ -4793,7 +4807,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
      )
      |> assign(:post_reactions, post_reactions)
      |> assign(:replies_loaded, local_replies != [])
-     |> assign(:replies_loading, is_binary(post_id))
+     |> assign(:replies_loading, is_binary(post_id) && local_replies == [])
      |> assign(:reply_sync_checked, false)
      |> sync_post_reply_counts(local_replies)
      |> assign(:is_community_post, socket.assigns.is_community_post || is_community_post)}
@@ -4988,7 +5002,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       socket =
         socket
         |> assign(:replies_loaded, synced_replies != [])
-        |> assign(:replies_loading, should_continue_syncing)
+        |> assign(:replies_loading, should_continue_syncing && synced_replies == [])
 
       if should_continue_syncing do
         # Keep expensive remote thread hydration off the LiveView process so

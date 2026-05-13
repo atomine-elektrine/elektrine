@@ -632,6 +632,47 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert_received {:load_platform_counts, ^activitypub_id}
   end
 
+  test "cached federated media-only local posts render during initial load" do
+    unique = System.unique_integer([:positive])
+    activitypub_id = "https://remote.example/posts/media-only-#{unique}"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://remote.example/users/media#{unique}",
+        username: "media#{unique}",
+        domain: "remote.example",
+        inbox_url: "https://remote.example/users/media#{unique}/inbox",
+        public_key: "test-public-key-media-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: nil,
+        visibility: "public",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        media_urls: ["https://remote.example/media/image.webp"]
+      })
+
+    socket = %Phoenix.LiveView.Socket{
+      assigns: %{__changed__: %{}, flash: %{}, current_user: nil}
+    }
+
+    assert {:ok, updated_socket} =
+             Show.mount(%{"post_id" => Integer.to_string(message.id)}, %{}, socket)
+
+    refute updated_socket.assigns.loading
+    assert updated_socket.assigns.post["id"] == activitypub_id
+    assert updated_socket.assigns.remote_actor.id == remote_actor.id
+
+    assert [%{"url" => "https://remote.example/media/image.webp"}] =
+             updated_socket.assigns.post["attachment"]
+  end
+
   test "platform count refresh does not lower an already displayed reply count" do
     unique = System.unique_integer([:positive])
 
@@ -764,6 +805,8 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
              Show.handle_info({:load_replies_for_cached, stale_message}, socket)
 
     assert length(updated_socket.assigns.replies) == 2
+    refute updated_socket.assigns.replies_loading
+    assert updated_socket.assigns.replies_loaded
   end
 
   test "local-style remote thread replies link short mentions to parent actor domain" do

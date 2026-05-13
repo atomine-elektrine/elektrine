@@ -111,11 +111,6 @@ defmodule ElektrineWeb.Routes.Social do
         get("/statuses/:id", StatusController, :show)
         get("/statuses/:id/context", StatusController, :context)
         get("/search", SearchController, :index_v1)
-        get("/accounts/lookup", AccountController, :lookup)
-        get("/accounts/:id", AccountController, :show)
-        get("/accounts/:id/statuses", AccountController, :statuses)
-        get("/accounts/:id/followers", AccountController, :followers)
-        get("/accounts/:id/following", AccountController, :following)
       end
 
       scope "/api/v2", ElektrineSocialWeb.MastodonAPI do
@@ -130,6 +125,19 @@ defmodule ElektrineWeb.Routes.Social do
         get("/apps/verify_credentials", AppController, :verify_credentials)
         get("/accounts/verify_credentials", AccountController, :verify_credentials)
         get("/accounts/relationships", AccountController, :relationships)
+      end
+
+      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
+        pipe_through(:mastodon_api)
+        get("/accounts/lookup", AccountController, :lookup)
+        get("/accounts/:id", AccountController, :show)
+        get("/accounts/:id/statuses", AccountController, :statuses)
+        get("/accounts/:id/followers", AccountController, :followers)
+        get("/accounts/:id/following", AccountController, :following)
+      end
+
+      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
+        pipe_through(:mastodon_api_authenticated)
         get("/timelines/home", TimelineController, :home)
         get("/notifications", NotificationController, :index)
         post("/notifications/:id/dismiss", NotificationController, :dismiss)

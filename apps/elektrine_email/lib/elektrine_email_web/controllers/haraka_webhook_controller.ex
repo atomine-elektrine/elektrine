@@ -57,6 +57,24 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     conn |> put_status(:bad_request) |> json(%{error: "Missing required field: email"})
   end
 
+  def provider_event(conn, params) do
+    case authenticate(conn) do
+      :ok ->
+        case Elektrine.Email.apply_external_provider_event(params) do
+          {:ok, delivery} ->
+            json(conn, %{ok: true, delivery_id: delivery.id, status: delivery.status})
+
+          {:error, reason} ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{ok: false, error: inspect(reason)})
+        end
+
+      {:error, :unauthorized} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "Unauthorized"})
+    end
+  end
+
   def auth(conn, %{"username" => username, "password" => password}) do
     case authenticate(conn) do
       :ok ->
@@ -527,6 +545,14 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
             spam_info = extract_spam_info_from_webhook(params)
             delivery_signal = classify_delivery_signal(params, from, subject)
+            auth_decision = inbound_auth_decision(params)
+
+            if auth_decision.action == :reject do
+              throw(
+                {:security_rejection,
+                 {:inbound_authentication_failed, auth_decision.authentication}}
+              )
+            end
 
             suppression_event =
               build_suppression_event(
@@ -540,7 +566,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
             final_is_spam =
               spam_info.is_spam ||
-                (is_number(spam_info.score) && spam_info.score >= spam_info.threshold)
+                (is_number(spam_info.score) && spam_info.score >= spam_info.threshold) ||
+                auth_decision.action == :quarantine
 
             email_data =
               %{
@@ -584,6 +611,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                   is_dsn: delivery_signal.is_dsn,
                   is_feedback_loop: delivery_signal.is_feedback_loop,
                   is_auto_reply: delivery_signal.is_auto_reply,
+                  inbound_authentication: auth_decision.authentication,
+                  inbound_auth_action: auth_decision.action,
                   suppression_candidate_reason: sanitize_metadata_field(suppression_event.reason),
                   suppression_candidate_recipients:
                     Enum.map(suppression_event.recipients, &sanitize_metadata_field/1),
@@ -610,6 +639,14 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
 
                 case result do
                   {:ok, message, new_message?} ->
+                    maybe_reconcile_external_delivery_signal(
+                      delivery_signal,
+                      params,
+                      subject,
+                      text_body,
+                      html_body
+                    )
+
                     maybe_apply_suppression(mailbox, suppression_event, params, message_id)
 
                     if mailbox.user_id do
@@ -1208,6 +1245,118 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
       true ->
         %{apply?: false, reason: nil, source: nil, recipients: []}
     end
+  end
+
+  defp maybe_reconcile_external_delivery_signal(
+         delivery_signal,
+         params,
+         subject,
+         text_body,
+         html_body
+       ) do
+    case external_delivery_signal_attrs(params, text_body, html_body) do
+      %{} = attrs ->
+        cond do
+          delivery_signal.is_feedback_loop ->
+            Elektrine.Email.mark_external_delivery_complained_by_signal(
+              attrs,
+              subject || "complaint"
+            )
+
+          delivery_signal.is_dsn and hard_bounce?(params, subject, text_body, html_body) ->
+            Elektrine.Email.mark_external_delivery_bounced_by_signal(attrs, subject || "bounce")
+
+          true ->
+            :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp inbound_auth_decision(params) do
+    Elektrine.Email.InboundAuthentication.policy_decision(%{
+      spf: first_present(params, ["spf", "spf_result", "auth_spf"]),
+      dkim: first_present(params, ["dkim", "dkim_result", "auth_dkim"]),
+      dmarc: first_present(params, ["dmarc", "dmarc_result", "auth_dmarc"]),
+      arc: first_present(params, ["arc", "arc_result", "auth_arc"]),
+      aligned: first_present(params, ["aligned", "auth_aligned"])
+    })
+  end
+
+  defp external_delivery_signal_attrs(params, text_body, html_body) do
+    %{
+      trace_id: extract_external_trace_id(params, text_body, html_body),
+      provider_message_id:
+        first_present(params, ["provider_message_id", "providerMessageId", "id"]),
+      message_id:
+        first_present(params, [
+          "original_message_id",
+          "originalMessageId",
+          "message_id",
+          "Message-ID",
+          "message-id"
+        ]) || extract_original_message_id(text_body) || extract_original_message_id(html_body),
+      recipient:
+        first_present(params, ["final_recipient", "recipient", "rcpt_to", "to"]) ||
+          extract_original_recipient(text_body) || extract_original_recipient(html_body)
+    }
+    |> Enum.reject(fn {_key, value} -> !Elektrine.Strings.present?(value) end)
+    |> Map.new()
+    |> case do
+      map when map == %{} -> nil
+      map -> map
+    end
+  end
+
+  defp extract_external_trace_id(params, text_body, html_body) do
+    [
+      params["x-elektrine-trace-id"],
+      params["X-Elektrine-Trace-ID"],
+      get_in(params, ["headers", "x-elektrine-trace-id"]),
+      get_in(params, ["headers", "X-Elektrine-Trace-ID"]),
+      extract_trace_id_from_text(text_body),
+      extract_trace_id_from_text(html_body)
+    ]
+    |> Enum.find(&Elektrine.Strings.present?/1)
+  end
+
+  defp extract_trace_id_from_text(text) when is_binary(text) do
+    case Regex.run(~r/X-Elektrine-Trace-ID:\s*([0-9a-f-]{20,})/i, text) do
+      [_, trace_id] -> trace_id
+      _ -> nil
+    end
+  end
+
+  defp extract_trace_id_from_text(_), do: nil
+
+  defp extract_original_message_id(text) when is_binary(text) do
+    case Regex.run(~r/(?:Original-Message-ID|Message-ID):\s*(<?[^\s<>]+@[^\s<>]+>?)/i, text) do
+      [_, message_id] -> message_id
+      _ -> nil
+    end
+  end
+
+  defp extract_original_message_id(_), do: nil
+
+  defp extract_original_recipient(text) when is_binary(text) do
+    case Regex.run(
+           ~r/(?:Final-Recipient|Original-Recipient|X-Failed-Recipients):.*?([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i,
+           text
+         ) do
+      [_, recipient] -> recipient
+      _ -> nil
+    end
+  end
+
+  defp extract_original_recipient(_), do: nil
+
+  defp first_present(params, keys) do
+    Enum.find_value(keys, fn key ->
+      value = params[key] || get_in(params, ["headers", key])
+      if Elektrine.Strings.present?(value), do: value
+    end)
   end
 
   defp maybe_apply_suppression(

@@ -80,6 +80,10 @@ config :elektrine, Oban,
        {"0 */6 * * *", Elektrine.Jobs.RecalculateRecentDiscussionScoresWorker},
        # Recategorize recent email every 30 minutes
        {"*/30 * * * *", Elektrine.Jobs.EmailRecategorizer},
+       # Snapshot external mail delivery health and recover stuck delivery jobs
+       {"*/5 * * * *", Elektrine.Email.ExternalDeliveryMaintenanceWorker},
+       # Recheck custom email domain DKIM/DNS health hourly
+       {"17 * * * *", Elektrine.Email.CustomDomainHealthWorker},
        # Process due reply-later messages every 5 minutes
        {"*/5 * * * *", Elektrine.Jobs.ReplyLaterProcessor},
        # Publish due scheduled social posts every minute
