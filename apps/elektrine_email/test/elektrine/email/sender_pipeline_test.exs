@@ -141,6 +141,47 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert received_message.message_id == "thunderbird-internal-duplicate@example.com"
     end
 
+    test "deduplicates internal recipients with different display names", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      assert {:ok, _sender} = Accounts.update_user(sender, %{display_name: "MAXFIELD LUKE"})
+
+      raw_email =
+        [
+          "From: MAXFIELD <#{sender_mailbox.email}>",
+          "To: MAXFIELD <#{recipient_mailbox.email}>, MAXFIELD LUKE <#{recipient_mailbox.email}>",
+          "Subject: Thunderbird display-name duplicate",
+          "Message-ID: <thunderbird-display-name-duplicate@example.com>",
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=UTF-8",
+          "",
+          "Hello once"
+        ]
+        |> Enum.join("\r\n")
+
+      assert {:ok, sent_message} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to:
+                   "MAXFIELD <#{recipient_mailbox.email}>, MAXFIELD LUKE <#{recipient_mailbox.email}>",
+                 raw_email: raw_email
+               })
+
+      received_messages =
+        recipient_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.filter(
+          &(&1.subject == "Thunderbird display-name duplicate" && &1.status == "received")
+        )
+
+      assert [received_message] = received_messages
+      assert sent_message.from == "MAXFIELD <#{sender_mailbox.email}>"
+      assert received_message.from == "MAXFIELD <#{sender_mailbox.email}>"
+      assert [_delivery] = Email.list_internal_deliveries_for_message(sent_message.id)
+    end
+
     test "filters suppressed external recipients before routing", %{
       sender: sender,
       sender_mailbox: sender_mailbox,
