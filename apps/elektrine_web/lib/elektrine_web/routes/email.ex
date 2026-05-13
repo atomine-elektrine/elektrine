@@ -86,6 +86,7 @@ defmodule ElektrineWeb.Routes.Email do
           :download
         )
 
+        get("/email/:id/delivery_status", ElektrineEmailWeb.EmailController, :delivery_status)
         delete("/email/:id", ElektrineEmailWeb.EmailController, :delete)
         get("/email/:id/print", ElektrineEmailWeb.EmailController, :print)
         get("/email/:id/original_html", ElektrineEmailWeb.EmailController, :original_html)
@@ -108,6 +109,35 @@ defmodule ElektrineWeb.Routes.Email do
         delete("/mailboxes/:id", ElektrineEmailWeb.Admin.MailboxesController, :delete)
         get("/custom-domains", ElektrineEmailWeb.Admin.CustomDomainsController, :index)
         get("/haraka", ElektrineWeb.Admin.HarakaController, :index)
+        get("/email-delivery", ElektrineWeb.Admin.EmailDeliveryController, :index)
+
+        post(
+          "/email-delivery/requeue/:id",
+          ElektrineWeb.Admin.EmailDeliveryController,
+          :requeue
+        )
+
+        post(
+          "/email-delivery/internal/requeue/:id",
+          ElektrineWeb.Admin.EmailDeliveryController,
+          :requeue_internal
+        )
+
+        post("/email-delivery/pause", ElektrineWeb.Admin.EmailDeliveryController, :pause)
+        post("/email-delivery/resume", ElektrineWeb.Admin.EmailDeliveryController, :resume)
+
+        post(
+          "/email-delivery/suppress",
+          ElektrineWeb.Admin.EmailDeliveryController,
+          :suppress
+        )
+
+        post(
+          "/email-delivery/unsuppress",
+          ElektrineWeb.Admin.EmailDeliveryController,
+          :unsuppress
+        )
+
         get("/system-email", ElektrineEmailWeb.Admin.SystemEmailsController, :new)
         post("/system-email", ElektrineEmailWeb.Admin.SystemEmailsController, :create)
 
@@ -144,6 +174,7 @@ defmodule ElektrineWeb.Routes.Email do
       )
 
       post("/haraka/auth", ElektrineEmailWeb.HarakaWebhookController, :auth)
+      post("/haraka/provider-event", ElektrineEmailWeb.HarakaWebhookController, :provider_event)
       get("/haraka/domains", ElektrineEmailWeb.HarakaWebhookController, :domains)
     end
   end

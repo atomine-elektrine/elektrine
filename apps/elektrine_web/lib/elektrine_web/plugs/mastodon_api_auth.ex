@@ -68,11 +68,11 @@ defmodule ElektrineWeb.Plugs.MastodonAPIAuth do
       not OAuth.token_valid?(token) ->
         {:error, :token_expired}
 
-      is_nil(token.user) ->
+      token.user && token_older_than_auth_boundary?(token.user, token) ->
         {:error, :invalid_token}
 
-      token_older_than_auth_boundary?(token.user, token) ->
-        {:error, :invalid_token}
+      is_nil(token.user) ->
+        :ok
 
       true ->
         Authentication.ensure_user_active(token.user)

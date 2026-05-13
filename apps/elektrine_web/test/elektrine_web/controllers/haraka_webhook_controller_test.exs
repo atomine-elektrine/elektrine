@@ -5,6 +5,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
   import Swoosh.TestAssertions
 
   alias Elektrine.Email
+  alias Elektrine.Email.ExternalDelivery
+  alias Elektrine.Email.Message
 
   @api_key "test_haraka_api_key"
 
@@ -51,6 +53,77 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
     |> Enum.filter(&(&1.subject == "Security Alert: Email spoofing attempt detected"))
   end
 
+  defp external_delivery_fixture(attrs) do
+    attrs = Map.new(attrs)
+
+    user = Map.get(attrs, :user) || user_fixture()
+
+    mailbox =
+      Map.get(attrs, :mailbox) ||
+        mailbox_fixture(%{
+          user_id: user.id,
+          email: "sender#{System.unique_integer([:positive])}@example.com"
+        })
+
+    recipient = Map.get(attrs, :recipient, "recipient@remote.test")
+
+    sent_message =
+      Map.get(attrs, :sent_message) ||
+        sent_message_fixture(%{
+          mailbox_id: mailbox.id,
+          from: mailbox.email,
+          to: recipient,
+          message_id: "provider-event-#{System.unique_integer([:positive])}@example.com"
+        })
+
+    trace_id = Map.get(attrs, :trace_id, "trace-#{System.unique_integer([:positive])}")
+
+    {:ok, delivery, _created} =
+      ExternalDelivery.create_or_get(%{
+        user_id: user.id,
+        mailbox_id: mailbox.id,
+        sent_message_id: sent_message.id,
+        envelope_from: mailbox.email,
+        to: [recipient],
+        cc: [],
+        bcc: [],
+        recipient: recipient,
+        recipient_type: "to",
+        domain: recipient |> String.split("@") |> List.last(),
+        trace_id: trace_id,
+        params: %{
+          "from" => mailbox.email,
+          "to" => [recipient],
+          "subject" => "Provider event test",
+          "text_body" => "hello"
+        },
+        status: Map.get(attrs, :status, "pending")
+      })
+
+    delivery
+  end
+
+  defp sent_message_fixture(attrs) do
+    attrs =
+      Map.merge(
+        %{
+          status: "sent",
+          subject: "Provider event test",
+          text_body: "hello",
+          html_body: "<p>hello</p>",
+          read: true,
+          spam: false,
+          archived: false,
+          deleted: false
+        },
+        attrs
+      )
+
+    %Message{}
+    |> Message.changeset(attrs)
+    |> Elektrine.Repo.insert!()
+  end
+
   defp assert_spoof_alert_count(mailbox_id, expected_count, attempts \\ 20)
 
   defp assert_spoof_alert_count(mailbox_id, expected_count, attempts) when attempts > 0 do
@@ -84,6 +157,37 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
 
       assert %{"domains" => domains} = json_response(conn, 200)
       assert "example.com" in domains
+    end
+  end
+
+  describe "provider events" do
+    test "updates matching external delivery by trace id", %{conn: conn} do
+      delivery = external_delivery_fixture(trace_id: "provider-trace-1")
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/provider-event", %{
+          "event" => "delivered",
+          "trace_id" => delivery.trace_id,
+          "provider_message_id" => "provider-123",
+          "response_code" => "250"
+        })
+
+      assert %{"ok" => true, "delivery_id" => delivery.id, "status" => "sent"} ==
+               json_response(conn, 200)
+
+      updated = ExternalDelivery.get(delivery.id)
+      assert updated.status == "sent"
+      assert updated.provider_message_id == "provider-123"
+      assert updated.response_code == "250"
+      assert [%{status: "sent"}] = ExternalDelivery.list_attempts(updated)
+    end
+
+    test "rejects provider events without API key", %{conn: conn} do
+      conn = post(conn, ~p"/api/haraka/provider-event", %{"event" => "delivered"})
+
+      assert json_response(conn, 401)["error"] == "Unauthorized"
     end
   end
 

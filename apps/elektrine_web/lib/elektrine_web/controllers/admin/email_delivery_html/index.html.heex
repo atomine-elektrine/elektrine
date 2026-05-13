@@ -1,0 +1,290 @@
+<div class="admin-page">
+  <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div>
+      <h1 class="text-xl font-bold sm:text-2xl">Email Delivery</h1>
+      <p class="mt-2 text-sm text-base-content/70 sm:text-base">
+        External recipient delivery state, queue health, provider signals, and outbound pause controls.
+      </p>
+    </div>
+
+    <.link href={~p"/pripyat"} class="btn btn-ghost">
+      <.icon name="hero-arrow-left" class="h-4 w-4" /> Dashboard
+    </.link>
+  </div>
+
+  <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Queue Depth
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-info">{@metrics.queue_depth}</div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Stuck
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-warning">{@metrics.stuck_count}</div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Bounce Rate
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-error">
+        {format_percent(@metrics.bounce_rate)}
+      </div>
+    </div>
+
+    <div class="surface-muted rounded-box px-4 py-4 shadow-sm">
+      <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-base-content/45">
+        Complaint Rate
+      </div>
+      <div class="mt-2 text-3xl font-semibold text-error">
+        {format_percent(@metrics.complaint_rate)}
+      </div>
+    </div>
+  </section>
+
+  <section class="card panel-card">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <h2 class="text-lg font-semibold">Recent Deliveries</h2>
+      <p class="mt-2 text-sm text-base-content/70">
+        One row per external recipient. Use filters to inspect a status or recipient domain.
+      </p>
+    </div>
+
+    <div class="px-5 py-5 sm:px-6">
+      <.form
+        for={%{}}
+        action={~p"/pripyat/email-delivery"}
+        method="get"
+        class="grid gap-3 md:grid-cols-[1fr_1fr_auto]"
+      >
+        <input class="input input-bordered" name="status" placeholder="status" value={@status} />
+        <input class="input input-bordered" name="domain" placeholder="domain" value={@domain} />
+        <button class="btn btn-primary" type="submit">Filter</button>
+      </.form>
+    </div>
+
+    <div class="overflow-x-auto px-5 pb-5 sm:px-6">
+      <table class="table table-zebra">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Recipient</th>
+            <th>Status</th>
+            <th>Trace</th>
+            <th>Attempts</th>
+            <th class="text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for delivery <- @deliveries do %>
+            <tr>
+              <td class="font-mono text-xs">{delivery.id}</td>
+              <td>
+                <div class="font-medium">{delivery.recipient}</div>
+                <div class="text-xs text-base-content/55">{delivery.domain}</div>
+              </td>
+              <td>
+                <span class={["badge border-0", status_badge_class(delivery.status)]}>
+                  {delivery.status}
+                </span>
+              </td>
+              <td class="max-w-[16rem] truncate font-mono text-xs text-base-content/70">
+                {delivery.trace_id}
+              </td>
+              <td>{delivery.attempts}</td>
+              <td class="text-right">
+                <.form
+                  for={%{}}
+                  action={~p"/pripyat/email-delivery/requeue/#{delivery.id}"}
+                  method="post"
+                  class="inline"
+                >
+                  <button class="btn btn-xs btn-ghost" type="submit">Requeue</button>
+                </.form>
+              </td>
+            </tr>
+          <% end %>
+
+          <%= if @deliveries == [] do %>
+            <tr>
+              <td colspan="6" class="py-10 text-center text-sm text-base-content/60">
+                No external deliveries matched these filters.
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card panel-card">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <h2 class="text-lg font-semibold">Internal Deliveries</h2>
+      <p class="mt-2 text-sm text-base-content/70">
+        One row per local recipient. Failed rows can be requeued after mailbox or storage issues are fixed.
+      </p>
+    </div>
+
+    <div class="overflow-x-auto px-5 py-5 sm:px-6">
+      <table class="table table-zebra">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Recipient</th>
+            <th>Status</th>
+            <th>Attempts</th>
+            <th>Delivered Message</th>
+            <th class="text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for delivery <- @internal_deliveries do %>
+            <tr>
+              <td class="font-mono text-xs">{delivery.id}</td>
+              <td>
+                <div class="font-medium">{delivery.recipient}</div>
+                <div class="text-xs text-base-content/55">{delivery.recipient_type}</div>
+              </td>
+              <td>
+                <span class={["badge border-0", status_badge_class(delivery.status)]}>
+                  {delivery.status}
+                </span>
+              </td>
+              <td>{delivery.attempts}</td>
+              <td class="font-mono text-xs text-base-content/70">
+                {delivery.delivered_message_id || "-"}
+              </td>
+              <td class="text-right">
+                <.form
+                  for={%{}}
+                  action={~p"/pripyat/email-delivery/internal/requeue/#{delivery.id}"}
+                  method="post"
+                  class="inline"
+                >
+                  <button
+                    class="btn btn-xs btn-ghost"
+                    type="submit"
+                    disabled={delivery.status == "delivered"}
+                  >
+                    Requeue
+                  </button>
+                </.form>
+              </td>
+            </tr>
+          <% end %>
+
+          <%= if @internal_deliveries == [] do %>
+            <tr>
+              <td colspan="6" class="py-10 text-center text-sm text-base-content/60">
+                No internal deliveries matched these filters.
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid gap-4 lg:grid-cols-2">
+    <div class="card panel-card">
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <h2 class="text-lg font-semibold">Pause Outbound</h2>
+        <p class="mt-2 text-sm text-base-content/70">
+          Stop workers from sending mail for a user or recipient domain while incidents are investigated.
+        </p>
+      </div>
+
+      <.form
+        for={%{}}
+        action={~p"/pripyat/email-delivery/pause"}
+        method="post"
+        class="grid gap-3 px-5 py-5 sm:px-6"
+      >
+        <select name="scope_type" class="select select-bordered">
+          <option value="domain">Domain</option>
+          <option value="user">User ID</option>
+        </select>
+        <input
+          name="scope_value"
+          class="input input-bordered"
+          placeholder="example.com or user id"
+        />
+        <input name="reason" class="input input-bordered" placeholder="reason" />
+        <button class="btn btn-warning" type="submit">Pause Delivery</button>
+      </.form>
+    </div>
+
+    <div class="card panel-card">
+      <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+        <h2 class="text-lg font-semibold">Active Pauses</h2>
+        <p class="mt-2 text-sm text-base-content/70">
+          Resume a scope when the outbound issue is resolved.
+        </p>
+      </div>
+
+      <div class="space-y-2 px-5 py-5 sm:px-6">
+        <%= for control <- @controls do %>
+          <.form
+            for={%{}}
+            action={~p"/pripyat/email-delivery/resume"}
+            method="post"
+            class="flex items-center justify-between gap-3 rounded-box bg-base-200/70 p-3"
+          >
+            <input type="hidden" name="scope_type" value={control.scope_type} />
+            <input type="hidden" name="scope_value" value={control.scope_value} />
+            <span class="text-sm">
+              <span class="font-semibold">{control.scope_type}</span>: {control.scope_value}
+            </span>
+            <button class="btn btn-xs" type="submit">Resume</button>
+          </.form>
+        <% end %>
+
+        <%= if @controls == [] do %>
+          <div class="rounded-box border border-base-content/10 bg-base-200/30 px-4 py-8 text-center text-sm text-base-content/60">
+            No active outbound pauses.
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <section class="card panel-card">
+    <div class="border-b border-base-content/10 px-5 py-5 sm:px-6">
+      <h2 class="text-lg font-semibold">Recipient Suppression</h2>
+      <p class="mt-2 text-sm text-base-content/70">
+        Manually suppress or restore a recipient for a specific user.
+      </p>
+    </div>
+
+    <div class="grid gap-4 px-5 py-5 sm:px-6 lg:grid-cols-2">
+      <.form
+        for={%{}}
+        action={~p"/pripyat/email-delivery/suppress"}
+        method="post"
+        class="grid gap-3 rounded-box bg-base-200/40 p-4"
+      >
+        <h3 class="font-semibold">Suppress Recipient</h3>
+        <input name="user_id" class="input input-bordered" placeholder="user id" />
+        <input name="email" class="input input-bordered" placeholder="recipient@example.com" />
+        <input name="reason" class="input input-bordered" placeholder="reason" value="manual" />
+        <button class="btn btn-warning" type="submit">Suppress</button>
+      </.form>
+
+      <.form
+        for={%{}}
+        action={~p"/pripyat/email-delivery/unsuppress"}
+        method="post"
+        class="grid gap-3 rounded-box bg-base-200/40 p-4"
+      >
+        <h3 class="font-semibold">Unsuppress Recipient</h3>
+        <input name="user_id" class="input input-bordered" placeholder="user id" />
+        <input name="email" class="input input-bordered" placeholder="recipient@example.com" />
+        <button class="btn" type="submit">Unsuppress</button>
+      </.form>
+    </div>
+  </section>
+</div>

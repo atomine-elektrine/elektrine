@@ -157,6 +157,68 @@ defmodule ElektrineWeb.OIDCControllerTest do
       assert refreshed_access_token != access_token
       assert %{"aud" => ^expected_aud, "sub" => ^sub} = decode_jwt_payload(refreshed_id_token)
     end
+
+    test "allows non-openid Mastodon clients without pkce", %{conn: conn} do
+      user = user_fixture(%{username: "mastodonmobile"})
+
+      {:ok, app} =
+        OAuth.create_app(%{
+          client_name: "Mastodon Mobile",
+          redirect_uris: "mastodon://oauth",
+          scopes: ["read", "write", "follow"]
+        })
+
+      conn = log_in_user(conn, user)
+
+      authorize_conn =
+        get(
+          conn,
+          "/oauth/authorize?" <>
+            URI.encode_query(%{
+              "client_id" => app.client_id,
+              "redirect_uri" => "mastodon://oauth",
+              "response_type" => "code",
+              "scope" => "read write",
+              "state" => "state-123"
+            })
+        )
+
+      assert html_response(authorize_conn, 200) =~ "Mastodon Mobile"
+
+      approval_conn =
+        post(conn, ~p"/oauth/authorize", %{
+          "decision" => "approve",
+          "client_id" => app.client_id,
+          "redirect_uri" => "mastodon://oauth",
+          "response_type" => "code",
+          "scope" => "read write",
+          "state" => "state-123"
+        })
+
+      redirect_url = redirected_to(approval_conn, 302)
+      %URI{query: query} = URI.parse(redirect_url)
+      %{"code" => code, "state" => "state-123"} = URI.decode_query(query)
+
+      token_conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/oauth/token", %{
+          "grant_type" => "authorization_code",
+          "client_id" => app.client_id,
+          "client_secret" => App.client_secret_value(app),
+          "code" => code,
+          "redirect_uri" => "mastodon://oauth"
+        })
+
+      assert %{
+               "access_token" => access_token,
+               "scope" => "read write",
+               "token_type" => "Bearer"
+             } = json_response(token_conn, 200)
+
+      refute Map.has_key?(json_response(token_conn, 200), "id_token")
+      assert is_binary(access_token)
+    end
   end
 
   describe "dynamic client registration" do

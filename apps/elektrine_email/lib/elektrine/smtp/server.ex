@@ -694,7 +694,7 @@ defmodule Elektrine.SMTP.Server do
       case parse_rcpt_to(args) do
         {:ok, to} ->
           send_response(state.socket, "250 OK")
-          {:continue, %{state | to: [to | state.to], state: :rcpt}}
+          {:continue, %{state | to: add_unique_recipient(state.to, to), state: :rcpt}}
 
         {:error, _} ->
           send_response(state.socket, "501 Syntax error in parameters")
@@ -711,7 +711,7 @@ defmodule Elektrine.SMTP.Server do
       case parse_rcpt_to(args) do
         {:ok, to} ->
           send_response(state.socket, "250 OK")
-          {:continue, %{state | to: [to | state.to]}}
+          {:continue, %{state | to: add_unique_recipient(state.to, to)}}
 
         {:error, _} ->
           send_response(state.socket, "501 Syntax error in parameters")
@@ -729,6 +729,16 @@ defmodule Elektrine.SMTP.Server do
     case Regex.run(~r/TO:\s*<?([^>]+)>?/i, args) do
       [_, email] -> {:ok, String.trim(email)}
       _ -> {:error, :invalid_format}
+    end
+  end
+
+  defp add_unique_recipient(recipients, recipient) do
+    normalized = String.downcase(String.trim(recipient))
+
+    if Enum.any?(recipients, &(String.downcase(String.trim(&1)) == normalized)) do
+      recipients
+    else
+      [recipient | recipients]
     end
   end
 

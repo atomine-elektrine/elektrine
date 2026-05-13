@@ -19,8 +19,12 @@ defmodule Elektrine.Email.Sender do
   """
 
   alias Elektrine.Email
+  alias Elektrine.Email.ExternalDelivery
+  alias Elektrine.Email.ExternalDeliveryWorker
   alias Elektrine.Email.HeaderDecoder
   alias Elektrine.Email.HeaderSanitizer
+  alias Elektrine.Email.InternalDelivery
+  alias Elektrine.Email.InternalDeliveryWorker
   alias Elektrine.Email.ListTypes
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.MimeBodyExtractor
@@ -230,82 +234,87 @@ defmodule Elektrine.Email.Sender do
     routing_strategy = determine_routing_strategy(delivery_plan)
 
     result =
-      case routing_strategy do
-        :internal ->
-          # Handle internal email directly within Phoenix
-          # Note: Internal emails never get unsubscribe headers (personal communication)
-          send_internal_email(user_id, prepared_params, db_attachments)
+      with :ok <- validate_internal_delivery_targets(delivery_plan.internal) do
+        case routing_strategy do
+          :internal ->
+            # Handle internal email directly within Phoenix
+            # Note: Internal emails never get unsubscribe headers (personal communication)
+            send_internal_email(user_id, prepared_params, db_attachments)
 
-        :external ->
-          # Send external email via Swoosh
-          with {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
-               {:ok, _ownership} <-
-                 validate_from_address_ownership(prepared_params[:from], user_id),
-               {:ok, _remaining} <- maybe_check_rate_limit(user_id, prepared_params),
-               {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
-               {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
-               {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
-               external_params <-
-                 put_filtered_recipients(
-                   pgp_params,
-                   delivery_plan.external.to,
-                   delivery_plan.external.cc,
-                   delivery_plan.external.bcc
-                 ),
-               :ok <- validate_external_recipient_domains(external_params),
-               :ok <- maybe_spend_email_credit(user_id, delivery_plan),
-               {:ok, swoosh_response} <- send_via_swoosh(external_params) do
-            stored_params = merge_pgp_message_body(formatted_params, pgp_params)
+          :external ->
+            # Send external email via Swoosh
+            with {:ok, {mailbox, user}} <- get_user_mailbox_with_user(user_id),
+                 {:ok, _ownership} <-
+                   validate_from_address_ownership(prepared_params[:from], user_id),
+                 {:ok, _remaining} <- maybe_check_rate_limit(user_id, prepared_params),
+                 {:ok, _recipient_check} <- check_recipient_limits(user_id, prepared_params),
+                 {:ok, formatted_params} <- format_from_header(prepared_params, user, mailbox),
+                 {:ok, pgp_params} <- maybe_pgp_encrypt(formatted_params, user_id),
+                 external_params <-
+                   put_filtered_recipients(
+                     pgp_params,
+                     delivery_plan.external.to,
+                     delivery_plan.external.cc,
+                     delivery_plan.external.bcc
+                   ),
+                 :ok <- Email.validate_outbound_deliverability(external_params[:from], user_id),
+                 :ok <- validate_external_recipient_domains(external_params),
+                 :ok <- maybe_spend_email_credit(user_id, delivery_plan) do
+              stored_params = merge_pgp_message_body(formatted_params, pgp_params)
 
-            # Always store sent message regardless of source (webmail or SMTP)
-            # Mobile clients and many email clients don't append to Sent via IMAP
-            case store_sent_message_external(
-                   mailbox.id,
-                   stored_params,
-                   swoosh_response,
-                   db_attachments
-                 ) do
-              {:ok, _sent_message} ->
-                :ok
+              with {:ok, sent_message} <-
+                     store_sent_message_external(mailbox.id, stored_params, nil, db_attachments),
+                   {:ok, internal_deliveries} <-
+                     create_internal_deliveries(
+                       mailbox.id,
+                       sent_message,
+                       stored_params,
+                       delivery_plan.internal,
+                       db_attachments
+                     ),
+                   {:ok, _delivery} <-
+                     enqueue_external_delivery(
+                       user_id,
+                       mailbox.id,
+                       sent_message,
+                       external_params,
+                       delivery_plan.external
+                     ) do
+                # Also deliver to any internal recipients without sending them back out
+                deliver_internal_deliveries_now(internal_deliveries)
+
+                maybe_record_send(user_id, prepared_params)
+
+                # Record recipients for recipient limiting
+                record_recipients(user_id, formatted_params)
+
+                {:ok,
+                 %{message_id: sent_message.message_id, status: "queued", id: sent_message.id}}
+              else
+                {:error, reason} ->
+                  {:error, reason}
+              end
+            else
+              {:error, :daily_limit_exceeded} ->
+                Logger.warning("User #{user_id} exceeded daily email limit")
+                {:error, :rate_limit_exceeded}
+
+              {:error, :hourly_limit_exceeded} ->
+                Logger.warning("User #{user_id} exceeded hourly email limit")
+                {:error, :rate_limit_exceeded}
+
+              {:error, :minute_limit_exceeded} ->
+                Logger.warning("User #{user_id} exceeded per-minute email limit")
+                {:error, :rate_limit_exceeded}
+
+              {:error, :recipient_limit_exceeded} ->
+                Logger.warning("User #{user_id} exceeded unique recipient limit")
+                {:error, :recipient_limit_exceeded}
 
               {:error, reason} ->
-                Logger.error("Failed to store sent message: #{inspect(reason)}")
+                {:error, reason}
             end
-
-            # Also deliver to any internal recipients without sending them back out
-            deliver_to_internal_external_route_recipients(
-              mailbox.id,
-              stored_params,
-              delivery_plan.internal,
-              db_attachments
-            )
-
-            maybe_record_send(user_id, prepared_params)
-
-            # Record recipients for recipient limiting
-            record_recipients(user_id, formatted_params)
-
-            {:ok, %{message_id: swoosh_response.message_id, status: "sent"}}
-          else
-            {:error, :daily_limit_exceeded} ->
-              Logger.warning("User #{user_id} exceeded daily email limit")
-              {:error, :rate_limit_exceeded}
-
-            {:error, :hourly_limit_exceeded} ->
-              Logger.warning("User #{user_id} exceeded hourly email limit")
-              {:error, :rate_limit_exceeded}
-
-            {:error, :minute_limit_exceeded} ->
-              Logger.warning("User #{user_id} exceeded per-minute email limit")
-              {:error, :rate_limit_exceeded}
-
-            {:error, :recipient_limit_exceeded} ->
-              Logger.warning("User #{user_id} exceeded unique recipient limit")
-              {:error, :recipient_limit_exceeded}
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+        end
       end
 
     emit_outbound_telemetry(:delivery, result, started_at, %{route: routing_strategy})
@@ -717,6 +726,10 @@ defmodule Elektrine.Email.Sender do
     else
       send_via_swoosh_adapter(params_with_unsubscribe)
     end
+  end
+
+  def deliver_external_params(params) when is_map(params) do
+    send_via_swoosh(params)
   end
 
   defp should_use_external_api? do
@@ -1142,9 +1155,13 @@ defmodule Elektrine.Email.Sender do
       # Always create sent copy regardless of source (webmail or SMTP)
       # Mobile clients and many email clients don't append to Sent via IMAP
       case store_sent_message_internal(sender_mailbox_id, email_params, db_attachments) do
-        {:ok, _sent} ->
-          # Store received copy
-          store_self_received_message(sender_mailbox_id, email_params, db_attachments)
+        {:ok, sent_message} ->
+          deliver_self_internal_delivery(
+            sender_mailbox_id,
+            sent_message,
+            email_params,
+            db_attachments
+          )
 
         error ->
           Logger.error("Self-email sent copy creation failed: #{inspect(error)}")
@@ -1157,30 +1174,23 @@ defmodule Elektrine.Email.Sender do
       # Store sent message first
       case store_sent_message_internal(sender_mailbox_id, email_params, db_attachments) do
         {:ok, sent_message} ->
-          # Deliver to TO recipients
-          Enum.each(to_emails, fn to_email ->
-            deliver_to_internal_recipient(to_email, email_params, "to", db_attachments)
-          end)
+          internal_plan = %{
+            to: to_emails,
+            cc: Enum.filter(cc_emails, &is_internal_email?([&1])),
+            bcc: Enum.filter(bcc_emails, &is_internal_email?([&1]))
+          }
 
-          # Deliver to CC recipients (they should see they were CC'd)
-          Enum.each(cc_emails, fn cc_email ->
-            # Filter out internal CC recipients that should receive a copy
-            if is_internal_email?([cc_email]) do
-              deliver_to_internal_recipient(cc_email, email_params, "cc", db_attachments)
-            end
-          end)
-
-          # Deliver to BCC recipients (they shouldn't see BCC list)
-          Enum.each(bcc_emails, fn bcc_email ->
-            # Filter out internal BCC recipients that should receive a copy
-            if is_internal_email?([bcc_email]) do
-              # Create a copy of params without the BCC field for BCC recipients
-              bcc_params = Map.put(email_params, :bcc, nil)
-              deliver_to_internal_recipient(bcc_email, bcc_params, "bcc", db_attachments)
-            end
-          end)
-
-          {:ok, sent_message}
+          with {:ok, internal_deliveries} <-
+                 create_internal_deliveries(
+                   sender_mailbox_id,
+                   sent_message,
+                   email_params,
+                   internal_plan,
+                   db_attachments
+                 ),
+               :ok <- deliver_internal_deliveries_now(internal_deliveries) do
+            {:ok, sent_message}
+          end
 
         {:error, reason} ->
           {:error, reason}
@@ -1247,9 +1257,12 @@ defmodule Elektrine.Email.Sender do
          swoosh_response,
          db_attachments
        ) do
+    provider_message_id = provider_response_message_id(swoosh_response)
+
     message_attrs = %{
       message_id:
-        email_params[:message_id] || swoosh_response.message_id || generate_message_id(),
+        email_params[:message_id] || email_params["message_id"] || provider_message_id ||
+          generate_message_id(),
       from: email_params[:from],
       to: email_params[:to],
       cc: email_params[:cc],
@@ -1270,7 +1283,7 @@ defmodule Elektrine.Email.Sender do
           %{
             external_delivery: true,
             sent_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-            original_message_id: swoosh_response.message_id,
+            original_message_id: provider_message_id,
             client_message_id: email_params[:message_id]
           },
           email_params
@@ -1296,93 +1309,304 @@ defmodule Elektrine.Email.Sender do
     end
   end
 
-  # Deliver to internal recipient
-  defp deliver_to_internal_recipient(to_email, email_params, recipient_type, db_attachments) do
-    case find_internal_recipient_mailbox(to_email) do
-      {:error, :forward_to_external} ->
-        # This internal email needs to be forwarded to an external address
-        # Get the actual forwarding target (try alias first, then mailbox)
-        clean_email = String.trim(String.downcase(to_email))
+  defp provider_response_message_id(nil), do: nil
 
-        target_email =
-          case Email.resolve_alias(clean_email) do
-            alias_target when is_binary(alias_target) ->
-              alias_target
+  defp provider_response_message_id(response) when is_map(response) do
+    Map.get(response, :message_id) || Map.get(response, "message_id")
+  end
 
-            _ ->
-              # Check mailbox forwarding
-              case Email.get_mailbox_by_email(clean_email) do
-                %Mailbox{forward_enabled: true, forward_to: mailbox_target}
-                when is_binary(mailbox_target) and mailbox_target != "" ->
-                  mailbox_target
+  defp provider_response_message_id(response), do: Map.get(response, :message_id)
 
-                _ ->
-                  nil
-              end
-          end
+  defp enqueue_external_delivery(
+         user_id,
+         mailbox_id,
+         sent_message,
+         external_params,
+         external_plan
+       ) do
+    external_plan
+    |> external_delivery_recipients()
+    |> Enum.reduce_while({:ok, []}, fn {recipient_type, recipient}, {:ok, deliveries} ->
+      trace_id = Ecto.UUID.generate()
 
-        case target_email do
-          target when is_binary(target) ->
-            # Send via external delivery with the target address
-            forward_params = Map.put(email_params, :to, target)
+      delivery_params =
+        per_recipient_external_params(external_params, recipient_type, recipient, trace_id)
 
-            case send_via_swoosh(forward_params) do
-              {:ok, _response} ->
-                {:ok, :forwarded}
+      attrs = %{
+        user_id: user_id,
+        mailbox_id: mailbox_id,
+        sent_message_id: sent_message.id,
+        envelope_from: external_params[:from],
+        to: external_plan.to,
+        cc: external_plan.cc,
+        bcc: external_plan.bcc,
+        recipient: recipient,
+        recipient_type: recipient_type,
+        trace_id: trace_id,
+        params: stringify_keys(delivery_params),
+        status: "pending"
+      }
 
-              {:error, reason} ->
-                Logger.error("Failed to forward to #{target}: #{inspect(reason)}")
-                {:error, reason}
-            end
-
-          nil ->
-            {:error, :forward_target_not_found}
-        end
-
-      {:ok, recipient_mailbox} ->
-        # For internal emails, use full attachments (with data) not just S3 metadata
-        attachments_to_store = email_params[:attachments] || db_attachments || %{}
-
-        # Create received message
-        received_attrs = %{
-          message_id: generate_message_id(),
-          from: email_params[:from],
-          to: email_params[:to],
-          cc: email_params[:cc],
-          bcc: email_params[:bcc],
-          subject: email_params[:subject],
-          text_body: email_params[:text_body],
-          html_body: email_params[:html_body],
-          in_reply_to: email_params[:in_reply_to],
-          references: email_params[:references],
-          attachments: attachments_to_store,
-          mailbox_id: recipient_mailbox.id,
-          status: "received",
-          metadata:
-            enrich_metadata_for_pgp(
-              %{
-                internal_delivery: true,
-                recipient_type: recipient_type,
-                received_at: DateTime.utc_now() |> DateTime.to_iso8601()
-              },
-              email_params
-            )
-        }
-
-        case Email.create_message(received_attrs) do
-          {:ok, message} ->
-            {:ok, message}
-
-          {:error, reason} ->
-            Logger.error("Failed to deliver internal email to #{to_email}: #{inspect(reason)}")
-            {:error, reason}
-        end
-
-      {:error, reason} ->
-        Logger.warning("Could not find recipient mailbox for #{to_email}: #{inspect(reason)}")
-        {:error, reason}
+      with {:ok, delivery, state} <- ExternalDelivery.create_or_get(attrs),
+           {:ok, _job_or_delivery} <- maybe_enqueue_external_delivery(delivery, state) do
+        {:cont, {:ok, [delivery | deliveries]}}
+      else
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, deliveries} -> {:ok, Enum.reverse(deliveries)}
+      error -> error
     end
   end
+
+  defp maybe_enqueue_external_delivery(%ExternalDelivery{status: "sent"} = delivery, _state) do
+    {:ok, delivery}
+  end
+
+  defp maybe_enqueue_external_delivery(%ExternalDelivery{} = delivery, _state) do
+    ExternalDeliveryWorker.enqueue(delivery)
+  end
+
+  defp external_delivery_recipients(external_plan) do
+    [
+      {"to", external_plan.to},
+      {"cc", external_plan.cc},
+      {"bcc", external_plan.bcc}
+    ]
+    |> Enum.flat_map(fn {type, recipients} ->
+      recipients
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq_by(&String.downcase/1)
+      |> Enum.map(&{type, &1})
+    end)
+  end
+
+  defp internal_delivery_recipients(internal_plan) do
+    [
+      {"to", internal_plan.to},
+      {"cc", internal_plan.cc},
+      {"bcc", internal_plan.bcc}
+    ]
+    |> Enum.flat_map(fn {type, recipients} ->
+      recipients
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq_by(&String.downcase/1)
+      |> Enum.map(&{type, &1})
+    end)
+  end
+
+  defp validate_internal_delivery_targets(internal_plan) do
+    internal_plan
+    |> internal_delivery_recipients()
+    |> Enum.reduce_while(:ok, fn {_recipient_type, recipient}, :ok ->
+      case find_internal_recipient_mailbox(recipient) do
+        {:ok, _mailbox} ->
+          {:cont, :ok}
+
+        {:error, :forward_to_external} ->
+          {:halt, {:error, :forward_to_external}}
+
+        {:error, reason} ->
+          Logger.warning("Internal recipient #{recipient} is not deliverable: #{inspect(reason)}")
+          {:halt, {:error, :recipient_not_found}}
+      end
+    end)
+  end
+
+  defp create_internal_deliveries(
+         sender_mailbox_id,
+         sent_message,
+         email_params,
+         internal_plan,
+         db_attachments
+       ) do
+    internal_plan
+    |> internal_delivery_recipients()
+    |> Enum.reduce_while({:ok, []}, fn {recipient_type, recipient}, {:ok, deliveries} ->
+      case create_internal_delivery(
+             sender_mailbox_id,
+             sent_message,
+             recipient,
+             recipient_type,
+             email_params,
+             db_attachments
+           ) do
+        {:ok, delivery} -> {:cont, {:ok, [delivery | deliveries]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, deliveries} -> {:ok, Enum.reverse(deliveries)}
+      error -> error
+    end
+  end
+
+  defp create_internal_delivery(
+         sender_mailbox_id,
+         sent_message,
+         recipient,
+         recipient_type,
+         email_params,
+         db_attachments,
+         opts \\ []
+       ) do
+    with %Mailbox{} = sender_mailbox <- Email.get_mailbox_internal(sender_mailbox_id),
+         {:ok, recipient_mailbox} <- find_internal_recipient_mailbox(recipient) do
+      received_attrs =
+        internal_received_attrs(
+          recipient_mailbox,
+          sender_mailbox_id,
+          email_params,
+          recipient_type,
+          db_attachments,
+          opts
+        )
+
+      attrs = %{
+        user_id: sender_mailbox.user_id,
+        mailbox_id: sender_mailbox_id,
+        sent_message_id: sent_message.id,
+        recipient_mailbox_id: recipient_mailbox.id,
+        recipient: recipient,
+        recipient_type: recipient_type,
+        params: stringify_keys(received_attrs),
+        status: "pending"
+      }
+
+      with {:ok, delivery, _state} <- InternalDelivery.create_or_get(attrs) do
+        {:ok, delivery}
+      end
+    else
+      nil -> {:error, :no_mailbox}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp deliver_internal_deliveries_now(deliveries) do
+    Enum.reduce_while(deliveries, :ok, fn delivery, :ok ->
+      case InternalDeliveryWorker.deliver_now(delivery) do
+        {:ok, _message_or_delivery} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp deliver_self_internal_delivery(
+         sender_mailbox_id,
+         sent_message,
+         email_params,
+         db_attachments
+       ) do
+    with %Mailbox{} = sender_mailbox <- Email.get_mailbox_internal(sender_mailbox_id),
+         {:ok, delivery} <-
+           create_internal_delivery(
+             sender_mailbox_id,
+             sent_message,
+             sender_mailbox.email,
+             "to",
+             email_params,
+             db_attachments,
+             self_email: true
+           ),
+         {:ok, message_or_delivery} <- InternalDeliveryWorker.deliver_now(delivery) do
+      {:ok, message_or_delivery}
+    else
+      nil -> {:error, :no_mailbox}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp internal_received_attrs(
+         recipient_mailbox,
+         sender_mailbox_id,
+         email_params,
+         recipient_type,
+         db_attachments,
+         opts
+       ) do
+    attachments_to_store = email_params[:attachments] || db_attachments || %{}
+    self_email? = Keyword.get(opts, :self_email, false)
+
+    base_metadata = %{
+      internal_delivery: true,
+      recipient_type: recipient_type,
+      received_at: DateTime.utc_now() |> DateTime.to_iso8601()
+    }
+
+    metadata =
+      if self_email? do
+        Map.merge(base_metadata, %{
+          self_email: true,
+          sent_and_received: true,
+          delivered_at: DateTime.utc_now() |> DateTime.to_iso8601()
+        })
+      else
+        base_metadata
+      end
+
+    %{
+      message_id: received_message_id(email_params, recipient_mailbox.id, sender_mailbox_id),
+      from: email_params[:from],
+      to: email_params[:to],
+      cc: email_params[:cc],
+      bcc: if(recipient_type == "bcc", do: nil, else: email_params[:bcc]),
+      subject: email_params[:subject],
+      text_body: email_params[:text_body],
+      html_body: email_params[:html_body],
+      in_reply_to: email_params[:in_reply_to],
+      references: email_params[:references],
+      attachments: attachments_to_store,
+      mailbox_id: recipient_mailbox.id,
+      status: "received",
+      metadata: enrich_metadata_for_pgp(metadata, email_params)
+    }
+    |> maybe_put_self_email_attrs(self_email?)
+  end
+
+  defp maybe_put_self_email_attrs(attrs, true) do
+    attrs
+    |> Map.put(:read, true)
+    |> Map.put(:category, "inbox")
+  end
+
+  defp maybe_put_self_email_attrs(attrs, false), do: attrs
+
+  defp per_recipient_external_params(params, recipient_type, recipient, trace_id) do
+    params
+    |> Map.put(:to, recipient)
+    |> Map.put(:cc, "")
+    |> Map.put(:bcc, "")
+    |> put_trace_headers(params, recipient_type, recipient, trace_id)
+  end
+
+  defp put_trace_headers(params, original_params, recipient_type, recipient, trace_id) do
+    headers =
+      (params[:headers] || %{})
+      |> Map.merge(%{
+        "X-Elektrine-Trace-ID" => trace_id,
+        "X-Elektrine-Recipient" => recipient,
+        "X-Elektrine-Recipient-Type" => recipient_type,
+        "X-Elektrine-Original-To" => original_params[:to] || "",
+        "X-Elektrine-Original-Cc" => original_params[:cc] || ""
+      })
+
+    Map.put(params, :headers, headers)
+  end
+
+  defp stringify_keys(nil), do: nil
+
+  defp stringify_keys(map) when is_map(map) do
+    Map.new(map, fn
+      {key, value} when is_atom(key) -> {Atom.to_string(key), stringify_keys(value)}
+      {key, value} -> {key, stringify_keys(value)}
+    end)
+  end
+
+  defp stringify_keys(list) when is_list(list), do: Enum.map(list, &stringify_keys/1)
+  defp stringify_keys(value), do: value
 
   # Find recipient mailbox for internal delivery with loop detection
   defp find_internal_recipient_mailbox(email_address, visited \\ MapSet.new(), depth \\ 0)
@@ -1479,164 +1703,21 @@ defmodule Elektrine.Email.Sender do
     "internal-#{System.system_time(:millisecond)}-#{:rand.uniform(999_999)}"
   end
 
+  defp received_message_id(_email_params, recipient_mailbox_id, sender_mailbox_id)
+       when is_integer(recipient_mailbox_id) and recipient_mailbox_id == sender_mailbox_id do
+    generate_message_id()
+  end
+
+  defp received_message_id(email_params, _recipient_mailbox_id, _sender_mailbox_id) do
+    email_params[:message_id] || email_params["message_id"] || generate_message_id()
+  end
+
   # Check if email address is an alias owned by the user
   defp user_alias?(email_address, user_id) do
     case Email.get_alias_by_email(email_address) do
       %Email.Alias{user_id: ^user_id, enabled: true} -> true
       _ -> false
     end
-  end
-
-  # Check if the address belongs to the same user through any owned mailbox variant.
-  defp same_user_cross_domain?(email_address, %Mailbox{user_id: user_id}) do
-    match?({:ok, _ownership}, Email.verify_email_ownership(email_address, user_id))
-  end
-
-  defp same_user_cross_domain?(_, _), do: false
-
-  # Helper to deliver to a single CC or BCC recipient
-  defp deliver_to_cc_or_bcc_recipient(
-         recipient_email,
-         email_params,
-         recipient_type,
-         sender_mailbox,
-         db_attachments
-       ) do
-    # Check if this is an internal recipient or the sender themselves
-    # Also check cross-domain matches across local domains
-    is_internal = is_internal_email?([recipient_email])
-
-    is_sender =
-      sender_mailbox && same_user_cross_domain?(recipient_email, sender_mailbox)
-
-    is_alias = sender_mailbox && user_alias?(recipient_email, sender_mailbox.user_id)
-
-    if is_internal || is_sender || is_alias do
-      # Deliver copy to their inbox
-      case find_internal_recipient_mailbox(recipient_email) do
-        {:error, :forward_to_external} ->
-          # This recipient has external forwarding - send via external delivery
-          clean_email = String.trim(String.downcase(recipient_email))
-
-          target_email =
-            case Email.resolve_alias(clean_email) do
-              alias_target when is_binary(alias_target) ->
-                alias_target
-
-              _ ->
-                case Email.get_mailbox_by_email(clean_email) do
-                  %Mailbox{forward_enabled: true, forward_to: mailbox_target}
-                  when is_binary(mailbox_target) and mailbox_target != "" ->
-                    mailbox_target
-
-                  _ ->
-                    nil
-                end
-            end
-
-          case target_email do
-            target when is_binary(target) ->
-              # For BCC, hide the BCC list when forwarding
-              forward_params =
-                if recipient_type == "bcc" do
-                  email_params
-                  |> Map.put(:to, target)
-                  |> Map.put(:bcc, nil)
-                else
-                  Map.put(email_params, :to, target)
-                end
-
-              case send_via_swoosh(forward_params) do
-                {:ok, _response} ->
-                  :ok
-
-                {:error, reason} ->
-                  Logger.error(
-                    "Failed to forward #{String.upcase(recipient_type)} to #{target}: #{inspect(reason)}"
-                  )
-              end
-
-            _ ->
-              :ok
-          end
-
-        {:ok, recipient_mailbox} ->
-          # For internal emails, use full attachments (with data)
-          attachments_to_store = email_params[:attachments] || db_attachments || %{}
-
-          # Create received message (hide BCC list for BCC recipients)
-          received_attrs = %{
-            message_id: generate_message_id(),
-            from: email_params[:from],
-            to: email_params[:to],
-            cc: email_params[:cc],
-            # Hide BCC for BCC recipients
-            bcc: if(recipient_type == "bcc", do: nil, else: email_params[:bcc]),
-            subject: email_params[:subject],
-            text_body: email_params[:text_body],
-            html_body: email_params[:html_body],
-            in_reply_to: email_params[:in_reply_to],
-            references: email_params[:references],
-            attachments: attachments_to_store,
-            mailbox_id: recipient_mailbox.id,
-            status: "received",
-            metadata:
-              enrich_metadata_for_pgp(
-                %{
-                  internal_delivery: true,
-                  recipient_type: recipient_type,
-                  received_at: DateTime.utc_now() |> DateTime.to_iso8601()
-                },
-                email_params
-              )
-          }
-
-          case Email.create_message(received_attrs) do
-            {:ok, _message} ->
-              :ok
-
-            {:error, reason} ->
-              Logger.error(
-                "Failed to deliver to #{String.upcase(recipient_type)} recipient #{recipient_email}: #{inspect(reason)}"
-              )
-          end
-
-        {:error, reason} ->
-          Logger.warning(
-            "Could not find mailbox for #{String.upcase(recipient_type)} recipient #{recipient_email}: #{inspect(reason)}"
-          )
-      end
-    end
-  end
-
-  # Deliver to internal recipients when the send also has external recipients.
-  defp deliver_to_internal_external_route_recipients(
-         sender_mailbox_id,
-         email_params,
-         internal_recipients,
-         db_attachments
-       ) do
-    sender_mailbox = Email.get_mailbox_internal(sender_mailbox_id)
-
-    Enum.each(internal_recipients.to, fn to_email ->
-      deliver_to_internal_recipient(to_email, email_params, "to", db_attachments)
-    end)
-
-    Enum.each(internal_recipients.cc, fn cc_email ->
-      deliver_to_cc_or_bcc_recipient(cc_email, email_params, "cc", sender_mailbox, db_attachments)
-    end)
-
-    Enum.each(internal_recipients.bcc, fn bcc_email ->
-      deliver_to_cc_or_bcc_recipient(
-        bcc_email,
-        email_params,
-        "bcc",
-        sender_mailbox,
-        db_attachments
-      )
-    end)
-
-    :ok
   end
 
   # Try to find a mailbox by cross-domain lookup (same username across local domains)
@@ -1665,50 +1746,6 @@ defmodule Elektrine.Email.Sender do
 
       _ ->
         {:error, :invalid_email}
-    end
-  end
-
-  # Store received copy of self-email
-  defp store_self_received_message(sender_mailbox_id, email_params, db_attachments) do
-    # For internal emails, use full attachments (with data) not just S3 metadata
-    attachments_to_store = email_params[:attachments] || db_attachments || %{}
-
-    message_attrs = %{
-      message_id: generate_message_id(),
-      from: email_params[:from],
-      to: email_params[:to],
-      cc: email_params[:cc],
-      bcc: email_params[:bcc],
-      subject: email_params[:subject],
-      text_body: email_params[:text_body],
-      html_body: email_params[:html_body],
-      in_reply_to: email_params[:in_reply_to],
-      references: email_params[:references],
-      attachments: attachments_to_store,
-      mailbox_id: sender_mailbox_id,
-      status: "received",
-      # Self-addressed mail should land in the inbox without looking like a new incoming message.
-      read: true,
-      category: "inbox",
-      metadata:
-        enrich_metadata_for_pgp(
-          %{
-            internal_delivery: true,
-            self_email: true,
-            sent_and_received: true,
-            delivered_at: DateTime.utc_now() |> DateTime.to_iso8601()
-          },
-          email_params
-        )
-    }
-
-    case Email.create_message(message_attrs) do
-      {:ok, message} ->
-        {:ok, message}
-
-      {:error, reason} ->
-        Logger.error("Failed to create self-email received copy: #{inspect(reason)}")
-        {:error, reason}
     end
   end
 

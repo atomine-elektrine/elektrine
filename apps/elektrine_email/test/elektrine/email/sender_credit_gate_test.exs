@@ -56,7 +56,7 @@ defmodule Elektrine.Email.SenderCreditGateTest do
   } do
     assert {:ok, _ledger_entry} = Credits.grant(sender.id, :email_credit, 1, "test_grant")
 
-    assert {:ok, %{status: "sent"}} =
+    assert {:ok, %{status: "queued"}} =
              Sender.send_email(sender.id, external_params(sender_mailbox.email))
 
     assert_received {:email, email}
@@ -70,7 +70,7 @@ defmodule Elektrine.Email.SenderCreditGateTest do
   } do
     assert {:ok, _ledger_entry} = Credits.grant(sender.id, :atomine_credit, 5, "test_grant")
 
-    assert {:ok, %{status: "sent"}} =
+    assert {:ok, %{status: "queued"}} =
              Sender.send_email(sender.id, external_params(sender_mailbox.email))
 
     assert_received {:email, _email}
@@ -100,7 +100,7 @@ defmodule Elektrine.Email.SenderCreditGateTest do
   } do
     sender = promote_to_trust_level(sender, 1)
 
-    assert {:ok, %{status: "sent"}} =
+    assert {:ok, %{status: "queued"}} =
              Sender.send_email(sender.id, external_params(sender_mailbox.email))
 
     assert_received {:email, _email}
