@@ -454,6 +454,7 @@ defmodule Elektrine.Email.Sender do
           params
           |> Map.delete(:raw_email)
           |> Map.delete("raw_email")
+          |> put_client_sender_header(raw_email)
           |> Map.put(:subject, subject)
           |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
           |> Map.put(:text_body, text_body || fallback_text_body)
@@ -503,6 +504,7 @@ defmodule Elektrine.Email.Sender do
     params
     |> Map.delete(:raw_email)
     |> Map.delete("raw_email")
+    |> put_client_sender_header(raw_email)
     |> Map.put(:subject, subject)
     |> put_if_present(:message_id, extract_raw_header_from_email(raw_email, "Message-ID"))
     |> Map.put(:text_body, body || params[:text_body] || params["text_body"])
@@ -545,6 +547,19 @@ defmodule Elektrine.Email.Sender do
   end
 
   defp extract_raw_header_from_email(_, _), do: nil
+
+  defp put_client_sender_header(params, raw_email) do
+    case extract_raw_header_from_email(raw_email, "From") do
+      from when is_binary(from) ->
+        from
+        |> HeaderDecoder.decode_mime_header()
+        |> HeaderSanitizer.sanitize_email_header()
+        |> then(&put_if_present(params, :client_from_header, &1))
+
+      _ ->
+        params
+    end
+  end
 
   defp raw_text_body_fallback(raw_email, nil, nil) when is_binary(raw_email) do
     case String.split(raw_email, ~r/\r?\n\r?\n/, parts: 2) do
@@ -628,7 +643,8 @@ defmodule Elektrine.Email.Sender do
 
   # Formats the From header with display name if available
   defp format_from_header(params, user, mailbox) do
-    email_address = params[:from]
+    email_address = normalize_email_address(params[:from]) || params[:from]
+    client_from_header = params[:client_from_header] || params["client_from_header"]
 
     # Check if sending from main mailbox addresses across configured local domains.
     main_addresses =
@@ -636,24 +652,40 @@ defmodule Elektrine.Email.Sender do
         [] -> [mailbox.email]
         variants -> variants
       end
+      |> Enum.map(&normalize_email_address/1)
+      |> Enum.reject(&is_nil/1)
 
     formatted_from =
-      if Elektrine.Strings.present?(user.display_name) &&
-           email_address in main_addresses do
-        # Only add display name for main addresses, not aliases
-        display_name = String.trim(user.display_name)
-        # Always quote display names for maximum compatibility with email services
-        # Escape any existing quotes in the display name
-        escaped_name = String.replace(display_name, "\"", "\\\"")
-        "\"#{escaped_name}\" <#{email_address}>"
-      else
-        # For aliases or if no display name, use the email address as-is
-        email_address
+      cond do
+        preserve_client_sender_header?(client_from_header, user.id) ->
+          HeaderSanitizer.sanitize_email_header(client_from_header)
+
+        Elektrine.Strings.present?(user.display_name) &&
+            email_address in main_addresses ->
+          # Only add display name for main addresses, not aliases
+          display_name = String.trim(user.display_name)
+          # Always quote display names for maximum compatibility with email services
+          # Escape any existing quotes in the display name
+          escaped_name = String.replace(display_name, "\"", "\\\"")
+          "\"#{escaped_name}\" <#{email_address}>"
+
+        true ->
+          # For aliases or if no display name, use the email address as-is
+          email_address
       end
 
     updated_params = Map.put(params, :from, formatted_from)
     {:ok, updated_params}
   end
+
+  defp preserve_client_sender_header?(from_header, user_id) when is_binary(from_header) do
+    case normalize_email_address(from_header) do
+      nil -> false
+      email -> match?({:ok, _ownership}, Email.verify_email_ownership(email, user_id))
+    end
+  end
+
+  defp preserve_client_sender_header?(_from_header, _user_id), do: false
 
   # Adds RFC 8058 unsubscribe headers to email params
   # Only adds headers if list_id is explicitly provided (i.e., this is a mass/marketing email)
@@ -889,19 +921,50 @@ defmodule Elektrine.Email.Sender do
 
   defp parse_email_list(emails) when is_binary(emails) do
     emails
-    |> String.split(",")
+    |> split_email_header_list()
+    |> Enum.map(&normalize_email_address/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp parse_email_list(emails) when is_list(emails) do
+    emails
+    |> Enum.flat_map(fn
+      {_name, email} -> split_email_header_list(email)
+      email when is_binary(email) -> split_email_header_list(email)
+      _ -> []
+    end)
+    |> Enum.map(&normalize_email_address/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp split_email_header_list(value) when is_binary(value) do
+    value
+    |> String.split(~r/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
     |> Enum.map(&String.trim/1)
     |> Enum.reject(&(&1 == ""))
   end
 
-  defp parse_email_list(emails) when is_list(emails), do: emails
+  defp split_email_header_list(_), do: []
+
+  defp normalize_email_address(value) when is_binary(value) do
+    value
+    |> Elektrine.Email.extract_email_address()
+    |> String.trim()
+    |> String.downcase()
+    |> case do
+      "" -> nil
+      email -> email
+    end
+  end
+
+  defp normalize_email_address(_), do: nil
 
   # Check if email is internal (between our domains)
   defp is_internal_email?(to_emails) when is_list(to_emails) do
     our_domains = Elektrine.Domains.receiving_email_domains()
 
     Enum.all?(to_emails, fn email ->
-      case String.split(String.trim(email), "@") do
+      case email |> normalize_email_address() |> to_string() |> String.split("@") do
         [_local, domain] -> String.downcase(domain) in our_domains
         _ -> false
       end
@@ -973,7 +1036,7 @@ defmodule Elektrine.Email.Sender do
 
   # Resolve a single email address and return {resolved_email, is_external}
   defp resolve_single_email(email) do
-    clean_email = String.trim(String.downcase(email))
+    clean_email = normalize_email_address(email) || ""
 
     # Check alias forwarding first
     case Email.resolve_alias(clean_email) do
@@ -1000,22 +1063,22 @@ defmodule Elektrine.Email.Sender do
   end
 
   defp recipient_cache_key(email) when is_binary(email) do
-    email
-    |> String.trim()
-    |> String.downcase()
+    normalize_email_address(email) || ""
   end
 
   defp recipient_cache_key(email), do: email |> to_string() |> recipient_cache_key()
 
   # Validates that the user owns the from address (mailbox or alias)
   defp validate_from_address_ownership(from_address, user_id) do
-    case Email.verify_email_ownership(from_address, user_id) do
+    clean_from_address = normalize_email_address(from_address)
+
+    case Email.verify_email_ownership(clean_from_address, user_id) do
       {:ok, ownership_type} ->
         {:ok, ownership_type}
 
       {:error, reason} ->
         Logger.warning(
-          "User #{user_id} attempted to send from unauthorized address #{from_address}: #{inspect(reason)}"
+          "User #{user_id} attempted to send from unauthorized address #{inspect(from_address)}: #{inspect(reason)}"
         )
 
         {:error, :unauthorized_from_address}
@@ -1374,13 +1437,22 @@ defmodule Elektrine.Email.Sender do
       {"cc", external_plan.cc},
       {"bcc", external_plan.bcc}
     ]
-    |> Enum.flat_map(fn {type, recipients} ->
-      recipients
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.uniq_by(&String.downcase/1)
-      |> Enum.map(&{type, &1})
+    |> Enum.flat_map(fn {type, recipients} -> Enum.map(recipients, &{type, &1}) end)
+    |> Enum.reduce({[], MapSet.new()}, fn {type, recipient}, {acc, seen} ->
+      case normalize_email_address(recipient) do
+        nil ->
+          {acc, seen}
+
+        email ->
+          if MapSet.member?(seen, email) do
+            {acc, seen}
+          else
+            {[{type, email} | acc], MapSet.put(seen, email)}
+          end
+      end
     end)
+    |> elem(0)
+    |> Enum.reverse()
   end
 
   defp internal_delivery_recipients(internal_plan) do
@@ -1389,13 +1461,35 @@ defmodule Elektrine.Email.Sender do
       {"cc", internal_plan.cc},
       {"bcc", internal_plan.bcc}
     ]
-    |> Enum.flat_map(fn {type, recipients} ->
-      recipients
-      |> Enum.map(&String.trim/1)
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.uniq_by(&String.downcase/1)
-      |> Enum.map(&{type, &1})
+    |> Enum.flat_map(fn {type, recipients} -> Enum.map(recipients, &{type, &1}) end)
+    |> Enum.reduce({[], MapSet.new()}, fn {type, recipient}, {acc, seen} ->
+      case internal_delivery_recipient_key(recipient) do
+        nil ->
+          {acc, seen}
+
+        key ->
+          if MapSet.member?(seen, key) do
+            {acc, seen}
+          else
+            {[{type, normalize_email_address(recipient)} | acc], MapSet.put(seen, key)}
+          end
+      end
     end)
+    |> elem(0)
+    |> Enum.reverse()
+  end
+
+  defp internal_delivery_recipient_key(recipient) do
+    case normalize_email_address(recipient) do
+      nil ->
+        nil
+
+      email ->
+        case find_internal_recipient_mailbox(email) do
+          {:ok, %Mailbox{id: mailbox_id}} -> {:mailbox, mailbox_id}
+          _ -> {:address, email}
+        end
+    end
   end
 
   defp validate_internal_delivery_targets(internal_plan) do

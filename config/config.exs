@@ -11,6 +11,18 @@ config :elektrine,
   ecto_repos: [Elektrine.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :mime, :types, %{
+  "application/gzip" => ["gz", "tgz"],
+  "application/x-xz" => ["xz"],
+  "audio/flac" => ["flac"],
+  "audio/mp4" => ["m4a"],
+  "audio/ogg" => ["ogg"],
+  "message/rfc822" => ["eml"],
+  "text/plain" => ["txt", "text", "log"],
+  "text/vcard" => ["vcf"],
+  "video/x-matroska" => ["mkv"]
+}
+
 config :elektrine,
   # In production this is enabled in runtime.exs.
   enforce_https: false,
