@@ -38,10 +38,10 @@ defmodule ElektrineWeb.PostHogErrorReporter do
         conn
         |> logger_metadata()
         |> Map.merge(%{
-          conn: conn,
           crash_reason: crash_reason(kind, reason, stacktrace),
           posthog_source: :phoenix_error_rendered
-        }),
+        })
+        |> Map.merge(conn_metadata(conn)),
       msg:
         {:report,
          %{
@@ -73,6 +73,21 @@ defmodule ElektrineWeb.PostHogErrorReporter do
 
   defp crash_reason(kind, reason, stacktrace),
     do: {Exception.normalize(kind, reason, stacktrace), stacktrace}
+
+  defp conn_metadata(conn) do
+    %{
+      method: conn.method,
+      path: conn.request_path,
+      user_agent: conn |> Plug.Conn.get_req_header("user-agent") |> List.first(),
+      remote_ip: format_remote_ip(conn.remote_ip)
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
+  end
+
+  defp format_remote_ip(nil), do: nil
+  defp format_remote_ip(ip) when is_tuple(ip), do: :inet.ntoa(ip) |> to_string()
+  defp format_remote_ip(ip), do: to_string(ip)
 
   defp posthog_config do
     with true <- posthog_error_tracking_enabled?(),
