@@ -5,6 +5,32 @@ defmodule ElektrineWeb.MastodonAPIControllerTest do
   alias Elektrine.OAuth.App
 
   describe "app credentials" do
+    test "app registration accepts Mastodon scopes string", %{conn: conn} do
+      app_conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/api/v1/apps", %{
+          "client_name" => "Mastodon iOS",
+          "redirect_uris" => "mastodon://joinmastodon.org/oauth",
+          "scopes" => "read write follow push"
+        })
+
+      %{"client_id" => client_id, "client_secret" => client_secret} = json_response(app_conn, 200)
+
+      token_conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/oauth/token", %{
+          "grant_type" => "client_credentials",
+          "client_id" => client_id,
+          "client_secret" => client_secret,
+          "scope" => "read write follow push"
+        })
+
+      assert %{"access_token" => _access_token, "scope" => "read write follow push"} =
+               json_response(token_conn, 200)
+    end
+
     test "app-only tokens can verify app credentials", %{conn: conn} do
       {:ok, app} =
         OAuth.create_app(%{
@@ -34,6 +60,27 @@ defmodule ElektrineWeb.MastodonAPIControllerTest do
 
       assert %{"id" => app_id, "name" => "Mobile Client"} = json_response(verify_conn, 200)
       assert app_id == to_string(app.id)
+    end
+
+    test "invalid token scopes return JSON instead of crashing fallback", %{conn: conn} do
+      {:ok, app} =
+        OAuth.create_app(%{
+          client_name: "Read Only Mobile Client",
+          redirect_uris: "mastodon://oauth",
+          scopes: ["read"]
+        })
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/oauth/token", %{
+          "grant_type" => "client_credentials",
+          "client_id" => app.client_id,
+          "client_secret" => App.client_secret_value(app),
+          "scope" => "read write follow push"
+        })
+
+      assert %{"error" => "Invalid scope"} = json_response(conn, 422)
     end
   end
 

@@ -6,7 +6,7 @@ defmodule ElektrineWeb.PortalLiveTest do
   import Elektrine.SocialFixtures,
     only: [discussion_post_fixture: 1, media_post_fixture: 1, post_fixture: 1]
 
-  alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, Social}
+  alias Elektrine.{AccountsFixtures, Friends, Messaging, Profiles, Repo, RSS, Social}
   alias Elektrine.ActivityPub.Actor
   alias ElektrineWeb.PortalLive.Index
 
@@ -60,7 +60,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert Index.loader_log_label({:for_you_feed, "all"}) == "{:for_you_feed, \"all\"}"
   end
 
-  test "shell includes a global composer menu", %{conn: conn} do
+  test "shell prioritizes RSS reading controls", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, _view, html} =
@@ -69,9 +69,118 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> live(~p"/portal?filter=timeline")
 
     assert html =~ ~s(data-test="global-composer")
-    assert html =~ "Quick Create"
-    assert html =~ "/account/notes?new=true"
-    assert html =~ "/calendar?composer=task"
+    assert html =~ "Feed Reader"
+    assert html =~ "/settings/rss"
+    refute html =~ "Your activity"
+  end
+
+  test "portal renders RSS items before the social feed", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/feed.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Example Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    {:ok, _item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-rss-item",
+        title: "Portal RSS headline",
+        summary: "A useful article from a subscribed feed.",
+        url: "https://example.com/articles/portal-rss-headline",
+        published_at: DateTime.utc_now()
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    assert html =~ "Reading"
+    assert html =~ "Portal RSS headline"
+    assert html =~ "Example Feed"
+    assert html =~ "A useful article from a subscribed feed."
+    assert html =~ "Social feed"
+  end
+
+  test "portal RSS reader filters by source and previews full selected item", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed_a} = RSS.get_or_create_feed("https://example.com/feed-a.xml")
+    {:ok, feed_a} = RSS.update_feed(feed_a, %{title: "Example A", status: "active"})
+    {:ok, _subscription_a} = RSS.subscribe(user.id, feed_a.url)
+
+    {:ok, feed_b} = RSS.get_or_create_feed("https://example.org/feed-b.xml")
+    {:ok, feed_b} = RSS.update_feed(feed_b, %{title: "Example B", status: "active"})
+    {:ok, _subscription_b} = RSS.subscribe(user.id, feed_b.url)
+
+    {:ok, item_a} =
+      RSS.upsert_item(feed_a.id, %{
+        guid: "portal-reader-a",
+        title: "Rust analysis roundup",
+        summary: "Systems programming notes for the week.",
+        content:
+          "Full systems article body with enough detail to make the preview useful without opening the original.",
+        url: "https://example.com/rust-analysis-roundup",
+        image_url: "https://example.com/rust-analysis.jpg",
+        author: "Ada",
+        categories: ["systems"],
+        published_at: ~U[2026-05-14 00:00:00Z]
+      })
+
+    {:ok, _item_b} =
+      RSS.upsert_item(feed_b.id, %{
+        guid: "portal-reader-b",
+        title: "Garden planning dispatch",
+        summary: "Plants, soil, and spring notes.",
+        url: "https://example.org/garden-planning-dispatch",
+        published_at: ~U[2026-05-13 00:00:00Z]
+      })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    assert html =~ ~s(data-role="rss-reader-list")
+    assert html =~ "Rust analysis roundup"
+    assert html =~ "Garden planning dispatch"
+
+    html = render_click(view, "set_rss_source", %{"source" => Integer.to_string(feed_b.id)})
+    assert html =~ "Garden planning dispatch"
+    refute html =~ "Rust analysis roundup"
+
+    render_click(view, "set_rss_source", %{"source" => "all"})
+    html = render_click(view, "select_rss_item", %{"item_id" => Integer.to_string(item_a.id)})
+    assert html =~ "Read original"
+    assert html =~ "Full systems article body with enough detail"
+    assert html =~ "background-image"
+    assert html =~ "Ada"
+    assert html =~ "systems"
+  end
+
+  test "portal RSS reader derives image backgrounds from existing item content", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.net/feed.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Image Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    {:ok, item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-content-image",
+        title: "Article with inline image",
+        content: ~s(<p>Article body</p><img src="/images/story.jpg" />),
+        url: "https://example.net/posts/story",
+        published_at: ~U[2026-05-14 00:00:00Z]
+      })
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    html = render_click(view, "select_rss_item", %{"item_id" => Integer.to_string(item.id)})
+
+    assert html =~ "Article with inline image"
+    assert html =~ "https://example.net/images/story.jpg"
+    assert html =~ "background-image"
   end
 
   test "recent activity list is rendered as a scroll container", %{conn: conn} do
@@ -325,7 +434,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     refute html =~ "Portal timeline fill token 25"
   end
 
-  test "following stat opens the current user's following list", %{conn: conn} do
+  test "activity inspector can open the current user's following list", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     followed_user = AccountsFixtures.user_fixture()
 
@@ -339,15 +448,13 @@ defmodule ElektrineWeb.PortalLiveTest do
     send(view.pid, :load_stats_data)
     render(view)
 
-    view
-    |> element(~s(button[data-action="show-following"]))
-    |> render_click()
+    render_click(view, "inspect_activity", %{"section" => "following"})
 
     assert render(view) =~ "Following"
     assert render(view) =~ "@#{followed_user.handle || followed_user.username}"
   end
 
-  test "activity stats expose inspector actions", %{conn: conn} do
+  test "activity metric cards are not rendered on the reading-first portal", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, _html} =
@@ -358,17 +465,9 @@ defmodule ElektrineWeb.PortalLiveTest do
     send(view.pid, :load_stats_data)
     render(view)
 
-    assert has_element?(view, ~s(button[phx-click="inspect_activity"][phx-value-section="posts"]))
-
-    assert has_element?(
-             view,
-             ~s(button[phx-click="inspect_activity"][phx-value-section="followers"][data-action="show-followers"])
-           )
-
-    assert has_element?(
-             view,
-             ~s(button[phx-click="inspect_activity"][phx-value-section="following"][data-action="show-following"])
-           )
+    refute has_element?(view, ~s(button[phx-click="inspect_activity"][phx-value-section="posts"]))
+    refute has_element?(view, ~s(button[data-action="show-followers"]))
+    refute has_element?(view, ~s(button[data-action="show-following"]))
   end
 
   test "posts inspector paginates larger activity lists", %{conn: conn} do
@@ -391,9 +490,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     send(view.pid, :load_stats_data)
     render(view)
 
-    view
-    |> element(~s(button[phx-click="inspect_activity"][phx-value-section="posts"]))
-    |> render_click()
+    render_click(view, "inspect_activity", %{"section" => "posts"})
 
     html = render(view)
 

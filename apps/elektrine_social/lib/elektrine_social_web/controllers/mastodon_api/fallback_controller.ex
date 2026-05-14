@@ -35,6 +35,13 @@ defmodule ElektrineSocialWeb.MastodonAPI.FallbackController do
     |> render(:error, error: "This action is outside the authorized scopes")
   end
 
+  def call(conn, {:error, :invalid_scope}) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> put_view(json: ElektrineSocialWeb.MastodonAPI.ErrorView)
+    |> render(:error, error: "Invalid scope")
+  end
+
   def call(conn, {:error, :rate_limited}) do
     conn
     |> put_status(:too_many_requests)

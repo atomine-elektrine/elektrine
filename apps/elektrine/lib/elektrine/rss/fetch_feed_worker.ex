@@ -140,7 +140,7 @@ defmodule Elektrine.RSS.FetchFeedWorker do
             url: entry.link,
             author: entry.author,
             published_at: entry.published_at,
-            image_url: detect_image(entry),
+            image_url: entry[:image_url] || detect_image(entry),
             enclosure_url: entry.enclosure_url,
             enclosure_type: entry.enclosure_type,
             categories: entry.categories || []

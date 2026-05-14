@@ -54,6 +54,10 @@ defmodule Elektrine.RSS.Parser do
           pub_date: ~x"./pubDate/text()"os,
           enclosure_url: ~x"./enclosure/@url"os,
           enclosure_type: ~x"./enclosure/@type"os,
+          media_content_url: ~x"./*[local-name()='content']/@url"os,
+          media_content_type: ~x"./*[local-name()='content']/@type"os,
+          media_thumbnail_url: ~x"./*[local-name()='thumbnail']/@url"os,
+          itunes_image_url: ~x"./*[local-name()='image']/@href"os,
           categories: ~x"./category/text()"ls
         ]
       )
@@ -68,6 +72,7 @@ defmodule Elektrine.RSS.Parser do
           summary: entry.description,
           author: entry.author || entry.dc_creator,
           published_at: parse_date(entry.pub_date),
+          image_url: entry_image_url(entry, feed.link),
           enclosure_url: entry.enclosure_url,
           enclosure_type: entry.enclosure_type,
           categories: entry.categories
@@ -96,6 +101,9 @@ defmodule Elektrine.RSS.Parser do
           title: ~x"./*[local-name()='title']/text()"os,
           link: ~x"./*[local-name()='link']/text()"os,
           description: ~x"./*[local-name()='description']/text()"os,
+          media_content_url: ~x"./*[local-name()='content']/@url"os,
+          media_content_type: ~x"./*[local-name()='content']/@type"os,
+          media_thumbnail_url: ~x"./*[local-name()='thumbnail']/@url"os,
           dc_date: ~x"./*[local-name()='date']/text()"os
         ]
       )
@@ -110,6 +118,7 @@ defmodule Elektrine.RSS.Parser do
           summary: entry.description,
           author: nil,
           published_at: parse_date(entry.dc_date),
+          image_url: entry_image_url(entry, feed.link),
           enclosure_url: nil,
           enclosure_type: nil,
           categories: []
@@ -142,6 +151,12 @@ defmodule Elektrine.RSS.Parser do
           title: ~x"./*[local-name()='title']/text()"os,
           link: ~x"./*[local-name()='link' and @rel='alternate']/@href"os,
           link_default: ~x"./*[local-name()='link']/@href"os,
+          image_link: ~x"./*[local-name()='link' and starts-with(@type, 'image/')]/@href"os,
+          enclosure_image_url:
+            ~x"./*[local-name()='link' and @rel='enclosure' and starts-with(@type, 'image/')]/@href"os,
+          media_content_url: ~x"./*[local-name()='content']/@url"os,
+          media_content_type: ~x"./*[local-name()='content']/@type"os,
+          media_thumbnail_url: ~x"./*[local-name()='thumbnail']/@url"os,
           content: ~x"./*[local-name()='content']/text()"os,
           summary: ~x"./*[local-name()='summary']/text()"os,
           author_name: ~x"./*[local-name()='author']/*[local-name()='name']/text()"os,
@@ -163,6 +178,7 @@ defmodule Elektrine.RSS.Parser do
           summary: entry.summary,
           author: entry.author_name,
           published_at: parse_date(entry.published || entry.updated),
+          image_url: entry_image_url(entry, link || feed.link || feed.link_self),
           enclosure_url: nil,
           enclosure_type: nil,
           categories: entry.categories || []
@@ -209,6 +225,57 @@ defmodule Elektrine.RSS.Parser do
 
       true ->
         author
+    end
+  end
+
+  defp entry_image_url(entry, base_url) do
+    [
+      image_media_url(entry.media_content_url, Map.get(entry, :media_content_type)),
+      Map.get(entry, :media_thumbnail_url),
+      Map.get(entry, :itunes_image_url),
+      Map.get(entry, :image_link),
+      Map.get(entry, :enclosure_image_url),
+      image_enclosure_url(Map.get(entry, :enclosure_url), Map.get(entry, :enclosure_type)),
+      html_image_url(Map.get(entry, :content)),
+      html_image_url(Map.get(entry, :description)),
+      html_image_url(Map.get(entry, :summary))
+    ]
+    |> Enum.find_value(&absolute_image_url(&1, base_url))
+  end
+
+  defp image_media_url(url, type) when is_binary(url) and is_binary(type) do
+    if String.starts_with?(String.downcase(type), "image/"), do: url
+  end
+
+  defp image_media_url(url, _type) when is_binary(url), do: url
+  defp image_media_url(_url, _type), do: nil
+
+  defp image_enclosure_url(url, type) when is_binary(url) and is_binary(type) do
+    if String.starts_with?(String.downcase(type), "image/"), do: url
+  end
+
+  defp image_enclosure_url(_url, _type), do: nil
+
+  defp html_image_url(html) when is_binary(html) do
+    case Regex.run(~r/<img\b[^>]*\bsrc=["']([^"']+)["']/i, html) do
+      [_, url] -> url
+      _ -> nil
+    end
+  end
+
+  defp html_image_url(_html), do: nil
+
+  defp absolute_image_url(nil, _base_url), do: nil
+  defp absolute_image_url("", _base_url), do: nil
+
+  defp absolute_image_url(url, base_url) when is_binary(url) do
+    url = String.trim(url)
+
+    cond do
+      String.starts_with?(url, "//") -> "https:#{url}"
+      URI.parse(url).scheme in ["http", "https"] -> url
+      is_binary(base_url) -> URI.merge(base_url, url) |> URI.to_string()
+      true -> nil
     end
   end
 

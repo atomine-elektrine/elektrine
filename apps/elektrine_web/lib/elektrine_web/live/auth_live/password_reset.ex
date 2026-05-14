@@ -74,27 +74,25 @@ defmodule ElektrineWeb.AuthLive.PasswordReset do
                   </div>
                 <% else %>
                   <%= if @atomine_pow_enabled do %>
-                    <div class="rounded-box border border-base-300 bg-base-200/50 p-3">
+                    <div class="rounded-lg border border-base-300 bg-base-100 p-4 text-sm">
                       <div
                         id="password-reset-atomine-pow"
                         phx-hook="AtominePow"
                         data-difficulty={@atomine_pow_difficulty}
                       >
-                        <div class="flex items-start gap-3 text-left">
-                          <div class="rounded-box bg-base-300/70 p-2 text-base-content/70">
-                            <.icon name="hero-cpu-chip" class="h-4 w-4" />
+                        <div class="space-y-2 text-left">
+                          <div class="flex items-start justify-between gap-3">
+                            <p class="font-semibold">Atomine abuse check</p>
+                            <span class="rounded-full bg-base-200 px-2 py-0.5 text-[11px] text-base-content/70">
+                              work level {@atomine_pow_difficulty}
+                            </span>
                           </div>
-                          <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2 text-sm">
-                              <span class="font-semibold">Atomine Gate</span>
-                              <span class="badge badge-outline badge-xs font-mono">
-                                difficulty {@atomine_pow_difficulty}
-                              </span>
-                            </div>
-                            <p class="text-xs text-base-content/70" data-atomine-pow-status>
-                              two-layer gate: SHA-256 proof-of-work plus browser instrumentation, exchanged for an anonymous effort token.
-                            </p>
-                          </div>
+                          <p class="text-xs leading-relaxed text-base-content/70">
+                            Before sending the reset link, your browser does a short calculation. This slows automated requests without asking you to solve a puzzle.
+                          </p>
+                          <p class="text-xs text-base-content/60" data-atomine-pow-status>
+                            This runs when you press Send Reset Link and usually takes a few seconds.
+                          </p>
                         </div>
                       </div>
                     </div>

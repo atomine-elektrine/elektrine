@@ -96,6 +96,51 @@ defmodule Elektrine.RSS.ParserTest do
       assert entry.enclosure_type == "audio/mpeg"
     end
 
+    test "extracts RSS item images from common feed extensions and content" do
+      xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+        <channel>
+          <title>Images</title>
+          <link>https://example.com/news/</link>
+          <item>
+            <title>Media content</title>
+            <link>https://example.com/news/media</link>
+            <guid>media</guid>
+            <media:content url="https://cdn.example.com/media.jpg" type="image/jpeg" />
+          </item>
+          <item>
+            <title>Media thumbnail</title>
+            <link>https://example.com/news/thumb</link>
+            <guid>thumb</guid>
+            <media:thumbnail url="https://cdn.example.com/thumb.jpg" />
+          </item>
+          <item>
+            <title>iTunes image</title>
+            <link>https://example.com/news/itunes</link>
+            <guid>itunes</guid>
+            <itunes:image href="https://cdn.example.com/itunes.jpg" />
+          </item>
+          <item>
+            <title>Content image</title>
+            <link>https://example.com/news/content</link>
+            <guid>content</guid>
+            <description><![CDATA[<p>Story</p><img src="/images/content.jpg" />]]></description>
+          </item>
+        </channel>
+      </rss>
+      """
+
+      {:ok, feed} = Parser.parse(xml)
+
+      assert Enum.map(feed.entries, & &1.image_url) == [
+               "https://cdn.example.com/media.jpg",
+               "https://cdn.example.com/thumb.jpg",
+               "https://cdn.example.com/itunes.jpg",
+               "https://example.com/images/content.jpg"
+             ]
+    end
+
     test "parses RSS 2.0 with categories" do
       xml = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -312,6 +357,35 @@ defmodule Elektrine.RSS.ParserTest do
 
       # Logo takes precedence
       assert feed.image_url == "https://test.com/logo.png"
+    end
+
+    test "extracts Atom item images from image links and HTML content" do
+      xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
+        <title>Atom Images</title>
+        <link rel="alternate" href="https://atom.example.com/" />
+        <entry>
+          <id>atom-image-link</id>
+          <title>Atom image link</title>
+          <link rel="alternate" href="https://atom.example.com/image-link" />
+          <link rel="enclosure" type="image/png" href="https://cdn.example.com/atom-link.png" />
+        </entry>
+        <entry>
+          <id>atom-content-image</id>
+          <title>Atom content image</title>
+          <link rel="alternate" href="https://atom.example.com/content-image" />
+          <content type="html"><![CDATA[<p>Body</p><img src="/img/atom-content.png" />]]></content>
+        </entry>
+      </feed>
+      """
+
+      {:ok, feed} = Parser.parse(xml)
+
+      assert Enum.map(feed.entries, & &1.image_url) == [
+               "https://cdn.example.com/atom-link.png",
+               "https://atom.example.com/img/atom-content.png"
+             ]
     end
   end
 

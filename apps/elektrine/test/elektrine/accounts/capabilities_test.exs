@@ -1,6 +1,7 @@
 defmodule Elektrine.Accounts.CapabilitiesTest do
   use Elektrine.DataCase, async: false
 
+  alias Atomine.Personhood
   alias Elektrine.Accounts.Capabilities
   alias Elektrine.AccountsFixtures
   alias Elektrine.Repo
@@ -27,6 +28,29 @@ defmodule Elektrine.Accounts.CapabilitiesTest do
            } = Capabilities.email_limits(user)
   end
 
+  test "verified proof reputation raises effective email tier without mutating trust level" do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, dns_proof} = Personhood.create_proof(user, %{kind: "dns", subject: unique_domain()})
+    {:ok, _verified_dns} = Personhood.verify_proof(dns_proof)
+
+    assert %{tier: :tl1, day_limit: 200, recipient_limit: 50} = Capabilities.email_limits(user)
+    assert Repo.reload!(user).trust_level == 0
+
+    {:ok, web_proof} =
+      Personhood.create_proof(user, %{kind: "web", subject: "https://#{unique_domain()}/proof"})
+
+    {:ok, _verified_web} = Personhood.verify_proof(web_proof)
+
+    assert %{tier: :tl2, day_limit: 500, recipient_limit: 100} = Capabilities.email_limits(user)
+
+    snapshot = Capabilities.snapshot(user)
+
+    assert snapshot.trust_level == 0
+    assert snapshot.effective_trust_level == 2
+    assert snapshot.capabilities.email.tier == :tl2
+  end
+
   test "credit gates require credits only for low-trust users when enabled" do
     previous_config = Application.get_env(:atomine, :credits, [])
 
@@ -43,6 +67,16 @@ defmodule Elektrine.Accounts.CapabilitiesTest do
 
     assert :free = Capabilities.email_credit_requirement(trusted_user)
     assert :free = Capabilities.first_dm_credit_requirement(trusted_user)
+
+    proof_backed_user = AccountsFixtures.user_fixture()
+
+    {:ok, proof} =
+      Personhood.create_proof(proof_backed_user, %{kind: "dns", subject: unique_domain()})
+
+    {:ok, _verified} = Personhood.verify_proof(proof)
+
+    assert :free = Capabilities.email_credit_requirement(proof_backed_user)
+    assert :free = Capabilities.first_dm_credit_requirement(proof_backed_user)
   end
 
   test "snapshot ties trust, reputation, credits, email, vpn, and invites together" do
@@ -56,5 +90,9 @@ defmodule Elektrine.Accounts.CapabilitiesTest do
     assert snapshot.capabilities.email.tier == :day_1
     assert snapshot.capabilities.vpn.allowed == true
     assert snapshot.capabilities.invites.self_service_allowed == false
+  end
+
+  defp unique_domain do
+    "proof-#{System.unique_integer([:positive])}.example.com"
   end
 end

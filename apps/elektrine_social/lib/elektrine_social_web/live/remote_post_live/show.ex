@@ -1049,8 +1049,21 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
               if is_map(parent_post), do: parent_post["content"], else: nil
 
             local_parent_id = SurfaceHelpers.ancestor_local_message_id(parent_post)
-            has_external_link = http_url?(parent_ref) %>
-            <div class="card panel-card rounded-lg px-3 py-2.5 transition-colors hover:bg-base-200/60">
+            has_external_link = http_url?(parent_ref)
+
+            parent_target =
+              cond do
+                is_integer(local_parent_id) -> Paths.post_path(local_parent_id)
+                has_external_link -> Paths.post_path(parent_ref)
+                true -> nil
+              end %>
+            <div
+              class={[
+                "card panel-card rounded-lg px-3 py-2.5 transition-colors hover:bg-base-200/60",
+                parent_target && "cursor-pointer"
+              ]}
+              phx-click={parent_target && Phoenix.LiveView.JS.navigate(parent_target)}
+            >
               <article>
                 <div class="flex items-start gap-2 min-w-0">
                   <%= if parent_actor && Elektrine.Strings.present?(parent_actor.avatar_url) do %>
@@ -1070,22 +1083,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
                       <%= if parent_domain do %>
                         <span class="break-words text-base-content/55">on {parent_domain}</span>
                       <% end %>
-                      <%= if is_integer(local_parent_id) do %>
-                        <.link
-                          navigate={Paths.post_path(local_parent_id)}
-                          class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-                        >
+                      <%= if parent_target do %>
+                        <span class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary">
                           Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
-                        </.link>
-                      <% else %>
-                        <%= if has_external_link do %>
-                          <.link
-                            navigate={Paths.post_path(parent_ref)}
-                            class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
-                          >
-                            Open parent <.icon name="hero-arrow-right" class="w-3 h-3" />
-                          </.link>
-                        <% end %>
+                        </span>
                       <% end %>
                     </div>
                   </div>
@@ -2140,7 +2141,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     ]
     |> Enum.map(&normalize_http_url/1)
     |> Enum.find(fn url ->
-      is_binary(url) && url != message_id && url != message_url
+      is_binary(url) && !same_activitypub_object_url?(url, message_id) &&
+        !same_activitypub_object_url?(url, message_url)
     end)
   end
 
@@ -2178,7 +2180,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp submitted_url_host(_), do: nil
 
-  defp effective_link_preview(local_message, submitted_link_preview, submitted_url \\ nil) do
+  defp effective_link_preview(local_message, submitted_link_preview, submitted_url) do
     cond do
       match?(%Elektrine.Social.LinkPreview{status: "success"}, submitted_link_preview) and
           preview_matches_submitted_url?(submitted_link_preview, submitted_url) ->
@@ -2186,12 +2188,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
       match?(%{link_preview: %Elektrine.Social.LinkPreview{status: "success"}}, local_message) and
           preview_matches_submitted_url?(local_message.link_preview, submitted_url) ->
-        local_message.link_preview
-
-      match?(%Elektrine.Social.LinkPreview{status: "success"}, submitted_link_preview) ->
-        submitted_link_preview
-
-      match?(%{link_preview: %Elektrine.Social.LinkPreview{status: "success"}}, local_message) ->
         local_message.link_preview
 
       true ->
@@ -2389,7 +2385,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   defp quote_message_path(_), do: nil
 
   defp valid_submitted_url?(url, post_id) when is_binary(url) do
-    url != post_id && String.starts_with?(url, ["http://", "https://"])
+    String.starts_with?(url, ["http://", "https://"]) &&
+      !same_activitypub_object_url?(url, post_id)
   end
 
   defp valid_submitted_url?(_, _), do: false
@@ -2519,6 +2516,53 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp normalize_http_url(_), do: nil
+
+  defp same_activitypub_object_url?(url, other_url)
+       when is_binary(url) and is_binary(other_url) do
+    normalized_url = normalize_http_url(url)
+    normalized_other_url = normalize_http_url(other_url)
+
+    cond do
+      !is_binary(normalized_url) || !is_binary(normalized_other_url) ->
+        false
+
+      normalized_url == normalized_other_url ->
+        true
+
+      true ->
+        same_status_permalink?(normalized_url, normalized_other_url)
+    end
+  end
+
+  defp same_activitypub_object_url?(_, _), do: false
+
+  defp same_status_permalink?(url, other_url) do
+    with %URI{host: host} = uri when is_binary(host) <- URI.parse(url),
+         %URI{host: ^host} = other_uri <- URI.parse(other_url),
+         segment when is_binary(segment) <- terminal_path_segment(uri.path),
+         ^segment <- terminal_path_segment(other_uri.path) do
+      status_permalink_path?(uri.path) || status_permalink_path?(other_uri.path)
+    else
+      _ -> false
+    end
+  end
+
+  defp terminal_path_segment(path) when is_binary(path) do
+    path
+    |> String.split("/", trim: true)
+    |> List.last()
+  end
+
+  defp terminal_path_segment(_), do: nil
+
+  defp status_permalink_path?(path) when is_binary(path) do
+    segments = String.split(path, "/", trim: true)
+
+    Enum.any?(segments, &(&1 == "statuses")) ||
+      Enum.any?(segments, &String.starts_with?(&1, "@"))
+  end
+
+  defp status_permalink_path?(_), do: false
 
   defp extract_http_url_from_content(content) when is_binary(content) do
     with [_, href] <- Regex.run(~r/href=["']([^"']+)["']/i, content),

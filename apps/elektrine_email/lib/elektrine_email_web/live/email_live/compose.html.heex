@@ -520,6 +520,7 @@
                   <input
                     type="datetime-local"
                     name="email[send_at]"
+                    value={@form[:send_at].value}
                     class="input input-bordered w-full text-sm"
                     min={
                       DateTime.utc_now()

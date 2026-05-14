@@ -74,47 +74,93 @@ done
 
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 
-awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v tor_enabled="$TOR_ENABLED" -v turn_enabled="$COTURN_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
+awk -v release_modules="$RELEASE_MODULES" -v enabled_modules="$ENABLED_MODULES" -v selected_profiles="$RAW_PROFILES" -v tor_enabled="$TOR_ENABLED" -v turn_enabled="$COTURN_ENABLED" -v caddy_config_default="$CADDY_DEFAULT_CONFIG_PATH" '
+  function profile_selected(profile) {
+    return index(" " selected_profiles " ", " " profile " ") > 0
+  }
+
+  function process_line(line, inline_profile) {
+    if (line ~ /^[[:space:]]*profiles:[[:space:]]*\[[^]]+\]/) {
+      inline_profile = line
+      sub(/^.*\["/, "", inline_profile)
+      sub(/"\].*$/, "", inline_profile)
+
+      if (profile_selected(inline_profile)) {
+        return
+      }
+    }
+
+    print line
+  }
+
+  pending_profiles_line != "" {
+    profile_line = $0
+    profile_name = profile_line
+    sub(/^[[:space:]]*-[[:space:]]*/, "", profile_name)
+    sub(/[[:space:]]*$/, "", profile_name)
+
+    if (profile_line ~ /^[[:space:]]*-[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*$/ && profile_selected(profile_name)) {
+      pending_profiles_line = ""
+      next
+    }
+
+    print pending_profiles_line
+    pending_profiles_line = ""
+    process_line($0)
+    next
+  }
+
+  /^[[:space:]]*profiles:[[:space:]]*$/ {
+    pending_profiles_line = $0
+    next
+  }
+
   /\$\{ELEKTRINE_IMAGE:-[^}]*\}/ {
     if (ENVIRON["ELEKTRINE_IMAGE"] != "") {
       sub(/\$\{ELEKTRINE_IMAGE:-[^}]*\}/, ENVIRON["ELEKTRINE_IMAGE"])
     }
-    print
+    process_line($0)
     next
   }
 
   /ELEKTRINE_RELEASE_MODULES:/ {
     sub(/\$\{ELEKTRINE_RELEASE_MODULES:-[^}]*\}/, "${ELEKTRINE_RELEASE_MODULES:-" release_modules "}")
-    print
+    process_line($0)
     next
   }
 
   /ELEKTRINE_ENABLED_MODULES:/ {
     sub(/\$\{ELEKTRINE_ENABLED_MODULES:-[^}]*\}/, "${ELEKTRINE_ENABLED_MODULES:-" enabled_modules "}")
-    print
+    process_line($0)
     next
   }
 
   /ELEKTRINE_ENABLE_TOR:/ {
     sub(/\$\{ELEKTRINE_ENABLE_TOR:-[^}]*\}/, "${ELEKTRINE_ENABLE_TOR:-" tor_enabled "}")
-    print
+    process_line($0)
     next
   }
 
   /TURN_ENABLED:/ {
     sub(/\$\{TURN_ENABLED:-[^}]*\}/, "${TURN_ENABLED:-" turn_enabled "}")
-    print
+    process_line($0)
     next
   }
 
   /\/etc\/caddy\/Caddyfile:ro/ {
     sub(/\$\{CADDY_CONFIG_PATH:-[^}]*\}/, "${CADDY_CONFIG_PATH:-" caddy_config_default "}")
-    print
+    process_line($0)
     next
   }
 
   {
-    print
+    process_line($0)
+  }
+
+  END {
+    if (pending_profiles_line != "") {
+      print pending_profiles_line
+    }
   }
 ' "$TEMPLATE_PATH" > "$OUTPUT_PATH"
 

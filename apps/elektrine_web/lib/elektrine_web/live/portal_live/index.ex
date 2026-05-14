@@ -9,6 +9,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   alias Elektrine.Platform.Modules
   alias Elektrine.Profiles
   alias Elektrine.Repo
+  alias Elektrine.RSS
   alias Elektrine.Security.SafeExternalURL
   alias Elektrine.Social.Messages, as: MessagingMessages
   alias ElektrineWeb.Components.Social.PostUtilities
@@ -54,6 +55,8 @@ defmodule ElektrineWeb.PortalLive.Index do
 
       timezone = user.timezone || "Etc/UTC"
       time_format = user.time_format || "12"
+      rss_items = load_rss_items(user.id)
+      rss_subscriptions = load_rss_subscriptions(user.id)
 
       socket =
         socket
@@ -83,6 +86,11 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:loading_stats, true)
         |> assign(:loading_dashboard, true)
         |> assign(:dashboard, default_dashboard())
+        |> assign(:rss_items, rss_items)
+        |> assign(:rss_subscriptions, rss_subscriptions)
+        |> assign(:rss_source_filter, "all")
+        |> assign(:rss_query, "")
+        |> assign(:selected_rss_item_id, selected_rss_item_id(rss_items))
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
         |> assign(:feed_posts_cache, %{})
@@ -153,6 +161,43 @@ defmodule ElektrineWeb.PortalLive.Index do
 
     {:noreply,
      push_patch(socket, to: ~p"/portal?#{[filter: socket.assigns.filter, attention: filter]}")}
+  end
+
+  def handle_event("set_rss_source", %{"source" => source}, socket) do
+    source = normalize_rss_source(source, socket.assigns.rss_subscriptions)
+    socket = assign(socket, :rss_source_filter, source)
+
+    {:noreply,
+     assign(
+       socket,
+       :selected_rss_item_id,
+       selected_rss_item_id(filtered_rss_items(socket.assigns))
+     )}
+  end
+
+  def handle_event("search_rss", %{"query" => query}, socket) do
+    socket = assign(socket, :rss_query, String.trim(query || ""))
+
+    {:noreply,
+     assign(
+       socket,
+       :selected_rss_item_id,
+       selected_rss_item_id(filtered_rss_items(socket.assigns))
+     )}
+  end
+
+  def handle_event("clear_rss_search", _params, socket) do
+    handle_event("search_rss", %{"query" => ""}, socket)
+  end
+
+  def handle_event("select_rss_item", %{"item_id" => item_id}, socket) do
+    item_id = parse_rss_item_id(item_id)
+
+    if Enum.any?(filtered_rss_items(socket.assigns), &(&1.id == item_id)) do
+      {:noreply, assign(socket, :selected_rss_item_id, item_id)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("show_following", _params, socket) do
@@ -1754,6 +1799,246 @@ defmodule ElektrineWeb.PortalLive.Index do
     get_user_boosts(user_id, posts)
   end
 
+  defp load_rss_items(user_id) do
+    RSS.get_timeline_items(user_id, limit: 18)
+  end
+
+  defp load_rss_subscriptions(user_id) do
+    RSS.list_subscriptions(user_id)
+  end
+
+  defp filtered_rss_items(assigns) do
+    source = assigns[:rss_source_filter] || "all"
+    query = String.downcase(assigns[:rss_query] || "")
+
+    assigns[:rss_items]
+    |> List.wrap()
+    |> Enum.filter(&(rss_source_matches?(&1, source) and rss_query_matches?(&1, query)))
+  end
+
+  defp selected_rss_item(items, selected_item_id) do
+    Enum.find(items, &(&1.id == selected_item_id)) || List.first(items)
+  end
+
+  defp selected_rss_item_id([%{id: id} | _]), do: id
+  defp selected_rss_item_id(_items), do: nil
+
+  defp normalize_rss_source("all", _subscriptions), do: "all"
+
+  defp normalize_rss_source(source, subscriptions) do
+    source = to_string(source || "all")
+
+    if Enum.any?(subscriptions, &(Integer.to_string(&1.feed_id) == source)) do
+      source
+    else
+      "all"
+    end
+  end
+
+  defp rss_source_matches?(_item, "all"), do: true
+
+  defp rss_source_matches?(%{feed_id: feed_id}, source) do
+    Integer.to_string(feed_id) == source
+  end
+
+  defp rss_query_matches?(_item, ""), do: true
+
+  defp rss_query_matches?(item, query) do
+    item
+    |> rss_search_text()
+    |> String.contains?(query)
+  end
+
+  defp rss_search_text(item) do
+    [
+      rss_item_title(item),
+      rss_item_excerpt(item),
+      rss_item_feed_title(item),
+      Map.get(item, :author),
+      item |> rss_item_categories() |> Enum.join(" ")
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" ")
+    |> String.downcase()
+  end
+
+  defp rss_item_title(%{title: title}) when is_binary(title) and title != "", do: title
+  defp rss_item_title(_item), do: "Untitled item"
+
+  defp rss_item_excerpt(item) do
+    item
+    |> Map.get(:summary)
+    |> Elektrine.Strings.present()
+    |> Kernel.||(Map.get(item, :content))
+    |> Elektrine.Strings.present()
+    |> case do
+      nil -> nil
+      text -> text |> strip_markup() |> truncate_text(220)
+    end
+  end
+
+  defp rss_item_body(item) do
+    item
+    |> Map.get(:content)
+    |> Elektrine.Strings.present()
+    |> Kernel.||(Map.get(item, :summary))
+    |> Elektrine.Strings.present()
+    |> case do
+      nil -> nil
+      text -> strip_markup(text)
+    end
+  end
+
+  defp rss_item_feed_title(%{feed_title: title}) when is_binary(title) and title != "", do: title
+
+  defp rss_item_feed_title(%{feed_url: url}) when is_binary(url) and url != "",
+    do: URI.parse(url).host || url
+
+  defp rss_item_feed_title(_item), do: "Feed"
+
+  defp rss_item_href(%{url: url}), do: safe_external_href(url)
+  defp rss_item_href(_item), do: "#"
+
+  defp rss_item_image(item) do
+    [
+      Map.get(item, :image_url),
+      image_enclosure_url(Map.get(item, :enclosure_url), Map.get(item, :enclosure_type)),
+      html_image_url(Map.get(item, :content), item),
+      html_image_url(Map.get(item, :summary), item),
+      Map.get(item, :feed_image_url),
+      Map.get(item, :feed_favicon_url)
+    ]
+    |> Enum.find_value(&safe_image_href/1)
+  end
+
+  defp rss_item_background_style(item) do
+    case rss_item_image(item) do
+      nil ->
+        nil
+
+      "#" ->
+        nil
+
+      url ->
+        "background-image: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.34)), url('#{url}')"
+    end
+  end
+
+  defp image_enclosure_url(url, type) when is_binary(url) and is_binary(type) do
+    if String.starts_with?(String.downcase(type), "image/"), do: url
+  end
+
+  defp image_enclosure_url(_url, _type), do: nil
+
+  defp html_image_url(html, item) when is_binary(html) do
+    case Regex.run(~r/<img\b[^>]*\bsrc=["']([^"']+)["']/i, html) do
+      [_, url] -> absolute_rss_url(url, Map.get(item, :url) || Map.get(item, :feed_url))
+      _ -> nil
+    end
+  end
+
+  defp html_image_url(_html, _item), do: nil
+
+  defp absolute_rss_url(url, base_url) when is_binary(url) do
+    url = String.trim(url)
+
+    cond do
+      url == "" -> nil
+      String.starts_with?(url, "//") -> "https:#{url}"
+      URI.parse(url).scheme in ["http", "https"] -> url
+      is_binary(base_url) -> URI.merge(base_url, url) |> URI.to_string()
+      true -> nil
+    end
+  end
+
+  defp absolute_rss_url(_url, _base_url), do: nil
+
+  defp safe_image_href(url) when is_binary(url) do
+    case safe_external_href(url) do
+      "#" -> nil
+      safe_url -> safe_url
+    end
+  end
+
+  defp safe_image_href(_url), do: nil
+
+  defp rss_item_author(%{author: author}) when is_binary(author) and author != "", do: author
+  defp rss_item_author(_item), do: nil
+
+  defp rss_item_categories(%{categories: categories}) when is_list(categories) do
+    categories
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp rss_item_categories(_item), do: []
+
+  defp rss_item_reading_minutes(item) do
+    words =
+      [Map.get(item, :content), Map.get(item, :summary)]
+      |> Enum.find_value(&Elektrine.Strings.present/1)
+      |> case do
+        nil -> rss_item_title(item)
+        text -> strip_markup(text)
+      end
+      |> String.split(~r/\s+/, trim: true)
+      |> length()
+
+    max(1, ceil(words / 220))
+  end
+
+  defp rss_source_button_class(current_source, source) do
+    base = "btn btn-xs justify-start"
+
+    if current_source == source do
+      base <> " btn-secondary"
+    else
+      base <> " btn-ghost"
+    end
+  end
+
+  defp rss_item_button_class(item, selected_item_id) do
+    base = "w-full rounded-lg border p-3 text-left transition"
+
+    if item.id == selected_item_id do
+      base <> " border-secondary bg-secondary/10"
+    else
+      base <> " border-base-300 bg-base-100 hover:bg-base-200"
+    end
+  end
+
+  defp parse_rss_item_id(item_id) when is_integer(item_id), do: item_id
+
+  defp parse_rss_item_id(item_id) when is_binary(item_id) do
+    case Integer.parse(item_id) do
+      {id, ""} -> id
+      _ -> nil
+    end
+  end
+
+  defp parse_rss_item_id(_item_id), do: nil
+
+  defp rss_subscription_title(subscription) do
+    subscription.display_name ||
+      (subscription.feed && subscription.feed.title) ||
+      (subscription.feed && URI.parse(subscription.feed.url).host) ||
+      "Feed"
+  end
+
+  defp strip_markup(text) do
+    ElektrineWeb.HtmlHelpers.plain_text_content(text)
+  end
+
+  defp safe_external_href(url) when is_binary(url) do
+    case SafeExternalURL.normalize(url) do
+      {:ok, safe_url} -> safe_url
+      {:error, _reason} -> "#"
+    end
+  end
+
+  defp safe_external_href(_url), do: "#"
+
   defp default_dashboard do
     %{
       inbox_messages: [],
@@ -2298,17 +2583,6 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp attention_source_badge_class("social"), do: "badge badge-secondary badge-xs"
   defp attention_source_badge_class(_source), do: "badge badge-ghost badge-xs"
 
-  defp attention_state_badge_class("unread"), do: "badge badge-primary badge-xs"
-  defp attention_state_badge_class("pending"), do: "badge badge-warning badge-xs"
-  defp attention_state_badge_class("approval"), do: "badge badge-warning badge-xs"
-  defp attention_state_badge_class("backlog"), do: "badge badge-error badge-xs"
-  defp attention_state_badge_class("remind"), do: "badge badge-info badge-xs"
-  defp attention_state_badge_class(_state), do: "badge badge-ghost badge-xs"
-
-  defp attention_action_link_class do
-    "link link-hover text-xs text-base-content/70"
-  end
-
   defp attention_priority_rank("high"), do: 0
   defp attention_priority_rank("medium"), do: 1
   defp attention_priority_rank(_priority), do: 2
@@ -2547,26 +2821,6 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp sort_datetime(_) do
     0
-  end
-
-  defp quick_action_button_class("primary") do
-    "btn btn-sm btn-secondary"
-  end
-
-  defp quick_action_button_class(_tone) do
-    "btn btn-sm btn-ghost border border-base-300"
-  end
-
-  defp task_priority_badge_class("high") do
-    "badge badge-error badge-xs"
-  end
-
-  defp task_priority_badge_class("medium") do
-    "badge badge-warning badge-xs"
-  end
-
-  defp task_priority_badge_class(_priority) do
-    "badge badge-ghost badge-xs"
   end
 
   defp filtered_posts(posts, "timeline", _assigns) do

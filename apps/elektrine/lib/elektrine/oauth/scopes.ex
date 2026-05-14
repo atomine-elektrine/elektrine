@@ -94,6 +94,10 @@ defmodule Elektrine.OAuth.Scopes do
     parse_scopes(scope, default)
   end
 
+  def fetch_scopes(%{scopes: scopes}, default) when is_binary(scopes) do
+    parse_scopes(scopes, default)
+  end
+
   def fetch_scopes(%{scopes: scopes}, default) when is_list(scopes) do
     case filter_valid(scopes) do
       [] -> default
@@ -103,6 +107,10 @@ defmodule Elektrine.OAuth.Scopes do
 
   def fetch_scopes(%{"scope" => scope}, default) when is_binary(scope) do
     parse_scopes(scope, default)
+  end
+
+  def fetch_scopes(%{"scopes" => scopes}, default) when is_binary(scopes) do
+    parse_scopes(scopes, default)
   end
 
   def fetch_scopes(%{"scopes" => scopes}, default) when is_list(scopes) do
