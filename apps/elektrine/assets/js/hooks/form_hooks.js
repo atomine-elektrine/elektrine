@@ -164,7 +164,7 @@ export const AtominePow = {
       this.requestSubmit(event.submitter)
     } catch (_error) {
       this.setResponseToken('')
-      this.showError('atomine gate failed; retry')
+      this.showError('Anti-abuse check failed. Please try again.')
     }
   },
 
@@ -221,7 +221,7 @@ export const AtominePow = {
 
     this.ensureResponseInput(this.form)
     this.clearError()
-    this.setStatus('atomine: requesting challenge')
+    this.setStatus('Preparing the abuse check...')
 
     const challengeResponse = await postJson('/api/atomine/pow/challenge', {
       difficulty: this.difficulty
@@ -229,16 +229,16 @@ export const AtominePow = {
 
     const challenge = challengeResponse.challenge
     const difficulty = normalizeDifficulty(challengeResponse.difficulty ?? this.difficulty)
-    this.setStatus('atomine gate: running browser instrumentation')
+    this.setStatus('Checking this browser...')
     const gateProof = await collectGateProof(challenge)
 
-    this.setStatus(`atomine: solving sha256 nonce, difficulty=${difficulty}`)
+    this.setStatus('Running a short work check...')
 
     const solution = await solvePow(challenge, difficulty, (attempts) => {
-      this.setStatus(`atomine: attempts=${attempts.toLocaleString()}`)
+      this.setStatus(`Still working... ${attempts.toLocaleString()} attempts tried`)
     })
 
-    this.setStatus('atomine: redeeming anonymous effort token')
+    this.setStatus('Finishing the check...')
 
     const tokenResponse = await postJson('/api/atomine/anonymous-tokens', {
       challenge,
@@ -251,7 +251,7 @@ export const AtominePow = {
     }
 
     this.setResponseToken(tokenResponse.token)
-    this.setStatus('atomine: proof accepted, submitting')
+    this.setStatus('Check complete. Submitting...')
   },
 
   requestSubmit(submitter) {

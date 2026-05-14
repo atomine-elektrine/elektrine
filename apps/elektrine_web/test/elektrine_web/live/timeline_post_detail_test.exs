@@ -146,6 +146,52 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       assert html =~ "Open submitted link"
     end
 
+    test "does not treat same-instance status permalinks as submitted links", %{conn: conn} do
+      unique = System.unique_integer([:positive])
+      status_id = "113425702556#{unique}"
+      activitypub_id = "https://federate.social/users/mattblaze/statuses/#{status_id}"
+      status_permalink = "https://federate.social/@mattblaze/#{status_id}"
+
+      remote_actor =
+        %Actor{}
+        |> Actor.changeset(%{
+          uri: "https://federate.social/users/mattblaze",
+          username: "mattblaze",
+          domain: "federate.social",
+          inbox_url: "https://federate.social/inbox",
+          public_key: "test-public-key-status-#{unique}"
+        })
+        |> Repo.insert!()
+
+      preview =
+        %Social.LinkPreview{}
+        |> Social.LinkPreview.changeset(%{
+          url: status_permalink,
+          title: "Matt Blaze: text status",
+          site_name: "federate.social",
+          status: "success",
+          fetched_at: DateTime.utc_now()
+        })
+        |> Repo.insert!()
+
+      {:ok, message} =
+        Messaging.create_federated_message(%{
+          content: "Plain federated text status",
+          visibility: "public",
+          activitypub_id: activitypub_id,
+          activitypub_url: status_permalink,
+          federated: true,
+          remote_actor_id: remote_actor.id,
+          link_preview_id: preview.id
+        })
+
+      {:ok, _view, html} = live(conn, ~p"/remote/post/#{message.id}")
+
+      assert html =~ "Plain federated text status"
+      refute html =~ "Open submitted link"
+      refute html =~ "Matt Blaze: text status"
+    end
+
     test "shows replied-to context for cached federated replies", %{conn: conn} do
       unique = System.unique_integer([:positive])
       parent_id = "https://framapiaf.org/users/postroutine/statuses/#{unique}"

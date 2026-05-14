@@ -1099,7 +1099,8 @@
                         <% link_preview =
                           effective_link_preview(
                             @local_message,
-                            Map.get(assigns, :submitted_link_preview)
+                            Map.get(assigns, :submitted_link_preview),
+                            submitted_url
                           ) %>
                         <%= if link_preview do %>
                           <% youtube_id = extract_youtube_id(link_preview.url) %>

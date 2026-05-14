@@ -65,6 +65,9 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     ".eml" => ["message/rfc822"]
   }
   @allowed_attachment_extensions Map.keys(@allowed_attachment_types)
+  # Phoenix validates extension filters against MIME's compiled database; use a
+  # wildcard for Matroska so stale releases do not crash during LiveView mount.
+  @live_upload_accept_filters (@allowed_attachment_extensions -- [".mkv"]) ++ ["video/*"]
   @generic_attachment_content_types ~w(application/octet-stream binary/octet-stream)
 
   @impl true
@@ -163,7 +166,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       |> assign(:draft_status, nil)
       |> assign(:sending, false)
       |> allow_upload(:attachments,
-        accept: @allowed_attachment_extensions,
+        accept: @live_upload_accept_filters,
         max_entries: 5,
         max_file_size: email_attachment_limit,
         auto_upload: true
@@ -318,6 +321,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   @impl true
   def handle_event("validate", %{"email" => email_params}, socket) do
     socket = validate_attachments(socket)
+    email_params = merge_current_form_params(socket, email_params)
     email_params = put_body_format(email_params, socket.assigns.body_format)
     body = email_params["body"] || email_params["new_message"] || ""
     word_count = count_words(body)
@@ -339,6 +343,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
   @impl true
   def handle_event("validate_and_autosave", %{"email" => email_params}, socket) do
     socket = validate_attachments(socket)
+    email_params = merge_current_form_params(socket, email_params)
     email_params = put_body_format(email_params, socket.assigns.body_format)
     body = email_params["body"] || email_params["new_message"] || ""
     word_count = count_words(body)
@@ -606,6 +611,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     _mailbox = socket.assigns.mailbox
     mode = socket.assigns.mode
     original_message = Map.get(socket.assigns, :original_message)
+    socket = validate_attachments(socket)
     email_params = put_body_format(email_params, socket.assigns.body_format)
     body_format = body_format(email_params, socket.assigns.body_format)
     socket = socket |> assign(:sending, true) |> assign(:body_format, body_format)
@@ -1028,6 +1034,16 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       {:error, _reason} ->
         {:noreply, socket |> notify_error("Failed to save draft")}
     end
+  end
+
+  defp merge_current_form_params(socket, params) when is_map(params) do
+    current_params =
+      case socket.assigns[:form] do
+        %{params: form_params} when is_map(form_params) -> form_params
+        _ -> %{}
+      end
+
+    Map.merge(current_params, params)
   end
 
   defp parse_scheduled_send_at(nil), do: nil

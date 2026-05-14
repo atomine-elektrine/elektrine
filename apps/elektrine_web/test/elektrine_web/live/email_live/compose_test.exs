@@ -81,6 +81,7 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     assert accept =~ ".pptx"
     assert accept =~ ".webp"
     assert accept =~ ".mp4"
+    assert accept =~ "video/*"
     assert html =~ "Allowed: Images, PDFs, Office docs, Text, Archives, Audio/Video"
   end
 
@@ -145,6 +146,33 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     received = Email.get_message(received.id, recipient_mailbox.id)
     assert received.text_body == body
     assert received.html_body == nil
+  end
+
+  test "typing in the body preserves the send later value", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/compose")
+
+    send_at =
+      DateTime.utc_now() |> DateTime.add(3600, :second) |> Calendar.strftime("%Y-%m-%dT%H:%M")
+
+    html =
+      render_change(view, "validate_and_autosave", %{
+        "email" => %{"send_at" => send_at}
+      })
+
+    assert html =~ ~s(name="email[send_at]")
+    assert html =~ ~s(value="#{send_at}")
+
+    html =
+      render_change(view, "validate_and_autosave", %{
+        "email" => %{"body" => "Typing in markdown"}
+      })
+
+    assert html =~ ~s(value="#{send_at}")
   end
 
   defp private_mailbox_fixture(user) do

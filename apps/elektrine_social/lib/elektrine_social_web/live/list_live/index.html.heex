@@ -1,6 +1,11 @@
 <div class="mx-auto max-w-7xl px-4 pb-2 sm:px-6 lg:px-8">
   <.e_nav active_tab="lists" current_user={@current_user} />
 
+  <.experimental_notice
+    class="mb-4"
+    message="Lists are experimental. Filtering, discovery, and public list behavior may change while this feature is tested."
+  />
+
   <% my_search_active? = String.trim(@my_lists_query || "") != ""
   discover_search_active? = String.trim(@discover_query || "") != "" %>
 

@@ -231,6 +231,7 @@ defmodule Elektrine.RSS do
           feed_id: f.id,
           feed_title: f.title,
           feed_url: f.url,
+          feed_image_url: f.image_url,
           feed_favicon_url: f.favicon_url,
           feed_site_url: f.site_url
         }

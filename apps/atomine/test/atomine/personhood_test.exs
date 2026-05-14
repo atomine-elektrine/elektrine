@@ -48,6 +48,19 @@ defmodule Atomine.PersonhoodTest do
       assert proof.challenge =~ "sig="
     end
 
+    test "signs DNS claims with the normalized subject" do
+      user = user_fixture()
+
+      assert {:ok, proof} =
+               Personhood.create_proof(user, %{
+                 kind: "dns",
+                 subject: " Example.COM. "
+               })
+
+      assert proof.subject == "example.com"
+      assert proof.challenge =~ "subject=example.com"
+    end
+
     test "prevents duplicate active proofs for the same subject" do
       user = user_fixture()
       attrs = %{kind: "dns", subject: "example.com"}

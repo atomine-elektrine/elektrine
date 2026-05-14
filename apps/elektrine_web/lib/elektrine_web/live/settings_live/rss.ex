@@ -64,6 +64,10 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   end
 
   @impl true
+  def handle_event("update_url", %{"url" => url}, socket) do
+    {:noreply, assign(socket, :new_feed_url, url)}
+  end
+
   def handle_event("update_url", %{"value" => value}, socket) do
     {:noreply, assign(socket, :new_feed_url, value)}
   end
@@ -117,15 +121,28 @@ defmodule ElektrineWeb.SettingsLive.RSS do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-4xl mx-auto p-4">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <ElektrineWeb.Components.Platform.ENav.e_nav
+        active_tab="account"
+        current_user={@current_user}
+        class="mb-6 sm:mb-8"
+      />
+
+      <div class="mb-6 sm:mb-8">
+        <h1 class="text-2xl sm:text-3xl font-bold text-base-content">RSS Feeds</h1>
+        <p class="text-base-content/70 mt-2">
+          Subscribe to RSS feeds to see articles in your timeline and portal reader.
+        </p>
+      </div>
+
       <div class="card panel-card">
-        <div class="card-body">
-          <h2 class="card-title text-2xl mb-4">
-            <.icon name="hero-rss" class="w-6 h-6 text-warning" /> RSS Feeds
+        <div class="card-body p-4 sm:p-6">
+          <h2 class="card-title text-xl mb-4">
+            <.icon name="hero-rss" class="w-5 h-5 text-warning" /> Manage Feeds
           </h2>
 
           <p class="text-base-content/70 mb-6">
-            Subscribe to RSS feeds to see articles in your timeline.
+            Add sources, remove feeds, and choose which feeds appear in your timeline.
           </p>
           
     <!-- Add Feed Form -->

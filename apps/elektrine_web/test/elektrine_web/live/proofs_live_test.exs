@@ -52,6 +52,53 @@ defmodule ElektrineWeb.ProofsLiveTest do
     assert html =~ "Gates are currently off."
   end
 
+  test "earning proof actions do not use anchor targets", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/proofs")
+
+    refute html =~ ~s(href="#proof-target")
+
+    assert has_element?(
+             view,
+             ~s(button[phx-click="change_kind"][phx-value-proof-kind="dns"]),
+             "DNS control proof"
+           )
+  end
+
+  test "pending proofs show deterministic publication instructions", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, dns_proof} =
+      Personhood.create_proof(user, %{
+        kind: "dns",
+        subject: "Example.COM."
+      })
+
+    {:ok, web_proof} =
+      Personhood.create_proof(user, %{
+        kind: "web",
+        subject: "https://example.com/proof"
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/account/proofs")
+
+    assert html =~ "Publish this signed claim"
+    assert html =~ "DNS TXT record"
+    assert html =~ "_atomine.example.com"
+    assert html =~ dns_proof.challenge
+    assert html =~ "Public web page"
+    assert html =~ "https://example.com/proof"
+    assert html =~ web_proof.challenge
+    assert html =~ "validates the Atomine signature"
+  end
+
   test "deleting a pending proof refreshes the nav badge", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 

@@ -131,6 +131,7 @@ defmodule ElektrineWeb.CoreComponents do
 
   # Datetime components
   defdelegate local_time(assigns), to: LocalTime
+  defdelegate experimental_notice(assigns), to: Elektrine.Components.ExperimentalNotice
 
   @doc """
   Renders a sidebar that sticks using the app-wide sidebar offset.

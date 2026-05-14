@@ -160,4 +160,31 @@ defmodule ElektrineWeb.UserSettingsLiveTest do
       assert html =~ "Regular notes and chat messages are encrypted at rest by default"
     end
   end
+
+  describe "RSS settings" do
+    test "uses the shared app navigation", %{conn: conn, user: user} do
+      {:ok, _view, html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/settings/rss")
+
+      assert html =~ "RSS Feeds"
+      assert html =~ ~s(data-test="global-composer")
+    end
+
+    test "typing a feed URL updates the form without crashing", %{conn: conn, user: user} do
+      {:ok, view, _html} =
+        conn
+        |> log_in_user(user)
+        |> live(~p"/settings/rss")
+
+      html =
+        render_change(view, "update_url", %{
+          "_target" => ["url"],
+          "url" => "https://feeds.arstechnica.com/arstechnica/index"
+        })
+
+      assert html =~ "https://feeds.arstechnica.com/arstechnica/index"
+    end
+  end
 end

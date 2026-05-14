@@ -132,7 +132,7 @@ defmodule Atomine.Personhood do
     kind = attrs |> Map.get("kind", "") |> normalize_kind()
 
     proof_mode = attrs |> Map.get("proof_mode", "snapshot") |> normalize_proof_mode()
-    subject = Map.get(attrs, "subject")
+    subject = attrs |> Map.get("subject") |> normalize_subject_for_kind(kind)
     default_method = default_method_for_kind(kind, subject)
 
     verification_method =
@@ -842,6 +842,15 @@ defmodule Atomine.Personhood do
 
   defp normalize_kind(kind) when is_binary(kind), do: kind |> String.trim() |> String.downcase()
   defp normalize_kind(_), do: ""
+
+  defp normalize_subject_for_kind(subject, "dns") when is_binary(subject) do
+    subject |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+  end
+
+  defp normalize_subject_for_kind(subject, _kind) when is_binary(subject),
+    do: String.trim(subject)
+
+  defp normalize_subject_for_kind(subject, _kind), do: subject
 
   defp normalize_method(method) when is_binary(method),
     do: method |> String.trim() |> String.downcase()

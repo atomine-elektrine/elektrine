@@ -44,6 +44,7 @@ defmodule Elektrine.Accounts.Capabilities do
     %{
       user_id: user && user.id,
       trust_level: trust_level(user),
+      effective_trust_level: effective_trust_level(user, reputation),
       reputation: reputation,
       proofs: %{
         verified_count: reputation.verified_proof_count,
@@ -337,7 +338,7 @@ defmodule Elektrine.Accounts.Capabilities do
 
   defp email_tier(%User{} = user) do
     account_age_days = account_age_days(user.inserted_at)
-    trust_level = trust_level(user)
+    trust_level = effective_trust_level(user)
 
     cond do
       trust_level >= 3 -> :tl3_plus
@@ -358,7 +359,22 @@ defmodule Elektrine.Accounts.Capabilities do
   end
 
   defp trusted_for_free_action?(%User{is_admin: true}), do: true
-  defp trusted_for_free_action?(%User{} = user), do: trust_level(user) >= 1
+  defp trusted_for_free_action?(%User{} = user), do: effective_trust_level(user) >= 1
+
+  defp effective_trust_level(%User{} = user) do
+    effective_trust_level(user, reputation_snapshot(user))
+  end
+
+  defp effective_trust_level(%User{} = user, reputation) do
+    max(trust_level(user), reputation_trust_level(reputation))
+  end
+
+  defp effective_trust_level(_user, _reputation), do: 0
+
+  defp reputation_trust_level(%{level: :high}), do: 3
+  defp reputation_trust_level(%{level: :medium}), do: 2
+  defp reputation_trust_level(%{level: :low}), do: 1
+  defp reputation_trust_level(_reputation), do: 0
 
   defp trust_level(%User{trust_level: trust_level}) when is_integer(trust_level), do: trust_level
   defp trust_level(_), do: 0

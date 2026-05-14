@@ -172,6 +172,8 @@ defmodule ElektrinePasswordManagerWeb.VaultLive do
             current_user={@current_user}
           />
 
+          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Vault is experimental. Keep separate backups of important passwords and recovery codes while this feature is being tested." />
+
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="card panel-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">

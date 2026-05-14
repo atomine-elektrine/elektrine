@@ -169,6 +169,8 @@ defmodule ElektrineWeb.ProofsLive do
       badge_counts={@e_nav_badge_counts}
       show_header={false}
     >
+      <.experimental_notice message="Identity proofs are experimental. Verification rules and credit rewards may change as the trust system is tuned." />
+
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
         <span>
@@ -330,12 +332,43 @@ defmodule ElektrineWeb.ProofsLive do
 
                       <details
                         :if={proof.status != "verified"}
+                        open={proof.status == "pending"}
                         class="mt-4 rounded-lg bg-base-200/60 px-4 py-3"
                       >
-                        <summary class="cursor-pointer text-sm font-medium">Proof statement</summary>
-                        <p class="mt-2 break-all font-mono text-xs text-base-content/80">
-                          {proof.challenge}
-                        </p>
+                        <summary class="cursor-pointer text-sm font-medium">
+                          Publish this signed claim
+                        </summary>
+
+                        <div class="mt-3 space-y-3 text-sm text-base-content/75">
+                          <div class="rounded-lg border border-base-300 bg-base-100 p-3">
+                            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
+                              Where to publish
+                            </p>
+                            <dl class="mt-2 grid gap-2 text-xs sm:grid-cols-[8rem_minmax(0,1fr)]">
+                              <dt class="font-medium text-base-content/70">Method</dt>
+                              <dd>{proof_method_label(proof)}</dd>
+                              <dt class="font-medium text-base-content/70">Location</dt>
+                              <dd class="break-all">{proof_publication_location(proof)}</dd>
+                              <dt :if={proof.kind == "dns"} class="font-medium text-base-content/70">
+                                TXT value
+                              </dt>
+                              <dd :if={proof.kind == "dns"} class="break-all font-mono">
+                                {proof.challenge}
+                              </dd>
+                            </dl>
+                          </div>
+
+                          <div>
+                            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
+                              Exact claim
+                            </p>
+                            <pre class="mt-2 whitespace-pre-wrap break-all rounded-lg border border-base-300 bg-base-100 p-3 font-mono text-xs text-base-content/85"><%= proof.challenge %></pre>
+                          </div>
+
+                          <p class="text-xs text-base-content/60">
+                            The verifier fetches this location, finds the exact claim, validates the Atomine signature, and confirms it matches this account, proof type, and subject.
+                          </p>
+                        </div>
                       </details>
                     </div>
                   <% end %>
@@ -390,12 +423,12 @@ defmodule ElektrineWeb.ProofsLive do
                     <span class="font-medium text-base-content">{path.label}:</span> {path.reward}
                   </p>
                   <div class="space-y-2 pt-1">
-                    <a
+                    <button
                       :for={action <- earning_proof_actions()}
-                      href="#proof-target"
+                      type="button"
                       phx-click="change_kind"
                       phx-value-proof-kind={action.kind}
-                      class="block rounded-lg border border-base-300 bg-base-200/40 p-3 transition-all hover:-translate-y-0.5 hover:border-secondary/70 hover:bg-secondary/10 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-secondary/30"
+                      class="block w-full rounded-lg border border-base-300 bg-base-200/40 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-secondary/70 hover:bg-secondary/10 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-secondary/30"
                     >
                       <span class="flex items-start justify-between gap-3">
                         <span>
@@ -404,7 +437,7 @@ defmodule ElektrineWeb.ProofsLive do
                         </span>
                         <span class="badge badge-sm badge-secondary shrink-0">{action.reward}</span>
                       </span>
-                    </a>
+                    </button>
                     <.link
                       navigate={~p"/account/connections/github/start?return_to=/account/proofs"}
                       class={[
@@ -767,6 +800,45 @@ defmodule ElektrineWeb.ProofsLive do
     proof.claim_type == "positive" and proof.status in ["pending", "verified"] and
       proof.verification_method in ["dns", "page", "github_gist"]
   end
+
+  defp proof_method_label(%{verification_method: "dns"}), do: "DNS TXT record"
+  defp proof_method_label(%{verification_method: "github_gist"}), do: "Public GitHub gist"
+
+  defp proof_method_label(%{verification_method: "page", kind: "social"}),
+    do: "Public profile page"
+
+  defp proof_method_label(%{verification_method: "page"}), do: "Public web page"
+  defp proof_method_label(%{verification_method: "oauth"}), do: "Connected OAuth account"
+  defp proof_method_label(%{verification_method: "manual"}), do: "Manual review"
+  defp proof_method_label(%{verification_method: "none"}), do: "Self assertion"
+  defp proof_method_label(%{verification_method: method}) when is_binary(method), do: method
+  defp proof_method_label(_proof), do: "Proof"
+
+  defp proof_publication_location(%{verification_method: "dns", subject: subject})
+       when is_binary(subject) do
+    "_atomine.#{String.trim(subject)}"
+  end
+
+  defp proof_publication_location(%{verification_method: "github_gist", subject: subject})
+       when is_binary(subject) do
+    "A public gist owned by #{subject}"
+  end
+
+  defp proof_publication_location(%{verification_method: "page", evidence_url: url})
+       when is_binary(url) and url != "" do
+    url
+  end
+
+  defp proof_publication_location(%{verification_method: "page", subject: subject})
+       when is_binary(subject) do
+    subject
+  end
+
+  defp proof_publication_location(%{evidence_url: url}) when is_binary(url) and url != "", do: url
+  defp proof_publication_location(%{subject: subject}) when is_binary(subject), do: subject
+
+  defp proof_publication_location(_proof),
+    do: "Publish the exact claim where a verifier can read it."
 
   defp github_oauth_configured? do
     present_env?("GITHUB_OAUTH_CLIENT_ID") and present_env?("GITHUB_OAUTH_CLIENT_SECRET")
