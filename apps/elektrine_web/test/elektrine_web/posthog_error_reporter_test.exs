@@ -20,6 +20,8 @@ defmodule ElektrineWeb.PostHogErrorReporterTest do
     conn =
       :get
       |> conn("/boom")
+      |> Plug.Conn.put_req_header("user-agent", "test-agent")
+      |> Map.put(:remote_ip, {203, 0, 113, 7})
       |> Plug.Conn.assign(:current_user, %{id: 42})
 
     assert %{
@@ -35,11 +37,15 @@ defmodule ElektrineWeb.PostHogErrorReporterTest do
                conn: conn
              })
 
-    assert meta.conn == conn
+    refute Map.has_key?(meta, :conn)
     assert meta.crash_reason == {reason, stacktrace}
     assert meta.request_id == "request-123"
     assert meta.user_id == 42
     assert meta.distinct_id == "42"
+    assert meta.method == "GET"
+    assert meta.path == "/boom"
+    assert meta.user_agent == "test-agent"
+    assert meta.remote_ip == "203.0.113.7"
     assert meta.posthog_source == :phoenix_error_rendered
     assert message =~ "** (RuntimeError) boom"
   end
