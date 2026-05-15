@@ -84,107 +84,6 @@ defmodule ElektrineWeb.Routes.Social do
     end
   end
 
-  defmacro mastodon_routes do
-    quote do
-      scope "/oauth", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:api)
-        post("/token", OAuthController, :token)
-        post("/revoke", OAuthController, :revoke)
-      end
-
-      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:mastodon_api)
-        post("/apps", AppController, :create)
-        get("/instance", InstanceController, :show)
-        get("/instance/peers", InstanceController, :peers)
-        get("/instance/activity", InstanceController, :activity)
-        get("/instance/rules", InstanceController, :rules)
-        get("/custom_emojis", MetaController, :custom_emojis)
-        get("/announcements", MetaController, :announcements)
-        get("/trends/tags", MetaController, :trending_tags)
-        get("/preferences", MetaController, :preferences)
-        get("/markers", MetaController, :markers)
-        get("/filters", MetaController, :filters_v1)
-        get("/timelines/public", TimelineController, :public)
-        get("/timelines/tag/:hashtag", TimelineController, :tag)
-        get("/polls/:id", PollController, :show)
-        get("/statuses/:id", StatusController, :show)
-        get("/statuses/:id/context", StatusController, :context)
-        get("/search", SearchController, :index_v1)
-      end
-
-      scope "/api/v2", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:mastodon_api)
-        get("/instance", InstanceController, :show_v2)
-        get("/search", SearchController, :index_v2)
-        get("/filters", MetaController, :filters_v2)
-      end
-
-      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:mastodon_api_authenticated)
-        get("/apps/verify_credentials", AppController, :verify_credentials)
-        get("/accounts/verify_credentials", AccountController, :verify_credentials)
-        get("/accounts/relationships", AccountController, :relationships)
-      end
-
-      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:mastodon_api)
-        get("/accounts/lookup", AccountController, :lookup)
-        get("/accounts/:id", AccountController, :show)
-        get("/accounts/:id/statuses", AccountController, :statuses)
-        get("/accounts/:id/followers", AccountController, :followers)
-        get("/accounts/:id/following", AccountController, :following)
-      end
-
-      scope "/api/v1", ElektrineSocialWeb.MastodonAPI do
-        pipe_through(:mastodon_api_authenticated)
-        get("/timelines/home", TimelineController, :home)
-        get("/notifications", NotificationController, :index)
-        post("/notifications/:id/dismiss", NotificationController, :dismiss)
-        get("/bookmarks", BookmarkController, :index)
-        get("/favourites", FavouriteController, :index)
-        post("/markers", MetaController, :save_markers)
-        post("/filters", MetaController, :create_filter)
-        put("/filters/:id", MetaController, :update_filter)
-        delete("/filters/:id", MetaController, :delete_filter)
-        post("/push/subscription", MetaController, :create_push_subscription)
-        get("/push/subscription", MetaController, :show_push_subscription)
-        put("/push/subscription", MetaController, :update_push_subscription)
-        delete("/push/subscription", MetaController, :delete_push_subscription)
-        get("/lists", ListController, :index)
-        post("/lists", ListController, :create)
-        get("/lists/:id", ListController, :show)
-        put("/lists/:id", ListController, :update)
-        delete("/lists/:id", ListController, :delete)
-        get("/lists/:id/accounts", ListController, :accounts)
-        post("/lists/:id/accounts", ListController, :add_accounts)
-        delete("/lists/:id/accounts", ListController, :remove_accounts)
-        get("/timelines/list/:id", ListController, :timeline)
-        post("/polls/:id/votes", PollController, :vote)
-        get("/scheduled_statuses", ScheduledStatusController, :index)
-        get("/scheduled_statuses/:id", ScheduledStatusController, :show)
-        put("/scheduled_statuses/:id", ScheduledStatusController, :update)
-        delete("/scheduled_statuses/:id", ScheduledStatusController, :delete)
-        post("/media", MediaController, :create)
-        put("/media/:id", MediaController, :update)
-        post("/statuses", StatusController, :create)
-        delete("/statuses/:id", StatusController, :delete)
-        post("/statuses/:id/favourite", StatusController, :favourite)
-        post("/statuses/:id/unfavourite", StatusController, :unfavourite)
-        post("/statuses/:id/reblog", StatusController, :reblog)
-        post("/statuses/:id/unreblog", StatusController, :unreblog)
-        post("/statuses/:id/bookmark", StatusController, :bookmark)
-        post("/statuses/:id/unbookmark", StatusController, :unbookmark)
-        post("/accounts/:id/follow", AccountController, :follow)
-        post("/accounts/:id/unfollow", AccountController, :unfollow)
-        post("/accounts/:id/block", AccountController, :block)
-        post("/accounts/:id/unblock", AccountController, :unblock)
-        post("/accounts/:id/mute", AccountController, :mute)
-        post("/accounts/:id/unmute", AccountController, :unmute)
-      end
-    end
-  end
-
   defmacro authenticated_api_routes do
     quote do
       get("/social/timeline", ElektrineSocialWeb.API.SocialController, :timeline)
@@ -365,8 +264,6 @@ defmodule ElektrineWeb.Routes.Social do
       "/tags",
       "/media_proxy",
       "/api/social",
-      "/api/v1",
-      "/api/v2",
       "/api/ext/v1/social",
       "/pripyat/communities"
     ]

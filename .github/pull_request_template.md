@@ -16,9 +16,7 @@ Describe what changed and why.
 
 ## Validation
 
-- [ ] `mix format`
-- [ ] `mix compile --warnings-as-errors`
-- [ ] `mix test`
+- [ ] `mix check`
 - [ ] Added or updated tests for behavior changes
 
 ## Breaking Changes

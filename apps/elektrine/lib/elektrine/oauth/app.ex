@@ -1,10 +1,10 @@
 defmodule Elektrine.OAuth.App do
   @moduledoc """
-  OAuth application registration for Mastodon API clients.
+  OAuth application registration.
 
   This module handles the registration and management of third-party applications
-  that want to connect to the Mastodon-compatible API. Each app gets a unique
-  client_id and client_secret that can be used to authenticate users.
+  that need OAuth client credentials. Each app gets a unique client_id and
+  client_secret that can be used to authenticate users.
   """
 
   use Ecto.Schema
@@ -15,11 +15,6 @@ defmodule Elektrine.OAuth.App do
   alias Elektrine.Repo
 
   @type t :: %__MODULE__{}
-  @blocked_native_redirect_schemes MapSet.new(~w(
-                                     about blob data file filesystem ftp javascript mailto tel
-                                     http https ws wss
-                                   ))
-
   schema "oauth_apps" do
     field(:client_name, :string)
     field(:redirect_uris, :string)
@@ -331,19 +326,9 @@ defmodule Elektrine.OAuth.App do
       %URI{scheme: "http", host: "::1", fragment: nil} ->
         true
 
-      %URI{scheme: scheme, fragment: nil} when is_binary(scheme) ->
-        native_redirect_scheme?(scheme)
-
       _ ->
         false
     end
-  end
-
-  defp native_redirect_scheme?(scheme) do
-    scheme = String.downcase(scheme)
-
-    String.match?(scheme, ~r/^[a-z][a-z0-9+.-]*$/) and
-      not MapSet.member?(@blocked_native_redirect_schemes, scheme)
   end
 
   defp generate_token do

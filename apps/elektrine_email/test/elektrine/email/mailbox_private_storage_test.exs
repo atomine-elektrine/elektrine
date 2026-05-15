@@ -5,6 +5,8 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
   alias Elektrine.Email
   alias Elektrine.Email.Mailbox
   alias Elektrine.Email.MailboxEncryption
+  alias Elektrine.Email.Receiver
+  alias Elektrine.Notifications
   alias Elektrine.Repo
 
   test "create_message stores encrypted message and attachment payloads for private mailboxes" do
@@ -20,6 +22,12 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
         text_body: "This should stay private",
         html_body: "<p>This should stay private</p>",
         message_id: "<private-#{System.unique_integer([:positive])}@example.com>",
+        metadata: %{
+          "body_format" => "markdown",
+          "headers" => %{"Subject" => "Launch plans"},
+          "attachments" => [%{"data" => "launch details"}],
+          "custom_plaintext" => "This should not be stored"
+        },
         attachments: %{
           "0" => %{
             "filename" => "plans.txt",
@@ -41,6 +49,10 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
     assert is_nil(stored_message.text_body)
     assert is_nil(stored_message.html_body)
     assert stored_message.search_index == []
+    assert stored_message.metadata == %{"body_format" => "markdown", "private_storage" => true}
+    refute inspect(stored_message.metadata) =~ "Launch plans"
+    refute inspect(stored_message.metadata) =~ "launch details"
+    refute inspect(stored_message.metadata) =~ "This should not be stored"
     assert payload_value(stored_message.client_encrypted_payload, "ciphertext", :ciphertext)
     assert payload_value(stored_message.client_encrypted_payload, "encrypted_key", :encrypted_key)
     assert stored_attachment["filename"] == "Encrypted attachment"
@@ -57,6 +69,58 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
              :message
            )
 
+    refute Map.has_key?(stored_attachment, "data")
+
+    notification = email_notification_for(user.id, stored_message.id)
+    assert notification.title == "New encrypted email"
+    assert notification.body == "Unlock your mailbox to view this message."
+    refute notification.title =~ "sender@example.com"
+    refute notification.body =~ "Launch plans"
+  end
+
+  test "incoming private mailbox metadata does not store plaintext headers or attachments" do
+    user = AccountsFixtures.user_fixture()
+    mailbox = private_mailbox_fixture(user)
+
+    {:ok, message} =
+      Receiver.process_incoming_email(%{
+        "from" => "private-sender@example.com",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Private inbound subject",
+        "plain_body" => "Private inbound body",
+        "html_body" => "<p>Private inbound body</p>",
+        "spam_score" => "0.1",
+        "message_id" => "private-inbound-#{System.unique_integer([:positive])}@example.com",
+        "headers" => %{
+          "From" => "private-sender@example.com",
+          "To" => mailbox.email,
+          "Subject" => "Private inbound subject"
+        },
+        "attachments" => [
+          %{
+            "filename" => "secret.txt",
+            "content_type" => "text/plain",
+            "data" => "sensitive attachment body"
+          }
+        ]
+      })
+
+    stored_message = Repo.get!(Email.Message, message.id)
+    stored_attachment = stored_message.attachments["attachment_0"]
+
+    assert stored_message.metadata["private_storage"] == true
+    assert stored_message.metadata["spam_score"] == "0.1"
+    refute Map.has_key?(stored_message.metadata, "headers")
+    refute Map.has_key?(stored_message.metadata, "attachments")
+    refute inspect(stored_message.metadata) =~ "Private inbound subject"
+    refute inspect(stored_message.metadata) =~ "private-sender@example.com"
+    refute inspect(stored_message.metadata) =~ "sensitive attachment body"
+
+    assert stored_message.subject == "Encrypted message"
+    assert stored_message.from == "Encrypted sender"
+    assert stored_attachment["filename"] == "Encrypted attachment"
+    assert is_map(stored_attachment["private_encrypted_payload"])
     refute Map.has_key?(stored_attachment, "data")
   end
 
@@ -230,6 +294,12 @@ defmodule Elektrine.Email.MailboxPrivateStorageTest do
       })
 
     mailbox
+  end
+
+  defp email_notification_for(user_id, message_id) do
+    user_id
+    |> Notifications.list_notifications(limit: 20)
+    |> Enum.find(&(&1.type == "email_received" and &1.source_id == message_id))
   end
 
   defp wrapped_payload do

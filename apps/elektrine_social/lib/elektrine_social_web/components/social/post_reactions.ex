@@ -90,11 +90,11 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
             phx-value-emoji={reaction.emoji}
             class={[
               @btn_class,
-              "tooltip tooltip-top",
               if(reaction.user_reacted, do: "btn-secondary", else: "btn-ghost")
             ]}
             type="button"
             data-tip={tooltip}
+            data-portal-tooltip
           >
             <span>{raw(render_reaction_emoji(reaction.emoji, reaction.instance_domain))}</span>
             <span class={@text_class}>{reaction.count}</span>
@@ -102,16 +102,29 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
         <% end %>
 
         <%= if @current_user && @show_picker do %>
-          <div class="dropdown dropdown-top" data-reaction-picker-root>
+          <div
+            class="dropdown dropdown-top"
+            data-reaction-picker-root
+            data-portal-dropdown-root
+            data-portal-dropdown-mode="anchored"
+          >
             <button
               type="button"
               tabindex="0"
               class={@picker_btn_class}
               title="Add reaction"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              data-portal-dropdown-trigger
             >
               <.icon name="hero-face-smile" class={@picker_icon_class} />
             </button>
-            <div tabindex="0" class="dropdown-content z-30 menu p-2 rounded-box">
+            <div
+              tabindex="-1"
+              class="dropdown-content z-30 menu p-2 rounded-box"
+              role="menu"
+              data-portal-dropdown-menu
+            >
               <div class="flex gap-1">
                 <%= for emoji <- @emojis do %>
                   <button

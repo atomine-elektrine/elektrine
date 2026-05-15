@@ -1,6 +1,6 @@
 defmodule Elektrine.OAuth.Authorization do
   @moduledoc """
-  OAuth authorization codes for the Mastodon API OAuth flow.
+  OAuth authorization codes.
 
   Authorization codes are short-lived tokens that get exchanged for
   access tokens during the OAuth authorization code flow.

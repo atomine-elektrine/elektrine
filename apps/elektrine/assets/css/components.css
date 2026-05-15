@@ -133,6 +133,7 @@ html[data-theme="dark"] .btn:focus-visible,
 .floating-menu,
 .dropdown-content { border: 1px solid transparent; border-color: var(--surface-floating-border); background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; box-shadow: var(--surface-floating-shadow);
 } .floating-panel { position: relative; isolation: isolate;
+} .user-hover-card-panel { background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; opacity: 1 !important;
 } .dropdown-content { z-index: 100;
 } .dropdown { position: relative;
 } .dropdown .dropdown-content { position: absolute; visibility: hidden; opacity: 0; transform: translateY(-4px) scale(0.98); transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;

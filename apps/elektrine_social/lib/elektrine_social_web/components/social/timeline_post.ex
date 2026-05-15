@@ -316,6 +316,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               timezone={@timezone}
               time_format={@time_format}
               user_statuses={@user_statuses}
+              user_follows={@user_follows}
+              pending_follows={@pending_follows}
+              remote_follow_overrides={@remote_follow_overrides}
               id_prefix={@id_prefix}
               on_navigate_profile={@on_navigate_profile}
               show_admin_actions={@show_admin_actions}
@@ -463,6 +466,9 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
   attr :user_statuses, :map, default: %{}
+  attr :user_follows, :map, default: %{}
+  attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
   attr :id_prefix, :string, default: "post"
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
   attr :show_admin_actions, :boolean, default: true
@@ -477,6 +483,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           post={@post}
           timezone={@timezone}
           time_format={@time_format}
+          user_follows={@user_follows}
+          pending_follows={@pending_follows}
+          remote_follow_overrides={@remote_follow_overrides}
+          current_user={@current_user}
         />
       <% else %>
         <!-- Local post -->
@@ -486,6 +496,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
             timezone={@timezone}
             time_format={@time_format}
             user_statuses={@user_statuses}
+            user_follows={@user_follows}
+            current_user={@current_user}
             on_navigate_profile={@on_navigate_profile}
           />
         <% end %>
@@ -507,6 +519,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :post, :map, required: true
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
+  attr :user_follows, :map, default: %{}
+  attr :pending_follows, :map, default: %{}
+  attr :remote_follow_overrides, :map, default: %{}
+  attr :current_user, :map, default: nil
 
   defp remote_author_header(assigns) do
     community_uri = PostUtilities.community_actor_uri(assigns.post)
@@ -517,10 +533,17 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:community_path, community_path(assigns.post, community_uri))
 
     ~H"""
-    <.user_hover_card remote_actor={@post.remote_actor}>
+    <.user_hover_card
+      remote_actor={@post.remote_actor}
+      current_user={@current_user}
+      user_follows={@user_follows}
+      pending_follows={@pending_follows}
+      remote_follow_overrides={@remote_follow_overrides}
+      class="!flex min-w-0 flex-1 items-center gap-3"
+    >
       <.link
         navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
-        class="w-10 h-10 rounded-full block"
+        class="w-10 h-10 rounded-full block flex-shrink-0"
       >
         <%= if @post.remote_actor.avatar_url do %>
           <img
@@ -532,10 +555,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           <.placeholder_avatar size="md" class="shadow-lg" />
         <% end %>
       </.link>
-    </.user_hover_card>
-    <div class="flex-1 min-w-0 flex flex-col justify-center">
-      <div class="flex items-center gap-1.5">
-        <.user_hover_card remote_actor={@post.remote_actor}>
+      <div class="flex-1 min-w-0 flex flex-col justify-center">
+        <div class="flex items-center gap-1.5">
           <.link
             navigate={"/remote/#{@post.remote_actor.username}@#{@post.remote_actor.domain}"}
             class="font-medium hover:text-primary transition-colors duration-200 truncate"
@@ -547,42 +568,42 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               )
             )}
           </.link>
-        </.user_hover_card>
-      </div>
-      <div class="text-sm opacity-70 flex items-center gap-2 truncate">
-        <span class="truncate">
-          @{@post.remote_actor.username}@{@post.remote_actor.domain}
-          <%= if @community_uri do %>
-            <span class="opacity-50">in</span>
-            <%= if @community_path do %>
-              <.link navigate={@community_path} class="link link-hover">
-                {extract_community_name(@community_uri)}
-              </.link>
-            <% else %>
-              <span>{extract_community_name(@community_uri)}</span>
+        </div>
+        <div class="text-sm opacity-70 flex items-center gap-2 truncate">
+          <span class="truncate">
+            @{@post.remote_actor.username}@{@post.remote_actor.domain}
+            <%= if @community_uri do %>
+              <span class="opacity-50">in</span>
+              <%= if @community_path do %>
+                <.link navigate={@community_path} class="link link-hover">
+                  {extract_community_name(@community_uri)}
+                </.link>
+              <% else %>
+                <span>{extract_community_name(@community_uri)}</span>
+              <% end %>
             <% end %>
-          <% end %>
-          ·
-          <.local_time
-            datetime={@post.inserted_at}
-            format="relative"
-            timezone={@timezone}
-            time_format={@time_format}
-          />
-        </span>
-        <span class="badge badge-xs badge-outline flex-shrink-0" title="Federated post">
-          <.icon name="hero-globe-alt" class="w-2.5 h-2.5" />
-        </span>
-        <%= if @post.edited_at do %>
-          <span
-            class="badge badge-xs badge-ghost"
-            title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
-          >
-            <.icon name="hero-pencil" class="w-2.5 h-2.5" />
+            ·
+            <.local_time
+              datetime={@post.inserted_at}
+              format="relative"
+              timezone={@timezone}
+              time_format={@time_format}
+            />
           </span>
-        <% end %>
+          <span class="badge badge-xs badge-outline flex-shrink-0" title="Federated post">
+            <.icon name="hero-globe-alt" class="w-2.5 h-2.5" />
+          </span>
+          <%= if @post.edited_at do %>
+            <span
+              class="badge badge-xs badge-ghost"
+              title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
+            >
+              <.icon name="hero-pencil" class="w-2.5 h-2.5" />
+            </span>
+          <% end %>
+        </div>
       </div>
-    </div>
+    </.user_hover_card>
     """
   end
 
@@ -591,22 +612,28 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :timezone, :string, default: "UTC"
   attr :time_format, :string, default: "12h"
   attr :user_statuses, :map, default: %{}
+  attr :user_follows, :map, default: %{}
+  attr :current_user, :map, default: nil
   attr :on_navigate_profile, :string, default: "navigate_to_profile"
 
   defp local_author_header(assigns) do
     ~H"""
-    <.user_hover_card user={@post.sender} user_statuses={@user_statuses}>
+    <.user_hover_card
+      user={@post.sender}
+      user_statuses={@user_statuses}
+      user_follows={@user_follows}
+      current_user={@current_user}
+      class="!flex min-w-0 flex-1 items-center gap-3"
+    >
       <button
         phx-click={@on_navigate_profile}
         phx-value-handle={@post.sender.handle || @post.sender.username}
-        class="w-10 h-10"
+        class="w-10 h-10 flex-shrink-0"
         type="button"
       >
         <.user_avatar user={@post.sender} size="sm" user_statuses={@user_statuses} />
       </button>
-    </.user_hover_card>
-    <div class="flex-1 min-w-0 flex flex-col justify-center">
-      <.user_hover_card user={@post.sender} user_statuses={@user_statuses}>
+      <div class="flex-1 min-w-0 flex flex-col justify-center">
         <button
           phx-click={@on_navigate_profile}
           phx-value-handle={@post.sender.handle || @post.sender.username}
@@ -615,28 +642,28 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         >
           <.username_with_effects user={@post.sender} display_name={true} verified_size="sm" />
         </button>
-      </.user_hover_card>
-      <div class="text-sm opacity-70 flex items-center gap-2 truncate">
-        <span class="truncate">
-          @{@post.sender.handle || @post.sender.username}@{Elektrine.Domains.default_user_handle_domain()} ·
-          <.local_time
-            datetime={@post.inserted_at}
-            format="relative"
-            timezone={@timezone}
-            time_format={@time_format}
-          />
-        </span>
-        <%= if @post.edited_at do %>
-          <span
-            class="badge badge-xs badge-ghost flex-shrink-0"
-            title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
-          >
-            <.icon name="hero-pencil" class="w-2.5 h-2.5" />
+        <div class="text-sm opacity-70 flex items-center gap-2 truncate">
+          <span class="truncate">
+            @{@post.sender.handle || @post.sender.username}@{Elektrine.Domains.default_user_handle_domain()} ·
+            <.local_time
+              datetime={@post.inserted_at}
+              format="relative"
+              timezone={@timezone}
+              time_format={@time_format}
+            />
           </span>
-        <% end %>
-        <.visibility_badge visibility={@post.visibility} />
+          <%= if @post.edited_at do %>
+            <span
+              class="badge badge-xs badge-ghost flex-shrink-0"
+              title={"Edited #{Integrations.social_time_ago(@post.edited_at)}"}
+            >
+              <.icon name="hero-pencil" class="w-2.5 h-2.5" />
+            </span>
+          <% end %>
+          <.visibility_badge visibility={@post.visibility} />
+        </div>
       </div>
-    </div>
+    </.user_hover_card>
     """
   end
 
@@ -678,13 +705,24 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     <div
       class="dropdown timeline-post-dropdown dropdown-end flex-shrink-0"
       id={"#{@id_prefix}-post-dropdown-#{@post.id}"}
+      data-portal-dropdown-root
+      data-portal-align="end"
+      data-portal-placement="auto"
     >
-      <label tabindex="0" class="btn btn-ghost btn-xs btn-square h-7 w-7 min-h-0 sm:h-8 sm:w-8">
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs btn-square h-7 w-7 min-h-0 sm:h-8 sm:w-8"
+        aria-haspopup="menu"
+        aria-expanded="false"
+        data-portal-dropdown-trigger
+      >
         <.icon name="hero-ellipsis-vertical" class="w-4 h-4" />
-      </label>
+      </button>
       <ul
-        tabindex="0"
+        tabindex="-1"
         class="dropdown-content timeline-post-dropdown-menu menu p-2 rounded-box w-52"
+        role="menu"
+        data-portal-dropdown-menu
       >
         <!-- View/Open Actions -->
         <%= if @post.federated && @post.activitypub_url do %>
@@ -3024,21 +3062,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
                     phx-value-post_id={@post.id}
                     phx-value-emoji={emoji}
                     class={[
-                      "px-1.5 py-0.5 rounded text-xs border flex items-center gap-1 transition-colors tooltip tooltip-top",
+                      "px-1.5 py-0.5 rounded text-xs border flex items-center gap-1 transition-colors",
                       if(user_reacted,
                         do: "bg-secondary/20 border-secondary text-secondary",
                         else: "bg-base-200 border-base-300 hover:bg-base-300"
                       )
                     ]}
                     data-tip={tooltip}
+                    data-portal-tooltip
                   >
                     <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>
                   </button>
                 <% else %>
                   <span
-                    class="px-1.5 py-0.5 rounded text-xs bg-base-200 border border-base-300 flex items-center gap-1 tooltip tooltip-top"
+                    class="px-1.5 py-0.5 rounded text-xs bg-base-200 border border-base-300 flex items-center gap-1"
                     data-tip={tooltip}
+                    data-portal-tooltip
                   >
                     <span>{raw(render_custom_emojis(emoji))}</span>
                     <span class="font-medium">{count}</span>

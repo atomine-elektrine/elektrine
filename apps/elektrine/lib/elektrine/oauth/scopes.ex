@@ -1,9 +1,8 @@
 defmodule Elektrine.OAuth.Scopes do
   @moduledoc """
-  OAuth scope definitions and validation for the Mastodon API.
+  OAuth scope definitions and validation.
 
   Scopes control what actions an OAuth token is allowed to perform.
-  This follows the Mastodon API scope hierarchy.
   """
 
   # All valid OAuth scopes

@@ -1,9 +1,8 @@
 defmodule Elektrine.OAuth do
   @moduledoc """
-  The OAuth context for Mastodon API compatibility.
+  The OAuth context for OpenID Connect clients.
 
-  This module provides OAuth 2.0 functionality for third-party apps
-  to authenticate with the Mastodon-compatible API.
+  This module provides OAuth 2.0 functionality for third-party apps.
   """
 
   alias Elektrine.Accounts.User

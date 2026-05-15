@@ -1219,8 +1219,7 @@
 
                       # Check for Mastodon API embedded data first
                       mastodon = @post["_mastodon"]
-                      # Also check for fresh Mastodon API counts
-                      mastodon_api = assigns[:mastodon_counts]
+                      fresh_remote_counts = assigns[:mastodon_counts]
 
                       # Use Lemmy API counts if available, then Mastodon API, then ActivityPub data
                       lemmy = @lemmy_counts
@@ -1239,9 +1238,9 @@
                           is_map(embedded_lemmy) and is_integer(embedded_lemmy["score"]) ->
                             embedded_lemmy["score"] + like_delta
 
-                          # Fresh Mastodon API counts (most accurate)
-                          is_map(mastodon_api) and is_integer(mastodon_api[:favourites_count]) ->
-                            mastodon_api[:favourites_count] + like_delta
+                          is_map(fresh_remote_counts) and
+                              is_integer(fresh_remote_counts[:favourites_count]) ->
+                            fresh_remote_counts[:favourites_count] + like_delta
 
                           is_map(mastodon) and is_integer(mastodon["favourites_count"]) ->
                             mastodon["favourites_count"] + like_delta
@@ -1263,9 +1262,9 @@
                           @local_message ->
                             (@local_message.share_count || 0) + boost_delta
 
-                          # Fresh Mastodon API counts (most accurate)
-                          is_map(mastodon_api) and is_integer(mastodon_api[:reblogs_count]) ->
-                            mastodon_api[:reblogs_count] + boost_delta
+                          is_map(fresh_remote_counts) and
+                              is_integer(fresh_remote_counts[:reblogs_count]) ->
+                            fresh_remote_counts[:reblogs_count] + boost_delta
 
                           is_map(mastodon) and is_integer(mastodon["reblogs_count"]) ->
                             mastodon["reblogs_count"] + boost_delta
@@ -1292,9 +1291,9 @@
                           is_integer(@post["reply_count"]) ->
                             @post["reply_count"]
 
-                          # Fresh Mastodon API counts (most accurate)
-                          is_map(mastodon_api) and is_integer(mastodon_api[:replies_count]) ->
-                            mastodon_api[:replies_count]
+                          is_map(fresh_remote_counts) and
+                              is_integer(fresh_remote_counts[:replies_count]) ->
+                            fresh_remote_counts[:replies_count]
 
                           is_map(mastodon) and is_integer(mastodon["replies_count"]) ->
                             mastodon["replies_count"]
@@ -1535,7 +1534,7 @@
                       </ul>
                     </div>
                   </div>
-                  <%= if hydration_state in ["syncing", "partial"] and displayed_reply_count > 0 do %>
+                  <%= if @replies_loading && hydration_state in ["syncing", "partial"] && displayed_reply_count > 0 do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon
                         name="hero-arrow-path"
@@ -1555,6 +1554,23 @@
                       </span>
                     </div>
                   <% end %>
+                  <%= if hydration_state == "partial" and !@replies_loading and missing_remote_replies > 0 do %>
+                    <div class="alert alert-warning py-2 mb-3">
+                      <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
+                      <span class="text-sm">
+                        {missing_remote_replies} {if missing_remote_replies == 1,
+                          do: "comment is",
+                          else: "comments are"} reported by the remote server but not cached here yet.
+                      </span>
+                      <button
+                        type="button"
+                        phx-click="refresh_comments"
+                        class="btn btn-ghost btn-xs"
+                      >
+                        Retry import
+                      </button>
+                    </div>
+                  <% end %>
                   <%= if hydration_state == "failed" do %>
                     <div class="alert alert-warning py-2 mb-3">
                       <.icon name="hero-exclamation-triangle" class="w-4 h-4" />
@@ -1563,7 +1579,7 @@
                       </span>
                     </div>
                   <% end %>
-                  <%= if !@is_community_post && @reply_sync_checked && !@replies_loading && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
+                  <%= if !@is_community_post && hydration_state != "partial" && @reply_sync_checked && !@replies_loading && missing_remote_replies > 0 && is_map(@post) && is_binary(@post["id"]) do %>
                     <div class="alert alert-info py-2 mb-3">
                       <.icon name="hero-information-circle" class="w-4 h-4" />
                       <span class="text-sm">

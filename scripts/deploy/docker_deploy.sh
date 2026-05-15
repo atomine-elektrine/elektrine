@@ -523,6 +523,29 @@ compose_release_services() {
   done
 }
 
+compose_runtime_services() {
+  local service_name=""
+
+  while IFS= read -r service_name; do
+    case "$service_name" in
+      ""|postgres) ;;
+      *) printf '%s\n' "$service_name" ;;
+    esac
+  done < <("${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" config --services)
+}
+
+compose_pull_services() {
+  local services=("$@")
+
+  if [[ "${#services[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  if ! "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull --ignore-buildable "${services[@]}"; then
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull "${services[@]}"
+  fi
+}
+
 remove_caddy_with_stale_config_mount() {
   local container_name="elektrine_caddy_edge"
   local mounted_config=""
@@ -616,6 +639,7 @@ remove_caddy_with_stale_config_mount
 
 if [[ "$DO_UP" -eq 1 ]]; then
   mapfile -t release_services < <(compose_release_services)
+  mapfile -t runtime_services < <(compose_runtime_services)
 
   # Do not let the partial postgres bootstrap recreate the shared project network
   # while other profile services are still attached. The full stack is converged
@@ -646,7 +670,7 @@ if [[ "$DO_UP" -eq 1 ]]; then
   if [[ "$DO_BUILD" -eq 1 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" build "${release_services[@]}"
   elif [[ "$DO_PULL" -eq 1 ]]; then
-    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" pull "${release_services[@]}"
+    compose_pull_services "${runtime_services[@]}"
   fi
 fi
 
@@ -662,10 +686,10 @@ fi
 if [[ "$DO_UP" -eq 1 ]]; then
   issue_initial_wildcard_cert
 
-  mapfile -t release_services < <(compose_release_services)
+  mapfile -t runtime_services < <(compose_runtime_services)
 
-  if [[ "${#release_services[@]}" -gt 0 ]]; then
-    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-deps "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}" "${release_services[@]}"
+  if [[ "${#runtime_services[@]}" -gt 0 ]]; then
+    "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-deps "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}" "${runtime_services[@]}"
   fi
 
   if [[ "$DO_BUILD" -eq 1 ]]; then

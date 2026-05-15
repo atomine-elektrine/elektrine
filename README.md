@@ -83,6 +83,7 @@ Useful commands:
 
 ```bash
 mix compile
+mix check
 mix test
 mix test apps/elektrine/test
 mix test apps/elektrine_web/test
