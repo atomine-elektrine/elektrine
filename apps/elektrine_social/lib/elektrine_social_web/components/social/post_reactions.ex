@@ -230,7 +230,6 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     end
   end
 
-
   defp render_reaction_emoji(emoji, instance_domain) when is_binary(emoji) do
     emoji
     |> html_escape()
