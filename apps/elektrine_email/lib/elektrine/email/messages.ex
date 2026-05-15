@@ -486,16 +486,13 @@ defmodule Elektrine.Email.Messages do
                 user = Elektrine.Accounts.get_user!(mailbox_user_id)
 
                 if Map.get(user, :notify_on_email_received, true) do
-                  from_email = threaded_attrs[:from] || threaded_attrs["from"] || "Unknown sender"
-
-                  subject =
-                    notification_subject(mailbox, threaded_attrs) || "(Encrypted message)"
+                  {title, body} = email_notification_content(mailbox, threaded_attrs)
 
                   Elektrine.Notifications.create_notification(%{
                     user_id: mailbox_user_id,
                     type: "email_received",
-                    title: "Email from #{from_email}",
-                    body: subject,
+                    title: title,
+                    body: body,
                     url: Elektrine.Paths.email_view_path(message),
                     source_type: "email",
                     source_id: message.id,
@@ -689,6 +686,24 @@ defmodule Elektrine.Email.Messages do
   end
 
   defp prepare_storage_attrs(attrs, _mailbox, _mailbox_user_id), do: {:ok, attrs}
+
+  defp email_notification_content(%Mailbox{} = mailbox, attrs) do
+    if MailboxEncryption.enabled?(mailbox) do
+      {"New encrypted email", "Unlock your mailbox to view this message."}
+    else
+      from_email = attrs[:from] || attrs["from"] || "Unknown sender"
+      subject = notification_subject(mailbox, attrs) || "(No subject)"
+
+      {"Email from #{from_email}", subject}
+    end
+  end
+
+  defp email_notification_content(_mailbox, attrs) do
+    from_email = attrs[:from] || attrs["from"] || "Unknown sender"
+    subject = attrs[:subject] || attrs["subject"] || "(No subject)"
+
+    {"Email from #{from_email}", subject}
+  end
 
   defp maybe_resolve_duplicate_message_insert(
          %Ecto.Changeset{} = changeset,

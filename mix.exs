@@ -15,7 +15,7 @@ defmodule ElektrineUmbrella.MixProject do
   end
 
   def cli do
-    [preferred_envs: ["arbp.conformance": :test]]
+    [preferred_envs: [check: :test, "arbp.conformance": :test]]
   end
 
   defp deps, do: []
@@ -46,8 +46,15 @@ defmodule ElektrineUmbrella.MixProject do
 
   defp aliases do
     [
+      check: [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "credo --strict",
+        "deps.unlock --check-unused",
+        "test"
+      ],
       setup: ["cmd --cd apps/elektrine mix setup"],
-      seed: ["run priv/repo/seeds.exs"]
+      seed: ["cmd --cd apps/elektrine mix run priv/repo/seeds.exs"]
     ]
   end
 end

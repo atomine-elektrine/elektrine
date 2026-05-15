@@ -4,6 +4,8 @@
  * dwell time tracking, hover cards, and image modals.
  */
 
+import { OverlayPortal } from "../utils/overlay_portal";
+
 // Dwell time tracking constants
 const SCROLL_PAST_THRESHOLD_MS = 500;
 const MIN_DWELL_TIME_MS = 1000;
@@ -362,7 +364,7 @@ export const PostClick = {
 
     this.handlePointerDown = (e) => {
       const openReactionPicker = this.el.querySelector(
-        "[data-reaction-picker-root]:focus-within",
+        "[data-reaction-picker-root][data-portal-dropdown-open='true'], [data-reaction-picker-root]:focus-within",
       );
 
       if (openReactionPicker && !e.target.closest("[data-reaction-picker-root]")) {
@@ -1178,6 +1180,11 @@ export const UserHoverCard = {
     this.card = this.el.querySelector("[data-hover-card]");
     if (!this.card) return;
 
+    this.trigger = this.el.querySelector("[data-hover-trigger]") || this.el;
+    this.card.__userHoverCard = this;
+    this.portal = new OverlayPortal(this.card, {
+      portalRoot: this.el.closest("[data-phx-main]") || document.body,
+    });
     this.showTimeout = null;
     this.hideTimeout = null;
     this.isCardHovered = false;
@@ -1204,14 +1211,8 @@ export const UserHoverCard = {
       this.hideTimeout = setTimeout(() => this.hideCard(), 200);
     };
 
-    const trigger = this.el.querySelector("[data-hover-trigger]");
-    if (trigger) {
-      trigger.addEventListener("mouseenter", this.handleMouseEnter);
-      trigger.addEventListener("mouseleave", this.handleMouseLeave);
-    } else {
-      this.el.addEventListener("mouseenter", this.handleMouseEnter);
-      this.el.addEventListener("mouseleave", this.handleMouseLeave);
-    }
+    this.trigger.addEventListener("mouseenter", this.handleMouseEnter);
+    this.trigger.addEventListener("mouseleave", this.handleMouseLeave);
 
     this.card.addEventListener("mouseenter", this.handleCardEnter);
     this.card.addEventListener("mouseleave", this.handleCardLeave);
@@ -1219,21 +1220,41 @@ export const UserHoverCard = {
 
   showCard() {
     if (this.card) {
-      this.card.classList.remove("opacity-0", "invisible", "scale-95");
-      this.card.classList.add("opacity-100", "visible", "scale-100");
+      document.querySelectorAll("[data-hover-card]").forEach((card) => {
+        if (card !== this.card) {
+          if (card.__userHoverCard) {
+            card.__userHoverCard.hideCard();
+          } else {
+            card.classList.remove("visible", "scale-100");
+            card.classList.add("invisible", "scale-95");
+          }
+        }
+      });
+
+      this.portal.mount();
+      this.portal.positionNear(this.trigger);
+      this.card.classList.remove("invisible", "scale-95");
+      this.card.classList.add("visible", "scale-100");
     }
   },
 
   hideCard() {
     if (this.card) {
-      this.card.classList.remove("opacity-100", "visible", "scale-100");
-      this.card.classList.add("opacity-0", "invisible", "scale-95");
+      this.card.classList.remove("visible", "scale-100");
+      this.card.classList.add("invisible", "scale-95");
+      this.portal.restore();
     }
   },
 
   destroyed() {
     clearTimeout(this.showTimeout);
     clearTimeout(this.hideTimeout);
+    this.card?.removeEventListener("mouseenter", this.handleCardEnter);
+    this.card?.removeEventListener("mouseleave", this.handleCardLeave);
+    this.trigger?.removeEventListener("mouseenter", this.handleMouseEnter);
+    this.trigger?.removeEventListener("mouseleave", this.handleMouseLeave);
+    this.portal?.restore();
+    if (this.card) this.card.__userHoverCard = null;
   },
 };
 

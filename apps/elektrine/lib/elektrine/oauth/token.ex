@@ -1,6 +1,6 @@
 defmodule Elektrine.OAuth.Token do
   @moduledoc """
-  OAuth access tokens for the Mastodon API.
+  OAuth access tokens.
 
   Access tokens are long-lived tokens that authenticate API requests.
   They can be obtained through the OAuth authorization code flow.

@@ -1136,11 +1136,20 @@ defmodule ArblargWeb.ChatLive.Index do
   @impl true
   def handle_info({:new_email, message}, socket) do
     # Handle email notifications while in chat
-    socket =
-      push_event(socket, "new_email", %{
-        from: extract_email_address(message.from || "Unknown"),
-        subject: String.slice(message.subject || "No Subject", 0, 100)
-      })
+    payload =
+      if private_email?(message) do
+        %{
+          from: "Encrypted sender",
+          subject: "Encrypted message"
+        }
+      else
+        %{
+          from: extract_email_address(message.from || "Unknown"),
+          subject: String.slice(message.subject || "No Subject", 0, 100)
+        }
+      end
+
+    socket = push_event(socket, "new_email", payload)
 
     {:noreply, socket}
   end
@@ -1820,7 +1829,7 @@ defmodule ArblargWeb.ChatLive.Index do
     <!-- Context Menu -->
     <%= if @context_menu.conversation do %>
       <div
-        class="fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-50 py-2 min-w-48 animate-fade-in"
+        class="floating-menu fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-[10000] py-2 min-w-48 animate-fade-in"
         style={"left: #{@context_menu.position.x}px; top: #{@context_menu.position.y}px;"}
         phx-click-away="hide_context_menu"
       >
@@ -1889,7 +1898,7 @@ defmodule ArblargWeb.ChatLive.Index do
     <!-- Message Context Menu -->
     <%= if @context_menu.message do %>
       <div
-        class="fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-50 py-2 min-w-48 animate-fade-in"
+        class="floating-menu fixed bg-base-100 border border-base-300 rounded-lg shadow-xl z-[10000] py-2 min-w-48 animate-fade-in"
         style={"left: #{@context_menu.position.x}px; top: #{@context_menu.position.y}px;"}
         phx-click-away="hide_message_context_menu"
       >
@@ -3313,6 +3322,9 @@ defmodule ArblargWeb.ChatLive.Index do
   defp social_link_preview?(%{__struct__: :"Elixir.Elektrine.Social.LinkPreview"}), do: true
 
   defp social_link_preview?(_), do: false
+
+  defp private_email?(%{client_encrypted_payload: payload}) when is_map(payload), do: true
+  defp private_email?(_message), do: false
 
   defp extract_email_address(email_string) when is_binary(email_string) do
     case Regex.run(~r/<([^>]+)>/, email_string) do

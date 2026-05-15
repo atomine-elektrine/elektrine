@@ -37,7 +37,10 @@ defmodule ElektrineWeb.NotificationsDropdownLive do
       </div>
 
       <%= if @dropdown_open do %>
-        <.floating_panel class="fixed sm:absolute right-0 sm:right-0 mt-2 z-50 rounded-box w-full sm:w-[28rem] max-w-md max-h-[80vh] sm:max-h-[640px] flex flex-col overflow-hidden">
+        <.floating_panel
+          class="fixed right-0 mt-2 z-[10000] rounded-box w-full sm:w-[28rem] max-w-md max-h-[80vh] sm:max-h-[640px] flex flex-col overflow-hidden"
+          data-notification-dropdown-panel
+        >
           <div class="p-3 sm:p-4 border-b border-base-300 flex-shrink-0 bg-base-100/95">
             <div class="flex items-center justify-between gap-2">
               <div>

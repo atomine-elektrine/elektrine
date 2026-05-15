@@ -342,7 +342,7 @@ defmodule ElektrineWeb.PortalLive.Index do
        socket
        |> assign(:loading_more, true)
        |> assign(:visible_post_limit, next_limit)
-       |> load_feed_data(next_limit)}
+       |> maybe_load_feed_data(next_limit)}
     end
   end
 
@@ -1507,11 +1507,11 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   def handle_info(:load_feed_data, socket) do
-    {:noreply, load_feed_data(socket, socket.assigns.visible_post_limit)}
+    {:noreply, maybe_load_feed_data(socket, socket.assigns.visible_post_limit)}
   end
 
   def handle_info({:load_more_feed, limit}, socket) do
-    {:noreply, load_feed_data(socket, limit)}
+    {:noreply, maybe_load_feed_data(socket, limit)}
   end
 
   def handle_info(:load_stats_data, socket) do
@@ -1546,6 +1546,29 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   def handle_info(_info, socket) do
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_async({:portal_feed_data, ref}, {:ok, result}, socket) do
+    if socket.assigns[:feed_load_ref] == ref do
+      {:noreply, apply_feed_data_result(socket, result)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_async({:portal_feed_data, ref}, {:exit, reason}, socket) do
+    Logger.warning("Portal feed async loader exited: #{inspect(reason)}")
+
+    if socket.assigns[:feed_load_ref] == ref do
+      {:noreply,
+       socket
+       |> assign(:loading_feed, false)
+       |> assign(:loading_more, false)
+       |> put_flash(:error, "Portal feed failed to load. Try refreshing.")}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp get_user_likes_map(user_id, posts) do
@@ -2877,7 +2900,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         socket
         |> assign(:loading_feed, true)
         |> assign(:loading_more, false)
-        |> load_feed_data(socket.assigns.visible_post_limit)
+        |> maybe_load_feed_data(socket.assigns.visible_post_limit)
     end
   end
 
@@ -3058,30 +3081,68 @@ defmodule ElektrineWeb.PortalLive.Index do
     filter = socket.assigns.filter || @default_filter
     source_key = feed_source_key(filter)
 
+    apply_feed_data_result(
+      socket,
+      load_feed_data_result(user.id, filter, source_key, limit, session_context)
+    )
+  end
+
+  defp maybe_load_feed_data(socket, limit) do
+    if connected?(socket) and !test_env?() do
+      start_feed_data_async(socket, limit)
+    else
+      load_feed_data(socket, limit)
+    end
+  end
+
+  defp start_feed_data_async(socket, limit) do
+    user = socket.assigns.current_user
+    session_context = socket.assigns[:session_context] || %{}
+    filter = socket.assigns.filter || @default_filter
+    source_key = feed_source_key(filter)
+    ref = System.unique_integer([:positive])
+
+    socket
+    |> assign(:feed_load_ref, ref)
+    |> start_async({:portal_feed_data, ref}, fn ->
+      load_feed_data_result(user.id, filter, source_key, limit, session_context)
+    end)
+  end
+
+  defp load_feed_data_result(user_id, filter, source_key, limit, session_context) do
     personalized_result =
       load_with_timeout(
         {:for_you_feed, source_key},
         fn ->
-          load_portal_feed_posts(user.id, filter, limit, session_context)
-          |> build_feed_state(user.id)
+          load_portal_feed_posts(user_id, filter, limit, session_context)
+          |> build_feed_state(user_id)
         end,
         @feed_load_timeout_ms
       )
 
     case personalized_result do
       {:ok, feed_data} ->
-        assign_feed_data(socket, feed_data)
+        {:ok, feed_data}
 
       {:error, _reason} ->
-        fallback_posts = fallback_feed_posts(user.id, filter, limit)
+        fallback_posts = fallback_feed_posts(user_id, filter, limit)
 
-        socket
-        |> assign_feed_data(%{
-          build_feed_state(fallback_posts, user.id)
-          | all_posts: fallback_posts
-        })
-        |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")
+        {:fallback,
+         %{
+           build_feed_state(fallback_posts, user_id)
+           | all_posts: fallback_posts
+         }}
     end
+  end
+
+  defp apply_feed_data_result(socket, {:ok, feed_data}) do
+    assign_feed_data(socket, feed_data)
+  end
+
+  defp apply_feed_data_result(socket, {:fallback, feed_data}) do
+    socket
+    |> assign_feed_data(feed_data)
+    |> put_flash(:info, "Showing recent posts while personalized ranking catches up.")
   end
 
   defp fallback_feed_posts(user_id, "timeline", limit) do

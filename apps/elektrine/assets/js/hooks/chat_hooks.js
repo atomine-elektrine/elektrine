@@ -22,6 +22,19 @@ function selectedTextWithin(element) {
   return ''
 }
 
+function contextMenuPosition(x, y) {
+  const margin = 8
+  const estimatedWidth = 224
+  const estimatedHeight = 360
+  const maxX = Math.max(margin, window.innerWidth - estimatedWidth - margin)
+  const maxY = Math.max(margin, window.innerHeight - estimatedHeight - margin)
+
+  return {
+    x: Math.min(Math.max(x, margin), maxX),
+    y: Math.min(Math.max(y, margin), maxY)
+  }
+}
+
 const CHAT_E2EE_STORAGE_PREFIX = 'elektrine:chat-e2ee:v1'
 const CHAT_E2EE_DB_NAME = 'elektrine-chat-e2ee'
 const CHAT_E2EE_DB_VERSION = 1
@@ -2314,12 +2327,13 @@ export const ContextMenu = {
     // Handle right-click context menu
     this.contextMenuHandler = (e) => {
       e.preventDefault()
+      const position = contextMenuPosition(e.clientX, e.clientY)
       // Hide any existing context menus first
       this.pushEvent("hide_message_context_menu", {})
       this.pushEvent("show_context_menu", {
         conversation_id: parseInt(conversationId),
-        x: e.clientX,
-        y: e.clientY
+        x: position.x,
+        y: position.y
       })
     }
     this.el.addEventListener("contextmenu", this.contextMenuHandler)
@@ -2327,12 +2341,13 @@ export const ContextMenu = {
     // Handle custom context menu event (for backwards compatibility)
     this.customEventHandler = (e) => {
       const { conversation_id, x, y } = e.detail
+      const position = contextMenuPosition(x, y)
       // Hide any existing context menus first
       this.pushEvent("hide_message_context_menu", {})
       this.pushEvent("show_context_menu", {
         conversation_id: conversation_id,
-        x: x,
-        y: y
+        x: position.x,
+        y: position.y
       })
     }
     this.el.addEventListener("phx:show_context_menu", this.customEventHandler)
@@ -2553,14 +2568,15 @@ export const MessageContextMenu = {
     this.contextMenuHandler = (e) => {
       e.preventDefault()
       const selectedText = selectedTextWithin(this.el)
+      const position = contextMenuPosition(e.clientX, e.clientY)
       // Hide any existing context menus first
       this.pushEvent("hide_context_menu", {})
       this.pushEvent("show_message_context_menu", {
         message_id: parseInt(messageId),
         sender_id: parseInt(senderId),
         selected_text: selectedText,
-        x: e.clientX,
-        y: e.clientY
+        x: position.x,
+        y: position.y
       })
     }
     this.el.addEventListener("contextmenu", this.contextMenuHandler)
@@ -2568,13 +2584,14 @@ export const MessageContextMenu = {
     // Handle custom message context menu event (for backwards compatibility)
     this.customEventHandler = (e) => {
       const { message_id, sender_id, x, y } = e.detail
+      const position = contextMenuPosition(x, y)
       // Hide any existing context menus first
       this.pushEvent("hide_context_menu", {})
       this.pushEvent("show_message_context_menu", {
         message_id: message_id,
         sender_id: sender_id,
-        x: x,
-        y: y
+        x: position.x,
+        y: position.y
       })
     }
     this.el.addEventListener("phx:show_message_context_menu", this.customEventHandler)

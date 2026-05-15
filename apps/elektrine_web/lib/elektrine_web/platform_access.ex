@@ -94,12 +94,10 @@ defmodule ElektrineWeb.PlatformAccess do
           path_matches?(path, "/api/social/communities") ->
         :communities
 
-      path_matches?(path, "/gallery") or path_matches?(path, "/api/social/upload") or
-        path_matches?(path, "/api/v1/media") or path_matches?(path, "/api/v2/media") ->
+      path_matches?(path, "/gallery") or path_matches?(path, "/api/social/upload") ->
         :gallery
 
-      path_matches?(path, "/lists") or path_matches?(path, "/api/v1/lists") or
-          path_matches?(path, "/api/v1/timelines/list") ->
+      path_matches?(path, "/lists") ->
         :lists
 
       path_matches?(path, "/friends") or path_matches?(path, "/profiles") or
@@ -108,8 +106,7 @@ defmodule ElektrineWeb.PlatformAccess do
 
       path_matches?(path, "/timeline") or path_matches?(path, "/hashtag") or
         path_matches?(path, "/post") or path_matches?(path, "/remote") or
-        path_matches?(path, "/api/social") or path_matches?(path, "/api/v1") or
-        path_matches?(path, "/api/v2") or path_matches?(path, "/api/ext/v1/social") or
+        path_matches?(path, "/api/social") or path_matches?(path, "/api/ext/v1/social") or
           path_matches?(path, "/api/ext/social") ->
         :timeline
 

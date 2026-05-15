@@ -297,26 +297,6 @@ defmodule ElektrineWeb.Router do
     plug(:put_secure_browser_headers)
   end
 
-  pipeline :mastodon_api do
-    # Mastodon-compatible API pipeline
-    plug(:accepts, ["json"])
-    plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "mastodon", ip_only: true)
-    plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: false)
-    plug(ElektrineWeb.Plugs.RequireModuleAccess)
-    plug(ElektrineWeb.Plugs.APIRateLimit)
-  end
-
-  pipeline :mastodon_api_authenticated do
-    # Mastodon-compatible API pipeline (authentication required)
-    plug(:accepts, ["json"])
-    plug(ElektrineWeb.Plugs.RequirePlatformModule)
-    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "mastodon", ip_only: true)
-    plug(ElektrineWeb.Plugs.MastodonAPIAuth, required: true)
-    plug(ElektrineWeb.Plugs.RequireModuleAccess)
-    plug(ElektrineWeb.Plugs.APIRateLimit)
-  end
-
   # Health check endpoint (no auth required)
   scope "/", ElektrineWeb do
     pipe_through(:api)
@@ -818,18 +798,11 @@ defmodule ElektrineWeb.Router do
     get("/openid-configuration", OIDCController, :configuration)
   end
 
-  # ===========================================================================
-  # Mastodon-compatible API routes
-  # ===========================================================================
-  # These routes provide compatibility with Mastodon third-party clients
-  # like Tusky, Ivory, Ice Cubes, Elk, etc.
-
-  ElektrineWeb.Routes.Social.mastodon_routes()
-
   scope "/oauth", ElektrineWeb do
     pipe_through(:api)
 
     get("/jwks", OIDCController, :jwks)
+    post("/token", OIDCController, :token)
     get("/userinfo", OIDCController, :userinfo)
     post("/userinfo", OIDCController, :userinfo)
   end

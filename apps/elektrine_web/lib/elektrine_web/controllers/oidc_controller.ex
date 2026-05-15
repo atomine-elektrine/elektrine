@@ -4,6 +4,7 @@ defmodule ElektrineWeb.OIDCController do
   alias Elektrine.Accounts.Authentication
   alias Elektrine.OAuth
   alias Elektrine.OAuth.App
+  alias Elektrine.OAuth.Scopes
   alias Elektrine.OIDC
 
   def configuration(conn, _params) do
@@ -89,6 +90,16 @@ defmodule ElektrineWeb.OIDCController do
     |> json(%{error: "invalid_request"})
   end
 
+  def token(conn, params) do
+    params = Map.put(params, "_conn_authorization_header", get_req_header(conn, "authorization"))
+
+    case params["grant_type"] do
+      "authorization_code" -> token_authorization_code(conn, params)
+      "refresh_token" -> token_refresh_token(conn, params)
+      _ -> token_error(conn, :unprocessable_entity, "unsupported_grant_type")
+    end
+  end
+
   def userinfo(conn, _params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, oauth_token} <- OAuth.get_token(token),
@@ -140,6 +151,116 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
+  defp token_authorization_code(conn, params) do
+    with {:ok, app} <- get_app_from_credentials(params),
+         {:ok, auth} <- OAuth.get_authorization(app, params["code"]),
+         :ok <- validate_token_redirect_uri(auth, params),
+         :ok <- validate_token_pkce(auth, params),
+         {:ok, auth} <- OAuth.consume_authorization(app, params["code"]),
+         {:ok, token} <- OAuth.exchange_token(app, auth) do
+      render_token(conn, token, auth: auth, issuer: issuer(conn))
+    else
+      {:error, :not_found} ->
+        token_error(conn, :unprocessable_entity, "invalid_grant")
+
+      {:error, :redirect_uri_mismatch} ->
+        token_error(conn, :unprocessable_entity, "invalid_grant")
+
+      {:error, :invalid_grant} ->
+        token_error(conn, :unprocessable_entity, "invalid_grant")
+
+      {:error, :invalid_client} ->
+        token_error(conn, :unprocessable_entity, "invalid_client")
+
+      error ->
+        error
+    end
+  end
+
+  defp token_refresh_token(conn, params) do
+    with {:ok, app} <- get_app_from_credentials(params),
+         refresh_token when is_binary(refresh_token) <- params["refresh_token"],
+         {:ok, token} <- OAuth.refresh_token(app, refresh_token) do
+      render_token(conn, token, issuer: issuer(conn))
+    else
+      nil -> token_error(conn, :unprocessable_entity, "invalid_grant")
+      {:error, :not_found} -> token_error(conn, :unprocessable_entity, "invalid_grant")
+      {:error, :invalid_client} -> token_error(conn, :unprocessable_entity, "invalid_client")
+      error -> error
+    end
+  end
+
+  defp get_app_from_credentials(params) do
+    client_id = params["client_id"]
+    client_secret = params["client_secret"]
+
+    {client_id, client_secret} =
+      case basic_credentials(params["_conn_authorization_header"]) do
+        {basic_id, basic_secret} -> {client_id || basic_id, client_secret || basic_secret}
+        _ -> {client_id, client_secret}
+      end
+
+    cond do
+      is_nil(client_id) or is_nil(client_secret) ->
+        {:error, :invalid_client}
+
+      app = OAuth.get_app_by_credentials(client_id, client_secret) ->
+        {:ok, app}
+
+      true ->
+        {:error, :invalid_client}
+    end
+  end
+
+  defp render_token(conn, token, opts) do
+    expires_in = DateTime.diff(token.valid_until, DateTime.utc_now())
+
+    response = %{
+      access_token: OAuth.Token.access_token_value(token),
+      token_type: "Bearer",
+      scope: Scopes.to_string(token.scopes),
+      created_at: DateTime.to_unix(token.inserted_at),
+      expires_in: max(expires_in, 0),
+      refresh_token: OAuth.Token.refresh_token_value(token)
+    }
+
+    response = maybe_put_id_token(response, token, opts)
+
+    json(conn, response)
+  end
+
+  defp maybe_put_id_token(response, token, opts) do
+    auth = Keyword.get(opts, :auth)
+    issuer = Keyword.get(opts, :issuer)
+    nonce = if auth, do: auth.nonce, else: token.oidc_nonce
+    auth_time = if auth, do: auth.inserted_at, else: token.oidc_auth_time
+    openid_token? = OIDC.openid_request?(token.scopes)
+    has_user? = not is_nil(token.user)
+
+    if openid_token? and has_user? and issuer do
+      Map.put(
+        response,
+        :id_token,
+        OIDC.issue_id_token(
+          token,
+          token.user,
+          issuer,
+          token.app.client_id,
+          nonce,
+          auth_time
+        )
+      )
+    else
+      response
+    end
+  end
+
+  defp token_error(conn, status, error) do
+    conn
+    |> put_status(status)
+    |> json(%{error: error})
+  end
+
   defp redirect_with_code(conn, request, user) do
     case OAuth.create_authorization(request.app, user, %{
            scopes: request.scopes,
@@ -150,7 +271,8 @@ defmodule ElektrineWeb.OIDCController do
            code_challenge_method: request.code_challenge_method
          }) do
       {:ok, auth} ->
-        redirect(conn,
+        redirect(
+          conn,
           external:
             redirect_code_uri(
               request.redirect_uri,
@@ -239,6 +361,43 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
+  defp validate_token_redirect_uri(%{redirect_uri: nil}, _params), do: :ok
+
+  defp validate_token_redirect_uri(%{redirect_uri: redirect_uri}, %{
+         "redirect_uri" => redirect_uri
+       }),
+       do: :ok
+
+  defp validate_token_redirect_uri(%{redirect_uri: redirect_uri}, params)
+       when is_binary(redirect_uri) do
+    if Map.get(params, "redirect_uri") in [nil, "", redirect_uri] do
+      :ok
+    else
+      {:error, :redirect_uri_mismatch}
+    end
+  end
+
+  defp validate_token_redirect_uri(_, _params), do: :ok
+
+  defp validate_token_pkce(%{code_challenge: nil}, _params), do: :ok
+
+  defp validate_token_pkce(%{code_challenge: challenge, code_challenge_method: method}, %{
+         "code_verifier" => verifier
+       })
+       when is_binary(challenge) and is_binary(verifier) do
+    case method || "plain" do
+      "S256" -> if pkce_s256(verifier) == challenge, do: :ok, else: {:error, :invalid_grant}
+      _ -> {:error, :invalid_grant}
+    end
+  end
+
+  defp validate_token_pkce(%{code_challenge: _challenge}, _params), do: {:error, :invalid_grant}
+
+  defp pkce_s256(verifier) do
+    :crypto.hash(:sha256, verifier)
+    |> Base.url_encode64(padding: false)
+  end
+
   defp invalid_scope_error(params) do
     case safe_error_redirect_uri(params) do
       {:ok, redirect_uri} -> {:error, redirect_uri, "invalid_scope", params["state"]}
@@ -316,6 +475,17 @@ defmodule ElektrineWeb.OIDCController do
   end
 
   defp blank_to_nil(value), do: value
+
+  defp basic_credentials(["Basic " <> encoded]) do
+    with {:ok, decoded} <- Base.decode64(encoded),
+         [client_id, client_secret] <- :binary.split(decoded, ":") do
+      {client_id, client_secret}
+    else
+      _ -> nil
+    end
+  end
+
+  defp basic_credentials(_), do: nil
 
   defp normalize_redirect_uris(value) when is_list(value), do: Enum.join(value, " ")
   defp normalize_redirect_uris(value) when is_binary(value), do: value

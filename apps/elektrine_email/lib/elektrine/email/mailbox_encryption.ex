@@ -103,6 +103,7 @@ defmodule Elektrine.Email.MailboxEncryption do
     text_body = get_attr(attrs, "text_body", :text_body)
     html_body = get_attr(attrs, "html_body", :html_body)
     attachments = get_attr(attrs, "attachments", :attachments) || %{}
+    metadata = get_attr(attrs, "metadata", :metadata) || %{}
 
     with {:ok, public_key} <- decode_public_key(public_key_pem),
          {:ok, envelope} <-
@@ -130,6 +131,7 @@ defmodule Elektrine.Email.MailboxEncryption do
        |> put_attr(:search_index, [])
        |> put_attr(:encrypted_text_body, nil)
        |> put_attr(:encrypted_html_body, nil)
+       |> put_attr(:metadata, private_storage_metadata(metadata))
        |> put_attr(:attachments, encrypted_attachments)
        |> put_attr(:has_attachments, map_size(encrypted_attachments) > 0)
        |> put_attr(:client_encrypted_payload, envelope)}
@@ -234,6 +236,43 @@ defmodule Elektrine.Email.MailboxEncryption do
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
     |> Enum.into(%{})
   end
+
+  defp private_storage_metadata(metadata) when is_map(metadata) do
+    allowed_keys = ~w(
+      body_format
+      client_message_id
+      delivery_id
+      external_delivery
+      internal_delivery
+      original_message_id
+      private_storage
+      provider_message_id
+      received_at
+      sent_at
+      spam_score
+      trace_id
+    )
+
+    metadata
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
+      string_key = to_string(key)
+
+      if string_key in allowed_keys and metadata_value_safe?(value) do
+        Map.put(acc, string_key, value)
+      else
+        acc
+      end
+    end)
+    |> Map.put("private_storage", true)
+  end
+
+  defp private_storage_metadata(_metadata), do: %{"private_storage" => true}
+
+  defp metadata_value_safe?(value) when is_binary(value), do: byte_size(value) <= 500
+  defp metadata_value_safe?(value) when is_boolean(value), do: true
+  defp metadata_value_safe?(value) when is_number(value), do: true
+  defp metadata_value_safe?(nil), do: true
+  defp metadata_value_safe?(_value), do: false
 
   defp encrypt_json(map, public_key, kind) when is_map(map) do
     payload = Jason.encode!(map)

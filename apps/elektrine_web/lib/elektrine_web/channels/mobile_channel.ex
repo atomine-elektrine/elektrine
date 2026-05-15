@@ -101,24 +101,13 @@ defmodule ElektrineWeb.MobileChannel do
   # Handle new email received
   @impl true
   def handle_info({:new_email, message}, socket) do
+    email_payload = mobile_email_payload(message)
+    event_payload = mobile_email_event_payload(message)
+
     socket =
       socket
-      |> push("email:new", %{
-        id: message.id,
-        from: message.from,
-        subject: message.subject,
-        preview: truncate_preview(message.text_body),
-        category: message.category,
-        has_attachments: message.has_attachments,
-        inserted_at: message.inserted_at
-      })
-      |> push_universal_event("email", "new", %{
-        title: email_title(message),
-        body: truncate_preview(message.subject),
-        url: Elektrine.Paths.email_view_path(message),
-        category: message.category,
-        message_id: message.id
-      })
+      |> push("email:new", email_payload)
+      |> push_universal_event("email", "new", event_payload)
 
     # Also update counts
     user_id = socket.assigns.user_id
@@ -875,6 +864,57 @@ defmodule ElektrineWeb.MobileChannel do
       "New email"
     else
       "New email from #{from}"
+    end
+  end
+
+  defp private_email?(%{client_encrypted_payload: payload}) when is_map(payload), do: true
+  defp private_email?(_message), do: false
+
+  defp mobile_email_payload(message) do
+    if private_email?(message) do
+      %{
+        id: message.id,
+        from: "Encrypted sender",
+        subject: "Encrypted message",
+        preview: "Unlock your mailbox to view this message.",
+        category: message.category,
+        has_attachments: message.has_attachments,
+        private_encrypted: true,
+        inserted_at: message.inserted_at
+      }
+    else
+      %{
+        id: message.id,
+        from: message.from,
+        subject: message.subject,
+        preview: truncate_preview(message.text_body),
+        category: message.category,
+        has_attachments: message.has_attachments,
+        private_encrypted: false,
+        inserted_at: message.inserted_at
+      }
+    end
+  end
+
+  defp mobile_email_event_payload(message) do
+    if private_email?(message) do
+      %{
+        title: "New encrypted email",
+        body: "Unlock your mailbox to view this message.",
+        url: Elektrine.Paths.email_view_path(message),
+        category: message.category,
+        message_id: message.id,
+        private_encrypted: true
+      }
+    else
+      %{
+        title: email_title(message),
+        body: truncate_preview(message.subject),
+        url: Elektrine.Paths.email_view_path(message),
+        category: message.category,
+        message_id: message.id,
+        private_encrypted: false
+      }
     end
   end
 

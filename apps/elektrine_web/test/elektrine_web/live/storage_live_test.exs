@@ -7,8 +7,9 @@ defmodule ElektrineWeb.StorageLiveTest do
 
   test "recalculates storage once while establishing live connection", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
+    user_id = user.id
 
-    Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user.id}")
+    Phoenix.PubSub.subscribe(Elektrine.PubSub, "user:#{user_id}")
 
     {:ok, _view, html} =
       conn
@@ -16,8 +17,8 @@ defmodule ElektrineWeb.StorageLiveTest do
       |> live(~p"/account/storage")
 
     assert html =~ "Storage Overview"
-    assert_receive {:storage_updated, %{user_id: ^user.id}}
-    refute_receive {:storage_updated, %{user_id: ^user.id}}
+    assert_receive {:storage_updated, %{user_id: ^user_id}}
+    refute_receive {:storage_updated, %{user_id: ^user_id}}
   end
 
   defp log_in_user(conn, user) do

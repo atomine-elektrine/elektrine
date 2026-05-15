@@ -1956,6 +1956,102 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     refute html =~ ">Load Comments<"
   end
 
+  test "partial remote reply cache does not keep saying comments are importing" do
+    local_message = %{
+      id: 54_323,
+      activitypub_id: "https://remote.example/posts/partial-comments",
+      activitypub_url: "https://remote.example/posts/partial-comments",
+      sender: nil,
+      title: "Partial comments",
+      content: "Post body",
+      post_type: nil,
+      poll: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      media_urls: [],
+      media_metadata: %{},
+      primary_url: nil,
+      link_preview: nil,
+      like_count: 0,
+      reply_count: 4,
+      share_count: 0,
+      upvotes: 0,
+      downvotes: 0,
+      score: 0,
+      inserted_at: ~N[2026-02-25 03:31:05]
+    }
+
+    assigns = %{
+      __changed__: %{},
+      z: %{},
+      loading: false,
+      load_error: nil,
+      is_local_post: false,
+      local_message: local_message,
+      post: %{
+        "id" => "https://remote.example/posts/partial-comments",
+        "type" => "Note",
+        "content" => "Post body",
+        "published" => "2026-02-25T03:31:05Z",
+        "replies" => %{"totalItems" => 4},
+        "attributedTo" => "https://remote.example/users/alice"
+      },
+      remote_actor: %{
+        username: "alice",
+        domain: "remote.example",
+        display_name: "Alice",
+        avatar_url: nil,
+        uri: "https://remote.example/users/alice"
+      },
+      community_actor: nil,
+      community_stats: %{members: 0, posts: 0},
+      is_community_post: false,
+      is_following_community: false,
+      is_pending_community: false,
+      is_following_author: false,
+      is_pending_author: false,
+      user_follows: %{},
+      pending_follows: %{},
+      remote_follow_overrides: %{},
+      replies: [%{"id" => "https://remote.example/comments/1", "content" => "cached"}],
+      threaded_replies: [],
+      thread_reply_actors: %{},
+      replies_loading: false,
+      replies_loaded: true,
+      reply_sync_checked: true,
+      comment_sort: "hot",
+      post_interactions: %{},
+      user_saves: %{},
+      lemmy_counts: nil,
+      lemmy_comment_counts: %{},
+      mastodon_counts: nil,
+      show_reply_form: false,
+      reply_content: "",
+      quick_reply_recent_replies: [],
+      replying_to_comment_id: nil,
+      comment_reply_content: "",
+      show_image_modal: false,
+      modal_image_url: nil,
+      modal_images: [],
+      modal_image_index: 0,
+      modal_post: nil,
+      post_reactions: %{},
+      pending_remote_poll_vote: nil,
+      in_reply_to: nil,
+      reply_parent: nil,
+      reply_parent_actor: nil,
+      reply_ancestors: [],
+      current_user: nil,
+      platform_counts_load_ref: nil
+    }
+
+    html = assigns |> Show.render() |> rendered_to_string()
+
+    refute html =~ "Importing comments from the remote thread"
+    assert html =~ "3 comments are reported by the remote server but not cached here yet"
+    assert html =~ "Retry import"
+  end
+
   test "ancestor context links prefer post reference over actor profile url" do
     parent_post = %{
       "id" => "https://lemmy.sdf.org/comment/12345",

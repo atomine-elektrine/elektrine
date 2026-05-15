@@ -822,13 +822,24 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Post do
       <!-- Dropdown Menu for Moderators and Admins -->
       #{if (Map.get(assigns, :is_moderator) || Map.get(assigns, :current_user).is_admin) && reply.sender_id != Map.get(assigns, :current_user).id do
         """
-        <div class="dropdown dropdown-end">
-          <label tabindex="0" class="btn btn-ghost btn-xs">
+        <div class="dropdown dropdown-end" data-portal-dropdown-root data-portal-align="end">
+          <label
+            tabindex="0"
+            class="btn btn-ghost btn-xs"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            data-portal-dropdown-trigger
+          >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
             </svg>
           </label>
-          <ul tabindex="0" class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30 opacity-100">
+          <ul
+            tabindex="-1"
+            class="dropdown-content z-30 menu p-2 rounded-box w-52 z-30 opacity-100"
+            role="menu"
+            data-portal-dropdown-menu
+          >
             <li>
               <button
                 phx-click="delete_reply"

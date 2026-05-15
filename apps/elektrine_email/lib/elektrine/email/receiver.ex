@@ -502,7 +502,7 @@ defmodule Elektrine.Email.Receiver do
       "spam" => spam?(params),
       "archived" => false,
       "mailbox_id" => mailbox_id,
-      "metadata" => extract_metadata(params, mailbox_user_id, sender_email),
+      "metadata" => extract_metadata(params, mailbox_user_id, sender_email, private_storage?),
       "attachments" => attachments_for_storage,
       "has_attachments" => map_size(attachments_for_storage) > 0,
       "in_reply_to" => in_reply_to,
@@ -722,7 +722,17 @@ defmodule Elektrine.Email.Receiver do
   defp normalize_thread_header_value(value),
     do: to_string(value) |> normalize_thread_header_value()
 
-  defp extract_metadata(params, user_id, sender_email) do
+  defp extract_metadata(params, _user_id, _sender_email, true) do
+    %{
+      "received_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "spam_score" => params["spam_score"],
+      "private_storage" => true
+    }
+    |> Enum.filter(fn {_k, v} -> v != nil end)
+    |> Enum.into(%{})
+  end
+
+  defp extract_metadata(params, user_id, sender_email, _private_storage?) do
     %{
       "received_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
       "spam_score" => params["spam_score"],

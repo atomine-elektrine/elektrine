@@ -53,18 +53,18 @@ defmodule ElektrineSocialWeb.Components.User.HoverCard do
       phx-hook="UserHoverCard"
       id={@hover_id}
     >
-      <div data-hover-trigger>
+      <div data-hover-trigger class={@class}>
         {render_slot(@inner_block)}
       </div>
       <div
         data-hover-card
         class={[
-          "absolute z-[360] scale-95 opacity-0 invisible",
-          "transition-all duration-150 ease-out origin-top-left",
+          "absolute z-[360] scale-95 invisible",
+          "transition-transform duration-150 ease-out origin-top-left",
           card_position_classes(@card_position)
         ]}
       >
-        <.floating_panel class="p-4 w-72 mt-2">
+        <.floating_panel class="user-hover-card-panel p-4 w-72 mt-2">
           <%= if @user do %>
             <.local_user_card
               user={@user}
