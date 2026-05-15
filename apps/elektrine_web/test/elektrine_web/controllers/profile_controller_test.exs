@@ -152,6 +152,26 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert Repo.reload!(profile).profile_mode == "static"
     end
 
+    test "main domain does not serve static html for external dns users", %{conn: conn, user: user} do
+      {:ok, _} = StaticSites.enable_static_mode(user.id)
+
+      {:ok, _} =
+        StaticSites.upload_file(
+          user,
+          "index.html",
+          "<html><body>UNTRUSTED STATIC HTML</body></html>",
+          "text/html"
+        )
+
+      Repo.update!(Ecto.Changeset.change(user, %{built_in_subdomain_mode: "external_dns"}))
+
+      conn = get(conn, "/#{user.handle}")
+
+      assert conn.status == 200
+      refute conn.resp_body =~ "UNTRUSTED STATIC HTML"
+      assert conn.resp_body =~ "Test User"
+    end
+
     test "redirects custom-domain www aliases to the bare root domain", %{conn: conn, user: user} do
       unique = System.unique_integer([:positive])
       custom_domain = "wwwalias#{unique}.brand.test"
