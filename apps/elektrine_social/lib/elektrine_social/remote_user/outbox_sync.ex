@@ -3,8 +3,8 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
 
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
-  alias Elektrine.ActivityPub.Visibility
   alias Elektrine.ActivityPub.Normalizer
+  alias Elektrine.ActivityPub.Visibility
   alias Elektrine.Messaging
   alias Elektrine.Repo
   alias Elektrine.Social.Messages, as: MessagingMessages

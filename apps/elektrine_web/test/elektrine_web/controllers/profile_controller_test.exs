@@ -152,7 +152,10 @@ defmodule ElektrineWeb.ProfileControllerTest do
       assert Repo.reload!(profile).profile_mode == "static"
     end
 
-    test "main domain does not serve static html for external dns users", %{conn: conn, user: user} do
+    test "main domain does not serve static html for external dns users", %{
+      conn: conn,
+      user: user
+    } do
       {:ok, _} = StaticSites.enable_static_mode(user.id)
 
       {:ok, _} =
