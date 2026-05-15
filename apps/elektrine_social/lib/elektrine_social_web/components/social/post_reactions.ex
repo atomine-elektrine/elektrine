@@ -5,7 +5,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
 
   use Phoenix.Component
 
-  import Phoenix.HTML, only: [raw: 1]
+  import Phoenix.HTML, only: [html_escape: 1, raw: 1, safe_to_string: 1]
   import ElektrineWeb.CoreComponents
   import ElektrineWeb.HtmlHelpers, only: [render_custom_emojis: 2]
 
@@ -96,7 +96,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
             type="button"
             data-tip={tooltip}
           >
-            <span>{raw(render_custom_emojis(reaction.emoji, reaction.instance_domain))}</span>
+            <span>{raw(render_reaction_emoji(reaction.emoji, reaction.instance_domain))}</span>
             <span class={@text_class}>{reaction.count}</span>
           </button>
         <% end %>
@@ -217,5 +217,14 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     end
   end
 
+
+  defp render_reaction_emoji(emoji, instance_domain) when is_binary(emoji) do
+    emoji
+    |> html_escape()
+    |> safe_to_string()
+    |> render_custom_emojis(instance_domain)
+  end
+
+  defp render_reaction_emoji(_, _), do: ""
   defp actor_uri_domain(_), do: nil
 end
