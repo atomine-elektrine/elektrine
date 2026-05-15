@@ -114,6 +114,28 @@ defmodule Elektrine.DNSAnalyticsTest do
     assert Enum.any?(top_names, &(&1.qname == wildcard_bucket and &1.count == 1))
   end
 
+  test "aggregates nxdomain queries to zone wildcard bucket" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    for label <- ["a", "b", "c"] do
+      assert :ok =
+               DNS.track_query(
+                 %{
+                   zone: zone,
+                   authoritative: true,
+                   qname: "#{label}.#{zone.domain}",
+                   qtype: :a,
+                   rcode: :nxdomain
+                 },
+                 "udp"
+               )
+    end
+
+    top_names = DNS.get_zone_top_names(zone.id, 10)
+    assert Enum.any?(top_names, &(&1.qname == "*.#{zone.domain}" and &1.count == 3))
+  end
+
   defp unique_domain do
     "dnsanalytics#{System.unique_integer([:positive])}.example.com"
   end
