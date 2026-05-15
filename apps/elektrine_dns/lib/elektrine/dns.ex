@@ -547,13 +547,15 @@ defmodule Elektrine.DNS do
 
   def track_query(%{zone: %Zone{id: zone_id}, authoritative: true} = result, transport)
       when transport in ["udp", "tcp"] do
+    rcode = normalize_dns_metric_value(result.rcode)
+
     attrs = %{
       zone_id: zone_id,
       query_date: Date.utc_today(),
       query_hour: DateTime.utc_now() |> DateTime.truncate(:second) |> truncate_to_hour(),
-      qname: normalize_dns_metric_name(result.qname, result.zone.domain),
+      qname: normalize_dns_metric_name(result.qname, result.zone.domain, rcode),
       qtype: normalize_dns_metric_value(result.qtype),
-      rcode: normalize_dns_metric_value(result.rcode),
+      rcode: rcode,
       transport: transport,
       query_count: 1
     }
@@ -1207,7 +1209,7 @@ defmodule Elektrine.DNS do
 
   defp normalize_dns_name(value), do: value |> to_string() |> normalize_dns_name()
 
-  defp normalize_dns_metric_name(qname, zone_domain) do
+  defp normalize_dns_metric_name(qname, zone_domain, rcode) do
     qname = normalize_dns_name(qname)
     zone_domain = normalize_dns_name(zone_domain)
     qname_labels = String.split(qname, ".", trim: true)
@@ -1215,6 +1217,9 @@ defmodule Elektrine.DNS do
     max_labels = length(zone_labels) + 2
 
     cond do
+      rcode == "NXDOMAIN" and String.ends_with?(qname, "." <> zone_domain) ->
+        "*." <> zone_domain
+
       preserve_metric_qname?(qname_labels) ->
         qname
 
