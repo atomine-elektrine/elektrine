@@ -419,6 +419,7 @@ defmodule Elektrine.Profiles.UserProfile do
     changeset
     |> validate_uploaded_url(:background_url)
     |> validate_uploaded_url(:avatar_url)
+    |> validate_uploaded_url(:banner_url)
     |> validate_uploaded_url(:favicon_url)
   end
 
@@ -431,12 +432,10 @@ defmodule Elektrine.Profiles.UserProfile do
         changeset
 
       url when is_binary(url) ->
-        # Allow URLs from our storage system or S3-compatible storage
-        # Storage keys don't start with http, or they're from our configured domains
         is_safe =
-          !String.starts_with?(url, "http") ||
-            String.contains?(url, ".s3.") ||
-            String.starts_with?(url, "/uploads/")
+          url
+          |> extract_upload_key()
+          |> safe_upload_key_for_field?(field)
 
         if is_safe do
           changeset
@@ -447,5 +446,43 @@ defmodule Elektrine.Profiles.UserProfile do
       _ ->
         changeset
     end
+  end
+
+  defp extract_upload_key(url) when is_binary(url) do
+    cond do
+      String.starts_with?(url, "http://") or String.starts_with?(url, "https://") ->
+        url
+        |> URI.parse()
+        |> Map.get(:path, "")
+        |> String.trim_leading("/")
+        |> String.trim_leading("uploads/")
+
+      String.starts_with?(url, "/uploads/") ->
+        String.trim_leading(url, "/uploads/")
+
+      String.starts_with?(url, "uploads/") ->
+        String.trim_leading(url, "uploads/")
+
+      String.starts_with?(url, "/") ->
+        String.trim_leading(url, "/")
+
+      true ->
+        url
+    end
+  end
+
+  defp safe_upload_key_for_field?("", _field), do: false
+
+  defp safe_upload_key_for_field?(key, field) when is_binary(key) do
+    allowed_prefixes =
+      case field do
+        :avatar_url -> ["avatars/"]
+        :background_url -> ["backgrounds/"]
+        :banner_url -> ["backgrounds/"]
+        :favicon_url -> ["favicons/"]
+        _ -> []
+      end
+
+    Enum.any?(allowed_prefixes, &String.starts_with?(key, &1))
   end
 end
