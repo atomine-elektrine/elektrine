@@ -131,15 +131,29 @@ defmodule Elektrine.IMAP.Server do
   end
 
   defp handle_accepted_client(client, :ssl, tls_opts, allow_insecure_auth) do
-    spawn(fn ->
-      case Socket.handshake(client) do
-        {:ok, tls_client} ->
-          handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
+    case Socket.peername(client) do
+      {:ok, {ip, _port}} ->
+        client_ip = :inet.ntoa(ip) |> to_string()
 
-        _ ->
-          :ok
-      end
-    end)
+        if can_accept_connection?(client_ip, :ssl) do
+          spawn(fn ->
+            case Socket.handshake(client) do
+              {:ok, tls_client} ->
+                handle_authenticated_client(tls_client, :ssl, tls_opts, allow_insecure_auth)
+
+              _ ->
+                :ok
+            end
+          end)
+        else
+          Logger.warning("TLS connection rejected from #{client_ip}: connection limit exceeded")
+          Socket.close(client)
+        end
+
+      {:error, reason} ->
+        Logger.error("TLS connection peername failed before handshake: #{inspect(reason)}")
+        Socket.close(client)
+    end
   end
 
   defp handle_accepted_client(client, transport, tls_opts, allow_insecure_auth) do
