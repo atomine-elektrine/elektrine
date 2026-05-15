@@ -685,6 +685,8 @@ defmodule Elektrine.Email.Sender do
     end
   end
 
+  defp preserve_client_sender_header?(_from_header, _user_id), do: false
+
   defp extract_from_header_address(from_header) when is_binary(from_header) do
     trimmed = String.trim(from_header)
 
@@ -693,8 +695,6 @@ defmodule Elektrine.Email.Sender do
       _ -> normalize_email_address(trimmed)
     end
   end
-
-  defp preserve_client_sender_header?(_from_header, _user_id), do: false
 
   # Adds RFC 8058 unsubscribe headers to email params
   # Only adds headers if list_id is explicitly provided (i.e., this is a mass/marketing email)
