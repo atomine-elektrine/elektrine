@@ -182,6 +182,37 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert [_delivery] = Email.list_internal_deliveries_for_message(sent_message.id)
     end
 
+
+    test "does not preserve spoofed client From header when owned address appears only in display name", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      spoofed_from = "\"Trusted <#{sender_mailbox.email}>\" <admin@example.com>"
+
+      raw_email =
+        [
+          "From: #{spoofed_from}",
+          "To: #{recipient_mailbox.email}",
+          "Subject: Spoof attempt",
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=UTF-8",
+          "",
+          "Hello"
+        ]
+        |> Enum.join("\r\n")
+
+      assert {:ok, sent_message} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to: recipient_mailbox.email,
+                 raw_email: raw_email
+               })
+
+      refute sent_message.from == spoofed_from
+      assert sent_message.from == sender_mailbox.email
+    end
+
     test "filters suppressed external recipients before routing", %{
       sender: sender,
       sender_mailbox: sender_mailbox,

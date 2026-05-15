@@ -679,9 +679,18 @@ defmodule Elektrine.Email.Sender do
   end
 
   defp preserve_client_sender_header?(from_header, user_id) when is_binary(from_header) do
-    case normalize_email_address(from_header) do
+    case extract_from_header_address(from_header) do
       nil -> false
       email -> match?({:ok, _ownership}, Email.verify_email_ownership(email, user_id))
+    end
+  end
+
+  defp extract_from_header_address(from_header) when is_binary(from_header) do
+    trimmed = String.trim(from_header)
+
+    case Regex.run(~r/<([^<>]+)>\s*$/, trimmed) do
+      [_, email] -> normalize_email_address(email)
+      _ -> normalize_email_address(trimmed)
     end
   end
 
