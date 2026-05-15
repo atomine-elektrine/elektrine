@@ -304,10 +304,14 @@ defmodule ElektrineWeb.ProfileController do
     handle = conn.assigns[:subdomain_handle] || user.handle || user.username
 
     # Serve static site index.html
-    if User.built_in_subdomain_hosted_by_platform?(user) and
-         Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
+    if Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
          conn.assigns[:subdomain_handle] != handle do
-      redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
+      if User.built_in_subdomain_hosted_by_platform?(user) do
+        redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
+      else
+        # External DNS profiles must not serve arbitrary static HTML on the main app origin.
+        render_builder_profile(conn, profile)
+      end
     else
       case StaticSites.get_file(profile.user_id, "index.html") do
         nil ->
