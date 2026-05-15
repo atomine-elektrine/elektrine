@@ -230,6 +230,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
     end
   end
 
+  defp actor_uri_domain(_), do: nil
+
   defp render_reaction_emoji(emoji, instance_domain) when is_binary(emoji) do
     emoji
     |> html_escape()
@@ -238,5 +240,4 @@ defmodule ElektrineSocialWeb.Components.Social.PostReactions do
   end
 
   defp render_reaction_emoji(_, _), do: ""
-  defp actor_uri_domain(_), do: nil
 end
