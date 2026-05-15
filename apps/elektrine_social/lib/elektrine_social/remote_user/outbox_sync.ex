@@ -4,6 +4,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Visibility
+  alias Elektrine.ActivityPub.Normalizer
   alias Elektrine.Messaging
   alias Elektrine.Repo
   alias Elektrine.Social.Messages, as: MessagingMessages
@@ -57,12 +58,12 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
   end
 
   defp create_outbox_post(post, remote_actor) do
-    author_uri = post["attributedTo"] || remote_actor.uri
     visibility = determine_visibility(post)
 
-    if visibility == "public" do
+    if visibility == "public" and
+         :ok == Normalizer.validate_object_author(post, remote_actor.uri) do
       author_actor =
-        case ActivityPub.fetch_and_cache_actor(author_uri, allow_recovery: false) do
+        case ActivityPub.fetch_and_cache_actor(remote_actor.uri, allow_recovery: false) do
           {:ok, actor} -> actor
           _ -> nil
         end
