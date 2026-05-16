@@ -1,7 +1,6 @@
 # Core Self-hosting
 
-`core` is the default self-host profile. It includes the Phoenix app and
-Postgres only.
+`core` is the minimal app-plus-Postgres profile.
 
 This guide covers the plain app-plus-Postgres baseline in
 `deploy/docker/compose.core.yml`. For a normal public Docker host, use
@@ -35,6 +34,9 @@ That path is for the generated multi-service stack and defaults to all modules
 and profiles unless you override them.
 
 ## Add-ons
+
+These apply when you choose a smaller generated Docker stack instead of the full
+default profile set.
 
 - Add Caddy with `--profile caddy`
 - Add self-hosted STUN/TURN for chat calls with `--profile turn`

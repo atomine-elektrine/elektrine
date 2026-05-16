@@ -111,13 +111,15 @@ For Docker deployments, use the wrapper instead of invoking `docker compose`
 against `deploy/docker/compose.full.yml` directly:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social --profile caddy
+scripts/deploy/docker_deploy.sh
 ```
 
 The wrapper renders a module-aware Compose file first, sets
 `ELEKTRINE_ENABLED_MODULES`, derives release modules from it by default, sets
 mail runtime flags, and removes POP3, IMAP, and SMTP port bindings when
-`email` is not selected.
+`email` is not selected. With no module or profile arguments, it deploys all
+standard modules and Docker profiles; pass `--modules` or `--profile` only for a
+smaller stack.
 
 When `vpn` is selected, the Docker deploy also enables the bundled `vpn`
 service automatically. That service runs the Docker-managed WireGuard node,

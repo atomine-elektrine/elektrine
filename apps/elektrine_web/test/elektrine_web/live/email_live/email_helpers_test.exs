@@ -1,4 +1,4 @@
-defmodule ElektrineEmailWeb.EmailLive.EmailHelpersTest do
+defmodule ElektrineEmailWeb.EmailLive.EmailHelpersAttachmentTest do
   use ExUnit.Case, async: true
 
   alias ElektrineEmailWeb.EmailLive.EmailHelpers

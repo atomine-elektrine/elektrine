@@ -1,6 +1,7 @@
 # Onion Hosting
 
-Onion hosting is an add-on, not part of the default self-host profile.
+Onion hosting is included in the full Docker default profile set and can also be
+enabled explicitly with the `tor` profile in smaller custom stacks.
 
 Relevant files:
 
@@ -11,9 +12,14 @@ Relevant files:
 
 Default onion exposure:
 
-- web: `80 -> 8080`, `443 -> 8443`
+- web: `80 -> $PORT` (defaults to `8080`), `443 -> $ONION_TLS_PORT` when `ONION_TLS_ENABLED=true` (defaults to `8443`)
 - IMAP: `143 -> 2143`, `993 -> 2993`
 - POP3: `110 -> 2110`, `995 -> 2995`
+
+Docker renders the Tor config at container startup so onion targets follow the
+actual runtime ports. Override `ONION_HTTP_TARGET_PORT` or
+`ONION_HTTPS_TARGET_PORT` only if Tor should forward to something other than the
+Elektrine app listener.
 
 To enable it:
 
@@ -23,7 +29,7 @@ To enable it:
 
 Docker deploy notes:
 
-- Docker keeps Tor off by default; enable the `tor` profile in `scripts/deploy/docker_deploy.sh`.
+- Docker enables Tor when the default full profile set is used; if you override profiles, include `tor`.
 - The `app` container runs Tor and the Phoenix release together.
 - `/data/tor/elektrine/hostname` inside the persistent volume holds the generated onion host.
 - If you replace the volume, `ONION_HOST`, `ONION_HS_SECRET_KEY_B64`, and `ONION_HS_PUBLIC_KEY_B64` can restore the hidden-service identity.
@@ -34,4 +40,4 @@ Example:
 scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile tor
 ```
 
-If you do not need an onion address, leave Tor off entirely.
+If you do not need an onion address, override `DOCKER_PROFILES` without `tor`.

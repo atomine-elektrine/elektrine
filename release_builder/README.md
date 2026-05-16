@@ -30,6 +30,8 @@ It renders a Compose file that matches the selected module set, sets
 default, sets mail runtime flags, and removes POP3, IMAP, and SMTP port
 bindings when `email` is not selected.
 
+Omit `--modules` and `--profile` for the full default Docker stack.
+
 If `vpn` is in the selected module set, the deploy wrapper also turns on the
 bundled Docker `vpn` service automatically. If `vpn` is not selected, that
 service stays off.

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 TOR_HS_DIR="/data/tor/elektrine"
+TOR_RUNTIME_CONFIG="/tmp/elektrine-torrc"
 TOR_BACKUP_ENV="/data/certs/onion-key-backup.env"
 ONION_TLS_DIR="/data/certs/live"
 ONION_TLS_CERT="$ONION_TLS_DIR/onion-cert.pem"
@@ -258,6 +259,39 @@ write_onion_tls_cert() {
   echo "Updated onion TLS certificate: $ONION_TLS_CERT"
 }
 
+write_tor_config() {
+  local http_target_host="${ONION_HTTP_TARGET_HOST:-127.0.0.1}"
+  local http_target_port="${ONION_HTTP_TARGET_PORT:-${PORT:-8080}}"
+  local https_target_host="${ONION_HTTPS_TARGET_HOST:-127.0.0.1}"
+  local https_target_port="${ONION_HTTPS_TARGET_PORT:-${ONION_TLS_PORT:-8443}}"
+  local imap_target_host="${ONION_IMAP_TARGET_HOST:-127.0.0.1}"
+  local pop3_target_host="${ONION_POP3_TARGET_HOST:-127.0.0.1}"
+  local imap_plain_target_port="${ONION_IMAP_TARGET_PORT:-2143}"
+  local imap_tls_target_port="${ONION_IMAPS_TARGET_PORT:-2993}"
+  local pop3_plain_target_port="${ONION_POP3_TARGET_PORT:-2110}"
+  local pop3_tls_target_port="${ONION_POP3S_TARGET_PORT:-2995}"
+
+  cat > "$TOR_RUNTIME_CONFIG" <<EOF
+HiddenServiceDir $TOR_HS_DIR/
+HiddenServicePort 80 $http_target_host:$http_target_port
+EOF
+
+  if is_truthy "${ONION_TLS_ENABLED:-true}"; then
+    cat >> "$TOR_RUNTIME_CONFIG" <<EOF
+HiddenServicePort 443 $https_target_host:$https_target_port
+EOF
+  fi
+
+  cat >> "$TOR_RUNTIME_CONFIG" <<EOF
+HiddenServicePort 143 $imap_target_host:$imap_plain_target_port
+HiddenServicePort 993 $imap_target_host:$imap_tls_target_port
+HiddenServicePort 110 $pop3_target_host:$pop3_plain_target_port
+HiddenServicePort 995 $pop3_target_host:$pop3_tls_target_port
+DataDirectory /data/tor/data
+Log notice stdout
+EOF
+}
+
 configure_role "$ROLE"
 
 if [ "$ROLE" = "vpn" ]; then
@@ -276,9 +310,11 @@ if [ "$ROLE" = "vpn" ]; then
 fi
 
 if is_truthy "$ELEKTRINE_ENABLE_TOR"; then
+  write_tor_config
+
   # Start Tor in background (it will run as the current user - nobody)
   echo "Starting Tor..."
-  tor -f /etc/tor/torrc &
+  tor -f "$TOR_RUNTIME_CONFIG" &
   TOR_PID=$!
 
   # Wait for Tor to generate the onion address

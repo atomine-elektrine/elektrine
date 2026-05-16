@@ -460,6 +460,10 @@ defmodule Elektrine.Email.Messages do
                %Message{}
                |> Message.changeset(stored_attrs)
                |> Repo.insert() do
+          # LiveViews reload immediately when they receive :new_email, so invalidate
+          # cached mailbox lists/counts before broadcasting the new message.
+          CacheHooks.with_cache_invalidation({:ok, message})
+
           bump_message_creation_states(mailbox_id, message.id)
           RecentTracker.mark_message_recent(message)
 
@@ -511,8 +515,7 @@ defmodule Elektrine.Email.Messages do
               message
             end
 
-          # Return the result with cache invalidation
-          CacheHooks.with_cache_invalidation({:ok, decrypted_message})
+          {:ok, decrypted_message}
         else
           {:error, reason} ->
             case maybe_resolve_duplicate_message_insert(
