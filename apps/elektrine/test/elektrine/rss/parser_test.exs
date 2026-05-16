@@ -72,6 +72,34 @@ defmodule Elektrine.RSS.ParserTest do
       assert entry.summary == "Short description"
     end
 
+    test "parses RSS 2.0 content encoded using local namespace name" do
+      xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:feedburner="http://rssnamespace.org/feedburner/ext/1.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel>
+          <title>Long Content</title>
+          <link>https://test.com</link>
+          <item>
+            <title>Long Post</title>
+            <link>https://test.com/long</link>
+            <guid>long-post</guid>
+            <description>Short description</description>
+            <content:encoded><![CDATA[<p>Full article paragraph one.</p><p>Full article paragraph two.</p>]]></content:encoded>
+          </item>
+        </channel>
+      </rss>
+      """
+
+      {:ok, feed} = Parser.parse(xml)
+
+      [entry] = feed.entries
+
+      assert entry.content ==
+               "<p>Full article paragraph one.</p><p>Full article paragraph two.</p>"
+
+      assert entry.summary == "Short description"
+    end
+
     test "parses RSS 2.0 with enclosures (podcasts)" do
       xml = """
       <?xml version="1.0" encoding="UTF-8"?>
@@ -270,6 +298,34 @@ defmodule Elektrine.RSS.ParserTest do
 
       [entry] = feed.entries
       assert entry.content == "Full entry content here"
+      assert entry.summary == "Short summary"
+    end
+
+    test "parses Atom xhtml content as full entry text" do
+      xml = """
+      <?xml version="1.0" encoding="UTF-8"?>
+      <feed xmlns="http://www.w3.org/2005/Atom">
+        <title>XHTML Atom</title>
+        <entry>
+          <id>xhtml-entry</id>
+          <title>Entry with XHTML Content</title>
+          <link href="https://test.com/xhtml-entry"/>
+          <summary>Short summary</summary>
+          <content type="xhtml">
+            <div xmlns="http://www.w3.org/1999/xhtml">
+              <p>Full entry paragraph one.</p>
+              <p>Full entry paragraph two.</p>
+            </div>
+          </content>
+        </entry>
+      </feed>
+      """
+
+      {:ok, feed} = Parser.parse(xml)
+
+      [entry] = feed.entries
+      assert entry.content =~ "Full entry paragraph one."
+      assert entry.content =~ "Full entry paragraph two."
       assert entry.summary == "Short summary"
     end
 

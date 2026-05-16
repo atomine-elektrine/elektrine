@@ -1197,7 +1197,7 @@ if config_env() == :prod do
     if onion_tls_enabled and File.regular?(onion_tls_certfile) and
          File.regular?(onion_tls_keyfile) do
       [
-        ip: {0, 0, 0, 0, 0, 0, 0, 0},
+        ip: {0, 0, 0, 0},
         port: onion_tls_port,
         cipher_suite: :strong,
         certfile: onion_tls_certfile,

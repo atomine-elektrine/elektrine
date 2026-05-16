@@ -47,8 +47,9 @@ defmodule Elektrine.RSS.Parser do
           guid: ~x"./guid/text()"os,
           title: ~x"./title/text()"os,
           link: ~x"./link/text()"os,
-          description: ~x"./description/text()"os,
-          content: ~x"./content:encoded/text()"os,
+          description: ~x"string(./description)"os,
+          content: ~x"string(./content:encoded)"os,
+          content_encoded: ~x"string(./*[local-name()='encoded'])"os,
           author: ~x"./author/text()"os |> transform_by(&clean_author/1),
           dc_creator: ~x"./dc:creator/text()"os,
           pub_date: ~x"./pubDate/text()"os,
@@ -68,7 +69,7 @@ defmodule Elektrine.RSS.Parser do
           guid: entry.guid || entry.link,
           title: clean_text(entry.title),
           link: entry.link,
-          content: entry.content || entry.description,
+          content: first_present([entry.content, entry.content_encoded, entry.description]),
           summary: entry.description,
           author: entry.author || entry.dc_creator,
           published_at: parse_date(entry.pub_date),
@@ -100,7 +101,8 @@ defmodule Elektrine.RSS.Parser do
           ~x"./*[local-name()='item']"l,
           title: ~x"./*[local-name()='title']/text()"os,
           link: ~x"./*[local-name()='link']/text()"os,
-          description: ~x"./*[local-name()='description']/text()"os,
+          description: ~x"string(./*[local-name()='description'])"os,
+          content_encoded: ~x"string(./*[local-name()='encoded'])"os,
           media_content_url: ~x"./*[local-name()='content']/@url"os,
           media_content_type: ~x"./*[local-name()='content']/@type"os,
           media_thumbnail_url: ~x"./*[local-name()='thumbnail']/@url"os,
@@ -114,7 +116,7 @@ defmodule Elektrine.RSS.Parser do
           guid: entry.link,
           title: clean_text(entry.title),
           link: entry.link,
-          content: entry.description,
+          content: first_present([entry.content_encoded, entry.description]),
           summary: entry.description,
           author: nil,
           published_at: parse_date(entry.dc_date),
@@ -157,8 +159,9 @@ defmodule Elektrine.RSS.Parser do
           media_content_url: ~x"./*[local-name()='content']/@url"os,
           media_content_type: ~x"./*[local-name()='content']/@type"os,
           media_thumbnail_url: ~x"./*[local-name()='thumbnail']/@url"os,
-          content: ~x"./*[local-name()='content']/text()"os,
-          summary: ~x"./*[local-name()='summary']/text()"os,
+          content: ~x"string(./*[local-name()='content'])"os,
+          content_text: ~x"./*[local-name()='content']//*[text()]/text()"ls,
+          summary: ~x"string(./*[local-name()='summary'])"os,
           author_name: ~x"./*[local-name()='author']/*[local-name()='name']/text()"os,
           updated: ~x"./*[local-name()='updated']/text()"os,
           published: ~x"./*[local-name()='published']/text()"os,
@@ -174,7 +177,7 @@ defmodule Elektrine.RSS.Parser do
           guid: entry.id || link,
           title: clean_text(entry.title),
           link: link,
-          content: entry.content || entry.summary,
+          content: first_present([entry.content, joined_text(entry.content_text), entry.summary]),
           summary: entry.summary,
           author: entry.author_name,
           published_at: parse_date(entry.published || entry.updated),
@@ -202,6 +205,26 @@ defmodule Elektrine.RSS.Parser do
   defp clean_text(text) when is_binary(text) do
     text |> String.trim() |> HtmlEntities.decode()
   end
+
+  defp first_present(values) do
+    Enum.find_value(values, fn
+      value when is_binary(value) ->
+        value = String.trim(value)
+        if value == "", do: nil, else: value
+
+      _value ->
+        nil
+    end)
+  end
+
+  defp joined_text(values) when is_list(values) do
+    values
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n\n")
+  end
+
+  defp joined_text(_values), do: nil
 
   defp clean_author(nil) do
     nil

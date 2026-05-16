@@ -90,6 +90,7 @@ defmodule ElektrineWeb.PortalLive.Index do
         |> assign(:rss_subscriptions, rss_subscriptions)
         |> assign(:rss_source_filter, "all")
         |> assign(:rss_query, "")
+        |> assign(:rss_list_density, "comfortable")
         |> assign(:selected_rss_item_id, selected_rss_item_id(rss_items))
         |> assign(:dashboard_last_refreshed_at, nil)
         |> assign(:data_loaded, false)
@@ -173,6 +174,10 @@ defmodule ElektrineWeb.PortalLive.Index do
        :selected_rss_item_id,
        selected_rss_item_id(filtered_rss_items(socket.assigns))
      )}
+  end
+
+  def handle_event("set_rss_density", %{"density" => density}, socket) do
+    {:noreply, assign(socket, :rss_list_density, normalize_rss_list_density(density))}
   end
 
   def handle_event("search_rss", %{"query" => query}, socket) do
@@ -1858,6 +1863,9 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
+  defp normalize_rss_list_density("compact"), do: "compact"
+  defp normalize_rss_list_density(_density), do: "comfortable"
+
   defp rss_source_matches?(_item, "all"), do: true
 
   defp rss_source_matches?(%{feed_id: feed_id}, source) do
@@ -1890,10 +1898,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp rss_item_excerpt(item) do
     item
-    |> Map.get(:summary)
-    |> Elektrine.Strings.present()
-    |> Kernel.||(Map.get(item, :content))
-    |> Elektrine.Strings.present()
+    |> rss_item_summary_source()
     |> case do
       nil -> nil
       text -> text |> strip_markup() |> truncate_text(220)
@@ -1902,14 +1907,36 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp rss_item_body(item) do
     item
-    |> Map.get(:content)
-    |> Elektrine.Strings.present()
-    |> Kernel.||(Map.get(item, :summary))
-    |> Elektrine.Strings.present()
+    |> rss_item_body_source()
     |> case do
       nil -> nil
       text -> strip_markup(text)
     end
+  end
+
+  defp rss_item_body_html(item) do
+    item
+    |> rss_item_body_source()
+    |> case do
+      nil ->
+        nil
+
+      text ->
+        text
+        |> decode_html_entities()
+        |> ElektrineWeb.HtmlHelpers.safe_basic_html()
+        |> remove_duplicate_rss_hero_image(item)
+    end
+  end
+
+  defp rss_item_summary_source(item) do
+    [Map.get(item, :summary), Map.get(item, :content)]
+    |> Enum.find_value(&Elektrine.Strings.present/1)
+  end
+
+  defp rss_item_body_source(item) do
+    [Map.get(item, :content), Map.get(item, :summary)]
+    |> Enum.find_value(&Elektrine.Strings.present/1)
   end
 
   defp rss_item_feed_title(%{feed_title: title}) when is_binary(title) and title != "", do: title
@@ -1946,6 +1973,41 @@ defmodule ElektrineWeb.PortalLive.Index do
         "background-image: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.34)), url('#{url}')"
     end
   end
+
+  defp remove_duplicate_rss_hero_image(html, item) when is_binary(html) do
+    hero_image = rss_item_image(item)
+
+    if Elektrine.Strings.present?(hero_image) do
+      Regex.replace(~r/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/i, html, fn image_tag, src ->
+        if duplicate_rss_image?(src, hero_image, item), do: "", else: image_tag
+      end)
+    else
+      html
+    end
+  end
+
+  defp remove_duplicate_rss_hero_image(html, _item), do: html
+
+  defp duplicate_rss_image?(src, hero_image, item) do
+    body_image =
+      src
+      |> normalize_rss_image_url()
+      |> absolute_rss_url(Map.get(item, :url) || Map.get(item, :feed_url))
+      |> safe_image_href()
+      |> normalize_rss_image_url()
+
+    hero_image = normalize_rss_image_url(hero_image)
+
+    body_image == hero_image
+  end
+
+  defp normalize_rss_image_url(url) when is_binary(url) do
+    url
+    |> decode_html_entities()
+    |> String.replace(~r/&(amp;|#0*38;|#x0*26;)/i, "&")
+  end
+
+  defp normalize_rss_image_url(url), do: url
 
   defp image_enclosure_url(url, type) when is_binary(url) and is_binary(type) do
     if String.starts_with?(String.downcase(type), "image/"), do: url
@@ -1998,13 +2060,20 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp rss_item_categories(_item), do: []
 
   defp rss_item_reading_minutes(item) do
+    item
+    |> rss_item_body()
+    |> case do
+      nil -> rss_item_title(item)
+      "" -> rss_item_title(item)
+      text -> text
+    end
+    |> reading_minutes_for_text()
+  end
+
+  defp reading_minutes_for_text(text) do
     words =
-      [Map.get(item, :content), Map.get(item, :summary)]
-      |> Enum.find_value(&Elektrine.Strings.present/1)
-      |> case do
-        nil -> rss_item_title(item)
-        text -> strip_markup(text)
-      end
+      text
+      |> to_string()
       |> String.split(~r/\s+/, trim: true)
       |> length()
 
@@ -2021,8 +2090,22 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
-  defp rss_item_button_class(item, selected_item_id) do
-    base = "w-full rounded-lg border p-3 text-left transition"
+  defp rss_density_button_class(current_density, density) do
+    base = "btn btn-xs"
+
+    if current_density == density do
+      base <> " btn-secondary"
+    else
+      base <> " btn-ghost"
+    end
+  end
+
+  defp rss_item_button_class(item, selected_item_id, density) do
+    base =
+      case normalize_rss_list_density(density) do
+        "compact" -> "w-full rounded-md border px-2.5 py-2 text-left transition"
+        _comfortable -> "w-full rounded-lg border p-3 text-left transition"
+      end
 
     if item.id == selected_item_id do
       base <> " border-secondary bg-secondary/10"
@@ -2050,8 +2133,20 @@ defmodule ElektrineWeb.PortalLive.Index do
   end
 
   defp strip_markup(text) do
-    ElektrineWeb.HtmlHelpers.plain_text_content(text)
+    text
+    |> decode_html_entities()
+    |> ElektrineWeb.HtmlHelpers.plain_text_content()
   end
+
+  defp decode_html_entities(text) when is_binary(text), do: decode_html_entities(text, 3)
+  defp decode_html_entities(text), do: text
+
+  defp decode_html_entities(text, remaining) when remaining > 0 do
+    decoded = HtmlEntities.decode(text)
+    if decoded == text, do: decoded, else: decode_html_entities(decoded, remaining - 1)
+  end
+
+  defp decode_html_entities(text, _remaining), do: text
 
   defp safe_external_href(url) when is_binary(url) do
     case SafeExternalURL.normalize(url) do

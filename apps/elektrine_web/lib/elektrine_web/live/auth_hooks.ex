@@ -8,6 +8,9 @@ defmodule ElektrineWeb.Live.AuthHooks do
   alias ElektrineWeb.AdminSecurity
   alias ElektrineWeb.UserAuth
 
+  @default_locale "en"
+  @supported_locales ~w(en zh)
+
   # These pages live in the shared :main live_session for seamless navigation,
   # so authentication must be enforced explicitly during on_mount.
   @authenticated_live_modules [
@@ -363,6 +366,8 @@ defmodule ElektrineWeb.Live.AuthHooks do
         end
       end)
 
+    socket = assign_live_locale(socket, session)
+
     socket =
       assign(
         socket,
@@ -399,6 +404,18 @@ defmodule ElektrineWeb.Live.AuthHooks do
     else
       socket
     end
+  end
+
+  defp assign_live_locale(socket, session) do
+    locale =
+      (socket.assigns[:current_user] && socket.assigns.current_user.locale) ||
+        session["locale"] ||
+        @default_locale
+
+    locale = if locale in @supported_locales, do: locale, else: @default_locale
+    Gettext.put_locale(ElektrineWeb.Gettext, locale)
+
+    assign(socket, :locale, locale)
   end
 
   defp maybe_assign_admin_security_metadata(
