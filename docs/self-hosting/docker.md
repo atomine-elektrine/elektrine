@@ -60,7 +60,7 @@ the full root example:
 ```bash
 scripts/deploy/generate_env.sh --domain example.com --email admin@example.com
 scripts/deploy/doctor.sh
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy
+scripts/deploy/docker_deploy.sh
 ```
 
 Use the smaller files under `env/` as reference for feature-specific overrides,
@@ -139,8 +139,11 @@ If the shared network has a different name, set the same
 ## Deploy
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile dns
+scripts/deploy/docker_deploy.sh
 ```
+
+Pass `--modules` or one or more `--profile` arguments only when you want a
+smaller stack than the full default.
 
 When `vpn` is in the module list, `scripts/deploy/docker_deploy.sh` also enables the `vpn`
 profile automatically so the bundled WireGuard container comes up with the stack.
@@ -251,7 +254,7 @@ usually does not need to be set manually.
 ## Preview
 
 ```bash
-scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor"
+scripts/deploy/explain_deploy.sh --modules all --profiles "caddy dns email tor turn bluesky vpn"
 ```
 
 Keep the repo owned by your deploy user and avoid running `git` operations as
@@ -260,31 +263,34 @@ compose file becomes unwritable because of ownership drift, render to a
 writable temporary path instead:
 
 ```bash
-scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml --modules chat,social,vault,atomine --profile caddy
+scripts/deploy/docker_deploy.sh --output /tmp/elektrine.generated.docker.yml
 ```
 
 ## Optional Services
 
-Enable Elektrine's separate mail protocol container with:
+The full default profile set includes Elektrine's separate mail protocol
+container. In a smaller custom stack, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,email,vault,atomine --profile caddy --profile email
 ```
 
-Enable the separate authoritative DNS service with:
+The full default profile set includes the separate authoritative DNS service. In
+a smaller custom stack, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules all --profile dns
 ```
 
-Enable onion hosting in the Docker deploy by setting the onion variables already
-present in `.env.example`, then deploy with:
+The full default profile set includes onion hosting. In a smaller custom stack,
+set the onion variables already present in `.env.example`, then deploy with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile tor
 ```
 
-Enable self-hosted STUN/TURN for chat calls with:
+The full default profile set includes self-hosted STUN/TURN for chat calls. In a
+smaller custom stack, enable it with:
 
 ```bash
 scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile turn
@@ -294,7 +300,8 @@ This runs coturn on the host network and auto-wires the app's WebRTC ICE
 configuration to your own instance domain. See `turn.md` if you need firewall,
 NAT, or DNS details.
 
-The Docker deploy keeps Tor off by default. Turn it on with the `tor` profile plus:
+Tor starts when the `tor` profile is active. For custom profile subsets, include
+`tor` plus:
 
 - `ONION_TLS_ENABLED=true`
 - persistent `/data` storage so the hidden-service keys survive restarts

@@ -28,9 +28,11 @@ source "$ROOT_DIR/scripts/lib/module_selection.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile caddy] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--repair-indexes] [--skip-up] [--configure-docker-source-ips] [additional docker compose args...]
+Usage: scripts/deploy/docker_deploy.sh [--modules chat,social] [--profile PROFILE] [--output /tmp/elektrine.compose.yml] [--compose-override override.yml] [--pull] [--skip-build] [--skip-migrate] [--repair-indexes] [--skip-up] [--configure-docker-source-ips] [additional docker compose args...]
 
-Renders a module-aware Compose file and deploys the Docker stack.
+Renders a module-aware Compose file and deploys the Docker stack. When modules
+or profiles are omitted, the wrapper defaults to all modules and all standard
+profiles.
 EOF
 }
 
