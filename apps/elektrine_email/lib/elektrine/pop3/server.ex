@@ -118,7 +118,10 @@ defmodule Elektrine.POP3.Server do
             end
           end)
         else
-          Logger.warning("POP3 TLS connection rejected from #{client_ip}: connection limit exceeded")
+          Logger.warning(
+            "POP3 TLS connection rejected from #{client_ip}: connection limit exceeded"
+          )
+
           Socket.close(client)
         end
 
