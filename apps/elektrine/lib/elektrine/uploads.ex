@@ -1314,21 +1314,40 @@ defmodule Elektrine.Uploads do
   end
 
   defp sanitize_filename(filename) when is_binary(filename) do
-    filename
-    |> Path.basename()
-    |> String.replace(~r/[\x00-\x1f\x7f-\x9f]/, "")
-    |> String.replace(~r/[<>:"|?*\\\/]/, "_")
-    |> case do
-      "" -> "file"
-      "." -> "file"
-      ".." -> "file"
-      name -> name
-    end
+    basename = Path.basename(filename)
+    extension = sanitized_extension(Path.extname(basename))
+
+    basename
+    |> Path.rootname()
+    |> sanitized_filename_root()
+    |> then(&(&1 <> extension))
     |> String.slice(0, 100)
   end
 
   defp sanitize_filename(_) do
     "file"
+  end
+
+  defp sanitized_filename_root(name) do
+    name
+    |> String.replace(~r/[^A-Za-z0-9_-]+/, "_")
+    |> String.trim("_")
+    |> case do
+      "" -> "file"
+      "." -> "file"
+      ".." -> "file"
+      safe_name -> safe_name
+    end
+  end
+
+  defp sanitized_extension(extension) do
+    extension =
+      extension
+      |> String.downcase()
+      |> String.replace(~r/[^A-Za-z0-9]+/, "")
+      |> String.slice(0, 16)
+
+    if extension == "", do: "", else: ".#{extension}"
   end
 
   defp strip_metadata_if_image(%Plug.Upload{content_type: content_type, path: path}) do

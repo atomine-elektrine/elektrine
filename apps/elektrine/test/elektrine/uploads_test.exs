@@ -52,6 +52,20 @@ defmodule Elektrine.UploadsTest do
              Uploads.upload_chat_attachment(upload, user.id)
   end
 
+  test "stores uploads with non-ASCII filenames under ASCII-safe paths", %{
+    tmp_dir: tmp_dir,
+    user: user
+  } do
+    upload = upload_fixture(tmp_dir, "头像.txt", "text/plain", "safe text")
+
+    assert {:ok, %{key: "/uploads/chat-attachments/" <> stored_filename}} =
+             Uploads.upload_chat_attachment(upload, user.id)
+
+    assert stored_filename =~ ".txt"
+    assert stored_filename =~ "file.txt"
+    refute stored_filename =~ "头像"
+  end
+
   defp upload_fixture(tmp_dir, filename, content_type, content) do
     path = Path.join(tmp_dir, "#{System.unique_integer([:positive])}-#{filename}")
     File.write!(path, content)

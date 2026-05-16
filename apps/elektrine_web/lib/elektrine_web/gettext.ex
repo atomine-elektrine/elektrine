@@ -21,5 +21,5 @@ defmodule ElektrineWeb.Gettext do
 
   See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
   """
-  use Gettext.Backend, otp_app: :elektrine
+  use Gettext.Backend, otp_app: :elektrine, priv: "../elektrine/priv/gettext"
 end
