@@ -32,14 +32,6 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     "MAGPIE_S3_ACCESS_KEY_ID",
     "MAGPIE_S3_SECRET_ACCESS_KEY"
   ]
-  @s3_config_keys [
-    "S3_ENDPOINT",
-    "MAGPIE_ENDPOINT",
-    "S3_BUCKET_NAME",
-    "MAGPIE_BUCKET_NAME",
-    "S3_PUBLIC_URL",
-    "MAGPIE_PUBLIC_URL"
-  ]
   @min_secret_lengths %{
     "DB_PASSWORD" => 16,
     "ELEKTRINE_MASTER_SECRET" => 32,
@@ -235,25 +227,13 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp secret_key?(_), do: false
 
-  defp validate_placeholder_secret?(key, env) when key in @s3_secret_keys do
-    s3_storage_config_intended?(env)
-  end
+  defp validate_placeholder_secret?(key, _env) when key in @s3_secret_keys, do: false
 
   defp validate_placeholder_secret?(_key, _env), do: true
 
-  defp validate_secret_length?(key, env) when key in @s3_secret_keys do
-    s3_storage_config_intended?(env)
-  end
+  defp validate_secret_length?(key, _env) when key in @s3_secret_keys, do: false
 
   defp validate_secret_length?(_key, _env), do: true
-
-  defp s3_storage_config_intended?(env) do
-    Enum.any?(@s3_config_keys, &(env_value(env, &1) |> present?())) or
-      Enum.any?(@s3_secret_keys, fn key ->
-        value = env_value(env, key)
-        present?(value) and not known_placeholder?(value)
-      end)
-  end
 
   defp known_placeholder?(value) when is_binary(value) do
     normalized = value |> String.trim() |> String.downcase()

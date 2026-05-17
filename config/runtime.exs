@@ -949,6 +949,23 @@ if config_env() == :prod do
 
   present? = fn value -> is_binary(value) and String.trim(value) != "" end
 
+  known_placeholder_secret? = fn value ->
+    normalized = if is_binary(value), do: value |> String.trim() |> String.downcase(), else: ""
+
+    normalized in [
+      "change-me",
+      "replace-me",
+      "replace-with-long-random-secret",
+      "example-secret-access-key",
+      "magpie",
+      "<generate-a-long-random-secret>",
+      "<provider-access-key-id>",
+      "<provider-secret-access-key>"
+    ]
+  end
+
+  real_secret? = fn value -> present?.(value) and not known_placeholder_secret?.(value) end
+
   normalize_domain = fn domain ->
     domain
     |> String.trim()
@@ -1332,10 +1349,8 @@ if config_env() == :prod do
   local_uploads_dir = Path.join(to_string(:code.priv_dir(:elektrine)), "static/uploads")
 
   s3_configured =
-    Enum.all?(
-      [s3_access_key_id, s3_secret_access_key, s3_endpoint, s3_bucket_name],
-      &present?.(&1)
-    )
+    real_secret?.(s3_access_key_id) and real_secret?.(s3_secret_access_key) and
+      present?.(s3_endpoint) and present?.(s3_bucket_name)
 
   if s3_configured do
     config :ex_aws,
