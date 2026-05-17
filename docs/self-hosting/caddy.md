@@ -82,7 +82,7 @@ wildcard-external Caddyfile when it sees mounted cert/key paths.
 ## Deploy
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,email,vault,atomine --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,email,nerve,atomine --profile caddy
 ```
 
 For lots of dynamic subdomains, keep the domain list minimal and wildcard-based:

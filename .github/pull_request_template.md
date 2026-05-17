@@ -10,7 +10,7 @@ Describe what changed and why.
 - [ ] `apps/elektrine_email`
 - [ ] `apps/elektrine_social`
 - [ ] `apps/elektrine_vpn`
-- [ ] `apps/elektrine_password_manager`
+- [ ] `apps/elektrine_nerve`
 - [ ] `apps/elektrine_dns`
 - [ ] Other (describe below)
 

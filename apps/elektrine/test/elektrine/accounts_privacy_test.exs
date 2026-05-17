@@ -2,6 +2,7 @@ defmodule Elektrine.AccountsPrivacyTest do
   use Elektrine.DataCase, async: true
 
   alias Elektrine.Accounts
+  alias Elektrine.Repo
 
   describe "privacy settings" do
     setup do
@@ -228,7 +229,7 @@ defmodule Elektrine.AccountsPrivacyTest do
       |> Accounts.create_user()
 
     if map_size(privacy_attrs) > 0 do
-      {:ok, user} = Accounts.update_user(user, privacy_attrs)
+      {:ok, user} = user |> Ecto.Changeset.change(privacy_attrs) |> Repo.update()
       user
     else
       user

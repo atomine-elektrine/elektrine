@@ -1,5 +1,5 @@
 defmodule Elektrine.Secrets.EncryptedStringTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Elektrine.Secrets.EncryptedString
 

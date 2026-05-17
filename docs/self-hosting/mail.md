@@ -45,7 +45,7 @@ Recommended layout on one host:
 Run Elektrine with the email module enabled:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,email,vault,atomine --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,email,nerve,atomine --profile caddy
 ```
 
 Elektrine-side env values usually look like:
@@ -54,7 +54,7 @@ Elektrine-side env values usually look like:
 PRIMARY_DOMAIN=example.com
 ELEKTRINE_MASTER_SECRET=<generate-a-long-random-secret>
 EMAIL_DOMAIN=example.com
-ELEKTRINE_ENABLED_MODULES=chat,social,email,vault,atomine
+ELEKTRINE_ENABLED_MODULES=chat,social,email,nerve,atomine
 
 HARAKA_BASE_URL=https://mail.example.com
 DATABASE_SSL_ENABLED=false

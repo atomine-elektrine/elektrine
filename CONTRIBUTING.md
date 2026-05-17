@@ -13,7 +13,7 @@ under the same root `LICENSE`:
 - `apps/elektrine_email`
 - `apps/elektrine_social`
 - `apps/elektrine_vpn`
-- `apps/elektrine_password_manager`
+- `apps/elektrine_nerve`
 - `apps/elektrine_dns`
 
 ## License

@@ -4506,15 +4506,16 @@ ALTER SEQUENCE public.passkey_credentials_id_seq OWNED BY public.passkey_credent
 
 
 --
--- Name: password_vault_entries; Type: TABLE; Schema: public; Owner: -
+-- Name: nerve_entries; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.password_vault_entries (
+CREATE TABLE public.nerve_entries (
     id bigint NOT NULL,
     user_id bigint NOT NULL,
     title character varying(255) NOT NULL,
     login_username character varying(255),
     website character varying(255),
+    encrypted_metadata jsonb,
     encrypted_password jsonb NOT NULL,
     encrypted_notes jsonb,
     inserted_at timestamp(0) without time zone NOT NULL,
@@ -4523,10 +4524,10 @@ CREATE TABLE public.password_vault_entries (
 
 
 --
--- Name: password_vault_entries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: nerve_entries_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.password_vault_entries_id_seq
+CREATE SEQUENCE public.nerve_entries_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -4535,17 +4536,17 @@ CREATE SEQUENCE public.password_vault_entries_id_seq
 
 
 --
--- Name: password_vault_entries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: nerve_entries_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.password_vault_entries_id_seq OWNED BY public.password_vault_entries.id;
+ALTER SEQUENCE public.nerve_entries_id_seq OWNED BY public.nerve_entries.id;
 
 
 --
--- Name: password_vault_settings; Type: TABLE; Schema: public; Owner: -
+-- Name: nerve_settings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.password_vault_settings (
+CREATE TABLE public.nerve_settings (
     id bigint NOT NULL,
     user_id bigint NOT NULL,
     encrypted_verifier jsonb NOT NULL,
@@ -4555,10 +4556,10 @@ CREATE TABLE public.password_vault_settings (
 
 
 --
--- Name: password_vault_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: nerve_settings_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
-CREATE SEQUENCE public.password_vault_settings_id_seq
+CREATE SEQUENCE public.nerve_settings_id_seq
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -4567,10 +4568,10 @@ CREATE SEQUENCE public.password_vault_settings_id_seq
 
 
 --
--- Name: password_vault_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+-- Name: nerve_settings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
 --
 
-ALTER SEQUENCE public.password_vault_settings_id_seq OWNED BY public.password_vault_settings.id;
+ALTER SEQUENCE public.nerve_settings_id_seq OWNED BY public.nerve_settings.id;
 
 
 --
@@ -7199,17 +7200,17 @@ ALTER TABLE ONLY public.passkey_credentials ALTER COLUMN id SET DEFAULT nextval(
 
 
 --
--- Name: password_vault_entries id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: nerve_entries id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_entries ALTER COLUMN id SET DEFAULT nextval('public.password_vault_entries_id_seq'::regclass);
+ALTER TABLE ONLY public.nerve_entries ALTER COLUMN id SET DEFAULT nextval('public.nerve_entries_id_seq'::regclass);
 
 
 --
--- Name: password_vault_settings id; Type: DEFAULT; Schema: public; Owner: -
+-- Name: nerve_settings id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_settings ALTER COLUMN id SET DEFAULT nextval('public.password_vault_settings_id_seq'::regclass);
+ALTER TABLE ONLY public.nerve_settings ALTER COLUMN id SET DEFAULT nextval('public.nerve_settings_id_seq'::regclass);
 
 
 --
@@ -8456,19 +8457,19 @@ ALTER TABLE ONLY public.passkey_credentials
 
 
 --
--- Name: password_vault_entries password_vault_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: nerve_entries nerve_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_entries
-    ADD CONSTRAINT password_vault_entries_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.nerve_entries
+    ADD CONSTRAINT nerve_entries_pkey PRIMARY KEY (id);
 
 
 --
--- Name: password_vault_settings password_vault_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: nerve_settings nerve_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_settings
-    ADD CONSTRAINT password_vault_settings_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.nerve_settings
+    ADD CONSTRAINT nerve_settings_pkey PRIMARY KEY (id);
 
 
 --
@@ -12305,24 +12306,24 @@ CREATE INDEX passkey_credentials_user_id_index ON public.passkey_credentials USI
 
 
 --
--- Name: password_vault_entries_user_id_index; Type: INDEX; Schema: public; Owner: -
+-- Name: nerve_entries_user_id_index; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX password_vault_entries_user_id_index ON public.password_vault_entries USING btree (user_id);
-
-
---
--- Name: password_vault_entries_user_id_inserted_at_index; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX password_vault_entries_user_id_inserted_at_index ON public.password_vault_entries USING btree (user_id, inserted_at);
+CREATE INDEX nerve_entries_user_id_index ON public.nerve_entries USING btree (user_id);
 
 
 --
--- Name: password_vault_settings_user_id_index; Type: INDEX; Schema: public; Owner: -
+-- Name: nerve_entries_user_id_inserted_at_index; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX password_vault_settings_user_id_index ON public.password_vault_settings USING btree (user_id);
+CREATE INDEX nerve_entries_user_id_inserted_at_index ON public.nerve_entries USING btree (user_id, inserted_at);
+
+
+--
+-- Name: nerve_settings_user_id_index; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX nerve_settings_user_id_index ON public.nerve_settings USING btree (user_id);
 
 
 --
@@ -14967,19 +14968,19 @@ ALTER TABLE ONLY public.passkey_credentials
 
 
 --
--- Name: password_vault_entries password_vault_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: nerve_entries nerve_entries_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_entries
-    ADD CONSTRAINT password_vault_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.nerve_entries
+    ADD CONSTRAINT nerve_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
--- Name: password_vault_settings password_vault_settings_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: nerve_settings nerve_settings_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.password_vault_settings
-    ADD CONSTRAINT password_vault_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.nerve_settings
+    ADD CONSTRAINT nerve_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
 --
@@ -15529,5 +15530,4 @@ ALTER TABLE ONLY public.vpn_user_configs
 --
 -- PostgreSQL database dump complete
 --
-
 

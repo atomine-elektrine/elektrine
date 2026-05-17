@@ -37,7 +37,7 @@ Docker deploy notes:
 Example:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile tor
+scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --profile tor
 ```
 
 If you do not need an onion address, override `DOCKER_PROFILES` without `tor`.

@@ -11,7 +11,7 @@ alias Elektrine.{
   Email,
   Messaging,
   Notifications,
-  PasswordManager,
+  Nerve,
   Profiles,
   Repo,
   Social
@@ -371,7 +371,7 @@ if Mix.env() == :dev do
     ensure_profile.(screenshot_user, %{
       display_name: "Platform Demo",
       description:
-        "Curated cross-platform account for portal, inbox, chat, calendar, vault, and profile screenshots.",
+        "Curated cross-platform account for portal, inbox, chat, calendar, nerve, and profile screenshots.",
       location: "Detroit, MI",
       theme: "blue",
       accent_color: "#38bdf8",
@@ -420,9 +420,9 @@ if Mix.env() == :dev do
       to: screenshot_mailbox.email,
       subject: "Launch brief is ready for the screenshot pass",
       text_body:
-        "I folded the latest portal copy, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.",
+        "I folded the latest portal copy, timeline callouts, and nerve notes into one short brief so the screenshots all tell the same story.",
       html_body:
-        "<p>I folded the latest <strong>portal copy</strong>, timeline callouts, and vault notes into one short brief so the screenshots all tell the same story.</p>",
+        "<p>I folded the latest <strong>portal copy</strong>, timeline callouts, and nerve notes into one short brief so the screenshots all tell the same story.</p>",
       category: "inbox",
       status: "received",
       priority: "high",
@@ -517,7 +517,7 @@ if Mix.env() == :dev do
   platform_post =
     ensure_timeline_post.(
       screenshot_user.id,
-      "Platform demo account is ready for capture: portal, inbox, chat, calendar, and vault all share the same launch story now. #elektrine #product",
+      "Platform demo account is ready for capture: portal, inbox, chat, calendar, and nerve all share the same launch story now. #elektrine #product",
       visibility: "public"
     )
 
@@ -617,7 +617,7 @@ if Mix.env() == :dev do
   ensure_chat_message.(
     announcements_channel.id,
     opsnova.id,
-    "Vault, notifications, and calendar all have seeded data for capture."
+    "Nerve, notifications, and calendar all have seeded data for capture."
   )
 
   work_calendar =
@@ -678,12 +678,12 @@ if Mix.env() == :dev do
       categories: ["travel"]
     })
 
-  unless PasswordManager.vault_configured?(screenshot_user.id) do
-    case PasswordManager.setup_vault(screenshot_user.id, %{
-           encrypted_verifier: seed_encrypted_payload.("platform-demo-vault-verifier")
+  unless Nerve.nerve_configured?(screenshot_user.id) do
+    case Nerve.setup_nerve(screenshot_user.id, %{
+           encrypted_verifier: seed_encrypted_payload.("platform-demo-nerve-verifier")
          }) do
       {:ok, _settings} -> :ok
-      {:error, reason} -> raise "Failed to set up screenshot vault: #{inspect(reason)}"
+      {:error, reason} -> raise "Failed to set up screenshot nerve: #{inspect(reason)}"
     end
   end
 
@@ -716,17 +716,17 @@ if Mix.env() == :dev do
       }
     ],
     fn entry_attrs ->
-      case Repo.get_by(PasswordManager.VaultEntry,
+      case Repo.get_by(Nerve.NerveEntry,
              user_id: screenshot_user.id,
              title: entry_attrs.title
            ) do
         nil ->
-          case PasswordManager.create_entry(screenshot_user.id, entry_attrs) do
+          case Nerve.create_entry(screenshot_user.id, entry_attrs) do
             {:ok, _entry} ->
               :ok
 
             {:error, reason} ->
-              raise "Failed to create vault entry #{entry_attrs.title}: #{inspect(reason)}"
+              raise "Failed to create nerve entry #{entry_attrs.title}: #{inspect(reason)}"
           end
 
         _entry ->
@@ -770,7 +770,7 @@ if Mix.env() == :dev do
 
   ensure_notification.(screenshot_user.id, "Screenshot seed refreshed", %{
     type: "system",
-    body: "Portal, inbox, chat, calendar, notifications, and vault now have curated demo data.",
+    body: "Portal, inbox, chat, calendar, notifications, and nerve now have curated demo data.",
     url: "/portal",
     icon: "hero-sparkles",
     source_type: "system",
@@ -801,7 +801,7 @@ if Mix.env() == :dev do
   IO.puts("  /chat/#{captures_identifier}")
   IO.puts("  /calendar")
   IO.puts("  /notifications")
-  IO.puts("  /account/password-manager  # Vault")
+  IO.puts("  /account/nerve  # Nerve")
   IO.puts("  /#{screenshot_username}")
 else
   IO.puts("Skipping screenshot seed - not in development environment")

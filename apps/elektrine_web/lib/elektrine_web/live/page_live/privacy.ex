@@ -42,7 +42,7 @@ defmodule ElektrineWeb.PageLive.Privacy do
                     Email messages, drafts, sent-mail copies, folders, labels, contacts, aliases, attachments, and filtering preferences.
                   </li>
                   <li>
-                    Social posts, chats, notes, files, vault metadata, and other content you create or upload.
+                    Social posts, chats, notes, files, nerve metadata, and other content you create or upload.
                   </li>
                   <li>
                     Operational metadata needed to provide these services, such as message IDs, timestamps, delivery status, mailbox IDs, thread IDs, flags, and storage usage.

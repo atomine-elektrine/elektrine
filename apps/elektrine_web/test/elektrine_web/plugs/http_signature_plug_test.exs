@@ -6,6 +6,29 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlugTest do
   alias Elektrine.Repo
   alias ElektrineWeb.Plugs.HTTPSignaturePlug
 
+  @test_signature_max_age_seconds 86_400
+
+  setup do
+    previous_activitypub_config = Application.get_env(:elektrine, :activitypub)
+    activitypub_config = previous_activitypub_config || []
+
+    Application.put_env(
+      :elektrine,
+      :activitypub,
+      Keyword.put(activitypub_config, :signature_max_age_seconds, @test_signature_max_age_seconds)
+    )
+
+    on_exit(fn ->
+      if is_nil(previous_activitypub_config) do
+        Application.delete_env(:elektrine, :activitypub)
+      else
+        Application.put_env(:elektrine, :activitypub, previous_activitypub_config)
+      end
+    end)
+
+    :ok
+  end
+
   describe "call/2" do
     test "verifies hs2019 signatures that include created, expires, and digest", %{conn: conn} do
       {public_key, private_key} = SigningKey.generate_key_pair()
@@ -245,8 +268,12 @@ defmodule ElektrineWeb.Plugs.HTTPSignaturePlugTest do
       })
       |> Repo.insert!()
 
-      created = Integer.to_string(System.system_time(:second) - 3_600)
-      expires = Integer.to_string(System.system_time(:second) - 3_300)
+      created =
+        Integer.to_string(System.system_time(:second) - @test_signature_max_age_seconds - 3_600)
+
+      expires =
+        Integer.to_string(System.system_time(:second) - @test_signature_max_age_seconds - 3_300)
+
       date = Calendar.strftime(DateTime.utc_now(), "%a, %d %b %Y %H:%M:%S GMT")
       digest = digest(body)
 

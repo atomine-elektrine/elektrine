@@ -95,7 +95,7 @@ import {
 } from "./form_hooks";
 
 // Password manager hooks
-import { PasswordVault } from "./password_manager_hooks";
+import { Nerve } from "./nerve_hooks";
 
 // Mailbox private storage hooks
 import {
@@ -192,7 +192,7 @@ export const Hooks = {
   SuggestionDropdown,
   VPNDownload,
   AtominePow,
-  PasswordVault,
+  Nerve,
   MailboxPrivateStorage,
   PrivateMailboxCompose,
   PrivateMailboxMessages,

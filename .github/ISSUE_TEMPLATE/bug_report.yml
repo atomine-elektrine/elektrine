@@ -18,7 +18,7 @@ body:
         - apps/elektrine_email
         - apps/elektrine_social
         - apps/elektrine_vpn
-        - apps/elektrine_password_manager
+        - apps/elektrine_nerve
         - multiple apps
     validations:
       required: true

@@ -16,7 +16,7 @@ alias Elektrine.{
   DNS,
   Email,
   Messaging,
-  PasswordManager,
+  Nerve,
   Profiles,
   Repo,
   Social
@@ -2105,7 +2105,7 @@ if Mix.env() == :dev do
   _test_public_post =
     ensure_timeline_post.(
       test_user.id,
-      "Using the seed accounts as a smoke test: inbox, vault, chat, and lists all have enough state to feel real. #qa",
+      "Using the seed accounts as a smoke test: inbox, nerve, chat, and lists all have enough state to feel real. #qa",
       visibility: "public"
     )
 
@@ -2276,7 +2276,7 @@ if Mix.env() == :dev do
   ensure_chat_message.(
     product_updates_channel.id,
     orbitdev.id,
-    "Seed coverage now includes contacts, calendars, vault entries, and social lists.",
+    "Seed coverage now includes contacts, calendars, nerve entries, and social lists.",
     []
   )
 
@@ -2551,12 +2551,12 @@ if Mix.env() == :dev do
     }
   end
 
-  unless PasswordManager.vault_configured?(test_user.id) do
-    case PasswordManager.setup_vault(test_user.id, %{
-           encrypted_verifier: seed_encrypted_payload.("seed-vault-verifier")
+  unless Nerve.nerve_configured?(test_user.id) do
+    case Nerve.setup_nerve(test_user.id, %{
+           encrypted_verifier: seed_encrypted_payload.("seed-nerve-verifier")
          }) do
       {:ok, _settings} -> :ok
-      {:error, reason} -> raise "Failed to set up vault: #{inspect(reason)}"
+      {:error, reason} -> raise "Failed to set up nerve: #{inspect(reason)}"
     end
   end
 
@@ -2581,17 +2581,17 @@ if Mix.env() == :dev do
       }
     ],
     fn entry_attrs ->
-      case Repo.get_by(PasswordManager.VaultEntry,
+      case Repo.get_by(Nerve.NerveEntry,
              user_id: test_user.id,
              title: entry_attrs.title
            ) do
         nil ->
-          case PasswordManager.create_entry(test_user.id, entry_attrs) do
+          case Nerve.create_entry(test_user.id, entry_attrs) do
             {:ok, _entry} ->
               :ok
 
             {:error, reason} ->
-              raise "Failed to create vault entry #{entry_attrs.title}: #{inspect(reason)}"
+              raise "Failed to create nerve entry #{entry_attrs.title}: #{inspect(reason)}"
           end
 
         _entry ->
@@ -2605,7 +2605,7 @@ if Mix.env() == :dev do
   IO.puts("  - 7 timeline posts, 1 federated poll, 1 draft, and 1 public list")
   IO.puts("  - 1 DM, 1 group conversation, 1 public server, and 3 server channels")
   IO.puts("  - 2 calendars with 4 events and 4 contacts across 2 groups")
-  IO.puts("  - 2 folders, 2 labels, 2 templates, 2 filters, 1 alias, and 2 vault entries")
+  IO.puts("  - 2 folders, 2 labels, 2 templates, 2 filters, 1 alias, and 2 nerve entries")
   IO.puts("  - Profile, domain, and DNS analytics for /analytics graphs")
 
   IO.puts("Development seeding complete!")

@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.ActorSecretsTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.Secrets.EncryptedString

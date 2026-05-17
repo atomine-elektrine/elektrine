@@ -41,14 +41,14 @@ service stays off.
 - `chat`
 - `social`
 - `email`
-- `vault`
+- `nerve`
 - `vpn`
 - `dns`
 
 Accepted aliases:
 
-- `password-manager`
-- `password_manager`
+- `nerve`
+- `nerve`
 
 Special values:
 

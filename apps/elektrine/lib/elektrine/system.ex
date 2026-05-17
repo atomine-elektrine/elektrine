@@ -13,7 +13,7 @@ defmodule Elektrine.System do
     lists: 0,
     friends: 0,
     email: 0,
-    vault: 0,
+    nerve: 0,
     dns: 0,
     storage: 0,
     notes: 0,
@@ -165,7 +165,7 @@ defmodule Elektrine.System do
   defp module_access_label(:dns), do: "DNS"
   defp module_access_label(:vpn), do: "VPN"
   defp module_access_label(:email), do: "Email"
-  defp module_access_label(:vault), do: "Vault"
+  defp module_access_label(:nerve), do: "Nerve"
   defp module_access_label(:drive), do: "Drive"
   defp module_access_label(:notes), do: "Notes"
   defp module_access_label(:storage), do: "Storage"

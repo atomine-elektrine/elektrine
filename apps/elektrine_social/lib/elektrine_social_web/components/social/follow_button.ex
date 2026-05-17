@@ -30,6 +30,7 @@ defmodule ElektrineSocialWeb.Components.Social.FollowButton do
       id={@id}
       phx-click="toggle_follow"
       phx-value-user_id={@user_id}
+      data-follow-variant={@variant}
       class={[@button_classes, @class]}
       type="button"
     >

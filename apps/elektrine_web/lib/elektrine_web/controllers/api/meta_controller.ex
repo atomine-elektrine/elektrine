@@ -384,31 +384,31 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "GET",
-        path: "/api/ext/v1/password-manager/entries",
-        summary: "List encrypted vault entries",
-        required_scopes: ["read:vault", "write:vault"],
-        platform_module: :vault
+        path: "/api/ext/v1/nerve/entries",
+        summary: "List encrypted nerve entries",
+        required_scopes: ["read:nerve", "write:nerve"],
+        platform_module: :nerve
       },
       %{
         method: "POST",
-        path: "/api/ext/v1/password-manager/entries",
-        summary: "Create encrypted vault entries",
-        required_scopes: ["write:vault"],
-        platform_module: :vault
+        path: "/api/ext/v1/nerve/entries",
+        summary: "Create encrypted nerve entries",
+        required_scopes: ["write:nerve"],
+        platform_module: :nerve
       },
       %{
         method: "PUT",
-        path: "/api/ext/v1/password-manager/entries/:id",
-        summary: "Update encrypted vault entries",
-        required_scopes: ["write:vault"],
-        platform_module: :vault
+        path: "/api/ext/v1/nerve/entries/:id",
+        summary: "Update encrypted nerve entries",
+        required_scopes: ["write:nerve"],
+        platform_module: :nerve
       },
       %{
         method: "DELETE",
-        path: "/api/ext/v1/password-manager/vault",
-        summary: "Delete encrypted vault metadata and all saved entries",
-        required_scopes: ["write:vault"],
-        platform_module: :vault
+        path: "/api/ext/v1/nerve",
+        summary: "Delete encrypted nerve metadata and all saved entries",
+        required_scopes: ["write:nerve"],
+        platform_module: :nerve
       },
       %{
         method: "POST",

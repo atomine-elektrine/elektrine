@@ -20,4 +20,4 @@ Start with the default `core` deployment, then add only the pieces you need.
 - `turn.md`
 - `vpn.md`
 - `../addons/onion.md`
-- `../clients/password-manager-extension.md`
+- `../clients/nerve-extension.md`

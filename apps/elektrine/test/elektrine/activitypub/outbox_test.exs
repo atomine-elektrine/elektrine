@@ -423,7 +423,14 @@ defmodule Elektrine.ActivityPub.OutboxTest do
     test "includes mentioned remote actors in local community post delivery and audience" do
       owner = AccountsFixtures.user_fixture()
       community = SocialFixtures.community_conversation_fixture(owner)
-      remote_actor = remote_actor_fixture("communitymention")
+      unique_domain = "communitymention#{System.unique_integer([:positive])}.remote.test"
+
+      remote_actor =
+        remote_actor_fixture("communitymention",
+          domain: unique_domain,
+          uri: "https://#{unique_domain}/users/communitymention",
+          inbox_url: "https://#{unique_domain}/users/communitymention/inbox"
+        )
 
       acct = "#{remote_actor.username}@#{remote_actor.domain}"
       remote_actor_uri = remote_actor.uri

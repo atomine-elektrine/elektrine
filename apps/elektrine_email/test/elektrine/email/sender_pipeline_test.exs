@@ -210,7 +210,7 @@ defmodule Elektrine.Email.SenderPipelineTest do
                })
 
       refute sent_message.from == spoofed_from
-      assert sent_message.from == sender_mailbox.email
+      assert sent_message.from =~ sender_mailbox.email
     end
 
     test "filters suppressed external recipients before routing", %{

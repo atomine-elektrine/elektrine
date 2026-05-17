@@ -18,16 +18,16 @@ defmodule Elektrine.DeveloperTokensTest do
       assert "must include at least one scope" in errors_on(changeset).scopes
     end
 
-    test "accepts dedicated vault scopes" do
+    test "accepts dedicated nerve scopes" do
       user = user_fixture()
 
       assert {:ok, token} =
                Developer.create_api_token(user.id, %{
-                 name: "vault-token",
-                 scopes: ["read:vault", "write:vault"]
+                 name: "nerve-token",
+                 scopes: ["read:nerve", "write:nerve"]
                })
 
-      assert Enum.sort(token.scopes) == ["read:vault", "write:vault"]
+      assert Enum.sort(token.scopes) == ["read:nerve", "write:nerve"]
     end
 
     test "enforces the maximum number of active tokens per user" do

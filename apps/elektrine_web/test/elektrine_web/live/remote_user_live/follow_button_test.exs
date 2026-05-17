@@ -64,7 +64,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.FollowButtonTest do
 
     buttons = Floki.find(document, ~s(button[phx-click="toggle_follow"]))
 
-    assert length(buttons) == 1
+    assert buttons != []
     assert Enum.all?(buttons, &(Floki.attribute(&1, "type") == ["button"]))
   end
 

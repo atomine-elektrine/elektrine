@@ -1217,11 +1217,16 @@ defmodule Elektrine.DNS do
     max_labels = length(zone_labels) + 2
 
     cond do
-      rcode == "NXDOMAIN" and String.ends_with?(qname, "." <> zone_domain) ->
-        "*." <> zone_domain
-
       preserve_metric_qname?(qname_labels) ->
         qname
+
+      rcode == "NXDOMAIN" and String.ends_with?(qname, "." <> zone_domain) and
+          length(qname_labels) > max_labels ->
+        suffix = qname_labels |> Enum.take(-max_labels) |> Enum.join(".")
+        "*." <> suffix
+
+      rcode == "NXDOMAIN" and String.ends_with?(qname, "." <> zone_domain) ->
+        "*." <> zone_domain
 
       String.ends_with?(qname, "." <> zone_domain) and length(qname_labels) > max_labels ->
         suffix = qname_labels |> Enum.take(-max_labels) |> Enum.join(".")

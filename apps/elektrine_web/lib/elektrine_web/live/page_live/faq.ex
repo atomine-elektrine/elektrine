@@ -185,11 +185,11 @@ defmodule ElektrineWeb.PageLive.FAQ do
               <div class="collapse collapse-arrow bg-base-200">
                 <input type="checkbox" class="peer" />
                 <div class="collapse-title text-lg font-medium peer-checked:bg-primary peer-checked:text-primary-content">
-                  What is Vault?
+                  What is Nerve?
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Vault stores encrypted entries tied to your account when the vault module is enabled.
+                    Nerve stores encrypted entries tied to your account when the nerve module is enabled.
                   </p>
                 </div>
               </div>

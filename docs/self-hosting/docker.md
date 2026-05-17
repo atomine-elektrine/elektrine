@@ -29,7 +29,7 @@ mail.
 
 | Concern | Uses | Examples |
 | --- | --- | --- |
-| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `vault`, `vpn`, `dns`, `atomine` |
+| product capabilities | `ELEKTRINE_ENABLED_MODULES` | `chat`, `social`, `email`, `nerve`, `vpn`, `dns`, `atomine` |
 | long-lived infra/services | `DOCKER_PROFILES` | `email`, `dns`, `tor`, `turn`, `vpn`, `caddy`, `bluesky` |
 | runtime behavior inside a container | env vars | `ONION_TLS_ENABLED=true` |
 
@@ -115,7 +115,7 @@ docker compose -f docker-compose.yml -f docker-compose.network.yml up -d --build
 
 cd /path/to/elektrine
 scripts/deploy/docker_deploy.sh \
-	--modules chat,social,vault,atomine \
+	--modules chat,social,nerve,atomine \
 	--profile caddy
 ```
 
@@ -151,7 +151,7 @@ profile automatically so the bundled WireGuard container comes up with the stack
 To enable VPN explicitly:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,vpn,atomine --profile caddy
+scripts/deploy/docker_deploy.sh --modules chat,social,nerve,vpn,atomine --profile caddy
 ```
 
 ## Fast Iteration
@@ -196,7 +196,7 @@ The deploy wrapper can do this automatically, including a backup, validation,
 and Docker restart:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --configure-docker-source-ips
+scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --configure-docker-source-ips
 ```
 
 You can also keep it enabled in `.env.production`:
@@ -272,7 +272,7 @@ The full default profile set includes Elektrine's separate mail protocol
 container. In a smaller custom stack, enable it with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,email,vault,atomine --profile caddy --profile email
+scripts/deploy/docker_deploy.sh --modules chat,social,email,nerve,atomine --profile caddy --profile email
 ```
 
 The full default profile set includes the separate authoritative DNS service. In
@@ -286,14 +286,14 @@ The full default profile set includes onion hosting. In a smaller custom stack,
 set the onion variables already present in `.env.example`, then deploy with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile tor
+scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --profile tor
 ```
 
 The full default profile set includes self-hosted STUN/TURN for chat calls. In a
 smaller custom stack, enable it with:
 
 ```bash
-scripts/deploy/docker_deploy.sh --modules chat,social,vault,atomine --profile caddy --profile turn
+scripts/deploy/docker_deploy.sh --modules chat,social,nerve,atomine --profile caddy --profile turn
 ```
 
 This runs coturn on the host network and auto-wires the app's WebRTC ICE

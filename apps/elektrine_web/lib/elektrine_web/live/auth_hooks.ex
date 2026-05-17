@@ -40,7 +40,7 @@ defmodule ElektrineWeb.Live.AuthHooks do
     ElektrineWeb.SettingsLive.DeleteAccount,
     ElektrineWeb.SettingsLive.EditPassword,
     ElektrineWeb.SettingsLive.PasskeyManage,
-    ElektrinePasswordManagerWeb.VaultLive,
+    ElektrineNerveWeb.NerveLive,
     ElektrineWeb.SettingsLive.RSS,
     ElektrineWeb.SettingsLive.TwoFactorManage,
     ElektrineWeb.SettingsLive.TwoFactorSetup,

@@ -930,7 +930,7 @@ defmodule ElektrineWeb.MobileChannel do
       if(Integrations.social_available?(), do: "social"),
       if(Integrations.vpn_available?(), do: "vpn"),
       if(Integrations.email_available?(), do: "calendar"),
-      if(Integrations.vault_available?(), do: "password_manager")
+      if(Integrations.nerve_available?(), do: "nerve")
     ]
     |> Enum.reject(&is_nil/1)
   end

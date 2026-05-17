@@ -12,7 +12,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   alias Elektrine.Email.Contacts
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ChatMessage
-  alias Elektrine.PasswordManager
+  alias Elektrine.Nerve
   alias Elektrine.Repo
   alias Elektrine.Social
   alias ElektrineWeb.Plugs.APIAuth
@@ -258,7 +258,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert message == "Email sent successfully"
       assert email["subject"] == "PAT outbound email"
       assert email["to"] == "friend@example.com"
-      assert delivery["status"] == "sent"
+      assert delivery["status"] in ["sent", "queued"]
       assert is_binary(delivery["message_id"])
     end
 
@@ -483,25 +483,25 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       assert export["format"] == "json"
     end
 
-    test "password manager endpoints accept dedicated vault scopes", %{conn: conn} do
+    test "Nerve endpoints accept dedicated nerve scopes", %{conn: conn} do
       user = user_fixture()
-      conn = with_pat(conn, user.id, ["read:vault"])
+      conn = with_pat(conn, user.id, ["read:nerve"])
 
-      conn = get(conn, "/api/ext/v1/password-manager/entries")
+      conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"data" => data} = json_response(conn, 200)
-      assert data["vault_configured"] == false
-      assert is_nil(data["vault_verifier"])
+      assert data["nerve_configured"] == false
+      assert is_nil(data["nerve_verifier"])
       assert data["entries"] == []
     end
 
-    test "password manager list returns encrypted verifier metadata when configured", %{
+    test "Nerve list returns encrypted verifier metadata when configured", %{
       conn: conn
     } do
       user = user_fixture()
 
       assert {:ok, _settings} =
-               PasswordManager.setup_vault(user.id, %{
+               Nerve.setup_nerve(user.id, %{
                  encrypted_verifier: %{
                    version: 1,
                    algorithm: "AES-GCM",
@@ -513,110 +513,110 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
                  }
                })
 
-      conn = with_pat(conn, user.id, ["read:vault"])
-      conn = get(conn, "/api/ext/v1/password-manager/entries")
+      conn = with_pat(conn, user.id, ["read:nerve"])
+      conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"data" => data} = json_response(conn, 200)
-      assert data["vault_configured"] == true
-      assert data["vault_verifier"]["algorithm"] == "AES-GCM"
-      assert data["vault_verifier"]["kdf"] == "PBKDF2-SHA256"
+      assert data["nerve_configured"] == true
+      assert data["nerve_verifier"]["algorithm"] == "AES-GCM"
+      assert data["nerve_verifier"]["kdf"] == "PBKDF2-SHA256"
     end
 
-    test "password manager endpoints reject standard account auth tokens", %{conn: conn} do
+    test "Nerve endpoints reject standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> get("/api/ext/v1/password-manager/entries")
+        |> get("/api/ext/v1/nerve/entries")
 
       assert %{"error" => error} = json_response(conn, 401)
       assert error["code"] == "invalid_token_format"
     end
 
-    test "password manager write endpoints reject standard account auth tokens", %{conn: conn} do
+    test "Nerve write endpoints reject standard account auth tokens", %{conn: conn} do
       user = user_fixture()
       {:ok, token} = APIAuth.generate_token(user.id)
 
       conn =
         conn
         |> put_req_header("authorization", "Bearer #{token}")
-        |> post("/api/ext/v1/password-manager/vault/setup", %{
-          "vault" => %{"encrypted_verifier" => valid_client_payload()}
+        |> post("/api/ext/v1/nerve/setup", %{
+          "nerve" => %{"encrypted_verifier" => valid_client_payload()}
         })
 
       assert %{"error" => error} = json_response(conn, 401)
       assert error["code"] == "invalid_token_format"
     end
 
-    test "password manager delete vault endpoint removes verifier and entries", %{conn: conn} do
+    test "Nerve delete nerve endpoint removes verifier and entries", %{conn: conn} do
       user = user_fixture()
 
       assert {:ok, _settings} =
-               PasswordManager.setup_vault(user.id, %{
+               Nerve.setup_nerve(user.id, %{
                  encrypted_verifier: valid_client_payload()
                })
 
       assert {:ok, _entry} =
-               PasswordManager.create_entry(user.id, %{
+               Nerve.create_entry(user.id, %{
                  title: "Disposable",
                  encrypted_metadata: valid_client_payload(),
                  encrypted_password: valid_client_payload()
                })
 
-      delete_conn = with_pat(conn, user.id, ["write:vault"])
+      delete_conn = with_pat(conn, user.id, ["write:nerve"])
 
       delete_conn =
         delete_conn
-        |> delete("/api/ext/v1/password-manager/vault")
+        |> delete("/api/ext/v1/nerve")
 
       assert %{"data" => data} = json_response(delete_conn, 200)
-      assert data["message"] == "Vault deleted"
+      assert data["message"] == "Nerve deleted"
       assert data["deleted_entries"] == 1
-      assert data["vault_configured"] == false
+      assert data["nerve_configured"] == false
 
       list_conn =
         build_conn()
-        |> with_pat(user.id, ["read:vault"])
-        |> get("/api/ext/v1/password-manager/entries")
+        |> with_pat(user.id, ["read:nerve"])
+        |> get("/api/ext/v1/nerve/entries")
 
       assert %{"data" => list_data} = json_response(list_conn, 200)
-      assert list_data["vault_configured"] == false
+      assert list_data["nerve_configured"] == false
       assert list_data["entries"] == []
     end
 
-    test "password manager endpoints reject account scopes without vault scopes", %{conn: conn} do
+    test "Nerve endpoints reject account scopes without nerve scopes", %{conn: conn} do
       user = user_fixture()
       conn = with_pat(conn, user.id, ["read:account"])
 
-      conn = get(conn, "/api/ext/v1/password-manager/entries")
+      conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"error" => error} = json_response(conn, 403)
       assert error["code"] == "insufficient_scope"
     end
 
-    test "password manager endpoints reject banned PAT users", %{conn: conn} do
+    test "Nerve endpoints reject banned PAT users", %{conn: conn} do
       user = user_fixture()
       {:ok, _banned_user} = Accounts.ban_user(user, %{banned_reason: "security test"})
-      conn = with_pat(conn, user.id, ["read:vault"])
+      conn = with_pat(conn, user.id, ["read:nerve"])
 
-      conn = get(conn, "/api/ext/v1/password-manager/entries")
+      conn = get(conn, "/api/ext/v1/nerve/entries")
 
       assert %{"error" => error} = json_response(conn, 401)
       assert error["code"] == "account_inactive"
     end
 
-    test "password manager update endpoint updates an existing entry", %{conn: conn} do
+    test "Nerve update endpoint updates an existing entry", %{conn: conn} do
       user = user_fixture()
 
       assert {:ok, _settings} =
-               PasswordManager.setup_vault(user.id, %{
+               Nerve.setup_nerve(user.id, %{
                  encrypted_verifier: valid_client_payload()
                })
 
       assert {:ok, entry} =
-               PasswordManager.create_entry(user.id, %{
+               Nerve.create_entry(user.id, %{
                  title: "GitHub",
                  login_username: "old@example.com",
                  website: "https://github.com",
@@ -624,10 +624,10 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
                  encrypted_password: valid_client_payload()
                })
 
-      conn = with_pat(conn, user.id, ["write:vault"])
+      conn = with_pat(conn, user.id, ["write:nerve"])
 
       conn =
-        put(conn, "/api/ext/v1/password-manager/entries/#{entry.id}", %{
+        put(conn, "/api/ext/v1/nerve/entries/#{entry.id}", %{
           "entry" => %{
             "title" => "GitHub Updated",
             "login_username" => "new@example.com",

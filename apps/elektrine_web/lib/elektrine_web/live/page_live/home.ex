@@ -194,7 +194,7 @@ defmodule ElektrineWeb.PageLive.Home do
       %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg"},
       %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
-      %{icon: "hero-key-mini", name: "Passwords", detail: "Vault"}
+      %{icon: "hero-key-mini", name: "Bridge", detail: "Extension / site actions"}
     ]
     |> Enum.filter(fn module ->
       case module.name do
@@ -203,7 +203,7 @@ defmodule ElektrineWeb.PageLive.Home do
         "Chat" -> Modules.enabled?(:chat)
         "Social" -> Modules.enabled?(:social)
         "VPN" -> Modules.enabled?(:vpn)
-        "Passwords" -> Modules.enabled?(:vault)
+        "Bridge" -> Modules.enabled?(:nerve)
         _ -> true
       end
     end)

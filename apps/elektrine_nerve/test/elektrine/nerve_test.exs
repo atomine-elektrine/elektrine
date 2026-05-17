@@ -1,0 +1,332 @@
+defmodule Elektrine.NerveTest do
+  use Elektrine.DataCase, async: true
+
+  alias Elektrine.AccountsFixtures
+  alias Elektrine.Nerve
+  alias Elektrine.Nerve.NerveEntry
+  alias Elektrine.Repo
+
+  describe "nerve entries" do
+    setup do
+      user = AccountsFixtures.user_fixture()
+      other_user = AccountsFixtures.user_fixture()
+
+      %{user: user, other_user: other_user}
+    end
+
+    test "setup_nerve/2 stores verifier and marks nerve configured", %{user: user} do
+      refute Nerve.nerve_configured?(user.id)
+
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert Nerve.nerve_configured?(user.id)
+
+      assert %{"ciphertext" => _ciphertext} =
+               Nerve.get_nerve_settings(user.id).encrypted_verifier
+    end
+
+    test "create_entry/2 requires nerve setup", %{user: user} do
+      assert {:error, :nerve_not_configured} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Blocked",
+                 "encrypted_password" => encrypted_payload("nope")
+               })
+    end
+
+    test "create_entry/2 stores client-encrypted payloads at rest", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "GitHub",
+        "login_username" => "dev@example.com",
+        "website" => "https://github.com",
+        "encrypted_metadata" => encrypted_payload("metadata"),
+        "encrypted_password" => encrypted_payload("SuperSecret123!"),
+        "encrypted_notes" => encrypted_payload("MFA enabled")
+      }
+
+      assert {:ok, entry} = Nerve.create_entry(user.id, attrs)
+
+      stored_entry = Repo.get!(NerveEntry, entry.id)
+
+      assert stored_entry.title == "Encrypted entry"
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               attrs["encrypted_metadata"]["ciphertext"]
+
+      assert stored_entry.encrypted_password["ciphertext"] ==
+               attrs["encrypted_password"]["ciphertext"]
+
+      assert stored_entry.encrypted_notes["ciphertext"] == attrs["encrypted_notes"]["ciphertext"]
+    end
+
+    test "create_entry/2 stores encrypted metadata without plaintext metadata", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "GitHub",
+        "login_username" => "dev@example.com",
+        "website" => "https://github.com",
+        "encrypted_metadata" => encrypted_payload("metadata"),
+        "encrypted_password" => encrypted_payload("SuperSecret123!")
+      }
+
+      assert {:ok, entry} = Nerve.create_entry(user.id, attrs)
+
+      stored_entry = Repo.get!(NerveEntry, entry.id)
+
+      assert stored_entry.title == "Encrypted entry"
+      assert is_nil(stored_entry.login_username)
+      assert is_nil(stored_entry.website)
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               attrs["encrypted_metadata"]["ciphertext"]
+    end
+
+    test "create_entry/2 requires encrypted metadata", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "GitHub",
+        "encrypted_password" => encrypted_payload("SuperSecret123!")
+      }
+
+      assert {:error, changeset} = Nerve.create_entry(user.id, attrs)
+      assert {"can't be blank", _opts} = changeset.errors[:encrypted_metadata]
+    end
+
+    test "create_entry/2 validates required encrypted payload", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "Missing Ciphertext",
+        "encrypted_metadata" => encrypted_payload("metadata"),
+        "encrypted_password" => nil
+      }
+
+      assert {:error, changeset} = Nerve.create_entry(user.id, attrs)
+      assert {"can't be blank", _opts} = changeset.errors[:encrypted_password]
+    end
+
+    test "create_entry/2 validates payload shape", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      attrs = %{
+        "title" => "Bad Payload",
+        "encrypted_metadata" => encrypted_payload("metadata"),
+        "encrypted_password" => %{"ciphertext" => "abc"}
+      }
+
+      assert {:error, changeset} = Nerve.create_entry(user.id, attrs)
+
+      assert {"must be a valid client-encrypted payload", _opts} =
+               changeset.errors[:encrypted_password]
+    end
+
+    test "form changeset validates website protocol", %{user: user} do
+      changeset =
+        NerveEntry.form_changeset(%NerveEntry{}, %{
+          "title" => "Bad Website",
+          "website" => "ftp://example.com",
+          "user_id" => user.id
+        })
+
+      assert {"must start with http:// or https://", _opts} = changeset.errors[:website]
+    end
+
+    test "list_entries/1 only returns entries for the user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-user")
+               })
+
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
+      assert {:ok, _entry_1} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Main Account",
+                 "encrypted_metadata" => encrypted_payload("metadata-user"),
+                 "encrypted_password" => encrypted_payload("one")
+               })
+
+      assert {:ok, _entry_2} =
+               Nerve.create_entry(other_user.id, %{
+                 "title" => "Other Account",
+                 "encrypted_metadata" => encrypted_payload("metadata-other"),
+                 "encrypted_password" => encrypted_payload("two")
+               })
+
+      entries = Nerve.list_entries(user.id)
+
+      assert length(entries) == 1
+      assert hd(entries).title == "Encrypted entry"
+      refute Map.has_key?(hd(entries), :encrypted_password)
+    end
+
+    test "list_entries/2 can include encrypted payloads", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert {:ok, _entry} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Email",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
+                 "encrypted_password" => encrypted_payload("InboxSecret!")
+               })
+
+      [entry] = Nerve.list_entries(user.id, include_secrets: true)
+      assert is_map(entry.encrypted_password)
+      assert entry.encrypted_password["algorithm"] == "AES-GCM"
+    end
+
+    test "get_entry_ciphertext/2 is scoped by user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
+      assert {:ok, entry} =
+               Nerve.create_entry(other_user.id, %{
+                 "title" => "Hidden",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
+                 "encrypted_password" => encrypted_payload("ShouldNotBeVisible")
+               })
+
+      assert {:error, :not_found} = Nerve.get_entry_ciphertext(user.id, entry.id)
+    end
+
+    test "update_entry/3 updates client-encrypted payloads for the owner", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert {:ok, entry} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Email",
+                 "login_username" => "old@example.com",
+                 "website" => "https://mail.example.com",
+                 "encrypted_metadata" => encrypted_payload("old-metadata"),
+                 "encrypted_password" => encrypted_payload("old-password")
+               })
+
+      assert {:ok, updated_entry} =
+               Nerve.update_entry(user.id, entry.id, %{
+                 "title" => "Email Account",
+                 "login_username" => "new@example.com",
+                 "website" => "https://mail.example.com",
+                 "encrypted_metadata" => encrypted_payload("new-metadata"),
+                 "encrypted_password" => encrypted_payload("new-password"),
+                 "encrypted_notes" => encrypted_payload("rotated")
+               })
+
+      assert updated_entry.title == "Encrypted entry"
+      assert is_nil(updated_entry.login_username)
+
+      stored_entry = Repo.get!(NerveEntry, entry.id)
+
+      assert stored_entry.encrypted_password["ciphertext"] ==
+               encrypted_payload("new-password")["ciphertext"]
+
+      assert stored_entry.encrypted_metadata["ciphertext"] ==
+               encrypted_payload("new-metadata")["ciphertext"]
+
+      assert stored_entry.encrypted_notes["ciphertext"] ==
+               encrypted_payload("rotated")["ciphertext"]
+    end
+
+    test "update_entry/3 is scoped by user", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(other_user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-other")
+               })
+
+      assert {:ok, entry} =
+               Nerve.create_entry(other_user.id, %{
+                 "title" => "Hidden",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
+                 "encrypted_password" => encrypted_payload("secret")
+               })
+
+      assert {:error, :not_found} =
+               Nerve.update_entry(user.id, entry.id, %{
+                 "title" => "Nope",
+                 "encrypted_password" => encrypted_payload("updated")
+               })
+    end
+
+    test "delete_entry/2 only deletes user-owned entries", %{user: user, other_user: other_user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier-user")
+               })
+
+      assert {:ok, entry} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Delete Me",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
+                 "encrypted_password" => encrypted_payload("temporary")
+               })
+
+      assert {:error, :not_found} = Nerve.delete_entry(other_user.id, entry.id)
+      assert {:ok, _deleted} = Nerve.delete_entry(user.id, entry.id)
+      assert {:error, :not_found} = Nerve.get_entry_ciphertext(user.id, entry.id)
+    end
+
+    test "delete_nerve/1 removes verifier metadata and all entries", %{user: user} do
+      assert {:ok, _settings} =
+               Nerve.setup_nerve(user.id, %{
+                 "encrypted_verifier" => encrypted_payload("verifier")
+               })
+
+      assert {:ok, _entry} =
+               Nerve.create_entry(user.id, %{
+                 "title" => "Wipe Me",
+                 "encrypted_metadata" => encrypted_payload("metadata"),
+                 "encrypted_password" => encrypted_payload("temporary")
+               })
+
+      assert {:ok, %{deleted_entries: 1, nerve_deleted: true}} =
+               Nerve.delete_nerve(user.id)
+
+      refute Nerve.nerve_configured?(user.id)
+      assert Nerve.list_entries(user.id, include_secrets: true) == []
+      assert is_nil(Nerve.get_nerve_settings(user.id))
+    end
+  end
+
+  defp encrypted_payload(plaintext) do
+    %{
+      "version" => 1,
+      "algorithm" => "AES-GCM",
+      "kdf" => "PBKDF2-SHA256",
+      "iterations" => 210_000,
+      "salt" => Base.encode64("1234567890123456"),
+      "iv" => Base.encode64("123456789012"),
+      "ciphertext" => Base.encode64("ciphertext:" <> plaintext)
+    }
+  end
+end

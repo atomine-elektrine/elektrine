@@ -32,7 +32,7 @@ defmodule ElektrineUmbrella.MixProject do
           atomine: :permanent,
           elektrine_social: :permanent,
           elektrine_vpn: :permanent,
-          elektrine_password_manager: :permanent
+          elektrine_nerve: :permanent
         ]
       ],
       elektrine_dns: [

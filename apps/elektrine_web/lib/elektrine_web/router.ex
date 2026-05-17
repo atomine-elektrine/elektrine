@@ -5,7 +5,7 @@ defmodule ElektrineWeb.Router do
   require ElektrineWeb.Routes.Email
   require ElektrineWeb.Routes.DNS
   require ElektrineWeb.Routes.Social
-  require ElektrineWeb.Routes.Vault
+  require ElektrineWeb.Routes.Nerve
   require ElektrineWeb.Routes.VPN
   import ElektrineWeb.UserAuth
 
@@ -114,7 +114,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.RequestTelemetry, scope: :api)
   end
 
-  pipeline :api_vault_authenticated do
+  pipeline :api_nerve_authenticated do
     plug(:accepts, ["json"])
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "preauth", ip_only: true)
@@ -198,15 +198,15 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:dns"])
   end
 
-  pipeline :api_pat_vault_read_scope do
+  pipeline :api_pat_nerve_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth,
-      scopes: ["read:vault", "write:vault"],
+      scopes: ["read:nerve", "write:nerve"],
       any: true
     )
   end
 
-  pipeline :api_pat_vault_write_scope do
-    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:vault"])
+  pipeline :api_pat_nerve_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:nerve"])
   end
 
   pipeline :api_pat_export_scope do
@@ -990,10 +990,10 @@ defmodule ElektrineWeb.Router do
     delete("/:id", CalendarController, :delete_event)
   end
 
-  scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_vault_authenticated, :api_pat_vault_read_scope])
+  scope "/api/ext/v1/nerve", ElektrineWeb.API do
+    pipe_through([:api_nerve_authenticated, :api_pat_nerve_read_scope])
 
-    ElektrineWeb.Routes.Vault.api_read_routes()
+    ElektrineWeb.Routes.Nerve.api_read_routes()
   end
 
   scope "/api/ext/v1/dns", ElektrineWeb.API do
@@ -1008,10 +1008,10 @@ defmodule ElektrineWeb.Router do
     ElektrineWeb.Routes.DNS.api_write_routes()
   end
 
-  scope "/api/ext/v1/password-manager", ElektrineWeb.API do
-    pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
+  scope "/api/ext/v1/nerve", ElektrineWeb.API do
+    pipe_through([:api_nerve_authenticated, :api_pat_nerve_write_scope])
 
-    ElektrineWeb.Routes.Vault.api_write_routes()
+    ElektrineWeb.Routes.Nerve.api_write_routes()
   end
 
   scope "/api/ext/v1/exports", ElektrineWeb.API do
@@ -1067,10 +1067,10 @@ defmodule ElektrineWeb.Router do
     delete("/:id", CalendarController, :delete_event)
   end
 
-  scope "/api/ext/password-manager", ElektrineWeb.API do
-    pipe_through([:api_vault_authenticated, :api_pat_vault_read_scope])
+  scope "/api/ext/nerve", ElektrineWeb.API do
+    pipe_through([:api_nerve_authenticated, :api_pat_nerve_read_scope])
 
-    ElektrineWeb.Routes.Vault.api_read_routes()
+    ElektrineWeb.Routes.Nerve.api_read_routes()
   end
 
   scope "/api/ext/dns", ElektrineWeb.API do
@@ -1085,10 +1085,10 @@ defmodule ElektrineWeb.Router do
     ElektrineWeb.Routes.DNS.api_write_routes()
   end
 
-  scope "/api/ext/password-manager", ElektrineWeb.API do
-    pipe_through([:api_vault_authenticated, :api_pat_vault_write_scope])
+  scope "/api/ext/nerve", ElektrineWeb.API do
+    pipe_through([:api_nerve_authenticated, :api_pat_nerve_write_scope])
 
-    ElektrineWeb.Routes.Vault.api_write_routes()
+    ElektrineWeb.Routes.Nerve.api_write_routes()
   end
 
   # Data export download for the logged-in browser UI.
@@ -1246,12 +1246,12 @@ defmodule ElektrineWeb.Router do
       live("/account/app-passwords", SettingsLive.AppPasswords)
 
       get(
-        "/account/password-manager/extension/:browser/download",
-        PasswordManagerExtensionController,
+        "/account/nerve/extension/:browser/download",
+        NerveExtensionController,
         :download
       )
 
-      ElektrineWeb.Routes.Vault.live_routes()
+      ElektrineWeb.Routes.Nerve.live_routes()
 
       live("/settings/rss", SettingsLive.RSS, :index)
 

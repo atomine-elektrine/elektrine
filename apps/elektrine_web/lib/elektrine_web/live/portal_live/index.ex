@@ -1542,6 +1542,28 @@ defmodule ElektrineWeb.PortalLive.Index do
     {:noreply, maybe_load_feed_data(socket, limit)}
   end
 
+  def handle_info({:portal_feed_data_result, ref, {:ok, result}}, socket) do
+    if socket.assigns[:feed_load_ref] == ref do
+      {:noreply, apply_feed_data_result(socket, result)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:portal_feed_data_result, ref, {:exit, reason}}, socket) do
+    Logger.warning("Portal feed async loader exited: #{inspect(reason)}")
+
+    if socket.assigns[:feed_load_ref] == ref do
+      {:noreply,
+       socket
+       |> assign(:loading_feed, false)
+       |> assign(:loading_more, false)
+       |> put_flash(:error, "Portal feed failed to load. Try refreshing.")}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info(:load_stats_data, socket) do
     user = socket.assigns.current_user
 
@@ -1574,29 +1596,6 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   def handle_info(_info, socket) do
     {:noreply, socket}
-  end
-
-  @impl true
-  def handle_async({:portal_feed_data, ref}, {:ok, result}, socket) do
-    if socket.assigns[:feed_load_ref] == ref do
-      {:noreply, apply_feed_data_result(socket, result)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_async({:portal_feed_data, ref}, {:exit, reason}, socket) do
-    Logger.warning("Portal feed async loader exited: #{inspect(reason)}")
-
-    if socket.assigns[:feed_load_ref] == ref do
-      {:noreply,
-       socket
-       |> assign(:loading_feed, false)
-       |> assign(:loading_more, false)
-       |> put_flash(:error, "Portal feed failed to load. Try refreshing.")}
-    else
-      {:noreply, socket}
-    end
   end
 
   defp get_user_likes_map(user_id, posts) do
@@ -3249,12 +3248,23 @@ defmodule ElektrineWeb.PortalLive.Index do
     filter = socket.assigns.filter || @default_filter
     source_key = feed_source_key(filter)
     ref = System.unique_integer([:positive])
+    parent = self()
+
+    Task.start(fn ->
+      try do
+        result = load_feed_data_result(user.id, filter, source_key, limit, session_context)
+        send(parent, {:portal_feed_data_result, ref, {:ok, result}})
+      rescue
+        exception ->
+          send(parent, {:portal_feed_data_result, ref, {:exit, Exception.message(exception)}})
+      catch
+        kind, reason ->
+          send(parent, {:portal_feed_data_result, ref, {:exit, {kind, reason}}})
+      end
+    end)
 
     socket
     |> assign(:feed_load_ref, ref)
-    |> start_async({:portal_feed_data, ref}, fn ->
-      load_feed_data_result(user.id, filter, source_key, limit, session_context)
-    end)
   end
 
   defp load_feed_data_result(user_id, filter, source_key, limit, session_context) do
