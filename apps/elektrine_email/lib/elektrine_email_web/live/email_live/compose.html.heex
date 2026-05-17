@@ -1194,13 +1194,18 @@
                 <.button
                   type="submit"
                   variant="secondary"
-                  class="min-w-[10rem] h-11 px-4"
+                  class="min-w-[10rem] h-11 px-4 transition-all duration-150 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-80"
                   disabled={@rate_limit_status.daily.remaining == 0}
                   loading={@sending}
                   loading_text={gettext("Sending...")}
-                  icon_right="hero-arrow-right"
                 >
-                  {gettext("Send Message")}
+                  <span class="inline-flex items-center phx-submit-loading:hidden">
+                    {gettext("Send Message")}
+                    <.icon name="hero-arrow-right" class="ml-2 h-5 w-5" />
+                  </span>
+                  <span class="hidden items-center phx-submit-loading:inline-flex">
+                    <.spinner size="sm" class="mr-2" /> {gettext("Sending...")}
+                  </span>
                 </.button>
                 <.link navigate={email_return_url(assigns)} class="btn btn-ghost h-11 px-4">
                   <.icon name="hero-arrow-left" class="h-5 w-5 mr-2" /> {email_back_button_text(

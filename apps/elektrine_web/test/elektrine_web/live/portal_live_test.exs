@@ -144,12 +144,23 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "Garden planning dispatch"
     assert html =~ "rss_item=#{item_a.id}"
 
-    html = render_click(view, "set_rss_source", %{"source" => Integer.to_string(feed_b.id)})
+    html =
+      view
+      |> element(~s(a[href*="rss_source=#{feed_b.id}"]))
+      |> render_click()
+
     assert html =~ "Garden planning dispatch"
     refute html =~ "Rust analysis roundup"
 
-    render_click(view, "set_rss_source", %{"source" => "all"})
-    html = render_click(view, "select_rss_item", %{"item_id" => Integer.to_string(item_a.id)})
+    view
+    |> element(~s(a[href*="rss_source=all"]), "All feeds")
+    |> render_click()
+
+    html =
+      view
+      |> element(~s([data-role="rss-reader-list"] a[href*="rss_item=#{item_a.id}"]))
+      |> render_click()
+
     assert html =~ "Read original"
     assert html =~ "Full systems article body with enough detail"
     assert html =~ "background-image"
@@ -184,6 +195,44 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "rss_item=#{item.id}"
   end
 
+  test "portal RSS item links can select an item outside the initial reader slice", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/feed-deep-links.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Deep Link Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    for index <- 1..20 do
+      {:ok, _item} =
+        RSS.upsert_item(feed.id, %{
+          guid: "portal-reader-newer-#{index}",
+          title: "Newer item #{index}",
+          url: "https://example.com/newer-item-#{index}",
+          published_at: DateTime.add(~U[2026-05-14 00:00:00Z], index, :second)
+        })
+    end
+
+    {:ok, item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-deep-linkable",
+        title: "Deep linkable item",
+        summary: "Short summary",
+        content: "Full deep linkable item body",
+        url: "https://example.com/deep-linkable-item",
+        published_at: ~U[2026-05-13 00:00:00Z]
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal?rss_item=#{item.id}")
+
+    assert html =~ "Deep linkable item"
+    assert html =~ "Full deep linkable item body"
+    assert html =~ "rss_item=#{item.id}"
+  end
+
   test "portal RSS reader derives image backgrounds from existing item content", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     {:ok, feed} = RSS.get_or_create_feed("https://example.net/feed.xml")
@@ -204,7 +253,10 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    html = render_click(view, "select_rss_item", %{"item_id" => Integer.to_string(item.id)})
+    html =
+      view
+      |> element(~s([data-role="rss-reader-list"] a[href*="rss_item=#{item.id}"]))
+      |> render_click()
 
     assert html =~ "Article with inline image"
     assert html =~ "https://example.net/images/story.jpg"
