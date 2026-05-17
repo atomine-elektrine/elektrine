@@ -19,8 +19,19 @@ defmodule ElektrineWeb.PortalLive.Reader do
     reader_params = Map.get(assigns, :reader_params, %{})
     user_id = assigns.current_user.id
 
-    if reload_reader?(socket, user_id, reader_params) do
-      rss_subscriptions = RSS.list_subscriptions(user_id)
+    socket =
+      if load_reader_data?(socket, user_id) do
+        socket
+        |> assign(:reader_user_id, user_id)
+        |> assign(:rss_subscriptions, RSS.list_subscriptions(user_id))
+        |> assign_new(:rss_query, fn -> "" end)
+        |> assign(:rss_items, load_rss_items(user_id))
+      else
+        socket
+      end
+
+    if socket.assigns[:reader_user_id] == user_id do
+      rss_subscriptions = socket.assigns[:rss_subscriptions] || []
 
       rss_source_filter =
         normalize_rss_source(
@@ -30,13 +41,9 @@ defmodule ElektrineWeb.PortalLive.Reader do
 
       socket =
         socket
-        |> assign(:reader_user_id, user_id)
         |> assign(:reader_params, reader_params)
-        |> assign(:rss_subscriptions, rss_subscriptions)
         |> assign(:rss_source_filter, rss_source_filter)
         |> assign(:rss_list_density, normalize_rss_list_density(reader_params["rss_density"]))
-        |> assign_new(:rss_query, fn -> "" end)
-        |> assign(:rss_items, load_rss_items(user_id))
         |> maybe_include_requested_rss_item(reader_params["rss_item"])
 
       reader_items = filtered_rss_items(socket.assigns)
@@ -291,8 +298,10 @@ defmodule ElektrineWeb.PortalLive.Reader do
     """
   end
 
-  defp reload_reader?(socket, user_id, reader_params) do
-    socket.assigns[:reader_user_id] != user_id or socket.assigns[:reader_params] != reader_params
+  defp load_reader_data?(socket, user_id) do
+    socket.assigns[:reader_user_id] != user_id or
+      not Map.has_key?(socket.assigns, :rss_items) or
+      not Map.has_key?(socket.assigns, :rss_subscriptions)
   end
 
   defp load_rss_items(user_id) do
