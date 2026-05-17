@@ -421,12 +421,14 @@ function resolveCopyText(el) {
   return ''
 }
 
-function showTemporaryCopySuccess(el) {
-  const originalHTML = el.innerHTML
-  el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>'
+function showTemporaryCopySuccess(el, onDone = null) {
+  el.classList.add('btn-success')
+  el.dataset.copied = 'true'
 
-  setTimeout(() => {
-    el.innerHTML = originalHTML
+  return setTimeout(() => {
+    el.classList.remove('btn-success')
+    delete el.dataset.copied
+    if (typeof onDone === 'function') onDone()
   }, 2000)
 }
 
@@ -487,7 +489,7 @@ export const FlashMessage = {
 
 export const CopyToClipboard = {
   mounted() {
-    this.el.addEventListener("click", e => {
+    this.onClick = e => {
       e.preventDefault()
 
       const textToCopy = resolveCopyText(this.el)
@@ -495,11 +497,21 @@ export const CopyToClipboard = {
       if (textToCopy) {
         copyToClipboard(textToCopy).then(copied => {
           if (copied) {
-            showTemporaryCopySuccess(this.el)
+            if (this.copySuccessTimer) clearTimeout(this.copySuccessTimer)
+            this.copySuccessTimer = showTemporaryCopySuccess(this.el, () => {
+              this.copySuccessTimer = null
+            })
           }
         }).catch(() => {})
       }
-    })
+    }
+
+    this.el.addEventListener("click", this.onClick)
+  },
+
+  destroyed() {
+    if (this.onClick) this.el.removeEventListener("click", this.onClick)
+    if (this.copySuccessTimer) clearTimeout(this.copySuccessTimer)
   }
 }
 
@@ -859,8 +871,6 @@ export const FileExplorer = {
  */
 export const CopyButton = {
   mounted() {
-    this.originalHTML = this.el.innerHTML
-    
     // Listen for the copy_to_clipboard event from LiveView
     this.handleEvent("copy_to_clipboard", ({ text }) => {
       copyToClipboard(text).then(copied => {
@@ -872,17 +882,22 @@ export const CopyButton = {
   },
   
   showSuccess() {
-    // Change to checkmark icon and green color
-    this.el.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>'
+    if (this.copySuccessTimer) clearTimeout(this.copySuccessTimer)
     this.el.classList.remove('btn-primary')
     this.el.classList.add('btn-success')
+    this.el.dataset.copied = 'true'
     
     // Reset after 2 seconds
-    setTimeout(() => {
-      this.el.innerHTML = this.originalHTML
+    this.copySuccessTimer = setTimeout(() => {
       this.el.classList.remove('btn-success')
       this.el.classList.add('btn-primary')
+      delete this.el.dataset.copied
+      this.copySuccessTimer = null
     }, 2000)
+  },
+
+  destroyed() {
+    if (this.copySuccessTimer) clearTimeout(this.copySuccessTimer)
   }
 }
 
@@ -1064,6 +1079,7 @@ export const TimelineReply = {
 export const IframeAutoResize = {
   mounted() {
     const iframe = this.el
+    this.resizeTimers = []
 
     // Function to resize iframe based on content
     const resizeIframe = () => {
@@ -1098,28 +1114,41 @@ export const IframeAutoResize = {
       }
     }
 
+    this.resizeFunction = resizeIframe
+
+    this.onIframeLoad = () => resizeIframe()
+
+    this.onDelayedIframeLoad = () => {
+      ;[100, 500, 1000].forEach((delay) => {
+        const timer = setTimeout(() => {
+          this.resizeTimers = this.resizeTimers.filter((id) => id !== timer)
+          resizeIframe()
+        }, delay)
+
+        this.resizeTimers.push(timer)
+      })
+    }
+
     // Resize on load
-    iframe.addEventListener('load', resizeIframe)
+    iframe.addEventListener('load', this.onIframeLoad)
 
     // Also try to resize after delays (for dynamic content)
-    iframe.addEventListener('load', () => {
-      setTimeout(resizeIframe, 100)
-      setTimeout(resizeIframe, 500)
-      setTimeout(resizeIframe, 1000) // Give more time for complex layouts
-    })
+    iframe.addEventListener('load', this.onDelayedIframeLoad)
 
     // Handle window resize events
     window.addEventListener('resize', resizeIframe)
-
-    // Store the resize function for cleanup
-    this.resizeFunction = resizeIframe
   },
 
   destroyed() {
-    // Clean up event listener
+    if (this.onIframeLoad) this.el.removeEventListener('load', this.onIframeLoad)
+    if (this.onDelayedIframeLoad) this.el.removeEventListener('load', this.onDelayedIframeLoad)
+
     if (this.resizeFunction) {
       window.removeEventListener('resize', this.resizeFunction)
     }
+
+    ;(this.resizeTimers || []).forEach((timer) => clearTimeout(timer))
+    this.resizeTimers = []
   }
 }
 

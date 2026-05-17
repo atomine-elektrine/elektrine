@@ -1,5 +1,10 @@
 // Convert hashtags to clickable links without affecting spacing
 export function initHashtagLinks() {
+  if (window.__elektrineHashtagObserver) {
+    window.__elektrineHashtagObserver.disconnect();
+    window.__elektrineHashtagObserver = null;
+  }
+
   // Function to convert hashtags in text content
   function makeHashtagsClickable() {
     // Find all post content elements
@@ -49,6 +54,7 @@ export function initHashtagLinks() {
       childList: true,
       subtree: true
     });
+    window.__elektrineHashtagObserver = observer;
   }
 }
 

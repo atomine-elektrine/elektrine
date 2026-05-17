@@ -15,7 +15,8 @@ const ATOMINE_PROGRESS_INTERVAL = 1000
  */
 export const FormSubmit = {
   mounted() {
-    this.el.addEventListener('submit', (e) => {
+    this.submitResetTimer = null
+    this.onSubmit = (e) => {
       if (e.defaultPrevented) return
 
       const submitBtn = this.el.querySelector('button[type="submit"], button:not([type])')
@@ -32,13 +33,21 @@ export const FormSubmit = {
         submitBtn.classList.add('pointer-events-none')
 
         // Restore after timeout (in case of network issues)
-        setTimeout(() => {
+        this.submitResetTimer = setTimeout(() => {
           submitBtn.innerHTML = originalContent
           submitBtn.disabled = false
           submitBtn.classList.remove('pointer-events-none')
+          this.submitResetTimer = null
         }, 30000)
       }
-    })
+    }
+
+    this.el.addEventListener('submit', this.onSubmit)
+  },
+
+  destroyed() {
+    if (this.onSubmit) this.el.removeEventListener('submit', this.onSubmit)
+    if (this.submitResetTimer) clearTimeout(this.submitResetTimer)
   }
 }
 
@@ -54,12 +63,18 @@ export const TagInputHook = {
       }
     })
 
-    this.el.addEventListener('input', (e) => {
+    this.onInput = (e) => {
       this.pushEvent("update_tag_input", {
         field: this.el.dataset.field,
         value: e.target.value
       })
-    })
+    }
+
+    this.el.addEventListener('input', this.onInput)
+  },
+
+  destroyed() {
+    if (this.onInput) this.el.removeEventListener('input', this.onInput)
   }
 }
 
@@ -69,7 +84,7 @@ export const TagInputHook = {
  */
 export const SuggestionDropdown = {
   mounted() {
-    this.el.addEventListener('mousedown', (e) => {
+    this.onMouseDown = (e) => {
       const suggestionEl = e.target.closest('[data-suggestion-email]')
       if (suggestionEl) {
         const email = suggestionEl.dataset.suggestionEmail
@@ -82,7 +97,13 @@ export const SuggestionDropdown = {
         this.pushEvent("select_suggestion", { field, email })
         e.preventDefault()
       }
-    })
+    }
+
+    this.el.addEventListener('mousedown', this.onMouseDown)
+  },
+
+  destroyed() {
+    if (this.onMouseDown) this.el.removeEventListener('mousedown', this.onMouseDown)
   }
 }
 
