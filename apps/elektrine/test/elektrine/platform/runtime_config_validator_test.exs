@@ -213,8 +213,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
              )
   end
 
-  test "rejects S3 placeholders when storage is configured" do
-    assert {:error, errors} =
+  test "does not boot-block optional S3 placeholders when storage values exist" do
+    assert :ok =
              RuntimeConfigValidator.validate(
                env: %{
                  "ELEKTRINE_MASTER_SECRET" => "master-secret-with-at-least-thirty-two-chars",
@@ -226,9 +226,6 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                enabled_modules: [],
                environment: :prod
              )
-
-    assert "production secret S3_ACCESS_KEY_ID uses a known placeholder value" in errors
-    assert "production secret S3_SECRET_ACCESS_KEY uses a known placeholder value" in errors
   end
 
   test "rejects short production root secrets" do
