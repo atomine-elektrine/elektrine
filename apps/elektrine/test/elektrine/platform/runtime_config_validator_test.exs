@@ -200,6 +200,37 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
              )
   end
 
+  test "ignores optional S3 placeholders when storage is not configured" do
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "ELEKTRINE_MASTER_SECRET" => "master-secret-with-at-least-thirty-two-chars",
+                 "S3_ACCESS_KEY_ID" => "<provider-access-key-id>",
+                 "S3_SECRET_ACCESS_KEY" => "<provider-secret-access-key>"
+               },
+               enabled_modules: [],
+               environment: :prod
+             )
+  end
+
+  test "rejects S3 placeholders when storage is configured" do
+    assert {:error, errors} =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "ELEKTRINE_MASTER_SECRET" => "master-secret-with-at-least-thirty-two-chars",
+                 "S3_ACCESS_KEY_ID" => "<provider-access-key-id>",
+                 "S3_SECRET_ACCESS_KEY" => "<provider-secret-access-key>",
+                 "S3_ENDPOINT" => "s3.example.com",
+                 "S3_BUCKET_NAME" => "uploads"
+               },
+               enabled_modules: [],
+               environment: :prod
+             )
+
+    assert "production secret S3_ACCESS_KEY_ID uses a known placeholder value" in errors
+    assert "production secret S3_SECRET_ACCESS_KEY uses a known placeholder value" in errors
+  end
+
   test "rejects short production root secrets" do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(

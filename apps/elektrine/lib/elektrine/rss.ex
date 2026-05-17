@@ -213,29 +213,9 @@ defmodule Elektrine.RSS do
         join: f in Feed,
         on: f.id == i.feed_id,
         order_by: ^order_by,
-        limit: ^limit,
-        select: %{
-          id: i.id,
-          type: :rss_item,
-          title: i.title,
-          content: i.content,
-          summary: i.summary,
-          url: i.url,
-          author: i.author,
-          published_at: i.published_at,
-          inserted_at: i.inserted_at,
-          image_url: i.image_url,
-          enclosure_url: i.enclosure_url,
-          enclosure_type: i.enclosure_type,
-          categories: i.categories,
-          feed_id: f.id,
-          feed_title: f.title,
-          feed_url: f.url,
-          feed_image_url: f.image_url,
-          feed_favicon_url: f.favicon_url,
-          feed_site_url: f.site_url
-        }
+        limit: ^limit
       )
+      |> select_timeline_item()
 
     query =
       if before do
@@ -247,6 +227,21 @@ defmodule Elektrine.RSS do
     Repo.all(query)
   end
 
+  def get_timeline_item(user_id, item_id) when is_integer(item_id) do
+    from(i in Item,
+      join: s in Subscription,
+      on: s.feed_id == i.feed_id and s.user_id == ^user_id and s.show_in_timeline == true,
+      join: f in Feed,
+      on: f.id == i.feed_id,
+      where: i.id == ^item_id,
+      limit: 1
+    )
+    |> select_timeline_item()
+    |> Repo.one()
+  end
+
+  def get_timeline_item(_user_id, _item_id), do: nil
+
   @doc """
   Counts total items for a user's subscriptions.
   """
@@ -257,6 +252,30 @@ defmodule Elektrine.RSS do
       select: count(i.id)
     )
     |> Repo.one()
+  end
+
+  defp select_timeline_item(query) do
+    select(query, [i, _s, f], %{
+      id: i.id,
+      type: :rss_item,
+      title: i.title,
+      content: i.content,
+      summary: i.summary,
+      url: i.url,
+      author: i.author,
+      published_at: i.published_at,
+      inserted_at: i.inserted_at,
+      image_url: i.image_url,
+      enclosure_url: i.enclosure_url,
+      enclosure_type: i.enclosure_type,
+      categories: i.categories,
+      feed_id: f.id,
+      feed_title: f.title,
+      feed_url: f.url,
+      feed_image_url: f.image_url,
+      feed_favicon_url: f.favicon_url,
+      feed_site_url: f.site_url
+    })
   end
 
   ## Helpers
