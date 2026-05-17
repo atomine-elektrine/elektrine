@@ -47,6 +47,7 @@ config :elektrine, :mail_client_settings,
 # These values act as the high-capacity baseline for larger worker pools.
 config :elektrine, Oban,
   repo: Elektrine.Repo,
+  stage_interval: :timer.seconds(5),
   queues: [
     default: 3,
     # Incoming ActivityPub processing - kept very low to prevent DB overload

@@ -1,10 +1,12 @@
 defmodule ElektrineWeb.ProfileLiveDomainAnalyticsTest do
   use ElektrineWeb.ConnCase, async: false
 
+  import Phoenix.LiveViewTest
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.{Domains, Profiles}
 
-  test "domain counts render in the initial refresh response", %{conn: conn} do
+  test "domain counts load after the initial refresh response", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     host = profile_host(user)
 
@@ -29,6 +31,18 @@ defmodule ElektrineWeb.ProfileLiveDomainAnalyticsTest do
       |> log_in_user(user)
       |> get(~p"/analytics/domains")
       |> html_response(200)
+
+    assert html =~ host
+    assert html =~ "0 visitors"
+    assert html =~ "0 today"
+
+    {:ok, view, _html} =
+      conn
+      |> recycle()
+      |> log_in_user(user)
+      |> live(~p"/analytics/domains")
+
+    html = render(view)
 
     assert html =~ host
     assert html =~ "2 visitors"
