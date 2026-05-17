@@ -76,8 +76,8 @@ defmodule Elektrine.Platform.ENav do
         label: "Bridge",
         href: "/account/nerve",
         platform_module: :nerve,
-        icon: "hero-key",
-        active_icon: "hero-key-solid"
+        icon: "hero-arrows-right-left",
+        active_icon: "hero-arrows-right-left-solid"
       },
       %{
         id: "dns",
