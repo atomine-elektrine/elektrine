@@ -12,6 +12,7 @@ defmodule Elektrine.OAuth.App do
   import Ecto.Query
 
   alias Elektrine.Accounts.User
+  alias Elektrine.OAuth.Scopes
   alias Elektrine.Repo
 
   @type t :: %__MODULE__{}
@@ -42,6 +43,7 @@ defmodule Elektrine.OAuth.App do
     |> cast(params, [:client_name, :redirect_uris, :scopes, :website, :user_id])
     |> validate_length(:client_name, max: 255)
     |> validate_length(:website, max: 2048)
+    |> validate_scopes()
   end
 
   @doc """
@@ -292,8 +294,26 @@ defmodule Elektrine.OAuth.App do
 
   defp update_scopes(%__MODULE__{} = app, scopes) do
     app
-    |> change(%{scopes: scopes})
+    |> changeset(%{scopes: scopes})
     |> Repo.update()
+  end
+
+  defp validate_scopes(changeset) do
+    validate_change(changeset, :scopes, fn :scopes, scopes ->
+      invalid_scopes = scopes |> List.wrap() |> Enum.reject(&Scopes.valid?/1)
+      privileged_scopes = scopes |> List.wrap() |> Enum.reject(&Scopes.user_grantable?/1)
+
+      cond do
+        invalid_scopes != [] ->
+          [scopes: "contains unknown scopes: #{Enum.join(invalid_scopes, ", ")}"]
+
+        privileged_scopes != [] ->
+          [scopes: "contains privileged scopes: #{Enum.join(privileged_scopes, ", ")}"]
+
+        true ->
+          []
+      end
+    end)
   end
 
   defp validate_redirect_uris(changeset) do

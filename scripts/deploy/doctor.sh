@@ -129,11 +129,11 @@ for required in PRIMARY_DOMAIN DB_PASSWORD ELEKTRINE_MASTER_SECRET; do
   fi
 done
 
-if [[ "${DB_PASSWORD:-}" == "change-me" ]]; then
+if [[ "${DB_PASSWORD:-}" == "change-me" || "${DB_PASSWORD:-}" == "<generate-a-long-random-secret>" ]]; then
   check_error "DB_PASSWORD is still the placeholder value"
 fi
 
-if [[ "${ELEKTRINE_MASTER_SECRET:-}" == "replace-with-long-random-secret" ]]; then
+if [[ "${ELEKTRINE_MASTER_SECRET:-}" == "replace-with-long-random-secret" || "${ELEKTRINE_MASTER_SECRET:-}" == "<generate-a-long-random-secret>" ]]; then
   check_error "ELEKTRINE_MASTER_SECRET is still the placeholder value"
 fi
 

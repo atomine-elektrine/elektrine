@@ -135,10 +135,33 @@ defmodule ElektrineWeb.PortalLive.Index do
     filter = normalize_filter(params["filter"])
     attention_filter = normalize_attention_filter(params["attention"])
 
+    rss_source_filter =
+      normalize_rss_source(
+        params["rss_source"] || socket.assigns[:rss_source_filter],
+        socket.assigns[:rss_subscriptions] || []
+      )
+
+    rss_list_density = normalize_rss_list_density(params["rss_density"])
+
     socket =
       socket
       |> assign(:filter, filter)
       |> assign(:attention_filter, attention_filter)
+      |> assign(:rss_source_filter, rss_source_filter)
+      |> assign(:rss_list_density, rss_list_density)
+
+    reader_items = filtered_rss_items(socket.assigns)
+
+    socket =
+      assign(
+        socket,
+        :selected_rss_item_id,
+        selected_rss_item_id_from_param(
+          params["rss_item"],
+          reader_items,
+          socket.assigns[:selected_rss_item_id]
+        )
+      )
 
     socket =
       maybe_switch_portal_filter(socket, previous_filter, filter)
@@ -1850,6 +1873,36 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp selected_rss_item_id([%{id: id} | _]), do: id
   defp selected_rss_item_id(_items), do: nil
+
+  defp selected_rss_item_id_from_param(item_id, items, current_id) do
+    parsed_id = parse_rss_item_id(item_id)
+
+    cond do
+      Enum.any?(items, &(&1.id == parsed_id)) ->
+        parsed_id
+
+      Enum.any?(items, &(&1.id == current_id)) ->
+        current_id
+
+      true ->
+        selected_rss_item_id(items)
+    end
+  end
+
+  defp portal_patch(assigns, overrides) do
+    params =
+      [
+        filter: assigns[:filter] || @default_filter,
+        attention: assigns[:attention_filter] || @default_attention_filter,
+        rss_source: assigns[:rss_source_filter] || "all",
+        rss_density: assigns[:rss_list_density] || "comfortable",
+        rss_item: assigns[:selected_rss_item_id]
+      ]
+      |> Keyword.merge(overrides)
+      |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+
+    ~p"/portal?#{params}"
+  end
 
   defp normalize_rss_source("all", _subscriptions), do: "all"
 

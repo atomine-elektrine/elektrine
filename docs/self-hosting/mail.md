@@ -52,7 +52,7 @@ Elektrine-side env values usually look like:
 
 ```dotenv
 PRIMARY_DOMAIN=example.com
-ELEKTRINE_MASTER_SECRET=replace-with-long-random-secret
+ELEKTRINE_MASTER_SECRET=<generate-a-long-random-secret>
 EMAIL_DOMAIN=example.com
 ELEKTRINE_ENABLED_MODULES=chat,social,email,vault,atomine
 

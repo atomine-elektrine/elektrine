@@ -16,6 +16,27 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     "INTERNAL_API_KEY"
   ]
   @derived_secret_roots ["ELEKTRINE_MASTER_SECRET"]
+  @known_placeholder_values [
+    "change-me",
+    "replace-me",
+    "replace-with-long-random-secret",
+    "example-secret-access-key",
+    "magpie",
+    "<generate-a-long-random-secret>",
+    "<provider-access-key-id>",
+    "<provider-secret-access-key>"
+  ]
+  @min_secret_lengths %{
+    "DB_PASSWORD" => 16,
+    "ELEKTRINE_MASTER_SECRET" => 32,
+    "SECRET_KEY_BASE" => 32,
+    "SESSION_SIGNING_SALT" => 16,
+    "SESSION_ENCRYPTION_SALT" => 16,
+    "ENCRYPTION_MASTER_SECRET" => 32,
+    "INTERNAL_API_KEY" => 24,
+    "CADDY_EDGE_API_KEY" => 24,
+    "S3_SECRET_ACCESS_KEY" => 16
+  }
   @encryption_secret_keys [
     "ENCRYPTION_MASTER_SECRET",
     "ENCRYPTION_KEY_SALT",
@@ -50,6 +71,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
     errors =
       []
+      |> maybe_validate_placeholder_secrets(environment, env)
+      |> maybe_validate_secret_lengths(environment, env)
       |> maybe_validate_session_secrets(environment, env)
       |> maybe_validate_encryption_secrets(environment, env)
       |> maybe_validate_email(enabled_modules, env)
@@ -156,6 +179,32 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
     end
   end
 
+  defp maybe_validate_placeholder_secrets(errors, :prod, env) do
+    Enum.reduce(env, errors, fn {key, value}, acc ->
+      if secret_key?(key) and known_placeholder?(value) do
+        ["production secret #{key} uses a known placeholder value" | acc]
+      else
+        acc
+      end
+    end)
+  end
+
+  defp maybe_validate_placeholder_secrets(errors, _environment, _env), do: errors
+
+  defp maybe_validate_secret_lengths(errors, :prod, env) do
+    Enum.reduce(@min_secret_lengths, errors, fn {key, min_length}, acc ->
+      value = env_value(env, key)
+
+      if present?(value) and String.length(value) < min_length do
+        ["production secret #{key} must be at least #{min_length} characters" | acc]
+      else
+        acc
+      end
+    end)
+  end
+
+  defp maybe_validate_secret_lengths(errors, _environment, _env), do: errors
+
   defp require_any(errors, env, keys, message) do
     if Enum.any?(keys, &present?(env_value(env, &1))) do
       errors
@@ -163,6 +212,20 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
       [message | errors]
     end
   end
+
+  defp secret_key?(key) when is_binary(key) do
+    key in ["DATABASE_URL", "DB_PASSWORD"] or
+      String.contains?(key, ["SECRET", "PASSWORD", "TOKEN", "API_KEY", "ACCESS_KEY"])
+  end
+
+  defp secret_key?(_), do: false
+
+  defp known_placeholder?(value) when is_binary(value) do
+    normalized = value |> String.trim() |> String.downcase()
+    Enum.any?(@known_placeholder_values, &String.contains?(normalized, &1))
+  end
+
+  defp known_placeholder?(_), do: false
 
   defp require_present(errors, value, _message) when is_binary(value) and byte_size(value) > 0,
     do: errors

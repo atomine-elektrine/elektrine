@@ -25,4 +25,17 @@ defmodule Elektrine.OAuth.AppTest do
       assert "contains invalid URI" in errors_on(changeset).redirect_uris
     end
   end
+
+  test "rejects unknown and privileged self-service scopes" do
+    for scopes <- [["read", "unknown:scope"], ["read", "admin:write"]] do
+      assert {:error, changeset} =
+               OAuth.create_app(%{
+                 client_name: "Unsafe scopes",
+                 redirect_uris: "https://client.example/callback",
+                 scopes: scopes
+               })
+
+      assert %{scopes: [_ | _]} = errors_on(changeset)
+    end
+  end
 end

@@ -71,7 +71,8 @@ random_secret() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 32
   else
-    date +%s%N | sha256sum | cut -d ' ' -f 1
+    echo "Error: openssl is required to generate deployment secrets securely." >&2
+    exit 1
   fi
 }
 

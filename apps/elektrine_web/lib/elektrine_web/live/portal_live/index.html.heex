@@ -54,28 +54,24 @@
                       Sources
                     </p>
                     <div class="mt-2 flex flex-wrap gap-2 pb-1">
-                      <button
-                        type="button"
-                        phx-click="set_rss_source"
-                        phx-value-source="all"
+                      <.link
+                        patch={portal_patch(assigns, rss_source: "all", rss_item: nil)}
                         class={rss_source_button_class(@rss_source_filter, "all")}
                       >
                         All feeds <span class="opacity-60">{length(@rss_items)}</span>
-                      </button>
+                      </.link>
 
                       <%= for subscription <- @rss_subscriptions do %>
                         <% source_id = Integer.to_string(subscription.feed_id) %>
                         <% source_count =
                           Enum.count(@rss_items, &(&1.feed_id == subscription.feed_id)) %>
-                        <button
-                          type="button"
-                          phx-click="set_rss_source"
-                          phx-value-source={source_id}
+                        <.link
+                          patch={portal_patch(assigns, rss_source: source_id, rss_item: nil)}
                           class={rss_source_button_class(@rss_source_filter, source_id)}
                         >
                           <span class="truncate">{rss_subscription_title(subscription)}</span>
                           <span class="opacity-60">{source_count}</span>
-                        </button>
+                        </.link>
                       <% end %>
                     </div>
                   </div>
@@ -87,28 +83,24 @@
                   <div class="flex items-center justify-between gap-3">
                     <h2 class="text-base font-semibold">Latest items</h2>
                     <div class="join">
-                      <button
-                        type="button"
-                        phx-click="set_rss_density"
-                        phx-value-density="comfortable"
+                      <.link
+                        patch={portal_patch(assigns, rss_density: "comfortable")}
                         class={[
                           rss_density_button_class(@rss_list_density, "comfortable"),
                           "join-item"
                         ]}
                       >
                         Cards
-                      </button>
-                      <button
-                        type="button"
-                        phx-click="set_rss_density"
-                        phx-value-density="compact"
+                      </.link>
+                      <.link
+                        patch={portal_patch(assigns, rss_density: "compact")}
                         class={[
                           rss_density_button_class(@rss_list_density, "compact"),
                           "join-item"
                         ]}
                       >
                         Compact
-                      </button>
+                      </.link>
                     </div>
                   </div>
 
@@ -122,18 +114,16 @@
                       </div>
                     <% else %>
                       <%= for item <- visible_reader_items do %>
-                        <button
-                          type="button"
+                        <.link
+                          patch={portal_patch(assigns, rss_item: item.id)}
                           class={[
                             rss_item_button_class(
                               item,
                               (selected_item && selected_item.id) || @selected_rss_item_id,
                               @rss_list_density
                             ),
-                            "relative cursor-pointer overflow-hidden"
+                            "relative block cursor-pointer overflow-hidden"
                           ]}
-                          phx-click="select_rss_item"
-                          phx-value-item_id={item.id}
                         >
                           <div
                             :if={!compact_reader? && rss_item_background_style(item)}
@@ -179,7 +169,7 @@
                               <span>{rss_item_reading_minutes(item)} min read</span>
                             </div>
                           </div>
-                        </button>
+                        </.link>
                       <% end %>
                     <% end %>
                   </div>
@@ -260,7 +250,7 @@
           <% end %>
         </div>
       </div>
-      <div class="grid gap-6 lg:grid-cols-2">
+      <div class="grid gap-6">
         <div class="card panel-card">
           <div class="card-body p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
@@ -324,59 +314,6 @@
                       </div>
                       <p class="text-sm font-medium">{item.title}</p>
                       <p class="mt-1 line-clamp-2 text-xs text-base-content/70">{item.detail}</p>
-                    </.link>
-                  <% end %>
-                <% end %>
-              </div>
-            <% end %>
-          </div>
-        </div>
-
-        <div class="card panel-card">
-          <div class="card-body p-4">
-            <div class="mb-3 flex items-center justify-between gap-3">
-              <h2 class="font-semibold flex items-center gap-2">
-                <.icon name="hero-clock" class="h-4 w-4" /> Recent Activity
-              </h2>
-              <.link navigate={~p"/search"} class="link link-hover text-xs">Search</.link>
-            </div>
-
-            <%= if @loading_dashboard do %>
-              <div class="space-y-2 animate-pulse">
-                <%= for _i <- 1..4 do %>
-                  <div class="h-12 rounded-lg bg-base-300"></div>
-                <% end %>
-              </div>
-            <% else %>
-              <div
-                data-role="recent-activity-list"
-                class="space-y-2 max-h-[18rem] overflow-y-auto pr-1 sm:max-h-[20rem] lg:max-h-[22rem]"
-              >
-                <%= if Enum.empty?(@dashboard.recent_activity) do %>
-                  <p class="rounded-lg border border-dashed border-base-300 p-4 text-sm text-base-content/65">
-                    No recent activity.
-                  </p>
-                <% else %>
-                  <%= for item <- @dashboard.recent_activity do %>
-                    <.link
-                      navigate={item.href}
-                      class="surface-interactive flex items-start gap-3 rounded-lg p-3"
-                    >
-                      <.icon name={item.icon} class="mt-0.5 h-4 w-4 text-base-content/70" />
-                      <div class="min-w-0 flex-1">
-                        <div class="mb-0.5 flex items-center gap-2">
-                          <span class="badge badge-ghost badge-xs">{item.app}</span>
-                          <.local_time
-                            datetime={item.at}
-                            format="relative"
-                            timezone={@timezone}
-                            time_format={@time_format}
-                            class="text-xs opacity-60"
-                          />
-                        </div>
-                        <p class="truncate text-sm font-medium">{item.title}</p>
-                        <p class="truncate text-xs text-base-content/70">{item.detail}</p>
-                      </div>
                     </.link>
                   <% end %>
                 <% end %>

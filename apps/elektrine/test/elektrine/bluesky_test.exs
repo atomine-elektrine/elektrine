@@ -120,6 +120,48 @@ defmodule Elektrine.BlueskyTest do
     assert record_payload["text"] == "hello bluesky"
   end
 
+  test "skips private network media URLs before fetching" do
+    user = bluesky_user_fixture()
+
+    message =
+      media_post_fixture(%{
+        user: user,
+        visibility: "public",
+        content: "blocked media",
+        media_urls: ["http://127.0.0.1/private.png"]
+      })
+
+    MockHTTPClient.put_responses([
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body: Jason.encode!(%{"accessJwt" => "jwt_token", "did" => "did:plc:testdid"})
+       }},
+      {:ok,
+       %Finch.Response{
+         status: 200,
+         body:
+           Jason.encode!(%{
+             "uri" => "at://did:plc:testdid/app.bsky.feed.post/no-ssrf",
+             "cid" => "bafycid-no-ssrf"
+           })
+       }}
+    ])
+
+    assert :ok = Bluesky.mirror_post(message)
+
+    requests = MockHTTPClient.requests()
+    assert Enum.count(requests) == 2
+    refute Enum.any?(requests, &String.contains?(&1.url, "/xrpc/com.atproto.repo.uploadBlob"))
+
+    record_payload =
+      Enum.at(requests, 1).body
+      |> Jason.decode!()
+      |> Map.fetch!("record")
+
+    refute Map.has_key?(record_payload, "embed")
+  end
+
   test "re-reads the message state before mirroring a stale struct" do
     user = bluesky_user_fixture()
     message = post_fixture(%{user: user, visibility: "public", content: "hello twice"})

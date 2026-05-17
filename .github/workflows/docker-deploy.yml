@@ -214,6 +214,7 @@ jobs:
           expected_containers=(elektrine_app elektrine_worker)
           case " $DOCKER_PROFILES " in *" email "*) expected_containers+=(elektrine_mail) ;; esac
           case " $DOCKER_PROFILES " in *" dns "*) expected_containers+=(elektrine_dns) ;; esac
+          case " $DOCKER_PROFILES " in *" vpn "*) expected_containers+=(elektrine_vpn) ;; esac
 
           for container in "${expected_containers[@]}"; do
             if ! ${DEPLOY_PREFIX} docker inspect "$container" >/dev/null 2>&1; then
