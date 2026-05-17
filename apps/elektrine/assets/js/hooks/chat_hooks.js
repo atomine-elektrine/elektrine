@@ -1615,6 +1615,7 @@ export const ChatE2EE = {
 
 export const AutoExpandTextarea = {
   mounted() {
+    this.timeouts = []
     this.sendingMessage = false
     this.lastSentContent = ""
     this.lastSentTime = 0
@@ -1635,6 +1636,18 @@ export const AutoExpandTextarea = {
     this.originalStyle = this.el.getAttribute('style') || ''
 
     // Auto-expand textarea function
+    const queueTimeout = (callback, delay) => {
+      const timer = setTimeout(() => {
+        this.timeouts = this.timeouts.filter((timeout) => timeout !== timer)
+        callback()
+      }, delay)
+
+      this.timeouts.push(timer)
+      return timer
+    }
+
+    this.queueTimeout = queueTimeout
+
     const adjustHeight = () => {
       // Don't adjust if user has manually resized
       if (this.userResized) return
@@ -1665,7 +1678,7 @@ export const AutoExpandTextarea = {
     this.adjustHeight = adjustHeight
 
     // Detect manual resize (mouseup on the resize handle)
-    this.el.addEventListener('mousedown', (e) => {
+    this.onMouseDown = (e) => {
       // Check if click is in the bottom right (resize handle area)
       const rect = this.el.getBoundingClientRect()
       const isResizeHandle = e.clientX > rect.right - 20 && e.clientY > rect.bottom - 20
@@ -1673,7 +1686,9 @@ export const AutoExpandTextarea = {
       if (isResizeHandle) {
         this.userResized = true
       }
-    })
+    }
+
+    this.el.addEventListener('mousedown', this.onMouseDown)
 
     // Adjust height on any input or change
     const handleInput = () => {
@@ -1685,23 +1700,24 @@ export const AutoExpandTextarea = {
       }
     }
 
+    this.handleInput = handleInput
+
     this.el.addEventListener('input', handleInput)
     this.el.addEventListener('change', handleInput)
-    this.el.addEventListener('paste', () => {
-      setTimeout(handleInput, 10)
-    })
+    this.onPaste = () => queueTimeout(handleInput, 10)
+    this.el.addEventListener('paste', this.onPaste)
 
     // Handle keyboard shortcuts
-    this.el.addEventListener("keydown", (e) => {
+    this.onKeyDown = (e) => {
       // Allow Shift+Enter for new line
       if (e.key === "Enter" && e.shiftKey) {
         // Let the default behavior happen (insert newline)
-        setTimeout(() => adjustHeight(), 10)
+        queueTimeout(() => adjustHeight(), 10)
         return
       }
 
       if (e.key === "Enter" && !e.shiftKey && !this.submitOnEnter) {
-        setTimeout(() => adjustHeight(), 10)
+        queueTimeout(() => adjustHeight(), 10)
         return
       }
 
@@ -1734,7 +1750,7 @@ export const AutoExpandTextarea = {
           form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
 
           // Reset after submit
-          setTimeout(() => {
+          queueTimeout(() => {
             this.el.value = ""
             this.el.style.height = this.minHeight + 'px'
             this.currentHeight = this.minHeight
@@ -1746,7 +1762,9 @@ export const AutoExpandTextarea = {
           }, 100)
         }
       }
-    })
+    }
+
+    this.el.addEventListener("keydown", this.onKeyDown)
 
     // Handle clear message input event
     this.handleEvent("clear_message_input", () => {
@@ -1792,15 +1810,18 @@ export const AutoExpandTextarea = {
     // Listen for form submit to clear the textarea
     const form = this.el.closest("form")
     if (form) {
-      form.addEventListener('submit', () => {
-        setTimeout(() => {
+      this.form = form
+      this.onFormSubmit = () => {
+        queueTimeout(() => {
           this.el.value = ""
           // Use style object to preserve other CSS properties
           this.el.style.height = this.minHeight + 'px'
           this.currentHeight = this.minHeight
           this.userResized = false
         }, 100)
-      })
+      }
+
+      form.addEventListener('submit', this.onFormSubmit)
     }
 
     // Set initial height to match reset height for consistency
@@ -1808,7 +1829,7 @@ export const AutoExpandTextarea = {
     this.currentHeight = this.minHeight
 
     // Initial height adjustment (in case there's pre-filled content)
-    setTimeout(() => {
+    queueTimeout(() => {
       adjustHeight()
     }, 0)
   },
@@ -1823,6 +1844,20 @@ export const AutoExpandTextarea = {
 
     // Reset sending state
     this.sendingMessage = false
+  },
+
+  destroyed() {
+    if (this.onMouseDown) this.el.removeEventListener('mousedown', this.onMouseDown)
+    if (this.handleInput) {
+      this.el.removeEventListener('input', this.handleInput)
+      this.el.removeEventListener('change', this.handleInput)
+    }
+    if (this.onPaste) this.el.removeEventListener('paste', this.onPaste)
+    if (this.onKeyDown) this.el.removeEventListener('keydown', this.onKeyDown)
+    if (this.form && this.onFormSubmit) this.form.removeEventListener('submit', this.onFormSubmit)
+
+    ;(this.timeouts || []).forEach((timer) => clearTimeout(timer))
+    this.timeouts = []
   }
 }
 

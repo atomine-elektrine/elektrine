@@ -31,7 +31,7 @@ defmodule Elektrine.Accounts.TwoFactorTest do
 
       assert {:ok, png_binary} = TwoFactor.generate_qr_code_png(provisioning_uri)
       assert is_binary(png_binary)
-      assert String.length(png_binary) > 0
+      assert byte_size(png_binary) > 0
       # PNG files start with specific magic bytes
       assert String.starts_with?(png_binary, <<137, 80, 78, 71, 13, 10, 26, 10>>)
     end
