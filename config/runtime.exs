@@ -957,7 +957,6 @@ if config_env() == :prod do
       "replace-me",
       "replace-with-long-random-secret",
       "example-secret-access-key",
-      "magpie",
       "<generate-a-long-random-secret>",
       "<provider-access-key-id>",
       "<provider-secret-access-key>"

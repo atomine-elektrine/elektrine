@@ -168,6 +168,56 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "systems"
   end
 
+  test "portal RSS item selection does not reload the reader list", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/stable-reader.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Stable Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    {:ok, older_item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-stable-older",
+        title: "Stable older item",
+        content: "Stable older item body",
+        url: "https://example.com/stable-older-item",
+        published_at: ~U[2026-05-13 00:00:00Z]
+      })
+
+    {:ok, _newer_item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-stable-newer",
+        title: "Stable newer item",
+        content: "Stable newer item body",
+        url: "https://example.com/stable-newer-item",
+        published_at: ~U[2026-05-14 00:00:00Z]
+      })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    assert html =~ "Stable older item"
+    assert html =~ "Stable newer item"
+
+    {:ok, _late_item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-late-newest",
+        title: "Late newest item after render",
+        content: "This should not appear from selecting an existing item.",
+        url: "https://example.com/late-newest-item",
+        published_at: ~U[2026-05-15 00:00:00Z]
+      })
+
+    html =
+      view
+      |> element(~s([data-role="rss-reader-list"] a[href*="rss_item=#{older_item.id}"]))
+      |> render_click()
+
+    assert html =~ "Stable older item body"
+    refute html =~ "Late newest item after render"
+  end
+
   test "portal RSS item links can select an item before LiveView click handlers attach", %{
     conn: conn
   } do
