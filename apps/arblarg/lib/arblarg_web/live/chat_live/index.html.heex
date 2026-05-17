@@ -97,7 +97,7 @@
       &Map.get(@ui, &1)
     ) %>
 <div
-  class="mx-auto flex min-h-[calc(100dvh-8.5rem)] w-full max-w-none flex-col px-4 sm:px-6 lg:px-8 text-base-content md:h-[calc(100dvh-8.5rem)] md:min-h-0"
+  class="mx-auto flex min-h-[42rem] w-full max-w-none flex-col px-2 sm:px-3 lg:px-6 xl:px-8 text-base-content md:h-[max(42rem,calc(100dvh-8.5rem))]"
   id="chat-container"
   phx-hook="ChatE2EE"
   data-user-id={@current_user && @current_user.id}
@@ -111,7 +111,7 @@
   <!-- Z Platform Navigation -->
   <.e_nav
     active_tab="chat"
-    class="mb-6"
+    class="mb-3 lg:mb-6"
     current_user={@current_user}
     badge_counts={@e_nav_badge_counts}
   />
@@ -127,9 +127,9 @@
   >
   </div>
 
-  <div class="flex flex-1 flex-row gap-0 sm:min-h-0 sm:overflow-hidden sm:gap-2 xl:gap-6">
+  <div class="flex flex-1 flex-row gap-0 sm:min-h-0 sm:overflow-hidden lg:gap-2 xl:gap-6">
     <!-- Server Rail -->
-    <div class="hidden md:flex w-16 lg:w-20 flex-shrink-0 card panel-card border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
+    <div class="hidden lg:flex w-16 xl:w-20 flex-shrink-0 card panel-card border border-base-300 flex-col items-center gap-2 py-3 overflow-y-auto">
       <div class="flex flex-col items-center gap-1">
         <button
           phx-click="show_browse_modal"
@@ -188,8 +188,8 @@
     
 <!-- Left Sidebar - Conversations List -->
     <div class={[
-      if(@conversation.selected, do: "hidden sm:flex", else: "flex"),
-      "w-full min-h-0 overflow-hidden sm:w-[320px] sm:min-w-[320px] lg:w-[360px] lg:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
+      if(@conversation.selected, do: "hidden lg:flex", else: "flex"),
+      "w-full min-h-0 overflow-hidden lg:w-[320px] lg:min-w-[320px] xl:w-[360px] xl:min-w-[360px] 2xl:w-[420px] 2xl:min-w-[420px] flex-shrink-0 flex-col gap-3 h-full max-h-full"
     ]}>
       <div class="card panel-card border border-base-300 flex flex-shrink-0 flex-col overflow-hidden">
         <!-- Header with Search -->
@@ -791,7 +791,7 @@
     
 <!-- Center - Chat Messages -->
     <div class={[
-      if(@conversation.selected, do: "flex", else: "hidden sm:flex"),
+      if(@conversation.selected, do: "flex", else: "hidden lg:flex"),
       "flex-1 card panel-card border sm:border-l-0 border-base-300 flex-col h-full max-h-full overflow-hidden"
     ]}>
       <%= if @conversation.selected do %>
