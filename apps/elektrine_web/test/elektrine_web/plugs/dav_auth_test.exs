@@ -31,14 +31,22 @@ defmodule ElektrineWeb.Plugs.DAVAuthTest do
     app_password
   end
 
-  defp enable_two_factor(user) do
+  defp enable_two_factor(user, attempts_remaining \\ 5)
+
+  defp enable_two_factor(user, attempts_remaining) when attempts_remaining > 0 do
     secret = TwoFactor.generate_secret()
     {_plain_backup_codes, hashed_backup_codes} = TwoFactor.generate_backup_codes()
-    code = NimbleTOTP.verification_code(secret)
+    code = NimbleTOTP.verification_code(secret, time: System.system_time(:second) + 30)
 
-    {:ok, user} = Accounts.enable_two_factor(user, secret, hashed_backup_codes, code)
-    user
+    case Accounts.enable_two_factor(user, secret, hashed_backup_codes, code) do
+      {:ok, user} -> user
+      {:error, :invalid_totp_code} -> enable_two_factor(user, attempts_remaining - 1)
+      {:error, changeset} -> flunk("failed to enable two-factor auth: #{inspect(changeset)}")
+    end
   end
+
+  defp enable_two_factor(_user, 0),
+    do: flunk("failed to enable two-factor auth before TOTP expired")
 
   # Helper to encode Basic auth header
   defp basic_auth_header(username, password) do

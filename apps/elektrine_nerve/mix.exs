@@ -1,0 +1,54 @@
+defmodule ElektrineNerve.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app: :elektrine_nerve,
+      version: "0.1.0",
+      build_path: "../../_build",
+      config_path: "../../config/config.exs",
+      deps_path: "../../deps",
+      lockfile: "../../mix.lock",
+      elixir: "~> 1.19",
+      elixirc_paths: elixirc_paths(Mix.env()),
+      elixirc_options: elixirc_options(),
+      start_permanent: Mix.env() == :prod,
+      deps: deps()
+    ]
+  end
+
+  def application do
+    [
+      extra_applications: [:logger]
+    ]
+  end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
+  defp elixirc_options do
+    if Mix.env() == :test do
+      [ignore_module_conflict: true]
+    else
+      []
+    end
+  end
+
+  defp deps do
+    [
+      internal_dep(:elektrine),
+      {:phoenix, "== 1.8.7"},
+      {:phoenix_html, "== 4.3.0"},
+      {:phoenix_live_view, "== 1.1.30"},
+      {:jason, "== 1.4.5"}
+    ]
+  end
+
+  defp internal_dep(app) do
+    if Mix.Project.umbrella?() do
+      {app, in_umbrella: true}
+    else
+      {app, path: "../#{app}"}
+    end
+  end
+end

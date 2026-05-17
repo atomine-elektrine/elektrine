@@ -26,7 +26,7 @@ defmodule ElektrineWeb.PageLive.About do
                   Elektrine is a modular platform for running internet services from one account.
                 </p>
                 <p>
-                  Depending on the deployment, it can include email, chat, social, contacts, calendar, VPN, and vault features.
+                  Depending on the deployment, it can include email, chat, social, contacts, calendar, VPN, and nerve features.
                 </p>
               </section>
 

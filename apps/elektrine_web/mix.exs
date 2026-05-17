@@ -38,8 +38,8 @@ defmodule ElektrineWeb.MixProject do
 
   defp no_warn_undefined do
     [
-      ElektrinePasswordManagerWeb.API.VaultController,
-      ElektrinePasswordManagerWeb.VaultLive,
+      ElektrineNerveWeb.API.NerveController,
+      ElektrineNerveWeb.NerveLive,
       Phoenix.LiveReloader,
       Phoenix.LiveReloader.Socket,
       ElektrineSocialWeb.ActivityPubController,
@@ -111,7 +111,7 @@ defmodule ElektrineWeb.MixProject do
     [
       internal_dep(:elektrine),
       internal_dep(:atomine, runtime: false),
-      internal_dep(:elektrine_password_manager),
+      internal_dep(:elektrine_nerve),
       {:posthog, "~> 2.5"}
     ]
   end

@@ -931,7 +931,7 @@ defmodule Elektrine.Email.Sender do
   defp parse_email_list(emails) when is_binary(emails) do
     emails
     |> split_email_header_list()
-    |> Enum.map(&normalize_email_address/1)
+    |> Enum.map(&normalize_or_preserve_suspicious_recipient/1)
     |> Enum.reject(&is_nil/1)
   end
 
@@ -942,9 +942,15 @@ defmodule Elektrine.Email.Sender do
       email when is_binary(email) -> split_email_header_list(email)
       _ -> []
     end)
-    |> Enum.map(&normalize_email_address/1)
+    |> Enum.map(&normalize_or_preserve_suspicious_recipient/1)
     |> Enum.reject(&is_nil/1)
   end
+
+  defp normalize_or_preserve_suspicious_recipient(value) when is_binary(value) do
+    if contains_suspicious_content?(value), do: value, else: normalize_email_address(value)
+  end
+
+  defp normalize_or_preserve_suspicious_recipient(value), do: normalize_email_address(value)
 
   defp split_email_header_list(value) when is_binary(value) do
     value
@@ -1898,8 +1904,6 @@ defmodule Elektrine.Email.Sender do
       ~r/javascript:/i,
       # Data URLs
       ~r/data:/i,
-      # HTML brackets
-      ~r/[<>]/,
       # Line breaks
       ~r/[\r\n]/,
       # Semicolons (injection attempts)

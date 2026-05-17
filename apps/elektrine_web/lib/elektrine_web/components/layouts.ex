@@ -248,7 +248,7 @@ defmodule ElektrineWeb.Layouts do
   @doc ~s|Builds the meta description for SEO.\n|
   def build_meta_description(assigns) do
     assigns[:meta_description] ||
-      "Elektrine is an integrated platform for email, chat, social, password vaults, VPN, and DNS."
+      "Elektrine is an integrated platform for email, chat, social, Bridge, VPN, and DNS."
   end
 
   @doc ~s|Builds the meta keywords for SEO.\n|

@@ -28,7 +28,8 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
     assert html =~ "Chat"
     assert html =~ "Timeline"
     refute html =~ "Email"
-    refute html =~ "Vault"
+    refute html =~ "Nerve"
+    refute html =~ "Bridge"
     refute html =~ "VPN"
   end
 end

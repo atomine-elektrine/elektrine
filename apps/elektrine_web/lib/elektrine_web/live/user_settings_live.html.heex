@@ -756,7 +756,7 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td>Vault</td>
+                      <td>Bridge</td>
                       <td>
                         <span class="badge badge-success badge-sm h-auto min-h-5 whitespace-normal leading-tight min-w-10">
                           Yes
@@ -2752,7 +2752,7 @@
 
                   <p class="text-base-content/60">
                     {gettext(
-                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, exports, vault access, and webhook management."
+                      "Dedicated PAT endpoints are now available for email, chat, social, contacts, calendars, DNS, exports, nerve access, and webhook management."
                     )}
                   </p>
 
@@ -2888,19 +2888,19 @@
                         </tr>
 
                         <tr>
-                          <td><code>GET /api/ext/v1/password-manager/entries</code></td>
+                          <td><code>GET /api/ext/v1/nerve/entries</code></td>
 
-                          <td><code>read:vault</code></td>
+                          <td><code>read:nerve</code></td>
 
-                          <td>{gettext("List encrypted vault entries")}</td>
+                          <td>{gettext("List encrypted nerve entries")}</td>
                         </tr>
 
                         <tr>
-                          <td><code>DELETE /api/ext/v1/password-manager/vault</code></td>
+                          <td><code>DELETE /api/ext/v1/nerve</code></td>
 
-                          <td><code>write:vault</code></td>
+                          <td><code>write:nerve</code></td>
 
-                          <td>{gettext("Delete the encrypted vault and all saved entries")}</td>
+                          <td>{gettext("Delete the encrypted nerve and all saved entries")}</td>
                         </tr>
 
                         <tr>

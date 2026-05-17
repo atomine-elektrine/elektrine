@@ -9,7 +9,7 @@ defmodule ElektrineWeb.PlatformAccess do
     {:email, ElektrineWeb.Routes.Email},
     {:chat, ElektrineWeb.Routes.Chat},
     {:social, ElektrineWeb.Routes.Social},
-    {:vault, ElektrineWeb.Routes.Vault},
+    {:nerve, ElektrineWeb.Routes.Nerve},
     {:vpn, ElektrineWeb.Routes.VPN},
     {:dns, ElektrineWeb.Routes.DNS}
   ]
@@ -110,10 +110,10 @@ defmodule ElektrineWeb.PlatformAccess do
           path_matches?(path, "/api/ext/social") ->
         :timeline
 
-      path_matches?(path, "/account/password-manager") or
-        path_matches?(path, "/api/ext/v1/password-manager") or
-          path_matches?(path, "/api/ext/password-manager") ->
-        :vault
+      path_matches?(path, "/account/nerve") or
+        path_matches?(path, "/api/ext/v1/nerve") or
+          path_matches?(path, "/api/ext/nerve") ->
+        :nerve
 
       path_matches?(path, "/dns") or path_matches?(path, "/api/ext/v1/dns") or
           path_matches?(path, "/api/ext/dns") ->
@@ -184,8 +184,8 @@ defmodule ElektrineWeb.PlatformAccess do
       ] ->
         :timeline
 
-      view == ElektrinePasswordManagerWeb.VaultLive ->
-        :vault
+      view == ElektrineNerveWeb.NerveLive ->
+        :nerve
 
       view == ElektrineDNSWeb.DNSLive.Index ->
         :dns

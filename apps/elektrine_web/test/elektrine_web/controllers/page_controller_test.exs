@@ -11,7 +11,7 @@ defmodule ElektrineWeb.PageControllerTest do
     assert html =~ "Software for sovereignty."
 
     assert html =~
-             ~r/Elektrine is a modular platform for people who want to run communications,\s+identity, and infrastructure under their own control\./
+             ~r/Elektrine is a private, modular internet suite for people who want everyday\s+services without ads, tracking, or dependence on closed providers\./
 
     assert html =~ "Sign up"
   end

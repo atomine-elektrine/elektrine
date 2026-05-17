@@ -10,7 +10,7 @@ Elektrine is organized as an Elixir umbrella project.
 - [`elektrine_email`](./elektrine_email/README.md) - Mailbox domain, mail protocols, JMAP, WKD, and web routes
 - [`elektrine_social`](./elektrine_social/README.md) - Social/timeline features
 - [`elektrine_vpn`](./elektrine_vpn/README.md) - VPN features
-- [`elektrine_password_manager`](./elektrine_password_manager/README.md) - Password vault domain and route macros
+- [`elektrine_nerve`](./elektrine_nerve/README.md) - Password nerve domain and route macros
 - [`elektrine_dns`](./elektrine_dns/README.md) - Managed DNS runtime, PAT API, and DNS LiveViews
 
 ## Running app-focused tests
@@ -23,7 +23,7 @@ mix test apps/elektrine_web/test
 mix test apps/elektrine_email/test
 mix test apps/elektrine_social/test
 mix test apps/elektrine_vpn/test
-mix test apps/elektrine_password_manager/test
+mix test apps/elektrine_nerve/test
 mix test apps/elektrine_dns/test
 ```
 

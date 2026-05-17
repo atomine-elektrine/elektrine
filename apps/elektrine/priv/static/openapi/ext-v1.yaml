@@ -364,20 +364,20 @@ paths:
       responses:
         "200":
           description: Event deleted
-  /api/ext/v1/password-manager/entries:
+  /api/ext/v1/nerve/entries:
     get:
-      summary: List encrypted vault entries
+      summary: List encrypted nerve entries
       responses:
         "200":
           description: Entry list
     post:
-      summary: Create encrypted vault entry
+      summary: Create encrypted nerve entry
       responses:
         "201":
           description: Entry created
-  /api/ext/v1/password-manager/entries/{id}:
+  /api/ext/v1/nerve/entries/{id}:
     get:
-      summary: Get encrypted vault entry
+      summary: Get encrypted nerve entry
       parameters:
         - in: path
           name: id
@@ -388,7 +388,7 @@ paths:
         "200":
           description: Entry
     delete:
-      summary: Delete vault entry
+      summary: Delete nerve entry
       parameters:
         - in: path
           name: id
@@ -398,12 +398,12 @@ paths:
       responses:
         "200":
           description: Entry deleted
-  /api/ext/v1/password-manager/vault/setup:
+  /api/ext/v1/nerve/setup:
     post:
-      summary: Configure encrypted vault verifier
+      summary: Configure encrypted nerve verifier
       responses:
         "201":
-          description: Vault configured
+          description: Nerve configured
   /api/ext/v1/exports:
     get:
       summary: List exports

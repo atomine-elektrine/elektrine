@@ -28,13 +28,13 @@ defmodule ElektrineWeb.Platform.Integrations do
   @social_link_preview_fetcher_module :"Elixir.Elektrine.Social.LinkPreviewFetcher"
   @social_recommendations_module :"Elixir.Elektrine.Social.Recommendations"
   @vpn_module :"Elixir.Elektrine.VPN"
-  @password_manager_module :"Elixir.Elektrine.PasswordManager"
-  @vault_entry_module :"Elixir.Elektrine.PasswordManager.VaultEntry"
+  @nerve_module :"Elixir.Elektrine.Nerve"
+  @nerve_entry_module :"Elixir.Elektrine.Nerve.NerveEntry"
 
   def email_available?, do: available?(:email, @email_module)
   def social_available?, do: available?(:social, @social_module)
   def vpn_available?, do: available?(:vpn, @vpn_module)
-  def vault_available?, do: available?(:vault, @password_manager_module)
+  def nerve_available?, do: available?(:nerve, @nerve_module)
   def user_settings_email_component, do: optional_module(:email, @email_user_settings_module)
 
   def init_user_settings_email(socket) do
@@ -635,62 +635,62 @@ defmodule ElektrineWeb.Platform.Integrations do
     |> length()
   end
 
-  def vault_create_entry(user_id, params) do
+  def nerve_create_entry(user_id, params) do
     call_optional(
-      :vault,
-      @password_manager_module,
+      :nerve,
+      @nerve_module,
       :create_entry,
       [user_id, params],
       {:error, :unavailable}
     )
   end
 
-  def vault_setup(user_id, params) do
+  def nerve_setup(user_id, params) do
     call_optional(
-      :vault,
-      @password_manager_module,
-      :setup_vault,
+      :nerve,
+      @nerve_module,
+      :setup_nerve,
       [user_id, params],
       {:error, :unavailable}
     )
   end
 
-  def vault_delete_entry(user_id, entry_id) do
+  def nerve_delete_entry(user_id, entry_id) do
     call_optional(
-      :vault,
-      @password_manager_module,
+      :nerve,
+      @nerve_module,
       :delete_entry,
       [user_id, entry_id],
       {:error, :unavailable}
     )
   end
 
-  def vault_delete_vault(user_id) do
+  def nerve_delete_nerve(user_id) do
     call_optional(
-      :vault,
-      @password_manager_module,
-      :delete_vault,
+      :nerve,
+      @nerve_module,
+      :delete_nerve,
       [user_id],
       {:error, :unavailable}
     )
   end
 
-  def vault_list_entries(user_id) do
+  def nerve_list_entries(user_id) do
     call_optional(
-      :vault,
-      @password_manager_module,
+      :nerve,
+      @nerve_module,
       :list_entries,
       [user_id, [include_secrets: true]],
       []
     )
   end
 
-  def vault_settings(user_id) do
-    call_optional(:vault, @password_manager_module, :get_vault_settings, [user_id], nil)
+  def nerve_settings(user_id) do
+    call_optional(:nerve, @nerve_module, :get_nerve_settings, [user_id], nil)
   end
 
-  def vault_entry_changeset(user_id, attrs) do
-    case optional_module(:vault, @vault_entry_module) do
+  def nerve_entry_changeset(user_id, attrs) do
+    case optional_module(:nerve, @nerve_entry_module) do
       nil ->
         nil
 

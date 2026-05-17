@@ -567,7 +567,7 @@ defmodule ElektrineWeb.PortalLiveTest do
         if rendered =~ "Portal follow regression target" and
              has_element?(
                view,
-               ~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
+               ~s(#portal-posts-list button[data-follow-variant="timeline"][phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
                "Unfollow"
              ) do
           {:halt, rendered}
@@ -581,14 +581,16 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert Profiles.following?(viewer.id, author.id)
 
     view
-    |> element(~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]))
+    |> element(
+      ~s(#portal-posts-list button[data-follow-variant="timeline"][phx-click="toggle_follow"][phx-value-user_id="#{author.id}"])
+    )
     |> render_click()
 
     refute Profiles.following?(viewer.id, author.id)
 
     assert has_element?(
              view,
-             ~s(button[phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
+             ~s(#portal-posts-list button[data-follow-variant="timeline"][phx-click="toggle_follow"][phx-value-user_id="#{author.id}"]),
              "Follow"
            )
   end

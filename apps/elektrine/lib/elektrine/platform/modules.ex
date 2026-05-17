@@ -7,7 +7,7 @@ defmodule Elektrine.Platform.Modules do
   exposed and which module-specific runtimes are started.
   """
 
-  @type module_id :: :chat | :social | :email | :vault | :vpn | :dns | :atomine
+  @type module_id :: :chat | :social | :email | :nerve | :vpn | :dns | :atomine
 
   @modules [
     %{
@@ -31,10 +31,10 @@ defmodule Elektrine.Platform.Modules do
       description: "Mailbox UI, aliases, message APIs, Haraka, and JMAP."
     },
     %{
-      id: :vault,
-      label: "Vault",
-      app: :elektrine_password_manager,
-      description: "Client-side encrypted password manager."
+      id: :nerve,
+      label: "Nerve",
+      app: :elektrine_nerve,
+      description: "Client-side encrypted secrets and browser access."
     },
     %{
       id: :vpn,
@@ -62,7 +62,7 @@ defmodule Elektrine.Platform.Modules do
   @availability_markers %{
     social: Elektrine.Social,
     email: Elektrine.Email,
-    vault: Elektrine.PasswordManager,
+    nerve: Elektrine.Nerve,
     vpn: Elektrine.VPN,
     dns: Elektrine.DNS,
     atomine: Atomine.Personhood
@@ -182,9 +182,7 @@ defmodule Elektrine.Platform.Modules do
       "chat" -> :chat
       "social" -> :social
       "email" -> :email
-      "vault" -> :vault
-      "password_manager" -> :vault
-      "password-manager" -> :vault
+      "nerve" -> :nerve
       "vpn" -> :vpn
       "dns" -> :dns
       "atomine" -> :atomine

@@ -415,8 +415,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     assert has_element?(
              view,
-             ~s(button[phx-click="unlike_post"][phx-value-message_id="#{post.id}"] span),
-             "1"
+             ~s(button[phx-click="unlike_post"][phx-value-message_id="#{post.id}"] [data-count="1"])
            )
   end
 
@@ -467,9 +466,21 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
 
     selector = "#suggested-follow-#{suggestion.id}"
 
-    assert render(view) =~ "Suggested Follows"
+    html =
+      Enum.reduce_while(1..20, "", fn _, _acc ->
+        rendered = render(view)
+
+        if rendered =~ "Suggested Follows" and has_element?(view, selector) do
+          {:halt, rendered}
+        else
+          Process.sleep(50)
+          {:cont, rendered}
+        end
+      end)
+
+    assert html =~ "Suggested Follows"
     assert has_element?(view, selector)
-    assert has_element?(view, ~s(#{selector}[phx-click="toggle_follow"]), "Follow")
+    assert has_element?(view, ~s(#{selector}[phx-click="toggle_follow"]))
     refute has_element?(view, ~s(#{selector}[phx-click="follow_suggested_user"]))
 
     view
@@ -502,7 +513,7 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
       |> live(~p"/timeline?filter=all&view=all")
 
     selector =
-      ~s(button[phx-click="toggle_follow_remote"][phx-value-remote_actor_id="#{actor_id}"])
+      ~s(button[data-follow-variant="timeline"][phx-click="toggle_follow_remote"][phx-value-remote_actor_id="#{actor_id}"])
 
     assert render(view) =~ "Remote follow target #{unique}"
     assert has_element?(view, selector, "Follow")

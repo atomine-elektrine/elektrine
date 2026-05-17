@@ -23,7 +23,7 @@ product areas are split into their own umbrella apps.
 - `apps/elektrine_social`: timeline, communities, federation, social controllers, and LiveViews
 - `apps/elektrine_email`: mailbox, contacts, mail protocols, JMAP, WKD, and mail web routes
 - `apps/elektrine_vpn`: WireGuard management and VPN UI/API
-- `apps/elektrine_password_manager`: password vault domain and extracted vault routes
+- `apps/elektrine_nerve`: Nerve domain and extracted routes
 - `apps/elektrine_dns`: managed DNS runtime, DNS API routes, and DNS LiveViews
 
 Requests enter through `ElektrineWeb.Router`, pass through shared plugs and
@@ -57,8 +57,8 @@ Normal deployments use one public module switch:
 - `ELEKTRINE_RELEASE_MODULES` still exists as an advanced override when you need
   to compile more modules than you expose at runtime
 
-Supported module ids are `chat`, `social`, `email`, `vault`, `vpn`, and `dns`.
-`password-manager` and `password_manager` are accepted aliases for `vault` in
+Supported module ids are `chat`, `social`, `email`, `nerve`, `vpn`, and `dns`.
+`nerve` and `nerve` are accepted aliases for `nerve` in
 the deploy scripts.
 
 In normal use, set `ELEKTRINE_ENABLED_MODULES` and leave
@@ -90,7 +90,7 @@ mix test apps/elektrine_web/test
 mix test apps/elektrine_email/test
 mix test apps/elektrine_social/test
 mix test apps/elektrine_vpn/test
-mix test apps/elektrine_password_manager/test
+mix test apps/elektrine_nerve/test
 mix test apps/elektrine_dns/test
 ```
 
@@ -147,7 +147,7 @@ Start with:
 - `docs/self-hosting/turn.md`
 - `docs/self-hosting/vpn.md`
 - `docs/addons/onion.md`
-- `docs/clients/password-manager-extension.md`
+- `docs/clients/nerve-extension.md`
 
 ## Email Deployment
 

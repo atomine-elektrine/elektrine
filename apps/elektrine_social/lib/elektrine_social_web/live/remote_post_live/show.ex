@@ -2216,13 +2216,13 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp message_submitted_link(msg) do
-    metadata = msg.media_metadata || %{}
+    metadata = map_get_value(msg, "media_metadata") || %{}
     link_preview_url = message_link_preview_url(msg)
-    message_id = msg.activitypub_id
-    message_url = msg.activitypub_url
+    message_id = map_get_value(msg, "activitypub_id")
+    message_url = map_get_value(msg, "activitypub_url")
 
     [
-      msg.primary_url,
+      map_get_value(msg, "primary_url"),
       metadata["external_link"],
       metadata["url"],
       metadata["source_url"],
@@ -2230,7 +2230,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       metadata["link_url"],
       metadata["link"],
       link_preview_url,
-      extract_http_url_from_content(msg.content)
+      extract_http_url_from_content(map_get_value(msg, "content"))
     ]
     |> Enum.map(&normalize_http_url/1)
     |> Enum.find(fn url ->
@@ -2241,6 +2241,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp message_link_preview_url(%{
          link_preview: %Elektrine.Social.LinkPreview{status: "success", url: url}
+       })
+       when is_binary(url),
+       do: url
+
+  defp message_link_preview_url(%{
+         "link_preview" => %Elektrine.Social.LinkPreview{status: "success", url: url}
        })
        when is_binary(url),
        do: url
@@ -2260,6 +2266,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     ]
     |> Enum.map(&normalize_http_url/1)
     |> Enum.find(&valid_submitted_url?(&1, post_id))
+  end
+
+  defp detect_submitted_url(nil, local_message, _remote_actor_domain)
+       when is_map(local_message) do
+    message_submitted_link(local_message)
   end
 
   defp detect_submitted_url(_, _, _), do: nil
@@ -2583,13 +2594,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         value
 
       :error ->
-        Enum.find_value(map, fn
-          {k, value} when is_atom(k) ->
-            if Atom.to_string(k) == key, do: value, else: nil
-
-          _ ->
-            nil
-        end)
+        Map.get(map, String.to_atom(key))
     end
   end
 
@@ -3400,7 +3405,11 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         socket
 
       %{federated: true} = message ->
-        apply_cached_federated_local_post_for_initial_render(socket, message)
+        if cached_federated_initial_render_safe?(message) do
+          apply_cached_federated_local_post_for_initial_render(socket, message)
+        else
+          socket
+        end
 
       message ->
         if can_view_local_post?(message, socket.assigns[:current_user]) do
@@ -3438,6 +3447,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     else
       fetch_remote_post_for_meta_tags(socket, post_id)
     end
+  end
+
+  defp cached_federated_initial_render_safe?(message) do
+    not Elektrine.Strings.present?(message.title) and
+      not Elektrine.Strings.present?(message.content) and
+      is_list(message.media_urls) and message.media_urls != []
   end
 
   defp apply_cached_federated_local_post_for_initial_render(socket, message) do

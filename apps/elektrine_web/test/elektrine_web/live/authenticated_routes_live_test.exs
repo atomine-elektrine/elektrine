@@ -27,7 +27,7 @@ defmodule ElektrineWeb.AuthenticatedRoutesLiveTest do
     "/friends",
     "/notifications",
     "/account/app-passwords",
-    "/account/password-manager",
+    "/account/nerve",
     "/settings/rss",
     "/email",
     "/email/compose",

@@ -27,8 +27,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:calendar` - Create/update/delete events
   - `read:account` - Read account info, settings
   - `write:account` - Update settings (not password)
-  - `read:vault` - Read encrypted password vault entries
-  - `write:vault` - Create/update/delete encrypted password vault entries
+  - `read:nerve` - Read encrypted Nerve entries
+  - `write:nerve` - Create/update/delete encrypted Nerve entries
   - `read:proofs` - Read identity proofs and score
   - `write:proofs` - Create, check, and delete identity proofs
   - `export` - Trigger and download data exports
@@ -44,7 +44,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:contacts write:contacts
     read:calendar write:calendar
     read:account write:account
-    read:vault write:vault
+    read:nerve write:nerve
     read:dns write:dns
     read:proofs write:proofs
     export webhook
@@ -82,10 +82,10 @@ defmodule Elektrine.Developer.ApiToken do
       scopes: ["webhook"]
     },
     %{
-      id: "vault_access",
-      name: "Vault access",
-      description: "Read and write encrypted password vault entries.",
-      scopes: ["read:vault", "write:vault"]
+      id: "nerve_access",
+      name: "Nerve access",
+      description: "Read and write encrypted Nerve entries.",
+      scopes: ["read:nerve", "write:nerve"]
     },
     %{
       id: "dns_admin",
@@ -188,9 +188,9 @@ defmodule Elektrine.Developer.ApiToken do
         {"read:account", "Read account info and settings"},
         {"write:account", "Update account settings"}
       ],
-      "Vault" => [
-        {"read:vault", "Read encrypted password vault entries"},
-        {"write:vault", "Create, update, and delete vault entries"}
+      "Nerve" => [
+        {"read:nerve", "Read encrypted Nerve entries"},
+        {"write:nerve", "Create, update, and delete Nerve entries"}
       ],
       "DNS" => [
         {"read:dns", "Read managed DNS zones and records"},
