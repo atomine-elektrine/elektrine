@@ -789,6 +789,12 @@ defmodule Elektrine.Bluesky do
                   maybe_add_external_from_source(message, media_source, index, acc)
               end
 
+            {:skip, reason} when reason in [:unsafe_media_url] ->
+              acc
+
+            {:skip, {:unsafe_media_url, _reason}} ->
+              acc
+
             {:skip, _reason} ->
               maybe_add_external_from_source(message, media_source, index, acc)
 
@@ -1077,7 +1083,10 @@ defmodule Elektrine.Bluesky do
         {:skip, :empty_media_source}
 
       String.starts_with?(source, ["http://", "https://"]) ->
-        fetch_media_binary_from_url(source, guess_media_type(source))
+        case URLValidator.validate(source) do
+          :ok -> fetch_media_binary_from_url(source, guess_media_type(source))
+          {:error, reason} -> {:skip, {:unsafe_media_url, reason}}
+        end
 
       true ->
         case local_media_path_for(source) do
@@ -1101,10 +1110,15 @@ defmodule Elektrine.Bluesky do
         end
 
       url when is_binary(url) ->
-        if String.starts_with?(url, ["http://", "https://"]) do
-          {:ok, url}
-        else
-          {:skip, :unsupported_media_source}
+        cond do
+          not String.starts_with?(url, ["http://", "https://"]) ->
+            {:skip, :unsupported_media_source}
+
+          URLValidator.validate(url) == :ok ->
+            {:ok, url}
+
+          true ->
+            {:skip, :unsafe_media_url}
         end
 
       _ ->

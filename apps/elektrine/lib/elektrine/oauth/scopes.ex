@@ -62,6 +62,8 @@ defmodule Elektrine.OAuth.Scopes do
     "admin:write:canonical_email_blocks"
   ]
 
+  @user_grantable_scopes Enum.reject(@valid_scopes, &String.starts_with?(&1, "admin:"))
+
   @doc """
   Returns all valid OAuth scopes.
   """
@@ -73,6 +75,10 @@ defmodule Elektrine.OAuth.Scopes do
   """
   @spec valid?(String.t()) :: boolean()
   def valid?(scope), do: scope in @valid_scopes
+
+  @doc "Checks if a scope may be granted to self-service OAuth/OIDC clients."
+  @spec user_grantable?(String.t()) :: boolean()
+  def user_grantable?(scope), do: scope in @user_grantable_scopes
 
   @doc """
   Filters a list of scopes to only include valid ones.

@@ -6,7 +6,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
   @encryption_error "production requires ENCRYPTION_MASTER_SECRET, ENCRYPTION_KEY_SALT, and ENCRYPTION_SEARCH_SALT, or ELEKTRINE_MASTER_SECRET; set ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA=true only if unencrypted production data is intentional"
 
   @prod_encryption_env %{
-    "ENCRYPTION_MASTER_SECRET" => "encryption-master-secret",
+    "ENCRYPTION_MASTER_SECRET" => "encryption-master-secret-with-enough-length",
     "ENCRYPTION_KEY_SALT" => "encryption-key-salt",
     "ENCRYPTION_SEARCH_SALT" => "encryption-search-salt"
   }
@@ -45,8 +45,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                env:
                  Map.merge(@prod_encryption_env, %{
                    "PRIMARY_DOMAIN" => "example.com",
-                   "SESSION_SIGNING_SALT" => "signing-salt",
-                   "SESSION_ENCRYPTION_SALT" => "encryption-salt"
+                   "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+"
                  }),
                enabled_modules: [:email],
                environment: :prod
@@ -92,11 +92,11 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                env:
                  Map.merge(@prod_encryption_env, %{
                    "PRIMARY_DOMAIN" => "example.com",
-                   "SESSION_SIGNING_SALT" => "signing-salt",
-                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+",
                    "HARAKA_BASE_URL" => "https://mail.example.com",
-                   "HARAKA_HTTP_API_KEY" => "outbound-key",
-                   "PHOENIX_API_KEY" => "inbound-key",
+                   "HARAKA_HTTP_API_KEY" => "outbound-key-with-enough-length",
+                   "PHOENIX_API_KEY" => "inbound-key-with-enough-length",
                    "VPN_FLEET_REGISTRATION_KEY" => "fleet-key"
                  }),
                enabled_modules: [:email, :vpn],
@@ -109,8 +109,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
              RuntimeConfigValidator.validate(
                env:
                  Map.merge(@prod_encryption_env, %{
-                   "SESSION_SIGNING_SALT" => "signing-salt",
-                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+",
                    "VPN_SELFHOST_PUBLIC_IP" => "203.0.113.10",
                    "VPN_SELFHOST_PRIVATE_KEY" => "server-private-key"
                  }),
@@ -125,10 +125,10 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                env:
                  Map.merge(@prod_encryption_env, %{
                    "PRIMARY_DOMAIN" => "example.com",
-                   "SESSION_SIGNING_SALT" => "signing-salt",
-                   "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                   "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                   "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+",
                    "HARAKA_BASE_URL" => "https://mail.example.com",
-                   "INTERNAL_API_KEY" => "shared-internal-key"
+                   "INTERNAL_API_KEY" => "shared-internal-key-with-enough-length"
                  }),
                enabled_modules: [:email],
                environment: :prod
@@ -139,8 +139,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(
                env: %{
-                 "SESSION_SIGNING_SALT" => "signing-salt",
-                 "SESSION_ENCRYPTION_SALT" => "encryption-salt"
+                 "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                 "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+"
                },
                enabled_modules: [],
                environment: :prod
@@ -151,8 +151,8 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
     assert :ok =
              RuntimeConfigValidator.validate(
                env: %{
-                 "SESSION_SIGNING_SALT" => "signing-salt",
-                 "SESSION_ENCRYPTION_SALT" => "encryption-salt",
+                 "SESSION_SIGNING_SALT" => "signing-salt-16+",
+                 "SESSION_ENCRYPTION_SALT" => "encryption-salt-16+",
                  "ELEKTRINE_ALLOW_UNENCRYPTED_PROD_DATA" => "true"
                },
                enabled_modules: [],
@@ -166,11 +166,37 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
                env: %{
                  "PRIMARY_DOMAIN" => "example.com",
                  "HARAKA_BASE_URL" => "https://mail.example.com",
-                 "ELEKTRINE_MASTER_SECRET" => "master-secret"
+                 "ELEKTRINE_MASTER_SECRET" => "master-secret-with-at-least-thirty-two-chars"
                },
                enabled_modules: [:email],
                environment: :prod
              )
+  end
+
+  test "rejects production placeholder secrets" do
+    assert {:error, errors} =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "DB_PASSWORD" => "change-me",
+                 "ELEKTRINE_MASTER_SECRET" => "replace-with-long-random-secret"
+               },
+               enabled_modules: [],
+               environment: :prod
+             )
+
+    assert "production secret DB_PASSWORD uses a known placeholder value" in errors
+    assert "production secret ELEKTRINE_MASTER_SECRET uses a known placeholder value" in errors
+  end
+
+  test "rejects short production root secrets" do
+    assert {:error, errors} =
+             RuntimeConfigValidator.validate(
+               env: %{"ELEKTRINE_MASTER_SECRET" => "too-short"},
+               enabled_modules: [],
+               environment: :prod
+             )
+
+    assert "production secret ELEKTRINE_MASTER_SECRET must be at least 32 characters" in errors
   end
 
   test "does not require production session salts outside prod" do

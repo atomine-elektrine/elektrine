@@ -548,6 +548,41 @@ compose_pull_services() {
   fi
 }
 
+verify_release_service_images() {
+  local expected_image="${ELEKTRINE_IMAGE:-}"
+  local service_name=""
+  local container_id=""
+  local actual_image=""
+
+  if [[ -z "$expected_image" ]]; then
+    return 0
+  fi
+
+  for service_name in "$@"; do
+    container_id="$(${DOCKER_BIN[@]} compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" ps -q "$service_name" || true)"
+
+    if [[ -z "$container_id" ]]; then
+      echo "Error: service $service_name did not create a container" >&2
+      return 1
+    fi
+
+    actual_image="$(${DOCKER_BIN[@]} inspect "$container_id" --format '{{.Config.Image}}')"
+
+    if [[ "$actual_image" != "$expected_image" ]]; then
+      echo "Info: recreating $service_name because it is running $actual_image, expected $expected_image" >&2
+      "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-deps --force-recreate --pull always "$service_name"
+
+      container_id="$(${DOCKER_BIN[@]} compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" ps -q "$service_name" || true)"
+      actual_image="$(${DOCKER_BIN[@]} inspect "$container_id" --format '{{.Config.Image}}')"
+
+      if [[ "$actual_image" != "$expected_image" ]]; then
+        echo "Error: service $service_name is running $actual_image, expected $expected_image" >&2
+        return 1
+      fi
+    fi
+  done
+}
+
 remove_caddy_with_stale_config_mount() {
   local container_name="elektrine_caddy_edge"
   local mounted_config=""
@@ -693,6 +728,8 @@ if [[ "$DO_UP" -eq 1 ]]; then
   if [[ "${#runtime_services[@]}" -gt 0 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --no-deps "${FORCE_RECREATE_ARGS[@]}" "${PASSTHROUGH_ARGS[@]}" "${runtime_services[@]}"
   fi
+
+  verify_release_service_images "${release_services[@]}"
 
   if [[ "$DO_BUILD" -eq 1 ]]; then
     "${DOCKER_BIN[@]}" compose "${COMPOSE_ARGS[@]}" "${PROFILE_ARGS[@]}" up -d --build --no-recreate "${PASSTHROUGH_ARGS[@]}"

@@ -142,6 +142,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ ~s(data-role="rss-reader-list")
     assert html =~ "Rust analysis roundup"
     assert html =~ "Garden planning dispatch"
+    assert html =~ "rss_item=#{item_a.id}"
 
     html = render_click(view, "set_rss_source", %{"source" => Integer.to_string(feed_b.id)})
     assert html =~ "Garden planning dispatch"
@@ -154,6 +155,33 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "background-image"
     assert html =~ "Ada"
     assert html =~ "systems"
+  end
+
+  test "portal RSS item links can select an item before LiveView click handlers attach", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+    {:ok, feed} = RSS.get_or_create_feed("https://example.com/feed-links.xml")
+    {:ok, feed} = RSS.update_feed(feed, %{title: "Link Feed", status: "active"})
+    {:ok, _subscription} = RSS.subscribe(user.id, feed.url)
+
+    {:ok, item} =
+      RSS.upsert_item(feed.id, %{
+        guid: "portal-reader-linkable",
+        title: "Linkable item",
+        summary: "Short summary",
+        content: "Full linkable item body",
+        url: "https://example.com/linkable-item",
+        published_at: ~U[2026-05-14 00:00:00Z]
+      })
+
+    {:ok, _view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal?rss_item=#{item.id}")
+
+    assert html =~ "Full linkable item body"
+    assert html =~ "rss_item=#{item.id}"
   end
 
   test "portal RSS reader derives image backgrounds from existing item content", %{conn: conn} do
@@ -183,7 +211,7 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert html =~ "background-image"
   end
 
-  test "recent activity list is rendered as a scroll container", %{conn: conn} do
+  test "portal omits redundant recent activity card", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
     {:ok, view, _html} =
@@ -191,7 +219,8 @@ defmodule ElektrineWeb.PortalLiveTest do
       |> log_in_user(user)
       |> live(~p"/portal")
 
-    assert has_element?(view, ~s([data-role="recent-activity-list"].overflow-y-auto.pr-1))
+    refute has_element?(view, ~s([data-role="recent-activity-list"]))
+    refute render(view) =~ "Recent Activity"
   end
 
   test "attention queue is rendered as a scroll container", %{conn: conn} do
