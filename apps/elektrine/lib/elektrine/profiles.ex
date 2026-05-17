@@ -593,50 +593,43 @@ defmodule Elektrine.Profiles do
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
     week_ago = DateTime.utc_now() |> DateTime.add(-7, :day)
 
-    visit_stats = get_public_site_visit_stats(request_host, today_start, week_ago)
-    session_stats = get_public_site_session_stats(request_host)
-    sessions = session_stats.sessions || 0
-    bounces = session_stats.bounces || 0
+    stats = get_public_site_session_view_stats(request_host, today_start, week_ago)
+    sessions = stats.sessions || 0
+    bounces = stats.bounces || 0
 
     %{
-      total_views: visit_stats.total_views || 0,
-      unique_visitors: visit_stats.unique_visitors || 0,
+      total_views: stats.total_views || 0,
+      unique_visitors: sessions,
       sessions: sessions,
-      avg_session_duration_seconds: session_stats.avg_session_duration_seconds || 0.0,
+      avg_session_duration_seconds: stats.avg_session_duration_seconds || 0.0,
       bounce_rate: if(sessions > 0, do: bounces / sessions * 100, else: 0.0),
-      views_today: visit_stats.views_today || 0,
-      views_this_week: visit_stats.views_this_week || 0
+      views_today: stats.views_today || 0,
+      views_this_week: stats.views_this_week || 0
     }
   end
 
-  defp get_public_site_visit_stats(request_host, today_start, week_ago) do
-    request_host
-    |> site_page_visits_query()
-    |> select([sv], %{
-      total_views: count(sv.id),
-      unique_visitors:
-        count(
-          fragment(
-            "COALESCE(CAST(? AS text), ?, ?)",
-            sv.viewer_user_id,
-            sv.visitor_id,
-            sv.ip_address
-          ),
-          :distinct
-        ),
-      views_today: fragment("COUNT(*) FILTER (WHERE ? > ?)", sv.inserted_at, ^today_start),
-      views_this_week: fragment("COUNT(*) FILTER (WHERE ? > ?)", sv.inserted_at, ^week_ago)
-    })
-    |> Repo.one()
-  end
-
-  defp get_public_site_session_stats(request_host) do
+  defp get_public_site_session_view_stats(request_host, today_start, week_ago) do
     request_host
     |> site_sessions_query()
     |> select([ss], %{
+      total_views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
       sessions: count(ss.id),
       avg_session_duration_seconds: fragment("COALESCE(AVG(?)::float, 0)", ss.duration_seconds),
-      bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", ss.page_views)
+      bounces: fragment("COUNT(*) FILTER (WHERE ? = 1)", ss.page_views),
+      views_today:
+        fragment(
+          "COALESCE(SUM(?) FILTER (WHERE ? > ?), 0)",
+          ss.page_views,
+          ss.started_at,
+          ^today_start
+        ),
+      views_this_week:
+        fragment(
+          "COALESCE(SUM(?) FILTER (WHERE ? > ?), 0)",
+          ss.page_views,
+          ss.started_at,
+          ^week_ago
+        )
     })
     |> Repo.one()
   end
@@ -650,19 +643,8 @@ defmodule Elektrine.Profiles do
 
   def get_public_site_unique_visitor_count(request_host \\ nil) do
     request_host
-    |> site_page_visits_query()
-    |> select(
-      [sv],
-      count(
-        fragment(
-          "COALESCE(CAST(? AS text), ?, ?)",
-          sv.viewer_user_id,
-          sv.visitor_id,
-          sv.ip_address
-        ),
-        :distinct
-      )
-    )
+    |> site_sessions_query()
+    |> select([ss], count(ss.id))
     |> Repo.one()
   end
 
@@ -712,10 +694,13 @@ defmodule Elektrine.Profiles do
 
     actual_views =
       request_host
-      |> site_page_visits_query()
-      |> where([sv], sv.inserted_at >= ^start_datetime)
-      |> group_by([sv], fragment("DATE(?)", sv.inserted_at))
-      |> select([sv], %{date: fragment("DATE(?)", sv.inserted_at), count: count(sv.id)})
+      |> site_sessions_query()
+      |> where([ss], ss.started_at >= ^start_datetime)
+      |> group_by([ss], fragment("DATE(?)", ss.started_at))
+      |> select([ss], %{
+        date: fragment("DATE(?)", ss.started_at),
+        count: fragment("COALESCE(SUM(?), 0)", ss.page_views)
+      })
       |> Repo.all()
       |> Map.new(fn %{date: date, count: count} -> {date, count} end)
 
@@ -725,36 +710,27 @@ defmodule Elektrine.Profiles do
 
   def get_public_site_top_pages(request_host \\ nil, limit \\ 10) do
     request_host
-    |> site_page_visits_query()
-    |> group_by([sv], [sv.request_host, sv.request_path])
-    |> order_by([sv], desc: count(sv.id))
+    |> site_sessions_query()
+    |> group_by([ss], [ss.entry_host, ss.entry_path])
+    |> order_by([ss], desc: fragment("COALESCE(SUM(?), 0)", ss.page_views))
     |> limit(^limit)
-    |> select([sv], %{
-      host: sv.request_host,
-      path: sv.request_path,
-      views: count(sv.id),
-      unique_visitors:
-        count(
-          fragment(
-            "COALESCE(CAST(? AS text), ?, ?)",
-            sv.viewer_user_id,
-            sv.visitor_id,
-            sv.ip_address
-          ),
-          :distinct
-        )
+    |> select([ss], %{
+      host: ss.entry_host,
+      path: ss.entry_path,
+      views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
+      unique_visitors: count(ss.id)
     })
     |> Repo.all()
   end
 
   def get_public_site_top_referrers(request_host \\ nil, limit \\ 10) do
     request_host
-    |> site_page_visits_query()
-    |> where([sv], not is_nil(sv.referer))
-    |> group_by([sv], sv.referer)
-    |> order_by([sv], desc: count(sv.id))
+    |> site_sessions_query()
+    |> where([ss], not is_nil(ss.referer))
+    |> group_by([ss], ss.referer)
+    |> order_by([ss], desc: count(ss.id))
     |> limit(^limit)
-    |> select([sv], %{referer: sv.referer, count: count(sv.id)})
+    |> select([ss], %{referer: ss.referer, count: count(ss.id)})
     |> Repo.all()
   end
 
@@ -763,22 +739,19 @@ defmodule Elektrine.Profiles do
   def get_public_site_domain_breakdown(hosts) when is_list(hosts) do
     today_start = DateTime.new!(Date.utc_today(), ~T[00:00:00])
 
-    site_page_visits_query(hosts)
-    |> group_by([sv], sv.request_host)
-    |> select([sv], %{
-      host: sv.request_host,
-      views: count(sv.id),
-      unique_visitors:
-        count(
-          fragment(
-            "COALESCE(CAST(? AS text), ?, ?)",
-            sv.viewer_user_id,
-            sv.visitor_id,
-            sv.ip_address
-          ),
-          :distinct
-        ),
-      views_today: fragment("COUNT(*) FILTER (WHERE ? >= ?)", sv.inserted_at, ^today_start)
+    site_sessions_query(hosts)
+    |> group_by([ss], ss.entry_host)
+    |> select([ss], %{
+      host: ss.entry_host,
+      views: fragment("COALESCE(SUM(?), 0)", ss.page_views),
+      unique_visitors: count(ss.id),
+      views_today:
+        fragment(
+          "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
+          ss.page_views,
+          ss.started_at,
+          ^today_start
+        )
     })
     |> Repo.all()
   end
