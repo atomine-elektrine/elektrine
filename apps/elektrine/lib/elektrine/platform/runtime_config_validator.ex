@@ -222,7 +222,7 @@ defmodule Elektrine.Platform.RuntimeConfigValidator do
 
   defp known_placeholder?(value) when is_binary(value) do
     normalized = value |> String.trim() |> String.downcase()
-    Enum.any?(@known_placeholder_values, &String.contains?(normalized, &1))
+    normalized in @known_placeholder_values
   end
 
   defp known_placeholder?(_), do: false

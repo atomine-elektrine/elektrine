@@ -188,6 +188,18 @@ defmodule Elektrine.Platform.RuntimeConfigValidatorTest do
     assert "production secret ELEKTRINE_MASTER_SECRET uses a known placeholder value" in errors
   end
 
+  test "allows generated credentials that contain placeholder words" do
+    assert :ok =
+             RuntimeConfigValidator.validate(
+               env: %{
+                 "ELEKTRINE_MASTER_SECRET" => "master-secret-with-at-least-thirty-two-chars",
+                 "S3_ACCESS_KEY_ID" => "magpie25"
+               },
+               enabled_modules: [],
+               environment: :prod
+             )
+  end
+
   test "rejects short production root secrets" do
     assert {:error, errors} =
              RuntimeConfigValidator.validate(
