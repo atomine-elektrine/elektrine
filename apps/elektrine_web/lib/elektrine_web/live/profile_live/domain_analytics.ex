@@ -4,26 +4,21 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   alias Elektrine.{DNS, Domains, Profiles}
 
   @impl true
-  def mount(params, _session, socket) do
-    user = socket.assigns.current_user
-    domains = domain_targets(user)
-    domain_breakdown = domain_breakdown(domains)
-    active_domain = select_active_domain(domains, params["host"], params["zone_id"])
-
+  def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, "Domain Analytics")
-     |> assign(:domains, domains)
-     |> assign(:domain_breakdown, domain_breakdown)
+     |> assign(:domains, [])
+     |> assign(:domain_breakdown, [])
      |> assign(:analytics_cache, %{})
-     |> assign_pending_domain_analytics(active_domain)}
+     |> assign_pending_domain_analytics(nil)}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
     user = socket.assigns.current_user
     domains = domain_targets(user)
-    domain_breakdown = domain_breakdown(domains)
+    domain_breakdown = merge_domain_breakdown(domains, [])
     active_domain = select_active_domain(domains, params["host"], params["zone_id"])
 
     {:noreply,
@@ -155,7 +150,7 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
         Map.put(
           cached_analytics,
           :domain_breakdown,
-          socket.assigns[:domain_breakdown] || Map.get(cached_analytics, :domain_breakdown)
+          Map.get(cached_analytics, :domain_breakdown) || socket.assigns[:domain_breakdown]
         )
       else
         empty_domain_analytics_data(domains, socket.assigns[:domain_breakdown])

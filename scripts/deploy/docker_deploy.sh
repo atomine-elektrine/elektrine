@@ -168,6 +168,14 @@ if [[ "$PROFILE_ARGS_SPECIFIED" -eq 0 ]]; then
   done
 fi
 
+if platform_module_selected email; then
+  append_profile_if_missing "email"
+fi
+
+if platform_module_selected dns; then
+  append_profile_if_missing "dns"
+fi
+
 if platform_module_selected vpn; then
   append_profile_if_missing "vpn"
 fi
