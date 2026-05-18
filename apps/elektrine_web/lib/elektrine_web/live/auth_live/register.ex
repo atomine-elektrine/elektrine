@@ -350,9 +350,9 @@ defmodule ElektrineWeb.AuthLive.Register do
                   >
                     <div class="space-y-2 text-left">
                       <div class="flex items-start justify-between gap-3">
-                        <p class="font-semibold">Atomine abuse check</p>
+                        <p class="font-semibold">Security check</p>
                         <span class="rounded-full bg-base-200 px-2 py-0.5 text-[11px] text-base-content/70">
-                          work level {@atomine_pow_difficulty}
+                          check level {@atomine_pow_difficulty}
                         </span>
                       </div>
                       <p class="text-xs leading-relaxed text-base-content/70">
@@ -370,7 +370,7 @@ defmodule ElektrineWeb.AuthLive.Register do
                       {case captcha_errors do
                         {msg, _opts} -> msg
                         [{msg, _opts} | _] -> msg
-                        _ -> gettext("Please complete the Atomine Gate")
+                        _ -> gettext("Please complete the security check")
                       end}
                     </span>
                   </div>

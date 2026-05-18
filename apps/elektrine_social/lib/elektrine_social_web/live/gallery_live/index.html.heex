@@ -477,14 +477,13 @@
       data-loading-more={@loading_gallery || @loading_more}
     >
       <%= if @loading_gallery do %>
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <%= for _i <- 1..9 do %>
-            <div class="card border border-base-300 bg-base-200/70 shadow-sm overflow-hidden">
-              <div class="aspect-[4/5] bg-base-300 animate-pulse"></div>
-              <div class="p-4 space-y-2">
-                <div class="h-4 bg-base-300 rounded animate-pulse"></div>
-                <div class="h-3 bg-base-300 rounded w-2/3 animate-pulse"></div>
-                <div class="h-3 bg-base-300 rounded w-1/2 animate-pulse"></div>
+        <div class="grid grid-cols-2 gap-1 sm:grid-cols-3 md:gap-1.5 lg:grid-cols-4 xl:grid-cols-5">
+          <%= for _i <- 1..20 do %>
+            <div class="relative aspect-square overflow-hidden bg-base-200">
+              <div class="absolute inset-0 animate-pulse bg-base-300"></div>
+              <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 opacity-60">
+                <div class="h-3 w-16 rounded bg-base-100/70"></div>
+                <div class="h-3 w-10 rounded bg-base-100/70"></div>
               </div>
             </div>
           <% end %>
@@ -517,7 +516,7 @@
               is_saved = MapSet.member?(@user_saved_posts, photo.id)
               sensitive = gallery_sensitive?(photo) %>
               <div
-                class="group relative aspect-square overflow-hidden bg-base-200"
+                class="group relative aspect-square overflow-hidden bg-base-200 [contain-intrinsic-size:220px_220px] [content-visibility:auto]"
                 data-post-id={photo.id}
               >
                 <.link
@@ -532,8 +531,9 @@
                   <img
                     src={full_url}
                     alt={gallery_display_title(photo)}
-                    class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                    class="h-full w-full object-cover"
                     loading="lazy"
+                    decoding="async"
                   />
                   <span class="sr-only">Open {gallery_display_title(photo)}</span>
                 </.link>
@@ -562,13 +562,13 @@
                   </span>
                 <% end %>
 
-                <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
+                <div class="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
                   <button
                     type="button"
                     phx-click="like_photo"
                     phx-value-photo_id={photo.id}
                     class={[
-                      "btn btn-circle btn-xs border-0 bg-black/45 text-white backdrop-blur hover:bg-black/65",
+                      "btn btn-circle btn-xs border-0 bg-black/45 text-white hover:bg-black/65",
                       if(is_liked, do: "text-secondary", else: "")
                     ]}
                   >
@@ -583,7 +583,7 @@
                       phx-click={if is_saved, do: "unsave_post", else: "save_post"}
                       phx-value-photo_id={photo.id}
                       class={[
-                        "btn btn-circle btn-xs border-0 bg-black/45 text-white backdrop-blur hover:bg-black/65",
+                        "btn btn-circle btn-xs border-0 bg-black/45 text-white hover:bg-black/65",
                         if(is_saved, do: "text-secondary", else: "")
                       ]}
                     >

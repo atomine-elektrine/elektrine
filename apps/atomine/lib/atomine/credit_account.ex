@@ -1,10 +1,10 @@
 defmodule Atomine.CreditAccount do
-  @moduledoc "Per-user balance for one Atomine Credit type."
+  @moduledoc "Per-user Atomine Credit balance."
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  @credit_types ~w(atomine_credit dm_credit email_credit link_credit signup_credit api_credit invite_credit)
+  @credit_types ~w(atomine_credit)
 
   schema "atomine_credit_accounts" do
     belongs_to :user, Elektrine.Accounts.User

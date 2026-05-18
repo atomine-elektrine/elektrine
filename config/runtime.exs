@@ -172,7 +172,9 @@ end
 
 config :atomine, :credits,
   dm_gate_enabled: parse_bool_env.("ATOMINE_DM_CREDIT_GATE_ENABLED", false),
-  email_gate_enabled: parse_bool_env.("ATOMINE_EMAIL_CREDIT_GATE_ENABLED", false)
+  email_gate_enabled: parse_bool_env.("ATOMINE_EMAIL_CREDIT_GATE_ENABLED", true)
+
+config :maid, providers: []
 
 oban_queues =
   cond do
@@ -1227,18 +1229,16 @@ if config_env() == :prod do
       nil
     end
 
-  # Allowed origins for WebSocket connections
-  # Includes primary domains, profile subdomains, and onion hosts.
+  # Allowed origins for WebSocket connections. Keep defaults to exact app hosts;
+  # add any required profile/onion/custom origins through EXTRA_CHECK_ORIGINS.
   allowed_origins =
     all_public_domains
     |> Enum.flat_map(fn domain ->
       [
         "https://#{domain}",
-        "https://www.#{domain}",
-        "//*.#{domain}"
+        "https://www.#{domain}"
       ]
     end)
-    |> Kernel.++(["//*.onion"])
     |> Kernel.++(parse_origin_list.(System.get_env("EXTRA_CHECK_ORIGINS")))
     |> Enum.uniq()
 

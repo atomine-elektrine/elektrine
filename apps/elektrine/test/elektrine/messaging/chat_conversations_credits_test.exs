@@ -19,31 +19,20 @@ defmodule Elektrine.Messaging.ChatConversationsCreditsTest do
     :ok
   end
 
-  test "TL0 users spend a DM Credit to create a first DM" do
+  test "TL0 users spend an Atomine Credit to create a first DM" do
     alice = user_fixture()
     bob = user_fixture()
 
     assert {:error, :insufficient_dm_credits} = Messaging.create_dm_conversation(alice.id, bob.id)
 
-    assert {:ok, _ledger_entry} = Credits.grant(alice.id, :dm_credit, 1, "test_grant")
-
-    assert {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
-    assert conversation.type == "dm"
-    assert Credits.balance(alice.id, :dm_credit) == 0
-
-    assert {:ok, existing_conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
-    assert existing_conversation.id == conversation.id
-    assert Credits.balance(alice.id, :dm_credit) == 0
-  end
-
-  test "TL0 users can spend universal Atomine Credits for first DMs" do
-    alice = user_fixture()
-    bob = user_fixture()
-
     assert {:ok, _ledger_entry} = Credits.grant(alice.id, :atomine_credit, 1, "test_grant")
 
     assert {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
     assert conversation.type == "dm"
+    assert Credits.balance(alice.id, :atomine_credit) == 0
+
+    assert {:ok, existing_conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
+    assert existing_conversation.id == conversation.id
     assert Credits.balance(alice.id, :atomine_credit) == 0
   end
 
@@ -53,7 +42,7 @@ defmodule Elektrine.Messaging.ChatConversationsCreditsTest do
 
     assert {:ok, conversation} = Messaging.create_dm_conversation(alice.id, bob.id)
     assert conversation.type == "dm"
-    assert Credits.balance(alice.id, :dm_credit) == 0
+    assert Credits.balance(alice.id, :atomine_credit) == 0
   end
 
   defp promote_to_trust_level(%User{} = user, trust_level) do

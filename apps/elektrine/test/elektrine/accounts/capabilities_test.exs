@@ -65,8 +65,18 @@ defmodule Elektrine.Accounts.CapabilitiesTest do
 
     trusted_user = Ecto.Changeset.change(user, %{trust_level: 1}) |> Repo.update!()
 
-    assert :free = Capabilities.email_credit_requirement(trusted_user)
+    assert :required = Capabilities.email_credit_requirement(trusted_user)
     assert :free = Capabilities.first_dm_credit_requirement(trusted_user)
+
+    high_trust_user = Ecto.Changeset.change(trusted_user, %{trust_level: 3}) |> Repo.update!()
+
+    assert :free = Capabilities.email_credit_requirement(high_trust_user)
+    assert :free = Capabilities.first_dm_credit_requirement(high_trust_user)
+
+    admin_user = Ecto.Changeset.change(user, %{is_admin: true}) |> Repo.update!()
+
+    assert :free = Capabilities.email_credit_requirement(admin_user)
+    assert :free = Capabilities.first_dm_credit_requirement(admin_user)
 
     proof_backed_user = AccountsFixtures.user_fixture()
 
@@ -75,7 +85,7 @@ defmodule Elektrine.Accounts.CapabilitiesTest do
 
     {:ok, _verified} = Personhood.verify_proof(proof)
 
-    assert :free = Capabilities.email_credit_requirement(proof_backed_user)
+    assert :required = Capabilities.email_credit_requirement(proof_backed_user)
     assert :free = Capabilities.first_dm_credit_requirement(proof_backed_user)
   end
 

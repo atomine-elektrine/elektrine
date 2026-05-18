@@ -76,10 +76,26 @@ random_secret() {
   fi
 }
 
+validate_value() {
+  local label="$1"
+  local value="$2"
+  local pattern="$3"
+
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* || ! "$value" =~ $pattern ]]; then
+    echo "Error: invalid $label: $value" >&2
+    exit 1
+  fi
+}
+
 if [[ -z "$PRIMARY_DOMAIN" || -z "$ACME_EMAIL" ]]; then
   usage >&2
   exit 1
 fi
+
+validate_value "domain" "$PRIMARY_DOMAIN" '^[A-Za-z0-9.-]+$'
+validate_value "email" "$ACME_EMAIL" '^[^[:space:]@]+@[^[:space:]@]+$'
+validate_value "module list" "$MODULES" '^[A-Za-z0-9_, -]+$'
+validate_value "profile list" "$PROFILES" '^[A-Za-z0-9_ -]+$'
 
 if [[ -e "$OUTPUT_PATH" && "$FORCE" -ne 1 ]]; then
   echo "Error: output file already exists: $OUTPUT_PATH" >&2
@@ -105,13 +121,15 @@ PROFILE_BASE_DOMAINS=$PRIMARY_DOMAIN
 
 PHX_SERVER=true
 PORT=8080
+# The generated Docker stack talks to the bundled Postgres service on a private
+# Docker network. Leave TLS enabled for external DATABASE_URL deployments.
 DATABASE_SSL_ENABLED=false
 
 DB_PASSWORD=$DB_PASSWORD
 ELEKTRINE_MASTER_SECRET=$ELEKTRINE_MASTER_SECRET
 
 ELEKTRINE_ENABLED_MODULES=$MODULES
-DOCKER_PROFILES=$PROFILES
+DOCKER_PROFILES="$PROFILES"
 
 ACME_EMAIL=$ACME_EMAIL
 CADDY_EDGE_API_KEY=$CADDY_EDGE_API_KEY

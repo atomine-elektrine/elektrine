@@ -130,8 +130,8 @@ config :elektrine, :uploads,
   adapter: :local,
   uploads_dir: "tmp/test_uploads"
 
-# Skip Atomine Gate verification in tests
-config :elektrine, :atomine_pow, skip_verification: true
+# Skip security check verification in tests
+config :elektrine, :atomine_pow, difficulty: 0, skip_verification: true
 
 # Set environment for profile access control
 config :elektrine, :environment, :test

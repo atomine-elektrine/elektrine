@@ -11,6 +11,9 @@ config :elektrine,
   ecto_repos: [Elektrine.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :maid,
+  providers: []
+
 config :mime, :types, %{
   "application/gzip" => ["gz", "tgz"],
   "application/x-xz" => ["xz"],
@@ -429,7 +432,7 @@ config :elektrine, :bluesky,
   managed_domain: nil,
   managed_admin_password: nil
 
-# Atomine Gate anti-bot configuration
+# Security check configuration
 config :elektrine, :atomine_pow,
   difficulty: 20,
   skip_verification: false

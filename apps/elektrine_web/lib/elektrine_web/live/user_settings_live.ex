@@ -685,64 +685,72 @@ defmodule ElektrineWeb.UserSettingsLive do
 
   @impl true
   def handle_event("create_token", %{"token" => token_params}, socket) do
-    user = socket.assigns.current_user
-    token_form_params = normalize_token_form_params(token_params)
-    scopes = resolve_token_scopes(token_form_params)
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
+      token_form_params = normalize_token_form_params(token_params)
+      scopes = resolve_token_scopes(token_form_params)
 
-    case parse_token_expiration(token_form_params["expires_in"]) do
-      {:ok, expires_at} ->
-        attrs = %{name: token_form_params["name"], scopes: scopes, expires_at: expires_at}
+      case parse_token_expiration(token_form_params["expires_in"]) do
+        {:ok, expires_at} ->
+          attrs = %{name: token_form_params["name"], scopes: scopes, expires_at: expires_at}
 
-        case Developer.create_api_token(user.id, attrs) do
-          {:ok, token} ->
-            {:noreply,
-             socket
-             |> assign(:new_token, token.token)
-             |> assign(:token_form_params, token_form_params)
-             |> assign(:token_form, to_form(token_form_params, as: :token))
-             |> assign_developer_state(user.id)}
+          case Developer.create_api_token(user.id, attrs) do
+            {:ok, token} ->
+              {:noreply,
+               socket
+               |> assign(:new_token, token.token)
+               |> assign(:token_form_params, token_form_params)
+               |> assign(:token_form, to_form(token_form_params, as: :token))
+               |> assign_developer_state(user.id)}
 
-          {:error, changeset} ->
-            error_msg = changeset_error_to_string(changeset)
+            {:error, changeset} ->
+              error_msg = changeset_error_to_string(changeset)
 
-            {:noreply,
-             socket
-             |> assign(:token_form_params, token_form_params)
-             |> assign(:token_form, to_form(token_form_params, as: :token))
-             |> notify_error("Failed to create token: #{error_msg}")}
-        end
+              {:noreply,
+               socket
+               |> assign(:token_form_params, token_form_params)
+               |> assign(:token_form, to_form(token_form_params, as: :token))
+               |> notify_error("Failed to create token: #{error_msg}")}
+          end
 
-      :error ->
-        {:noreply,
-         socket
-         |> assign(:token_form_params, token_form_params)
-         |> assign(:token_form, to_form(token_form_params, as: :token))
-         |> notify_error("Invalid token expiration. Use 30, 90, or 365 days.")}
+        :error ->
+          {:noreply,
+           socket
+           |> assign(:token_form_params, token_form_params)
+           |> assign(:token_form, to_form(token_form_params, as: :token))
+           |> notify_error("Invalid token expiration. Use 30, 90, or 365 days.")}
+      end
+    else
+      {:noreply, notify_error(socket, recent_auth_required_message())}
     end
   end
 
   @impl true
   def handle_event("revoke_token", %{"id" => token_id}, socket) do
-    user = socket.assigns.current_user
+    if recent_auth_valid?(socket) do
+      user = socket.assigns.current_user
 
-    case Integer.parse(token_id) do
-      {id, ""} ->
-        case Developer.revoke_api_token(user.id, id) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> assign_developer_state(user.id)
-             |> notify_success("Token revoked successfully")}
+      case Integer.parse(token_id) do
+        {id, ""} ->
+          case Developer.revoke_api_token(user.id, id) do
+            {:ok, _} ->
+              {:noreply,
+               socket
+               |> assign_developer_state(user.id)
+               |> notify_success("Token revoked successfully")}
 
-          {:error, :not_found} ->
-            {:noreply, notify_error(socket, "Token not found")}
+            {:error, :not_found} ->
+              {:noreply, notify_error(socket, "Token not found")}
 
-          {:error, _} ->
-            {:noreply, notify_error(socket, "Failed to revoke token")}
-        end
+            {:error, _} ->
+              {:noreply, notify_error(socket, "Failed to revoke token")}
+          end
 
-      _ ->
-        {:noreply, notify_error(socket, "Invalid token id")}
+        _ ->
+          {:noreply, notify_error(socket, "Invalid token id")}
+      end
+    else
+      {:noreply, notify_error(socket, recent_auth_required_message())}
     end
   end
 
@@ -1185,6 +1193,10 @@ defmodule ElektrineWeb.UserSettingsLive do
     socket.assigns
     |> Map.get(:user_recent_auth_at)
     |> UserAuth.recent_auth_valid?()
+  end
+
+  defp recent_auth_required_message do
+    "Managing developer tokens requires a recent login. Sign in again and retry."
   end
 
   defp format_bluesky_http_reason(reason) do

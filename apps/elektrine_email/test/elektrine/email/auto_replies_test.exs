@@ -4,6 +4,7 @@ defmodule Elektrine.Email.AutoRepliesTest do
   import Elektrine.AccountsFixtures
   import Swoosh.TestAssertions
 
+  alias Atomine.Credits
   alias Elektrine.Email
   alias Elektrine.Email.AutoReplies
 
@@ -11,6 +12,7 @@ defmodule Elektrine.Email.AutoRepliesTest do
 
   test "reply-once tracking normalizes display-name sender variants" do
     user = user_fixture()
+    assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
 
     assert {:ok, _auto_reply} =

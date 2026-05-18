@@ -19,6 +19,8 @@ defmodule ElektrineWeb.DAV.CalendarController do
 
   require Logger
 
+  @max_dav_body_size 1_000_000
+
   @doc """
   PROPFIND on calendar home - lists available calendars.
   """
@@ -121,20 +123,24 @@ defmodule ElektrineWeb.DAV.CalendarController do
           ResponseHelpers.send_not_found(conn)
 
         calendar ->
-          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          case read_limited_body(conn) do
+            {:ok, body, conn} ->
+              cond do
+                String.contains?(body, "calendar-multiget") ->
+                  handle_multiget(conn, user, calendar, body)
 
-          cond do
-            String.contains?(body, "calendar-multiget") ->
-              handle_multiget(conn, user, calendar, body)
+                String.contains?(body, "calendar-query") ->
+                  handle_query(conn, user, calendar, body)
 
-            String.contains?(body, "calendar-query") ->
-              handle_query(conn, user, calendar, body)
+                String.contains?(body, "sync-collection") ->
+                  handle_sync(conn, user, calendar, body)
 
-            String.contains?(body, "sync-collection") ->
-              handle_sync(conn, user, calendar, body)
+                true ->
+                  ResponseHelpers.send_multistatus(conn, [])
+              end
 
-            true ->
-              ResponseHelpers.send_multistatus(conn, [])
+            {:error, conn} ->
+              conn
           end
       end
     end
@@ -153,24 +159,29 @@ defmodule ElektrineWeb.DAV.CalendarController do
       case Calendar.get_calendar_by_name(user.id, calendar_name) do
         nil ->
           # Parse request body for calendar properties
-          {:ok, body, conn} = Plug.Conn.read_body(conn)
-          props = parse_mkcalendar_body(body)
+          case read_limited_body(conn) do
+            {:ok, body, conn} ->
+              props = parse_mkcalendar_body(body)
 
-          attrs =
-            Map.merge(
-              %{
-                user_id: user.id,
-                name: props[:name] || calendar_name
-              },
-              props
-            )
+              attrs =
+                Map.merge(
+                  %{
+                    user_id: user.id,
+                    name: props[:name] || calendar_name
+                  },
+                  props
+                )
 
-          case Calendar.create_calendar(attrs) do
-            {:ok, _calendar} ->
-              ResponseHelpers.send_created(conn)
+              case Calendar.create_calendar(attrs) do
+                {:ok, _calendar} ->
+                  ResponseHelpers.send_created(conn)
 
-            {:error, _changeset} ->
-              conn |> send_resp(500, "Failed to create calendar")
+                {:error, _changeset} ->
+                  conn |> send_resp(500, "Failed to create calendar")
+              end
+
+            {:error, conn} ->
+              conn
           end
 
         _existing ->
@@ -230,40 +241,45 @@ defmodule ElektrineWeb.DAV.CalendarController do
 
         calendar ->
           uid = String.replace_suffix(event_uid, ".ics", "")
-          {:ok, body, conn} = Plug.Conn.read_body(conn)
 
-          # Check If-Match header for conditional update
-          if_match = get_req_header(conn, "if-match") |> List.first()
-          if_none_match = get_req_header(conn, "if-none-match") |> List.first()
+          case read_limited_body(conn) do
+            {:ok, body, conn} ->
+              # Check If-Match header for conditional update
+              if_match = get_req_header(conn, "if-match") |> List.first()
+              if_none_match = get_req_header(conn, "if-none-match") |> List.first()
 
-          existing = Calendar.get_event_by_uid(calendar.id, uid)
+              existing = Calendar.get_event_by_uid(calendar.id, uid)
 
-          cond do
-            # If-None-Match: * means only create, don't update
-            if_none_match == "*" && existing ->
-              ResponseHelpers.send_precondition_failed(conn)
+              cond do
+                # If-None-Match: * means only create, don't update
+                if_none_match == "*" && existing ->
+                  ResponseHelpers.send_precondition_failed(conn)
 
-            # If-Match means only update if etag matches
-            if_match && existing && "\"#{existing.etag}\"" != if_match ->
-              ResponseHelpers.send_precondition_failed(conn)
+                # If-Match means only update if etag matches
+                if_match && existing && "\"#{existing.etag}\"" != if_match ->
+                  ResponseHelpers.send_precondition_failed(conn)
 
-            # If-Match with no existing resource
-            if_match && !existing ->
-              ResponseHelpers.send_precondition_failed(conn)
+                # If-Match with no existing resource
+                if_match && !existing ->
+                  ResponseHelpers.send_precondition_failed(conn)
 
-            true ->
-              case Calendar.upsert_event_from_icalendar(calendar.id, uid, body) do
-                {:ok, event} ->
-                  if existing do
-                    ResponseHelpers.send_no_content(conn, event.etag)
-                  else
-                    ResponseHelpers.send_created(conn, event.etag)
+                true ->
+                  case Calendar.upsert_event_from_icalendar(calendar.id, uid, body) do
+                    {:ok, event} ->
+                      if existing do
+                        ResponseHelpers.send_no_content(conn, event.etag)
+                      else
+                        ResponseHelpers.send_created(conn, event.etag)
+                      end
+
+                    {:error, reason} ->
+                      Logger.error("CalDAV PUT failed: #{inspect(reason)}")
+                      conn |> send_resp(400, "Invalid iCalendar data")
                   end
-
-                {:error, reason} ->
-                  Logger.error("CalDAV PUT failed: #{inspect(reason)}")
-                  conn |> send_resp(400, "Invalid iCalendar data")
               end
+
+            {:error, conn} ->
+              conn
           end
       end
     end
@@ -526,6 +542,14 @@ defmodule ElektrineWeb.DAV.CalendarController do
 
   defp empty_to_nil(""), do: nil
   defp empty_to_nil(value), do: value
+
+  defp read_limited_body(conn) do
+    case Plug.Conn.read_body(conn, length: @max_dav_body_size, read_length: 64_000) do
+      {:ok, body, conn} -> {:ok, body, conn}
+      {:more, _partial, conn} -> {:error, send_resp(conn, 413, "Request body too large")}
+      {:error, _reason} -> {:error, send_resp(conn, 400, "Invalid request body")}
+    end
+  end
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"

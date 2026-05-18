@@ -40,7 +40,7 @@ defmodule Elektrine.Email.SenderCreditGateTest do
     }
   end
 
-  test "TL0 users need Email Credits for external sends", %{
+  test "TL0 users need Atomine Credits for external sends", %{
     sender: sender,
     sender_mailbox: sender_mailbox
   } do
@@ -50,25 +50,11 @@ defmodule Elektrine.Email.SenderCreditGateTest do
     refute_received {:email, _email}
   end
 
-  test "spends one Email Credit for an external send", %{
+  test "spends Atomine Credits for external sends", %{
     sender: sender,
     sender_mailbox: sender_mailbox
   } do
-    assert {:ok, _ledger_entry} = Credits.grant(sender.id, :email_credit, 1, "test_grant")
-
-    assert {:ok, %{status: "queued"}} =
-             Sender.send_email(sender.id, external_params(sender_mailbox.email))
-
-    assert_received {:email, email}
-    assert email.to == [{"", "reader@example.com"}]
-    assert Credits.balance(sender.id, :email_credit) == 0
-  end
-
-  test "spends universal Atomine Credits for external sends", %{
-    sender: sender,
-    sender_mailbox: sender_mailbox
-  } do
-    assert {:ok, _ledger_entry} = Credits.grant(sender.id, :atomine_credit, 5, "test_grant")
+    assert {:ok, _ledger_entry} = Credits.grant(sender.id, :atomine_credit, 1, "test_grant")
 
     assert {:ok, %{status: "queued"}} =
              Sender.send_email(sender.id, external_params(sender_mailbox.email))
@@ -77,7 +63,7 @@ defmodule Elektrine.Email.SenderCreditGateTest do
     assert Credits.balance(sender.id, :atomine_credit) == 0
   end
 
-  test "internal sends do not require Email Credits", %{
+  test "internal sends do not require Atomine Credits", %{
     sender: sender,
     recipient_mailbox: recipient_mailbox,
     sender_mailbox: sender_mailbox
@@ -91,20 +77,33 @@ defmodule Elektrine.Email.SenderCreditGateTest do
              })
 
     assert sent_message.status == "sent"
-    assert Credits.balance(sender.id, :email_credit) == 0
+    assert Credits.balance(sender.id, :atomine_credit) == 0
   end
 
-  test "TL1 users can send external email without Email Credits", %{
+  test "TL3 users can send external email without Atomine Credits", %{
     sender: sender,
     sender_mailbox: sender_mailbox
   } do
-    sender = promote_to_trust_level(sender, 1)
+    sender = promote_to_trust_level(sender, 3)
 
     assert {:ok, %{status: "queued"}} =
              Sender.send_email(sender.id, external_params(sender_mailbox.email))
 
     assert_received {:email, _email}
-    assert Credits.balance(sender.id, :email_credit) == 0
+    assert Credits.balance(sender.id, :atomine_credit) == 0
+  end
+
+  test "admins can send external email without Atomine Credits", %{
+    sender: sender,
+    sender_mailbox: sender_mailbox
+  } do
+    sender = promote_to_admin(sender)
+
+    assert {:ok, %{status: "queued"}} =
+             Sender.send_email(sender.id, external_params(sender_mailbox.email))
+
+    assert_received {:email, _email}
+    assert Credits.balance(sender.id, :atomine_credit) == 0
   end
 
   defp external_params(from) do
@@ -119,6 +118,12 @@ defmodule Elektrine.Email.SenderCreditGateTest do
   defp promote_to_trust_level(%User{} = user, trust_level) do
     user
     |> User.trust_level_changeset(%{trust_level: trust_level})
+    |> Repo.update!()
+  end
+
+  defp promote_to_admin(%User{} = user) do
+    user
+    |> Ecto.Changeset.change(%{is_admin: true})
     |> Repo.update!()
   end
 end

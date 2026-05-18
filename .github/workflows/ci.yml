@@ -86,6 +86,9 @@ jobs:
       - name: Run Credo
         run: mix credo --strict
 
+      - name: Run dependency audit
+        run: mix deps.audit
+
       - name: Run test suite
         if: ${{ inputs.run_tests }}
         id: test_suite

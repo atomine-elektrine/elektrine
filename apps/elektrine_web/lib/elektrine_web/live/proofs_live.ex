@@ -1,8 +1,10 @@
 defmodule ElektrineWeb.ProofsLive do
   use ElektrineWeb, :live_view
 
+  alias Atomine.CreditEarningPolicy
   alias Elektrine.Accounts.Capabilities
   alias Elektrine.Platform.ENav
+  alias ElektrineWeb.AtominePow
 
   @proof_kinds [
     {"DNS TXT", "dns"},
@@ -38,9 +40,13 @@ defmodule ElektrineWeb.ProofsLive do
         {:ok, redirect(socket, to: Elektrine.Paths.login_path())}
 
       user ->
+        atomine_pow_enabled = AtominePow.enabled?()
+
         {:ok,
          socket
          |> assign(:page_title, "Proofs")
+         |> assign(:atomine_pow_enabled, atomine_pow_enabled)
+         |> assign(:atomine_pow_difficulty, AtominePow.difficulty())
          |> assign(:proof_kinds, @proof_kinds)
          |> assign(:proof_form, default_proof_form())
          |> assign(:negative_form, %{"subject" => ""})
@@ -142,6 +148,46 @@ defmodule ElektrineWeb.ProofsLive do
     end
   end
 
+  def handle_event("claim_pow_credit", params, socket) do
+    user = socket.assigns.current_user
+
+    case verify_pow_token(socket, params, "proof_of_work") do
+      :ok ->
+        case CreditEarningPolicy.grant_for_proof_of_work(user.id,
+               difficulty: socket.assigns.atomine_pow_difficulty
+             ) do
+          {:ok, :already_granted} ->
+            {:noreply, put_flash(socket, :info, "Browser work credit was already recorded.")}
+
+          {:ok, :daily_claim_limit_reached} ->
+            {:noreply, put_flash(socket, :info, "Daily browser work limit reached.")}
+
+          {:ok, :daily_earning_cap_reached} ->
+            {:noreply, put_flash(socket, :info, "Daily credit earning cap reached.")}
+
+          {:ok, :balance_cap_reached} ->
+            {:noreply, put_flash(socket, :info, "Spend some credits before earning more.")}
+
+          {:ok, _ledger_entry} ->
+            {:noreply,
+             socket
+             |> put_flash(:info, "Browser work credit recorded.")
+             |> load_proofs(user.id)}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(
+               socket,
+               :error,
+               "Could not record proof-of-work credit: #{format_reason(reason)}"
+             )}
+        end
+
+      {:error, {:pow_failed, reason}} ->
+        {:noreply, put_flash(socket, :error, pow_error(reason))}
+    end
+  end
+
   def handle_event("delete_proof", %{"id" => id}, socket) do
     user = socket.assigns.current_user
 
@@ -162,7 +208,7 @@ defmodule ElektrineWeb.ProofsLive do
     ~H"""
     <.account_page
       title="Proofs"
-      subtitle="Verify control of a domain or web page."
+      subtitle="Verify domains, pages, and accounts you control."
       sidebar_link="proofs"
       nav_tab="proofs"
       current_user={@current_user}
@@ -170,6 +216,35 @@ defmodule ElektrineWeb.ProofsLive do
       show_header={false}
     >
       <.experimental_notice message="Identity proofs are experimental. Verification rules and credit rewards may change as the trust system is tuned." />
+
+      <div class="rounded-2xl border border-base-300 bg-base-100/80 p-4 text-sm shadow-sm sm:p-5">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
+              How this works
+            </p>
+            <h2 class="mt-1 text-lg font-semibold">Verify something you control</h2>
+            <p class="mt-2 max-w-3xl text-base-content/70">
+              Add a DNS record, publish a signed line on a page, or connect GitHub. Verified proofs can raise your account score and award Atomine Credits.
+            </p>
+          </div>
+          <span class="badge badge-outline shrink-0">Atomine</span>
+        </div>
+        <div class="mt-4 grid gap-3 text-xs text-base-content/70 sm:grid-cols-3">
+          <div class="rounded-xl bg-base-200/60 p-3">
+            <p class="font-medium text-base-content">1. Create a proof</p>
+            <p class="mt-1">We generate a signed line for your account.</p>
+          </div>
+          <div class="rounded-xl bg-base-200/60 p-3">
+            <p class="font-medium text-base-content">2. Publish it</p>
+            <p class="mt-1">Put that exact line in DNS or on the page.</p>
+          </div>
+          <div class="rounded-xl bg-base-200/60 p-3">
+            <p class="font-medium text-base-content">3. Verify it</p>
+            <p class="mt-1">Check it here. The same domain or profile only pays once.</p>
+          </div>
+        </div>
+      </div>
 
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
@@ -197,7 +272,7 @@ defmodule ElektrineWeb.ProofsLive do
                 <div>
                   <h2 class="card-title text-lg mb-2">Proofs</h2>
                   <p class="text-sm text-base-content/70">
-                    Verify control of a domain or web page.
+                    Pick where the proof will live. After creating it, publish the signed line and check it.
                   </p>
                 </div>
 
@@ -212,6 +287,7 @@ defmodule ElektrineWeb.ProofsLive do
               </div>
 
               <.form
+                id="proof-create-form"
                 for={%{}}
                 as={:proof}
                 phx-change="change_kind"
@@ -255,10 +331,14 @@ defmodule ElektrineWeb.ProofsLive do
                   id="proof-mode"
                   type="select"
                   name="proof[proof_mode]"
-                  label="Mode"
+                  label="Check mode"
                   value={@proof_form["proof_mode"]}
                   options={[{"Snapshot", "snapshot"}, {"Live re-checkable", "live"}]}
                 />
+
+                <p class="text-xs text-base-content/60">
+                  Snapshot is checked once. Live can be rechecked later; if the line disappears, the score can drop.
+                </p>
 
                 <button class="btn btn-primary w-full sm:w-auto" type="submit">Create proof</button>
               </.form>
@@ -269,9 +349,9 @@ defmodule ElektrineWeb.ProofsLive do
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <h2 class="card-title text-lg mb-2">Your Proofs</h2>
+                  <h2 class="card-title text-lg mb-2">Your proof claims</h2>
                   <p class="text-sm text-base-content/70">
-                    Pending proofs need the signed statement to be published before they can be verified.
+                    Pending claims still need to be published. Verified claims count toward your account score.
                   </p>
                 </div>
                 <span class="text-sm text-base-content/60">{length(@proofs)} total</span>
@@ -381,44 +461,112 @@ defmodule ElektrineWeb.ProofsLive do
         <div class="space-y-6">
           <div class="card panel-card border border-base-300 shadow-lg">
             <div class="card-body p-4 sm:p-6">
-              <div class="flex items-baseline justify-between gap-3">
-                <h2 class="card-title text-lg">Account</h2>
-                <span class="text-sm font-semibold">TL{@current_user.trust_level || 0}</span>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h2 class="card-title text-lg">Credits and trust</h2>
+                  <p class="mt-1 text-xs text-base-content/60">
+                    Credits cover actions that are easy to abuse while your account is still new.
+                  </p>
+                </div>
+                <span class="badge badge-outline shrink-0">
+                  Trust level {@current_user.trust_level || 0}
+                </span>
               </div>
 
-              <dl class="mt-4 divide-y divide-base-300 text-sm">
-                <div :if={@credits_available} class="flex items-center justify-between gap-4 pb-3">
-                  <dt>
-                    <p class="font-medium">Atomine Credits</p>
-                    <p class="mt-1 text-xs text-base-content/60">Spendable action capacity.</p>
-                  </dt>
-                  <dd class="text-3xl font-semibold leading-none">
-                    {credit_balance(@credit_rows, "atomine_credit")}
-                  </dd>
+              <div class="mt-4 space-y-3 text-sm">
+                <div
+                  :if={@credits_available}
+                  class="rounded-xl border border-base-300 bg-base-100 p-4"
+                >
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="font-medium">Available Atomine Credits</p>
+                      <p class="mt-1 text-xs text-base-content/60">
+                        Used for things like external email or first messages. Higher-trust accounts need them less often.
+                      </p>
+                    </div>
+                    <p class="text-3xl font-semibold leading-none">
+                      {credit_balance(@credit_rows, "atomine_credit")}
+                    </p>
+                  </div>
                 </div>
-                <div class="flex items-center justify-between gap-3 py-3">
-                  <dt class="text-base-content/70">Proof score</dt>
-                  <dd class="font-medium">{@breakdown.score}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3 py-3">
-                  <dt class="text-base-content/70">Verified proofs</dt>
-                  <dd class="font-medium">{proof_status_count(@proofs, "verified")}</dd>
-                </div>
-                <div class="flex items-center justify-between gap-3 py-3">
-                  <dt class="text-base-content/70">Pending proofs</dt>
-                  <dd class="font-medium">{proof_status_count(@proofs, "pending")}</dd>
-                </div>
-              </dl>
 
-              <p class="text-xs text-base-content/60">{level_label(@breakdown.level)}</p>
+                <div class="rounded-xl border border-base-300 bg-base-100 p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="font-medium">Identity score</p>
+                      <p class="mt-1 text-xs text-base-content/60">
+                        Comes from verified proofs and connected accounts. Higher scores can raise limits.
+                      </p>
+                    </div>
+                    <p class="text-xl font-semibold leading-none">{@breakdown.score}</p>
+                  </div>
+                  <p class="mt-3 rounded-lg bg-base-200/60 px-3 py-2 text-xs text-base-content/70">
+                    {level_label(@breakdown.level)}
+                  </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <p class="text-xs text-base-content/60">Verified claims</p>
+                    <p class="mt-1 text-xl font-semibold">
+                      {proof_status_count(@proofs, "verified")}
+                    </p>
+                  </div>
+                  <div class="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <p class="text-xs text-base-content/60">Waiting to verify</p>
+                    <p class="mt-1 text-xl font-semibold">{proof_status_count(@proofs, "pending")}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                :if={@credits_available && @atomine_pow_enabled}
+                class="mt-5 border-t border-base-300 pt-5"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 class="font-semibold text-sm">Daily browser work</h3>
+                    <p class="mt-1 text-xs text-base-content/60">
+                      Need credits? Run a short browser check up to {@pow_daily_claim_limit} times per day.
+                    </p>
+                  </div>
+                  <span class="badge badge-sm badge-secondary shrink-0">
+                    +{@pow_credit_amount} Atomine Credit{plural_suffix(@pow_credit_amount)}
+                  </span>
+                </div>
+
+                <.form
+                  id="pow-credit-form"
+                  for={%{}}
+                  phx-submit="claim_pow_credit"
+                  class="mt-3 space-y-3"
+                >
+                  <input type="hidden" name="atomine_pow_token" value="" />
+
+                  <.atomine_pow_check
+                    id="pow-credit-atomine-pow"
+                    difficulty={@atomine_pow_difficulty}
+                    action_label="Claim credit"
+                    description="Your browser does a short calculation before the credit is added, without asking you to solve a puzzle. This keeps bulk farming expensive."
+                  />
+
+                  <button class="btn btn-secondary btn-sm w-full" type="submit">
+                    Claim today's work credit
+                  </button>
+                </.form>
+              </div>
 
               <details
                 :if={@credits_available && @credit_earning_paths != []}
                 open
                 class="mt-5 border-t border-base-300 pt-4"
               >
-                <summary class="cursor-pointer text-sm font-medium">How to earn credits</summary>
+                <summary class="cursor-pointer text-sm font-medium">Ways to earn credits</summary>
                 <div class="mt-3 space-y-2 text-xs text-base-content/70">
+                  <p>
+                    Rewards are capped. The same DNS name, profile, or page will not pay twice.
+                  </p>
                   <p :for={path <- active_earning_paths(@credit_earning_paths)}>
                     <span class="font-medium text-base-content">{path.label}:</span> {path.reward}
                   </p>
@@ -453,6 +601,12 @@ defmodule ElektrineWeb.ProofsLive do
                           <span class="mt-0.5 block">
                             Connect GitHub to create a verified social proof automatically.
                           </span>
+                          <span
+                            :if={!github_oauth_configured?()}
+                            class="mt-1 block text-warning"
+                          >
+                            GitHub connection is not available on this server.
+                          </span>
                         </span>
                         <span class="badge badge-sm badge-secondary shrink-0">5 Atomine Credits</span>
                       </span>
@@ -468,7 +622,9 @@ defmodule ElektrineWeb.ProofsLive do
                 :if={@credits_available && @credit_action_prices != []}
                 class="mt-4 border-t border-base-300 pt-4"
               >
-                <summary class="cursor-pointer text-sm font-medium">Pricing</summary>
+                <summary class="cursor-pointer text-sm font-medium">
+                  What credits are spent on
+                </summary>
                 <dl class="mt-3 divide-y divide-base-300 text-sm">
                   <div
                     :for={price <- @credit_action_prices}
@@ -485,49 +641,10 @@ defmodule ElektrineWeb.ProofsLive do
                 </p>
               </details>
 
-              <details
-                :if={@credits_available && visible_restricted_credit_rows(@credit_rows) != []}
-                class="mt-4 border-t border-base-300 pt-4"
-              >
-                <summary class="cursor-pointer text-sm font-medium">Action-specific credits</summary>
-                <dl class="mt-3 divide-y divide-base-300 text-sm">
-                  <div
-                    :for={row <- visible_restricted_credit_rows(@credit_rows)}
-                    class="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
-                  >
-                    <dt class="text-base-content/70">{row.label}</dt>
-                    <dd class="font-medium">{row.balance}</dd>
-                  </div>
-                </dl>
-              </details>
-
-              <div class="mt-5 border-t border-base-300 pt-5">
-                <div class="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 class="font-semibold text-sm">GitHub</h3>
-                    <p class="mt-1 text-xs text-base-content/60">
-                      Adds an account signal; DNS and web proofs stay separate.
-                    </p>
-                  </div>
-                  <.link
-                    navigate={~p"/account/connections/github/start?return_to=/account/proofs"}
-                    class={[
-                      "btn btn-outline btn-sm shrink-0",
-                      !github_oauth_configured?() && "btn-disabled"
-                    ]}
-                  >
-                    Connect
-                  </.link>
-                </div>
-                <p :if={!github_oauth_configured?()} class="mt-2 text-xs text-base-content/60">
-                  GitHub OAuth is not configured on this server.
-                </p>
-              </div>
-
               <details class="mt-5 border-t border-base-300 pt-5">
-                <summary class="cursor-pointer text-sm font-medium">Negative assertion</summary>
+                <summary class="cursor-pointer text-sm font-medium">Say what is not yours</summary>
                 <p class="mt-2 text-xs text-base-content/60">
-                  Self-declare a social account you do not use. It does not increase score.
+                  Mark a social account as not yours. This does not add score or credits.
                 </p>
 
                 <.form
@@ -557,6 +674,27 @@ defmodule ElektrineWeb.ProofsLive do
     """
   end
 
+  defp atomine_pow_check(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-base-300 bg-base-100 p-3 text-left text-xs">
+      <div id={@id} phx-hook="AtominePow" data-difficulty={@difficulty}>
+        <div class="space-y-2">
+          <div class="flex items-start justify-between gap-3">
+            <p class="font-semibold text-base-content">Security check</p>
+            <span class="rounded-full bg-base-200 px-2 py-0.5 text-[11px] text-base-content/70">
+              check level {@difficulty}
+            </span>
+          </div>
+          <p class="leading-relaxed text-base-content/70">{@description}</p>
+          <p class="text-base-content/60" data-atomine-pow-status>
+            This runs when you press {@action_label} and usually takes a few seconds.
+          </p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   defp load_proofs(socket, user_id) do
     {proofs, atomine_available} = proof_data(user_id)
     capability_snapshot = Capabilities.snapshot(socket.assigns.current_user)
@@ -571,6 +709,8 @@ defmodule ElektrineWeb.ProofsLive do
     |> assign(:credit_rows, credits.rows)
     |> assign(:credit_action_prices, credits.action_prices)
     |> assign(:credit_earning_paths, credits.earning_paths)
+    |> assign(:pow_credit_amount, CreditEarningPolicy.proof_of_work_grant_amount())
+    |> assign(:pow_daily_claim_limit, CreditEarningPolicy.proof_of_work_daily_claim_limit())
     |> assign(:credits_available, Map.fetch!(credits, :available?))
     |> assign_new(:last_created_proof, fn -> nil end)
   end
@@ -628,6 +768,21 @@ defmodule ElektrineWeb.ProofsLive do
     case personhood_module() do
       {:ok, personhood} -> personhood.create_negative_assertion(user, params)
       :error -> {:error, :atomine_unavailable}
+    end
+  end
+
+  defp verify_pow_token(socket, params, action) do
+    if AtominePow.enabled?() do
+      token = Map.get(params, "atomine_pow_token")
+      audience = "atomine_proofs:#{action}"
+      nonce = "user:#{socket.assigns.current_user.id}:#{action}:#{Date.utc_today()}"
+
+      case AtominePow.verify(token, audience, nonce) do
+        {:ok, :verified} -> :ok
+        {:error, reason} -> {:error, {:pow_failed, reason}}
+      end
+    else
+      {:error, {:pow_failed, :unavailable}}
     end
   end
 
@@ -738,14 +893,8 @@ defmodule ElektrineWeb.ProofsLive do
     end
   end
 
-  defp visible_restricted_credit_rows(rows) do
-    rows
-    |> Enum.reject(&(&1.type == "atomine_credit"))
-    |> Enum.filter(&(&1.balance > 0))
-  end
-
   defp compact_credit_price(price) do
-    "#{credit_amount_label(price.atomine_cost, "atomine_credit")} / #{credit_amount_label(price.restricted_cost, price.restricted_credit_type)}"
+    credit_amount_label(price.atomine_cost, "atomine_credit")
   end
 
   defp credit_amount_label(amount, credit_type) do
@@ -753,12 +902,6 @@ defmodule ElektrineWeb.ProofsLive do
   end
 
   defp credit_label("atomine_credit"), do: "Atomine Credits"
-  defp credit_label("dm_credit"), do: "DM Credits"
-  defp credit_label("email_credit"), do: "Email Credits"
-  defp credit_label("link_credit"), do: "Link Credits"
-  defp credit_label("signup_credit"), do: "Signup Credits"
-  defp credit_label("api_credit"), do: "API Credits"
-  defp credit_label("invite_credit"), do: "Invite Credits"
   defp credit_label(value), do: titleize_credit_type(value)
 
   defp credit_unit_label(credit_type) do
@@ -780,9 +923,9 @@ defmodule ElektrineWeb.ProofsLive do
 
   defp credit_gate_summary(prices) do
     if Enum.any?(prices, & &1.gate_enabled) do
-      "Some gates are enabled. TL1+ and admins bypass current priced gates."
+      "Higher-trust and admin accounts may not need credits for some actions."
     else
-      "Gates are currently off."
+      "Credit checks are currently off."
     end
   end
 
@@ -851,10 +994,10 @@ defmodule ElektrineWeb.ProofsLive do
     end
   end
 
-  defp level_label(:high), do: "Strong verified control"
-  defp level_label(:medium), do: "Some verified control"
-  defp level_label(:low), do: "Limited verified control"
-  defp level_label(_), do: "No verified control"
+  defp level_label(:high), do: "Strong proof history"
+  defp level_label(:medium), do: "Several verified proofs"
+  defp level_label(:low), do: "One verified proof"
+  defp level_label(_), do: "No verified proofs yet"
 
   defp proof_status_count(proofs, status) when is_list(proofs) do
     Enum.count(proofs, &(&1.status == status))
@@ -903,6 +1046,11 @@ defmodule ElektrineWeb.ProofsLive do
         end
     end
   end
+
+  defp pow_error(:missing_token), do: "Security check failed. Please try again."
+  defp pow_error(:already_redeemed), do: "Security check expired. Please try again."
+  defp pow_error(:unavailable), do: "Proof-of-work credits are not available right now."
+  defp pow_error(_reason), do: "Security check failed. Please try again."
 
   defp format_reason(reason) when is_atom(reason),
     do: reason |> Atom.to_string() |> String.replace("_", " ")

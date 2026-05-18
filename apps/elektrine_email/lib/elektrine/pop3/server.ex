@@ -1043,8 +1043,8 @@ defmodule Elektrine.POP3.Server do
 
   defp build_attachment_parts(attachments, outer_boundary) do
     Enum.map(attachments, fn {_key, attachment} ->
-      filename = attachment["filename"] || "attachment"
-      content_type = attachment["content_type"] || "application/octet-stream"
+      filename = safe_mime_quoted_value(attachment["filename"], "attachment")
+      content_type = safe_content_type(attachment["content_type"])
       data = attachment_data(attachment)
 
       """
@@ -1067,6 +1067,30 @@ defmodule Elektrine.POP3.Server do
   end
 
   defp attachment_data(attachment), do: attachment["data"] || ""
+
+  defp safe_mime_quoted_value(value, fallback) do
+    value
+    |> to_string()
+    |> String.replace(~r/[\r\n\x00-\x1F\x7F]/, "_")
+    |> String.replace(~r/["\\]/, "_")
+    |> String.slice(0, 255)
+    |> case do
+      "" -> fallback
+      sanitized -> sanitized
+    end
+  end
+
+  defp safe_content_type(value) when is_binary(value) do
+    value = String.downcase(String.trim(value))
+
+    if Regex.match?(~r/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+(?:;[ a-z0-9!#$&^_.+=-]+)?$/, value) do
+      value
+    else
+      "application/octet-stream"
+    end
+  end
+
+  defp safe_content_type(_), do: "application/octet-stream"
 
   defp generate_boundary do
     :crypto.strong_rand_bytes(16)

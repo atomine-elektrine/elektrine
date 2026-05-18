@@ -440,11 +440,11 @@ defmodule Elektrine.Security.URLValidator do
     2380
   ]
 
-  defp dangerous_port?(%URI{port: nil}), do: false
-  defp dangerous_port?(%URI{port: 80}), do: false
-  defp dangerous_port?(%URI{port: 443}), do: false
-  defp dangerous_port?(%URI{port: 8080}), do: false
-  defp dangerous_port?(%URI{port: 8443}), do: false
-  defp dangerous_port?(%URI{port: port}) when port in @dangerous_ports, do: true
-  defp dangerous_port?(_), do: false
+  def dangerous_port?(%URI{port: nil}), do: false
+  def dangerous_port?(%URI{port: 80}), do: false
+  def dangerous_port?(%URI{port: 443}), do: false
+  def dangerous_port?(%URI{port: 8080}), do: false
+  def dangerous_port?(%URI{port: 8443}), do: false
+  def dangerous_port?(%URI{port: port}) when port in @dangerous_ports, do: true
+  def dangerous_port?(_), do: false
 end

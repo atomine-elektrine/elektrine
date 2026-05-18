@@ -5,6 +5,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   import Elektrine.EmailFixtures
   import Elektrine.SocialFixtures
 
+  alias Atomine.Credits
   alias Elektrine.Accounts
   alias Elektrine.Calendar, as: CalendarContext
   alias Elektrine.Developer
@@ -243,6 +244,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
     test "email write endpoint sends a message with write scope", %{conn: conn} do
       user = user_fixture()
+      assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
       conn = with_pat(conn, user.id, ["write:email"])
 
       conn =

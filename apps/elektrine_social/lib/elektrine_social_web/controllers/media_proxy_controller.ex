@@ -14,8 +14,8 @@ defmodule ElektrineSocialWeb.MediaProxyController do
   alias Elektrine.MediaProxy
   alias Elektrine.Security.URLValidator
 
-  # Maximum file size to proxy (50MB)
-  @max_file_size 50 * 1024 * 1024
+  # Keep proxied media bounded; the current SafeFetch path buffers before sending.
+  @max_file_size 10 * 1024 * 1024
   @max_redirects 5
 
   # Cache control for proxied content
@@ -74,14 +74,14 @@ defmodule ElektrineSocialWeb.MediaProxyController do
         send_resp(conn, 304, "")
 
       {:ok, %Finch.Response{status: status}} ->
-        Logger.warning("MediaProxy: Got #{status} for #{url}")
+        Logger.warning("MediaProxy: Got #{status} for #{redacted_url(url)}")
         send_error(conn, 502, "Upstream error")
 
       {:error, :too_large} ->
         send_error(conn, 413, "File too large")
 
       {:error, reason} ->
-        Logger.warning("MediaProxy: Failed to fetch #{url}: #{inspect(reason)}")
+        Logger.warning("MediaProxy: Failed to fetch #{redacted_url(url)}: #{inspect(reason)}")
         send_error(conn, 502, "Failed to fetch media")
     end
   end
@@ -177,5 +177,20 @@ defmodule ElektrineSocialWeb.MediaProxyController do
 
   defp validate_proxy_url(url) when is_binary(url) do
     URLValidator.validate(url)
+  end
+
+  defp redacted_url(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{} = uri ->
+        uri
+        |> Map.put(:query, nil)
+        |> Map.put(:userinfo, nil)
+        |> URI.to_string()
+
+      _ ->
+        "[invalid-url]"
+    end
+  rescue
+    _ -> "[invalid-url]"
   end
 end

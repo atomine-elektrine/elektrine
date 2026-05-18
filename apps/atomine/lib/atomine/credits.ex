@@ -1,6 +1,6 @@
 defmodule Atomine.Credits do
   @moduledoc """
-  Atomine Credits are scarce, per-action balances used for anti-abuse gates.
+  Atomine Credits are scarce balances used for anti-abuse gates.
 
   Credits are granted by trusted signals and spent by risky actions. This module
   is intentionally ledger-backed so abuse review can trace where capacity came
@@ -108,36 +108,6 @@ defmodule Atomine.Credits do
     with {:ok, _credit_type} <- normalize_credit_type(credit_type), do: {:error, :invalid_spend}
   end
 
-  @doc "Spends an action-specific credit first, then falls back to universal Atomine Credits."
-  def spend_action(user_id, restricted_credit_type, atomine_cost, action, audience, opts \\ [])
-
-  def spend_action(user_id, restricted_credit_type, atomine_cost, action, audience, opts)
-      when is_integer(atomine_cost) and atomine_cost > 0 do
-    restricted_cost = Keyword.get(opts, :restricted_cost, 1)
-
-    case spend_restricted_credit(
-           user_id,
-           restricted_credit_type,
-           restricted_cost,
-           action,
-           audience,
-           opts
-         ) do
-      {:ok, spend} ->
-        {:ok, spend}
-
-      {:error, :insufficient_credits} ->
-        spend(user_id, :atomine_credit, atomine_cost, action, audience, opts)
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  def spend_action(_user_id, credit_type, _atomine_cost, _action, _audience, _opts) do
-    with {:ok, _credit_type} <- normalize_credit_type(credit_type), do: {:error, :invalid_spend}
-  end
-
   @doc "Returns recent ledger entries for a user."
   def list_ledger_entries(user_id, opts \\ []) do
     limit = opts |> Keyword.get(:limit, 50) |> min(200)
@@ -198,20 +168,6 @@ defmodule Atomine.Credits do
     |> Repo.insert!()
 
     spend
-  end
-
-  defp spend_restricted_credit(user_id, credit_type, amount, action, audience, opts) do
-    case normalize_credit_type(credit_type) do
-      {:ok, credit_type} ->
-        if balance(user_id, credit_type) >= amount do
-          spend(user_id, credit_type, amount, action, audience, opts)
-        else
-          {:error, :insufficient_credits}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
-    end
   end
 
   defp existing_spend(_user_id, _credit_type, _action, nil), do: nil

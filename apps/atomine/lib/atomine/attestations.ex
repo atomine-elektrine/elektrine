@@ -62,7 +62,7 @@ defmodule Atomine.Attestations do
   @doc "Issues a stateless Atomine proof challenge."
   def issue_pow_challenge(opts \\ []) do
     now = now()
-    difficulty = normalize_difficulty(Keyword.get(opts, :difficulty, @default_pow_difficulty))
+    difficulty = public_pow_difficulty(Keyword.get(opts, :difficulty))
     ttl_seconds = Keyword.get(opts, :ttl_seconds, @default_pow_ttl_seconds)
 
     payload = %{
@@ -94,6 +94,7 @@ defmodule Atomine.Attestations do
     with {:ok, challenge_payload} <-
            parse_statement(Map.get(attrs, "challenge"), @pow_challenge_prefix),
          :ok <- ensure_not_expired(challenge_payload),
+         :ok <- ensure_minimum_difficulty(challenge_payload["difficulty"]),
          solution when is_binary(solution) and solution != "" <- Map.get(attrs, "solution"),
          true <-
            valid_pow_solution?(
@@ -101,18 +102,22 @@ defmodule Atomine.Attestations do
              solution,
              challenge_payload["difficulty"]
            ) do
-      subject = Map.get(attrs, "subject")
+      challenge_hash = artifact_hash(Map.get(attrs, "challenge"))
 
-      issue_receipt(
-        "pow_receipt",
-        subject,
-        challenge_payload["difficulty"],
-        %{
-          "challenge_hash" => artifact_hash(Map.get(attrs, "challenge")),
-          "solution_hash" => artifact_hash(solution)
-        },
-        user_id: Map.get(attrs, :user_id)
-      )
+      use_challenge_once(challenge_hash, fn ->
+        subject = Map.get(attrs, "subject")
+
+        issue_receipt(
+          "pow_receipt",
+          subject,
+          challenge_payload["difficulty"],
+          %{
+            "challenge_hash" => challenge_hash,
+            "solution_hash" => artifact_hash(solution)
+          },
+          user_id: Map.get(attrs, :user_id)
+        )
+      end)
     else
       false -> {:error, :invalid_pow_solution}
       nil -> {:error, :missing_pow_solution}
@@ -126,6 +131,7 @@ defmodule Atomine.Attestations do
     with {:ok, challenge_payload} <-
            parse_statement(Map.get(attrs, "challenge"), @pow_challenge_prefix),
          :ok <- ensure_not_expired(challenge_payload),
+         :ok <- ensure_minimum_difficulty(challenge_payload["difficulty"]),
          solution when is_binary(solution) and solution != "" <- Map.get(attrs, "solution"),
          true <-
            valid_pow_solution?(
@@ -134,35 +140,39 @@ defmodule Atomine.Attestations do
              challenge_payload["difficulty"]
            ),
          :ok <- validate_gate_proof(Map.get(attrs, "gate_proof"), Map.get(attrs, "challenge")) do
-      now = now()
-      public_id = public_id("aet")
+      challenge_hash = artifact_hash(Map.get(attrs, "challenge"))
 
-      payload = %{
-        "id" => public_id,
-        "kind" => "anonymous_effort_token",
-        "issuer" => issuer(),
-        "difficulty" => challenge_payload["difficulty"],
-        "issued_at" => encode_time(now),
-        "expires_at" => encode_time(DateTime.add(now, @default_token_ttl_seconds, :second)),
-        "nonce" => random_token(24)
-      }
+      use_challenge_once(challenge_hash, fn ->
+        now = now()
+        public_id = public_id("aet")
 
-      token = sign_statement(@anonymous_token_prefix, payload)
+        payload = %{
+          "id" => public_id,
+          "kind" => "anonymous_effort_token",
+          "issuer" => issuer(),
+          "difficulty" => challenge_payload["difficulty"],
+          "issued_at" => encode_time(now),
+          "expires_at" => encode_time(DateTime.add(now, @default_token_ttl_seconds, :second)),
+          "nonce" => random_token(24)
+        }
 
-      insert_attestation(%{
-        public_id: public_id,
-        kind: "anonymous_effort_token",
-        status: "issued",
-        issuer: issuer(),
-        artifact: token,
-        artifact_hash: artifact_hash(token),
-        difficulty: challenge_payload["difficulty"],
-        issued_at: now,
-        expires_at: decode_time!(payload["expires_at"]),
-        metadata:
-          %{"challenge_hash" => artifact_hash(Map.get(attrs, "challenge"))}
-          |> maybe_put_gate_proof_metadata(Map.get(attrs, "gate_proof"))
-      })
+        token = sign_statement(@anonymous_token_prefix, payload)
+
+        insert_attestation(%{
+          public_id: public_id,
+          kind: "anonymous_effort_token",
+          status: "issued",
+          issuer: issuer(),
+          artifact: token,
+          artifact_hash: artifact_hash(token),
+          difficulty: challenge_payload["difficulty"],
+          issued_at: now,
+          expires_at: decode_time!(payload["expires_at"]),
+          metadata:
+            %{"challenge_hash" => challenge_hash}
+            |> maybe_put_gate_proof_metadata(Map.get(attrs, "gate_proof"))
+        })
+      end)
     else
       false -> {:error, :invalid_pow_solution}
       nil -> {:error, :missing_pow_solution}
@@ -302,6 +312,34 @@ defmodule Atomine.Attestations do
     %Attestation{}
     |> Attestation.changeset(attrs)
     |> Repo.insert()
+  end
+
+  defp use_challenge_once(challenge_hash, fun)
+       when is_binary(challenge_hash) and is_function(fun, 0) do
+    Repo.transaction(fn ->
+      Repo.query!("SELECT pg_advisory_xact_lock(hashtext($1))", [challenge_hash])
+
+      if challenge_used?(challenge_hash) do
+        Repo.rollback(:challenge_already_used)
+      else
+        case fun.() do
+          {:ok, attestation} -> attestation
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end
+    end)
+    |> case do
+      {:ok, attestation} -> {:ok, attestation}
+      {:error, :challenge_already_used} -> {:error, :challenge_already_used}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp challenge_used?(challenge_hash) do
+    Attestation
+    |> where([a], a.kind in ["pow_receipt", "anonymous_effort_token"])
+    |> where([a], fragment("?->>?", a.metadata, "challenge_hash") == ^challenge_hash)
+    |> Repo.exists?()
   end
 
   defp update_status(attestation, status) do
@@ -515,6 +553,27 @@ defmodule Atomine.Attestations do
   end
 
   defp encode_time(%DateTime{} = time), do: DateTime.to_iso8601(time)
+
+  defp ensure_minimum_difficulty(value) do
+    if normalize_difficulty(value) >= configured_pow_difficulty() do
+      :ok
+    else
+      {:error, :pow_difficulty_too_low}
+    end
+  end
+
+  defp public_pow_difficulty(requested) do
+    requested
+    |> normalize_difficulty()
+    |> max(configured_pow_difficulty())
+  end
+
+  defp configured_pow_difficulty do
+    :elektrine
+    |> Application.get_env(:atomine_pow, [])
+    |> Keyword.get(:difficulty, @default_pow_difficulty)
+    |> normalize_difficulty()
+  end
 
   defp normalize_difficulty(value) when is_integer(value), do: value |> max(0) |> min(64)
 

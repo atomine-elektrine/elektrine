@@ -6,7 +6,8 @@ defmodule Elektrine.Email.Sender do
 
   This module returns standardized error tuples:
 
-  - `{:error, :rate_limit_exceeded}` - User exceeded daily/hourly/minute email limit
+  - `{:error, :rate_limit_exceeded}` - User exceeded short-window email throttle
+  - `{:error, :insufficient_email_credits}` - User needs Atomine Credits for external email
   - `{:error, :no_mailbox}` - User doesn't have a mailbox
   - `{:error, :unauthorized_from_address}` - User doesn't own the from address
   - `{:error, :forward_to_external}` - Internal email needs external forwarding
@@ -172,8 +173,8 @@ defmodule Elektrine.Email.Sender do
 
   defp send_list_email_individually(user_id, params, db_attachments, recipients, started_at) do
     result =
-      case RateLimiter.check_rate_limit(user_id) do
-        {:ok, _remaining} ->
+      case maybe_check_rate_limit(user_id, params) do
+        {:ok, _allowed} ->
           results =
             recipients
             |> Enum.uniq()
@@ -202,10 +203,10 @@ defmodule Elektrine.Email.Sender do
               {:ok, %{sent_count: length(successes), failed_count: length(failures)}}
           end
 
-        {:error, :daily_limit_exceeded} ->
+        {:error, :minute_limit_exceeded} ->
           {:error, :rate_limit_exceeded}
 
-        {:error, :minute_limit_exceeded} ->
+        {:error, :hourly_limit_exceeded} ->
           {:error, :rate_limit_exceeded}
       end
 
@@ -295,10 +296,6 @@ defmodule Elektrine.Email.Sender do
                   {:error, reason}
               end
             else
-              {:error, :daily_limit_exceeded} ->
-                Logger.warning("User #{user_id} exceeded daily email limit")
-                {:error, :rate_limit_exceeded}
-
               {:error, :hourly_limit_exceeded} ->
                 Logger.warning("User #{user_id} exceeded hourly email limit")
                 {:error, :rate_limit_exceeded}
@@ -1161,10 +1158,6 @@ defmodule Elektrine.Email.Sender do
       maybe_record_send(user_id, params_with_db_attachments)
       {:ok, message}
     else
-      {:error, :daily_limit_exceeded} ->
-        Logger.warning("User #{user_id} exceeded daily email limit")
-        {:error, :rate_limit_exceeded}
-
       {:error, :hourly_limit_exceeded} ->
         Logger.warning("User #{user_id} exceeded hourly email limit")
         {:error, :rate_limit_exceeded}

@@ -1137,12 +1137,16 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   end
 
   defp map_value(map, key) when is_map(map) and is_binary(key) do
-    Map.get(map, key) || Map.get(map, String.to_atom(key))
-  rescue
-    ArgumentError -> Map.get(map, key)
+    Map.get(map, key) || existing_atom_map_value(map, key)
   end
 
   defp map_value(_, _), do: nil
+
+  defp existing_atom_map_value(map, key) do
+    Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> nil
+  end
 
   defp valid_internal_origin_signature?(params, from) do
     InternalOrigin.valid?(params["headers"] || %{}, from)
@@ -1896,8 +1900,9 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     message =
       "Email forwarding failed: forward_reason=#{inspect(reason)} " <>
         "forwarding_reason=#{inspect(forwarding_reason)} " <>
-        "alias_email=#{inspect(alias_email)} target_email=#{inspect(target_email)} " <>
-        "original_from=#{inspect(from)} subject=#{inspect(subject)} " <>
+        "alias_email=#{inspect(redact_email(alias_email))} " <>
+        "target_email=#{inspect(redact_email(target_email))} " <>
+        "original_from=#{inspect(redact_email(from))} subject=#{inspect(redact_text(subject))} " <>
         "forward_duration_ms=#{forward_duration} dashboard_url=#{admin_dashboard_url()}"
 
     if no_mailbox_reason?(forwarding_reason) do
@@ -1922,6 +1927,24 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
       _ -> false
     end
   end
+
+  defp redact_email(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> String.split("@", parts: 2)
+    |> case do
+      [local, domain] when local != "" and domain != "" ->
+        "#{String.slice(local, 0, 2)}***@#{domain}"
+
+      _ ->
+        "[redacted]"
+    end
+  end
+
+  defp redact_email(_), do: nil
+
+  defp redact_text(value) when is_binary(value) and value != "", do: "[redacted]"
+  defp redact_text(_), do: nil
 
   defp no_mailbox_reason?(reason) do
     case reason do

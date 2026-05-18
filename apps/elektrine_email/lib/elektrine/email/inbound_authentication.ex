@@ -6,7 +6,15 @@ defmodule Elektrine.Email.InboundAuthentication do
   this module so filtering, quarantine, and UI code consume one shape.
   """
 
-  @results ~w(pass fail softfail neutral none temperror permerror)
+  @result_atoms %{
+    "pass" => :pass,
+    "fail" => :fail,
+    "softfail" => :softfail,
+    "neutral" => :neutral,
+    "none" => :none,
+    "temperror" => :temperror,
+    "permerror" => :permerror
+  }
 
   def normalize(results) when is_map(results) do
     %{
@@ -48,7 +56,7 @@ defmodule Elektrine.Email.InboundAuthentication do
 
   defp normalize_result(result) when is_binary(result) do
     value = result |> String.downcase() |> String.trim()
-    if value in @results, do: String.to_atom(value), else: :none
+    Map.get(@result_atoms, value, :none)
   end
 
   defp normalize_result(_), do: :none

@@ -4,7 +4,6 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
   Styled to match the app's timeline posts.
   """
   use Phoenix.Component
-  import Phoenix.HTML, only: [raw: 1]
   import ElektrineWeb.CoreComponents
 
   @doc """
@@ -92,7 +91,7 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
     <!-- Summary/Content -->
           <%= if @item.summary || @item.content do %>
             <div class="text-sm text-base-content/70 mb-3 line-clamp-3">
-              {raw(sanitize_html(truncate_text(@item.summary || strip_html(@item.content), 300)))}
+              {sanitize_text(truncate_text(@item.summary || strip_html(@item.content), 300))}
             </div>
           <% end %>
           
@@ -192,13 +191,13 @@ defmodule ElektrineSocialWeb.Components.Social.RSSItem do
     ElektrineWeb.HtmlHelpers.plain_text_content(html)
   end
 
-  defp sanitize_html(text) when is_binary(text) do
+  defp sanitize_text(text) when is_binary(text) do
     text
-    |> HtmlSanitizeEx.strip_tags()
     |> HtmlEntities.decode()
+    |> HtmlSanitizeEx.strip_tags()
   end
 
-  defp sanitize_html(_), do: ""
+  defp sanitize_text(_), do: ""
 
   defp truncate_text(nil, _max), do: ""
 

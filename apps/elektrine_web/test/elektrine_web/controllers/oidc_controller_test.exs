@@ -228,6 +228,10 @@ defmodule ElektrineWeb.OIDCControllerTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+    |> Plug.Conn.put_session(
+      ElektrineWeb.UserAuth.recent_auth_session_key(),
+      System.system_time(:second)
+    )
   end
 
   defp decode_jwt_payload(token) do

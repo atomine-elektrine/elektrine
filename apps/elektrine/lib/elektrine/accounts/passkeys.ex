@@ -219,7 +219,11 @@ defmodule Elektrine.Accounts.Passkeys do
                     |> Repo.update()
 
                     user = Repo.get!(User, credential.user_id)
-                    {:ok, user, credential}
+
+                    case Elektrine.Accounts.Authentication.ensure_user_active(user) do
+                      :ok -> {:ok, user, credential}
+                      {:error, reason} -> {:error, reason}
+                    end
                   end
 
                 {:error, reason} ->

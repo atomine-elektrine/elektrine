@@ -22,8 +22,8 @@ ARG SUPPORTED_DOMAINS=example.com
 ARG PROFILE_BASE_DOMAINS=example.com
 ARG NPM_VERSION=11.13.0
 
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-ubuntu-${UBUNTU_VERSION}"
-ARG RUNNER_IMAGE="ubuntu:${UBUNTU_VERSION}"
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-ubuntu-${UBUNTU_VERSION}@sha256:1486c932fb7576bea9becaaa33da9946205161a2d16938a3351c455d59ce6c3a"
+ARG RUNNER_IMAGE="ubuntu:${UBUNTU_VERSION}@sha256:84e77dee7d1bc93fb029a45e3c6cb9d8aa4831ccfcc7103d36e876938d28895b"
 
 FROM ${BUILDER_IMAGE} AS builder
 
@@ -140,7 +140,7 @@ RUN for i in 1 2 3 4 5; do \
 
 # Update npm before installing asset dependencies.
 RUN for i in 1 2 3 4 5; do \
-      if npm install -g npm@${NPM_VERSION}; then \
+      if npm install -g npm@"${NPM_VERSION}"; then \
         break; \
       fi; \
       if [ "$i" = "5" ]; then \
@@ -178,7 +178,7 @@ RUN for i in 1 2 3 4 5; do \
     done
 
 # Build the selected hoster release through release_builder/
-RUN ./scripts/release/deploy_release.sh --release-name ${RELEASE_NAME} --mix-env ${MIX_ENV}
+RUN ./scripts/release/deploy_release.sh --release-name "${RELEASE_NAME}" --mix-env "${MIX_ENV}"
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities

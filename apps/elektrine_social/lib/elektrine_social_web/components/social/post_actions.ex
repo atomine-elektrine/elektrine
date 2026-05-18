@@ -181,7 +181,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             navigate={@comment_path}
             class={[
               @btn_class,
-              "cursor-pointer transition-colors"
+              "cursor-pointer transition-colors hover:text-primary"
             ]}
           >
             <.icon name="hero-chat-bubble-left" class={@icon_size} />
@@ -199,7 +199,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               data-action-lock-key={action_lock_key(@dom_id_prefix, "comment")}
               class={[
                 @btn_class,
-                "cursor-pointer transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+                "cursor-pointer transition-colors hover:text-primary phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
               ]}
               type="button"
             >
@@ -234,8 +234,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_boosted &&
-                "bg-success/10 text-success phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
-              !@is_boosted && "phx-click-loading:bg-success/10 phx-click-loading:text-success"
+                "bg-accent/10 text-accent phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+              !@is_boosted &&
+                "hover:text-accent phx-click-loading:bg-accent/10 phx-click-loading:text-accent"
             ]}
             type="button"
             title={if @is_boosted, do: "Unboost", else: "Boost"}
@@ -243,7 +244,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             <span class="inline-flex items-center gap-1">
               <.icon
                 name={if @is_boosted, do: "hero-arrow-path-solid", else: "hero-arrow-path"}
-                class={[@icon_size, @is_boosted && "text-success"]}
+                class={[@icon_size, @is_boosted && "text-accent"]}
               />
               <.animated_count
                 id={count_id(@dom_id_prefix, "boost")}
@@ -272,7 +273,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             data-action-lock-key={action_lock_key(@dom_id_prefix, "quote")}
             class={[
               @btn_class,
-              "cursor-pointer hidden sm:flex transition-colors phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
+              "cursor-pointer hidden sm:flex transition-colors hover:text-secondary phx-click-loading:pointer-events-none phx-click-loading:cursor-wait"
             ]}
             type="button"
             title="Quote post"
@@ -307,8 +308,9 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
               @btn_class,
               "cursor-pointer transition-colors phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               @is_saved &&
-                "bg-warning/10 text-warning phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
-              !@is_saved && "phx-click-loading:bg-warning/10 phx-click-loading:text-warning"
+                "bg-primary/10 text-primary phx-click-loading:bg-transparent phx-click-loading:text-base-content/70",
+              !@is_saved &&
+                "hover:text-primary phx-click-loading:bg-primary/10 phx-click-loading:text-primary"
             ]}
             type="button"
             title={if @is_saved, do: "Remove from saved", else: "Save"}
@@ -316,7 +318,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             <span class="inline-flex items-center">
               <.icon
                 name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-                class={[@icon_size, @is_saved && "text-warning"]}
+                class={[@icon_size, @is_saved && "text-primary"]}
               />
             </span>
           </button>
@@ -406,8 +408,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_boosted,
-                do: "text-success phx-click-loading:text-base-content/60",
-                else: "text-base-content/60 phx-click-loading:text-success"
+                do: "text-accent phx-click-loading:text-base-content/60",
+                else: "text-base-content/60 hover:text-accent phx-click-loading:text-accent"
               )
             ]}
             type="button"
@@ -438,8 +440,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             class={[
               "flex items-center gap-1.5 transition-all duration-150 cursor-pointer phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
               if(@is_saved,
-                do: "text-warning phx-click-loading:text-base-content/60",
-                else: "text-base-content/60 hover:text-warning phx-click-loading:text-warning"
+                do: "text-primary phx-click-loading:text-base-content/60",
+                else: "text-base-content/60 hover:text-primary phx-click-loading:text-primary"
               )
             ]}
             title={if @is_saved, do: "Remove from saved", else: "Save"}
@@ -448,7 +450,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
             <span class="inline-flex items-center">
               <.icon
                 name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-                class={[@icon_size, @is_saved && "text-warning"]}
+                class={[@icon_size, @is_saved && "text-primary"]}
               />
             </span>
           </button>
@@ -552,8 +554,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       class={[
         "flex items-center gap-1.5 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
         if(@is_boosted,
-          do: "text-success phx-click-loading:text-base-content/60",
-          else: "text-base-content/60 phx-click-loading:text-success"
+          do: "text-accent phx-click-loading:text-base-content/60",
+          else: "text-base-content/60 hover:text-accent phx-click-loading:text-accent"
         )
       ]}
       type="button"
@@ -725,8 +727,8 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       class={[
         "flex items-center gap-1.5 transition-all duration-150 phx-click-loading:scale-95 phx-click-loading:opacity-80 phx-click-loading:pointer-events-none phx-click-loading:cursor-wait",
         if(@is_saved,
-          do: "text-warning phx-click-loading:text-base-content/60",
-          else: "text-base-content/60 hover:text-warning phx-click-loading:text-warning"
+          do: "text-primary phx-click-loading:text-base-content/60",
+          else: "text-base-content/60 hover:text-primary phx-click-loading:text-primary"
         )
       ]}
       title={if @is_saved, do: "Remove from saved", else: "Save"}
@@ -735,7 +737,7 @@ defmodule ElektrineSocialWeb.Components.Social.PostActions do
       <span class="inline-flex items-center">
         <.icon
           name={if @is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
-          class={[@icon_size, @is_saved && "text-warning"]}
+          class={[@icon_size, @is_saved && "text-primary"]}
         />
       </span>
     </button>

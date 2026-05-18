@@ -242,12 +242,27 @@ if [[ "${#DOCKER_BIN[@]}" -gt 0 ]]; then
 
   if present "$S3_PUBLIC" && [[ "$(url_host "$S3_PUBLIC")" == "$MEDIA_HOST" ]] && [[ "${CADDY_MEDIA_UPSTREAM:-magpie:8090}" == magpie:* ]]; then
     network_name="${MAGPIE_DOCKER_NETWORK:-elektrine-magpie-shared}"
+    magpie_container_name="${MAGPIE_CONTAINER_NAME:-magpie}"
 
     if "${DOCKER_BIN[@]}" network inspect "$network_name" >/dev/null 2>&1; then
       check_ok "Magpie shared network exists: $network_name"
     else
       check_warn "Magpie shared network does not exist yet: $network_name"
       echo "Hint: docker network create $network_name" >&2
+    fi
+
+    if "${DOCKER_BIN[@]}" inspect "$magpie_container_name" >/dev/null 2>&1; then
+      magpie_attached="$("${DOCKER_BIN[@]}" inspect "$magpie_container_name" --format "{{if index .NetworkSettings.Networks \"$network_name\"}}yes{{end}}")"
+
+      if [[ "$magpie_attached" == "yes" ]]; then
+        check_ok "Magpie container is attached to $network_name"
+      else
+        check_warn "Magpie container is not attached to $network_name"
+        echo "Hint: scripts/deploy/docker_deploy.sh connects it automatically, or run: docker network connect --alias magpie $network_name $magpie_container_name" >&2
+      fi
+    else
+      check_warn "Magpie container does not exist yet: $magpie_container_name"
+      echo "Hint: start Magpie first, or set MAGPIE_CONTAINER_NAME to the real container name." >&2
     fi
   fi
 fi

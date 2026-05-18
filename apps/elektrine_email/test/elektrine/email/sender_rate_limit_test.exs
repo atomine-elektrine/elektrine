@@ -1,10 +1,15 @@
 defmodule Elektrine.Email.SenderRateLimitTest do
   use Elektrine.DataCase
 
+  import Swoosh.TestAssertions
+
+  alias Atomine.Credits
   alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.RateLimiter
   alias Elektrine.Email.Sender
+
+  setup :set_swoosh_global
 
   describe "TL0 sender limits" do
     setup do
@@ -15,29 +20,22 @@ defmodule Elektrine.Email.SenderRateLimitTest do
           password_confirmation: "SenderLimit123!"
         })
 
-      {:ok, recipient} =
-        Accounts.create_user(%{
-          username: "recipientlimit#{System.unique_integer([:positive])}",
-          password: "RecipientLimit123!",
-          password_confirmation: "RecipientLimit123!"
-        })
-
       {:ok, sender_mailbox} = Email.ensure_user_has_mailbox(sender)
-      {:ok, recipient_mailbox} = Email.ensure_user_has_mailbox(recipient)
 
       RateLimiter.clear_limits(sender.id)
 
-      %{sender: sender, sender_mailbox: sender_mailbox, recipient_mailbox: recipient_mailbox}
+      %{sender: sender, sender_mailbox: sender_mailbox}
     end
 
-    test "blocks a second send in the same day for TL0 users", %{
+    test "blocks an immediate second send for TL0 users", %{
       sender: sender,
-      sender_mailbox: sender_mailbox,
-      recipient_mailbox: recipient_mailbox
+      sender_mailbox: sender_mailbox
     } do
+      assert {:ok, _ledger_entry} = Credits.grant(sender.id, :atomine_credit, 1, "test_grant")
+
       params = %{
         from: sender_mailbox.email,
-        to: recipient_mailbox.email,
+        to: "reader@example.com",
         subject: "First send",
         text_body: "hello"
       }

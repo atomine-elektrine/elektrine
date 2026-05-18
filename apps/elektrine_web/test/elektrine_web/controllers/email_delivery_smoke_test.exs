@@ -4,6 +4,7 @@ defmodule ElektrineEmailWeb.EmailDeliverySmokeTest do
 
   import Elektrine.AccountsFixtures
 
+  alias Atomine.Credits
   alias Elektrine.Email
   alias Elektrine.Email.ExternalDomainThrottle
   alias Elektrine.IMAP.RateLimiter, as: IMAPRateLimiter
@@ -47,6 +48,8 @@ defmodule ElektrineEmailWeb.EmailDeliverySmokeTest do
           password: password,
           password_confirmation: password
         })
+
+      assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
 
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
       clear_auth_limits(user.username)

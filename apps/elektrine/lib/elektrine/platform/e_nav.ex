@@ -16,6 +16,14 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-squares-2x2-solid"
       },
       %{
+        id: "maid",
+        label: "Maid",
+        href: "/maid",
+        platform_module: nil,
+        icon: "hero-magnifying-glass",
+        active_icon: "hero-magnifying-glass-solid"
+      },
+      %{
         id: "chat",
         label: "Chat",
         href: "/chat",
@@ -48,14 +56,6 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-photo-solid"
       },
       %{
-        id: "lists",
-        label: "Lists",
-        href: "/lists",
-        platform_module: :social,
-        icon: "hero-queue-list",
-        active_icon: "hero-queue-list-solid"
-      },
-      %{
         id: "friends",
         label: "Friends",
         href: "/friends",
@@ -70,14 +70,6 @@ defmodule Elektrine.Platform.ENav do
         platform_module: :email,
         icon: "hero-envelope",
         active_icon: "hero-envelope-solid"
-      },
-      %{
-        id: "nerve",
-        label: "Bridge",
-        href: "/account/nerve",
-        platform_module: :nerve,
-        icon: "hero-arrows-right-left",
-        active_icon: "hero-arrows-right-left-solid"
       },
       %{
         id: "dns",
@@ -113,6 +105,22 @@ defmodule Elektrine.Platform.ENav do
         href: "/account/profile/edit",
         icon: "hero-user-circle",
         active_icon: "hero-user-circle-solid"
+      },
+      %{
+        id: "lists",
+        label: "Lists",
+        href: "/lists",
+        platform_module: :social,
+        icon: "hero-queue-list",
+        active_icon: "hero-queue-list-solid"
+      },
+      %{
+        id: "nerve",
+        label: "Bridge",
+        href: "/account/nerve",
+        platform_module: :nerve,
+        icon: "hero-arrows-right-left",
+        active_icon: "hero-arrows-right-left-solid"
       },
       %{
         id: "profile-analytics",

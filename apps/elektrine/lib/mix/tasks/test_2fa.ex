@@ -7,12 +7,17 @@ defmodule Mix.Tasks.Test2fa do
   def run([secret]) do
     Mix.Task.run("app.start")
 
-    IO.puts("Testing secret: #{secret}")
     IO.puts("Secret length: #{String.length(secret)}")
 
     # Generate current code
     current_code = NimbleTOTP.verification_code(secret)
-    IO.puts("Current server code: #{current_code}")
+    reveal? = System.get_env("TEST_2FA_REVEAL_CODES") in ["1", "true", "TRUE", "yes", "YES"]
+
+    if reveal? do
+      IO.puts("Current server code: #{current_code}")
+    else
+      IO.puts("Current server code: [redacted; set TEST_2FA_REVEAL_CODES=true to print]")
+    end
 
     # Test codes for next few time periods
     current_time = System.os_time(:second)
@@ -22,7 +27,7 @@ defmodule Mix.Tasks.Test2fa do
       time = current_time + offset * 30
       code = NimbleTOTP.verification_code(secret, time: time)
       timestamp = DateTime.from_unix!(time) |> DateTime.to_string()
-      IO.puts("#{timestamp}: #{code}")
+      if reveal?, do: IO.puts("#{timestamp}: #{code}"), else: IO.puts("#{timestamp}: [redacted]")
     end
 
     # Test validation with window

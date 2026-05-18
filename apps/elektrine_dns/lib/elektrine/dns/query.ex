@@ -6,6 +6,26 @@ defmodule Elektrine.DNS.Query do
   alias Elektrine.DNS
   alias Elektrine.DNS.Packet
 
+  @type_names %{
+    "a" => :a,
+    "aaaa" => :aaaa,
+    "alias" => :alias,
+    "caa" => :caa,
+    "cname" => :cname,
+    "dnskey" => :dnskey,
+    "ds" => :ds,
+    "https" => :https,
+    "mx" => :mx,
+    "ns" => :ns,
+    "soa" => :soa,
+    "srv" => :srv,
+    "sshfp" => :sshfp,
+    "svcb" => :svcb,
+    "tlsa" => :tlsa,
+    "txt" => :txt,
+    "any" => :any
+  }
+
   def answer(packet, opts \\ []) when is_binary(packet) do
     packet
     |> resolve(opts)
@@ -442,7 +462,7 @@ defmodule Elektrine.DNS.Query do
   end
 
   defp normalize_type(type) when is_binary(type),
-    do: type |> String.downcase() |> String.to_atom()
+    do: Map.get(@type_names, String.downcase(type), type)
 
   defp normalize_type(type), do: type
 

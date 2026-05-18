@@ -2594,11 +2594,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         value
 
       :error ->
-        Map.get(map, String.to_atom(key))
+        existing_atom_map_value(map, key)
     end
   end
 
   defp map_get_value(_, _), do: nil
+
+  defp existing_atom_map_value(map, key) do
+    Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> nil
+  end
 
   defp normalize_http_url(url) when is_binary(url) do
     trimmed =
