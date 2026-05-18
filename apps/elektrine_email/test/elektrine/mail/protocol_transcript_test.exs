@@ -576,6 +576,7 @@ defmodule Elektrine.Mail.ProtocolTranscriptTest do
 
   test "SMTP deduplicates repeated submissions with the same Message-ID" do
     {user, password, mailbox} = create_user_with_messages(0)
+    assert {:ok, _ledger_entry} = Atomine.Credits.grant(user.id, :atomine_credit, 1, "test_grant")
     clear_auth_limits(:smtp, user.username)
 
     {:ok, socket} = connect_tcp(smtp_port())

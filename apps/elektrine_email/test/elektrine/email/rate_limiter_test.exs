@@ -26,9 +26,7 @@ defmodule Elektrine.Email.RateLimiterTest do
     end
 
     test "check_rate_limit returns ok when under limit", %{user: user} do
-      # New TL0 user on day 1 can send 10 emails per day
-      assert {:ok, remaining} = RateLimiter.check_rate_limit(user.id)
-      assert remaining == 10
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(user.id)
     end
 
     test "check_rate_limit returns error when minute limit exceeded", %{user: user} do
@@ -39,9 +37,8 @@ defmodule Elektrine.Email.RateLimiterTest do
       assert {:error, :minute_limit_exceeded} = RateLimiter.check_rate_limit(user.id)
     end
 
-    test "check_rate_limit returns error when daily limit exceeded", %{user: user} do
-      # day_1 tier has day_limit of 10
-      # Record 10 attempts far enough back to avoid minute/hour limits and hit daily limit
+    test "check_rate_limit does not enforce the legacy daily count", %{user: user} do
+      # Record 10 attempts far enough back to avoid minute/hour limits.
       now = System.system_time(:second)
 
       timestamp = now - 3700
@@ -55,7 +52,7 @@ defmodule Elektrine.Email.RateLimiterTest do
           :ets.insert(:email_rate_limiter, {user.id, attempts ++ existing_attempts})
       end
 
-      assert {:error, :daily_limit_exceeded} = RateLimiter.check_rate_limit(user.id)
+      assert {:ok, :allowed} = RateLimiter.check_rate_limit(user.id)
     end
 
     test "get_rate_limit_status returns correct status for new user", %{user: user} do
@@ -113,7 +110,7 @@ defmodule Elektrine.Email.RateLimiterTest do
       Process.sleep(200)
       :ok = RateLimiter.record_violation(user.id, :hourly_limit_exceeded)
       Process.sleep(200)
-      :ok = RateLimiter.record_violation(user.id, :daily_limit_exceeded)
+      :ok = RateLimiter.record_violation(user.id, :recipient_limit_exceeded)
       # Give async tasks time to complete
       Process.sleep(200)
 
@@ -219,7 +216,7 @@ defmodule Elektrine.Email.RateLimiterTest do
       assert status.attempts[60].limit == 1
     end
 
-    test "older TL0 user still gets ten emails per day" do
+    test "older TL0 user keeps warmup short-window tier" do
       {:ok, user} =
         Accounts.create_user(%{
           username: "oldertl0#{System.unique_integer([:positive])}",

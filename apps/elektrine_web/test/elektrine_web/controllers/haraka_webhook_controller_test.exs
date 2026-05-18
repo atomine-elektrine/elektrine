@@ -4,6 +4,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
   import Elektrine.EmailFixtures
   import Swoosh.TestAssertions
 
+  alias Atomine.Credits
   alias Elektrine.Email
   alias Elektrine.Email.ExternalDelivery
   alias Elektrine.Email.Message
@@ -295,6 +296,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
 
     test "sends auto-replies for locally delivered Haraka mail", %{conn: conn} do
       user = user_fixture(%{username: "harakaautoreply"})
+      assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
       {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
 
       assert {:ok, _auto_reply} =

@@ -642,9 +642,10 @@ defmodule Elektrine.DNS do
 
   def get_zone_query_type_breakdown(zone_id, limit) when is_integer(zone_id) do
     flush_query_stats_buffer()
+    start_date = Date.add(Date.utc_today(), -29)
 
     from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id,
+      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
       group_by: qs.qtype,
       select: %{qtype: qs.qtype, count: sum(qs.query_count)},
       order_by: [desc: sum(qs.query_count), asc: qs.qtype],
@@ -659,9 +660,10 @@ defmodule Elektrine.DNS do
 
   def get_zone_top_names(zone_id, limit) when is_integer(zone_id) do
     flush_query_stats_buffer()
+    start_date = Date.add(Date.utc_today(), -29)
 
     from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id,
+      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
       group_by: qs.qname,
       select: %{qname: qs.qname, count: sum(qs.query_count)},
       order_by: [desc: sum(qs.query_count), asc: qs.qname],
@@ -676,9 +678,10 @@ defmodule Elektrine.DNS do
 
   def get_zone_top_nxdomain_names(zone_id, limit) when is_integer(zone_id) do
     flush_query_stats_buffer()
+    start_date = Date.add(Date.utc_today(), -29)
 
     from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id and qs.rcode == "NXDOMAIN",
+      where: qs.zone_id == ^zone_id and qs.rcode == "NXDOMAIN" and qs.query_date >= ^start_date,
       group_by: qs.qname,
       select: %{qname: qs.qname, count: sum(qs.query_count)},
       order_by: [desc: sum(qs.query_count), asc: qs.qname],
@@ -691,9 +694,10 @@ defmodule Elektrine.DNS do
 
   def get_zone_rcode_breakdown(zone_id) when is_integer(zone_id) do
     flush_query_stats_buffer()
+    start_date = Date.add(Date.utc_today(), -29)
 
     from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id,
+      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
       group_by: qs.rcode,
       select: %{rcode: qs.rcode, count: sum(qs.query_count)},
       order_by: [desc: sum(qs.query_count), asc: qs.rcode]
@@ -705,9 +709,10 @@ defmodule Elektrine.DNS do
 
   def get_zone_transport_breakdown(zone_id) when is_integer(zone_id) do
     flush_query_stats_buffer()
+    start_date = Date.add(Date.utc_today(), -29)
 
     from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id,
+      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
       group_by: qs.transport,
       select: %{transport: qs.transport, count: sum(qs.query_count)},
       order_by: [desc: sum(qs.query_count), asc: qs.transport]

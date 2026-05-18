@@ -44,6 +44,7 @@ TURN_PORT=3478
 TURN_MIN_PORT=49160
 TURN_MAX_PORT=49200
 TURN_EXTERNAL_IP=203.0.113.10
+TURN_RELAY_IP=10.0.0.5
 TURN_SHARED_SECRET=replace-me
 ```
 
@@ -51,6 +52,8 @@ Notes:
 
 - if you use an HTTP proxy/CDN, the TURN hostname should be DNS-only, not proxied
 - if your server sits behind NAT, set `TURN_EXTERNAL_IP` to the public IPv4
+- if your server has a specific private relay interface, set `TURN_RELAY_IP` to
+  that local interface address; otherwise leave it unset
 - if you omit `TURN_HOST`, clients use `PRIMARY_DOMAIN`
 - raw `docker compose` users must still ensure `TURN_ENABLED=true` in the app
   environment; `scripts/deploy/docker_deploy.sh` does this automatically when

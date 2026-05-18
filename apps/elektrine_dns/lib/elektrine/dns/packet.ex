@@ -25,6 +25,8 @@ defmodule Elektrine.DNS.Packet do
     any: 255
   }
   @rcode_map %{noerror: 0, formerr: 1, servfail: 2, nxdomain: 3, notimp: 4, refused: 5}
+  @type_numbers @type_map |> Map.new(fn {key, value} -> {Atom.to_string(key), value} end)
+  @type_names @type_map |> Map.new(fn {key, _value} -> {Atom.to_string(key), key} end)
 
   def decode_query(packet) when is_binary(packet) do
     with <<id::16, flags::16, qdcount::16, ancount::16, nscount::16, arcount::16, rest::binary>> <-
@@ -394,13 +396,13 @@ defmodule Elektrine.DNS.Packet do
     do: Enum.find_value(@type_map, type, fn {key, value} -> if value == type, do: key end)
 
   defp encode_type(type) when is_binary(type),
-    do: type |> String.downcase() |> String.to_atom() |> encode_type()
+    do: Map.get(@type_numbers, String.downcase(type), 255)
 
   defp encode_type(type) when is_integer(type), do: type
   defp encode_type(type) when is_atom(type), do: Map.get(@type_map, type, 255)
 
   defp normalize_type(type) when is_binary(type),
-    do: type |> String.downcase() |> String.to_atom()
+    do: Map.get(@type_names, String.downcase(type), 255)
 
   defp normalize_type(type), do: type
 end

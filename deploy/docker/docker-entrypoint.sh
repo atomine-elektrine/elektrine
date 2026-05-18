@@ -8,6 +8,14 @@ UPLOADS_DATA_DIR="/data/uploads"
 TLS_RUNTIME_DIR="$CERTS_DIR/runtime"
 ROLE="${1:-${ELEKTRINE_RUNTIME_ROLE:-all}}"
 
+case "$ROLE" in
+  all|app|worker|mail|dns|vpn) ;;
+  *)
+    echo "Invalid runtime role: $ROLE" >&2
+    exit 1
+    ;;
+esac
+
 link_release_uploads_dir() {
   local priv_dir
 

@@ -1,6 +1,7 @@
 defmodule Elektrine.Email.SenderPipelineTest do
   use Elektrine.DataCase
 
+  alias Atomine.Credits
   alias Elektrine.Accounts
   alias Elektrine.Email
   alias Elektrine.Email.CustomDomain
@@ -32,6 +33,7 @@ defmodule Elektrine.Email.SenderPipelineTest do
 
       {:ok, sender_mailbox} = Email.ensure_user_has_mailbox(sender)
       {:ok, recipient_mailbox} = Email.ensure_user_has_mailbox(recipient)
+      assert {:ok, _ledger_entry} = Credits.grant(sender.id, :atomine_credit, 10, "test_grant")
 
       %{
         sender: sender,

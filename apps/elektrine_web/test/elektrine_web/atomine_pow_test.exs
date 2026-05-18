@@ -18,8 +18,10 @@ defmodule ElektrineWeb.AtominePowTest do
   end
 
   test "rejects tokens below the configured difficulty" do
-    Application.put_env(:elektrine, :atomine_pow, difficulty: 1, skip_verification: false)
+    Application.put_env(:elektrine, :atomine_pow, difficulty: 0, skip_verification: false)
     token = effort_token!(0)
+
+    Application.put_env(:elektrine, :atomine_pow, difficulty: 1, skip_verification: false)
 
     assert {:error, :insufficient_difficulty} =
              AtominePow.verify(token, "registration", "127.0.0.1")

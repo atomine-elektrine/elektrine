@@ -74,7 +74,8 @@ defmodule ElektrineWeb.Router do
 
   pipeline :caddy_internal_api do
     plug(ElektrineWeb.Plugs.InternalAPIAuth,
-      env_names: ["CADDY_EDGE_API_KEY"]
+      env_names: ["CADDY_EDGE_API_KEY"],
+      param_names: ["edge_token"]
     )
   end
 
@@ -222,6 +223,7 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.ActivityPubAccept)
     plug(ElektrineWeb.Plugs.RequirePlatformModule)
     plug(ElektrineWeb.Plugs.ActivityPubRateLimit)
+    plug(ElektrineWeb.Plugs.APIRateLimit, key_prefix: "activitypub", ip_only: true)
     # HTTP Signature validation (assigns :valid_signature and :signature_actor)
     plug(ElektrineWeb.Plugs.HTTPSignaturePlug)
     # Enforce signatures when authorized fetch mode is enabled
@@ -319,12 +321,6 @@ defmodule ElektrineWeb.Router do
     get("/allow", CaddyTLSController, :allow)
   end
 
-  scope "/_edge/tls/v1", ElektrineWeb do
-    pipe_through(:api)
-
-    get("/allow/:edge_token", CaddyTLSController, :allow_with_token)
-  end
-
   # Internal DNS-01 automation endpoint used by acme.sh for wildcard certs.
   scope "/_edge/acme/dns/v1", ElektrineWeb do
     pipe_through([:api, :caddy_internal_api])
@@ -341,7 +337,7 @@ defmodule ElektrineWeb.Router do
 
   # Media proxy for federation privacy (no auth required)
   scope "/media_proxy", alias: false do
-    pipe_through(:api)
+    pipe_through([:api, :api_rate_limited])
 
     ElektrineWeb.Routes.Social.media_proxy_routes()
   end
@@ -815,7 +811,7 @@ defmodule ElektrineWeb.Router do
 
   # Other scopes may use custom stacks.
   scope "/api", alias: false do
-    pipe_through(:api)
+    pipe_through([:api, :api_rate_limited])
 
     ElektrineWeb.Routes.Email.internal_api_routes()
     ElektrineWeb.Routes.VPN.internal_api_routes()
@@ -823,7 +819,7 @@ defmodule ElektrineWeb.Router do
 
   # Mobile app authentication - Always available for VPN access
   scope "/api", ElektrineWeb.API do
-    pipe_through(:api)
+    pipe_through([:api, :api_rate_limited])
 
     # Authentication endpoints (no auth required)
     post("/auth/login", AuthController, :login)
@@ -1211,6 +1207,7 @@ defmodule ElektrineWeb.Router do
 
       # Portal
       live("/portal", PortalLive.Index, :index)
+      live("/maid", MaidLive, :index)
       live("/reputation", ReputationLive.Show, :index)
       live("/reputation/:handle", ReputationLive.Show, :show)
 

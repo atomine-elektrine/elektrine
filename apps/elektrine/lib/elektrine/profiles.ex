@@ -709,8 +709,11 @@ defmodule Elektrine.Profiles do
   end
 
   def get_public_site_top_pages(request_host \\ nil, limit \\ 10) do
+    start_datetime = DateTime.utc_now() |> DateTime.add(-30, :day)
+
     request_host
     |> site_sessions_query()
+    |> where([ss], ss.started_at >= ^start_datetime)
     |> group_by([ss], [ss.entry_host, ss.entry_path])
     |> order_by([ss], desc: fragment("COALESCE(SUM(?), 0)", ss.page_views))
     |> limit(^limit)
@@ -724,8 +727,11 @@ defmodule Elektrine.Profiles do
   end
 
   def get_public_site_top_referrers(request_host \\ nil, limit \\ 10) do
+    start_datetime = DateTime.utc_now() |> DateTime.add(-30, :day)
+
     request_host
     |> site_sessions_query()
+    |> where([ss], ss.started_at >= ^start_datetime)
     |> where([ss], not is_nil(ss.referer))
     |> group_by([ss], ss.referer)
     |> order_by([ss], desc: count(ss.id))

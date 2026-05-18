@@ -14,12 +14,10 @@ defmodule Elektrine.Accounts.Capabilities do
   @credits_module Module.concat([Atomine, Credits])
   @credit_earning_policy_module Module.concat([Atomine, CreditEarningPolicy])
 
-  @dm_credit "dm_credit"
-  @email_credit "email_credit"
   @first_dm_action "first_dm"
   @send_email_action "send_email"
   @first_dm_cost 1
-  @send_email_cost 5
+  @send_email_cost 1
 
   @email_tier_limits %{
     day_1: %{minute: 1, hour: 5, day: 10, recipients: 3},
@@ -68,8 +66,6 @@ defmodule Elektrine.Accounts.Capabilities do
         action: @first_dm_action,
         label: "First DM",
         atomine_cost: @first_dm_cost,
-        restricted_credit_type: @dm_credit,
-        restricted_cost: 1,
         gate_enabled: credit_gate_enabled?(:dm),
         free_for: "TL1+ and admins"
       },
@@ -77,10 +73,8 @@ defmodule Elektrine.Accounts.Capabilities do
         action: @send_email_action,
         label: "External email",
         atomine_cost: @send_email_cost,
-        restricted_credit_type: @email_credit,
-        restricted_cost: 1,
         gate_enabled: credit_gate_enabled?(:email),
-        free_for: "TL1+ and admins"
+        free_for: "TL3+ and admins"
       }
     ]
   end
@@ -128,7 +122,7 @@ defmodule Elektrine.Accounts.Capabilities do
     if credit_gate_enabled?(:email) do
       case load_user(user_or_id) do
         nil -> {:error, :user_not_found}
-        user -> if trusted_for_free_action?(user), do: :free, else: :required
+        user -> if trusted_for_free_email?(user), do: :free, else: :required
       end
     else
       :free
@@ -193,9 +187,7 @@ defmodule Elektrine.Accounts.Capabilities do
 
     %{
       first_dm_credit_requirement: requirement,
-      first_dm_atomine_cost: @first_dm_cost,
-      first_dm_restricted_credit_type: @dm_credit,
-      first_dm_restricted_cost: 1
+      first_dm_atomine_cost: @first_dm_cost
     }
   end
 
@@ -212,9 +204,7 @@ defmodule Elektrine.Accounts.Capabilities do
       day_limit: limits.day_limit,
       recipient_limit: limits.recipient_limit,
       external_send_credit_requirement: requirement,
-      external_send_atomine_cost: @send_email_cost,
-      external_send_restricted_credit_type: @email_credit,
-      external_send_restricted_cost: 1
+      external_send_atomine_cost: @send_email_cost
     }
   end
 
@@ -243,7 +233,7 @@ defmodule Elektrine.Accounts.Capabilities do
 
   defp credit_snapshot(%User{id: user_id}) do
     if atomine_module_loaded?(@credits_module) do
-      credit_types = Atomine.Credits.credit_types()
+      credit_types = ["atomine_credit"]
       accounts = Atomine.Credits.list_accounts(user_id)
       balances = Map.new(accounts, &{&1.credit_type, &1.balance})
 
@@ -361,6 +351,9 @@ defmodule Elektrine.Accounts.Capabilities do
   defp trusted_for_free_action?(%User{is_admin: true}), do: true
   defp trusted_for_free_action?(%User{} = user), do: effective_trust_level(user) >= 1
 
+  defp trusted_for_free_email?(%User{is_admin: true}), do: true
+  defp trusted_for_free_email?(%User{} = user), do: effective_trust_level(user) >= 3
+
   defp effective_trust_level(%User{} = user) do
     effective_trust_level(user, reputation_snapshot(user))
   end
@@ -397,12 +390,6 @@ defmodule Elektrine.Accounts.Capabilities do
   defp atomine_module_loaded?(module), do: Code.ensure_loaded?(module)
 
   defp credit_label("atomine_credit"), do: "Atomine Credits"
-  defp credit_label("dm_credit"), do: "DM Credits"
-  defp credit_label("email_credit"), do: "Email Credits"
-  defp credit_label("link_credit"), do: "Link Credits"
-  defp credit_label("signup_credit"), do: "Signup Credits"
-  defp credit_label("api_credit"), do: "API Credits"
-  defp credit_label("invite_credit"), do: "Invite Credits"
 
   defp credit_label(value) do
     value

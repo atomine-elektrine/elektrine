@@ -41,36 +41,17 @@
                   <% _ -> %>
                     {gettext("Send an email to someone")}
                 <% end %>
-
-                <%= if @rate_limit_status.daily.remaining < 100 && @rate_limit_status.daily.remaining > 0 do %>
-                  <span class="text-xs text-warning ml-2">
-                    {gettext("(%{count} emails left today)",
-                      count: @rate_limit_status.daily.remaining
-                    )}
-                  </span>
-                <% end %>
               </p>
             </div>
           </div>
-          <!-- Rate Limit Status -->
-          <%= if @rate_limit_status.daily.remaining < 50 do %>
-            <div class={"alert #{if @rate_limit_status.daily.remaining == 0, do: "alert-error", else: "alert-warning"} mb-4"}>
-              <.icon name="hero-exclamation-triangle" class="h-6 w-6" />
-              <div>
-                <%= if @rate_limit_status.daily.remaining == 0 do %>
-                  <span class="font-semibold">{gettext("Daily limit reached!")}</span> {gettext(
-                    "You have sent %{count} emails today.",
-                    count: @rate_limit_status.daily.sent
-                  )}
-                <% else %>
-                  <span class="font-semibold">{gettext("Approaching daily limit!")}</span> {gettext(
-                    "You have %{count} emails remaining today.",
-                    count: @rate_limit_status.daily.remaining
-                  )}
-                <% end %>
-              </div>
+          <div class="alert alert-info mb-4">
+            <.icon name="hero-sparkles" class="h-6 w-6" />
+            <div>
+              {gettext(
+                "External email sends use Atomine Credits unless your account has high trust."
+              )}
             </div>
-          <% end %>
+          </div>
           <!-- Template Selector -->
           <%= if length(@templates) > 0 do %>
             <div class="mb-4">
@@ -1195,7 +1176,6 @@
                   type="submit"
                   variant="secondary"
                   class="min-w-[10rem] h-11 px-4 transition-all duration-150 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-80"
-                  disabled={@rate_limit_status.daily.remaining == 0}
                   loading={@sending}
                   loading_text={gettext("Sending...")}
                 >

@@ -1,6 +1,11 @@
 import Config
 
 dev_port = String.to_integer(System.get_env("PORT") || "4000")
+dev_bind_all? = System.get_env("DEV_BIND_ALL") in ["1", "true", "TRUE", "yes", "YES"]
+dev_http_ip = if dev_bind_all?, do: {0, 0, 0, 0}, else: {127, 0, 0, 1}
+
+dev_allow_insecure_auth? =
+  System.get_env("DEV_ALLOW_INSECURE_AUTH") in ["1", "true", "TRUE", "yes", "YES"]
 
 dev_public_url_env =
   System.get_env("PUBLIC_BASE_URL") ||
@@ -62,8 +67,8 @@ config :elektrine, :environment, :dev
 
 config :elektrine,
   enforce_https: false,
-  allow_insecure_dav_jmap_auth: true,
-  allow_insecure_mail_auth: true,
+  allow_insecure_dav_jmap_auth: dev_allow_insecure_auth?,
+  allow_insecure_mail_auth: dev_allow_insecure_auth?,
   trusted_proxy_cidrs: ["127.0.0.1/32", "::1/128"]
 
 config :elektrine, :mail_client_settings,
@@ -104,11 +109,9 @@ config :elektrine, Elektrine.Repo,
 # to bundle .js and .css sources.
 config :elektrine, ElektrineWeb.Endpoint,
   url: dev_public_url,
-  # Bind to 0.0.0.0 to expose the server to the docker host machine.
-  # This makes make the service accessible from any network interface.
-  # Change to `ip: {127, 0, 0, 1}` to allow access only from the server machine.
+  # Set DEV_BIND_ALL=true to expose the dev server beyond loopback.
   http: [
-    ip: {0, 0, 0, 0},
+    ip: dev_http_ip,
     port: dev_port,
     http_1_options: [
       max_header_count: 50,

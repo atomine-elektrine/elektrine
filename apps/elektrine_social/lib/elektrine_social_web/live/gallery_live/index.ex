@@ -190,80 +190,9 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
   end
 
   def handle_event("save_gallery_photo", _params, socket) do
-    require Logger
-    user_id = socket.assigns.current_user.id
-    Logger.info("Starting gallery upload for user #{user_id}")
-    socket = assign(socket, :uploading, true)
-
-    uploaded_files =
-      consume_uploaded_entries(socket, :gallery_image, fn %{path: path}, entry ->
-        upload_struct = %Plug.Upload{
-          path: path,
-          content_type: entry.client_type,
-          filename: entry.client_name
-        }
-
-        case Elektrine.Uploads.upload_gallery_photo(upload_struct, user_id) do
-          {:ok, metadata} ->
-            Logger.info("Image uploaded successfully: #{metadata.key}")
-            {:ok, metadata}
-
-          {:error, reason} ->
-            Logger.error("Image upload failed: #{inspect(reason)}")
-            {:postpone, :error}
-        end
-      end)
-
-    Logger.info("Uploaded files: #{inspect(uploaded_files)}")
-
-    if Enum.empty?(uploaded_files) do
-      {:noreply, put_flash(socket, :error, "Please select an image to upload")}
-    else
-      uploaded_urls =
-        uploaded_files
-        |> Enum.map(&Map.get(&1, :key))
-        |> Enum.filter(&is_binary/1)
-
-      image_url = hd(uploaded_urls)
-
-      media_metadata =
-        Social.merge_post_media_metadata(%{"attachments" => uploaded_files})
-
-      case Social.create_timeline_post(
-             user_id,
-             socket.assigns.upload_description || "",
-             visibility: socket.assigns.upload_visibility,
-             media_urls: [image_url],
-             media_metadata: media_metadata,
-             title: socket.assigns.upload_title,
-             post_type: "gallery",
-             category: socket.assigns.upload_category
-           ) do
-        {:ok, gallery_post} ->
-          Logger.info("Gallery post created: #{gallery_post.id}")
-          gallery_post = Elektrine.Repo.preload(gallery_post, sender: [:profile])
-
-          Phoenix.PubSub.broadcast(
-            Elektrine.PubSub,
-            "gallery:all",
-            {:new_gallery_post, gallery_post}
-          )
-
-          {:noreply,
-           socket
-           |> assign(:show_upload_modal, false)
-           |> assign(:upload_title, "")
-           |> assign(:upload_description, "")
-           |> assign(:upload_category, "photography")
-           |> assign(:uploading, false)
-           |> put_flash(:info, "Photo uploaded successfully!")}
-
-        {:error, changeset} ->
-          Logger.error("Failed to create gallery post: #{inspect(changeset)}")
-
-          {:noreply,
-           socket |> assign(:uploading, false) |> put_flash(:error, "Failed to upload photo")}
-      end
+    case socket.assigns[:current_user] do
+      nil -> {:noreply, notify_error(socket, "Sign in to upload gallery photos.")}
+      user -> save_gallery_photo(socket, user)
     end
   end
 
@@ -686,6 +615,84 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
       end
     else
       {:noreply, put_flash(socket, :error, "You must be signed in to like photos")}
+    end
+  end
+
+  defp save_gallery_photo(socket, user) do
+    require Logger
+    user_id = user.id
+    Logger.info("Starting gallery upload for user #{user_id}")
+    socket = assign(socket, :uploading, true)
+
+    uploaded_files =
+      consume_uploaded_entries(socket, :gallery_image, fn %{path: path}, entry ->
+        upload_struct = %Plug.Upload{
+          path: path,
+          content_type: entry.client_type,
+          filename: entry.client_name
+        }
+
+        case Elektrine.Uploads.upload_gallery_photo(upload_struct, user_id) do
+          {:ok, metadata} ->
+            Logger.info("Image uploaded successfully: #{metadata.key}")
+            {:ok, metadata}
+
+          {:error, reason} ->
+            Logger.error("Image upload failed: #{inspect(reason)}")
+            {:postpone, :error}
+        end
+      end)
+
+    Logger.info("Uploaded files: #{inspect(uploaded_files)}")
+
+    if Enum.empty?(uploaded_files) do
+      {:noreply, put_flash(socket, :error, "Please select an image to upload")}
+    else
+      uploaded_urls =
+        uploaded_files
+        |> Enum.map(&Map.get(&1, :key))
+        |> Enum.filter(&is_binary/1)
+
+      image_url = hd(uploaded_urls)
+
+      media_metadata =
+        Social.merge_post_media_metadata(%{"attachments" => uploaded_files})
+
+      case Social.create_timeline_post(
+             user_id,
+             socket.assigns.upload_description || "",
+             visibility: socket.assigns.upload_visibility,
+             media_urls: [image_url],
+             media_metadata: media_metadata,
+             title: socket.assigns.upload_title,
+             post_type: "gallery",
+             category: socket.assigns.upload_category
+           ) do
+        {:ok, gallery_post} ->
+          Logger.info("Gallery post created: #{gallery_post.id}")
+          gallery_post = Elektrine.Repo.preload(gallery_post, sender: [:profile])
+
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "gallery:all",
+            {:new_gallery_post, gallery_post}
+          )
+
+          {:noreply,
+           socket
+           |> assign(:show_upload_modal, false)
+           |> assign(:upload_title, "")
+           |> assign(:upload_description, "")
+           |> assign(:upload_category, "photography")
+           |> assign(:uploading, false)
+           |> put_flash(:info, "Photo uploaded successfully!")}
+
+        {:error, changeset} ->
+          Logger.error("Failed to create gallery post: #{inspect(changeset)}")
+
+          {:noreply,
+           socket |> assign(:uploading, false) |> put_flash(:error, "Failed to upload photo")}
+      end
     end
   end
 

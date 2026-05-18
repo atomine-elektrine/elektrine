@@ -54,58 +54,66 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
   end
 
   def handle_event("update_community", params, socket) do
-    description = Map.get(params, "description", "")
-    rules = Map.get(params, "rules", "")
-    category = Map.get(params, "category", "general")
-    community = socket.assigns.community
+    if owner?(socket) do
+      description = Map.get(params, "description", "")
+      rules = Map.get(params, "rules", "")
+      category = Map.get(params, "category", "general")
+      community = socket.assigns.community
 
-    attrs = %{
-      description: description,
-      community_rules: rules,
-      community_category: category
-    }
+      attrs = %{
+        description: description,
+        community_rules: rules,
+        community_category: category
+      }
 
-    case Messaging.update_conversation(community, attrs) do
-      {:ok, updated_community} ->
-        # Broadcast the community update
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "conversation:#{updated_community.id}",
-          {:community_updated, updated_community}
-        )
+      case Messaging.update_conversation(community, attrs) do
+        {:ok, updated_community} ->
+          # Broadcast the community update
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "conversation:#{updated_community.id}",
+            {:community_updated, updated_community}
+          )
 
-        {:noreply,
-         socket
-         |> assign(:community, updated_community)
-         |> notify_info("Community settings updated successfully")}
+          {:noreply,
+           socket
+           |> assign(:community, updated_community)
+           |> notify_info("Community settings updated successfully")}
 
-      {:error, changeset} ->
-        {:noreply,
-         notify_error(socket, "Failed to update settings: #{inspect(changeset.errors)}")}
+        {:error, changeset} ->
+          {:noreply,
+           notify_error(socket, "Failed to update settings: #{inspect(changeset.errors)}")}
+      end
+    else
+      {:noreply, notify_error(socket, "Only the owner can change community settings")}
     end
   end
 
   def handle_event("promote_moderator", %{"user_id" => user_id}, socket) when user_id != "" do
-    community_id = socket.assigns.community.id
-    user_id = String.to_integer(user_id)
+    if owner?(socket) do
+      community_id = socket.assigns.community.id
+      user_id = String.to_integer(user_id)
 
-    case Messaging.promote_to_moderator(community_id, user_id) do
-      {:ok, _member} ->
-        members = Messaging.get_conversation_members(community_id)
+      case Messaging.promote_to_moderator(community_id, user_id) do
+        {:ok, _member} ->
+          members = Messaging.get_conversation_members(community_id)
 
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "conversation:#{community_id}",
-          {:member_role_updated, user_id, "moderator"}
-        )
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "conversation:#{community_id}",
+            {:member_role_updated, user_id, "moderator"}
+          )
 
-        {:noreply,
-         socket
-         |> assign(:members, members)
-         |> notify_info("User promoted to moderator successfully")}
+          {:noreply,
+           socket
+           |> assign(:members, members)
+           |> notify_info("User promoted to moderator successfully")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to promote user to moderator")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to promote user to moderator")}
+      end
+    else
+      {:noreply, notify_error(socket, "Only the owner can change moderators")}
     end
   end
 
@@ -114,28 +122,38 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Settings do
   end
 
   def handle_event("demote_moderator", %{"user_id" => user_id}, socket) do
-    community_id = socket.assigns.community.id
-    user_id = String.to_integer(user_id)
+    if owner?(socket) do
+      community_id = socket.assigns.community.id
+      user_id = String.to_integer(user_id)
 
-    case Messaging.demote_from_moderator(community_id, user_id) do
-      {:ok, _member} ->
-        members = Messaging.get_conversation_members(community_id)
+      case Messaging.demote_from_moderator(community_id, user_id) do
+        {:ok, _member} ->
+          members = Messaging.get_conversation_members(community_id)
 
-        Phoenix.PubSub.broadcast(
-          Elektrine.PubSub,
-          "conversation:#{community_id}",
-          {:member_role_updated, user_id, "member"}
-        )
+          Phoenix.PubSub.broadcast(
+            Elektrine.PubSub,
+            "conversation:#{community_id}",
+            {:member_role_updated, user_id, "member"}
+          )
 
-        {:noreply,
-         socket
-         |> assign(:members, members)
-         |> notify_info("Moderator removed successfully")}
+          {:noreply,
+           socket
+           |> assign(:members, members)
+           |> notify_info("Moderator removed successfully")}
 
-      {:error, _} ->
-        {:noreply, notify_error(socket, "Failed to remove moderator")}
+        {:error, _} ->
+          {:noreply, notify_error(socket, "Failed to remove moderator")}
+      end
+    else
+      {:noreply, notify_error(socket, "Only the owner can change moderators")}
     end
   end
+
+  defp owner?(%{assigns: %{current_user: %{id: user_id}, community: %{id: community_id}}}) do
+    Messaging.community_owner?(community_id, user_id)
+  end
+
+  defp owner?(_socket), do: false
 
   @impl true
   def handle_info({:member_role_updated, _user_id, _new_role}, socket) do

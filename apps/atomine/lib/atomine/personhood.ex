@@ -14,10 +14,12 @@ defmodule Atomine.Personhood do
   alias Atomine.TrustSession
   alias Elektrine.Accounts.ConnectedAccount
   alias Elektrine.Accounts.User
+  alias Elektrine.HTTP.SafeFetch
   alias Elektrine.Repo
 
   @live_check_interval_days 30
   @live_stale_after_days 45
+  @max_web_proof_bytes 256 * 1024
   @proof_statement_version "v1"
 
   @proof_weights %{
@@ -679,16 +681,15 @@ defmodule Atomine.Personhood do
   defp blocked_address?(_address), do: false
 
   defp fetch_web_proof(uri) do
-    start_app(:inets)
-    start_app(:ssl)
+    request = Finch.build(:get, URI.to_string(uri), [{"user-agent", "Elektrine-Atomine-Proofs"}])
 
-    request = {URI.to_string(uri) |> String.to_charlist(), []}
-    http_options = [timeout: 5_000]
-    options = [body_format: :binary]
-
-    case :httpc.request(:get, request, http_options, options) do
-      {:ok, {{_, status, _}, _headers, body}} when status in 200..299 -> {:ok, body}
-      {:ok, {{_, status, _}, _headers, _body}} -> {:error, {:http_status, status}}
+    case SafeFetch.request(request, Elektrine.Finch,
+           receive_timeout: 5_000,
+           pool_timeout: 5_000,
+           max_body_bytes: @max_web_proof_bytes
+         ) do
+      {:ok, %Finch.Response{status: status, body: body}} when status in 200..299 -> {:ok, body}
+      {:ok, %Finch.Response{status: status}} -> {:error, {:http_status, status}}
       {:error, reason} -> {:error, reason}
     end
   end

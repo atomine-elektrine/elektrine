@@ -13,7 +13,8 @@ defmodule Elektrine.HTTP.SafeFetch do
   def request(%Request{} = request, _finch_name, opts) do
     max_body_bytes = Keyword.get(opts, :max_body_bytes, @default_max_body_bytes)
 
-    with {:ok, address} <- resolve_request_address(request, opts),
+    with :ok <- validate_request_port(request, opts),
+         {:ok, address} <- resolve_request_address(request, opts),
          {:ok, conn} <- connect(request, address, opts),
          {:ok, conn, ref} <-
            Mint.HTTP.request(
@@ -68,6 +69,16 @@ defmodule Elektrine.HTTP.SafeFetch do
       protocols: [:http1],
       transport_opts: [timeout: request_connect_timeout(opts)]
     )
+  end
+
+  defp validate_request_port(%Request{} = request, opts) do
+    if Keyword.get(opts, :allow_dangerous_ports, false) do
+      :ok
+    else
+      uri = %URI{scheme: Atom.to_string(request.scheme), host: request.host, port: request.port}
+
+      if URLValidator.dangerous_port?(uri), do: {:error, :dangerous_port}, else: :ok
+    end
   end
 
   defp receive_response(conn, ref, max_body_bytes, receive_timeout) do

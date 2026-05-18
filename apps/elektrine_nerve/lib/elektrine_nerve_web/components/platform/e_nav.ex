@@ -41,9 +41,11 @@ defmodule ElektrineNerveWeb.Components.Platform.ENav do
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
+    |> Enum.filter(&module_visible?/1)
     |> PlatformENav.with_badge_counts(badge_counts)
   end
 
   defp module_visible?(%{platform_module: nil}), do: true
   defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
+  defp module_visible?(_item), do: true
 end

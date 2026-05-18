@@ -6,6 +6,7 @@ defmodule ElektrineWeb.OIDCController do
   alias Elektrine.OAuth.App
   alias Elektrine.OAuth.Scopes
   alias Elektrine.OIDC
+  alias ElektrineWeb.UserAuth
 
   def configuration(conn, _params) do
     json(conn, OIDC.discovery_document(issuer(conn)))
@@ -118,36 +119,42 @@ defmodule ElektrineWeb.OIDCController do
   end
 
   def dynamic_register(conn, params) do
-    attrs = %{
-      client_name: params["client_name"] || params["application_name"],
-      website: params["client_uri"] || params["website"],
-      redirect_uris: normalize_redirect_uris(params["redirect_uris"]),
-      scopes: normalize_scopes(params["scope"] || params["scopes"]),
-      user_id: conn.assigns.current_user && conn.assigns.current_user.id
-    }
+    if recent_auth_valid?(conn) do
+      attrs = %{
+        client_name: params["client_name"] || params["application_name"],
+        website: params["client_uri"] || params["website"],
+        redirect_uris: normalize_redirect_uris(params["redirect_uris"]),
+        scopes: normalize_scopes(params["scope"] || params["scopes"]),
+        user_id: conn.assigns.current_user && conn.assigns.current_user.id
+      }
 
-    case OAuth.create_app(attrs) do
-      {:ok, app} ->
-        conn
-        |> put_status(:created)
-        |> json(%{
-          client_id: app.client_id,
-          client_secret: OAuth.App.client_secret_value(app),
-          client_id_issued_at: DateTime.to_unix(app.inserted_at),
-          client_secret_expires_at: 0,
-          client_name: app.client_name,
-          client_uri: app.website,
-          redirect_uris: App.redirect_uri_list(app),
-          grant_types: ["authorization_code", "refresh_token"],
-          response_types: ["code"],
-          token_endpoint_auth_method: "client_secret_basic",
-          scope: Enum.join(app.scopes, " ")
-        })
+      case OAuth.create_app(attrs) do
+        {:ok, app} ->
+          conn
+          |> put_status(:created)
+          |> json(%{
+            client_id: app.client_id,
+            client_secret: OAuth.App.client_secret_value(app),
+            client_id_issued_at: DateTime.to_unix(app.inserted_at),
+            client_secret_expires_at: 0,
+            client_name: app.client_name,
+            client_uri: app.website,
+            redirect_uris: App.redirect_uri_list(app),
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+            token_endpoint_auth_method: "client_secret_basic",
+            scope: Enum.join(app.scopes, " ")
+          })
 
-      {:error, changeset} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{error: "invalid_client_metadata", details: translate_errors(changeset)})
+        {:error, changeset} ->
+          conn
+          |> put_status(:unprocessable_entity)
+          |> json(%{error: "invalid_client_metadata", details: translate_errors(changeset)})
+      end
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{error: "recent_auth_required"})
     end
   end
 
@@ -331,12 +338,14 @@ defmodule ElektrineWeb.OIDCController do
     end
   end
 
-  defp validate_pkce(params, scopes) do
-    if OIDC.openid_request?(scopes) do
-      validate_required_pkce(params)
-    else
-      validate_optional_pkce(params)
-    end
+  defp validate_pkce(params, _scopes) do
+    validate_required_pkce(params)
+  end
+
+  defp recent_auth_valid?(conn) do
+    conn
+    |> get_session(UserAuth.recent_auth_session_key())
+    |> UserAuth.recent_auth_valid?()
   end
 
   defp validate_required_pkce(params) do
@@ -346,17 +355,6 @@ defmodule ElektrineWeb.OIDCController do
     cond do
       is_nil(code_challenge) -> invalid_request_error(params)
       code_challenge_method in [nil, "S256"] -> :ok
-      true -> invalid_request_error(params)
-    end
-  end
-
-  defp validate_optional_pkce(params) do
-    code_challenge = blank_to_nil(params["code_challenge"])
-    code_challenge_method = blank_to_nil(params["code_challenge_method"])
-
-    cond do
-      is_nil(code_challenge) and is_nil(code_challenge_method) -> :ok
-      is_binary(code_challenge) and code_challenge_method in [nil, "S256"] -> :ok
       true -> invalid_request_error(params)
     end
   end

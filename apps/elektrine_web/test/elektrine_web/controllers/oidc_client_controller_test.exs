@@ -4,6 +4,7 @@ defmodule ElektrineWeb.OIDCClientControllerTest do
   import Elektrine.AccountsFixtures
 
   alias Elektrine.OAuth
+  alias ElektrineWeb.UserAuth
 
   test "authenticated user can register and delete oidc clients", %{conn: conn} do
     user = user_fixture()
@@ -93,5 +94,6 @@ defmodule ElektrineWeb.OIDCClientControllerTest do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+    |> Plug.Conn.put_session(UserAuth.recent_auth_session_key(), System.system_time(:second))
   end
 end

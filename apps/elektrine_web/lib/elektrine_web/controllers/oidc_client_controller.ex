@@ -2,6 +2,7 @@ defmodule ElektrineWeb.OIDCClientController do
   use ElektrineWeb, :controller
 
   alias Elektrine.OAuth
+  alias ElektrineWeb.UserAuth
 
   @recommended_scopes ["openid", "profile", "email", "read"]
 
@@ -48,96 +49,127 @@ defmodule ElektrineWeb.OIDCClientController do
   end
 
   def create(conn, %{"app" => app_params}) do
-    scopes = normalize_scopes(app_params["scopes"])
+    if recent_auth_valid?(conn) do
+      scopes = normalize_scopes(app_params["scopes"])
 
-    attrs =
-      app_params
-      |> Map.put("scopes", scopes)
-      |> Map.put("redirect_uris", normalize_redirect_uris(app_params["redirect_uris"]))
-      |> Map.put("user_id", conn.assigns.current_user.id)
+      attrs =
+        app_params
+        |> Map.put("scopes", scopes)
+        |> Map.put("redirect_uris", normalize_redirect_uris(app_params["redirect_uris"]))
+        |> Map.put("user_id", conn.assigns.current_user.id)
 
-    case OAuth.create_app(attrs) do
-      {:ok, _app} ->
-        conn
-        |> put_flash(:info, "OAuth client created.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+      case OAuth.create_app(attrs) do
+        {:ok, _app} ->
+          conn
+          |> put_flash(:info, "OAuth client created.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
 
-      {:error, changeset} ->
-        render(conn, :new,
-          changeset: changeset,
-          scope_options: @scope_options,
-          selected_scopes: scopes,
-          current_user: conn.assigns.current_user
-        )
+        {:error, changeset} ->
+          render(conn, :new,
+            changeset: changeset,
+            scope_options: @scope_options,
+            selected_scopes: scopes,
+            current_user: conn.assigns.current_user
+          )
+      end
+    else
+      recent_auth_required(conn)
     end
   end
 
   def delete(conn, %{"id" => id}) do
-    case OAuth.get_user_app(conn.assigns.current_user, id) do
-      nil ->
-        conn
-        |> put_flash(:error, "OAuth client not found.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+    if recent_auth_valid?(conn) do
+      case OAuth.get_user_app(conn.assigns.current_user, id) do
+        nil ->
+          conn
+          |> put_flash(:error, "OAuth client not found.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
 
-      app ->
-        {:ok, _} = OAuth.delete_app(app.id)
+        app ->
+          {:ok, _} = OAuth.delete_app(app.id)
 
-        conn
-        |> put_flash(:info, "OAuth client deleted.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+          conn
+          |> put_flash(:info, "OAuth client deleted.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
+      end
+    else
+      recent_auth_required(conn)
     end
   end
 
   def update(conn, %{"id" => id, "app" => app_params}) do
-    scopes = normalize_scopes(app_params["scopes"])
+    if recent_auth_valid?(conn) do
+      scopes = normalize_scopes(app_params["scopes"])
 
-    attrs =
-      app_params
-      |> Map.put("scopes", scopes)
-      |> Map.put("redirect_uris", normalize_redirect_uris(app_params["redirect_uris"]))
+      attrs =
+        app_params
+        |> Map.put("scopes", scopes)
+        |> Map.put("redirect_uris", normalize_redirect_uris(app_params["redirect_uris"]))
 
-    case OAuth.update_user_app(conn.assigns.current_user, id, attrs) do
-      {:ok, _app} ->
-        conn
-        |> put_flash(:info, "OAuth client updated.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+      case OAuth.update_user_app(conn.assigns.current_user, id, attrs) do
+        {:ok, _app} ->
+          conn
+          |> put_flash(:info, "OAuth client updated.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
 
-      {:error, changeset} ->
-        app = OAuth.get_user_app(conn.assigns.current_user, id)
+        {:error, changeset} ->
+          app = OAuth.get_user_app(conn.assigns.current_user, id)
 
-        render(conn, :edit,
-          app: app,
-          changeset: changeset,
-          scope_options: @scope_options,
-          selected_scopes: scopes,
-          redirect_uri_text: app_params["redirect_uris"] || "",
-          current_user: conn.assigns.current_user
-        )
+          render(conn, :edit,
+            app: app,
+            changeset: changeset,
+            scope_options: @scope_options,
+            selected_scopes: scopes,
+            redirect_uri_text: app_params["redirect_uris"] || "",
+            current_user: conn.assigns.current_user
+          )
 
-      nil ->
-        conn
-        |> put_flash(:error, "OAuth client not found.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+        nil ->
+          conn
+          |> put_flash(:error, "OAuth client not found.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
+      end
+    else
+      recent_auth_required(conn)
     end
   end
 
   def rotate_secret(conn, %{"id" => id}) do
-    case OAuth.rotate_app_secret(conn.assigns.current_user, id) do
-      {:ok, _app} ->
-        conn
-        |> put_flash(:info, "Client secret rotated.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+    if recent_auth_valid?(conn) do
+      case OAuth.rotate_app_secret(conn.assigns.current_user, id) do
+        {:ok, _app} ->
+          conn
+          |> put_flash(:info, "Client secret rotated.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
 
-      nil ->
-        conn
-        |> put_flash(:error, "OAuth client not found.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+        nil ->
+          conn
+          |> put_flash(:error, "OAuth client not found.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
 
-      {:error, _changeset} ->
-        conn
-        |> put_flash(:error, "Could not rotate client secret.")
-        |> redirect(to: ~p"/account/developer/oidc/clients")
+        {:error, _changeset} ->
+          conn
+          |> put_flash(:error, "Could not rotate client secret.")
+          |> redirect(to: ~p"/account/developer/oidc/clients")
+      end
+    else
+      recent_auth_required(conn)
     end
+  end
+
+  defp recent_auth_valid?(conn) do
+    conn
+    |> get_session(UserAuth.recent_auth_session_key())
+    |> UserAuth.recent_auth_valid?()
+  end
+
+  defp recent_auth_required(conn) do
+    conn
+    |> put_flash(
+      :error,
+      "Managing OAuth clients requires a recent login. Sign in again and retry."
+    )
+    |> redirect(to: ~p"/account/developer/oidc/clients")
   end
 
   defp normalize_scopes(nil), do: ["openid", "profile", "email", "read"]

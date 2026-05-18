@@ -4,6 +4,7 @@ defmodule Elektrine.Email.PlatformEmailHeadersTest do
   import Elektrine.AccountsFixtures
   import Swoosh.TestAssertions
 
+  alias Atomine.Credits
   alias Elektrine.Email
   alias Elektrine.Email.Sender
   alias Elektrine.Email.Unsubscribes
@@ -47,6 +48,7 @@ defmodule Elektrine.Email.PlatformEmailHeadersTest do
 
   test "mass email adds verifiable unsubscribe headers" do
     user = user_fixture()
+    assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
 
     assert {:ok, _response} =
@@ -71,6 +73,7 @@ defmodule Elektrine.Email.PlatformEmailHeadersTest do
 
   test "mass email with multiple recipients is split for recipient-specific unsubscribe tokens" do
     user = user_fixture()
+    assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 2, "test_grant")
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
 
     assert {:ok, %{sent_count: 2}} =

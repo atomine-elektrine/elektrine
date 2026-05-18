@@ -105,7 +105,7 @@ defmodule Elektrine.VPN.Server do
   defp valid_port_range?(_start_port, _end_port), do: false
 
   defp port_value(metadata, key) do
-    case Map.get(metadata, key) || Map.get(metadata, String.to_atom(key)) do
+    case Map.get(metadata, key) || existing_atom_map_value(metadata, key) do
       value when is_integer(value) ->
         value
 
@@ -139,4 +139,12 @@ defmodule Elektrine.VPN.Server do
       )
     end
   end
+
+  defp existing_atom_map_value(map, key) when is_map(map) and is_binary(key) do
+    Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp existing_atom_map_value(_map, _key), do: nil
 end

@@ -81,29 +81,7 @@ defmodule ElektrineEmailWeb.API.EmailController do
   @doc ~s|POST /api/emails/send\nSends a new email\n|
   def send_email(conn, %{"email" => email_params}) do
     user = conn.assigns[:current_user]
-
-    case Elektrine.Email.RateLimiter.check_rate_limit(user.id) do
-      {:ok, _remaining} ->
-        attempt_send_email(conn, user, email_params)
-
-      {:error, :minute_limit_exceeded} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Rate limit exceeded: maximum 10 emails per minute"})
-
-      {:error, :hourly_limit_exceeded} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Rate limit exceeded: maximum 100 emails per hour"})
-
-      {:error, :daily_limit_exceeded} ->
-        conn
-        |> put_status(:too_many_requests)
-        |> json(%{error: "Rate limit exceeded: maximum 1000 emails per day"})
-
-      {:error, _reason} ->
-        conn |> put_status(:too_many_requests) |> json(%{error: "Rate limit exceeded"})
-    end
+    attempt_send_email(conn, user, email_params)
   end
 
   defp attempt_send_email(conn, user, email_params) do
@@ -128,6 +106,16 @@ defmodule ElektrineEmailWeb.API.EmailController do
       case Elektrine.Email.Sender.send_email(user.id, params) do
         {:ok, _message} ->
           conn |> put_status(:ok) |> json(%{message: "Email sent successfully"})
+
+        {:error, :rate_limit_exceeded} ->
+          conn
+          |> put_status(:too_many_requests)
+          |> json(%{error: "Rate limit exceeded"})
+
+        {:error, :insufficient_email_credits} ->
+          conn
+          |> put_status(:payment_required)
+          |> json(%{error: "insufficient_email_credits"})
 
         {:error, reason} ->
           conn

@@ -150,7 +150,7 @@ export const VPNDownload = {
 }
 
 /**
- * Atomine Gate Hook
+ * Security check hook
  * Solves configured anti-abuse layers before submitting.
  */
 export const AtominePow = {
@@ -159,6 +159,7 @@ export const AtominePow = {
     this.statusEl = this.el.querySelector('[data-atomine-pow-status]')
     this.difficulty = normalizeDifficulty(this.el.dataset.difficulty)
     this.inFlight = null
+    this.submittingWithToken = false
     this.handleSubmit = (event) => this.onSubmit(event)
 
     if (this.form) {
@@ -171,21 +172,23 @@ export const AtominePow = {
 
     if (this.form?.dataset.atominePowSkip === 'true') {
       delete this.form.dataset.atominePowSkip
+      this.submittingWithToken = false
       return
     }
-
-    if (this.responseToken()) return
 
     event.preventDefault()
     event.stopImmediatePropagation()
 
+    if (this.submittingWithToken) return
+
     try {
       await this.ensureToken()
+      this.submittingWithToken = true
       this.form.dataset.atominePowSkip = 'true'
       this.requestSubmit(event.submitter)
     } catch (_error) {
       this.setResponseToken('')
-      this.showError('Anti-abuse check failed. Please try again.')
+      this.showError('Security check failed. Please try again.')
     }
   },
 
@@ -242,7 +245,7 @@ export const AtominePow = {
 
     this.ensureResponseInput(this.form)
     this.clearError()
-    this.setStatus('Preparing the abuse check...')
+    this.setStatus('Preparing the security check...')
 
     const challengeResponse = await postJson('/api/atomine/pow/challenge', {
       difficulty: this.difficulty

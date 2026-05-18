@@ -33,7 +33,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert conn.status == 401
     end
 
-    test "accepts the API key from the path for Caddy ask URLs", %{
+    test "rejects the removed path API key route for Caddy ask URLs", %{
       conn: conn,
       api_key: api_key
     } do
@@ -56,8 +56,7 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
         )
         |> get(allow_path_with_token(verified_domain, api_key))
 
-      assert conn.status == 200
-      assert response(conn, 200) == "allowed"
+      assert conn.status == 404
     end
 
     test "rejects the old token query parameter for Caddy ask URLs", %{

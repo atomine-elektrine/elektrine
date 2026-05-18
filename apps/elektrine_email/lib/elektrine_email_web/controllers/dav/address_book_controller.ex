@@ -16,6 +16,8 @@ defmodule ElektrineEmailWeb.DAV.AddressBookController do
 
   require Logger
 
+  @max_dav_body_size 1_000_000
+
   @doc """
   PROPFIND on addressbook home - lists available addressbooks.
   """
@@ -105,20 +107,24 @@ defmodule ElektrineEmailWeb.DAV.AddressBookController do
     if user.username != username do
       ResponseHelpers.send_forbidden(conn)
     else
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      case read_limited_body(conn) do
+        {:ok, body, conn} ->
+          cond do
+            String.contains?(body, "addressbook-multiget") ->
+              handle_multiget(conn, user, body)
 
-      cond do
-        String.contains?(body, "addressbook-multiget") ->
-          handle_multiget(conn, user, body)
+            String.contains?(body, "addressbook-query") ->
+              handle_query(conn, user, body)
 
-        String.contains?(body, "addressbook-query") ->
-          handle_query(conn, user, body)
+            String.contains?(body, "sync-collection") ->
+              handle_sync(conn, user, body)
 
-        String.contains?(body, "sync-collection") ->
-          handle_sync(conn, user, body)
+            true ->
+              ResponseHelpers.send_multistatus(conn, [])
+          end
 
-        true ->
-          ResponseHelpers.send_multistatus(conn, [])
+        {:error, conn} ->
+          conn
       end
     end
   end
@@ -157,75 +163,34 @@ defmodule ElektrineEmailWeb.DAV.AddressBookController do
       ResponseHelpers.send_forbidden(conn)
     else
       uid = String.replace_suffix(contact_uid, ".vcf", "")
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
 
-      # Check If-Match header for conditional update
-      if_match = get_req_header(conn, "if-match") |> List.first()
-      if_none_match = get_req_header(conn, "if-none-match") |> List.first()
+      case read_limited_body(conn) do
+        {:ok, body, conn} ->
+          # Check If-Match header for conditional update
+          if_match = get_req_header(conn, "if-match") |> List.first()
+          if_none_match = get_req_header(conn, "if-none-match") |> List.first()
 
-      existing = Contacts.get_contact_by_uid(user.id, uid)
+          existing = Contacts.get_contact_by_uid(user.id, uid)
 
-      cond do
-        # If-None-Match: * means only create, don't update
-        if_none_match == "*" && existing ->
-          ResponseHelpers.send_precondition_failed(conn)
+          cond do
+            # If-None-Match: * means only create, don't update
+            if_none_match == "*" && existing ->
+              ResponseHelpers.send_precondition_failed(conn)
 
-        # If-Match means only update if etag matches
-        if_match && existing && "\"#{existing.etag}\"" != if_match ->
-          ResponseHelpers.send_precondition_failed(conn)
+            # If-Match means only update if etag matches
+            if_match && existing && "\"#{existing.etag}\"" != if_match ->
+              ResponseHelpers.send_precondition_failed(conn)
 
-        # If-Match with no existing resource
-        if_match && !existing ->
-          ResponseHelpers.send_precondition_failed(conn)
+            # If-Match with no existing resource
+            if_match && !existing ->
+              ResponseHelpers.send_precondition_failed(conn)
 
-        true ->
-          # Parse vCard
-          case VCard.parse(body) do
-            {:ok, contact_data} ->
-              contact_attrs =
-                Map.merge(contact_data, %{
-                  user_id: user.id,
-                  uid: uid,
-                  vcard_data: body,
-                  # Derive primary email if not set
-                  email: contact_data[:email] || get_primary_email(contact_data),
-                  # Derive name if not set
-                  name: contact_data[:name] || contact_data[:formatted_name] || "Unknown"
-                })
-
-              result =
-                if existing do
-                  Contacts.update_contact_carddav(existing, contact_attrs)
-                else
-                  Contacts.create_contact_carddav(contact_attrs)
-                end
-
-              case result do
-                {:ok, contact} ->
-                  # Update user's addressbook ctag
-                  update_addressbook_ctag(user)
-
-                  if existing do
-                    ResponseHelpers.send_no_content(conn, contact.etag)
-                  else
-                    ResponseHelpers.send_created(conn, contact.etag)
-                  end
-
-                {:error, changeset} ->
-                  Logger.error("CardDAV PUT failed: #{inspect(changeset.errors)}")
-
-                  conn
-                  |> put_resp_content_type("text/plain")
-                  |> send_resp(400, "Invalid vCard data")
-              end
-
-            {:error, reason} ->
-              Logger.error("CardDAV vCard parse failed: #{inspect(reason)}")
-
-              conn
-              |> put_resp_content_type("text/plain")
-              |> send_resp(400, "Invalid vCard format")
+            true ->
+              upsert_contact(conn, user, uid, existing, body)
           end
+
+        {:error, conn} ->
+          conn
       end
     end
   end
@@ -398,6 +363,60 @@ defmodule ElektrineEmailWeb.DAV.AddressBookController do
 
   defp get_primary_email(%{email: email}) when is_binary(email), do: email
   defp get_primary_email(_), do: nil
+
+  defp upsert_contact(conn, user, uid, existing, body) do
+    case VCard.parse(body) do
+      {:ok, contact_data} ->
+        contact_attrs =
+          Map.merge(contact_data, %{
+            user_id: user.id,
+            uid: uid,
+            vcard_data: body,
+            email: contact_data[:email] || get_primary_email(contact_data),
+            name: contact_data[:name] || contact_data[:formatted_name] || "Unknown"
+          })
+
+        result =
+          if existing do
+            Contacts.update_contact_carddav(existing, contact_attrs)
+          else
+            Contacts.create_contact_carddav(contact_attrs)
+          end
+
+        case result do
+          {:ok, contact} ->
+            update_addressbook_ctag(user)
+
+            if existing do
+              ResponseHelpers.send_no_content(conn, contact.etag)
+            else
+              ResponseHelpers.send_created(conn, contact.etag)
+            end
+
+          {:error, changeset} ->
+            Logger.error("CardDAV PUT failed: #{inspect(changeset.errors)}")
+
+            conn
+            |> put_resp_content_type("text/plain")
+            |> send_resp(400, "Invalid vCard data")
+        end
+
+      {:error, reason} ->
+        Logger.error("CardDAV vCard parse failed: #{inspect(reason)}")
+
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(400, "Invalid vCard format")
+    end
+  end
+
+  defp read_limited_body(conn) do
+    case Plug.Conn.read_body(conn, length: @max_dav_body_size, read_length: 64_000) do
+      {:ok, body, conn} -> {:ok, body, conn}
+      {:more, _partial, conn} -> {:error, send_resp(conn, 413, "Request body too large")}
+      {:error, _reason} -> {:error, send_resp(conn, 400, "Invalid request body")}
+    end
+  end
 
   defp base_url(conn) do
     scheme = if conn.scheme == :https, do: "https", else: "http"

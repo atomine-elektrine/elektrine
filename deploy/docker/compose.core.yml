@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
     container_name: elektrine_db
     shm_size: ${POSTGRES_SHM_SIZE:-512m}
     command:

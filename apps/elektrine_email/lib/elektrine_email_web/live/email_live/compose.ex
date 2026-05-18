@@ -1948,9 +1948,6 @@ Subject: #{message.subject}#{attachment_info}
         status.attempts[3600].remaining == 0 ->
           "You have reached your hourly limit of #{status.attempts[3600].limit} emails. Please try again later."
 
-        status.attempts[86_400].remaining == 0 ->
-          "You have reached your daily limit of #{status.attempts[86_400].limit} emails. Please try again tomorrow."
-
         true ->
           "Email rate limit exceeded. Please try again later."
       end

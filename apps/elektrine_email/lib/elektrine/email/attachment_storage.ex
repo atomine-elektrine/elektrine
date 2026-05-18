@@ -166,14 +166,12 @@ defmodule Elektrine.Email.AttachmentStorage do
   end
 
   defp download_from_local(key) do
-    path = local_storage_path(key)
+    with {:ok, path} <- local_storage_path(key),
+         {:ok, content} <- File.read(path) do
+      Events.upload(:email_attachment_download, :success, byte_size(content), %{source: "local"})
 
-    case File.read(path) do
-      {:ok, content} ->
-        Events.upload(:email_attachment_download, :success, byte_size(content), %{source: "local"})
-
-        {:ok, content}
-
+      {:ok, content}
+    else
       {:error, error} ->
         Logger.error("Failed to download attachment from local storage: #{inspect(error)}")
 
@@ -219,22 +217,20 @@ defmodule Elektrine.Email.AttachmentStorage do
   def get_attachment_url(_), do: nil
 
   defp upload_attachment_local(key, content, _content_type, bytes) do
-    path = local_storage_path(key)
-    File.mkdir_p!(Path.dirname(path))
+    with {:ok, path} <- local_storage_path(key),
+         :ok <- File.mkdir_p(Path.dirname(path)),
+         :ok <- File.write(path, content) do
+      Logger.info("Successfully uploaded attachment to local storage: #{key}")
+      Events.upload(:email_attachment, :success, bytes, %{source: "local"})
 
-    case File.write(path, content) do
-      :ok ->
-        Logger.info("Successfully uploaded attachment to local storage: #{key}")
-        Events.upload(:email_attachment, :success, bytes, %{source: "local"})
-
-        {:ok,
-         %{
-           "storage_type" => "local",
-           "key" => key,
-           "size" => bytes,
-           "uploaded_at" => DateTime.utc_now() |> DateTime.to_iso8601()
-         }}
-
+      {:ok,
+       %{
+         "storage_type" => "local",
+         "key" => key,
+         "size" => bytes,
+         "uploaded_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+       }}
+    else
       {:error, error} ->
         Logger.error("Failed to upload attachment to local storage: #{inspect(error)}")
 
@@ -291,36 +287,50 @@ defmodule Elektrine.Email.AttachmentStorage do
   end
 
   defp delete_attachment_local(key) do
-    path = local_storage_path(key)
+    case local_storage_path(key) do
+      {:ok, path} ->
+        case File.rm(path) do
+          :ok ->
+            Logger.info("Deleted attachment from local storage: #{key}")
+            Events.upload(:email_attachment_delete, :success, nil, %{source: "local"})
+            :ok
 
-    case File.rm(path) do
-      :ok ->
-        Logger.info("Deleted attachment from local storage: #{key}")
-        Events.upload(:email_attachment_delete, :success, nil, %{source: "local"})
-        :ok
+          {:error, :enoent} ->
+            Events.upload(:email_attachment_delete, :success, nil, %{source: "local"})
+            :ok
 
-      {:error, :enoent} ->
-        Events.upload(:email_attachment_delete, :success, nil, %{source: "local"})
-        :ok
+          {:error, error} ->
+            Logger.error("Failed to delete local attachment: #{inspect(error)}")
+
+            Events.upload(:email_attachment_delete, :failure, nil, %{
+              reason: inspect(error),
+              source: "local"
+            })
+
+            {:error, error}
+        end
 
       {:error, error} ->
         Logger.error("Failed to delete local attachment: #{inspect(error)}")
-
-        Events.upload(:email_attachment_delete, :failure, nil, %{
-          reason: inspect(error),
-          source: "local"
-        })
-
         {:error, error}
     end
   end
 
-  defp local_storage_path(key) do
+  defp local_storage_path(key) when is_binary(key) do
     uploads_dir =
       Application.get_env(:elektrine, :uploads, [])[:uploads_dir] || "priv/static/uploads"
 
-    Path.join(uploads_dir, key)
+    path = Path.expand(Path.join(uploads_dir, key))
+    root = Path.expand(uploads_dir)
+
+    if String.starts_with?(path, root <> "/") do
+      {:ok, path}
+    else
+      {:error, :invalid_storage_key}
+    end
   end
+
+  defp local_storage_path(_), do: {:error, :invalid_storage_key}
 
   defp get_s3_attachment_url(s3_key) do
     bucket = get_bucket()

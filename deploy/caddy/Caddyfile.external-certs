@@ -3,7 +3,9 @@
 	storage file_system /data/caddy
 
 	on_demand_tls {
-		ask {$CADDY_ASK_URL}/{$CADDY_EDGE_API_KEY}
+		ask {$CADDY_ASK_URL}?edge_token={$CADDY_EDGE_API_KEY}
+		interval 2m
+		burst 10
 	}
 
 	auto_https disable_redirects
@@ -67,6 +69,7 @@
 	tls {$CADDY_MANAGED_SITE_1_CERT_PATH} {$CADDY_MANAGED_SITE_1_KEY_PATH}
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -81,6 +84,7 @@
 	tls {$CADDY_MANAGED_SITE_2_CERT_PATH} {$CADDY_MANAGED_SITE_2_KEY_PATH}
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}
@@ -98,6 +102,7 @@ https:// {
 
 	header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 	import admin_netbird_gate
+	respond /_edge/* "Not Found" 404
 
 	reverse_proxy {$ORIGIN_UPSTREAM:app:8080} {
 		header_up Host {host}

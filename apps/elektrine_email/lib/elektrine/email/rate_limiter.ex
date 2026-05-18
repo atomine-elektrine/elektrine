@@ -1,42 +1,39 @@
 defmodule Elektrine.Email.RateLimiter do
   @moduledoc """
-  Handles email sending rate limiting with tiered limits based on trust level and account age.
+  Handles email sending abuse throttles with tiered short-window and recipient limits.
 
   ## Warmup Period (TL0 accounts)
 
   Day 1:
-  - 1 email per minute, 5 per hour, 10 per day, 3 recipients
+  - 1 email per minute, 5 per hour, 3 recipients
 
   Days 2-3:
-  - 2 emails per minute, 8 per hour, 10 per day, 5 recipients
+  - 2 emails per minute, 8 per hour, 5 recipients
 
   Days 4-7:
-  - 2 emails per minute, 15 per hour, 10 per day, 10 recipients
+  - 2 emails per minute, 15 per hour, 10 recipients
 
   Week 2 (days 8-14):
-  - 3 emails per minute, 25 per hour, 10 per day, 15 recipients
+  - 3 emails per minute, 25 per hour, 15 recipients
 
   Weeks 3-4 (days 15-30):
-  - 3 emails per minute, 35 per hour, 10 per day, 20 recipients
+  - 3 emails per minute, 35 per hour, 20 recipients
 
   ## Trust Level Tiers (override warmup)
 
   TL1 (Basic trust):
   - 5 emails per minute
   - 50 emails per hour
-  - 200 emails per day
   - 50 unique recipients per day
 
   TL2 (Member):
   - 10 emails per minute
   - 100 emails per hour
-  - 500 emails per day
   - 100 unique recipients per day
 
   TL3+ (Regular/Leader):
   - 15 emails per minute
   - 150 emails per hour
-  - 1000 emails per day
   - 200 unique recipients per day
   """
 
@@ -78,10 +75,9 @@ defmodule Elektrine.Email.RateLimiter do
   Checks if a user can send an email based on their tier limits.
 
   Returns:
-  - `{:ok, remaining}` - Can send, returns remaining daily quota
+  - `{:ok, :allowed}` - Can send under short-window throttles
   - `{:error, :minute_limit_exceeded}` - Hit per-minute limit
   - `{:error, :hourly_limit_exceeded}` - Hit hourly limit
-  - `{:error, :daily_limit_exceeded}` - Hit daily limit
   - `{:error, :recipient_limit_exceeded}` - Hit unique recipient limit
   - `{:error, :account_restricted}` - Account is restricted due to repeated violations
   """
@@ -101,14 +97,12 @@ defmodule Elektrine.Email.RateLimiter do
     tier = limits.tier
     minute_limit = limits.minute_limit
     hour_limit = limits.hour_limit
-    day_limit = limits.day_limit
 
     now = System.system_time(:second)
     attempts = get_attempts(user_id)
 
     minute_count = count_recent(attempts, now, 60)
     hour_count = count_recent(attempts, now, 3600)
-    day_count = count_recent(attempts, now, 86_400)
 
     cond do
       minute_count >= minute_limit ->
@@ -127,16 +121,8 @@ defmodule Elektrine.Email.RateLimiter do
         record_violation(user_id, :hourly_limit_exceeded)
         {:error, :hourly_limit_exceeded}
 
-      day_count >= day_limit ->
-        Logger.warning(
-          "User #{user_id} (#{tier}) exceeded daily limit: #{day_count}/#{day_limit}"
-        )
-
-        record_violation(user_id, :daily_limit_exceeded)
-        {:error, :daily_limit_exceeded}
-
       true ->
-        {:ok, day_limit - day_count}
+        {:ok, :allowed}
     end
   end
 

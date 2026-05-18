@@ -247,6 +247,16 @@ async function importRsaPrivateKey(privateKeyBase64) {
   )
 }
 
+async function importStoredRsaPrivateKey(privateKeyBase64) {
+  return window.crypto.subtle.importKey(
+    'pkcs8',
+    arrayBufferFromBytes(base64ToBytes(privateKeyBase64)),
+    { name: 'RSA-OAEP', hash: 'SHA-256' },
+    false,
+    ['decrypt']
+  )
+}
+
 async function importEcdsaPublicKey(publicKeyPayload) {
   const key = publicKeyPayload?.key
 
@@ -264,6 +274,16 @@ async function importEcdsaPublicKey(publicKeyPayload) {
 }
 
 async function importEcdsaPrivateKey(privateKeyBase64) {
+  return window.crypto.subtle.importKey(
+    'pkcs8',
+    arrayBufferFromBytes(base64ToBytes(privateKeyBase64)),
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  )
+}
+
+async function importStoredEcdsaPrivateKey(privateKeyBase64) {
   return window.crypto.subtle.importKey(
     'pkcs8',
     arrayBufferFromBytes(base64ToBytes(privateKeyBase64)),
@@ -837,7 +857,7 @@ export const ChatE2EE = {
     const key = this.deviceStorageKey()
     const stored = await this.loadSecureJson(key)
 
-    if (stored?.device_id && stored?.private_key && stored?.public_key) {
+    if (stored?.device_id && (stored?.private_key_crypto || stored?.private_key) && stored?.public_key) {
       const upgraded = await this.upgradeDeviceTrustMaterial(stored)
       this.cachedDevice = upgraded
       return upgraded
@@ -862,7 +882,7 @@ export const ChatE2EE = {
     const device = await this.upgradeDeviceTrustMaterial({
       device_id: randomId('web-'),
       public_key: bytesToBase64(publicKey),
-      private_key: bytesToBase64(privateKey),
+      private_key_crypto: await importStoredRsaPrivateKey(bytesToBase64(privateKey)),
       key_algorithm: 'RSA-OAEP-SHA256',
       label: this.deviceLabel()
     })
@@ -890,7 +910,9 @@ export const ChatE2EE = {
   },
 
   async upgradeDeviceTrustMaterial(device) {
-    if (device.signing_private_key && device.signing_public_key && device.fingerprint && device.device_signature) {
+    device = await this.migrateDevicePrivateKeys(device)
+
+    if (device.signing_private_key_crypto && device.signing_public_key && device.fingerprint && device.device_signature) {
       return device
     }
 
@@ -908,7 +930,7 @@ export const ChatE2EE = {
     const upgraded = {
       ...device,
       signing_public_key: bytesToBase64(signingPublicKey),
-      signing_private_key: bytesToBase64(signingPrivateKey)
+      signing_private_key_crypto: await importStoredEcdsaPrivateKey(bytesToBase64(signingPrivateKey))
     }
 
     upgraded.fingerprint = await this.deviceFingerprint(upgraded)
@@ -919,12 +941,36 @@ export const ChatE2EE = {
     return upgraded
   },
 
+  async migrateDevicePrivateKeys(device) {
+    let migrated = { ...device }
+    let changed = false
+
+    if (!migrated.private_key_crypto && migrated.private_key) {
+      migrated.private_key_crypto = await importStoredRsaPrivateKey(migrated.private_key)
+      delete migrated.private_key
+      changed = true
+    }
+
+    if (!migrated.signing_private_key_crypto && migrated.signing_private_key) {
+      migrated.signing_private_key_crypto = await importStoredEcdsaPrivateKey(migrated.signing_private_key)
+      delete migrated.signing_private_key
+      changed = true
+    }
+
+    if (changed) {
+      await secureStorageSet(this.deviceStorageKey(), migrated)
+      localStorage.removeItem(this.deviceStorageKey())
+    }
+
+    return migrated
+  },
+
   async deviceFingerprint(device) {
     return sha256Base64Url(stableJson(deviceFingerprintPayload(device)))
   },
 
   async signDeviceFingerprint(device, fingerprint) {
-    const signingKey = await importEcdsaPrivateKey(device.signing_private_key)
+    const signingKey = device.signing_private_key_crypto || await importEcdsaPrivateKey(device.signing_private_key)
     const signature = await window.crypto.subtle.sign(
       { name: 'ECDSA', hash: 'SHA-256' },
       signingKey,
@@ -1535,7 +1581,7 @@ export const ChatE2EE = {
   },
 
   async decryptWrappedConversationKey(device, wrappedKey) {
-    const privateKey = await importRsaPrivateKey(device.private_key)
+    const privateKey = device.private_key_crypto || await importRsaPrivateKey(device.private_key)
     const rawKey = await window.crypto.subtle.decrypt(
       { name: 'RSA-OAEP' },
       privateKey,
@@ -1547,6 +1593,11 @@ export const ChatE2EE = {
 
   async loadRawConversationKey(conversationId, keyUid) {
     const storageKey = this.rawKeyStorageKey(conversationId, keyUid)
+    const cacheKey = this.rawConversationKeyCacheKey(conversationId, keyUid)
+
+    if (!this.rawConversationKeyCache) this.rawConversationKeyCache = new Map()
+    if (this.rawConversationKeyCache.has(cacheKey)) return this.rawConversationKeyCache.get(cacheKey)
+
     let key = null
 
     try {
@@ -1555,20 +1606,29 @@ export const ChatE2EE = {
       key = null
     }
 
-    if (key) return base64ToBytes(key)
+    if (key) {
+      const bytes = base64ToBytes(key)
+      this.rawConversationKeyCache.set(cacheKey, bytes)
+      await secureStorageDelete(storageKey)
+      return bytes
+    }
 
     const legacyKey = localStorage.getItem(storageKey)
     if (legacyKey) {
-      await secureStorageSet(storageKey, legacyKey)
+      const bytes = base64ToBytes(legacyKey)
       localStorage.removeItem(storageKey)
-      return base64ToBytes(legacyKey)
+      this.rawConversationKeyCache.set(cacheKey, bytes)
+      return bytes
     }
 
     return null
   },
 
   async storeRawConversationKey(conversationId, keyUid, rawKeyBytes) {
-    await secureStorageSet(this.rawKeyStorageKey(conversationId, keyUid), bytesToBase64(rawKeyBytes))
+    if (!this.rawConversationKeyCache) this.rawConversationKeyCache = new Map()
+    this.rawConversationKeyCache.set(this.rawConversationKeyCacheKey(conversationId, keyUid), rawKeyBytes)
+
+    await secureStorageDelete(this.rawKeyStorageKey(conversationId, keyUid))
     localStorage.removeItem(this.rawKeyStorageKey(conversationId, keyUid))
 
     const listKey = this.keyListStorageKey(conversationId)
@@ -1598,6 +1658,10 @@ export const ChatE2EE = {
 
   rawKeyStorageKey(conversationId, keyUid) {
     return `${CHAT_E2EE_STORAGE_PREFIX}:user:${this.userId()}:conversation:${conversationId}:key:${keyUid}`
+  },
+
+  rawConversationKeyCacheKey(conversationId, keyUid) {
+    return `${conversationId}:${keyUid}`
   },
 
   activeKeyStorageKey(conversationId) {

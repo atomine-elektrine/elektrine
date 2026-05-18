@@ -40,6 +40,25 @@ defmodule ElektrineWeb.JsonLogFormatter do
   defp format_metadata(metadata) do
     metadata
     |> Enum.filter(fn {_k, v} -> v != nil end)
+    |> Enum.map(fn {key, value} -> {key, redact_metadata(key, value)} end)
     |> Enum.into(%{})
+  end
+
+  defp redact_metadata(key, value) do
+    key
+    |> to_string()
+    |> String.downcase()
+    |> case do
+      name
+      when name in ["authorization", "cookie", "set-cookie", "token", "secret", "password"] ->
+        "[redacted]"
+
+      name ->
+        if String.contains?(name, ["token", "secret", "password", "api_key"]) do
+          "[redacted]"
+        else
+          value
+        end
+    end
   end
 end

@@ -1,7 +1,7 @@
 defmodule Atomine.PersonhoodTest do
   use Elektrine.DataCase, async: true
 
-  alias Atomine.{Credits, Personhood, Proof}
+  alias Atomine.{CreditEarningPolicy, Credits, Personhood, Proof}
   alias Elektrine.Accounts
   alias Elektrine.Repo
 
@@ -188,6 +188,107 @@ defmodule Atomine.PersonhoodTest do
 
       assert [%{amount: 10, reason: "verified_proof:dns"}] =
                Credits.list_ledger_entries(user.id, limit: 1)
+    end
+
+    test "deleting and recreating the same DNS proof does not grant twice" do
+      user = user_fixture()
+
+      {:ok, proof} = Personhood.create_proof(user, %{kind: "dns", subject: "Example.COM."})
+      assert {:ok, verified} = Personhood.verify_proof(proof)
+      assert Credits.balance(user.id, :atomine_credit) == 10
+
+      assert {:ok, _deleted} = Personhood.delete_proof(verified)
+
+      {:ok, recreated} = Personhood.create_proof(user, %{kind: "dns", subject: "example.com"})
+      assert {:ok, _verified_again} = Personhood.verify_proof(recreated)
+
+      assert Credits.balance(user.id, :atomine_credit) == 10
+
+      assert [%{reason: "verified_proof:dns"}] =
+               Credits.list_ledger_entries(user.id)
+               |> Enum.filter(&(&1.reason == "verified_proof:dns"))
+    end
+
+    test "profile URL variants share one credit reward" do
+      user = user_fixture()
+
+      {:ok, proof} =
+        Personhood.create_proof(user, %{
+          kind: "social",
+          subject: "https://github.com/businessfunk?utm_source=test#readme"
+        })
+
+      assert {:ok, verified} = Personhood.verify_proof(proof)
+      assert Credits.balance(user.id, :atomine_credit) == 5
+
+      assert {:ok, _deleted} = Personhood.delete_proof(verified)
+
+      {:ok, recreated} =
+        Personhood.create_proof(user, %{
+          kind: "social",
+          subject: "https://github.com/businessfunk/"
+        })
+
+      assert {:ok, _verified_again} = Personhood.verify_proof(recreated)
+      assert Credits.balance(user.id, :atomine_credit) == 5
+    end
+
+    test "a DNS claim already rewarded globally does not reward another account" do
+      first_user = user_fixture()
+      second_user = user_fixture()
+
+      {:ok, proof} =
+        Personhood.create_proof(first_user, %{kind: "dns", subject: "shared.example"})
+
+      assert {:ok, verified} = Personhood.verify_proof(proof)
+      assert Credits.balance(first_user.id, :atomine_credit) == 10
+
+      assert {:ok, _deleted} = Personhood.delete_proof(verified)
+
+      {:ok, second_proof} =
+        Personhood.create_proof(second_user, %{kind: "dns", subject: "shared.example"})
+
+      assert {:ok, _second_verified} = Personhood.verify_proof(second_proof)
+      assert Credits.balance(second_user.id, :atomine_credit) == 0
+    end
+
+    test "low-trust accounts cannot exceed the daily proof earning cap" do
+      user = user_fixture()
+
+      {:ok, dns_proof} =
+        Personhood.create_proof(user, %{kind: "dns", subject: "daily-cap.example"})
+
+      {:ok, web_proof} =
+        Personhood.create_proof(user, %{
+          kind: "web",
+          subject: "https://daily-cap.example/proof"
+        })
+
+      {:ok, social_proof} =
+        Personhood.create_proof(user, %{
+          kind: "social",
+          subject: "https://social.example/daily-cap"
+        })
+
+      assert {:ok, _dns} = Personhood.verify_proof(dns_proof)
+      assert {:ok, _web} = Personhood.verify_proof(web_proof)
+      assert {:ok, _social} = Personhood.verify_proof(social_proof)
+
+      assert Credits.balance(user.id, :atomine_credit) == 18
+    end
+
+    test "proof-of-work credits can be claimed up to 20 times per day" do
+      user = user_fixture()
+      today = Date.utc_today()
+
+      for _ <- 1..20 do
+        assert {:ok, _entry} = CreditEarningPolicy.grant_for_proof_of_work(user.id, date: today)
+      end
+
+      assert {:ok, :daily_claim_limit_reached} =
+               CreditEarningPolicy.grant_for_proof_of_work(user.id, date: today)
+
+      assert Credits.balance(user.id, :atomine_credit) == 20
     end
 
     test "live proofs can become active, stale, and inactive" do

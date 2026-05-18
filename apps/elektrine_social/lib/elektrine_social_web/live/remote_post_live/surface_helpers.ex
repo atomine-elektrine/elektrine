@@ -602,8 +602,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
       Map.has_key?(map, key) ->
         Map.get(map, key)
 
-      Map.has_key?(map, String.to_atom(key)) ->
-        Map.get(map, String.to_atom(key))
+      value = existing_atom_map_value(map, key) ->
+        value
 
       true ->
         nil
@@ -611,6 +611,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.SurfaceHelpers do
   end
 
   defp map_get_value(_, _), do: nil
+
+  defp existing_atom_map_value(map, key) do
+    Map.get(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> nil
+  end
 
   defp normalize_in_reply_to_ref(%{"id" => id}), do: normalize_in_reply_to_ref(id)
   defp normalize_in_reply_to_ref(%{"href" => href}), do: normalize_in_reply_to_ref(href)

@@ -117,6 +117,14 @@ validate_env_file() {
       echo "Error: unsafe shell syntax in env file at $env_file:$line_no" >&2
       return 1
     fi
+    if [[ "$line" =~ [[:space:]] ]]; then
+      value="${line#*=}"
+
+      if [[ ! "$value" =~ ^\"[^\"]*\"$ ]]; then
+        echo "Error: unquoted whitespace in env file at $env_file:$line_no" >&2
+        return 1
+      fi
+    fi
   done < "$env_file"
 }
 
@@ -333,6 +341,12 @@ validate_caddy_admin_cidrs() {
     echo "Hint: set exact VPN/private CIDRs, or leave it unset to deny public admin host access by default." >&2
     return 1
   fi
+
+  if [[ "${CADDY_TRUSTED_PROXY_CIDRS:-}" == *"0.0.0.0/0"* || "${CADDY_TRUSTED_PROXY_CIDRS:-}" == *"::/0"* ]]; then
+    echo "Error: CADDY_TRUSTED_PROXY_CIDRS must not include 0.0.0.0/0 or ::/0." >&2
+    echo "Hint: trust only exact upstream proxy or load balancer CIDRs." >&2
+    return 1
+  fi
 }
 
 maybe_configure_docker_source_ips() {
@@ -374,6 +388,42 @@ maybe_enable_magpie_network_override() {
   if media_route_enabled && [[ "$upstream_host" == "magpie" ]]; then
     append_compose_override_if_missing "$ROOT_DIR/deploy/docker/compose.magpie-network.yml"
   fi
+}
+
+magpie_media_network_required() {
+  local upstream_host="${CADDY_MEDIA_UPSTREAM:-magpie:8090}"
+  upstream_host="${upstream_host%%:*}"
+
+  media_route_enabled && [[ "$upstream_host" == "magpie" ]]
+}
+
+ensure_magpie_shared_network() {
+  if ! magpie_media_network_required; then
+    return 0
+  fi
+
+  local network_name="${MAGPIE_DOCKER_NETWORK:-elektrine-magpie-shared}"
+  local container_name="${MAGPIE_CONTAINER_NAME:-magpie}"
+  local attached=""
+
+  if ! "${DOCKER_BIN[@]}" network inspect "$network_name" >/dev/null 2>&1; then
+    echo "Info: creating Magpie shared Docker network: $network_name" >&2
+    "${DOCKER_BIN[@]}" network create "$network_name" >/dev/null
+  fi
+
+  if ! "${DOCKER_BIN[@]}" inspect "$container_name" >/dev/null 2>&1; then
+    echo "Warning: Magpie container '$container_name' is not running yet; start Magpie or set MAGPIE_CONTAINER_NAME, then rerun deploy." >&2
+    return 0
+  fi
+
+  attached="$("${DOCKER_BIN[@]}" inspect "$container_name" --format "{{if index .NetworkSettings.Networks \"$network_name\"}}yes{{end}}")"
+
+  if [[ "$attached" == "yes" ]]; then
+    return 0
+  fi
+
+  echo "Info: connecting Magpie container '$container_name' to $network_name as magpie" >&2
+  "${DOCKER_BIN[@]}" network connect --alias magpie "$network_name" "$container_name"
 }
 
 resolve_caddy_config_path() {
@@ -672,6 +722,8 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
   fi
 fi
+
+ensure_magpie_shared_network
 
 DOCKER_PROFILES="$RENDER_PROFILES" CADDY_DEFAULT_CONFIG_PATH="$INFERRED_CADDY_CONFIG_PATH" bash "$ROOT_DIR/scripts/deploy/render_docker_compose.sh" --modules "$NORMALIZED_MODULES" --profiles "$RENDER_PROFILES" --output "$OUTPUT_PATH"
 

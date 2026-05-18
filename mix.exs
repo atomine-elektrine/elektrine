@@ -32,7 +32,8 @@ defmodule ElektrineUmbrella.MixProject do
           atomine: :permanent,
           elektrine_social: :permanent,
           elektrine_vpn: :permanent,
-          elektrine_nerve: :permanent
+          elektrine_nerve: :permanent,
+          maid: :permanent
         ]
       ],
       elektrine_dns: [
@@ -50,6 +51,7 @@ defmodule ElektrineUmbrella.MixProject do
         "format --check-formatted",
         "compile --warnings-as-errors",
         "credo --strict",
+        "deps.audit",
         "deps.unlock --check-unused",
         "test"
       ],
