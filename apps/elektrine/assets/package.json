@@ -8,7 +8,7 @@
     "deploy": "cd .. && mix assets.deploy && rm -f _build/esbuild*"
   },
   "dependencies": {
-    "@iconify-json/simple-icons": "^1.2.81",
+    "@iconify-json/simple-icons": "^1.2.82",
     "@iconify-json/svg-spinners": "^1.2.4",
     "@noble/hashes": "^2.2.0",
     "daisyui": "^5.5.14",
