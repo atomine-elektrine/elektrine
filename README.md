@@ -148,6 +148,7 @@ Start with:
 - `docs/self-hosting/vpn.md`
 - `docs/addons/onion.md`
 - `docs/clients/nerve-extension.md`
+- `docs/clients/static-site-github-deploys.md`
 
 ## Email Deployment
 

@@ -489,6 +489,11 @@ defmodule ElektrineWeb.Layouts do
       String.contains?(socket_view, "ProfileLive.DomainAnalytics")
   end
 
+  @doc ~s|Returns the container class for system announcements.\n|
+  def announcement_container_class(_assigns) do
+    "mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8"
+  end
+
   defp determine_grid_from_path(assigns) do
     path = get_current_path(assigns)
 

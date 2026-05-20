@@ -20,7 +20,7 @@ defmodule ElektrineWeb.ConnectedAccountController do
           URI.encode_query(%{
             client_id: client_id,
             redirect_uri: callback_url(conn, "github"),
-            scope: "read:user user:email",
+            scope: github_scope(params),
             state: state
           })
 
@@ -48,9 +48,10 @@ defmodule ElektrineWeb.ConnectedAccountController do
 
     with true <- valid_state?(state, expected_state),
          {:ok, _client_id, client_secret} <- github_config(),
-         {:ok, access_token} <- exchange_github_code(conn, code, client_secret),
+         {:ok, access_token, scopes} <- exchange_github_code(conn, code, client_secret),
          {:ok, github_user} <- fetch_github_user(access_token),
-         {:ok, connected_account} <- upsert_github_account(conn.assigns.current_user, github_user),
+         {:ok, connected_account} <-
+           upsert_github_account(conn.assigns.current_user, github_user, access_token, scopes),
          {:ok, _proof} <- Personhood.verify_connected_account_proof(connected_account) do
       conn
       |> delete_session(@state_session_key)
@@ -103,9 +104,14 @@ defmodule ElektrineWeb.ConnectedAccountController do
          ) do
       {:ok, {{_, status, _}, _headers, response_body}} when status in 200..299 ->
         case Jason.decode(response_body) do
-          {:ok, %{"access_token" => token}} when is_binary(token) -> {:ok, token}
-          {:ok, %{"error" => error}} -> {:error, error}
-          _ -> {:error, :invalid_token_response}
+          {:ok, %{"access_token" => token} = token_response} when is_binary(token) ->
+            {:ok, token, github_token_scopes(token_response)}
+
+          {:ok, %{"error" => error}} ->
+            {:error, error}
+
+          _ ->
+            {:error, :invalid_token_response}
         end
 
       {:ok, {{_, status, _}, _headers, _body}} ->
@@ -137,7 +143,7 @@ defmodule ElektrineWeb.ConnectedAccountController do
     end
   end
 
-  defp upsert_github_account(user, github_user) do
+  defp upsert_github_account(user, github_user, access_token, scopes) do
     Accounts.upsert_connected_account(user, %{
       provider: "github",
       provider_account_id: to_string(github_user["id"]),
@@ -146,14 +152,30 @@ defmodule ElektrineWeb.ConnectedAccountController do
       email: github_user["email"],
       profile_url: github_user["html_url"],
       avatar_url: github_user["avatar_url"],
-      scopes: ["read:user", "user:email"],
+      scopes: scopes,
       metadata: %{
+        "access_token" => access_token,
         "company" => github_user["company"],
         "blog" => github_user["blog"],
         "location" => github_user["location"]
       }
     })
   end
+
+  defp github_scope(%{"scope" => "static_site"}) do
+    "read:user user:email public_repo admin:repo_hook"
+  end
+
+  defp github_scope(_params), do: "read:user user:email"
+
+  defp github_token_scopes(%{"scope" => scope}) when is_binary(scope) do
+    scope
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp github_token_scopes(_token_response), do: ["read:user", "user:email"]
 
   defp github_config do
     client_id = System.get_env("GITHUB_OAUTH_CLIENT_ID")

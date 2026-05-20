@@ -533,11 +533,7 @@
 
 <.flash_group flash={assigns[:flash] || %{}} /> <%!-- System Announcements --%>
 <%= if assigns[:active_announcements] && @active_announcements != [] do %>
-  <div class={
-    if full_width_main?(assigns),
-      do: "w-full px-2 sm:px-4 lg:px-6 pt-4",
-      else: "container mx-auto px-4 pt-4"
-  }>
+  <div class={announcement_container_class(assigns)}>
     <.announcements announcements={@active_announcements} dismissible />
   </div>
 <% end %>

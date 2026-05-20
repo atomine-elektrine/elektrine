@@ -31,6 +31,8 @@ defmodule Elektrine.Developer.ApiToken do
   - `write:nerve` - Create/update/delete encrypted Nerve entries
   - `read:proofs` - Read identity proofs and score
   - `write:proofs` - Create, check, and delete identity proofs
+  - `read:static_site` - Read static site deployment status
+  - `write:static_site` - Deploy static site files
   - `export` - Trigger and download data exports
   - `webhook` - Manage webhook subscriptions
   """
@@ -47,6 +49,7 @@ defmodule Elektrine.Developer.ApiToken do
     read:nerve write:nerve
     read:dns write:dns
     read:proofs write:proofs
+    read:static_site write:static_site
     export webhook
   )
   @token_presets [
@@ -98,6 +101,12 @@ defmodule Elektrine.Developer.ApiToken do
       name: "Identity proofs",
       description: "Create, check, and read Atomine identity proofs.",
       scopes: ["read:proofs", "write:proofs"]
+    },
+    %{
+      id: "static_site_deploy",
+      name: "Static site deploy",
+      description: "Deploy static site files from CI/CD.",
+      scopes: ["read:static_site", "write:static_site"]
     }
   ]
 
@@ -199,6 +208,10 @@ defmodule Elektrine.Developer.ApiToken do
       "Proofs" => [
         {"read:proofs", "Read identity proofs and personhood score"},
         {"write:proofs", "Create, check, and delete identity proofs"}
+      ],
+      "Static Site" => [
+        {"read:static_site", "Read static site deployment status"},
+        {"write:static_site", "Deploy static site files"}
       ],
       "Developer" => [
         {"export", "Trigger and download data exports"},

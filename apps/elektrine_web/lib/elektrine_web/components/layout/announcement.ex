@@ -22,25 +22,32 @@ defmodule ElektrineWeb.Components.Layout.Announcement do
     ~H"""
     <div
       class={[
-        "flex items-start gap-2 py-2 px-3 sm:px-4 rounded-lg text-sm",
+        "system-announcement flex items-start gap-3 rounded-lg px-3 py-3 text-sm sm:px-4",
         announcement_classes(@announcement.type),
         @class
       ]}
       id={@id}
     >
-      <.icon
-        name={announcement_icon(@announcement.type)}
-        class="h-4 w-4 flex-shrink-0 mt-0.5"
-      />
-      <div class="flex-1 min-w-0">
-        <span class="font-semibold">{@announcement.title}:</span>
-        <span class="opacity-90">{String.trim(@announcement.content)}</span>
+      <div class="system-announcement__icon mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg">
+        <.icon name={announcement_icon(@announcement.type)} class="h-4 w-4" />
       </div>
+
+      <div class="min-w-0 flex-1 leading-5">
+        <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span class="font-semibold text-base-content">{@announcement.title}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/45">
+            {announcement_label(@announcement.type)}
+          </span>
+        </div>
+
+        <div class="mt-0.5 text-base-content/75">{String.trim(@announcement.content)}</div>
+      </div>
+
       <%= if @dismissible do %>
         <.link
           href={"/announcements/#{@announcement.id}/dismiss"}
           method="post"
-          class="btn btn-xs btn-ghost btn-circle opacity-70 hover:opacity-100 flex-shrink-0"
+          class="btn btn-xs btn-ghost btn-circle mt-0.5 flex-shrink-0 text-base-content/60 hover:bg-base-300 hover:text-base-content"
           aria-label="Dismiss"
         >
           <.icon name="hero-x-mark" class="h-3 w-3" />
@@ -79,12 +86,18 @@ defmodule ElektrineWeb.Components.Layout.Announcement do
 
   # Helper functions for announcements
 
-  defp announcement_classes("info"), do: "bg-info/20 text-info"
-  defp announcement_classes("warning"), do: "bg-warning/20 text-warning"
-  defp announcement_classes("maintenance"), do: "bg-base-300 text-base-content"
-  defp announcement_classes("feature"), do: "bg-success/20 text-success"
-  defp announcement_classes("urgent"), do: "bg-error/20 text-error"
-  defp announcement_classes(_), do: "bg-info/20 text-info"
+  defp announcement_classes("info"), do: "system-announcement--info"
+  defp announcement_classes("warning"), do: "system-announcement--warning"
+  defp announcement_classes("maintenance"), do: "system-announcement--maintenance"
+  defp announcement_classes("feature"), do: "system-announcement--feature"
+  defp announcement_classes("urgent"), do: "system-announcement--urgent"
+  defp announcement_classes(_), do: "system-announcement--info"
+
+  defp announcement_label("warning"), do: "Warning"
+  defp announcement_label("maintenance"), do: "Maintenance"
+  defp announcement_label("feature"), do: "Feature"
+  defp announcement_label("urgent"), do: "Urgent"
+  defp announcement_label(_), do: "Notice"
 
   defp announcement_icon("info"), do: "hero-information-circle"
   defp announcement_icon("warning"), do: "hero-exclamation-triangle"

@@ -6,6 +6,13 @@ defmodule ElektrineWeb.ChatLiveIndexTest do
   alias Elektrine.AccountsFixtures
   alias Elektrine.Messaging
 
+  test "mount redirects instead of crashing when current_user is missing" do
+    socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}}}
+
+    assert {:ok, updated_socket} = Index.mount(%{}, %{}, socket)
+    assert {:redirect, %{to: "/login"}} = updated_socket.redirected
+  end
+
   test "user_read_messages updates visible message read status" do
     user = AccountsFixtures.user_fixture()
 

@@ -14,8 +14,10 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
   alias Elektrine.Messaging
   alias Elektrine.Messaging.ChatMessage
   alias Elektrine.Nerve
+  alias Elektrine.Profiles
   alias Elektrine.Repo
   alias Elektrine.Social
+  alias Elektrine.StaticSites
   alias ElektrineWeb.Plugs.APIAuth
 
   setup do
@@ -190,6 +192,106 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       refute Enum.any?(endpoints, fn endpoint ->
                endpoint["path"] == "/api/ext/v1/proofs" and endpoint["method"] == "POST"
              end)
+    end
+
+    test "static site deploy endpoint replaces files and enables static mode", %{conn: conn} do
+      user = user_fixture()
+
+      assert {:ok, _file} =
+               StaticSites.upload_file(user, "old.html", "<html>old</html>", "text/html")
+
+      conn = with_pat(conn, user.id, ["write:static_site"])
+
+      deploy_conn =
+        post(conn, "/api/ext/v1/static-site/deploy", %{
+          "replace" => "true",
+          "site" => static_site_upload()
+        })
+
+      assert %{"data" => data} = json_response(deploy_conn, 201)
+      assert data["message"] == "Static site deployed"
+      assert data["uploaded_files"] == 2
+      assert data["replaced"] == true
+      assert data["static_site"]["has_homepage"] == true
+
+      paths = user.id |> StaticSites.list_files() |> Enum.map(& &1.path)
+      assert "index.html" in paths
+      assert "assets/app.css" in paths
+      refute "old.html" in paths
+
+      assert %{profile_mode: "static"} = Profiles.get_user_profile(user.id)
+
+      show_conn =
+        build_conn()
+        |> with_pat(user.id, ["read:static_site"])
+        |> get("/api/ext/v1/static-site")
+
+      assert %{"data" => %{"static_site" => %{"file_count" => 2}}} =
+               json_response(show_conn, 200)
+    end
+
+    test "static site deploy endpoint enforces write scope", %{conn: conn} do
+      user = user_fixture()
+
+      conn =
+        conn
+        |> with_pat(user.id, ["read:static_site"])
+        |> post("/api/ext/v1/static-site/deploy", %{"site" => static_site_upload()})
+
+      assert %{"error" => %{"code" => "insufficient_scope"}} = json_response(conn, 403)
+    end
+
+    test "static site GitHub webhook verifies signatures", %{conn: conn} do
+      user = user_fixture()
+
+      {:ok, deployment} =
+        StaticSites.upsert_github_deployment(user.id, %{
+          repo_owner: "octo",
+          repo_name: "site",
+          branch: "main",
+          site_dir: "auto"
+        })
+
+      body =
+        Jason.encode!(%{
+          "repository" => %{"full_name" => "octo/site"},
+          "ref" => "refs/heads/main"
+        })
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-github-event", "ping")
+        |> put_req_header(
+          "x-hub-signature-256",
+          github_signature(body, deployment.webhook_secret)
+        )
+        |> post("/api/ext/v1/static-site/deploy/github/webhook", body)
+
+      assert %{"received" => true} = json_response(conn, 200)
+    end
+
+    test "static site GitHub webhook rejects invalid signatures", %{conn: conn} do
+      user = user_fixture()
+
+      {:ok, _deployment} =
+        StaticSites.upsert_github_deployment(user.id, %{
+          repo_owner: "octo",
+          repo_name: "site",
+          branch: "main",
+          site_dir: "auto"
+        })
+
+      body = Jason.encode!(%{"repository" => %{"full_name" => "octo/site"}})
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-github-event", "ping")
+        |> put_req_header("x-hub-signature-256", "sha256=bad")
+        |> post("/api/ext/v1/static-site/deploy/github/webhook", body)
+
+      assert %{"error" => "invalid_signature"} = json_response(conn, 403)
     end
 
     test "capabilities only advertises endpoints allowed by read scopes", %{conn: conn} do
@@ -711,6 +813,34 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       })
 
     put_req_header(conn, "authorization", "Bearer #{token.token}")
+  end
+
+  defp static_site_upload do
+    zip_files = [
+      {~c"index.html", "<html><body>Published</body></html>"},
+      {~c"assets/app.css", "body { color: blue; }"}
+    ]
+
+    {:ok, {_name, zip_binary}} = :zip.create(~c"site.zip", zip_files, [:memory])
+
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "elektrine-static-site-#{System.unique_integer([:positive])}.zip"
+      )
+
+    File.write!(path, zip_binary)
+
+    %Plug.Upload{path: path, filename: "site.zip", content_type: "application/zip"}
+  end
+
+  defp github_signature(body, secret) do
+    signature =
+      :hmac
+      |> :crypto.mac(:sha256, secret, body)
+      |> Base.encode16(case: :lower)
+
+    "sha256=#{signature}"
   end
 
   defp valid_client_payload do
