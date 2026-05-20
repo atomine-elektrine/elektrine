@@ -313,6 +313,65 @@ defmodule Elektrine.StaticSitesTest do
     end
   end
 
+  describe "replace_with_zip/2" do
+    test "replaces existing files after validating archive", %{user: user} do
+      assert {:ok, _file} =
+               StaticSites.upload_file(user, "old.html", "<html>old</html>", "text/html")
+
+      zip_files = [
+        {~c"index.html", "<html><body>New</body></html>"},
+        {~c"assets/app.css", "body { color: blue; }"}
+      ]
+
+      {:ok, {_name, zip_binary}} = :zip.create(~c"replace.zip", zip_files, [:memory])
+
+      assert {:ok, 2} = StaticSites.replace_with_zip(user, zip_binary)
+
+      paths = user.id |> StaticSites.list_files() |> Enum.map(& &1.path)
+      assert "index.html" in paths
+      assert "assets/app.css" in paths
+      refute "old.html" in paths
+    end
+
+    test "keeps existing files when archive is invalid", %{user: user} do
+      assert {:ok, _file} =
+               StaticSites.upload_file(user, "index.html", "<html>old</html>", "text/html")
+
+      assert {:error, {:invalid_zip, _reason}} = StaticSites.replace_with_zip(user, "not a zip")
+
+      assert %{} = StaticSites.get_file(user.id, "index.html")
+    end
+  end
+
+  describe "replace_with_repo_archive/3" do
+    test "auto-detects a committed static output directory", %{user: user} do
+      zip_files = [
+        {~c"site-main/src/app.js", "console.log('source')"},
+        {~c"site-main/zig-out/index.html", "<html><body>Built</body></html>"},
+        {~c"site-main/zig-out/assets/app.css", "body { color: blue; }"}
+      ]
+
+      {:ok, {_name, zip_binary}} = :zip.create(~c"repo.zip", zip_files, [:memory])
+
+      assert {:ok, 2} = StaticSites.replace_with_repo_archive(user, zip_binary, "auto")
+
+      paths = user.id |> StaticSites.list_files() |> Enum.map(& &1.path)
+      assert "index.html" in paths
+      assert "assets/app.css" in paths
+      refute "src/app.js" in paths
+    end
+
+    test "returns an error when the selected output directory has no index", %{user: user} do
+      zip_files = [{~c"site-main/src/app.js", "console.log('source')"}]
+      {:ok, {_name, zip_binary}} = :zip.create(~c"repo.zip", zip_files, [:memory])
+
+      assert {:error, :site_dir_not_found} =
+               StaticSites.replace_with_repo_archive(user, zip_binary, "dist")
+
+      assert StaticSites.list_files(user.id) == []
+    end
+  end
+
   describe "zip bomb protection" do
     test "rejects zip whose total extracted size exceeds the hard zip cap", %{user: user} do
       Application.put_env(:elektrine, :static_sites, max_zip_uncompressed_size: 1_000)

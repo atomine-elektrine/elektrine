@@ -6,6 +6,7 @@ defmodule Elektrine.StaticSites do
 
   import Ecto.Query, warn: false
   alias Elektrine.Accounts.User
+  alias Elektrine.Profiles.StaticSiteDeployment
   alias Elektrine.Profiles.StaticSiteFile
   alias Elektrine.Profiles.UserProfile
   alias Elektrine.Repo
@@ -21,6 +22,7 @@ defmodule Elektrine.StaticSites do
   # Maximum accepted zip upload and extracted payload size.
   @max_zip_archive_size 100 * 1024 * 1024
   @default_max_zip_uncompressed_size 100 * 1024 * 1024
+  @auto_site_dirs ~w(dist build public out zig-out .)
 
   # Magic bytes for content type validation
   @magic_bytes %{
@@ -104,6 +106,74 @@ defmodule Elektrine.StaticSites do
     StaticSiteFile
     |> where([f], f.user_id == ^user_id)
     |> Repo.aggregate(:count)
+  end
+
+  def get_static_site_deployment(user_id) do
+    Repo.get_by(StaticSiteDeployment, user_id: user_id, provider: "github")
+  end
+
+  def get_static_site_deployment_by_github_repo(repo_owner, repo_name) do
+    Repo.get_by(StaticSiteDeployment,
+      provider: "github",
+      repo_owner: normalize_repo_part(repo_owner),
+      repo_name: normalize_repo_name(repo_name)
+    )
+    |> Repo.preload(:user)
+  end
+
+  def upsert_github_deployment(user_id, attrs) do
+    attrs =
+      attrs
+      |> Map.put(:user_id, user_id)
+      |> Map.put(:provider, "github")
+
+    case get_static_site_deployment(user_id) do
+      nil ->
+        %StaticSiteDeployment{}
+        |> StaticSiteDeployment.changeset(attrs)
+        |> Repo.insert()
+
+      deployment ->
+        deployment
+        |> StaticSiteDeployment.changeset(attrs)
+        |> Repo.update()
+    end
+  end
+
+  def mark_deployment_deployed(%StaticSiteDeployment{} = deployment) do
+    deployment
+    |> StaticSiteDeployment.changeset(%{
+      deploy_status: "deployed",
+      last_deploy_error: nil,
+      last_deployed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    })
+    |> Repo.update()
+  end
+
+  def mark_deployment_queued(%StaticSiteDeployment{} = deployment) do
+    update_deployment_status(deployment, "queued", nil)
+  end
+
+  def mark_deployment_deploying(%StaticSiteDeployment{} = deployment) do
+    update_deployment_status(deployment, "deploying", nil)
+  end
+
+  def mark_deployment_failed(%StaticSiteDeployment{} = deployment, reason) do
+    update_deployment_status(deployment, "failed", inspect(reason))
+  end
+
+  def update_deployment_webhook(%StaticSiteDeployment{} = deployment, webhook_id) do
+    deployment
+    |> StaticSiteDeployment.changeset(%{webhook_id: webhook_id})
+    |> Repo.update()
+  end
+
+  def enqueue_github_deploy(%StaticSiteDeployment{} = deployment) do
+    with {:ok, deployment} <- mark_deployment_queued(deployment) do
+      %{deployment_id: deployment.id}
+      |> Elektrine.StaticSites.GitHubDeployWorker.new()
+      |> Oban.insert()
+    end
   end
 
   @doc """
@@ -364,6 +434,16 @@ defmodule Elektrine.StaticSites do
     end
   end
 
+  defp normalize_repo_part(value) when is_binary(value),
+    do: value |> String.trim() |> String.downcase()
+
+  defp normalize_repo_part(value), do: value
+
+  defp normalize_repo_name(value) when is_binary(value),
+    do: value |> normalize_repo_part() |> String.replace_suffix(".git", "")
+
+  defp normalize_repo_name(value), do: value
+
   @doc """
   Uploads multiple files from a zip archive.
   """
@@ -371,6 +451,32 @@ defmodule Elektrine.StaticSites do
     with {:ok, entries} <- preflight_zip(user.id, zip_binary),
          :ok <- validate_zip_limits(user.id, entries) do
       upload_zip_entries(user, zip_binary, entries)
+    end
+  end
+
+  @doc """
+  Replaces a user's static site with files from a zip archive.
+
+  The archive is preflighted before existing files are deleted, so invalid zips
+  do not clear the currently published site.
+  """
+  def replace_with_zip(user, zip_binary) do
+    with {:ok, entries} <- preflight_zip(user.id, zip_binary),
+         :ok <- validate_zip_limits(user.id, entries),
+         {_count, nil} <- delete_all_files(user.id) do
+      upload_zip_entries(user, zip_binary, entries)
+    else
+      {_count, error} when not is_nil(error) -> {:error, error}
+      error -> error
+    end
+  end
+
+  @doc """
+  Replaces a user's static site with a selected folder from a GitHub archive zip.
+  """
+  def replace_with_repo_archive(user, zip_binary, site_dir \\ "auto") do
+    with {:ok, site_zip_binary} <- repo_archive_site_zip(zip_binary, site_dir) do
+      replace_with_zip(user, site_zip_binary)
     end
   end
 
@@ -456,6 +562,128 @@ defmodule Elektrine.StaticSites do
 
       true ->
         :ok
+    end
+  end
+
+  defp update_deployment_status(%StaticSiteDeployment{} = deployment, status, error) do
+    deployment
+    |> StaticSiteDeployment.changeset(%{deploy_status: status, last_deploy_error: error})
+    |> Repo.update()
+  end
+
+  defp repo_archive_site_zip(zip_binary, site_dir) do
+    case :zip.zip_open(zip_binary, [:memory]) do
+      {:ok, handle} ->
+        try do
+          with {:ok, file_list} <- :zip.zip_list_dir(handle),
+               zip_entries <- zip_file_entries(file_list),
+               {:ok, entries} <- repo_archive_entries(zip_entries),
+               {:ok, prefix} <- resolve_site_dir(entries, site_dir),
+               {:ok, files} <- repo_archive_site_files(handle, entries, prefix) do
+            create_site_zip(files)
+          else
+            {:error, reason} -> {:error, reason}
+            {:zip_error, reason} -> {:error, reason}
+          end
+        after
+          :zip.zip_close(handle)
+        end
+
+      {:error, reason} ->
+        {:error, {:invalid_zip, reason}}
+    end
+  end
+
+  defp repo_archive_entries(zip_entries) do
+    with {:ok, entries} <- collect_zip_entries(zip_entries),
+         normalized <- normalize_repo_archive_entries(entries),
+         :ok <- validate_zip_entry_count(normalized) do
+      {:ok, normalized}
+    end
+  end
+
+  defp normalize_repo_archive_entries(entries) do
+    all_files = Enum.map(entries, &{&1.raw_path, ""})
+
+    Enum.map(entries, fn entry ->
+      Map.put(entry, :repo_path, normalize_zip_path(entry.raw_path, all_files))
+    end)
+  end
+
+  defp resolve_site_dir(entries, site_dir) do
+    paths = MapSet.new(Enum.map(entries, & &1.repo_path))
+
+    site_dir
+    |> normalize_repo_site_dir()
+    |> candidate_site_dirs()
+    |> Enum.find(&site_dir_has_index?(paths, &1))
+    |> case do
+      nil -> {:error, :site_dir_not_found}
+      prefix -> {:ok, prefix}
+    end
+  end
+
+  defp normalize_repo_site_dir(value) when is_binary(value) do
+    value = String.trim(value)
+
+    cond do
+      value == "" -> "auto"
+      String.downcase(value) == "auto" -> "auto"
+      String.starts_with?(value, ["/", "\\"]) -> "auto"
+      String.contains?(value, ["..", "\0", "\\"]) -> "auto"
+      true -> String.trim(value, "/")
+    end
+  end
+
+  defp normalize_repo_site_dir(_value), do: "auto"
+
+  defp candidate_site_dirs("auto"), do: @auto_site_dirs
+  defp candidate_site_dirs(site_dir), do: [site_dir]
+
+  defp site_dir_has_index?(paths, "."), do: MapSet.member?(paths, "index.html")
+
+  defp site_dir_has_index?(paths, site_dir) do
+    MapSet.member?(paths, site_dir <> "/index.html")
+  end
+
+  defp repo_archive_site_files(handle, entries, prefix) do
+    entries
+    |> Enum.reduce_while({:ok, []}, fn entry, {:ok, files} ->
+      case repo_archive_site_path(entry.repo_path, prefix) do
+        nil ->
+          {:cont, {:ok, files}}
+
+        path ->
+          with {:ok, content} <- zip_entry_content(handle, entry),
+               {:ok, path} <- normalize_site_path(path),
+               :ok <- validate_file_extension(path) do
+            {:cont, {:ok, [{String.to_charlist(path), content} | files]}}
+          else
+            {:error, reason} -> {:halt, {:error, reason}}
+          end
+      end
+    end)
+    |> case do
+      {:ok, []} -> {:error, :site_dir_not_found}
+      {:ok, files} -> {:ok, Enum.reverse(files)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp repo_archive_site_path(path, "."), do: path
+
+  defp repo_archive_site_path(path, prefix) do
+    prefix = prefix <> "/"
+
+    if String.starts_with?(path, prefix) do
+      String.replace_prefix(path, prefix, "")
+    end
+  end
+
+  defp create_site_zip(files) do
+    case :zip.create(~c"site.zip", files, [:memory]) do
+      {:ok, {_name, zip_binary}} -> {:ok, zip_binary}
+      {:error, reason} -> {:error, {:invalid_zip, reason}}
     end
   end
 

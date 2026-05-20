@@ -191,6 +191,14 @@ defmodule ElektrineWeb.Router do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:proofs"])
   end
 
+  pipeline :api_pat_static_site_read_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:static_site", "write:static_site"], any: true)
+  end
+
+  pipeline :api_pat_static_site_write_scope do
+    plug(ElektrineWeb.Plugs.PATAuth, scopes: ["write:static_site"])
+  end
+
   pipeline :api_pat_dns_read_scope do
     plug(ElektrineWeb.Plugs.PATAuth, scopes: ["read:dns", "write:dns"], any: true)
   end
@@ -913,6 +921,25 @@ defmodule ElektrineWeb.Router do
     post("/", ProofController, :create)
     post("/:id/check", ProofController, :check)
     delete("/:id", ProofController, :delete)
+  end
+
+  scope "/api/ext/v1/static-site", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_static_site_read_scope])
+
+    get("/", StaticSiteController, :show)
+  end
+
+  scope "/api/ext/v1/static-site", ElektrineWeb.API do
+    pipe_through([:api_pat_authenticated, :api_pat_static_site_write_scope])
+
+    post("/deploy", StaticSiteController, :deploy)
+  end
+
+  scope "/api/ext/v1/static-site", ElektrineWeb.API do
+    pipe_through([:api])
+
+    post("/deploy/github", StaticSiteController, :deploy_github)
+    post("/deploy/github/webhook", StaticSiteController, :github_webhook)
   end
 
   scope "/api/ext/v1/search", ElektrineWeb.API do

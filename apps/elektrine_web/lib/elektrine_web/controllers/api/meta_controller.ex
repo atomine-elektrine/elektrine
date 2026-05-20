@@ -167,6 +167,20 @@ defmodule ElektrineWeb.API.MetaController do
       },
       %{
         method: "GET",
+        path: "/api/ext/v1/static-site",
+        summary: "Get static site deployment status",
+        required_scopes: ["read:static_site", "write:static_site"],
+        platform_module: nil
+      },
+      %{
+        method: "POST",
+        path: "/api/ext/v1/static-site/deploy",
+        summary: "Deploy a static site ZIP archive",
+        required_scopes: ["write:static_site"],
+        platform_module: nil
+      },
+      %{
+        method: "GET",
         path: "/api/ext/v1/search",
         summary: "Search across resources allowed by the token",
         required_scopes: [

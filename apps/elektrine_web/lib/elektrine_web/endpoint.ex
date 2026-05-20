@@ -57,6 +57,7 @@ defmodule ElektrineWeb.Endpoint do
   plug ElektrineWeb.Plugs.CacheRawBody,
     paths: [
       "/webhook/stripe",
+      "/api/ext/v1/static-site/deploy/github/webhook",
       "/_arblarg/events",
       "/_arblarg/events/batch",
       "/_arblarg/ephemeral",

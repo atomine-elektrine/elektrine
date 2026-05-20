@@ -39,7 +39,7 @@ defmodule ElektrineEmailWeb.UserErrorHelpers do
   end
 
   def reason_message(:insufficient_email_credits, _fallback) do
-    "You need Atomine Credits to send external email."
+    "You need 1 Atomine Credit to send external email. Earn credits from Account > Proofs by running daily browser work or verifying a domain, web page, or social/profile proof."
   end
 
   def reason_message(_reason, fallback) do

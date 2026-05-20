@@ -1,11 +1,13 @@
 defmodule ElektrineWeb.ProfileLive.Edit do
   use ElektrineWeb, :live_view
+  alias Elektrine.Accounts
   alias Elektrine.Constants
   alias Elektrine.Domains
   alias Elektrine.Profiles
   alias Elektrine.Profiles.UserProfile
   alias Elektrine.StaticSites
   alias Elektrine.Theme
+  alias ElektrineWeb.GitHubWebhooks
   alias ElektrineWeb.Platform.Integrations
 
   @max_links Constants.max_profile_links()
@@ -54,6 +56,8 @@ defmodule ElektrineWeb.ProfileLive.Edit do
     # Get static site info
     static_site_files = StaticSites.list_files(user.id)
     static_site_storage = StaticSites.total_storage_used(user.id)
+    github_connected_account = github_connected_account(user.id)
+    static_site_deployment = StaticSites.get_static_site_deployment(user.id)
 
     # Admins get higher upload limits
     # 100MB vs 10MB
@@ -77,6 +81,9 @@ defmodule ElektrineWeb.ProfileLive.Edit do
      |> assign(:static_site_files, static_site_files)
      |> assign(:static_site_storage, static_site_storage)
      |> assign(:static_site_limit, user.storage_limit_bytes || 524_288_000)
+     |> assign(:github_connected_account, github_connected_account)
+     |> assign(:static_site_deployment, static_site_deployment)
+     |> assign(:github_deploy_form, github_deploy_form(static_site_deployment))
      |> assign(:profile_save_status, "Saved")
      |> assign(:drag_over, false)
      |> assign(:editing_file, nil)
@@ -918,6 +925,63 @@ defmodule ElektrineWeb.ProfileLive.Edit do
 
   # Static Site Handlers
 
+  def handle_event("update_github_deploy_form", %{"github_deploy" => params}, socket) do
+    {:noreply, assign(socket, :github_deploy_form, normalize_github_deploy_form(params))}
+  end
+
+  def handle_event("save_github_deploy_link", %{"github_deploy" => params}, socket) do
+    form = normalize_github_deploy_form(params)
+
+    case github_repo_info(form) do
+      %{owner: owner, repo: repo} ->
+        attrs = %{
+          repo_owner: owner,
+          repo_name: repo,
+          branch: form["branch"],
+          site_dir: form["site_dir"],
+          build_command: ""
+        }
+
+        case StaticSites.upsert_github_deployment(socket.assigns.user.id, attrs) do
+          {:ok, deployment} ->
+            {deployment, message} = maybe_install_github_webhook(deployment, socket)
+
+            {:noreply,
+             socket
+             |> assign(:static_site_deployment, deployment)
+             |> assign(:github_deploy_form, github_deploy_form(deployment))
+             |> notify_info(message)}
+
+          {:error, _changeset} ->
+            {:noreply, notify_error(socket, "Could not link that GitHub repository")}
+        end
+
+      nil ->
+        {:noreply, notify_error(socket, "Enter a GitHub repository like owner/repo")}
+    end
+  end
+
+  def handle_event("deploy_static_site_from_github", _params, socket) do
+    case socket.assigns.static_site_deployment do
+      nil ->
+        {:noreply, notify_error(socket, "Link a GitHub repository first")}
+
+      deployment ->
+        case StaticSites.enqueue_github_deploy(deployment) do
+          {:ok, _job} ->
+            deployment = StaticSites.get_static_site_deployment(socket.assigns.user.id)
+
+            {:noreply,
+             socket
+             |> assign(:static_site_deployment, deployment)
+             |> notify_info("Deploy queued")}
+
+          {:error, _reason} ->
+            {:noreply, notify_error(socket, "Could not queue deploy")}
+        end
+    end
+  end
+
   def handle_event("set_profile_mode", %{"mode" => mode}, socket) do
     case mode do
       "static" ->
@@ -1587,6 +1651,153 @@ defmodule ElektrineWeb.ProfileLive.Edit do
       _ -> "URL"
     end
   end
+
+  defp github_connected_account(user_id) do
+    user_id
+    |> Accounts.list_connected_accounts()
+    |> Enum.find(&(&1.provider == "github"))
+  end
+
+  defp github_oauth_configured? do
+    present_env?("GITHUB_OAUTH_CLIENT_ID") and present_env?("GITHUB_OAUTH_CLIENT_SECRET")
+  end
+
+  defp github_static_deploy_ready?(nil), do: false
+
+  defp github_static_deploy_ready?(account) do
+    token = get_in(account.metadata || %{}, ["access_token"])
+    scopes = account.scopes || []
+
+    is_binary(token) and token != "" and "admin:repo_hook" in scopes
+  end
+
+  defp present_env?(name) do
+    name
+    |> System.get_env()
+    |> case do
+      value when is_binary(value) -> String.trim(value) != ""
+      _ -> false
+    end
+  end
+
+  defp default_github_deploy_form do
+    %{
+      "repo_url" => "",
+      "branch" => "main",
+      "site_dir" => "auto"
+    }
+  end
+
+  defp github_deploy_form(nil), do: default_github_deploy_form()
+
+  defp github_deploy_form(deployment) do
+    default_github_deploy_form()
+    |> Map.merge(%{
+      "repo_url" => "#{deployment.repo_owner}/#{deployment.repo_name}",
+      "branch" => deployment.branch,
+      "site_dir" => deployment.site_dir
+    })
+  end
+
+  defp normalize_github_deploy_form(params) when is_map(params) do
+    defaults = default_github_deploy_form()
+
+    defaults
+    |> Map.merge(%{
+      "repo_url" => params |> Map.get("repo_url", defaults["repo_url"]) |> trim_string(),
+      "branch" => params |> Map.get("branch", defaults["branch"]) |> normalize_branch(),
+      "site_dir" => params |> Map.get("site_dir", defaults["site_dir"]) |> normalize_site_dir()
+    })
+  end
+
+  defp normalize_github_deploy_form(_params), do: default_github_deploy_form()
+
+  defp github_repo_info(%{"repo_url" => repo_url}), do: parse_github_repo(repo_url)
+  defp github_repo_info(_form), do: nil
+
+  defp maybe_install_github_webhook(deployment, socket) do
+    with %{} = account <- socket.assigns.github_connected_account,
+         true <- github_static_deploy_ready?(account),
+         token when is_binary(token) <- get_in(account.metadata || %{}, ["access_token"]),
+         {:ok, webhook_id} <-
+           GitHubWebhooks.ensure_push_webhook(
+             token,
+             deployment.repo_owner,
+             deployment.repo_name,
+             github_webhook_url(),
+             deployment.webhook_secret
+           ) do
+      deployment = maybe_store_webhook_id(deployment, webhook_id)
+      {deployment, "Repository linked"}
+    else
+      _ -> {deployment, "Repository linked"}
+    end
+  end
+
+  defp maybe_store_webhook_id(deployment, nil), do: deployment
+
+  defp maybe_store_webhook_id(deployment, webhook_id) do
+    case StaticSites.update_deployment_webhook(deployment, webhook_id) do
+      {:ok, deployment} -> deployment
+      {:error, _changeset} -> deployment
+    end
+  end
+
+  defp github_webhook_url do
+    ElektrineWeb.Endpoint.url()
+    |> String.trim_trailing("/")
+    |> Kernel.<>("/api/ext/v1/static-site/deploy/github/webhook")
+  end
+
+  defp parse_github_repo(repo_url) when is_binary(repo_url) do
+    trimmed = String.trim(repo_url)
+
+    if Regex.match?(~r/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/, trimmed) do
+      [owner, repo] = String.split(trimmed, "/", parts: 2)
+      %{owner: owner, repo: String.replace_suffix(repo, ".git", "")}
+    else
+      case URI.parse(trimmed) do
+        %URI{host: host, path: path} when host in ["github.com", "www.github.com"] ->
+          case path |> String.trim_leading("/") |> String.split("/", parts: 3) do
+            [owner, repo | _] when owner != "" and repo != "" ->
+              %{owner: owner, repo: String.replace_suffix(repo, ".git", "")}
+
+            _ ->
+              nil
+          end
+
+        _ ->
+          nil
+      end
+    end
+  end
+
+  defp parse_github_repo(_repo_url), do: nil
+
+  defp normalize_branch(value) do
+    value = trim_string(value)
+
+    if Regex.match?(~r/^[A-Za-z0-9._\/-]+$/, value) and value != "" do
+      value
+    else
+      "main"
+    end
+  end
+
+  defp normalize_site_dir(value) do
+    value = trim_string(value)
+
+    cond do
+      value == "" -> "auto"
+      String.downcase(value) == "auto" -> "auto"
+      String.starts_with?(value, ["/", "\\"]) -> "auto"
+      String.contains?(value, ["..", "\0", "\\"]) -> "auto"
+      true -> value
+    end
+  end
+
+  defp trim_string(value) when is_binary(value), do: String.trim(value)
+  defp trim_string(_value), do: ""
 
   defp format_bytes(bytes) when is_integer(bytes) do
     cond do

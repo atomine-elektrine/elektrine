@@ -30,8 +30,16 @@ defmodule ArblargWeb.ChatLive.Index do
 
   @impl true
   def mount(_params, session, socket) do
-    user = socket.assigns.current_user
+    case socket.assigns[:current_user] do
+      %User{} = user ->
+        mount_authenticated_user(socket, session, user)
 
+      _unauthenticated ->
+        {:ok, redirect(socket, to: Elektrine.Paths.login_path())}
+    end
+  end
+
+  defp mount_authenticated_user(socket, session, user) do
     # Set locale from session or user preference
     locale = session["locale"] || (user && user.locale) || "en"
     Gettext.put_locale(ElektrineWeb.Gettext, locale)

@@ -115,7 +115,11 @@ defmodule ElektrineEmailWeb.API.EmailController do
         {:error, :insufficient_email_credits} ->
           conn
           |> put_status(:payment_required)
-          |> json(%{error: "insufficient_email_credits"})
+          |> json(%{
+            error: "insufficient_email_credits",
+            message:
+              "You need 1 Atomine Credit to send external email. Earn credits from Account > Proofs by running daily browser work or verifying a domain, web page, or social/profile proof."
+          })
 
         {:error, reason} ->
           conn
