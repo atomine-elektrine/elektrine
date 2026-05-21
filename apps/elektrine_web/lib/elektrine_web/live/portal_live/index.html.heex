@@ -1,11 +1,11 @@
 <div
   id="portal-container"
   phx-hook="TimelineReply"
-  class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+  class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8"
 >
   <!-- Z Platform Navigation -->
   <.e_nav active_tab="portal" current_user={@current_user} />
-  <div class="space-y-6">
+  <div class="space-y-4 sm:space-y-6">
     <% attention_count =
       if @attention_filter == "all" do
         length(@dashboard.attention_queue)
@@ -13,7 +13,7 @@
         Map.get(@dashboard.attention_counts || %{}, @attention_filter, 0)
       end %>
 
-    <section class="space-y-6">
+    <section class="space-y-4 sm:space-y-6">
       <.live_component
         module={ElektrineWeb.PortalLive.Reader}
         id="portal-rss-reader"
@@ -25,7 +25,7 @@
         reader_params={@reader_params}
       />
 
-      <div class="grid gap-6">
+      <div class="grid gap-4 sm:gap-6">
         <div class="card panel-card">
           <div class="card-body p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
@@ -35,7 +35,7 @@
               <span class="badge badge-ghost badge-sm">{attention_count}</span>
             </div>
 
-            <div class="mb-3 flex flex-wrap gap-2">
+            <div class="-mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               <%= for filter <- ["all", "email", "chat", "requests"] do %>
                 <button
                   phx-click="set_attention_filter"
@@ -100,12 +100,12 @@
     </section>
   </div>
 
-  <div class="mt-6 flex flex-col lg:flex-row gap-6">
+  <div class="mt-4 flex flex-col gap-4 sm:mt-6 sm:gap-6 lg:flex-row">
     <!-- Main Feed -->
     <div class="flex-1 min-w-0">
       <% posts = filtered_posts(@filtered_all_posts, @filter, assigns) %> <% visible_posts =
         Enum.take(posts, @visible_post_limit) %>
-      <div class="card panel-card">
+      <div class="card panel-card overflow-hidden">
         <div class="card-body p-4 sm:p-5">
           <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -132,7 +132,7 @@
             </div>
           </div>
           <!-- Filter Pills -->
-          <div class="flex gap-2 overflow-x-auto pt-1 pb-4">
+          <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-4 sm:mx-0 sm:px-0">
             <button
               phx-click="set_filter"
               phx-value-filter="all"
@@ -204,7 +204,7 @@
                 <% end %>
               </div>
             <% else %>
-              <div id="portal-posts-list" class="space-y-4">
+              <div id="portal-posts-list" class="space-y-4 overflow-hidden">
                 <%= for post <- visible_posts do %>
                   <div id={"portal-post-#{post.id}"} class="portal-post-entry">
                     <.live_component

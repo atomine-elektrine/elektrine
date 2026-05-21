@@ -66,19 +66,19 @@ defmodule ElektrineWeb.PortalLive.Reader do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="card panel-card self-start">
+    <div class="card panel-card self-start overflow-hidden">
       <div class="card-body p-3 sm:p-4">
         <% reader_items = filtered_rss_items(assigns) %>
         <% selected_item = selected_rss_item(reader_items, @selected_rss_item_id) %>
 
-        <div class="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div class="min-w-0">
             <p class="text-xs uppercase tracking-[0.18em] text-base-content/50">Reading</p>
-            <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Feed Reader</h1>
+            <h1 class="truncate text-lg font-semibold tracking-tight sm:text-2xl">Feed Reader</h1>
           </div>
 
-          <div class="flex gap-2">
-            <.link navigate={~p"/settings/rss"} class="btn btn-sm btn-secondary">
+          <div class="flex gap-2 sm:justify-end">
+            <.link navigate={~p"/settings/rss"} class="btn btn-sm btn-secondary max-sm:flex-1">
               Add feed
             </.link>
           </div>
@@ -98,14 +98,14 @@ defmodule ElektrineWeb.PortalLive.Reader do
           <% visible_reader_items = Enum.take(reader_items, 10) %>
           <% compact_reader? = @rss_list_density == "compact" %>
 
-          <div class="flex flex-col gap-3">
+          <div class="flex min-w-0 flex-col gap-3">
             <aside>
               <div>
                 <div class="mb-2">
                   <p class="text-xs uppercase tracking-[0.16em] text-base-content/50">
                     Sources
                   </p>
-                  <div class="mt-2 flex flex-wrap gap-2 pb-1">
+                  <div class="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-2 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-1">
                     <.link
                       patch={portal_patch(assigns, rss_source: "all", rss_item: nil)}
                       class={rss_source_button_class(@rss_source_filter, "all")}
@@ -129,20 +129,26 @@ defmodule ElektrineWeb.PortalLive.Reader do
               </div>
             </aside>
 
-            <div class="grid gap-3 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-              <section class="space-y-2 lg:flex lg:h-[34rem] lg:flex-col">
-                <div class="flex items-center justify-between gap-3">
+            <div class="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+              <section class="order-2 space-y-2 lg:order-1 lg:flex lg:h-[34rem] lg:flex-col">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                   <h2 class="text-base font-semibold">Latest items</h2>
-                  <div class="join">
+                  <div class="join w-full sm:w-auto">
                     <.link
                       patch={portal_patch(assigns, rss_density: "comfortable")}
-                      class={[rss_density_button_class(@rss_list_density, "comfortable"), "join-item"]}
+                      class={[
+                        rss_density_button_class(@rss_list_density, "comfortable"),
+                        "join-item flex-1 sm:flex-none"
+                      ]}
                     >
                       Cards
                     </.link>
                     <.link
                       patch={portal_patch(assigns, rss_density: "compact")}
-                      class={[rss_density_button_class(@rss_list_density, "compact"), "join-item"]}
+                      class={[
+                        rss_density_button_class(@rss_list_density, "compact"),
+                        "join-item flex-1 sm:flex-none"
+                      ]}
                     >
                       Compact
                     </.link>
@@ -220,7 +226,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
                 </div>
               </section>
 
-              <section class="rounded-2xl border border-base-300 bg-base-100/80 p-4 lg:sticky lg:top-24 lg:h-[34rem] lg:overflow-y-auto">
+              <section class="order-1 max-h-[70vh] overflow-y-auto rounded-2xl border border-base-300 bg-base-100/80 p-3 sm:p-4 lg:sticky lg:top-24 lg:order-2 lg:h-[34rem] lg:max-h-none">
                 <%= if selected_item do %>
                   <div
                     :if={rss_item_image(selected_item)}
@@ -251,7 +257,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
                     <span>{rss_item_reading_minutes(selected_item)} min read</span>
                   </div>
 
-                  <h2 class="text-xl font-semibold leading-tight sm:text-2xl">
+                  <h2 class="break-words text-lg font-semibold leading-tight sm:text-2xl">
                     {rss_item_title(selected_item)}
                   </h2>
 
@@ -266,7 +272,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
 
                   <div
                     :if={rss_item_body_html(selected_item)}
-                    class="mt-4 max-w-none text-sm leading-7 text-base-content/80 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-base-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_img]:my-4 [&_img]:rounded-xl [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:mb-3"
+                    class="mt-4 max-w-none break-words text-sm leading-7 text-base-content/80 [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-base-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-xl [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:mb-3 [&_pre]:max-w-full [&_pre]:overflow-x-auto"
                   >
                     {raw(rss_item_body_html(selected_item))}
                   </div>
@@ -603,7 +609,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
   end
 
   defp rss_source_button_class(current_source, source) do
-    base = "btn btn-xs justify-start"
+    base = "btn btn-xs max-w-[12rem] shrink-0 justify-start"
 
     if current_source == source, do: base <> " btn-secondary", else: base <> " btn-ghost"
   end
