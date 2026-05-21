@@ -95,7 +95,6 @@ defmodule ElektrineWeb.PortalLive.Reader do
             </.link>
           </div>
         <% else %>
-          <% visible_reader_items = Enum.take(reader_items, 10) %>
           <% compact_reader? = @rss_list_density == "compact" %>
 
           <div class="flex min-w-0 flex-col gap-3">
@@ -164,7 +163,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
                       No feed items match this view.
                     </div>
                   <% else %>
-                    <%= for item <- visible_reader_items do %>
+                    <%= for item <- reader_items do %>
                       <.link
                         patch={portal_patch(assigns, rss_item: item.id)}
                         class={[
@@ -226,7 +225,7 @@ defmodule ElektrineWeb.PortalLive.Reader do
                 </div>
               </section>
 
-              <section class="order-1 max-h-[70vh] overflow-y-auto rounded-2xl border border-base-300 bg-base-100/80 p-3 sm:p-4 lg:sticky lg:top-24 lg:order-2 lg:h-[34rem] lg:max-h-none">
+              <section class="order-1 rounded-2xl border border-base-300 bg-base-100/80 p-3 sm:p-4 lg:sticky lg:top-24 lg:order-2 lg:h-[34rem] lg:overflow-y-auto">
                 <%= if selected_item do %>
                   <div
                     :if={rss_item_image(selected_item)}
