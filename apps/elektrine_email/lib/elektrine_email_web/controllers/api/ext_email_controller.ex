@@ -129,7 +129,7 @@ defmodule ElektrineEmailWeb.API.ExtEmailController do
           conn,
           :forbidden,
           "insufficient_email_credits",
-          "You need 1 Atomine Credit to send external email. Earn credits from Account > Proofs by running daily browser work or verifying a domain, web page, or social/profile proof."
+          "You need 1 Atomine Credit to send external email. Earn credits from Account > Atomine by running daily browser work or verifying a domain, web page, or social/profile proof."
         )
 
       {:error, :storage_limit_exceeded} ->

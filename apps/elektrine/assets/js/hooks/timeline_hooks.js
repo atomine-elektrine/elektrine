@@ -410,17 +410,21 @@ export const PostClick = {
       if (navLink) {
         await flushDwellBatchBeforeNavigation(this);
 
-        navLink.dispatchEvent(
-          new MouseEvent("click", {
-            bubbles: true,
-            cancelable: true,
-            metaKey: e.metaKey,
-            ctrlKey: e.ctrlKey,
-            shiftKey: e.shiftKey,
-            altKey: e.altKey,
-            button: e.button,
-          }),
-        );
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+          navLink.dispatchEvent(
+            new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              metaKey: e.metaKey,
+              ctrlKey: e.ctrlKey,
+              shiftKey: e.shiftKey,
+              altKey: e.altKey,
+              button: e.button,
+            }),
+          );
+        } else {
+          navLink.click();
+        }
 
         return;
       }

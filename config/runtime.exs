@@ -174,6 +174,36 @@ config :atomine, :credits,
   dm_gate_enabled: parse_bool_env.("ATOMINE_DM_CREDIT_GATE_ENABLED", false),
   email_gate_enabled: parse_bool_env.("ATOMINE_EMAIL_CREDIT_GATE_ENABLED", true)
 
+config :elektrine, :atomine_pow,
+  difficulty:
+    parse_int_env.(
+      "ATOMINE_POW_DIFFICULTY",
+      Application.get_env(:elektrine, :atomine_pow, []) |> Keyword.get(:difficulty, 20)
+    ),
+  skip_verification:
+    parse_bool_env.(
+      "ATOMINE_POW_SKIP_VERIFICATION",
+      Application.get_env(:elektrine, :atomine_pow, []) |> Keyword.get(:skip_verification, false)
+    )
+
+config :elektrine, :atomine_gate,
+  enabled:
+    parse_bool_env.(
+      "ATOMINE_GATE_ENABLED",
+      Application.get_env(:elektrine, :atomine_gate, []) |> Keyword.get(:enabled, false)
+    ),
+  difficulty:
+    parse_int_env.(
+      "ATOMINE_GATE_DIFFICULTY",
+      Application.get_env(:elektrine, :atomine_gate, []) |> Keyword.get(:difficulty, 20)
+    ),
+  clearance_ttl_seconds:
+    parse_int_env.(
+      "ATOMINE_GATE_CLEARANCE_TTL_SECONDS",
+      Application.get_env(:elektrine, :atomine_gate, [])
+      |> Keyword.get(:clearance_ttl_seconds, 12 * 60 * 60)
+    )
+
 config :maid, providers: []
 
 oban_queues =
@@ -337,9 +367,58 @@ dns_recursive_upstreams =
     value -> parse_dns_endpoints.(value)
   end
 
+dns_edge_proxy_ipv4_addresses =
+  case System.get_env("DNS_EDGE_PROXY_IPV4_ADDRESSES") do
+    nil ->
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:edge_proxy_ipv4_addresses, [])
+
+    "" ->
+      []
+
+    value ->
+      value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+  end
+
+dns_edge_proxy_ipv6_addresses =
+  case System.get_env("DNS_EDGE_PROXY_IPV6_ADDRESSES") do
+    nil ->
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:edge_proxy_ipv6_addresses, [])
+
+    "" ->
+      []
+
+    value ->
+      value |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+  end
+
+dns_edge_proxy_hostname =
+  case System.get_env("DNS_EDGE_PROXY_HOSTNAME") do
+    nil ->
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:edge_proxy_hostname)
+
+    "" ->
+      nil
+
+    value ->
+      value |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+  end
+
 config :elektrine, :dns,
-  authority_enabled: parse_bool_env.("DNS_AUTHORITY_ENABLED", false),
-  recursive_enabled: parse_bool_env.("DNS_RECURSIVE_ENABLED", false),
+  authority_enabled:
+    parse_bool_env.(
+      "DNS_AUTHORITY_ENABLED",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:authority_enabled, false)
+    ),
+  recursive_enabled:
+    parse_bool_env.(
+      "DNS_RECURSIVE_ENABLED",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:recursive_enabled, false)
+    ),
+  edge_proxy_enabled:
+    parse_bool_env.(
+      "DNS_EDGE_PROXY_ENABLED",
+      Application.get_env(:elektrine, :dns, []) |> Keyword.get(:edge_proxy_enabled, true)
+    ),
   zone_cache_refresh_interval_ms:
     parse_int_env.(
       "DNS_ZONE_CACHE_REFRESH_INTERVAL_MS",
@@ -350,6 +429,9 @@ config :elektrine, :dns,
   soa_rname: dns_soa_rname,
   recursive_upstreams: dns_recursive_upstreams,
   recursive_allow_cidrs: dns_recursive_allow_cidrs,
+  edge_proxy_ipv4_addresses: dns_edge_proxy_ipv4_addresses,
+  edge_proxy_ipv6_addresses: dns_edge_proxy_ipv6_addresses,
+  edge_proxy_hostname: dns_edge_proxy_hostname,
   max_udp_payload:
     parse_int_env.(
       "DNS_MAX_UDP_PAYLOAD",
@@ -1278,6 +1360,11 @@ if config_env() == :prod do
   config :elektrine, :atomine_pow,
     difficulty: parse_int_env.("ATOMINE_POW_DIFFICULTY", 20),
     skip_verification: parse_bool_env.("ATOMINE_POW_SKIP_VERIFICATION", false)
+
+  config :elektrine, :atomine_gate,
+    enabled: parse_bool_env.("ATOMINE_GATE_ENABLED", false),
+    difficulty: parse_int_env.("ATOMINE_GATE_DIFFICULTY", 20),
+    clearance_ttl_seconds: parse_int_env.("ATOMINE_GATE_CLEARANCE_TTL_SECONDS", 12 * 60 * 60)
 
   # ## SSL Support
   #

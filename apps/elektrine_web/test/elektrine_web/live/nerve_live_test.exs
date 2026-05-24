@@ -63,7 +63,7 @@ defmodule ElektrineWeb.NerveLiveTest do
            )
 
     html = render(view)
-    assert html =~ "Unlock Bridge"
+    assert html =~ "Unlock Nerve"
     assert html =~ "Browser Extension"
     assert html =~ "Connected Devices"
     assert html =~ "Site Connections"
@@ -141,7 +141,7 @@ defmodule ElektrineWeb.NerveLiveTest do
       |> log_in_user(user)
       |> live(~p"/account/nerve")
 
-    assert render(view) =~ "Delete Bridge"
+    assert render(view) =~ "Delete Nerve"
 
     view
     |> element("#delete-nerve-button")
@@ -149,7 +149,7 @@ defmodule ElektrineWeb.NerveLiveTest do
 
     refute Nerve.nerve_configured?(user.id)
     assert Nerve.list_entries(user.id, include_secrets: true) == []
-    assert render(view) =~ "Set Bridge Passphrase"
+    assert render(view) =~ "Set Nerve Passphrase"
   end
 
   defp encrypted_payload(value) do

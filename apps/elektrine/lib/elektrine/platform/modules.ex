@@ -12,7 +12,7 @@ defmodule Elektrine.Platform.Modules do
   @modules [
     %{
       id: :chat,
-      label: "Chat",
+      label: "Arblarg",
       app: :arblarg,
       description: "Direct messages, group conversations, and messaging federation."
     },

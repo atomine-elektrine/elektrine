@@ -4426,7 +4426,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     )
 
     if message && can_view_local_post?(message, socket.assigns[:current_user]) do
-      if message.federated && is_binary(message.activitypub_id) do
+      if message.federated && is_binary(message.activitypub_id) &&
+           match?(%Elektrine.ActivityPub.Actor{}, message.remote_actor) do
         post_object = build_post_object_from_message(message)
         post_object = maybe_enrich_cached_federated_post(post_object, message)
 
@@ -5496,16 +5497,26 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       started_at = System.monotonic_time(:millisecond)
 
       result =
-        case strict_fetch_remote_object(post_id) do
+        case fetch_remote_object_for_detail(post_id) do
           {:ok, post_object} ->
+            cached_message =
+              latest_local_message_for_refs(activitypub_refs_for_post(post_object, post_id))
+
             author_uri =
               normalize_in_reply_to_ref(post_object["attributedTo"]) ||
                 normalize_in_reply_to_ref(post_object["actor"])
 
             remote_actor =
-              case strict_fetch_remote_actor(author_uri) do
-                {:ok, actor} -> actor
-                _ -> nil
+              if match?(
+                   %Elektrine.ActivityPub.Actor{},
+                   cached_message && cached_message.remote_actor
+                 ) do
+                cached_message.remote_actor
+              else
+                case fetch_remote_actor_for_detail(author_uri) do
+                  {:ok, actor} -> actor
+                  _ -> nil
+                end
               end
 
             if remote_actor do
@@ -8110,6 +8121,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp strict_fetch_remote_object(_post_id), do: {:error, :invalid_post_id}
 
+  defp fetch_remote_object_for_detail(post_id) when is_binary(post_id) do
+    ActivityPub.fetch_remote_object(post_id)
+  end
+
+  defp fetch_remote_object_for_detail(_post_id), do: {:error, :invalid_post_id}
+
   defp strict_fetch_remote_actor(actor_uri) when is_binary(actor_uri) do
     ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: false)
   rescue
@@ -8126,6 +8143,23 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp strict_fetch_remote_actor(_actor_uri), do: {:error, :invalid_actor_uri}
+
+  defp fetch_remote_actor_for_detail(actor_uri) when is_binary(actor_uri) do
+    ActivityPub.fetch_and_cache_actor(actor_uri, allow_recovery: true)
+  rescue
+    error in Postgrex.Error ->
+      if postgres_error_code(error) == :index_corrupted do
+        Logger.error(
+          "Postgres index corruption while fetching remote detail actor: #{Exception.message(error)}"
+        )
+
+        {:error, :index_corrupted}
+      else
+        reraise error, __STACKTRACE__
+      end
+  end
+
+  defp fetch_remote_actor_for_detail(_actor_uri), do: {:error, :invalid_actor_uri}
 
   defp store_remote_post_safely(post_object, actor_uri) do
     ActivityPub.Handler.store_remote_post(post_object, actor_uri)

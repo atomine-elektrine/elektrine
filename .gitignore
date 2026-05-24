@@ -97,6 +97,7 @@ npm-debug.log*
 /external/arblarg/conformance/badges/
 
 # Tooling caches / misc
+/.elixir_ls/
 .mix
 .hex
 _deploy_release

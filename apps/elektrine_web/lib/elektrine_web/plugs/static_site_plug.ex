@@ -6,9 +6,10 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   import Plug.Conn
   import Phoenix.Controller, only: [redirect: 2]
-  alias Elektrine.{Accounts, Profiles, StaticSites}
+  alias Elektrine.{Accounts, Profiles, Repo, StaticSites}
   alias Elektrine.Accounts.User
   alias Elektrine.StaticSites.RequestResolver
+  alias ElektrineWeb.AtomineGate
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.UserAuth
 
@@ -49,27 +50,12 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   def html_csp, do: @html_csp
 
-  def put_static_html_headers(conn) do
-    conn
-    |> put_resp_header("content-security-policy", @html_csp)
-    |> put_resp_header("x-content-type-options", "nosniff")
-    |> put_resp_header("x-frame-options", "DENY")
-    |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
-    |> put_resp_header("cross-origin-opener-policy", "same-origin")
-    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
-    |> put_resp_header(
-      "permissions-policy",
-      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
-    )
-  end
-
-  def put_static_asset_headers(conn, content_type) do
-    conn
-    |> put_resp_header("cache-control", "public, max-age=86400")
-    |> put_resp_header("x-content-type-options", "nosniff")
-    |> put_resp_header("x-frame-options", "DENY")
-    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
-    |> maybe_put_svg_csp(content_type)
+  def call(%{request_path: path, method: "POST"} = conn, _opts) do
+    if path == AtomineGate.verify_path() do
+      AtomineGate.handle_verify(conn)
+    else
+      conn
+    end
   end
 
   # Subdomain static site asset serving (e.g., https://handle.example.com/1.jpg)
@@ -117,6 +103,29 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
 
   def call(conn, _opts), do: conn
 
+  def put_static_html_headers(conn) do
+    conn
+    |> put_resp_header("content-security-policy", @html_csp)
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> put_resp_header("x-frame-options", "DENY")
+    |> put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
+    |> put_resp_header("cross-origin-opener-policy", "same-origin")
+    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
+    |> put_resp_header(
+      "permissions-policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()"
+    )
+  end
+
+  def put_static_asset_headers(conn, content_type) do
+    conn
+    |> put_resp_header("cache-control", "public, max-age=86400")
+    |> put_resp_header("x-content-type-options", "nosniff")
+    |> put_resp_header("x-frame-options", "DENY")
+    |> put_resp_header("cross-origin-resource-policy", "cross-origin")
+    |> maybe_put_svg_csp(content_type)
+  end
+
   defp check_and_serve_static_profile(conn, handle) do
     serve_static_path(conn, handle, "/")
   end
@@ -141,7 +150,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
   defp serve_static_path(conn, handle, request_path) do
     conn = ensure_current_user(conn)
 
-    with user when not is_nil(user) <- Accounts.get_user_by_username_or_handle(handle),
+    with user when not is_nil(user) <- static_site_user(conn, handle),
          true <-
            User.built_in_subdomain_hosted_by_platform?(user) or
              is_binary(conn.assigns[:profile_custom_domain]),
@@ -163,6 +172,13 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         conn
     end
   end
+
+  defp static_site_user(%{assigns: %{profile_custom_domain_user_id: user_id}}, _handle)
+       when is_integer(user_id) do
+    Repo.get(User, user_id)
+  end
+
+  defp static_site_user(_conn, handle), do: Accounts.get_user_by_username_or_handle(handle)
 
   defp ensure_current_user(%{assigns: %{current_user: _}} = conn), do: conn
 
@@ -193,12 +209,23 @@ defmodule ElektrineWeb.Plugs.StaticSitePlug do
         {:ok, content} ->
           safe_content_type = sanitize_content_type(file.content_type)
 
-          conn
-          |> maybe_track_site_visit(user.id, safe_content_type, response_path)
-          |> put_resp_content_type(safe_content_type)
-          |> put_static_file_headers(safe_content_type)
-          |> send_resp(200, content)
-          |> halt()
+          case AtomineGate.authorize_static_request(
+                 conn,
+                 user,
+                 safe_content_type,
+                 response_path
+               ) do
+            {:ok, conn} ->
+              conn
+              |> maybe_track_site_visit(user.id, safe_content_type, response_path)
+              |> put_resp_content_type(safe_content_type)
+              |> put_static_file_headers(safe_content_type)
+              |> send_resp(200, content)
+              |> halt()
+
+            {:challenge, conn} ->
+              conn
+          end
 
         _ ->
           conn

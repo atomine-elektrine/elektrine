@@ -10,6 +10,10 @@ config :elektrine,
   trusted_proxy_cidrs: ["127.0.0.1/32", "::1/128"],
   env: :test
 
+config :elektrine, :dns,
+  edge_proxy_ipv4_addresses: ["127.0.0.1"],
+  edge_proxy_ipv6_addresses: ["::1"]
+
 ci_env? = System.get_env("CI") in ["true", "1"]
 
 test_pool_size =

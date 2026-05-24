@@ -7,8 +7,11 @@ defmodule Elektrine.DNS.Record do
   import Ecto.Changeset
 
   alias Elektrine.DNS.ServiceBinding
+  alias Elektrine.Security.URLValidator
 
   @types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS HTTPS MX NS SRV SSHFP SVCB TLSA TXT)
+  @proxyable_types ~w(A AAAA CNAME ALIAS)
+  @proxy_schemes ~w(http https)
 
   schema "dns_records" do
     field :name, :string
@@ -22,6 +25,11 @@ defmodule Elektrine.DNS.Record do
     field :required, :boolean, default: false
     field :metadata, :map, default: %{}
     field :private, :boolean, virtual: true, default: false
+    field :proxied, :boolean, virtual: true, default: false
+    field :proxy_origin_scheme, :string, virtual: true
+    field :proxy_origin_port, :integer, virtual: true
+    field :proxy_origin_host_header, :string, virtual: true
+    field :proxy_atomine_gate, :boolean, virtual: true, default: true
     field :priority, :integer
     field :weight, :integer
     field :port, :integer
@@ -54,6 +62,11 @@ defmodule Elektrine.DNS.Record do
       :required,
       :metadata,
       :private,
+      :proxied,
+      :proxy_origin_scheme,
+      :proxy_origin_port,
+      :proxy_origin_host_header,
+      :proxy_atomine_gate,
       :priority,
       :weight,
       :port,
@@ -74,6 +87,7 @@ defmodule Elektrine.DNS.Record do
     |> update_change(:service, &normalize_service/1)
     |> update_change(:content, &normalize_content/1)
     |> put_private_metadata()
+    |> put_proxy_metadata()
     |> validate_required([:name, :type, :ttl, :content, :zone_id])
     |> validate_inclusion(:type, @types)
     |> validate_inclusion(:source, ["user", "system"])
@@ -84,6 +98,7 @@ defmodule Elektrine.DNS.Record do
     |> validate_address_content()
     |> validate_alias_target()
     |> validate_hostname_targets()
+    |> validate_proxy_settings()
     |> validate_txt_size()
     |> validate_type_specific_fields()
     |> foreign_key_constraint(:zone_id)
@@ -96,6 +111,47 @@ defmodule Elektrine.DNS.Record do
   end
 
   def private?(_), do: false
+
+  def proxied?(%__MODULE__{metadata: %{} = metadata}) do
+    get_in(metadata, ["proxy", "enabled"]) == true
+  end
+
+  def proxied?(_), do: false
+
+  def proxy_config(%__MODULE__{metadata: %{} = metadata}) do
+    case Map.get(metadata, "proxy") do
+      %{} = proxy -> proxy
+      _ -> %{}
+    end
+  end
+
+  def proxy_origin_scheme(%__MODULE__{} = record) do
+    record
+    |> proxy_config()
+    |> Map.get("origin_scheme", "https")
+  end
+
+  def proxy_origin_port(%__MODULE__{} = record) do
+    configured_port = record |> proxy_config() |> Map.get("origin_port")
+
+    cond do
+      is_integer(configured_port) -> configured_port
+      proxy_origin_scheme(record) == "http" -> 80
+      true -> 443
+    end
+  end
+
+  def proxy_origin_host_header(%__MODULE__{} = record) do
+    record
+    |> proxy_config()
+    |> Map.get("origin_host_header")
+  end
+
+  def proxy_atomine_gate?(%__MODULE__{} = record) do
+    record
+    |> proxy_config()
+    |> Map.get("atomine_gate", true)
+  end
 
   defp put_private_metadata(changeset) do
     if Map.has_key?(changeset.changes, :private) do
@@ -117,6 +173,74 @@ defmodule Elektrine.DNS.Record do
       changeset
     end
   end
+
+  defp put_proxy_metadata(changeset) do
+    if proxy_param_present?(changeset) do
+      metadata = get_field(changeset, :metadata) || %{}
+
+      metadata =
+        if get_field(changeset, :proxied) do
+          Map.put(metadata, "proxy", %{
+            "enabled" => true,
+            "origin_scheme" => normalize_proxy_scheme(get_field(changeset, :proxy_origin_scheme)),
+            "origin_port" => normalize_proxy_port(get_field(changeset, :proxy_origin_port)),
+            "origin_host_header" =>
+              normalize_optional_host(get_field(changeset, :proxy_origin_host_header)),
+            "atomine_gate" => get_field(changeset, :proxy_atomine_gate) != false
+          })
+        else
+          Map.delete(metadata, "proxy")
+        end
+
+      put_change(changeset, :metadata, metadata)
+    else
+      changeset
+    end
+  end
+
+  defp proxy_param_present?(%{params: params}) when is_map(params) do
+    keys = [
+      "proxied",
+      :proxied,
+      "proxy_origin_scheme",
+      :proxy_origin_scheme,
+      "proxy_origin_port",
+      :proxy_origin_port,
+      "proxy_origin_host_header",
+      :proxy_origin_host_header,
+      "proxy_atomine_gate",
+      :proxy_atomine_gate
+    ]
+
+    Enum.any?(keys, &Map.has_key?(params, &1))
+  end
+
+  defp proxy_param_present?(_changeset), do: false
+
+  defp normalize_proxy_scheme(value) when is_binary(value) do
+    value = value |> String.trim() |> String.downcase()
+    if value in @proxy_schemes, do: value, else: "https"
+  end
+
+  defp normalize_proxy_scheme(_), do: "https"
+
+  defp normalize_proxy_port(port) when is_integer(port) and port in 1..65_535, do: port
+
+  defp normalize_proxy_port(port) when is_binary(port) do
+    case Integer.parse(String.trim(port)) do
+      {int, ""} when int in 1..65_535 -> int
+      _ -> nil
+    end
+  end
+
+  defp normalize_proxy_port(_), do: nil
+
+  defp normalize_optional_host(value) when is_binary(value) do
+    value = value |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+    if value == "", do: nil, else: value
+  end
+
+  defp normalize_optional_host(_), do: nil
 
   defp normalize_name(nil), do: nil
   defp normalize_name(""), do: "@"
@@ -307,6 +431,61 @@ defmodule Elektrine.DNS.Record do
 
       _ ->
         changeset
+    end
+  end
+
+  defp validate_proxy_settings(changeset) do
+    if proxied_changeset?(changeset) do
+      changeset
+      |> validate_proxy_record_type()
+      |> validate_proxy_origin()
+      |> validate_proxy_host_header()
+    else
+      changeset
+    end
+  end
+
+  defp proxied_changeset?(changeset) do
+    metadata = get_field(changeset, :metadata) || %{}
+    get_in(metadata, ["proxy", "enabled"]) == true
+  end
+
+  defp validate_proxy_record_type(changeset) do
+    if get_field(changeset, :type) in @proxyable_types do
+      changeset
+    else
+      add_error(changeset, :proxied, "is only supported for A, AAAA, CNAME, and ALIAS records")
+    end
+  end
+
+  defp validate_proxy_origin(changeset) do
+    case {get_field(changeset, :type), get_field(changeset, :content)} do
+      {type, content} when type in ["A", "AAAA"] and is_binary(content) ->
+        if URLValidator.private_ip?(content) do
+          add_error(changeset, :content, "must be a public origin address when proxied")
+        else
+          changeset
+        end
+
+      {type, content} when type in ["CNAME", "ALIAS"] and is_binary(content) ->
+        if Elektrine.DNS.public_hostname?(content) do
+          changeset
+        else
+          add_error(changeset, :content, "must be a public origin hostname when proxied")
+        end
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_proxy_host_header(changeset) do
+    host_header = get_in(get_field(changeset, :metadata) || %{}, ["proxy", "origin_host_header"])
+
+    if is_binary(host_header) and not valid_hostname_target?(host_header) do
+      add_error(changeset, :proxy_origin_host_header, "must be a public DNS hostname")
+    else
+      changeset
     end
   end
 

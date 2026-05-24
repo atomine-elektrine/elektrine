@@ -72,7 +72,7 @@ defmodule ElektrineWeb.Components.Layout.Announcement do
 
   def announcements(assigns) do
     ~H"""
-    <div class={["space-y-1", @class]} id="system-announcements">
+    <div class={["space-y-3", @class]} id="system-announcements">
       <%= for announcement <- @announcements do %>
         <.announcement
           announcement={announcement}

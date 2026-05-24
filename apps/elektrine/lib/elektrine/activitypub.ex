@@ -50,6 +50,17 @@ defmodule Elektrine.ActivityPub do
   def fetch_remote_object_strict(_), do: {:error, :invalid_activitypub_id}
 
   @doc """
+  Fetches a remote ActivityPub object for interactive UI paths, allowing recovery
+  through compatible instance APIs when the canonical object URL is not directly
+  fetchable.
+  """
+  def fetch_remote_object(uri) when is_binary(uri) do
+    RemoteFetch.fetch_object_uncached(uri)
+  end
+
+  def fetch_remote_object(_), do: {:error, :invalid_activitypub_id}
+
+  @doc """
   Resolves a WebFinger handle through the federation fetch boundary.
   """
   def webfinger_lookup(acct, opts \\ []) do

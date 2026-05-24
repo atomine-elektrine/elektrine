@@ -17,6 +17,8 @@ end
 defmodule Elektrine.DNSContextTest do
   use Elektrine.DataCase, async: false
 
+  import Ecto.Query
+
   alias Elektrine.AccountsFixtures
   alias Elektrine.DNS
   alias Elektrine.Repo
@@ -215,6 +217,73 @@ defmodule Elektrine.DNSContextTest do
 
     refute Elektrine.DNS.Record.private?(updated)
     refute Map.has_key?(updated.metadata, "visibility")
+  end
+
+  test "stores proxy settings in DNS record metadata" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "198.51.100.10",
+               "proxied" => "true",
+               "proxy_origin_scheme" => "http",
+               "proxy_origin_port" => "8080"
+             })
+
+    assert DNS.Record.proxied?(record)
+    assert record.metadata["proxy"]["enabled"] == true
+    assert record.metadata["proxy"]["origin_scheme"] == "http"
+    assert record.metadata["proxy"]["origin_port"] == 8080
+
+    assert {:ok, updated} = DNS.update_record(record, %{"proxied" => "false"})
+    refute DNS.Record.proxied?(updated)
+    refute Map.has_key?(updated.metadata, "proxy")
+  end
+
+  test "rejects private proxied origins" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "www",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "127.0.0.1",
+               "proxied" => "true"
+             })
+
+    assert "must be a public origin address when proxied" in errors_on(changeset).content
+  end
+
+  test "resolves proxied origins for verified zones" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    Repo.update_all(from(z in Elektrine.DNS.Zone, where: z.id == ^zone.id),
+      set: [status: "verified"]
+    )
+
+    assert {:ok, record} =
+             DNS.create_record(zone, %{
+               "name" => "app",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "198.51.100.20",
+               "proxied" => "true",
+               "proxy_origin_scheme" => "https"
+             })
+
+    assert {:ok, origin} = DNS.proxied_origin_for_host("app.#{zone.domain}")
+    assert origin.zone_id == zone.id
+    assert origin.record_id == record.id
+    assert origin.origin_host == "198.51.100.20"
+    assert origin.origin_url == "https://198.51.100.20"
+    assert origin.origin_host_header == "app.#{zone.domain}"
   end
 
   test "rejects apex cname records" do

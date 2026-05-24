@@ -248,6 +248,36 @@ defmodule Elektrine.Social.RecommendationsTest do
 
       assert is_nil(dismissed_index) or keep_index < dismissed_index
     end
+
+    test "excludes posts the viewer already dismissed" do
+      viewer = user_fixture()
+      author = user_fixture()
+
+      keep_post =
+        post_fixture(%{
+          user: author,
+          content: "keep persisted #{System.unique_integer([:positive])}"
+        })
+
+      dismissed_post =
+        post_fixture(%{
+          user: author,
+          content: "dismiss persisted #{System.unique_integer([:positive])}"
+        })
+
+      set_like_count(keep_post.id, 10)
+      set_like_count(dismissed_post.id, 30)
+
+      assert {:ok, _dismissal} =
+               Recommendations.record_dismissal(viewer.id, dismissed_post.id, "not_interested")
+
+      feed_ids =
+        Recommendations.get_for_you_feed(viewer.id, limit: 20)
+        |> Enum.map(& &1.id)
+
+      assert keep_post.id in feed_ids
+      refute dismissed_post.id in feed_ids
+    end
   end
 
   defp set_like_count(post_id, count) do

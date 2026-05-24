@@ -40,6 +40,7 @@ dev_public_scheme =
 
 dev_check_origins = [
   "http://localhost:#{dev_port}",
+  "http://*.localhost:#{dev_port}",
   "http://127.0.0.1:#{dev_port}",
   "http://z.local:#{dev_port}",
   "http://*.z.local:#{dev_port}",
@@ -82,6 +83,11 @@ config :elektrine, :email,
 
 config :elektrine, :profile_base_domains, [dev_public_host]
 config :elektrine, :primary_domain, dev_public_host
+
+config :elektrine, :dns,
+  authority_enabled: true,
+  edge_proxy_ipv4_addresses: ["127.0.0.1"],
+  edge_proxy_ipv6_addresses: ["::1"]
 
 dev_db_username =
   System.get_env("DB_USER") ||

@@ -343,6 +343,12 @@ defmodule ElektrineWeb.Router do
     get("/health", InternalDNSController, :health)
   end
 
+  scope "/_edge/proxy/v1", ElektrineWeb do
+    pipe_through([:api, :caddy_internal_api])
+
+    get("/origin", InternalEdgeProxyController, :origin)
+  end
+
   # Media proxy for federation privacy (no auth required)
   scope "/media_proxy", alias: false do
     pipe_through([:api, :api_rate_limited])
@@ -1281,7 +1287,7 @@ defmodule ElektrineWeb.Router do
 
       live("/dns/analytics", ProfileLive.DomainAnalytics, :analytics)
 
-      # Global Search
+      # Maid search
       live("/search", SearchLive, :index)
     end
   end

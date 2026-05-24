@@ -225,6 +225,10 @@ config :elektrine, :dns,
   tcp_rate_limit_per_window: 50,
   udp_max_inflight: 1024,
   tcp_max_inflight: 256,
+  edge_proxy_enabled: true,
+  edge_proxy_ipv4_addresses: [],
+  edge_proxy_ipv6_addresses: [],
+  edge_proxy_hostname: nil,
   recursive_cache_max_entries: 10_000,
   recursive_cache_cleanup_interval_ms: 60_000,
   recursive_root_hints: [
@@ -436,6 +440,11 @@ config :elektrine, :bluesky,
 config :elektrine, :atomine_pow,
   difficulty: 20,
   skip_verification: false
+
+config :elektrine, :atomine_gate,
+  enabled: false,
+  difficulty: 20,
+  clearance_ttl_seconds: 12 * 60 * 60
 
 # Stripe configuration (defaults for development, override in runtime.exs)
 config :stripity_stripe,

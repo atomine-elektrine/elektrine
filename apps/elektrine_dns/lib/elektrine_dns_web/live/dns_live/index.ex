@@ -478,10 +478,8 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                 <div class="px-5 py-4 text-sm text-base-content/65">No zones yet.</div>
               <% else %>
                 <div class="overflow-hidden">
-                  <div class="grid grid-cols-[minmax(0,1fr)_112px_44px] gap-3 border-b border-base-content/10 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/50">
+                  <div class="border-b border-base-content/10 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-base-content/50">
                     <span>Zone</span>
-                    <span>Status</span>
-                    <span class="text-right">TTL</span>
                   </div>
                   <%= for zone <- @zones do %>
                     <.link
@@ -494,12 +492,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                           {zone_role_label(zone, @current_user)}
                         </p>
                       </div>
-                      <span class={[zone_status_badge_class(zone.status), "justify-self-start"]}>
-                        {zone.status}
-                      </span>
-                      <span class="text-right text-xs font-mono text-base-content/70">
-                        {zone.default_ttl}
-                      </span>
                     </.link>
                   <% end %>
                 </div>
@@ -717,11 +709,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                       <.icon name="hero-chart-bar" class="h-4 w-4" /> Analytics
                     </.link>
                     <%= if builtin_zone?(@active_zone, @current_user) do %>
-                      <span class="text-sm text-base-content/60">
-                        {if builtin_zone_hosted_by_platform?(@current_user),
-                          do: "Apex remains reserved for Elektrine.",
-                          else: "Apex is user-managed in DNS."}
-                      </span>
+                      <%= unless builtin_zone_hosted_by_platform?(@current_user) do %>
+                        <span class="text-sm text-base-content/60">
+                          Apex is user-managed in DNS.
+                        </span>
+                      <% end %>
                     <% else %>
                       <button
                         type="button"
@@ -884,6 +876,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                           <p class="text-xs text-base-content/55">
                             Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
                           </p>
+                          <.input
+                            field={@record_form[:proxied]}
+                            type="checkbox"
+                            label="Proxy through Elektrine"
+                          />
+                          <p class="text-xs text-base-content/55">
+                            Return Elektrine edge addresses publicly and keep this record value as the protected origin.
+                          </p>
                           <%= for spec <- record_param_specs(@record_form) do %>
                             <.input
                               field={@record_form[spec.field]}
@@ -935,6 +935,11 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                                   <%= if Record.private?(record) do %>
                                     <span class="badge badge-primary badge-outline badge-xs">
                                       private
+                                    </span>
+                                  <% end %>
+                                  <%= if Record.proxied?(record) do %>
+                                    <span class="badge badge-secondary badge-outline badge-xs">
+                                      proxied
                                     </span>
                                   <% end %>
                                 </div>
@@ -1119,6 +1124,14 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                     />
                     <p class="text-xs text-base-content/55">
                       Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+                    </p>
+                    <.input
+                      field={@record_form[:proxied]}
+                      type="checkbox"
+                      label="Proxy through Elektrine"
+                    />
+                    <p class="text-xs text-base-content/55">
+                      Return Elektrine edge addresses publicly and keep this record value as the protected origin.
                     </p>
                     <%= for spec <- record_param_specs(@record_form) do %>
                       <.input
@@ -1852,7 +1865,7 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     active? = active_zone && zone.id == active_zone.id
 
     [
-      "grid grid-cols-[minmax(0,1fr)_112px_44px] items-center gap-3 border-b border-base-300 px-5 py-3 transition",
+      "block border-b border-base-300 px-5 py-3 transition",
       if(active?,
         do: "bg-primary/8",
         else: "hover:bg-base-200/40"

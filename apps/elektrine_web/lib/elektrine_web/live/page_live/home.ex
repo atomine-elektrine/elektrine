@@ -67,7 +67,7 @@ defmodule ElektrineWeb.PageLive.Home do
                       <% end %>
                       <%= if Modules.enabled?(:chat) do %>
                         <.link href={~p"/chat"} class="btn btn-ghost btn-lg">
-                          {gettext("Chat")}
+                          {gettext("Arblarg")}
                         </.link>
                       <% end %>
                       <.link href={~p"/account"} class="btn btn-ghost btn-lg">
@@ -191,19 +191,19 @@ defmodule ElektrineWeb.PageLive.Home do
         detail: "Domains / identity / auth"
       },
       %{icon: "hero-globe-alt-mini", name: "DNS", detail: "Authoritative / recursive"},
-      %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg"},
+      %{icon: "hero-chat-bubble-left-right-mini", name: "Arblarg", detail: "Messaging"},
       %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
-      %{icon: "hero-key-mini", name: "Bridge", detail: "Extension / site actions"}
+      %{icon: "hero-key-mini", name: "Nerve", detail: "Extension / site actions"}
     ]
     |> Enum.filter(fn module ->
       case module.name do
         "Email" -> Modules.enabled?(:email)
         "DNS" -> Modules.enabled?(:dns)
-        "Chat" -> Modules.enabled?(:chat)
+        "Arblarg" -> Modules.enabled?(:chat)
         "Social" -> Modules.enabled?(:social)
         "VPN" -> Modules.enabled?(:vpn)
-        "Bridge" -> Modules.enabled?(:nerve)
+        "Nerve" -> Modules.enabled?(:nerve)
         _ -> true
       end
     end)

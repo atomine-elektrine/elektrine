@@ -512,7 +512,7 @@ defmodule ElektrineWeb.NotificationsLive do
   defp default_source_path(_source), do: ~p"/portal"
 
   defp notification_source_label("all"), do: "All"
-  defp notification_source_label("chat"), do: "Chat"
+  defp notification_source_label("chat"), do: "Arblarg"
   defp notification_source_label("email"), do: "Email"
   defp notification_source_label("requests"), do: "Requests"
   defp notification_source_label("social"), do: "Social"

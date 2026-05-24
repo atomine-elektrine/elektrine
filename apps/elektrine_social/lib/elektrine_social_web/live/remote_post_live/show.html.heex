@@ -107,7 +107,8 @@
         <span>{@load_error}</span>
       </div>
     <% else %>
-      <%= if @is_local_post && @local_message && !Map.get(@local_message, :federated, false) do %>
+      <%= if @is_local_post && @local_message &&
+              (!Map.get(@local_message, :federated, false) || is_nil(@remote_actor)) do %>
         <!-- Local Post Display -->
         <% header_actor =
           Map.get(@local_message, :remote_actor) || Map.get(@local_message, :sender) || %{}
