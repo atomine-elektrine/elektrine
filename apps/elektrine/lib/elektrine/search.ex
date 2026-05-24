@@ -824,7 +824,7 @@ defmodule Elektrine.Search do
       %{
         id: "action_open_chat",
         type: "action",
-        title: "Open Chat",
+        title: "Open Arblarg",
         command: "open chat",
         aliases: ["chat"],
         execution: :navigate,

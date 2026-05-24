@@ -55,16 +55,16 @@ defmodule ElektrineWeb.AtominePow do
 
   defp config, do: Application.get_env(:elektrine, :atomine_pow, []) || []
 
-  defp normalize_difficulty(value) when is_integer(value), do: value |> max(0) |> min(30)
+  def normalize_difficulty(value) when is_integer(value), do: value |> max(0) |> min(30)
 
-  defp normalize_difficulty(value) when is_binary(value) do
+  def normalize_difficulty(value) when is_binary(value) do
     case Integer.parse(value) do
       {difficulty, ""} -> normalize_difficulty(difficulty)
       _ -> @default_difficulty
     end
   end
 
-  defp normalize_difficulty(_value), do: @default_difficulty
+  def normalize_difficulty(_value), do: @default_difficulty
 
   defp truthy?(value), do: value in [true, "true", "1", 1]
 end

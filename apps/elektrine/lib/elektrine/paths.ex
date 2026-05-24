@@ -150,6 +150,7 @@ defmodule Elektrine.Paths do
 
   def notifications_path, do: "/notifications"
   def portal_path, do: "/portal"
+  def maid_path, do: "/maid"
   def search_path, do: "/search"
   def login_path, do: "/login"
   def register_path, do: "/register"

@@ -380,12 +380,25 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp body_preview(_), do: nil
 
   defp mastodon_status_fallback(uri, opts) when is_binary(uri) do
-    with {:ok, domain, username, status_id} <- extract_mastodon_status_info(uri),
-         {:ok, status} <- fetch_mastodon_status(domain, status_id, opts),
-         {:ok, object} <- normalize_mastodon_status(status, uri, username) do
-      {:ok, object}
-    else
-      _ -> {:error, :no_status_fallback}
+    case extract_mastodon_status_info(uri) do
+      {:ok, domain, username, status_id} ->
+        with {:ok, status} <- fetch_mastodon_status(domain, status_id, opts),
+             {:ok, object} <- normalize_mastodon_status(status, uri, username) do
+          {:ok, object}
+        else
+          _ -> {:error, :no_status_fallback}
+        end
+
+      {:search, domain, status_url} ->
+        with {:ok, status} <- fetch_mastodon_status_via_search(domain, status_url, opts),
+             {:ok, object} <- normalize_mastodon_status(status, uri, nil) do
+          {:ok, object}
+        else
+          _ -> {:error, :no_status_fallback}
+        end
+
+      _ ->
+        {:error, :no_status_fallback}
     end
   end
 
@@ -400,6 +413,10 @@ defmodule Elektrine.ActivityPub.Fetcher do
       match = Regex.run(~r{https?://([^/]+)/@([^/]+)/([a-zA-Z0-9_-]+)}, url) ->
         [_, domain, username, status_id] = match
         {:ok, domain, username, status_id}
+
+      match = Regex.run(~r{https?://([^/]+)/objects/[a-f0-9-]+(?:$|[/?#])}i, url) ->
+        [_, domain] = match
+        {:search, domain, url}
 
       true ->
         {:error, :unsupported_status_url}
@@ -422,11 +439,32 @@ defmodule Elektrine.ActivityPub.Fetcher do
     end
   end
 
+  defp fetch_mastodon_status_via_search(domain, status_url, opts) do
+    api_url =
+      "https://#{domain}/api/v2/search?q=#{URI.encode_www_form(status_url)}&type=statuses&resolve=true&limit=1"
+
+    headers = [
+      {"accept", "application/json"},
+      {"user-agent", "Elektrine/1.0"}
+    ]
+
+    case request_with_backoff(api_url, headers, request_opts(opts)) do
+      {:ok, %Finch.Response{status: 200, body: body}} ->
+        case Jason.decode(body) do
+          {:ok, %{"statuses" => [%{} = status | _]}} -> {:ok, status}
+          _ -> {:error, :status_search_failed}
+        end
+
+      _ ->
+        {:error, :status_search_failed}
+    end
+  end
+
   defp normalize_mastodon_status(%{"account" => _account} = status, requested_uri, username) do
     visibility = Map.get(status, "visibility")
 
     if visibility in ["public", "unlisted", nil] do
-      actor_uri = mastodon_actor_uri(requested_uri, username)
+      actor_uri = mastodon_actor_uri(status, requested_uri, username)
 
       {:ok,
        %{
@@ -450,10 +488,21 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp normalize_mastodon_status(_, _, _), do: {:error, :invalid_status}
 
+  defp mastodon_actor_uri(%{"account" => %{} = account}, requested_uri, username) do
+    account["uri"] || account["url"] || mastodon_actor_uri(requested_uri, username)
+  end
+
+  defp mastodon_actor_uri(_, requested_uri, username),
+    do: mastodon_actor_uri(requested_uri, username)
+
   defp mastodon_actor_uri(requested_uri, username) do
     case URI.parse(requested_uri) do
       %URI{scheme: scheme, host: host} when is_binary(scheme) and is_binary(host) ->
-        "#{scheme}://#{host}/users/#{username}"
+        if is_binary(username) && username != "" do
+          "#{scheme}://#{host}/users/#{username}"
+        else
+          requested_uri
+        end
 
       _ ->
         requested_uri

@@ -217,7 +217,7 @@ defmodule ElektrineWeb.SearchLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
-      <.e_nav active_tab="search" current_user={@current_user} />
+      <.e_nav active_tab="maid" current_user={@current_user} />
 
       <div class="space-y-6">
         <div class="card bg-base-100 shadow-sm border border-base-300">
@@ -232,7 +232,7 @@ defmodule ElektrineWeb.SearchLive do
                       type="text"
                       name="query"
                       value={@query}
-                      placeholder="Search... or use > for commands"
+                      placeholder="Maid... or use > for commands"
                       class="grow pr-10"
                       phx-keyup="suggest"
                       phx-debounce="350"
@@ -295,7 +295,7 @@ defmodule ElektrineWeb.SearchLive do
                 phx-click="search"
                 phx-value-query=">open chat"
               >
-                Open Chat
+                Open Arblarg
               </button>
               <button
                 class="btn btn-sm btn-ghost rounded-full"
@@ -399,7 +399,7 @@ defmodule ElektrineWeb.SearchLive do
           <.floating_panel>
             <.empty_state
               icon="hero-command-line"
-              title="Global Search"
+              title="Maid"
               description="Search everything or start a command with `>`."
               size="sm"
             >
@@ -428,7 +428,7 @@ defmodule ElektrineWeb.SearchLive do
   defp format_result_type("action"), do: "Action"
   defp format_result_type("settings"), do: "Settings"
   defp format_result_type("person"), do: "People"
-  defp format_result_type("chat"), do: "Chat"
+  defp format_result_type("chat"), do: "Arblarg"
   defp format_result_type("timeline"), do: "Timeline"
   defp format_result_type("discussion"), do: "Discussion"
   defp format_result_type("community"), do: "Community"

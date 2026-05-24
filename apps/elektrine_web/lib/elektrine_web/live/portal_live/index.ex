@@ -18,7 +18,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   import ElektrineWeb.Live.Helpers.PostStateHelpers
   @default_filter "all"
   @allowed_filters ~w(all my_posts timeline gallery discussions)
-  @shared_feed_filters ~w(all my_posts timeline gallery)
+  @shared_feed_filters ~w(all)
   @default_attention_filter "all"
   @allowed_attention_filters ~w(all email chat requests social system)
   @feed_load_timeout_ms 12_000
@@ -1852,9 +1852,9 @@ defmodule ElektrineWeb.PortalLive.Index do
       end,
       %{
         id: "search",
-        label: "Global Search",
-        detail: "Jump across the workspace",
-        href: Elektrine.Paths.search_path(),
+        label: "Maid",
+        detail: "Private web search",
+        href: Elektrine.Paths.maid_path(),
         icon: "hero-magnifying-glass",
         tone: "neutral"
       }
@@ -2312,7 +2312,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp attention_filter_label("all"), do: "All"
   defp attention_filter_label("email"), do: "Email"
-  defp attention_filter_label("chat"), do: "Chat"
+  defp attention_filter_label("chat"), do: "Arblarg"
   defp attention_filter_label("requests"), do: "Requests"
   defp attention_filter_label("social"), do: "Social"
   defp attention_filter_label("system"), do: "System"
@@ -2379,7 +2379,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       |> Enum.map(fn conversation ->
         %{
           id: "chat-#{conversation.id}",
-          app: "Chat",
+          app: "Arblarg",
           title: conversation_label(conversation),
           detail: String.capitalize(conversation.type || "conversation"),
           href: Elektrine.Paths.chat_path(conversation),
@@ -2513,7 +2513,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp notification_activity_app(notification) do
     case {notification.type, notification.source_type} do
       {"email_received", _} -> "Email"
-      {_, "message"} -> "Chat"
+      {_, "message"} -> "Arblarg"
       {_, "post"} -> "Social"
       {_, "discussion"} -> "Social"
       {"follow", _} -> "Social"
@@ -2902,6 +2902,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     recommended_posts =
       Integrations.portal_for_you_feed(
         user_id,
+        filter: "discussions",
         limit: max(limit * 4, limit + 20),
         session_context: session_context
       )
@@ -2921,9 +2922,10 @@ defmodule ElektrineWeb.PortalLive.Index do
     merge_discussion_feed_posts(community_posts, public_posts, limit)
   end
 
-  defp load_portal_feed_posts(user_id, _filter, limit, session_context) do
+  defp load_portal_feed_posts(user_id, filter, limit, session_context) do
     Integrations.portal_for_you_feed(
       user_id,
+      filter: filter,
       limit: limit,
       session_context: session_context
     )

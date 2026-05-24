@@ -20,7 +20,11 @@ defmodule Elektrine.DNS.QueryTest do
     Application.put_env(
       :elektrine,
       :dns,
-      Keyword.put(previous_dns_config, :alias_resolver, AliasResolverStub)
+      Keyword.merge(previous_dns_config,
+        alias_resolver: AliasResolverStub,
+        edge_proxy_ipv4_addresses: ["198.51.100.200"],
+        edge_proxy_ipv6_addresses: ["2001:db8::200"]
+      )
     )
 
     on_exit(fn ->
@@ -107,6 +111,52 @@ defmodule Elektrine.DNS.QueryTest do
     assert header(response).ancount == 1
     assert header(response).rcode == 0
     assert response =~ <<203, 0, 113, 20>>
+  end
+
+  test "answers proxied A records with edge addresses" do
+    zone = %Zone{
+      domain: "proxied.example.com",
+      records: [
+        %Record{
+          name: "@",
+          type: "A",
+          content: "203.0.113.10",
+          ttl: 300,
+          metadata: %{"proxy" => %{"enabled" => true}}
+        }
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"proxied.example.com", zone})
+
+    response = Query.answer(build_query("proxied.example.com", 1))
+
+    assert header(response).ancount == 1
+    assert response =~ <<198, 51, 100, 200>>
+    refute response =~ <<203, 0, 113, 10>>
+  end
+
+  test "answers proxied CNAME records with edge addresses" do
+    zone = %Zone{
+      domain: "proxied-cname.example.com",
+      records: [
+        %Record{
+          name: "www",
+          type: "CNAME",
+          content: "origin.example.net",
+          ttl: 300,
+          metadata: %{"proxy" => %{"enabled" => true}}
+        }
+      ]
+    }
+
+    :ets.insert(Elektrine.DNS.ZoneCache, {"proxied-cname.example.com", zone})
+
+    response = Query.answer(build_query("www.proxied-cname.example.com", 1))
+
+    assert header(response).ancount == 1
+    assert response =~ <<198, 51, 100, 200>>
+    refute response =~ "origin"
   end
 
   test "answers SOA queries at the zone apex" do

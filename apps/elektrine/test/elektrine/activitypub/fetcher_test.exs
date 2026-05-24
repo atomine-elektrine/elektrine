@@ -244,6 +244,51 @@ defmodule Elektrine.ActivityPub.FetcherTest do
       assert object["url"] == "https://mastodon.world/@alice/115379251737165990"
       assert object["to"] == ["https://www.w3.org/ns/activitystreams#Public"]
     end
+
+    test "recovers Akkoma object URLs through status search when direct fetch returns 404" do
+      object_uri = "https://ak.kyaruc.moe/objects/db60670c-c2ec-4e93-b33c-e124ecf98792"
+
+      search_url =
+        "https://ak.kyaruc.moe/api/v2/search?q=#{URI.encode_www_form(object_uri)}&type=statuses&resolve=true&limit=1"
+
+      request_fun = fn
+        ^object_uri, _headers, _opts ->
+          {:ok, %Finch.Response{status: 404, headers: [], body: "\"Not found\""}}
+
+        ^search_url, _headers, _opts ->
+          {:ok,
+           %Finch.Response{
+             status: 200,
+             headers: [{"content-type", "application/json"}],
+             body:
+               Jason.encode!(%{
+                 "statuses" => [
+                   %{
+                     "uri" => object_uri,
+                     "url" => "https://ak.kyaruc.moe/notice/test",
+                     "content" => "<p>Akkoma object fallback</p>",
+                     "created_at" => "2026-05-24T00:00:00Z",
+                     "visibility" => "public",
+                     "sensitive" => false,
+                     "spoiler_text" => "",
+                     "media_attachments" => [],
+                     "account" => %{
+                       "username" => "alice",
+                       "uri" => "https://ak.kyaruc.moe/users/alice"
+                     }
+                   }
+                 ]
+               })
+           }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(object_uri, skip_cache: true, request_fun: request_fun)
+
+      assert object["id"] == object_uri
+      assert object["content"] == "<p>Akkoma object fallback</p>"
+      assert object["attributedTo"] == "https://ak.kyaruc.moe/users/alice"
+    end
   end
 
   describe "webfinger_lookup/2" do

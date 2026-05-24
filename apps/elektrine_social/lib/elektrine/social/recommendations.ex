@@ -74,6 +74,7 @@ defmodule Elektrine.Social.Recommendations do
 
     pre_scored =
       candidates
+      |> reject_negative_feedback_posts(user_profile)
       |> Enum.map(fn post -> {post, score_post_quick(post, user_profile)} end)
       |> Enum.sort_by(fn {_post, score} -> score end, :desc)
       |> Enum.take(limit * 3)
@@ -111,6 +112,17 @@ defmodule Elektrine.Social.Recommendations do
     |> interleave_posts(explore_posts)
     |> prioritize_session_creators(user_profile)
     |> diversify_feed()
+  end
+
+  defp reject_negative_feedback_posts(posts, user_profile) do
+    dismissed_posts =
+      List.wrap(user_profile.dismissed_posts) ++ List.wrap(user_profile.session_dismissed_posts)
+
+    dismissed_ids =
+      dismissed_posts
+      |> MapSet.new()
+
+    Enum.reject(posts, &MapSet.member?(dismissed_ids, &1.id))
   end
 
   defp prioritize_session_creators(posts, user_profile) do

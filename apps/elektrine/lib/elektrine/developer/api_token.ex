@@ -181,7 +181,7 @@ defmodule Elektrine.Developer.ApiToken do
         {"read:social", "Read posts, profile, and followers"},
         {"write:social", "Create posts, follow users, and like content"}
       ],
-      "Chat" => [
+      "Arblarg" => [
         {"read:chat", "Read conversations and messages"},
         {"write:chat", "Send messages and create conversations"}
       ],
@@ -205,7 +205,7 @@ defmodule Elektrine.Developer.ApiToken do
         {"read:dns", "Read managed DNS zones and records"},
         {"write:dns", "Create, update, verify, and delete DNS zones and records"}
       ],
-      "Proofs" => [
+      "Atomine" => [
         {"read:proofs", "Read identity proofs and personhood score"},
         {"write:proofs", "Create, check, and delete identity proofs"}
       ],

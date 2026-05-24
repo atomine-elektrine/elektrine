@@ -46,6 +46,7 @@ defmodule ElektrineWeb.ProfileController do
 
   alias Elektrine.Accounts.User
 
+  alias ElektrineWeb.AtomineGate
   alias ElektrineWeb.ClientIP
   alias ElektrineWeb.Platform.Integrations
 
@@ -329,10 +330,16 @@ defmodule ElektrineWeb.ProfileController do
         file ->
           case StaticSites.get_file_content(file) do
             {:ok, content} ->
-              conn
-              |> put_resp_content_type("text/html")
-              |> ElektrineWeb.Plugs.StaticSitePlug.put_static_html_headers()
-              |> send_resp(200, content)
+              case AtomineGate.authorize_static_request(conn, user, "text/html", "/") do
+                {:ok, conn} ->
+                  conn
+                  |> put_resp_content_type("text/html")
+                  |> ElektrineWeb.Plugs.StaticSitePlug.put_static_html_headers()
+                  |> send_resp(200, content)
+
+                {:challenge, conn} ->
+                  conn
+              end
 
             {:error, _} ->
               # Error fetching content, fall back to builder

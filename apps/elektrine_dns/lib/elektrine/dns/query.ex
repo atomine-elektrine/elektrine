@@ -226,9 +226,15 @@ defmodule Elektrine.DNS.Query do
       if exact_records != [] do
         exact_records
       else
-        cname_records = cname_records_for_name(zone, fqdn, opts)
+        proxied_records = proxied_edge_records_for_query(zone, fqdn, qtype, opts)
+
+        cname_records =
+          if proxied_records == [], do: cname_records_for_name(zone, fqdn, opts), else: []
 
         cond do
+          proxied_records != [] ->
+            proxied_records
+
           cname_records != [] ->
             cname_records
 
@@ -252,7 +258,7 @@ defmodule Elektrine.DNS.Query do
         (qtype == :any or normalize_type(record.type) == qtype)
     end)
     |> Enum.reject(&(normalize_type(&1.type) == :alias))
-    |> Enum.map(&with_record_host(zone, &1))
+    |> Enum.flat_map(&with_public_record_content(zone, &1))
     |> case do
       [] -> alias_records_for_query(zone, fqdn, qtype, opts)
       records -> records
@@ -270,15 +276,19 @@ defmodule Elektrine.DNS.Query do
   defp alias_records_for_query(_zone, _fqdn, _qtype, _opts), do: []
 
   defp flatten_alias_record(zone, fqdn, qtype, record, opts) do
-    target = normalize_name(record.content)
-
-    if target in ["", fqdn] do
-      []
+    if Elektrine.DNS.Record.proxied?(record) do
+      proxied_edge_records(record, fqdn, qtype)
     else
-      local_alias_records(zone, target, qtype, record.ttl, opts)
-      |> case do
-        [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
-        records -> records
+      target = normalize_name(record.content)
+
+      if target in ["", fqdn] do
+        []
+      else
+        local_alias_records(zone, target, qtype, record.ttl, opts)
+        |> case do
+          [] -> resolve_alias_target(target, qtype, fqdn, record.ttl)
+          records -> records
+        end
       end
     end
   end
@@ -288,10 +298,14 @@ defmodule Elektrine.DNS.Query do
     |> Enum.filter(fn record ->
       record_name(zone, record) == target and normalize_type(record.type) == qtype
     end)
-    |> Enum.map(fn record ->
-      with_record_host(zone, record)
-      |> Map.put(:host, target)
-      |> Map.put(:ttl, ttl || record.ttl || 300)
+    |> Enum.flat_map(fn record ->
+      zone
+      |> with_public_record_content(record)
+      |> Enum.map(fn answer ->
+        answer
+        |> Map.put(:host, target)
+        |> Map.put(:ttl, ttl || record.ttl || 300)
+      end)
     end)
   end
 
@@ -338,7 +352,40 @@ defmodule Elektrine.DNS.Query do
     |> Enum.filter(fn record ->
       record_name(zone, record) == fqdn and normalize_type(record.type) == :cname
     end)
+    |> Enum.reject(&Elektrine.DNS.Record.proxied?/1)
     |> Enum.map(&with_record_host(zone, &1))
+  end
+
+  defp proxied_edge_records_for_query(zone, fqdn, qtype, opts) when qtype in [:a, :aaaa, :any] do
+    zone_records(zone, opts)
+    |> Enum.filter(fn record ->
+      record_name(zone, record) == fqdn and Elektrine.DNS.Record.proxied?(record) and
+        normalize_type(record.type) in [:cname, :alias]
+    end)
+    |> Enum.flat_map(&proxied_edge_records(&1, fqdn, qtype))
+  end
+
+  defp proxied_edge_records_for_query(_zone, _fqdn, _qtype, _opts), do: []
+
+  defp proxied_edge_records(record, host, :a) do
+    edge_record_contents(record, host, "A", DNS.edge_proxy_ipv4_addresses())
+  end
+
+  defp proxied_edge_records(record, host, :aaaa) do
+    edge_record_contents(record, host, "AAAA", DNS.edge_proxy_ipv6_addresses())
+  end
+
+  defp proxied_edge_records(record, host, :any) do
+    proxied_edge_records(record, host, :a) ++ proxied_edge_records(record, host, :aaaa)
+  end
+
+  defp edge_record_contents(record, host, type, contents) do
+    Enum.map(contents, fn content ->
+      record
+      |> Map.put(:host, host)
+      |> Map.put(:type, type)
+      |> Map.put(:content, content)
+    end)
   end
 
   defp name_exists?(zone, qname, opts) do
@@ -386,7 +433,7 @@ defmodule Elektrine.DNS.Query do
     |> Enum.filter(fn record ->
       record_name(zone, record) in targets and normalize_type(record.type) in [:a, :aaaa]
     end)
-    |> Enum.map(&with_record_host(zone, &1))
+    |> Enum.flat_map(&with_public_record_content(zone, &1))
   end
 
   defp record_name(_zone, %{host: host}), do: normalize_name(host)
@@ -431,7 +478,7 @@ defmodule Elektrine.DNS.Query do
           record_name(zone, record) == wildcard_name and
             (qtype == :any or normalize_type(record.type) == qtype)
         end)
-        |> Enum.map(&with_record_host(zone, &1))
+        |> Enum.flat_map(&with_public_record_content(zone, &1))
 
       if records == [], do: nil, else: records
     end)
@@ -440,6 +487,24 @@ defmodule Elektrine.DNS.Query do
   defp with_record_host(zone, record) do
     Map.put(record, :host, record_name(zone, record))
   end
+
+  defp with_public_record_content(zone, record) do
+    if Elektrine.DNS.Record.proxied?(record) do
+      record
+      |> proxied_dns_contents()
+      |> Enum.map(fn content ->
+        zone
+        |> with_record_host(record)
+        |> Map.put(:content, content)
+      end)
+    else
+      [with_record_host(zone, record)]
+    end
+  end
+
+  defp proxied_dns_contents(%{type: "A"}), do: DNS.edge_proxy_ipv4_addresses()
+  defp proxied_dns_contents(%{type: "AAAA"}), do: DNS.edge_proxy_ipv6_addresses()
+  defp proxied_dns_contents(_record), do: []
 
   defp wildcard_candidates(fqdn, zone_domain) do
     qlabels = String.split(fqdn, ".", trim: true)

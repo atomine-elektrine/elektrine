@@ -9,7 +9,6 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
   - `X-RateLimit-Reset` - Unix timestamp when the rate limit resets
   """
   import Plug.Conn
-  import Phoenix.Controller
 
   alias Elektrine.API.RateLimiter
   alias ElektrineWeb.ClientIP
@@ -20,7 +19,7 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
   def init(opts), do: opts
 
   def call(conn, opts) do
-    if Application.get_env(:elektrine, :environment) == :test do
+    if test_env?() and not Keyword.get(opts, :enabled_in_test, false) do
       conn
     else
       do_call(conn, opts)
@@ -46,12 +45,13 @@ defmodule ElektrineWeb.Plugs.APIRateLimit do
         |> put_resp_header("x-ratelimit-limit", to_string(@default_limit))
         |> put_resp_header("x-ratelimit-remaining", "0")
         |> put_resp_header("x-ratelimit-reset", to_string(now + retry_after))
-        |> put_status(:too_many_requests)
-        |> put_view(json: ElektrineWeb.ErrorJSON)
-        |> render(:"429")
+        |> put_resp_content_type("application/json")
+        |> send_resp(429, Jason.encode!(%{errors: %{detail: "Too Many Requests"}}))
         |> halt()
     end
   end
+
+  defp test_env?, do: Application.get_env(:elektrine, :environment) == :test
 
   defp add_rate_limit_headers(conn, identifier) do
     status = RateLimiter.get_status(identifier)

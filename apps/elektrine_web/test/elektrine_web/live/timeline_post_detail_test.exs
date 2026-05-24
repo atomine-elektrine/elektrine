@@ -399,6 +399,28 @@ defmodule ElektrineSocialWeb.TimelinePostDetailTest do
       assert html =~ "timeline-post-card-body"
     end
 
+    test "renders local federated posts without a remote actor", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, post} =
+        Social.create_timeline_post(user.id, "Locally-authored federated post",
+          visibility: "public"
+        )
+
+      activitypub_id = "#{ElektrineWeb.Endpoint.url()}/posts/#{post.id}"
+
+      Repo.update_all(
+        from(m in Message, where: m.id == ^post.id),
+        set: [federated: true, activitypub_id: activitypub_id, activitypub_url: activitypub_id]
+      )
+
+      {:ok, view, _initial_html} = live(conn, ~p"/remote/post/#{post.id}")
+      html = render(view)
+
+      assert html =~ "Locally-authored federated post"
+      refute html =~ "Failed to load remote post"
+    end
+
     test "supports inline nested replies for local comments", %{conn: conn} do
       author = AccountsFixtures.user_fixture()
       replier = AccountsFixtures.user_fixture()

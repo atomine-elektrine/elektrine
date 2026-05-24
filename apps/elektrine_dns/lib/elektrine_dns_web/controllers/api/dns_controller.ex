@@ -306,7 +306,7 @@ defmodule ElektrineDNSWeb.API.DNSController do
   end
 
   defp format_record(record) do
-    %{
+    record_fields = %{
       id: Map.get(record, :id),
       zone_id: Map.get(record, :zone_id),
       name: Map.get(record, :name),
@@ -333,6 +333,28 @@ defmodule ElektrineDNSWeb.API.DNSController do
       metadata: Map.get(record, :metadata),
       inserted_at: Map.get(record, :inserted_at),
       updated_at: Map.get(record, :updated_at)
+    }
+
+    Map.merge(record_fields, proxy_record_fields(record))
+  end
+
+  defp proxy_record_fields(%DNS.Record{} = record) do
+    %{
+      proxied: DNS.Record.proxied?(record),
+      proxy_origin_scheme: DNS.Record.proxy_origin_scheme(record),
+      proxy_origin_port: DNS.Record.proxy_origin_port(record),
+      proxy_origin_host_header: DNS.Record.proxy_origin_host_header(record),
+      proxy_atomine_gate: DNS.Record.proxy_atomine_gate?(record)
+    }
+  end
+
+  defp proxy_record_fields(_record) do
+    %{
+      proxied: false,
+      proxy_origin_scheme: nil,
+      proxy_origin_port: nil,
+      proxy_origin_host_header: nil,
+      proxy_atomine_gate: nil
     }
   end
 

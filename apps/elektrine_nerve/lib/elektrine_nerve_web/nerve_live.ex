@@ -24,7 +24,7 @@ defmodule ElektrineNerveWeb.NerveLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "Bridge")
+     |> assign(:page_title, "Nerve")
      |> assign(:active_announcements, active_announcements)
      |> assign(:nerve_configured, nerve_configured)
      |> assign(:nerve_verifier, nerve_settings && nerve_settings.encrypted_verifier)
@@ -48,15 +48,15 @@ defmodule ElektrineNerveWeb.NerveLive do
        socket
        |> assign(:entries, Nerve.list_entries(user.id))
        |> assign(:form, entry_form(user.id))
-       |> put_flash(:info, "Bridge entry saved")}
+       |> put_flash(:info, "Nerve entry saved")}
     else
       {:error, :invalid_payload} ->
         {:noreply,
-         put_flash(socket, :error, "Bridge payload is invalid. Unlock Bridge and try again.")}
+         put_flash(socket, :error, "Nerve payload is invalid. Unlock Nerve and try again.")}
 
       {:error, :nerve_not_configured} ->
         {:noreply,
-         put_flash(socket, :error, "Set up your Bridge passphrase before saving entries.")}
+         put_flash(socket, :error, "Set up your Nerve passphrase before saving entries.")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(%{changeset | action: :insert}, as: :entry))}
@@ -74,14 +74,14 @@ defmodule ElektrineNerveWeb.NerveLive do
        |> assign(:nerve_configured, true)
        |> assign(:nerve_verifier, settings.encrypted_verifier)
        |> assign(:entries, Nerve.list_entries(user.id))
-       |> put_flash(:info, "Bridge configured")}
+       |> put_flash(:info, "Nerve configured")}
     else
       {:error, :invalid_payload} ->
         {:noreply,
          put_flash(
            socket,
            :error,
-           "Bridge setup payload is invalid. Use the setup form to continue."
+           "Nerve setup payload is invalid. Use the setup form to continue."
          )}
 
       {:error, changeset} ->
@@ -92,9 +92,9 @@ defmodule ElektrineNerveWeb.NerveLive do
 
         message =
           if details == "" do
-            "Could not configure Bridge."
+            "Could not configure Nerve."
           else
-            "Could not configure Bridge (#{details})."
+            "Could not configure Nerve (#{details})."
           end
 
         {:noreply, put_flash(socket, :error, message)}
@@ -110,7 +110,7 @@ defmodule ElektrineNerveWeb.NerveLive do
       {:noreply,
        socket
        |> assign(:entries, Nerve.list_entries(user.id))
-       |> put_flash(:info, "Bridge entry deleted")}
+       |> put_flash(:info, "Nerve entry deleted")}
     else
       :error -> {:noreply, put_flash(socket, :error, "Invalid entry id")}
       {:error, :not_found} -> {:noreply, put_flash(socket, :error, "Entry not found")}
@@ -148,10 +148,10 @@ defmodule ElektrineNerveWeb.NerveLive do
          |> assign(:nerve_verifier, nil)
          |> assign(:entries, [])
          |> assign(:form, entry_form(user.id))
-         |> put_flash(:info, "Bridge deleted. Create a new passphrase to start over.")}
+         |> put_flash(:info, "Nerve deleted. Create a new passphrase to start over.")}
 
       {:error, _reason} ->
-        {:noreply, put_flash(socket, :error, "Could not delete Bridge")}
+        {:noreply, put_flash(socket, :error, "Could not delete Nerve")}
     end
   end
 
@@ -172,13 +172,13 @@ defmodule ElektrineNerveWeb.NerveLive do
             current_user={@current_user}
           />
 
-          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Bridge is experimental. Keep separate backups of important passwords and recovery codes while this feature is being tested." />
+          <Elektrine.Components.ExperimentalNotice.experimental_notice message="Nerve is experimental. Keep separate backups of important passwords and recovery codes while this feature is being tested." />
 
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="card panel-card border border-base-300 shadow-lg">
               <div class="card-body p-4 sm:p-6">
                 <%= if @nerve_configured do %>
-                  <h2 class="card-title mb-4 text-lg">Unlock Bridge</h2>
+                  <h2 class="card-title mb-4 text-lg">Unlock Nerve</h2>
                   <p class="mb-4 text-sm text-base-content/70">
                     Your passphrase never leaves this browser session.
                   </p>
@@ -188,7 +188,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                       id="nerve-passphrase"
                       type="password"
                       class="input input-bordered w-full"
-                      placeholder="Enter Bridge passphrase"
+                      placeholder="Enter Nerve passphrase"
                       autocomplete="current-password"
                       data-nerve-passphrase-input
                     />
@@ -202,12 +202,12 @@ defmodule ElektrineNerveWeb.NerveLive do
                       </button>
                     </div>
 
-                    <p class="text-xs text-base-content/70" data-nerve-status>Bridge locked.</p>
+                    <p class="text-xs text-base-content/70" data-nerve-status>Nerve locked.</p>
                   </div>
                 <% else %>
-                  <h2 class="card-title mb-4 text-lg">Set Bridge Passphrase</h2>
+                  <h2 class="card-title mb-4 text-lg">Set Nerve Passphrase</h2>
                   <p class="mb-4 text-sm text-base-content/70">
-                    Create your Bridge passphrase before saving any credentials.
+                    Create your Nerve passphrase before saving any credentials.
                   </p>
 
                   <form id="nerve-setup-form" phx-submit="setup_nerve" data-nerve-setup-form>
@@ -216,7 +216,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                         type="password"
                         name="_nerve_setup_passphrase"
                         class="input input-bordered w-full"
-                        placeholder="New Bridge passphrase"
+                        placeholder="New Nerve passphrase"
                         autocomplete="new-password"
                         data-nerve-setup-passphrase
                       />
@@ -240,7 +240,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                         class="btn btn-primary btn-sm w-full"
                         data-nerve-setup-submit
                       >
-                        Create Bridge
+                        Create Nerve
                       </button>
                     </div>
                   </form>
@@ -252,26 +252,26 @@ defmodule ElektrineNerveWeb.NerveLive do
               <div class="card-body p-4 sm:p-6">
                 <h2 class="card-title mb-4 text-lg">Security Notes</h2>
                 <ul class="list-disc space-y-3 pl-5 text-sm text-base-content/70">
-                  <li>Only encrypted Bridge payloads are stored server-side.</li>
+                  <li>Only encrypted Nerve payloads are stored server-side.</li>
                   <li>Secrets are revealed only in this browser after local decryption.</li>
-                  <li>If you lose your Bridge passphrase, saved secrets cannot be recovered.</li>
+                  <li>If you lose your Nerve passphrase, saved secrets cannot be recovered.</li>
                   <li>Use unique passwords for every service.</li>
                 </ul>
 
                 <%= if @nerve_configured do %>
                   <div class="mt-5 rounded-lg border border-error/30 bg-error/5 p-4">
                     <p class="mb-3 text-sm text-base-content/70">
-                      Lost your passphrase? Delete Bridge and all saved entries, then create a
+                      Lost your passphrase? Delete Nerve and all saved entries, then create a
                       new one.
                     </p>
                     <button
                       id="delete-nerve-button"
                       type="button"
                       phx-click="delete_nerve"
-                      data-confirm="Delete Bridge and all saved entries? This cannot be undone."
+                      data-confirm="Delete Nerve and all saved entries? This cannot be undone."
                       class="btn btn-error btn-outline btn-sm"
                     >
-                      Delete Bridge
+                      Delete Nerve
                     </button>
                   </div>
                 <% end %>
@@ -287,7 +287,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
                       Browser Extension
                     </p>
-                    <h2 class="card-title mt-1 text-lg">Install Bridge</h2>
+                    <h2 class="card-title mt-1 text-lg">Install Nerve</h2>
                   </div>
                   <span class="badge badge-primary badge-outline">Extension</span>
                 </div>
@@ -313,7 +313,7 @@ defmodule ElektrineNerveWeb.NerveLive do
 
                 <ol class="mt-5 list-decimal space-y-2 pl-5 text-xs text-base-content/60">
                   <li>Install the extension.</li>
-                  <li>Open Bridge and unlock it in this browser.</li>
+                  <li>Open Nerve and unlock it in this browser.</li>
                   <li>Use saved entries on matching sites.</li>
                 </ol>
               </div>
@@ -343,7 +343,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                       <p class="font-medium">Local browser session</p>
                       <p class="text-xs text-base-content/60">
                         {if @nerve_configured,
-                          do: "Unlock Bridge here to decrypt entries locally.",
+                          do: "Unlock Nerve here to decrypt entries locally.",
                           else: "Create a passphrase before connecting devices."}
                       </p>
                     </div>
@@ -507,7 +507,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                 </form>
               <% else %>
                 <p class="text-sm text-base-content/70">
-                  Set your Bridge passphrase first. After setup, this form will unlock.
+                  Set your Nerve passphrase first. After setup, this form will unlock.
                 </p>
               <% end %>
             </div>
@@ -523,7 +523,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <span class="text-lg font-semibold">V</span>
                   </div>
                   <p class="text-sm text-base-content/60">
-                    Set up Bridge to start saving entries
+                    Set up Nerve to start saving entries
                   </p>
                 </div>
               <% else %>

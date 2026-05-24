@@ -309,6 +309,11 @@ defmodule Elektrine.DNS do
   def change_record(%Record{} = record, attrs \\ %{}) do
     record
     |> Map.put(:private, Record.private?(record))
+    |> Map.put(:proxied, Record.proxied?(record))
+    |> Map.put(:proxy_origin_scheme, Record.proxy_origin_scheme(record))
+    |> Map.put(:proxy_origin_port, Record.proxy_origin_port(record))
+    |> Map.put(:proxy_origin_host_header, Record.proxy_origin_host_header(record))
+    |> Map.put(:proxy_atomine_gate, Record.proxy_atomine_gate?(record))
     |> Record.changeset(attrs)
   end
 
@@ -405,7 +410,94 @@ defmodule Elektrine.DNS do
     |> Keyword.get(:default_ttl, 300)
   end
 
+  def edge_proxy_ipv4_addresses do
+    configured_edge_proxy_addresses(:edge_proxy_ipv4_addresses, :a)
+  end
+
+  def edge_proxy_ipv6_addresses do
+    configured_edge_proxy_addresses(:edge_proxy_ipv6_addresses, :aaaa)
+  end
+
+  def edge_proxy_hostname do
+    Application.get_env(:elektrine, :dns, [])
+    |> Keyword.get(:edge_proxy_hostname)
+    |> case do
+      value when is_binary(value) and value != "" -> value
+      _ -> Domains.profile_custom_domain_edge_target()
+    end
+    |> normalize_edge_proxy_hostname()
+  end
+
+  defp configured_edge_proxy_addresses(config_key, fallback_type) do
+    configured =
+      Application.get_env(:elektrine, :dns, [])
+      |> Keyword.get(config_key, [])
+      |> normalize_edge_proxy_addresses()
+
+    if configured == [], do: resolve_edge_proxy_addresses(fallback_type), else: configured
+  end
+
+  defp normalize_edge_proxy_addresses(addresses) do
+    addresses
+    |> List.wrap()
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp resolve_edge_proxy_addresses(type) when type in [:a, :aaaa] do
+    case edge_proxy_hostname() do
+      nil ->
+        []
+
+      hostname ->
+        hostname
+        |> String.to_charlist()
+        |> dns_resolver().lookup(:in, type, timeout: 3_000)
+        |> Enum.map(&normalize_lookup_address/1)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.uniq()
+    end
+  rescue
+    _ -> []
+  end
+
+  defp normalize_lookup_address({_, _, _, _} = address), do: :inet.ntoa(address) |> to_string()
+  defp normalize_lookup_address(tuple) when is_tuple(tuple), do: :inet.ntoa(tuple) |> to_string()
+  defp normalize_lookup_address(value) when is_binary(value), do: String.trim(value)
+
+  defp normalize_lookup_address(value) when is_list(value),
+    do: value |> to_string() |> String.trim()
+
+  defp normalize_lookup_address(_), do: nil
+
+  defp normalize_edge_proxy_hostname(nil), do: nil
+
+  defp normalize_edge_proxy_hostname(hostname) do
+    hostname = hostname |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+    if hostname == "", do: nil, else: hostname
+  end
+
   def supported_record_types, do: @record_types
+
+  def proxied_host?(host) when is_binary(host) do
+    match?({:ok, _origin}, proxied_origin_for_host(host))
+  end
+
+  def proxied_host?(_), do: false
+
+  def proxied_origin_for_host(host) when is_binary(host) do
+    normalized_host = normalize_proxy_host(host)
+
+    with %Zone{} = zone <- proxied_zone_for_host(normalized_host),
+         %Record{} = record <- proxied_record_for_host(zone, normalized_host) do
+      {:ok, proxied_origin(zone, record, normalized_host)}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  def proxied_origin_for_host(_), do: {:error, :not_found}
 
   def scan_existing_zone(domain) when is_binary(domain) do
     normalized_domain = domain |> String.trim() |> String.downcase() |> String.trim_trailing(".")
@@ -1648,6 +1740,89 @@ defmodule Elektrine.DNS do
       "selector" => record.selector,
       "matching_type" => record.matching_type
     }
+  end
+
+  defp proxied_zone_for_host(host) do
+    host
+    |> candidate_zone_domains()
+    |> Enum.find_value(fn domain ->
+      Zone
+      |> where([z], z.status == "verified" and fragment("lower(?)", z.domain) == ^domain)
+      |> preload(:records)
+      |> Repo.one()
+    end)
+  end
+
+  defp proxied_record_for_host(%Zone{} = zone, host) do
+    zone.records
+    |> Enum.filter(&(Record.proxied?(&1) and record_fqdn(zone, &1) == host))
+    |> Enum.sort_by(&proxy_record_priority/1)
+    |> List.first()
+  end
+
+  defp proxied_origin(%Zone{} = zone, %Record{} = record, host) do
+    scheme = Record.proxy_origin_scheme(record)
+    port = Record.proxy_origin_port(record)
+
+    origin_host =
+      record.content |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+
+    host_header = Record.proxy_origin_host_header(record) || host
+
+    %{
+      zone_id: zone.id,
+      zone_domain: zone.domain,
+      record_id: record.id,
+      host: host,
+      origin_scheme: scheme,
+      origin_host: origin_host,
+      origin_port: port,
+      origin_url: origin_url(scheme, origin_host, port),
+      origin_host_header: host_header,
+      atomine_gate: Record.proxy_atomine_gate?(record)
+    }
+  end
+
+  defp origin_url(scheme, host, port) do
+    default_port = if scheme == "http", do: 80, else: 443
+    port_suffix = if port == default_port, do: "", else: ":#{port}"
+    scheme <> "://" <> host <> port_suffix
+  end
+
+  defp proxy_record_priority(%Record{type: "A"}), do: 0
+  defp proxy_record_priority(%Record{type: "AAAA"}), do: 1
+  defp proxy_record_priority(%Record{type: "CNAME"}), do: 2
+  defp proxy_record_priority(%Record{type: "ALIAS"}), do: 3
+  defp proxy_record_priority(_), do: 4
+
+  defp record_fqdn(%Zone{} = zone, %Record{name: name}) when is_binary(name) do
+    zone_domain = normalize_proxy_host(zone.domain)
+    normalized_name = normalize_proxy_host(name)
+
+    cond do
+      normalized_name in ["", "@"] -> zone_domain
+      normalized_name == zone_domain -> zone_domain
+      String.ends_with?(normalized_name, "." <> zone_domain) -> normalized_name
+      true -> normalized_name <> "." <> zone_domain
+    end
+  end
+
+  defp candidate_zone_domains(host) do
+    host
+    |> String.split(".", trim: true)
+    |> case do
+      [] -> []
+      labels -> Enum.map(0..(length(labels) - 1), &(labels |> Enum.drop(&1) |> Enum.join(".")))
+    end
+  end
+
+  defp normalize_proxy_host(host) do
+    host
+    |> String.trim()
+    |> String.trim_trailing(".")
+    |> String.downcase()
+    |> String.split(":", parts: 2)
+    |> List.first()
   end
 
   defp normalize_record_type(nil), do: nil

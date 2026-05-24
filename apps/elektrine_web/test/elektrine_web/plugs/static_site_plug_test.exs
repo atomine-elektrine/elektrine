@@ -9,6 +9,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
   alias Elektrine.Profiles.CustomDomain
   alias Elektrine.Repo
   alias Elektrine.StaticSites
+  alias ElektrineWeb.AtomineGate
   alias ElektrineWeb.Plugs.{ProfileCustomDomain, RuntimeSession}
 
   setup do
@@ -173,6 +174,35 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert conn.resp_body == html_content
     end
 
+    test "serves the assigned custom-domain owner instead of re-resolving the handle", %{
+      user: owner
+    } do
+      owner_html = "<html><body>Owner Site</body></html>"
+      impostor_html = "<html><body>Wrong Site</body></html>"
+
+      impostor = AccountsFixtures.user_fixture()
+
+      {:ok, _profile} =
+        Profiles.create_user_profile(impostor.id, %{
+          display_name: impostor.username,
+          profile_mode: "static"
+        })
+
+      {:ok, _} = StaticSites.upload_file(owner, "index.html", owner_html, "text/html")
+      {:ok, _} = StaticSites.upload_file(impostor, "index.html", impostor_html, "text/html")
+
+      conn =
+        Plug.Test.conn(:get, "/")
+        |> Plug.Conn.assign(:profile_custom_domain, "brand.test")
+        |> Plug.Conn.assign(:profile_custom_domain_user_id, owner.id)
+        |> Plug.Conn.assign(:subdomain_handle, impostor.handle)
+        |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body == owner_html
+      refute conn.resp_body == impostor_html
+    end
+
     test "serves custom-domain static sites before the session is fetched", %{
       user: user,
       html_content: html_content
@@ -256,6 +286,57 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert {"content-type", "application/javascript; charset=utf-8"} in conn.resp_headers
     end
 
+    test "Atomine Gate challenges static HTML when enabled", %{user: user} do
+      with_atomine_gate_enabled(fn ->
+        conn =
+          Plug.Test.conn(:get, "/")
+          |> Map.put(:host, "gate.test")
+          |> Plug.Conn.assign(:subdomain_handle, user.handle)
+          |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+        assert conn.status == 403
+        assert conn.resp_body =~ "Atomine Gate"
+        assert conn.resp_body =~ "/api/atomine/pow/challenge"
+        assert get_resp_header(conn, "cache-control") == ["no-store"]
+      end)
+    end
+
+    test "Atomine Gate does not challenge static assets", %{
+      user: user,
+      css_content: css_content
+    } do
+      with_atomine_gate_enabled(fn ->
+        conn =
+          Plug.Test.conn(:get, "/style.css")
+          |> Map.put(:host, "gate.test")
+          |> Plug.Conn.assign(:subdomain_handle, user.handle)
+          |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+        assert conn.status == 200
+        assert conn.resp_body == css_content
+      end)
+    end
+
+    test "Atomine Gate verification sets host-bound clearance", %{user: user} do
+      with_atomine_gate_enabled(fn ->
+        conn =
+          Plug.Test.conn(:post, AtomineGate.verify_path(), %{
+            "atomine_pow_token" => "test-token",
+            "user_id" => to_string(user.id),
+            "return_to" => "/protected?x=1"
+          })
+          |> Map.put(:host, "gate.test")
+          |> ElektrineWeb.Plugs.StaticSitePlug.call([])
+
+        assert conn.status == 303
+        assert get_resp_header(conn, "location") == ["/protected?x=1"]
+
+        [set_cookie] = get_resp_header(conn, "set-cookie")
+        assert set_cookie =~ "_elektrine_atomine_gate="
+        assert set_cookie =~ "HttpOnly"
+      end)
+    end
+
     test "serves static generator section paths on custom domains", %{user: user} do
       page = "<html><body>Post</body></html>"
       {:ok, _} = StaticSites.upload_file(user, "c/post/index.html", page, "text/html")
@@ -332,6 +413,22 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
         # (will get normal 404 or redirect)
         assert conn.status in [200, 302, 404]
       end
+    end
+  end
+
+  defp with_atomine_gate_enabled(fun) do
+    previous = Application.get_env(:elektrine, :atomine_gate, [])
+
+    Application.put_env(:elektrine, :atomine_gate,
+      enabled: true,
+      difficulty: 0,
+      clearance_ttl_seconds: 60
+    )
+
+    try do
+      fun.()
+    after
+      Application.put_env(:elektrine, :atomine_gate, previous)
     end
   end
 end

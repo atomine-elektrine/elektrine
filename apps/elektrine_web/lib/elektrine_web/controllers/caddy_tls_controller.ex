@@ -3,6 +3,7 @@ defmodule ElektrineWeb.CaddyTLSController do
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.User
+  alias Elektrine.DNS
   alias Elektrine.Domains
   alias Elektrine.Profiles
 
@@ -51,6 +52,7 @@ defmodule ElektrineWeb.CaddyTLSController do
   defp allowed_domain(_), do: nil
 
   defp cached_allowed_domain(domain) do
+    ensure_cache_table()
     now = System.monotonic_time(:millisecond)
 
     case :ets.lookup(@cache_table, domain) do
@@ -75,7 +77,18 @@ defmodule ElektrineWeb.CaddyTLSController do
         nil
 
       true ->
-        Profiles.get_verified_custom_domain_for_host(domain)
+        Profiles.get_verified_custom_domain_for_host(domain) || proxied_dns_host(domain)
+    end
+  end
+
+  defp proxied_dns_host(domain) do
+    if DNS.proxied_host?(domain), do: domain
+  end
+
+  defp ensure_cache_table do
+    case :ets.whereis(@cache_table) do
+      :undefined -> :ets.new(@cache_table, [:named_table, :public, read_concurrency: true])
+      _table -> @cache_table
     end
   end
 

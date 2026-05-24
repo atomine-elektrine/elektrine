@@ -19,6 +19,8 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
     "/live",
     "/socket",
     "/phoenix",
+    "/api/atomine/",
+    "/__atomine_gate/",
     "/profiles/",
     "/uploads",
     "/_arblarg",
@@ -56,6 +58,7 @@ defmodule ElektrineWeb.Plugs.ProfileCustomDomain do
             conn =
               conn
               |> assign(:profile_custom_domain, domain)
+              |> assign(:profile_custom_domain_user_id, custom_domain.user_id)
               |> assign(:subdomain_handle, handle)
 
             cond do

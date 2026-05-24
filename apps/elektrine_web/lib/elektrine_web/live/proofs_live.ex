@@ -44,7 +44,7 @@ defmodule ElektrineWeb.ProofsLive do
 
         {:ok,
          socket
-         |> assign(:page_title, "Proofs")
+         |> assign(:page_title, "Atomine")
          |> assign(:atomine_pow_enabled, atomine_pow_enabled)
          |> assign(:atomine_pow_difficulty, AtominePow.difficulty())
          |> assign(:proof_kinds, @proof_kinds)
@@ -207,7 +207,7 @@ defmodule ElektrineWeb.ProofsLive do
   def render(assigns) do
     ~H"""
     <.account_page
-      title="Proofs"
+      title="Atomine"
       subtitle="Verify domains, pages, and accounts you control."
       sidebar_link="proofs"
       nav_tab="proofs"
@@ -215,7 +215,10 @@ defmodule ElektrineWeb.ProofsLive do
       badge_counts={@e_nav_badge_counts}
       show_header={false}
     >
-      <.experimental_notice message="Identity proofs are experimental. Verification rules and credit rewards may change as the trust system is tuned." />
+      <.experimental_notice
+        class="mb-6"
+        message="Identity proofs are experimental. Verification rules and credit rewards may change as the trust system is tuned."
+      />
 
       <div class="rounded-2xl border border-base-300 bg-base-100/80 p-4 text-sm shadow-sm sm:p-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -249,7 +252,7 @@ defmodule ElektrineWeb.ProofsLive do
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
         <span>
-          Proofs are not available until Atomine is loaded. Restart the server if this was just enabled.
+          Atomine is not available until it is loaded. Restart the server if this was just enabled.
         </span>
       </div>
 
@@ -270,7 +273,7 @@ defmodule ElektrineWeb.ProofsLive do
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 class="card-title text-lg mb-2">Proofs</h2>
+                  <h2 class="card-title text-lg mb-2">Atomine</h2>
                   <p class="text-sm text-base-content/70">
                     Pick where the proof will live. After creating it, publish the signed line and check it.
                   </p>
@@ -1035,7 +1038,7 @@ defmodule ElektrineWeb.ProofsLive do
   defp proof_error(changeset) do
     case changeset do
       :atomine_unavailable ->
-        "Proofs are not available until Atomine is loaded. Restart the server if this was just enabled."
+        "Atomine is not available until it is loaded. Restart the server if this was just enabled."
 
       %{errors: errors} ->
         errors

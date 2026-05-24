@@ -188,6 +188,8 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
       String.starts_with?(path, "/socket") -> true
       String.starts_with?(path, "/phoenix") -> true
       String.starts_with?(path, "/assets") -> true
+      String.starts_with?(path, "/api/atomine/") -> true
+      String.starts_with?(path, "/__atomine_gate/") -> true
       String.starts_with?(path, "/profiles/") -> true
       String.starts_with?(path, "/uploads") -> true
       # ActivityPub federation endpoints - must bypass subdomain rewrite
