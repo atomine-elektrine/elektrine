@@ -278,38 +278,24 @@ services:
       TURN_REALM: ${TURN_REALM:-${PRIMARY_DOMAIN:-example.com}}
       TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-}
       TURN_RELAY_IP: ${TURN_RELAY_IP:-}
-      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:?set TURN_SHARED_SECRET}
     network_mode: host
-    command: >-
-      /bin/sh -ec '
-      secret="$${TURN_SHARED_SECRET}";
-      if [ -z "$$secret" ]; then
-        echo "TURN_SHARED_SECRET is required for the turn profile" >&2;
-        exit 1;
-      fi;
-      set -- turnserver
-        --no-cli
-        --fingerprint
-        --use-auth-secret
-        --static-auth-secret="$$secret"
-        --realm="$${TURN_REALM}"
-        --server-name="$${TURN_REALM}"
-        --listening-ip=0.0.0.0
-        --listening-port="$${TURN_PORT}"
-        --min-port="$${TURN_MIN_PORT}"
-        --max-port="$${TURN_MAX_PORT}"
-        --lt-cred-mech
-        --stale-nonce
-        --no-tls
-        --no-dtls
-        --simple-log;
-      if [ -n "$${TURN_EXTERNAL_IP:-}" ]; then
-        set -- "$$@" --external-ip="$${TURN_EXTERNAL_IP}";
-      fi;
-      if [ -n "$${TURN_RELAY_IP:-}" ]; then
-        set -- "$$@" --relay-ip="$${TURN_RELAY_IP}";
-      fi;
-      exec "$$@"'
+    command:
+      - --no-cli
+      - --fingerprint
+      - --use-auth-secret
+      - --static-auth-secret=${TURN_SHARED_SECRET:?set TURN_SHARED_SECRET}
+      - --realm=${TURN_REALM:-${PRIMARY_DOMAIN:-example.com}}
+      - --server-name=${TURN_REALM:-${PRIMARY_DOMAIN:-example.com}}
+      - --listening-ip=0.0.0.0
+      - --listening-port=${TURN_PORT:-3478}
+      - --min-port=${TURN_MIN_PORT:-49160}
+      - --max-port=${TURN_MAX_PORT:-49200}
+      - --lt-cred-mech
+      - --stale-nonce
+      - --no-tls
+      - --no-dtls
+      - --simple-log
     restart: unless-stopped
 
   caddy_edge:
