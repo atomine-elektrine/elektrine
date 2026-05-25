@@ -138,6 +138,14 @@ jobs:
             exit 1
           fi
 
+          if [[ " $DOCKER_PROFILES " == *" turn "* ]]; then
+            if [ ! -f "$DEPLOY_PATH/.env.production" ] || ! grep -q '^TURN_SHARED_SECRET=.' "$DEPLOY_PATH/.env.production"; then
+              echo "TURN profile is enabled, but TURN_SHARED_SECRET is missing from $DEPLOY_PATH/.env.production" >&2
+              echo "Add TURN_SHARED_SECRET to the remote .env.production file." >&2
+              exit 1
+            fi
+          fi
+
           cd "$DEPLOY_PATH"
           git fetch --all --tags
 
