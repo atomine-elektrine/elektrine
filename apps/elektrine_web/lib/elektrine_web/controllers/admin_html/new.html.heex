@@ -26,6 +26,49 @@
           required
         />
         <div>
+          <label class="label">
+            <span>Initial Trust Level</span>
+            <span class="opacity-50">Access and reputation tier</span>
+          </label>
+          <div class="select select-bordered w-full">
+            <select name="user[trust_level]">
+              <option
+                value="0"
+                selected={Phoenix.HTML.Form.input_value(f, :trust_level) in [nil, 0]}
+              >
+                TL0 - New
+              </option>
+              <option value="1" selected={Phoenix.HTML.Form.input_value(f, :trust_level) == 1}>
+                TL1 - Basic
+              </option>
+              <option value="2" selected={Phoenix.HTML.Form.input_value(f, :trust_level) == 2}>
+                TL2 - Member
+              </option>
+              <option value="3" selected={Phoenix.HTML.Form.input_value(f, :trust_level) == 3}>
+                TL3 - Regular
+              </option>
+              <option value="4" selected={Phoenix.HTML.Form.input_value(f, :trust_level) == 4}>
+                TL4 - Leader
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="label cursor-pointer">
+            <span>Lock trust level</span>
+            <.input
+              field={f[:trust_level_locked]}
+              type="checkbox"
+              class="checkbox checkbox-warning"
+            />
+          </label>
+          <div class="label">
+            <span class="opacity-70">Prevent automatic trust-level reconciliation</span>
+          </div>
+        </div>
+
+        <div>
           <label class="label cursor-pointer">
             <span>Admin privileges</span>
             <.input field={f[:is_admin]} type="checkbox" class="checkbox checkbox-primary" />

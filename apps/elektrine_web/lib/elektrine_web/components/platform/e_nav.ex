@@ -44,7 +44,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
 
     assigns =
       assigns
-      |> assign(:items, nav_items(badge_counts))
+      |> assign(:items, nav_items(assigns.current_user, badge_counts))
       |> assign(:secondary_items, secondary_items(assigns.current_user, badge_counts))
 
     ENavComponent.render(assigns)
@@ -84,27 +84,39 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     """
   end
 
-  defp nav_items(badge_counts) do
+  defp nav_items(current_user, badge_counts) do
     PlatformENav.primary_items()
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
-    |> Enum.filter(&module_visible?/1)
+    |> Enum.filter(&module_visible?(&1, current_user))
     |> PlatformENav.with_badge_counts(badge_counts)
   end
 
   defp secondary_items(nil, _badge_counts), do: []
 
-  defp secondary_items(_current_user, badge_counts) do
+  defp secondary_items(current_user, badge_counts) do
     PlatformENav.secondary_items()
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
-    |> Enum.filter(&module_visible?/1)
+    |> Enum.filter(&module_visible?(&1, current_user))
     |> PlatformENav.with_badge_counts(badge_counts)
   end
 
-  defp module_visible?(%{platform_module: nil}), do: true
-  defp module_visible?(%{platform_module: module}), do: Modules.enabled?(module)
-  defp module_visible?(_item), do: true
+  defp module_visible?(item, current_user) do
+    platform_visible? =
+      case item[:platform_module] do
+        nil -> true
+        module -> Modules.enabled?(module)
+      end
+
+    access_visible? =
+      case item[:access_module] do
+        nil -> true
+        module -> Elektrine.System.user_can_access_module?(current_user, module)
+      end
+
+    platform_visible? and access_visible?
+  end
 end

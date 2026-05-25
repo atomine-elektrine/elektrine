@@ -60,6 +60,21 @@ defmodule ElektrineWeb.PortalLiveTest do
     assert Index.loader_log_label({:for_you_feed, "all"}) == "{:for_you_feed, \"all\"}"
   end
 
+  test "remote post navigation prefers local id over remote url", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/portal")
+
+    assert {:error, {:live_redirect, %{to: "/remote/post/2840437"}}} =
+             render_hook(view, "navigate_to_remote_post", %{
+               "id" => "2840437",
+               "url" => "https://mastodon.online/users/mwichary/statuses/116636406552298995"
+             })
+  end
+
   test "shell prioritizes RSS reading controls", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 

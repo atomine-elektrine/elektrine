@@ -278,6 +278,7 @@ services:
       TURN_REALM: ${TURN_REALM:-${PRIMARY_DOMAIN:-example.com}}
       TURN_EXTERNAL_IP: ${TURN_EXTERNAL_IP:-}
       TURN_RELAY_IP: ${TURN_RELAY_IP:-}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-}
     network_mode: host
     command: >-
       /bin/sh -ec '

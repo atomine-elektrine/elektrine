@@ -244,7 +244,7 @@ defmodule Elektrine.DNS.ManagedRecords do
       dkim_value = "v=DKIM1; k=rsa; p=#{dkim_module().public_key_dns_value(dkim_public_key)}"
 
       settings
-      |> Map.put_new("dkim_value", dkim_value)
+      |> Map.put("dkim_value", dkim_value)
     end
   end
 

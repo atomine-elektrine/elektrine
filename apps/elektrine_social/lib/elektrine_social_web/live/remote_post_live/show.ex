@@ -2011,19 +2011,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp canonical_remote_post_path(ref), do: remote_detail_post_path(ref)
 
-  defp remote_detail_post_path(ref) when is_integer(ref), do: "/remote/post/#{ref}"
-
-  defp remote_detail_post_path(ref) when is_binary(ref) do
-    trimmed = String.trim(ref)
-
-    case Integer.parse(trimmed) do
-      {id, ""} -> remote_detail_post_path(id)
-      _ when trimmed == "" -> nil
-      _ -> "/remote/post/#{URI.encode_www_form(trimmed)}"
-    end
-  end
-
-  defp remote_detail_post_path(ref), do: remote_detail_post_path(to_string(ref))
+  defp remote_detail_post_path(ref), do: Paths.remote_post_path(ref)
 
   defp current_post_path_from_uri(uri) when is_binary(uri) do
     parsed = URI.parse(uri)
@@ -6173,6 +6161,17 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     {:noreply, push_navigate(socket, to: navigate_post_path(socket, message_id))}
   end
 
+  def handle_event("navigate_to_remote_post", %{"id" => id, "url" => url}, socket)
+      when is_binary(url) and url != "" do
+    path =
+      case parse_local_message_id(decode_post_ref(id)) do
+        {:ok, local_id} -> Paths.remote_post_path(local_id)
+        :error -> Paths.post_path(url)
+      end
+
+    {:noreply, push_navigate(socket, to: path)}
+  end
+
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
     {:noreply, push_navigate(socket, to: Paths.post_path(url))}
@@ -6180,12 +6179,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, push_navigate(socket, to: Paths.remote_post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, push_navigate(socket, to: Paths.remote_post_path(navigate_id))}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do

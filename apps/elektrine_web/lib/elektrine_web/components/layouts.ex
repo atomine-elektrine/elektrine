@@ -263,7 +263,7 @@ defmodule ElektrineWeb.Layouts do
   end
 
   @doc ~s|Returns the global composer menu entries used by the app shell.\n|
-  def global_composer_items do
+  def global_composer_items(current_user \\ nil) do
     [
       %{
         id: "post",
@@ -271,6 +271,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Share to timeline",
         href: Elektrine.Paths.timeline_path(composer: "post"),
         platform_module: :social,
+        access_module: :timeline,
         icon: "hero-rectangle-stack"
       },
       %{
@@ -279,6 +280,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Start a direct message",
         href: Elektrine.Paths.chat_root_path(composer: "message"),
         platform_module: :chat,
+        access_module: :chat,
         icon: "hero-chat-bubble-left-right"
       },
       %{
@@ -287,6 +289,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Compose a new email",
         href: Elektrine.Paths.email_compose_path(),
         platform_module: :email,
+        access_module: :email,
         icon: "hero-envelope"
       },
       %{
@@ -295,6 +298,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Capture something to do",
         href: Elektrine.Paths.calendar_path(composer: "task"),
         platform_module: :email,
+        access_module: :email,
         icon: "hero-check-circle"
       },
       %{
@@ -303,6 +307,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Schedule calendar time",
         href: Elektrine.Paths.calendar_path(composer: "event"),
         platform_module: :email,
+        access_module: :email,
         icon: "hero-calendar"
       },
       %{
@@ -311,6 +316,7 @@ defmodule ElektrineWeb.Layouts do
         detail: "Create a saved set of people",
         href: Elektrine.Paths.lists_path("create-list-panel"),
         platform_module: :social,
+        access_module: :lists,
         icon: "hero-queue-list"
       },
       %{
@@ -319,15 +325,24 @@ defmodule ElektrineWeb.Layouts do
         detail: "Keep a private note",
         href: Elektrine.Paths.notes_path(new: true),
         platform_module: :social,
+        access_module: :notes,
         icon: "hero-document-text"
       }
     ]
-    |> Enum.filter(fn item -> platform_module_enabled?(item.platform_module) end)
+    |> Enum.filter(&item_accessible?(&1, current_user))
   end
 
   @doc ~s|Returns true when a hoster-enabled platform module is available.\n|
   def platform_module_enabled?(nil), do: true
   def platform_module_enabled?(module), do: Modules.enabled?(module)
+
+  def item_accessible?(item, current_user) do
+    platform_module_enabled?(item[:platform_module]) and
+      case item[:access_module] do
+        nil -> true
+        module -> Elektrine.System.user_can_access_module?(current_user, module)
+      end
+  end
 
   @doc ~s|Gets the current URL from assigns if available.\n|
   def current_url(assigns) do

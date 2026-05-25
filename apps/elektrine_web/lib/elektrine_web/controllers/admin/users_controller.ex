@@ -105,7 +105,12 @@ defmodule ElektrineWeb.Admin.UsersController do
           "create",
           "user",
           target_user_id: user.id,
-          details: %{username: user.username, is_admin: user.is_admin},
+          details: %{
+            username: user.username,
+            is_admin: user.is_admin,
+            trust_level: user.trust_level,
+            trust_level_locked: user.trust_level_locked
+          },
           ip_address: get_remote_ip(conn),
           user_agent: get_req_header(conn, "user-agent") |> List.first()
         )

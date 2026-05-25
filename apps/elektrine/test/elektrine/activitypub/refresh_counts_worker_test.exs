@@ -7,6 +7,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
   alias Elektrine.Messaging
   alias Elektrine.Social.PostBoost
   alias Elektrine.Social.PostLike
+  import Ecto.Query
 
   test "visible_refresh_candidate_ids/2 selects visible federated ActivityPub posts" do
     posts = [
@@ -147,6 +148,52 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
     assert counts.like_count == 3
     assert counts.reply_count == 4
     assert counts.share_count == 5
+  end
+
+  test "refresh_single uses activitypub_url when activitypub_id is missing" do
+    actor = remote_actor_fixture()
+    unique = System.unique_integer([:positive])
+    activitypub_url = "https://example.com/posts/#{unique}"
+
+    {:ok, post} =
+      Messaging.create_federated_message(%{
+        content: "cached remote post",
+        visibility: "public",
+        activitypub_id: "https://example.com/activities/#{unique}",
+        activitypub_url: activitypub_url,
+        federated: true,
+        remote_actor_id: actor.id,
+        like_count: 0,
+        reply_count: 0,
+        share_count: 0
+      })
+
+    Repo.update_all(
+      from(m in Elektrine.Social.Message, where: m.id == ^post.id),
+      set: [activitypub_id: nil]
+    )
+
+    assert {:ok, true} =
+             Cachex.put(:app_cache, {:object, activitypub_url}, {
+               :ok,
+               %{
+                 "id" => activitypub_url,
+                 "type" => "Note",
+                 "likes" => %{"totalItems" => 7},
+                 "replies" => %{"totalItems" => 3},
+                 "shares" => %{"totalItems" => 2}
+               }
+             })
+
+    assert :ok =
+             RefreshCountsWorker.perform(%Oban.Job{
+               args: %{"type" => "refresh_single", "message_id" => post.id}
+             })
+
+    refreshed_post = Repo.get!(Elektrine.Social.Message, post.id)
+    assert refreshed_post.like_count == 7
+    assert refreshed_post.reply_count == 3
+    assert refreshed_post.share_count == 2
   end
 
   defp remote_actor_fixture do

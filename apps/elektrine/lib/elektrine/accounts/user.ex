@@ -191,7 +191,14 @@ defmodule Elektrine.Accounts.User do
   """
   def admin_registration_changeset(user, attrs) do
     user
-    |> cast(attrs, [:username, :password, :password_confirmation, :is_admin])
+    |> cast(attrs, [
+      :username,
+      :password,
+      :password_confirmation,
+      :is_admin,
+      :trust_level,
+      :trust_level_locked
+    ])
     |> normalize_username()
     |> validate_required([:username, :password, :password_confirmation])
     |> validate_length(:username, min: 2, max: 30)
@@ -206,6 +213,7 @@ defmodule Elektrine.Accounts.User do
     )
     |> validate_length(:password, min: 8, max: 72)
     |> validate_confirmation(:password, message: "does not match password")
+    |> validate_number(:trust_level, greater_than_or_equal_to: 0, less_than_or_equal_to: 4)
     |> generate_unique_id()
     |> assign_initial_handle()
     |> put_display_name_from_username()
