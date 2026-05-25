@@ -7,6 +7,14 @@ const CHANNEL_JOIN_DELAY_MS = 100
 const ICE_RESTART_DELAY_MS = 1200
 const MAX_ICE_RESTART_ATTEMPTS = 2
 
+function newClientSessionId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export class WebRTCClient {
   constructor(socket, callId, userId, iceServers, transport = null) {
     this.socket = socket
@@ -14,6 +22,7 @@ export class WebRTCClient {
     this.userId = userId
     this.iceServers = iceServers || []
     this.transport = transport || {}
+    this.clientSessionId = newClientSessionId()
     this.channel = null
     this.peerConnection = null
     this.localStream = null
@@ -34,6 +43,8 @@ export class WebRTCClient {
     this.offlineHandler = null
     this.peerReady = false
     this.shouldInitiateOnPeerReady = false
+    this.answerInProgress = false
+    this.handledSignals = new Set()
   }
 
   /**
@@ -44,7 +55,9 @@ export class WebRTCClient {
       throw new Error("Client already cleaned up")
     }
 
-    this.channel = this.socket.channel(`call:${this.callId}`, {})
+    this.channel = this.socket.channel(`call:${this.callId}`, {
+      client_session_id: this.clientSessionId
+    })
     this.setupChannelHandlers()
     this.setupNetworkHandlers()
 
@@ -67,14 +80,16 @@ export class WebRTCClient {
    * Set up Phoenix Channel event handlers for signaling.
    */
   setupChannelHandlers() {
-    this.channel.on("peer_ready", async () => {
+    this.channel.on("peer_ready", async (payload = {}) => {
+      if (this.ignoreSignal("peer_ready", payload)) return
+
       this.peerReady = true
 
       if (this.shouldInitiateOnPeerReady && !this.pendingOffer) {
         try {
           await this.initiateOffer()
-        } catch (_error) {
-          this.finishCall("failed")
+        } catch (error) {
+          this.finishCall(`failed: ${error?.message || 'offer_failed'}`)
           return
         }
       }
@@ -82,33 +97,71 @@ export class WebRTCClient {
       await this.flushPendingOffer()
     })
 
-    this.channel.on("offer", async ({ sdp }) => {
+    this.channel.on("offer", async (payload = {}) => {
+      if (this.ignoreSignal("offer", payload)) return
+
       try {
-        await this.handleOffer(sdp)
-      } catch (_error) {
-        this.finishCall("failed")
+        await this.handleOffer(payload.sdp)
+      } catch (error) {
+        this.finishCall(`failed: ${error?.message || 'offer_handling_failed'}`)
       }
     })
 
-    this.channel.on("answer", async ({ sdp }) => {
+    this.channel.on("answer", async (payload = {}) => {
+      if (this.ignoreSignal("answer", payload)) return
+
       try {
-        await this.handleAnswer(sdp)
-      } catch (_error) {
-        this.finishCall("failed")
+        await this.handleAnswer(payload.sdp)
+      } catch (error) {
+        this.finishCall(`failed: ${error?.message || 'answer_handling_failed'}`)
       }
     })
 
-    this.channel.on("ice_candidate", async ({ candidate }) => {
+    this.channel.on("ice_candidate", async (payload = {}) => {
+      if (this.ignoreSignal("ice_candidate", payload)) return
+
       try {
-        await this.handleIceCandidate(candidate)
+        await this.handleIceCandidate(payload.candidate)
       } catch (_error) {
         // Ignore malformed candidates from remote peer.
       }
     })
 
-    this.channel.on("call_rejected", () => this.finishCall("rejected"))
-    this.channel.on("call_ended", ({ reason }) => this.finishCall(reason || "ended"))
-    this.channel.on("call_missed", () => this.finishCall("missed"))
+    this.channel.on("call_rejected", (payload = {}) => {
+      if (!this.ignoreSignal("call_rejected", payload)) this.finishCall("rejected")
+    })
+    this.channel.on("call_ended", (payload = {}) => {
+      if (!this.ignoreSignal("call_ended", payload)) this.finishCall(payload.reason || "ended")
+    })
+    this.channel.on("call_missed", (payload = {}) => {
+      if (!this.ignoreSignal("call_missed", payload)) this.finishCall("missed")
+    })
+  }
+
+  ignoreSignal(event, payload = {}) {
+    if (payload.from_client_session_id && payload.from_client_session_id === this.clientSessionId) {
+      return true
+    }
+
+    const key = `${event}:${payload.from_user_id || ''}:${payload.from_client_session_id || ''}:${payload.signal_id || ''}:${payload.sdp?.type || ''}:${payload.candidate?.candidate || ''}`
+
+    if (this.handledSignals.has(key)) {
+      return true
+    }
+
+    this.handledSignals.add(key)
+    return false
+  }
+
+  pushSignal(event, payload = {}) {
+    if (this.channel && this.channel.state === "joined") {
+      return this.channel.push(event, {
+        ...payload,
+        client_session_id: this.clientSessionId
+      })
+    }
+
+    return null
   }
 
   setupNetworkHandlers() {
@@ -124,7 +177,7 @@ export class WebRTCClient {
 
     this.offlineHandler = () => {
       if (!this.disposed) {
-        this.finishCall("network_offline")
+        this.finishCall("failed: network_offline")
       }
     }
 
@@ -161,7 +214,7 @@ export class WebRTCClient {
 
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate && this.channel && this.channel.state === "joined") {
-        this.channel.push("ice_candidate", { candidate: event.candidate })
+        this.pushSignal("ice_candidate", { candidate: event.candidate })
       }
     }
 
@@ -236,7 +289,7 @@ export class WebRTCClient {
     this.shouldInitiateOnPeerReady = initiator
 
     if (this.channel && this.channel.state === "joined") {
-      this.channel.push("ready_to_receive", {})
+      this.pushSignal("ready_to_receive")
     }
   }
 
@@ -261,9 +314,7 @@ export class WebRTCClient {
     const answer = await peer.createAnswer()
     await peer.setLocalDescription(answer)
 
-    if (this.channel && this.channel.state === "joined") {
-      this.channel.push("answer", { sdp: answer })
-    }
+    this.pushSignal("answer", { sdp: answer })
   }
 
   /**
@@ -274,9 +325,19 @@ export class WebRTCClient {
       return
     }
 
-    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
-    this.remoteDescriptionSet = true
-    await this.processIceCandidateQueue()
+    if (this.answerInProgress || this.remoteDescriptionSet || this.peerConnection.signalingState !== "have-local-offer") {
+      return
+    }
+
+    this.answerInProgress = true
+
+    try {
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+      this.remoteDescriptionSet = true
+      await this.processIceCandidateQueue()
+    } finally {
+      this.answerInProgress = false
+    }
   }
 
   /**
@@ -369,7 +430,7 @@ export class WebRTCClient {
       return
     }
 
-    this.channel.push("offer", { sdp: this.pendingOffer })
+    this.pushSignal("offer", { sdp: this.pendingOffer })
     this.pendingOffer = null
   }
 
@@ -379,7 +440,7 @@ export class WebRTCClient {
     }
 
     if (this.iceRestartAttempts >= MAX_ICE_RESTART_ATTEMPTS) {
-      this.finishCall("failed")
+      this.finishCall("failed: ice_restart_exhausted")
       return
     }
 
@@ -408,10 +469,10 @@ export class WebRTCClient {
       this.iceRestartAttempts += 1
       const offer = await this.peerConnection.createOffer({ iceRestart: true })
       await this.peerConnection.setLocalDescription(offer)
-      this.channel.push("offer", { sdp: offer })
+      this.pushSignal("offer", { sdp: offer })
     } catch (_error) {
       if (this.iceRestartAttempts >= MAX_ICE_RESTART_ATTEMPTS) {
-        this.finishCall("failed")
+        this.finishCall(`failed: ${_error?.message || 'ice_restart_failed'}`)
       }
     }
   }
@@ -449,7 +510,7 @@ export class WebRTCClient {
    */
   endCall() {
     if (this.channel && this.channel.state === "joined") {
-      this.channel.push("end_call", {})
+      this.pushSignal("end_call")
     }
     this.cleanup()
   }
@@ -459,7 +520,7 @@ export class WebRTCClient {
    */
   rejectCall() {
     if (this.channel && this.channel.state === "joined") {
-      this.channel.push("reject_call", {})
+      this.pushSignal("reject_call")
     }
     this.cleanup()
   }
@@ -520,6 +581,8 @@ export class WebRTCClient {
     this.remoteDescriptionSet = false
     this.peerReady = false
     this.shouldInitiateOnPeerReady = false
+    this.answerInProgress = false
+    this.handledSignals.clear()
   }
 
   /**

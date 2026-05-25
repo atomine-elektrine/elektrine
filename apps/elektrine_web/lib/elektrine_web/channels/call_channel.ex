@@ -2,23 +2,32 @@ defmodule ElektrineWeb.CallChannel do
   @moduledoc false
   use ElektrineWeb, :channel
   require Logger
-  intercept ["presence_diff"]
+  intercept [
+    "presence_diff",
+    "peer_ready",
+    "offer",
+    "answer",
+    "ice_candidate",
+    "call_rejected",
+    "call_ended",
+    "call_missed"
+  ]
 
   alias Elektrine.Calls
   alias Elektrine.Constants
   alias Elektrine.Messaging.Federation
   alias Elektrine.Messaging.Federation.VoiceCalls
-  alias Elektrine.PubSubTopics
 
   @impl true
-  def join("call:" <> call_id_param, _params, socket) do
+  def join("call:" <> call_id_param, params, socket) do
     user_id = socket.assigns.user_id
+    client_session_id = client_session_id(params)
 
     case parse_call_id(call_id_param) do
       {:ok, call_id} ->
         case Calls.get_call_with_users(call_id) do
           nil ->
-            join_federated_call(call_id, user_id, socket)
+            join_federated_call(call_id, user_id, client_session_id, socket)
 
           call ->
             if call.caller_id == user_id or call.callee_id == user_id do
@@ -26,6 +35,7 @@ defmodule ElektrineWeb.CallChannel do
                 socket
                 |> assign(:call_id, call_id)
                 |> assign(:call_source, :local)
+                |> assign(:client_session_id, client_session_id)
 
               send(self(), :after_join)
               {:ok, socket}
@@ -41,8 +51,6 @@ defmodule ElektrineWeb.CallChannel do
 
   @impl true
   def handle_info(:after_join, socket) do
-    PubSubTopics.subscribe(PubSubTopics.call(socket.assigns.call_id))
-
     ElektrineWeb.Presence.track(
       self(),
       "call:#{socket.assigns.call_id}",
@@ -110,10 +118,27 @@ defmodule ElektrineWeb.CallChannel do
     {:noreply, socket}
   end
 
+  def handle_out(event, payload, socket)
+      when event in [
+             "peer_ready",
+             "offer",
+             "answer",
+             "ice_candidate",
+             "call_rejected",
+             "call_ended",
+             "call_missed"
+           ] do
+    unless self_signal?(payload, socket) do
+      push(socket, event, payload)
+    end
+
+    {:noreply, socket}
+  end
+
   @impl true
   def handle_in("ready_to_receive", _params, socket) do
     if socket.assigns.call_source == :local do
-      broadcast!(socket, "peer_ready", %{user_id: socket.assigns.user_id})
+      broadcast_from!(socket, "peer_ready", signal_payload(socket, %{user_id: socket.assigns.user_id}))
     else
       Federation.publish_dm_call_accept(socket.assigns.call_id)
     end
@@ -135,7 +160,7 @@ defmodule ElektrineWeb.CallChannel do
                 :ok
             end
 
-            broadcast_from!(socket, "offer", %{sdp: sdp, from_user_id: socket.assigns.user_id})
+            broadcast_from!(socket, "offer", signal_payload(socket, %{sdp: sdp}))
 
           :federated ->
             _ = VoiceCalls.mark_session_ringing(socket.assigns.call_id, socket.assigns.user_id)
@@ -163,7 +188,7 @@ defmodule ElektrineWeb.CallChannel do
         case socket.assigns.call_source do
           :local ->
             Calls.update_call_status(socket.assigns.call_id, "active")
-            broadcast_from!(socket, "answer", %{sdp: sdp, from_user_id: socket.assigns.user_id})
+            broadcast_from!(socket, "answer", signal_payload(socket, %{sdp: sdp}))
 
           :federated ->
             Federation.publish_dm_call_signal(
@@ -188,10 +213,7 @@ defmodule ElektrineWeb.CallChannel do
       :ok ->
         case socket.assigns.call_source do
           :local ->
-            broadcast_from!(socket, "ice_candidate", %{
-              candidate: candidate,
-              from_user_id: socket.assigns.user_id
-            })
+            broadcast_from!(socket, "ice_candidate", signal_payload(socket, %{candidate: candidate}))
 
           :federated ->
             Federation.publish_dm_call_signal(
@@ -215,7 +237,7 @@ defmodule ElektrineWeb.CallChannel do
     case socket.assigns.call_source do
       :local ->
         Calls.reject_call(socket.assigns.call_id)
-        broadcast!(socket, "call_rejected", %{by_user_id: socket.assigns.user_id})
+        broadcast!(socket, "call_rejected", signal_payload(socket, %{by_user_id: socket.assigns.user_id}))
 
       :federated ->
         _ = VoiceCalls.reject_session(socket.assigns.call_id, socket.assigns.user_id)
@@ -230,7 +252,7 @@ defmodule ElektrineWeb.CallChannel do
     case socket.assigns.call_source do
       :local ->
         Calls.end_call(socket.assigns.call_id)
-        broadcast!(socket, "call_ended", %{by_user_id: socket.assigns.user_id})
+        broadcast!(socket, "call_ended", signal_payload(socket, %{by_user_id: socket.assigns.user_id}))
 
       :federated ->
         _ = VoiceCalls.end_session(socket.assigns.call_id, socket.assigns.user_id)
@@ -251,7 +273,7 @@ defmodule ElektrineWeb.CallChannel do
 
   @impl true
   def terminate(reason, socket) do
-    if reason != :normal do
+    unless normal_channel_shutdown?(reason) do
       case socket.assigns.call_source do
         :local ->
           call = Calls.get_call(socket.assigns.call_id)
@@ -259,10 +281,11 @@ defmodule ElektrineWeb.CallChannel do
           if call && call.status in ["initiated", "ringing", "active"] do
             Calls.update_call_status(socket.assigns.call_id, "ended")
 
-            broadcast!(socket, "call_ended", %{
-              by_user_id: socket.assigns.user_id,
-              reason: "disconnected"
-            })
+            broadcast!(
+              socket,
+              "call_ended",
+              signal_payload(socket, %{by_user_id: socket.assigns.user_id, reason: "disconnected"})
+            )
           end
 
         :federated ->
@@ -289,7 +312,12 @@ defmodule ElektrineWeb.CallChannel do
     :ok
   end
 
-  defp join_federated_call(call_id, user_id, socket) do
+  defp normal_channel_shutdown?(:normal), do: true
+  defp normal_channel_shutdown?(:shutdown), do: true
+  defp normal_channel_shutdown?({:shutdown, _reason}), do: true
+  defp normal_channel_shutdown?(_reason), do: false
+
+  defp join_federated_call(call_id, user_id, client_session_id, socket) do
     case VoiceCalls.get_session_for_local_user(call_id, user_id) do
       nil ->
         {:error, %{reason: "call_not_found"}}
@@ -299,6 +327,7 @@ defmodule ElektrineWeb.CallChannel do
           socket
           |> assign(:call_id, call_id)
           |> assign(:call_source, :federated)
+          |> assign(:client_session_id, client_session_id)
 
         send(self(), :after_join)
         {:ok, socket}
@@ -314,6 +343,31 @@ defmodule ElektrineWeb.CallChannel do
 
   defp parse_call_id(call_id) when is_integer(call_id), do: {:ok, call_id}
   defp parse_call_id(_call_id), do: :error
+
+  defp client_session_id(%{"client_session_id" => value}) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> String.slice(trimmed, 0, 128)
+    end
+  end
+
+  defp client_session_id(_params), do: nil
+
+  defp signal_payload(socket, payload) when is_map(payload) do
+    payload
+    |> Map.put(:from_user_id, socket.assigns.user_id)
+    |> Map.put(:from_client_session_id, socket.assigns[:client_session_id])
+    |> Map.put(:signal_id, System.unique_integer([:positive, :monotonic]))
+  end
+
+  defp self_signal?(%{from_client_session_id: session_id}, socket)
+       when is_binary(session_id) and session_id != "" do
+    session_id == socket.assigns[:client_session_id]
+  end
+
+  defp self_signal?(_payload, _socket), do: false
 
   defp validate_sdp(sdp, expected_type) when is_map(sdp) do
     sdp_string = sdp["sdp"]

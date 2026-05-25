@@ -105,7 +105,9 @@ defmodule ArblargWeb.ChatLive.Operations.CallOperations do
     {:noreply, assign(socket, :call, %{socket.assigns.call | status: "connected"})}
   end
 
-  def handle_event("call_ended", _params, socket) do
+  def handle_event("call_ended", params, socket) do
+    maybe_finish_active_call(socket, params["reason"])
+
     {:noreply,
      socket
      |> assign(:ui, Map.put(socket.assigns.ui, :show_incoming_call, false))
@@ -342,10 +344,10 @@ defmodule ArblargWeb.ChatLive.Operations.CallOperations do
 
     cond do
       is_map(active_call) and active_call.id == call_id ->
-        active_call[:source] || :local
+        call_source(active_call)
 
       is_map(incoming_call) and incoming_call.id == call_id ->
-        incoming_call[:source] || :local
+        call_source(incoming_call)
 
       match?(%{source: :federated}, active_call) or match?(%{source: :federated}, incoming_call) ->
         :federated
@@ -355,6 +357,9 @@ defmodule ArblargWeb.ChatLive.Operations.CallOperations do
     end
   end
 
+  defp call_source(%{source: source}) when not is_nil(source), do: source
+  defp call_source(_call), do: :local
+
   defp maybe_fail_active_call(socket) do
     case socket.assigns.call.active_call do
       %{source: :federated, id: session_id} ->
@@ -363,6 +368,47 @@ defmodule ArblargWeb.ChatLive.Operations.CallOperations do
 
       %{id: call_id} ->
         _ = Calls.update_call_status(call_id, "failed")
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp maybe_finish_active_call(socket, reason) do
+    case normalize_call_end_reason(reason) do
+      :failed -> maybe_fail_active_call(socket)
+      :rejected -> maybe_reject_active_call(socket)
+      :missed -> maybe_miss_active_call(socket)
+      :ended -> maybe_end_active_call(socket)
+    end
+  end
+
+  defp normalize_call_end_reason(reason) when reason in ["failed", "network_offline"], do: :failed
+  defp normalize_call_end_reason("failed: " <> _reason), do: :failed
+  defp normalize_call_end_reason("rejected"), do: :rejected
+  defp normalize_call_end_reason("missed"), do: :missed
+  defp normalize_call_end_reason(_reason), do: :ended
+
+  defp maybe_reject_active_call(socket) do
+    case socket.assigns.call.active_call do
+      %{source: :federated, id: session_id} ->
+        _ = VoiceCalls.reject_session(session_id, socket.assigns.current_user.id)
+
+      %{id: call_id} ->
+        _ = Calls.reject_call(call_id)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp maybe_miss_active_call(socket) do
+    case socket.assigns.call.active_call do
+      %{source: :federated, id: session_id} ->
+        _ = VoiceCalls.end_session(session_id, socket.assigns.current_user.id, "missed")
+
+      %{id: call_id} ->
+        _ = Calls.miss_call(call_id)
 
       _ ->
         :ok

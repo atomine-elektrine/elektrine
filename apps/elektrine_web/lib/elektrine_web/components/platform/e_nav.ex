@@ -13,7 +13,6 @@ defmodule ElektrineWeb.Components.Platform.ENav do
 
   alias Elektrine.Platform.ENav, as: PlatformENav
   alias Elektrine.Platform.ENavComponent
-  alias Elektrine.Platform.Modules
 
   @doc """
   Renders the unified product navigation tabs.
@@ -89,7 +88,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
-    |> Enum.filter(&module_visible?(&1, current_user))
+    |> Enum.filter(&PlatformENav.visible?(&1, current_user))
     |> PlatformENav.with_badge_counts(badge_counts)
   end
 
@@ -100,23 +99,7 @@ defmodule ElektrineWeb.Components.Platform.ENav do
     |> Enum.map(
       &Map.update!(&1, :label, fn label -> Gettext.gettext(ElektrineWeb.Gettext, label) end)
     )
-    |> Enum.filter(&module_visible?(&1, current_user))
+    |> Enum.filter(&PlatformENav.visible?(&1, current_user))
     |> PlatformENav.with_badge_counts(badge_counts)
-  end
-
-  defp module_visible?(item, current_user) do
-    platform_visible? =
-      case item[:platform_module] do
-        nil -> true
-        module -> Modules.enabled?(module)
-      end
-
-    access_visible? =
-      case item[:access_module] do
-        nil -> true
-        module -> Elektrine.System.user_can_access_module?(current_user, module)
-      end
-
-    platform_visible? and access_visible?
   end
 end
