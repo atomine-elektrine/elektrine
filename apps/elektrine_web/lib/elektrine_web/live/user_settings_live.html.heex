@@ -537,7 +537,7 @@
       <!-- Security Tab -->
       <%= if @selected_tab == "security" do %>
         <div class="space-y-4 sm:space-y-6">
-          <%= if tab_enabled?("email") do %>
+          <%= if tab_enabled?("email", @current_user) do %>
             <!-- Email Sending Status Section -->
             <%= if @loading_security do %>
               <div class="card panel-card">
@@ -708,7 +708,7 @@
             </div>
           </div>
 
-          <%= if tab_enabled?("email") do %>
+          <%= if tab_enabled?("email", @current_user) do %>
             <!-- App Passwords Section -->
             <div class="card panel-card">
               <div class="card-body p-4 sm:p-6">

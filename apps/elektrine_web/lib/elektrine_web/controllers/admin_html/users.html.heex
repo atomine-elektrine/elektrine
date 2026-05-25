@@ -185,6 +185,18 @@
                         <.icon name="hero-shield-check" class="w-3 h-3 mr-1" /> 2FA
                       </div>
                     <% end %>
+
+                    <div
+                      class="badge badge-outline"
+                      title={"Trust level #{user.trust_level || 0}#{if user.trust_level_locked, do: " (locked)", else: ""}"}
+                    >
+                      TL{user.trust_level || 0}
+                      <.icon
+                        :if={user.trust_level_locked}
+                        name="hero-lock-closed"
+                        class="ml-1 h-3 w-3"
+                      />
+                    </div>
                   </div>
                 </td>
 

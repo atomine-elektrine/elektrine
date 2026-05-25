@@ -838,9 +838,15 @@ defmodule ElektrineWeb.PortalLive.Index do
     end
   end
 
-  def handle_event("navigate_to_remote_post", %{"id" => _id, "url" => url}, socket)
+  def handle_event("navigate_to_remote_post", %{"id" => id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
+    path =
+      case parse_positive_int(id) do
+        {:ok, post_id} -> Elektrine.Paths.remote_post_path(post_id)
+        :error -> Elektrine.Paths.post_path(url)
+      end
+
+    {:noreply, push_navigate(socket, to: path)}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
@@ -851,7 +857,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
     case parse_positive_int(id) do
       {:ok, post_id} ->
-        {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(post_id))}
+        {:noreply, push_navigate(socket, to: Elektrine.Paths.remote_post_path(post_id))}
 
       :error ->
         {:noreply, socket}
@@ -1798,9 +1804,9 @@ defmodule ElektrineWeb.PortalLive.Index do
     }
   end
 
-  defp quick_actions do
+  defp quick_actions(user \\ nil) do
     [
-      if Modules.enabled?(:email) do
+      if module_available?(user, :email, :email) do
         %{
           id: "compose_email",
           label: "Compose Email",
@@ -1810,7 +1816,7 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "primary"
         }
       end,
-      if Modules.enabled?(:chat) do
+      if module_available?(user, :chat, :chat) do
         %{
           id: "new_message",
           label: "New Message",
@@ -1820,7 +1826,7 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "neutral"
         }
       end,
-      if Modules.enabled?(:social) do
+      if module_available?(user, :social, :timeline) do
         %{
           id: "new_post",
           label: "New Post",
@@ -1830,7 +1836,7 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "neutral"
         }
       end,
-      if Modules.enabled?(:email) do
+      if module_available?(user, :email, :email) do
         %{
           id: "new_task",
           label: "New Task",
@@ -1840,7 +1846,7 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "neutral"
         }
       end,
-      if Modules.enabled?(:social) do
+      if module_available?(user, :social, :lists) do
         %{
           id: "new_list",
           label: "New List",
@@ -1850,16 +1856,23 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "neutral"
         }
       end,
-      %{
-        id: "search",
-        label: "Maid",
-        detail: "Private web search",
-        href: Elektrine.Paths.maid_path(),
-        icon: "hero-magnifying-glass",
-        tone: "neutral"
-      }
+      if Elektrine.System.user_can_access_module?(user, :maid) do
+        %{
+          id: "search",
+          label: "Maid",
+          detail: "Private web search",
+          href: Elektrine.Paths.maid_path(),
+          icon: "hero-magnifying-glass",
+          tone: "neutral"
+        }
+      end
     ]
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp module_available?(user, platform_module, access_module) do
+    Modules.enabled?(platform_module) and
+      Elektrine.System.user_can_access_module?(user, access_module)
   end
 
   defp build_dashboard_data(user) do
@@ -1932,7 +1945,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       alerts: alerts,
       attention_queue: attention_queue,
       attention_counts: attention_queue_counts(attention_queue),
-      quick_actions: quick_actions(),
+      quick_actions: quick_actions(user),
       recent_activity:
         build_recent_activity(
           inbox_messages,

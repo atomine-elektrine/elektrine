@@ -57,6 +57,36 @@ defmodule Elektrine.Accounts.UserTest do
     end
   end
 
+  describe "admin registration changeset" do
+    test "accepts initial trust level and lock state" do
+      changeset =
+        User.admin_registration_changeset(%User{}, %{
+          username: "trustedadmincreated",
+          password: "testpassword123",
+          password_confirmation: "testpassword123",
+          trust_level: 2,
+          trust_level_locked: true
+        })
+
+      assert changeset.valid?
+      assert get_change(changeset, :trust_level) == 2
+      assert get_change(changeset, :trust_level_locked) == true
+    end
+
+    test "rejects invalid initial trust levels" do
+      changeset =
+        User.admin_registration_changeset(%User{}, %{
+          username: "invalidtrust",
+          password: "testpassword123",
+          password_confirmation: "testpassword123",
+          trust_level: 5
+        })
+
+      refute changeset.valid?
+      assert "must be less than or equal to 4" in errors_on(changeset).trust_level
+    end
+  end
+
   describe "privacy setting fields" do
     test "default privacy settings" do
       user = %User{}

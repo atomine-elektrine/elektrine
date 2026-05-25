@@ -73,7 +73,10 @@
       </.link>
     </div>
 
-    <div class="navbar-center hidden lg:flex">
+    <div
+      :if={Elektrine.System.user_can_access_module?(@current_user, :maid)}
+      class="navbar-center hidden lg:flex"
+    >
       <div class="form-control">
         <form action="/maid" method="get">
           <div class="join">
@@ -124,7 +127,7 @@
             </div>
 
             <div class="mt-1 space-y-1">
-              <%= for item <- global_composer_items() do %>
+              <%= for item <- global_composer_items(@current_user) do %>
                 <a
                   href={item.href}
                   class="flex items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-base-200/80"

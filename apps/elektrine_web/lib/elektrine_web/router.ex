@@ -1240,7 +1240,7 @@ defmodule ElektrineWeb.Router do
 
       # Portal
       live("/portal", PortalLive.Index, :index)
-      live("/maid", MaidLive, :index)
+      live("/maid", SearchLive, :index)
       live("/reputation", ReputationLive.Show, :index)
       live("/reputation/:handle", ReputationLive.Show, :show)
 
@@ -1287,7 +1287,7 @@ defmodule ElektrineWeb.Router do
 
       live("/dns/analytics", ProfileLive.DomainAnalytics, :analytics)
 
-      # Maid search
+      # Backward-compatible app search route. /maid is the canonical merged search UI.
       live("/search", SearchLive, :index)
     end
   end

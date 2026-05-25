@@ -778,6 +778,8 @@ defmodule Elektrine.Search do
   defp platform_module_for_access_module(module) when module in [:portal, :storage, :notes],
     do: nil
 
+  defp platform_module_for_access_module(:maid), do: nil
+
   defp platform_module_for_access_module(module), do: module
 
   defp scope_allowed?(scopes, strict_scopes?, required_scopes) do
@@ -894,6 +896,21 @@ defmodule Elektrine.Search do
         updated_at: DateTime.utc_now(),
         relevance: 1.02,
         keywords: ["portal", "home", "dashboard"]
+      },
+      %{
+        id: "action_open_maid",
+        type: "action",
+        title: "Open Maid",
+        command: "open maid",
+        aliases: ["maid", "search", "web search"],
+        execution: :navigate,
+        module: :maid,
+        required_scopes: ["read:account"],
+        content: "Search Elektrine and the web",
+        url: Elektrine.Paths.maid_path(),
+        updated_at: DateTime.utc_now(),
+        relevance: 1.01,
+        keywords: ["maid", "search", "web", "find"]
       }
     ]
   end

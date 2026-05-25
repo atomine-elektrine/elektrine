@@ -162,6 +162,19 @@ parse_logger_level_env = fn env_name, default ->
   end
 end
 
+present_env = fn names ->
+  Enum.find_value(List.wrap(names), fn env_name ->
+    case System.get_env(env_name) do
+      value when is_binary(value) ->
+        value = String.trim(value)
+        if value == "", do: nil, else: value
+
+      _ ->
+        nil
+    end
+  end)
+end
+
 # Keep Oban concurrency proportional to the DB pool available to the role
 # that actually executes jobs. Web-only nodes run enqueue-only Oban.
 oban_db_pool_size = parse_int_env.("POOL_SIZE", 10)
@@ -204,7 +217,18 @@ config :elektrine, :atomine_gate,
       |> Keyword.get(:clearance_ttl_seconds, 12 * 60 * 60)
     )
 
-config :maid, providers: []
+maid_brave_api_key = present_env.(["MAID_BRAVE_API_KEY", "BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY"])
+
+maid_providers =
+  if maid_brave_api_key do
+    [{Maid.Providers.Brave, [api_key: maid_brave_api_key]}]
+  else
+    []
+  end
+
+config :maid,
+  providers: maid_providers,
+  brave_api_key: maid_brave_api_key
 
 oban_queues =
   cond do

@@ -195,6 +195,7 @@ defmodule ElektrineWeb.CoreComponents do
               :if={@sidebar_tab || @sidebar_link}
               selected_tab={@sidebar_tab}
               selected_link={@sidebar_link}
+              current_user={@current_user}
             />
           <% end %>
         </div>
@@ -212,9 +213,10 @@ defmodule ElektrineWeb.CoreComponents do
 
   attr :selected_tab, :string, default: nil
   attr :selected_link, :string, default: nil
+  attr :current_user, :any, default: nil
 
   def account_settings_sidebar(assigns) do
-    assigns = assign(assigns, :tabs, account_setting_tabs())
+    assigns = assign(assigns, :tabs, account_setting_tabs(assigns.current_user))
 
     ~H"""
     <.sticky_sidebar>
@@ -244,12 +246,14 @@ defmodule ElektrineWeb.CoreComponents do
               <.icon name="hero-user-circle" class="w-4 h-4" /> {gettext("E Profile")}
             </.link>
             <.link
+              :if={account_setting_enabled?("storage", @current_user)}
               navigate="/account/storage"
               class={account_setting_secondary_link_class(@selected_link, "storage")}
             >
               <.icon name="hero-circle-stack" class="w-4 h-4" /> {gettext("Storage")}
             </.link>
             <.link
+              :if={account_setting_enabled?("drive", @current_user)}
               navigate="/account/drive"
               class={account_setting_secondary_link_class(@selected_link, "drive")}
             >
@@ -399,7 +403,7 @@ defmodule ElektrineWeb.CoreComponents do
     """
   end
 
-  defp account_setting_tabs do
+  defp account_setting_tabs(current_user) do
     [
       {"profile", "hero-user", :default},
       {"security", "hero-shield-check", :default},
@@ -412,7 +416,7 @@ defmodule ElektrineWeb.CoreComponents do
       {"developer", "hero-code-bracket", :default},
       {"danger", "hero-exclamation-triangle", :danger}
     ]
-    |> Enum.filter(fn {tab, _icon, _tone} -> account_setting_enabled?(tab) end)
+    |> Enum.filter(fn {tab, _icon, _tone} -> account_setting_enabled?(tab, current_user) end)
   end
 
   defp account_setting_label("profile"), do: gettext("Profile")
@@ -450,8 +454,16 @@ defmodule ElektrineWeb.CoreComponents do
     end
   end
 
-  defp account_setting_enabled?("email"), do: Modules.enabled?(:email)
-  defp account_setting_enabled?(_tab), do: true
+  defp account_setting_enabled?("email", user),
+    do: Modules.enabled?(:email) and Elektrine.System.user_can_access_module?(user, :email)
+
+  defp account_setting_enabled?("storage", user),
+    do: Elektrine.System.user_can_access_module?(user, :storage)
+
+  defp account_setting_enabled?("drive", user),
+    do: Elektrine.System.user_can_access_module?(user, :drive)
+
+  defp account_setting_enabled?(_tab, _user), do: true
 
   defp account_setting_secondary_link_class(selected_link, link_id) do
     base =

@@ -374,7 +374,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
 
   defp refresh_posts_batch(posts) do
     # Group posts by platform type for efficient batch fetching
-    {lemmy_posts, other_posts} = Enum.split_with(posts, &lemmy_url?(&1.activitypub_id))
+    {lemmy_posts, other_posts} = Enum.split_with(posts, &lemmy_reference/1)
 
     {mastodon_posts, activitypub_posts} =
       Enum.split_with(other_posts, &MastodonApi.count_api_compatible?/1)
@@ -516,8 +516,6 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     refresh_post(post)
   end
 
-  defp refresh_post(%{activitypub_id: nil}), do: :ok
-
   defp refresh_post(post) do
     do_refresh_post(post)
     :ok
@@ -527,15 +525,17 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
       :ok
   end
 
-  defp do_refresh_post(%{id: id, activitypub_id: ap_id} = post) do
+  defp do_refresh_post(%{id: id} = post) do
+    count_ref = count_reference(post)
+
     # Try platform-specific APIs first (more reliable counts), then fall back to ActivityPub
     case fetch_counts_smart(post) do
       {:ok, new_counts} ->
         normalized_counts = normalize_counts(new_counts)
-        maybe_update_refreshed_counts(post, id, ap_id, normalized_counts)
+        maybe_update_refreshed_counts(post, id, count_ref, normalized_counts)
 
       {:error, reason} ->
-        Logger.debug("Failed to refresh #{ap_id}: #{inspect(reason)}")
+        Logger.debug("Failed to refresh #{count_ref || post.id}: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -859,12 +859,16 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorker do
     |> Enum.find(&(is_binary(&1) and String.trim(&1) != ""))
   end
 
-  defp extract_domain(%{activitypub_id: nil}), do: "unknown"
+  defp extract_domain(post) do
+    case count_reference(post) do
+      ref when is_binary(ref) ->
+        case URI.parse(ref) do
+          %URI{host: host} when is_binary(host) -> host
+          _ -> "unknown"
+        end
 
-  defp extract_domain(%{activitypub_id: ap_id}) do
-    case URI.parse(ap_id) do
-      %URI{host: host} when is_binary(host) -> host
-      _ -> "unknown"
+      _ ->
+        "unknown"
     end
   end
 

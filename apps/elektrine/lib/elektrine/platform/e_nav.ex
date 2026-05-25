@@ -12,6 +12,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Portal",
         href: "/portal",
         platform_module: nil,
+        access_module: :portal,
         icon: "hero-squares-2x2",
         active_icon: "hero-squares-2x2-solid"
       },
@@ -20,6 +21,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Maid",
         href: "/maid",
         platform_module: nil,
+        access_module: :maid,
         icon: "hero-magnifying-glass",
         active_icon: "hero-magnifying-glass-solid"
       },
@@ -28,6 +30,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Arblarg",
         href: "/chat",
         platform_module: :chat,
+        access_module: :chat,
         icon: "hero-chat-bubble-left-right",
         active_icon: "hero-chat-bubble-left-right-solid"
       },
@@ -36,6 +39,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Timeline",
         href: "/timeline",
         platform_module: :social,
+        access_module: :timeline,
         icon: "hero-rectangle-stack",
         active_icon: "hero-rectangle-stack-solid"
       },
@@ -44,6 +48,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Communities",
         href: "/communities",
         platform_module: :social,
+        access_module: :communities,
         icon: "hero-chat-bubble-bottom-center-text",
         active_icon: "hero-chat-bubble-bottom-center-text-solid"
       },
@@ -52,6 +57,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Gallery",
         href: "/gallery",
         platform_module: :social,
+        access_module: :gallery,
         icon: "hero-photo",
         active_icon: "hero-photo-solid"
       },
@@ -60,6 +66,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Friends",
         href: "/friends",
         platform_module: :chat,
+        access_module: :friends,
         icon: "hero-user-group",
         active_icon: "hero-user-group-solid"
       },
@@ -68,6 +75,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Email",
         href: "/email",
         platform_module: :email,
+        access_module: :email,
         icon: "hero-envelope",
         active_icon: "hero-envelope-solid"
       },
@@ -76,6 +84,7 @@ defmodule Elektrine.Platform.ENav do
         label: "DNS",
         href: "/dns",
         platform_module: :dns,
+        access_module: :dns,
         icon: "hero-globe-alt",
         active_icon: "hero-globe-alt-solid"
       },
@@ -84,6 +93,7 @@ defmodule Elektrine.Platform.ENav do
         label: "VPN",
         href: "/vpn",
         platform_module: :vpn,
+        access_module: :vpn,
         icon: "hero-shield-check",
         active_icon: "hero-shield-check-solid"
       }
@@ -111,6 +121,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Lists",
         href: "/lists",
         platform_module: :social,
+        access_module: :lists,
         icon: "hero-queue-list",
         active_icon: "hero-queue-list-solid"
       },
@@ -119,6 +130,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Nerve",
         href: "/account/nerve",
         platform_module: :nerve,
+        access_module: :nerve,
         icon: "hero-arrows-right-left",
         active_icon: "hero-arrows-right-left-solid"
       },
@@ -140,6 +152,7 @@ defmodule Elektrine.Platform.ENav do
         id: "storage",
         label: "Storage",
         href: "/account/storage",
+        access_module: :storage,
         icon: "hero-circle-stack",
         active_icon: "hero-circle-stack-solid"
       },
@@ -147,6 +160,7 @@ defmodule Elektrine.Platform.ENav do
         id: "drive",
         label: "Drive",
         href: "/account/drive",
+        access_module: :drive,
         icon: "hero-folder",
         active_icon: "hero-folder-solid"
       },
@@ -154,6 +168,7 @@ defmodule Elektrine.Platform.ENav do
         id: "notes",
         label: "Notes",
         href: "/account/notes",
+        access_module: :notes,
         icon: "hero-document-text",
         active_icon: "hero-document-text-solid"
       },

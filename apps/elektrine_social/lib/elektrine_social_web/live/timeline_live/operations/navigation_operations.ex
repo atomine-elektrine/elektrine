@@ -58,7 +58,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   # Navigate to remote post view by ActivityPub ID (passed as url).
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    {:noreply, push_navigate(socket, to: "/remote/post/#{URI.encode_www_form(activitypub_id)}")}
+    {:noreply, push_navigate(socket, to: Paths.remote_post_path(activitypub_id))}
   end
 
   # Navigate to remote post view by post_id.
@@ -66,15 +66,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     post =
       Enum.find(socket.assigns[:timeline_posts] || [], &(to_string(&1.id) == to_string(post_id)))
 
-    path =
-      case post do
-        %{activitypub_id: activitypub_id}
-        when is_binary(activitypub_id) and activitypub_id != "" ->
-          "/remote/post/#{URI.encode_www_form(activitypub_id)}"
-
-        _ ->
-          timeline_post_path(post_id)
-      end
+    path = if post, do: Paths.post_path(post), else: timeline_post_path(post_id)
 
     {:noreply, push_navigate(socket, to: path)}
   end

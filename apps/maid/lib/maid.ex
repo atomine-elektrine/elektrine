@@ -15,12 +15,15 @@ defmodule Maid do
       {:error, :empty_query}
     else
       providers = Keyword.get(opts, :providers, configured_providers())
-      limit = opts |> Keyword.get(:limit, 10) |> normalize_limit()
+      limit = opts |> Keyword.get(:limit, 10) |> normalize_limit(Keyword.get(opts, :kind, :web))
+      provider_call_opts = Keyword.drop(opts, [:providers])
 
       provider_results =
         providers
         |> Enum.with_index()
-        |> Enum.map(fn {provider, index} -> search_provider(provider, query, index) end)
+        |> Enum.map(fn {provider, index} ->
+          search_provider(provider, query, index, provider_call_opts)
+        end)
 
       results =
         provider_results
@@ -49,18 +52,23 @@ defmodule Maid do
     |> List.wrap()
   end
 
-  defp normalize_limit(limit) when is_integer(limit), do: limit |> max(1) |> min(50)
-  defp normalize_limit(_limit), do: 10
+  defp normalize_limit(limit, kind) when is_integer(limit),
+    do: limit |> max(1) |> min(max_limit(kind))
 
-  defp search_provider({module, provider_opts}, query, index) when is_atom(module) do
-    run_provider(module, query, provider_opts, index)
+  defp normalize_limit(_limit, _kind), do: 10
+
+  defp max_limit(kind) when kind in [:images, "images", "image"], do: 200
+  defp max_limit(_kind), do: 50
+
+  defp search_provider({module, provider_opts}, query, index, call_opts) when is_atom(module) do
+    run_provider(module, query, Keyword.merge(provider_opts, call_opts), index)
   end
 
-  defp search_provider(module, query, index) when is_atom(module) do
-    run_provider(module, query, [], index)
+  defp search_provider(module, query, index, call_opts) when is_atom(module) do
+    run_provider(module, query, call_opts, index)
   end
 
-  defp search_provider(_provider, _query, _index), do: {:error, :invalid_provider}
+  defp search_provider(_provider, _query, _index, _call_opts), do: {:error, :invalid_provider}
 
   defp run_provider(module, query, provider_opts, index) do
     case module.search(query, provider_opts) do
@@ -134,12 +142,19 @@ defmodule Maid do
   defp dedupe_results(results) do
     results
     |> Enum.reduce(%{}, fn result, acc ->
-      key = canonical_url_key(result.url)
+      key = dedupe_key(result)
 
       Map.update(acc, key, result, &pick_better_result(&1, result))
     end)
     |> Map.values()
   end
+
+  defp dedupe_key(%Result{metadata: %{kind: :images, image_url: image_url}})
+       when is_binary(image_url) do
+    canonical_url_key(image_url)
+  end
+
+  defp dedupe_key(%Result{url: url}), do: canonical_url_key(url)
 
   defp pick_better_result(existing, candidate) do
     if result_sort_key(candidate) < result_sort_key(existing), do: candidate, else: existing
@@ -160,7 +175,8 @@ defmodule Maid do
         host = String.downcase(host)
         port = canonical_port(scheme, uri.port)
         path = canonical_path(uri.path)
-        "#{scheme}://#{host}#{port}#{path}"
+        query = canonical_query(uri.query)
+        "#{scheme}://#{host}#{port}#{path}#{query}"
 
       _uri ->
         String.downcase(to_string(url))
@@ -178,5 +194,23 @@ defmodule Maid do
   defp canonical_path(path) do
     path = path |> URI.decode() |> String.trim_trailing("/")
     if path == "", do: "/", else: path
+  end
+
+  defp canonical_query(nil), do: ""
+  defp canonical_query(""), do: ""
+
+  defp canonical_query(query) do
+    params =
+      query
+      |> URI.query_decoder()
+      |> Enum.reject(fn {key, _value} -> tracking_param?(key) end)
+      |> Enum.sort()
+
+    if params == [], do: "", else: "?" <> URI.encode_query(params)
+  end
+
+  defp tracking_param?(key) do
+    key = String.downcase(to_string(key))
+    String.starts_with?(key, "utm_") or key in ["fbclid", "gclid", "mc_cid", "mc_eid"]
   end
 end

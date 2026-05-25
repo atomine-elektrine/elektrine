@@ -322,6 +322,32 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
            end)
   end
 
+  test "managed mail service refreshes DKIM TXT value from current public key" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:ok, _config} = DNS.apply_zone_service(zone, "mail")
+
+    zone = DNS.get_zone(zone.id, user.id)
+    dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
+    assert dkim_record.content == "v=DKIM1; k=rsa; p=PUBLICKEY"
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{
+                 "dkim_public_key" => "ROTATEDPUBLICKEY",
+                 "dkim_private_key" => "ROTATEDPRIVATEKEY"
+               }
+             })
+
+    assert config.status == "ok"
+    assert config.settings["dkim_value"] == "v=DKIM1; k=rsa; p=ROTATEDPUBLICKEY"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
+    assert dkim_record.content == "v=DKIM1; k=rsa; p=ROTATEDPUBLICKEY"
+  end
+
   test "managed mail service generates TLSA records when association data is configured" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})

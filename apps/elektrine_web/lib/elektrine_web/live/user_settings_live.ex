@@ -1684,6 +1684,11 @@ defmodule ElektrineWeb.UserSettingsLive do
   defp tab_enabled?("email"), do: Modules.enabled?(:email)
   defp tab_enabled?(_tab), do: true
 
+  defp tab_enabled?("email", user),
+    do: Modules.enabled?(:email) and Elektrine.System.user_can_access_module?(user, :email)
+
+  defp tab_enabled?(_tab, _user), do: true
+
   defp parse_token_expiration(nil), do: {:ok, nil}
   defp parse_token_expiration(""), do: {:ok, nil}
 
