@@ -3,6 +3,7 @@ defmodule Elektrine.Platform.ENav do
 
   alias Elektrine.Accounts.Storage
   alias Elektrine.{Friends, Messaging, Notifications, Profiles}
+  alias Elektrine.Platform.Modules
   alias Elektrine.Profiles.CustomDomains
 
   def primary_items do
@@ -193,6 +194,22 @@ defmodule Elektrine.Platform.ENav do
   end
 
   def with_badge_counts(items, _badge_counts), do: items
+
+  def visible?(item, current_user) do
+    platform_visible? =
+      case item[:platform_module] do
+        nil -> true
+        module -> Modules.enabled?(module)
+      end
+
+    access_visible? =
+      case item[:access_module] do
+        nil -> true
+        module -> Elektrine.System.user_can_access_module?(current_user, module)
+      end
+
+    platform_visible? and access_visible?
+  end
 
   def with_notification_badges(items, current_user) do
     with_badge_counts(items, notification_badge_counts(current_user))

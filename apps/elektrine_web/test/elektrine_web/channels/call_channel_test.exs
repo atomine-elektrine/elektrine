@@ -2,6 +2,7 @@ defmodule ElektrineWeb.CallChannelTest do
   use ElektrineWeb.ChannelCase
 
   alias Elektrine.AccountsFixtures
+  alias Elektrine.Calls
   alias Elektrine.Calls.Call
   alias Elektrine.Messaging.{ChatConversation, ChatConversationMember, FederationCallSession}
   alias Elektrine.PubSubTopics
@@ -26,9 +27,111 @@ defmodule ElektrineWeb.CallChannelTest do
     {:ok, socket} = connect(UserSocket, %{"token" => token})
 
     {:ok, _join_payload, socket} =
-      subscribe_and_join(socket, ElektrineWeb.CallChannel, "call:#{call.id}")
+      subscribe_and_join(socket, ElektrineWeb.CallChannel, "call:#{call.id}", %{
+        "client_session_id" => "caller-session"
+      })
 
-    %{socket: socket}
+    %{socket: socket, call: call, caller: caller, callee: callee}
+  end
+
+  test "normal channel leave does not end an active call", %{socket: socket, call: call} do
+    Process.flag(:trap_exit, true)
+    assert {:ok, %{status: "active"}} = Calls.update_call_status(call.id, "active")
+
+    ref = leave(socket)
+    assert_reply ref, :ok
+    assert_receive {:EXIT, _pid, {:shutdown, :left}}
+
+    assert %{status: "active"} = Repo.get!(Call, call.id)
+  end
+
+  test "forwards local peer_ready broadcasts", %{socket: socket} do
+    broadcast_from!(socket, "peer_ready", %{user_id: 123})
+
+    assert_push "peer_ready", %{user_id: 123}
+  end
+
+  test "ready_to_receive sends peer metadata only to the other local participant", %{
+    socket: caller_socket,
+    call: call,
+    callee: callee
+  } do
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user_socket_claims(callee))
+    {:ok, callee_socket} = connect(UserSocket, %{"token" => token})
+
+    {:ok, _join_payload, callee_socket} =
+      subscribe_and_join(callee_socket, ElektrineWeb.CallChannel, "call:#{call.id}", %{
+        "client_session_id" => "callee-session"
+      })
+
+    ref = push(callee_socket, "ready_to_receive", %{})
+    assert_reply ref, :ok
+
+    assert_push "peer_ready", %{
+      user_id: callee_id,
+      from_user_id: callee_id,
+      from_client_session_id: "callee-session",
+      signal_id: signal_id
+    }
+
+    assert callee_id == callee.id
+    assert is_integer(signal_id)
+    refute_push "peer_ready", %{from_client_session_id: "callee-session"}
+    assert caller_socket.topic == "call:#{call.id}"
+  end
+
+  test "forwards local offer answer and ice once with sender metadata", %{
+    socket: caller_socket,
+    call: call,
+    callee: callee
+  } do
+    token = Phoenix.Token.sign(ElektrineWeb.Endpoint, "user socket", user_socket_claims(callee))
+    {:ok, callee_socket} = connect(UserSocket, %{"token" => token})
+
+    {:ok, _join_payload, callee_socket} =
+      subscribe_and_join(callee_socket, ElektrineWeb.CallChannel, "call:#{call.id}", %{
+        "client_session_id" => "callee-session"
+      })
+
+    offer = %{"type" => "offer", "sdp" => "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\n"}
+    ref = push(caller_socket, "offer", %{"sdp" => offer})
+    assert_reply ref, :ok
+
+    assert_push "offer", %{
+      sdp: ^offer,
+      from_user_id: caller_id,
+      from_client_session_id: "caller-session",
+      signal_id: offer_signal_id
+    }
+
+    assert is_integer(caller_id)
+    assert is_integer(offer_signal_id)
+
+    answer = %{"type" => "answer", "sdp" => "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\n"}
+    ref = push(callee_socket, "answer", %{"sdp" => answer})
+    assert_reply ref, :ok
+
+    assert_push "answer", %{
+      sdp: ^answer,
+      from_user_id: callee_id,
+      from_client_session_id: "callee-session",
+      signal_id: answer_signal_id
+    }
+
+    assert callee_id == callee.id
+    assert is_integer(answer_signal_id)
+
+    candidate = valid_candidate()
+    ref = push(caller_socket, "ice_candidate", %{"candidate" => candidate})
+    assert_reply ref, :ok
+
+    assert_push "ice_candidate", %{
+      candidate: ^candidate,
+      from_client_session_id: "caller-session",
+      signal_id: ice_signal_id
+    }
+
+    assert is_integer(ice_signal_id)
   end
 
   test "accepts valid ICE candidates", %{socket: socket} do
