@@ -17,6 +17,24 @@ defmodule Elektrine.ActivityPub.MentionsTest do
     assert handle == "alice@#{ActivityPub.instance_domain()}"
   end
 
+  test "extract_mentions supports hyphenated remote usernames" do
+    mentions = Mentions.extract_mentions("hello @lait-accompli@shitposter.world")
+
+    assert mentions == [
+             %{
+               username: "lait-accompli",
+               domain: "shitposter.world",
+               handle: "lait-accompli@shitposter.world"
+             }
+           ]
+  end
+
+  test "extract_local_mentions does not partially match hyphenated remote usernames" do
+    mentions = Mentions.extract_local_mentions("hello @lait-accompli@shitposter.world")
+
+    refute Enum.any?(mentions, &(&1.username == "lait"))
+  end
+
   test "extract_non_fediverse_mentions finds domain-style handles" do
     mentions =
       Mentions.extract_non_fediverse_mentions("hello @x.com and @news.example and alex@x.com")

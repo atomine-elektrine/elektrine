@@ -19,6 +19,7 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
           ~s(<p>Hello <a href="#{local_actor_href}" class="u-url mention">@<span>maxfield</span></a> #Elixir</p>),
         "summary" => "spoiler",
         "sensitive" => true,
+        "indexable" => false,
         "published" => published,
         "to" => ["https://www.w3.org/ns/activitystreams#Public"],
         "cc" => [],
@@ -54,6 +55,7 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
       assert payload.attrs.share_count == 2
       assert payload.attrs.sensitive == true
       assert payload.attrs.content_warning == "spoiler"
+      assert payload.attrs.media_metadata["indexable"] == false
       assert payload.attrs.media_urls == ["https://remote.example/media/photo.jpg"]
       assert get_in(payload.attrs.media_metadata, ["alt_texts", "0"]) == "A cat"
       assert payload.hashtags == ["phoenix", "elixir"]

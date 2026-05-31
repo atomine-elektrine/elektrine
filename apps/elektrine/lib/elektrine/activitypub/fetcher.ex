@@ -8,10 +8,21 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   alias Elektrine.ActivityPub.HTTPSignature
   alias Elektrine.ActivityPub.Instances
+  alias Elektrine.ActivityPub.Visibility
   alias Elektrine.HTTP.Backoff
   alias Elektrine.Security.URLValidator
 
   @max_activitypub_body_bytes 2 * 1024 * 1024
+  @content_object_types [
+    "Note",
+    "Article",
+    "Page",
+    "Question",
+    "Event",
+    "Audio",
+    "Video",
+    "Image"
+  ]
 
   @doc """
   Fetches an actor document from a remote instance.
@@ -43,13 +54,16 @@ defmodule Elektrine.ActivityPub.Fetcher do
     skip_cache = Keyword.get(opts, :skip_cache, false)
 
     with :ok <- validate_fetch_url(uri, :object, opts) do
-      if skip_cache do
-        fetch_and_validate_object(uri, opts)
-      else
-        Elektrine.AppCache.get_object(uri, fn ->
+      result =
+        if skip_cache do
           fetch_and_validate_object(uri, opts)
-        end)
-      end
+        else
+          Elektrine.AppCache.get_object(uri, fn ->
+            fetch_and_validate_object(uri, opts)
+          end)
+        end
+
+      enforce_fetched_object_access(uri, result, opts)
     end
   end
 
@@ -66,9 +80,71 @@ defmodule Elektrine.ActivityPub.Fetcher do
 
   defp fetch_and_validate_object(uri, opts) do
     with {:ok, object} <- do_signed_fetch(uri, opts),
-         :ok <- validate_fetched_object_identity(uri, object, opts) do
+         :ok <- validate_fetched_object_identity(uri, object, opts),
+         :ok <- validate_fetched_object_access(uri, object, opts) do
       {:ok, object}
     end
+  end
+
+  defp enforce_fetched_object_access(uri, {:ok, object}, opts) do
+    case validate_fetched_object_access(uri, object, opts) do
+      :ok ->
+        {:ok, object}
+
+      {:error, :unauthorized_fetch} = error ->
+        Elektrine.AppCache.invalidate_object(uri)
+        error
+
+      error ->
+        error
+    end
+  end
+
+  defp enforce_fetched_object_access(_uri, result, _opts), do: result
+
+  defp validate_fetched_object_access(uri, object, _opts),
+    do: do_validate_fetched_object_access(uri, object)
+
+  defp do_validate_fetched_object_access(_uri, object) when not is_map(object), do: :ok
+
+  defp do_validate_fetched_object_access(_uri, %{"type" => type})
+       when type in ["Collection", "OrderedCollection", "CollectionPage", "OrderedCollectionPage"] do
+    :ok
+  end
+
+  defp do_validate_fetched_object_access(_uri, %{"type" => type})
+       when type in ["Person", "Group", "Application", "Service", "Organization"] do
+    :ok
+  end
+
+  defp do_validate_fetched_object_access(uri, %{"type" => "Create"} = activity) do
+    object = Map.get(activity, "object")
+
+    if Visibility.public_or_unlisted?(activity) or
+         (is_map(object) and Visibility.public_or_unlisted?(object)) do
+      :ok
+    else
+      reject_unauthorized_object(uri, activity)
+    end
+  end
+
+  defp do_validate_fetched_object_access(uri, %{"type" => type} = object)
+       when type in @content_object_types do
+    if Visibility.public_or_unlisted?(object) do
+      :ok
+    else
+      reject_unauthorized_object(uri, object)
+    end
+  end
+
+  defp do_validate_fetched_object_access(_uri, _object), do: :ok
+
+  defp reject_unauthorized_object(uri, object) do
+    Logger.warning(
+      "Rejected fetched ActivityPub content outside public audience: requested=#{inspect(uri)} id=#{inspect(object["id"])}"
+    )
+
+    {:error, :unauthorized_fetch}
   end
 
   defp validate_fetched_object_identity(_uri, object, _opts) when not is_map(object), do: :ok
@@ -476,6 +552,7 @@ defmodule Elektrine.ActivityPub.Fetcher do
          "attributedTo" => actor_uri,
          "to" => mastodon_status_to_audience(visibility),
          "cc" => mastodon_status_cc_audience(visibility, actor_uri),
+         "indexable" => Map.get(status, "indexable"),
          "sensitive" => Map.get(status, "sensitive") || false,
          "summary" => Map.get(status, "spoiler_text"),
          "attachment" => normalize_mastodon_attachments(Map.get(status, "media_attachments", [])),
@@ -512,7 +589,9 @@ defmodule Elektrine.ActivityPub.Fetcher do
   defp mastodon_status_to_audience("unlisted"), do: []
   defp mastodon_status_to_audience(_), do: ["https://www.w3.org/ns/activitystreams#Public"]
 
-  defp mastodon_status_cc_audience("unlisted", actor_uri), do: [actor_uri <> "/followers"]
+  defp mastodon_status_cc_audience("unlisted", actor_uri),
+    do: ["https://www.w3.org/ns/activitystreams#Public", actor_uri <> "/followers"]
+
   defp mastodon_status_cc_audience(_, _), do: []
 
   defp normalize_mastodon_attachments(attachments) when is_list(attachments) do

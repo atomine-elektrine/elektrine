@@ -1137,14 +1137,24 @@ if config_env() == :prod do
   supported_domains_env =
     System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
 
+  configured_supported_domains =
+    parse_domain_list.(supported_domains_env, default_supported_domains)
+
+  receive_only_email_domains =
+    configured_supported_domains
+    |> Enum.reject(&(&1 in [primary_domain, email_domain]))
+    |> Enum.uniq()
+
   supported_email_domains =
-    ([primary_domain] ++ parse_domain_list.(supported_domains_env, default_supported_domains))
+    ([primary_domain] ++ configured_supported_domains)
+    |> Enum.reject(&(&1 in receive_only_email_domains))
     |> Enum.uniq()
 
   profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS")
 
   profile_base_domains =
     parse_domain_list.(profile_domains_env, [primary_domain])
+    |> Enum.reject(&(&1 in receive_only_email_domains))
 
   public_base_url_env =
     first_present_env.(["PUBLIC_BASE_URL", "APP_BASE_URL", "PHX_PUBLIC_URL", "NGROK_URL"])
@@ -1270,6 +1280,7 @@ if config_env() == :prod do
     receiver_webhook_secret: derived_receiver_webhook_secret,
     internal_signing_secret: derived_haraka_signing_secret,
     supported_domains: supported_email_domains,
+    receive_only_domains: receive_only_email_domains,
     custom_domain_mx_host: custom_domain_mx_host,
     custom_domain_mx_priority: custom_domain_mx_priority,
     custom_domain_spf_include: custom_domain_spf_include,

@@ -334,6 +334,7 @@ defmodule Elektrine.ActivityPub.Normalizer do
     |> maybe_put_metadata("card", object["card"])
     |> maybe_put_metadata("application", object["application"] || object["app"])
     |> maybe_put_metadata("language", object["language"])
+    |> maybe_put_metadata("indexable", object["indexable"])
     |> maybe_put_metadata("media_attachments", extract_media_attachments_metadata(object))
     |> maybe_put_metadata("pleroma", object["pleroma"])
     |> maybe_put_metadata("misskey", misskey_status_metadata(object))

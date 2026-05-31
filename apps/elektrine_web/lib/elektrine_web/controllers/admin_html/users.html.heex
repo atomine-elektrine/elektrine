@@ -42,7 +42,11 @@
   <!-- Search Form -->
   <div class="card panel-card mb-6">
     <div class="card-body">
-      <form method="get" action={~p"/pripyat/users"} class="flex gap-4 items-end">
+      <form
+        method="get"
+        action={~p"/pripyat/users"}
+        class="flex flex-col lg:flex-row gap-4 items-end"
+      >
         <div class=" flex-1">
           <label class="label"><span>Search users</span></label>
           <div class="join w-full">
@@ -60,8 +64,38 @@
           </div>
         </div>
 
+        <div class="w-full lg:w-44">
+          <label class="label"><span>Sort by</span></label>
+          <select name="sort" class="select select-bordered w-full">
+            <option value="joined" selected={@sort == "joined"}>Joined</option>
+            <option value="username" selected={@sort == "username"}>Username</option>
+            <option value="handle" selected={@sort == "handle"}>Handle</option>
+            <option value="last_login" selected={@sort == "last_login"}>Last login</option>
+            <option value="login_count" selected={@sort == "login_count"}>Login count</option>
+            <option value="registration_ip" selected={@sort == "registration_ip"}>
+              Registration IP
+            </option>
+            <option value="last_login_ip" selected={@sort == "last_login_ip"}>
+              Last login IP
+            </option>
+            <option value="trust_level" selected={@sort == "trust_level"}>Trust level</option>
+          </select>
+        </div>
+
+        <div class="w-full lg:w-36">
+          <label class="label"><span>Direction</span></label>
+          <select name="direction" class="select select-bordered w-full">
+            <option value="desc" selected={@sort_direction == "desc"}>Descending</option>
+            <option value="asc" selected={@sort_direction == "asc"}>Ascending</option>
+          </select>
+        </div>
+
         <%= if @search_query != "" do %>
-          <.link href={~p"/pripyat/users"} data-search-clear="true" class="btn btn-ghost">
+          <.link
+            href={build_users_url("", @sort, @sort_direction)}
+            data-search-clear="true"
+            class="btn btn-ghost"
+          >
             <.icon name="hero-x-mark" class="w-4 h-4" /> Clear
           </.link>
         <% end %>
@@ -91,15 +125,67 @@
         <table class="table table-zebra w-full">
           <thead>
             <tr>
-              <th class="text-xs sm:text-sm">Identity</th>
+              <th
+                class="text-xs sm:text-sm"
+                aria-sort={users_aria_sort(@sort, @sort_direction, "username")}
+              >
+                <.link
+                  href={users_sort_url(@search_query, @sort, @sort_direction, "username")}
+                  class="inline-flex items-center gap-1 hover:text-primary"
+                >
+                  Identity
+                  <span class="text-xs opacity-70">
+                    {users_sort_indicator(@sort, @sort_direction, "username")}
+                  </span>
+                </.link>
+              </th>
 
               <th class="text-xs sm:text-sm">Email Aliases</th>
 
-              <th class="text-xs sm:text-sm">Status</th>
+              <th
+                class="text-xs sm:text-sm"
+                aria-sort={users_aria_sort(@sort, @sort_direction, "trust_level")}
+              >
+                <.link
+                  href={users_sort_url(@search_query, @sort, @sort_direction, "trust_level")}
+                  class="inline-flex items-center gap-1 hover:text-primary"
+                >
+                  Status
+                  <span class="text-xs opacity-70">
+                    {users_sort_indicator(@sort, @sort_direction, "trust_level")}
+                  </span>
+                </.link>
+              </th>
 
-              <th class="text-xs sm:text-sm hidden lg:table-cell">IP Information</th>
+              <th
+                class="text-xs sm:text-sm hidden lg:table-cell"
+                aria-sort={users_aria_sort(@sort, @sort_direction, "last_login")}
+              >
+                <.link
+                  href={users_sort_url(@search_query, @sort, @sort_direction, "last_login")}
+                  class="inline-flex items-center gap-1 hover:text-primary"
+                >
+                  IP Information
+                  <span class="text-xs opacity-70">
+                    {users_sort_indicator(@sort, @sort_direction, "last_login")}
+                  </span>
+                </.link>
+              </th>
 
-              <th class="text-xs sm:text-sm hidden md:table-cell">Joined</th>
+              <th
+                class="text-xs sm:text-sm hidden md:table-cell"
+                aria-sort={users_aria_sort(@sort, @sort_direction, "joined")}
+              >
+                <.link
+                  href={users_sort_url(@search_query, @sort, @sort_direction, "joined")}
+                  class="inline-flex items-center gap-1 hover:text-primary"
+                >
+                  Joined
+                  <span class="text-xs opacity-70">
+                    {users_sort_indicator(@sort, @sort_direction, "joined")}
+                  </span>
+                </.link>
+              </th>
 
               <th class="text-xs sm:text-sm">Actions</th>
             </tr>
@@ -396,11 +482,7 @@
           <div class="join">
             <%= if @current_page > 1 do %>
               <.link
-                href={
-                  if @search_query != "",
-                    do: ~p"/pripyat/users?search=#{@search_query}&page=#{@current_page - 1}",
-                    else: ~p"/pripyat/users?page=#{@current_page - 1}"
-                }
+                href={build_users_url(@search_query, @sort, @sort_direction, @current_page - 1)}
                 class="join-item btn"
               >
                 «
@@ -409,11 +491,7 @@
 
             <%= for page_num <- @page_range do %>
               <.link
-                href={
-                  if @search_query != "",
-                    do: ~p"/pripyat/users?search=#{@search_query}&page=#{page_num}",
-                    else: ~p"/pripyat/users?page=#{page_num}"
-                }
+                href={build_users_url(@search_query, @sort, @sort_direction, page_num)}
                 class={
                   if page_num == @current_page,
                     do: "join-item btn btn-primary",
@@ -426,11 +504,7 @@
 
             <%= if @current_page < @total_pages do %>
               <.link
-                href={
-                  if @search_query != "",
-                    do: ~p"/pripyat/users?search=#{@search_query}&page=#{@current_page + 1}",
-                    else: ~p"/pripyat/users?page=#{@current_page + 1}"
-                }
+                href={build_users_url(@search_query, @sort, @sort_direction, @current_page + 1)}
                 class="join-item btn"
               >
                 »

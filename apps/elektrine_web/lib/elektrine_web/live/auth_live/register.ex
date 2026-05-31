@@ -348,6 +348,8 @@ defmodule ElektrineWeb.AuthLive.Register do
                     phx-hook="AtominePow"
                     data-difficulty={@atomine_pow_difficulty}
                   >
+                    <input type="hidden" name="atomine_pow_token" value="" />
+
                     <div class="space-y-2 text-left">
                       <div class="flex items-start justify-between gap-3">
                         <p class="font-semibold">Security check</p>

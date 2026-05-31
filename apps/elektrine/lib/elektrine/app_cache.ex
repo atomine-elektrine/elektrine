@@ -309,7 +309,14 @@ defmodule Elektrine.AppCache do
   end
 
   defp negative_cacheable_object_error?(reason)
-       when reason in [:not_found, :fetch_failed, :http_error, :invalid_json, :backoff],
+       when reason in [
+              :not_found,
+              :fetch_failed,
+              :http_error,
+              :invalid_json,
+              :backoff,
+              :unauthorized_fetch
+            ],
        do: true
 
   defp negative_cacheable_object_error?(_), do: false

@@ -22,6 +22,7 @@ defmodule ElektrineWeb.AuthPowCopyTest do
     assert html =~ "check level 8"
     assert html =~ "your browser does a short calculation"
     assert html =~ "without asking you to solve a puzzle"
+    assert html =~ ~s(name="atomine_pow_token")
     refute html =~ "two-layer gate"
     refute html =~ "anonymous effort token"
   end
@@ -33,6 +34,7 @@ defmodule ElektrineWeb.AuthPowCopyTest do
     assert html =~ "check level 8"
     assert html =~ "your browser does a short calculation"
     assert html =~ "without asking you to solve a puzzle"
+    assert html =~ ~s(name="atomine_pow_token")
     refute html =~ "two-layer gate"
     refute html =~ "anonymous effort token"
   end

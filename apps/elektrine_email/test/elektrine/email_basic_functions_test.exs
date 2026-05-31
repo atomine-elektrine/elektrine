@@ -67,6 +67,24 @@ defmodule Elektrine.EmailBasicFunctionsTest do
       end
     end
 
+    test "verify_email_ownership rejects secondary z.org addresses for sending", %{user: user} do
+      previous_email_config = Application.get_env(:elektrine, :email, [])
+      primary = Domains.primary_email_domain()
+
+      Application.put_env(
+        :elektrine,
+        :email,
+        Keyword.merge(previous_email_config, supported_domains: [primary, "z.org"])
+      )
+
+      on_exit(fn -> Application.put_env(:elektrine, :email, previous_email_config) end)
+
+      {:ok, _mailbox} = Email.ensure_user_has_mailbox(user)
+
+      assert {:error, :receive_only_domain} =
+               Email.verify_email_ownership("#{user.username}@z.org", user.id)
+    end
+
     test "get_user_mailbox prefers the canonical mailbox when legacy duplicates exist", %{
       user: user
     } do

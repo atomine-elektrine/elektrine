@@ -163,6 +163,7 @@ export const AtominePow = {
     this.handleSubmit = (event) => this.onSubmit(event)
 
     if (this.form) {
+      this.resetSubmissionState()
       this.form.addEventListener('submit', this.handleSubmit, true)
     }
   },
@@ -194,6 +195,13 @@ export const AtominePow = {
 
   updated() {
     this.statusEl = this.el.querySelector('[data-atomine-pow-status]')
+    if (!this.inFlight) this.resetSubmissionState()
+  },
+
+  resetSubmissionState() {
+    this.submittingWithToken = false
+    if (this.form) delete this.form.dataset.atominePowSkip
+    this.setResponseToken('')
   },
 
   ensureToken() {

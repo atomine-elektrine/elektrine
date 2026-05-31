@@ -131,7 +131,6 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       assert html =~ "Haraka"
       assert html =~ "https://haraka.example.test"
       assert html =~ "elektrine.test"
-      assert html =~ "z.org"
       assert html =~ "mail.elektrine.test"
       assert html =~ "outbound-relay"
       assert html =~ "2026-04-20T21:30:00Z"
@@ -142,11 +141,10 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       assert html =~ "v=spf1 include:spf.elektrine.test ~all"
       assert html =~ "v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:dmarc@elektrine.test"
       assert html =~ "default._domainkey.elektrine.test"
-      assert html =~ "mailsel._domainkey.z.org"
-      assert html =~ "v=DKIM1; k=rsa; p=XYZ987"
+      refute html =~ "mailsel._domainkey.z.org"
 
       requests = Enum.reverse(MockHarakaHTTPClient.requests())
-      assert Enum.map(requests, & &1.method) == [:get, :get, :get, :get]
+      assert Enum.map(requests, & &1.method) == [:get, :get, :get]
 
       assert Enum.at(requests, 0).headers == [{"x-api-key", "haraka-http-key"}]
       assert Enum.at(requests, 1).headers == [{"x-api-key", "haraka-http-key"}]
@@ -159,8 +157,6 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
 
       assert Enum.at(requests, 2).url ==
                "https://haraka.example.test/api/v1/dkim/domains/elektrine.test"
-
-      assert Enum.at(requests, 3).url == "https://haraka.example.test/api/v1/dkim/domains/z.org"
     end
 
     test "shows lookup errors when Haraka does not provide DKIM data", %{conn: conn} do
@@ -182,7 +178,6 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       html = html_response(conn, 200)
 
       assert html =~ "Haraka does not have DKIM data for elektrine.test."
-      assert html =~ "Haraka DKIM lookup failed with status 503: unavailable"
       assert html =~ "Status error: Haraka endpoint /status failed with status 503: offline"
       assert html =~ "Metrics error: Haraka endpoint /metrics failed with status 403: forbidden"
     end

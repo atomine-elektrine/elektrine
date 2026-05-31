@@ -1959,6 +1959,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:reply_parent, nil)
       |> assign(:reply_parent_actor, nil)
       |> assign(:reply_ancestors, [])
+      |> assign(:meta_robots, "noindex, nofollow")
       |> assign(:meta_description, nil)
       |> assign(:og_image, nil)
       |> assign(:submitted_link_preview, nil)
@@ -2050,6 +2051,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       "published" => NaiveDateTime.to_iso8601(msg.inserted_at) <> "Z",
       "attributedTo" => msg.remote_actor && msg.remote_actor.uri,
       "inReplyTo" => in_reply_to,
+      "indexable" => cached_message_indexable?(msg),
       "audience" => community_uri,
       "to" => build_cached_post_audience(community_uri),
       "inReplyToAuthor" => metadata["inReplyToAuthor"],
@@ -2760,7 +2762,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     |> build_post_object_from_message()
     |> merge_local_poll_data(local_message)
     |> maybe_preserve_cached_post_fields(fallback_post_object || %{})
-    |> then(&assign(socket, :post, &1))
+    |> then(fn post ->
+      robots =
+        if local_message.federated,
+          do: robots_for_remote_post(post),
+          else: robots_for_local_post(local_message)
+
+      socket
+      |> assign(:post, post)
+      |> assign(:meta_robots, robots)
+    end)
   end
 
   defp assign_local_first_post(socket, _, _), do: socket
@@ -3429,6 +3440,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:page_title, title)
           |> assign(:meta_description, description)
           |> assign(:og_image, image)
+          |> assign(:meta_robots, robots_for_local_post(message))
         else
           socket
         end
@@ -3510,6 +3522,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
           |> assign(:page_title, page_title)
           |> assign(:meta_description, description)
           |> assign(:og_image, image)
+          |> assign(:meta_robots, robots_for_remote_post(post_object))
         else
           socket
         end
@@ -3756,6 +3769,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         post_object["name"] || "Post by @#{remote_actor.username}@#{remote_actor.domain}"
       )
       |> assign(:post, post_object)
+      |> assign(:meta_robots, robots_for_remote_post(post_object))
       |> assign(:remote_actor, remote_actor)
       |> assign(:community_actor, community_actor)
       |> assign(
@@ -3877,6 +3891,22 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   defp remote_post_publicly_visible?(_), do: false
+
+  defp robots_for_local_post(%{visibility: "public", is_draft: draft}) when draft != true,
+    do: "index, follow"
+
+  defp robots_for_local_post(_), do: "noindex, nofollow"
+
+  defp robots_for_remote_post(post_object) when is_map(post_object) do
+    if Visibility.indexable?(post_object), do: "index, follow", else: "noindex, nofollow"
+  end
+
+  defp robots_for_remote_post(_), do: "noindex, nofollow"
+
+  defp cached_message_indexable?(%{visibility: "public", is_draft: draft}) when draft != true,
+    do: true
+
+  defp cached_message_indexable?(_), do: false
 
   defp deny_remote_post_access(socket) do
     socket
@@ -4350,6 +4380,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> assign(:post, post_object)
       |> assign(:is_community_post, is_community_post)
       |> assign(:page_title, post_object["name"] || socket.assigns.page_title)
+      |> assign(:meta_robots, robots_for_remote_post(post_object))
       |> assign_reply_parent_fallback(post_object, local_message)
       |> ensure_submitted_link_preview(
         post_object,
@@ -7427,7 +7458,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp short_mention_domain_hints(author) when is_binary(author) do
     case Regex.run(
-           ~r/^@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])$/,
+           ~r/^@([a-zA-Z0-9_][a-zA-Z0-9_-]*)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])$/,
            String.trim(author)
          ) do
       [_, username, domain] -> %{String.downcase(username) => domain}

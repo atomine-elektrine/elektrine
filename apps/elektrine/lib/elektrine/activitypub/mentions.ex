@@ -8,8 +8,8 @@ defmodule Elektrine.ActivityPub.Mentions do
   alias Elektrine.ActivityPub.RemoteFetch
   alias Elektrine.Domains
 
-  @remote_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9.-])/u
-  @local_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@.])/u
+  @remote_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_][a-zA-Z0-9_-]*)@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9.-])/u
+  @local_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_][a-zA-Z0-9_-]*)(?![A-Za-z0-9_@.-])/u
   @non_fediverse_mention_regex ~r/(^|[^A-Za-z0-9_@\/])@((?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9._-])/u
   @non_fediverse_handle_regex ~r/(^|[^A-Za-z0-9._%+-@\/])([A-Za-z0-9][A-Za-z0-9._-]{0,62}@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63})(?![A-Za-z0-9._-])/u
 

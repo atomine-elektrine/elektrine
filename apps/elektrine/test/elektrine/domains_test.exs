@@ -78,6 +78,21 @@ defmodule Elektrine.DomainsTest do
     assert Domains.profile_urls_for_handle("alice") == ["https://alice.elektrine.com"]
   end
 
+  test "treats secondary supported domains as receive-only" do
+    Application.put_env(:elektrine, :email,
+      domain: "elektrine.com",
+      supported_domains: ["elektrine.com", "z.org"]
+    )
+
+    Application.put_env(:elektrine, :profile_base_domains, ["elektrine.com", "z.org"])
+
+    assert Domains.supported_email_domains() == ["elektrine.com"]
+    assert "z.org" in Domains.receiving_email_domains()
+    refute "z.org" in Domains.available_email_domains_for_user(123)
+    refute "z.org" in Domains.configured_profile_base_domains()
+    refute "z.org" in Domains.activitypub_domains()
+  end
+
   test "canonicalizes profile URLs to the primary configured profile domain on built-in hosts" do
     Application.put_env(:elektrine, :email, domain: "selfhost.test")
     Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])

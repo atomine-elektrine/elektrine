@@ -164,9 +164,15 @@ configured_supported_domains =
       String.split(value, ",", trim: true)
   end
 
+receive_only_email_domains =
+  configured_supported_domains
+  |> normalize_domains.()
+  |> Enum.reject(&(&1 in [primary_domain, email_domain]))
+
 supported_email_domains =
   ([primary_domain] ++ configured_supported_domains)
   |> normalize_domains.()
+  |> Enum.reject(&(&1 in receive_only_email_domains))
 
 profile_domains_env = System.get_env("PROFILE_BASE_DOMAINS")
 
@@ -179,6 +185,7 @@ profile_base_domains =
       ([primary_domain] ++ String.split(value, ",", trim: true))
       |> normalize_domains.()
   end
+  |> Enum.reject(&(&1 in receive_only_email_domains))
 
 profile_host_scope =
   case profile_base_domains do
@@ -194,6 +201,7 @@ config :elektrine, :email,
   allow_insecure_receiver_webhook: config_env() != :prod,
   # Supported domains for multi-domain access
   supported_domains: supported_email_domains,
+  receive_only_domains: receive_only_email_domains,
   custom_domain_mx_host: primary_domain,
   custom_domain_mx_priority: 10,
   custom_domain_spf_include: nil,

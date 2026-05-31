@@ -160,6 +160,37 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       assert response(conn, 200) == "allowed"
     end
 
+    test "rejects secondary email domains even when present in profile domains", %{
+      conn: conn,
+      api_key: api_key
+    } do
+      user = user_fixture(%{username: "caddysunset"})
+      {:ok, _user} = Accounts.update_user_handle(user, "caddysunset")
+      previous_email_config = Application.get_env(:elektrine, :email, [])
+      previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+
+      Application.put_env(
+        :elektrine,
+        :email,
+        Keyword.merge(previous_email_config,
+          domain: "example.com",
+          supported_domains: ["example.com", "z.org"]
+        )
+      )
+
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com", "z.org"])
+
+      on_exit(fn ->
+        Application.put_env(:elektrine, :email, previous_email_config)
+        Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
+      end)
+
+      conn = conn |> auth_conn(api_key) |> get(allow_path("caddysunset.z.org"))
+
+      assert conn.status == 403
+      assert response(conn, 403) == "forbidden"
+    end
+
     test "rejects handed-off built-in profile subdomains", %{conn: conn, api_key: api_key} do
       user = user_fixture(%{username: "caddyhandoff"})
       {:ok, user} = Accounts.update_user_handle(user, "caddyhandoff")

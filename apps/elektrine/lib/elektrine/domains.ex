@@ -24,14 +24,29 @@ defmodule Elektrine.Domains do
     email_config()
     |> Keyword.get(:supported_domains, [primary_email_domain()])
     |> normalize_domains()
-    |> ensure_primary_domain()
+    |> reject_receive_only_domains()
+    |> ensure_supported_primary_domain()
+  end
+
+  @doc """
+  Secondary built-in email domains that only accept inbound mail.
+
+  By default, configured built-in domains other than the primary email domain are
+  receive-only. They are not offered for sending, identities, profile hosts,
+  ActivityPub discovery, or web access.
+  """
+  def receive_only_email_domains do
+    config = email_config()
+
+    (Keyword.get(config, :receive_only_domains, []) ++ default_receive_only_email_domains(config))
+    |> normalize_domains()
   end
 
   @doc """
   All receiving email domains, including verified user custom domains.
   """
   def receiving_email_domains do
-    (supported_email_domains() ++ verified_custom_email_domains())
+    (supported_email_domains() ++ receive_only_email_domains() ++ verified_custom_email_domains())
     |> normalize_domains()
     |> ensure_primary_domain()
   end
@@ -58,7 +73,8 @@ defmodule Elektrine.Domains do
   def configured_profile_base_domains do
     Application.get_env(:elektrine, :profile_base_domains, [primary_email_domain()])
     |> normalize_domains()
-    |> ensure_primary_domain()
+    |> reject_receive_only_domains()
+    |> ensure_profile_primary_domain()
   end
 
   @doc """
@@ -266,6 +282,23 @@ defmodule Elektrine.Domains do
   end
 
   def local_addresses_for_username(_), do: []
+
+  @doc """
+  Builds all inbound local email addresses for a username across sendable and
+  receive-only local domains.
+  """
+  def receiving_addresses_for_username(username) when is_binary(username) do
+    normalized_username = String.trim(username)
+
+    if Elektrine.Strings.present?(normalized_username) do
+      receiving_email_domains()
+      |> Enum.map(&"#{normalized_username}@#{&1}")
+    else
+      []
+    end
+  end
+
+  def receiving_addresses_for_username(_), do: []
 
   @doc """
   Builds all available main addresses for a user across system and verified custom domains.
@@ -570,6 +603,36 @@ defmodule Elektrine.Domains do
     else
       [primary | domains]
     end
+  end
+
+  defp ensure_supported_primary_domain(domains) do
+    if primary_email_domain() in receive_only_email_domains() do
+      domains
+    else
+      ensure_primary_domain(domains)
+    end
+  end
+
+  defp ensure_profile_primary_domain(domains) do
+    if primary_email_domain() in receive_only_email_domains() do
+      domains
+    else
+      ensure_primary_domain(domains)
+    end
+  end
+
+  defp reject_receive_only_domains(domains) do
+    receive_only = MapSet.new(receive_only_email_domains())
+    Enum.reject(domains, &MapSet.member?(receive_only, &1))
+  end
+
+  defp default_receive_only_email_domains(config) do
+    primary = primary_email_domain()
+
+    config
+    |> Keyword.get(:supported_domains, [primary])
+    |> normalize_domains()
+    |> Enum.reject(&(&1 == primary))
   end
 
   defp normalize_domains(domains) when is_list(domains) do

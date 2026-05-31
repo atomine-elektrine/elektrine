@@ -152,6 +152,50 @@ defmodule ElektrineWeb.AdminHTML do
     Elektrine.Paths.admin_path() <> "/custom-domains?" <> Enum.join(params, "&")
   end
 
+  def build_users_url(search, sort, direction, page \\ nil) do
+    params = []
+
+    params =
+      if Elektrine.Strings.present?(search),
+        do: params ++ [{"search", search}],
+        else: params
+
+    params =
+      if sort != "joined" or direction != "desc",
+        do: params ++ [{"sort", sort}, {"direction", direction}],
+        else: params
+
+    params = if page, do: params ++ [{"page", page}], else: params
+
+    case URI.encode_query(params) do
+      "" -> "/pripyat/users"
+      query -> "/pripyat/users?" <> query
+    end
+  end
+
+  def users_sort_url(search, current_sort, current_direction, target_sort) do
+    next_direction =
+      if current_sort == target_sort and current_direction == "asc", do: "desc", else: "asc"
+
+    build_users_url(search, target_sort, next_direction)
+  end
+
+  def users_sort_indicator(current_sort, current_direction, target_sort) do
+    if current_sort == target_sort do
+      if current_direction == "asc", do: "↑", else: "↓"
+    else
+      ""
+    end
+  end
+
+  def users_aria_sort(current_sort, current_direction, target_sort) do
+    cond do
+      current_sort != target_sort -> "none"
+      current_direction == "asc" -> "ascending"
+      true -> "descending"
+    end
+  end
+
   def admin_nav_sections do
     [
       %{
