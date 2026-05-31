@@ -382,24 +382,35 @@ defmodule Elektrine.Email do
       when is_binary(email_address) and is_integer(user_id) do
     clean_email = String.downcase(String.trim(email_address))
 
-    # Check 1: User's main mailbox, including domain variants and plus addresses.
-    case Elektrine.Email.Mailboxes.get_user_mailbox(user_id) do
-      %Elektrine.Email.Mailbox{} = mailbox ->
-        resolved_mailbox = Elektrine.Email.Mailboxes.get_mailbox_by_email(clean_email)
+    if receive_only_email_address?(clean_email) do
+      {:error, :receive_only_domain}
+    else
+      # Check 1: User's main mailbox, including domain variants and plus addresses.
+      case Elektrine.Email.Mailboxes.get_user_mailbox(user_id) do
+        %Elektrine.Email.Mailbox{} = mailbox ->
+          resolved_mailbox = Elektrine.Email.Mailboxes.get_mailbox_by_email(clean_email)
 
-        if Elektrine.Email.Mailbox.owns_email?(mailbox, clean_email) or
-             match?(%Elektrine.Email.Mailbox{user_id: ^user_id}, resolved_mailbox) do
-          {:ok, :main_mailbox}
-        else
+          if Elektrine.Email.Mailbox.owns_email?(mailbox, clean_email) or
+               match?(%Elektrine.Email.Mailbox{user_id: ^user_id}, resolved_mailbox) do
+            {:ok, :main_mailbox}
+          else
+            check_alias_ownership(clean_email, user_id)
+          end
+
+        nil ->
           check_alias_ownership(clean_email, user_id)
-        end
-
-      nil ->
-        check_alias_ownership(clean_email, user_id)
+      end
     end
   end
 
   def verify_email_ownership(_, _), do: {:error, :invalid_params}
+
+  defp receive_only_email_address?(email_address) when is_binary(email_address) do
+    case String.split(email_address, "@", parts: 2) do
+      [_local, domain] -> domain in Elektrine.Domains.receive_only_email_domains()
+      _ -> false
+    end
+  end
 
   # Check if user owns the email through an alias
   defp check_alias_ownership(email_address, user_id) do

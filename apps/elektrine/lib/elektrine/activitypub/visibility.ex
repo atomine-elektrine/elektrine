@@ -35,6 +35,10 @@ defmodule Elektrine.ActivityPub.Visibility do
     visibility(object, opts) == "public"
   end
 
+  def public_or_unlisted?(object, opts \\ []) do
+    visibility(object, opts) in ["public", "unlisted"]
+  end
+
   def publicly_addressed?(object) when is_map(object) do
     object
     |> audience_refs()
@@ -54,4 +58,10 @@ defmodule Elektrine.ActivityPub.Visibility do
   end
 
   def audience_refs(_object), do: []
+
+  def indexable?(object) when is_map(object) do
+    public_or_unlisted?(object) && Map.get(object, "indexable") != false
+  end
+
+  def indexable?(_object), do: false
 end

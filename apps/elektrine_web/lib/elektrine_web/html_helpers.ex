@@ -51,8 +51,8 @@ defmodule ElektrineWeb.HtmlHelpers do
         String.match?(token, ~r/^\s+$/) ->
           token
 
-        String.match?(token, ~r/^@\w+@[\w.-]+/) ->
-          case Regex.run(~r/^@(\w+)@([\w.-]+)/, token) do
+        String.match?(token, ~r/^@[A-Za-z0-9_][A-Za-z0-9_-]*@[\w.-]+/) ->
+          case Regex.run(~r/^@([A-Za-z0-9_][A-Za-z0-9_-]*)@([\w.-]+)/, token) do
             [match, username, domain] ->
               href = Paths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
 
@@ -91,7 +91,7 @@ defmodule ElektrineWeb.HtmlHelpers do
 
           ~s(<a href="/hashtag/#{String.downcase(hashtag_name)}" class="text-primary hover:underline font-medium">#{token}</a>)
 
-        String.match?(token, ~r/^@\w+$/) ->
+        String.match?(token, ~r/^@[A-Za-z0-9_][A-Za-z0-9_-]*$/) ->
           username = String.slice(token, 1..-1//1)
 
           ~s(<a href="/#{String.downcase(username)}" class="#{@mention_link_classes}">@#{username}</a>)
@@ -241,10 +241,10 @@ defmodule ElektrineWeb.HtmlHelpers do
   @doc ~s|Converts @mentions in already-escaped HTML to clickable links.\nHandles both local mentions (@username) and fediverse mentions (@user@domain.com).\n\nIMPORTANT: Only call this on already-escaped content!\n|
   def linkify_local_mentions(escaped_html) when is_binary(escaped_html) do
     Regex.replace(
-      ~r/@(\w+)(?![A-Za-z0-9_@.])/,
+      ~r/@([A-Za-z0-9_][A-Za-z0-9_-]*)(?![A-Za-z0-9_@.-])/,
       escaped_html,
       fn match, username ->
-        if Regex.match?(~r/@#{username}@[\w.-]+/, escaped_html) do
+        if Regex.match?(~r/@#{Regex.escape(username)}@[\w.-]+/, escaped_html) do
           match
         else
           ~s(<a href="/#{String.downcase(username)}" class="#{@mention_link_classes}">#{match}</a>)
@@ -895,7 +895,7 @@ defmodule ElektrineWeb.HtmlHelpers do
         segment
       else
         Regex.replace(
-          ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])/,
+          ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_][a-zA-Z0-9_-]*)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])/,
           segment,
           fn _full, prefix, username, domain ->
             href = Paths.profile_path(username, domain) || "/remote/#{username}@#{domain}"
@@ -938,7 +938,7 @@ defmodule ElektrineWeb.HtmlHelpers do
        when is_binary(segment) and is_binary(instance_domain) and instance_domain != "" and
               is_map(mention_domain_hints) do
     Regex.replace(
-      ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_]+)(?![A-Za-z0-9_@.])/,
+      ~r/(^|[^A-Za-z0-9_@\/])@([a-zA-Z0-9_][a-zA-Z0-9_-]*)(?![A-Za-z0-9_@.-])/,
       segment,
       fn _full, prefix, username ->
         domain = Map.get(mention_domain_hints, String.downcase(username), instance_domain)
@@ -983,7 +983,7 @@ defmodule ElektrineWeb.HtmlHelpers do
 
   defp short_mention_domain_hints(author) when is_binary(author) do
     case Regex.run(
-           ~r/^@([a-zA-Z0-9_]+)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])$/,
+           ~r/^@([a-zA-Z0-9_][a-zA-Z0-9_-]*)@([a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9])$/,
            String.trim(author)
          ) do
       [_, username, domain] -> %{String.downcase(username) => domain}

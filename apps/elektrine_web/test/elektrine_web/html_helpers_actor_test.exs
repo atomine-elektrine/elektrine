@@ -66,6 +66,18 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
     assert html =~ "@alice@mastodon.social"
   end
 
+  test "render_remote_post_content links hyphenated remote fediverse handles" do
+    html =
+      HtmlHelpers.render_remote_post_content(
+        "@lait-accompli@shitposter.world what looks modern though?",
+        "pleroma.soykaf.com"
+      )
+
+    assert html =~ ~s(href="/remote/lait-accompli@shitposter.world")
+    assert html =~ ">@lait-accompli@shitposter.world</a>"
+    refute html =~ ~s(href="/remote/lait@pleroma.soykaf.com")
+  end
+
   test "render_remote_post_content links short mentions using the origin domain" do
     html =
       HtmlHelpers.render_remote_post_content(
@@ -129,6 +141,13 @@ defmodule ElektrineWeb.HtmlHelpersActorTest do
 
     assert html =~ ~s(href="https://x.com/alex")
     assert html =~ ">alex@x.com</a>"
+  end
+
+  test "make_content_safe_with_links links hyphenated fediverse handles" do
+    html = HtmlHelpers.make_content_safe_with_links("Hello @lait-accompli@shitposter.world")
+
+    assert html =~ ~s(href="/remote/lait-accompli@shitposter.world")
+    assert html =~ ">@lait-accompli@shitposter.world</a>"
   end
 
   test "render_post_content prefers reply-author domain for short mentions" do

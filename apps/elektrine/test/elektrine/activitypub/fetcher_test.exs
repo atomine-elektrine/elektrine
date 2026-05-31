@@ -13,6 +13,62 @@ defmodule Elektrine.ActivityPub.FetcherTest do
                Fetcher.fetch_object("http://127.0.0.1/notes/1", skip_cache: true)
     end
 
+    test "rejects fetched content objects outside the public audience" do
+      note_uri = "https://remote.example/users/alice/statuses/private"
+
+      request_fun = fn ^note_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "id" => note_uri,
+               "type" => "Note",
+               "attributedTo" => "https://remote.example/users/alice",
+               "content" => "followers only",
+               "to" => ["https://remote.example/users/alice/followers"],
+               "cc" => []
+             })
+         }}
+      end
+
+      assert {:error, :unauthorized_fetch} =
+               Fetcher.fetch_object(note_uri,
+                 skip_cache: true,
+                 validate_url: false,
+                 request_fun: request_fun
+               )
+    end
+
+    test "accepts unlisted fetched content objects addressed to Public in cc" do
+      note_uri = "https://remote.example/users/alice/statuses/unlisted"
+
+      request_fun = fn ^note_uri, _headers, _opts ->
+        {:ok,
+         %Finch.Response{
+           status: 200,
+           body:
+             Jason.encode!(%{
+               "id" => note_uri,
+               "type" => "Note",
+               "attributedTo" => "https://remote.example/users/alice",
+               "content" => "unlisted",
+               "to" => ["https://remote.example/users/alice/followers"],
+               "cc" => ["https://www.w3.org/ns/activitystreams#Public"]
+             })
+         }}
+      end
+
+      assert {:ok, object} =
+               Fetcher.fetch_object(note_uri,
+                 skip_cache: true,
+                 validate_url: false,
+                 request_fun: request_fun
+               )
+
+      assert object["id"] == note_uri
+    end
+
     test "recovers Lemmy posts when the post URL returns HTML" do
       post_uri = "https://startrek.website/post/37631588"
 

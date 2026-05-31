@@ -123,7 +123,7 @@ defmodule ElektrineWeb.CaddyTLSController do
         mail_service_hosts ++
         ["www." <> Domains.primary_profile_domain()]
 
-    profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+    profile_base_domains = Domains.profile_base_domains()
 
     host in Enum.reject(exact_domains, &is_nil/1) or
       built_in_profile_host?(host, profile_base_domains)
@@ -148,7 +148,7 @@ defmodule ElektrineWeb.CaddyTLSController do
   end
 
   defp invalid_nested_built_in_subdomain?(host) do
-    profile_base_domains = Application.get_env(:elektrine, :profile_base_domains, [])
+    profile_base_domains = Domains.profile_base_domains()
 
     Enum.any?(profile_base_domains, fn base_domain ->
       base_domain = to_string(base_domain)

@@ -13,6 +13,38 @@ defmodule ElektrineWeb.Admin.UsersController do
   plug :put_layout, html: {ElektrineWeb.Layouts, :admin}
   plug :assign_timezone_and_format
 
+  @admin_users_select_fields [
+    :id,
+    :username,
+    :handle,
+    :display_name,
+    :unique_id,
+    :avatar,
+    :is_admin,
+    :banned,
+    :inserted_at,
+    :registration_ip,
+    :last_login_ip,
+    :last_login_at,
+    :login_count,
+    :two_factor_enabled,
+    :suspended,
+    :suspended_until,
+    :trust_level,
+    :trust_level_locked
+  ]
+
+  @user_sort_fields %{
+    "joined" => :inserted_at,
+    "username" => :username,
+    "handle" => :handle,
+    "last_login" => :last_login_at,
+    "login_count" => :login_count,
+    "registration_ip" => :registration_ip,
+    "last_login_ip" => :last_login_ip,
+    "trust_level" => :trust_level
+  }
+
   defp assign_timezone_and_format(conn, _opts) do
     current_user = conn.assigns[:current_user]
 
@@ -31,6 +63,7 @@ defmodule ElektrineWeb.Admin.UsersController do
     search_query = Map.get(params, "search", "")
     page = SafeConvert.parse_page(params)
     per_page = 50
+    sort = normalize_user_sort(params["sort"], params["direction"])
 
     # Check for exact match syntax (wrapped in quotes)
     is_exact_match =
@@ -46,13 +79,13 @@ defmodule ElektrineWeb.Admin.UsersController do
     {users, total_count} =
       cond do
         clean_query == "" ->
-          get_all_users_paginated(page, per_page)
+          get_all_users_paginated(page, per_page, sort)
 
         is_exact_match ->
-          search_users_exact(clean_query, page, per_page)
+          search_users_exact(clean_query, page, per_page, sort)
 
         true ->
-          search_users_paginated(clean_query, page, per_page)
+          search_users_paginated(clean_query, page, per_page, sort)
       end
 
     # Add aliases to each user
@@ -75,7 +108,9 @@ defmodule ElektrineWeb.Admin.UsersController do
       current_page: page,
       total_pages: total_pages,
       total_count: total_count,
-      page_range: page_range
+      page_range: page_range,
+      sort: sort.key,
+      sort_direction: sort.direction
     )
   end
 
@@ -669,31 +704,14 @@ defmodule ElektrineWeb.Admin.UsersController do
     end)
   end
 
-  defp get_all_users_paginated(page, per_page) do
+  defp get_all_users_paginated(page, per_page, sort) do
     offset = (page - 1) * per_page
 
     query =
       from(u in Accounts.User,
-        order_by: [desc: u.inserted_at],
-        select: [
-          :id,
-          :username,
-          :handle,
-          :display_name,
-          :unique_id,
-          :avatar,
-          :is_admin,
-          :banned,
-          :inserted_at,
-          :registration_ip,
-          :last_login_ip,
-          :last_login_at,
-          :login_count,
-          :two_factor_enabled,
-          :suspended,
-          :suspended_until
-        ]
+        select: struct(u, ^@admin_users_select_fields)
       )
+      |> apply_user_sort(sort)
 
     total_count = Repo.aggregate(Accounts.User, :count, :id)
 
@@ -706,39 +724,22 @@ defmodule ElektrineWeb.Admin.UsersController do
     {users, total_count}
   end
 
-  defp search_users_exact(search_query, page, per_page) do
+  defp search_users_exact(search_query, page, per_page, sort) do
     offset = (page - 1) * per_page
 
     query =
       from(u in Accounts.User,
         where: u.username == ^search_query,
-        order_by: [desc: u.inserted_at],
-        select: [
-          :id,
-          :username,
-          :handle,
-          :display_name,
-          :unique_id,
-          :avatar,
-          :is_admin,
-          :banned,
-          :inserted_at,
-          :registration_ip,
-          :last_login_ip,
-          :last_login_at,
-          :login_count,
-          :two_factor_enabled,
-          :suspended,
-          :suspended_until
-        ]
+        select: struct(u, ^@admin_users_select_fields)
       )
+      |> apply_user_sort(sort)
 
     users = query |> limit(^per_page) |> offset(^offset) |> Repo.all()
     total_count = Repo.aggregate(query, :count, :id)
     {users, total_count}
   end
 
-  defp search_users_paginated(search_query, page, per_page) do
+  defp search_users_paginated(search_query, page, per_page, sort) do
     offset = (page - 1) * per_page
     search_term = "%#{search_query}%"
 
@@ -747,26 +748,9 @@ defmodule ElektrineWeb.Admin.UsersController do
         where:
           ilike(u.username, ^search_term) or ilike(u.handle, ^search_term) or
             ilike(u.registration_ip, ^search_term) or ilike(u.last_login_ip, ^search_term),
-        order_by: [desc: u.inserted_at],
-        select: [
-          :id,
-          :username,
-          :handle,
-          :display_name,
-          :unique_id,
-          :avatar,
-          :is_admin,
-          :banned,
-          :inserted_at,
-          :registration_ip,
-          :last_login_ip,
-          :last_login_at,
-          :login_count,
-          :two_factor_enabled,
-          :suspended,
-          :suspended_until
-        ]
+        select: struct(u, ^@admin_users_select_fields)
       )
+      |> apply_user_sort(sort)
 
     total_count =
       from(u in Accounts.User,
@@ -783,6 +767,19 @@ defmodule ElektrineWeb.Admin.UsersController do
       |> Repo.all()
 
     {users, total_count}
+  end
+
+  defp normalize_user_sort(sort, direction) do
+    key = if Map.has_key?(@user_sort_fields, sort), do: sort, else: "joined"
+    direction = if direction == "asc", do: "asc", else: "desc"
+
+    %{key: key, field: Map.fetch!(@user_sort_fields, key), direction: direction}
+  end
+
+  defp apply_user_sort(query, %{field: field, direction: direction}) do
+    sort_direction = if direction == "asc", do: :asc_nulls_last, else: :desc_nulls_last
+
+    order_by(query, [u], [{^sort_direction, field(u, ^field)}, asc: u.id])
   end
 
   defp get_unique_registration_ip_count do

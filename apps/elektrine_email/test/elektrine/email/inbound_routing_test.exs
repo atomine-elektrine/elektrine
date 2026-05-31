@@ -8,6 +8,21 @@ defmodule Elektrine.Email.InboundRoutingTest do
   alias Elektrine.Email
   alias Elektrine.Email.InboundRouting
 
+  setup do
+    previous_email_config = Application.get_env(:elektrine, :email, [])
+    primary = Domains.primary_email_domain()
+
+    Application.put_env(
+      :elektrine,
+      :email,
+      Keyword.merge(previous_email_config, supported_domains: [primary, "z.org"])
+    )
+
+    on_exit(fn -> Application.put_env(:elektrine, :email, previous_email_config) end)
+
+    :ok
+  end
+
   describe "resolve_recipient_mailbox/2" do
     test "prefers rcpt_to for mailing list style deliveries" do
       user = user_fixture()
@@ -52,6 +67,21 @@ defmodule Elektrine.Email.InboundRoutingTest do
                InboundRouting.resolve_recipient_mailbox(
                  "crossroute@#{Domains.primary_email_domain()}",
                  "crossroute@#{Domains.primary_email_domain()}"
+               )
+
+      assert resolved_mailbox.id == mailbox.id
+    end
+
+    test "resolves z.org recipients to existing mailbox for inbound delivery" do
+      username = "zreceive#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: username})
+
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      assert {:ok, resolved_mailbox} =
+               InboundRouting.resolve_recipient_mailbox(
+                 "#{username}@z.org",
+                 "#{username}@z.org"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -165,6 +195,20 @@ defmodule Elektrine.Email.InboundRoutingTest do
                InboundRouting.validate_mailbox_route(
                  "list@lists.example.org",
                  "owner@#{Domains.primary_email_domain()}",
+                 mailbox
+               )
+    end
+
+    test "accepts z.org recipient for inbound mailbox routing" do
+      username = "zroute#{System.unique_integer([:positive])}"
+      user = user_fixture(%{username: username})
+
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      assert :ok =
+               InboundRouting.validate_mailbox_route(
+                 "list@lists.example.org",
+                 "#{username}@z.org",
                  mailbox
                )
     end

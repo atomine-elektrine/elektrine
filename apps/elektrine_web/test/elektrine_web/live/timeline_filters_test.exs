@@ -8,7 +8,9 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
   alias Elektrine.Accounts.User
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
+  alias Elektrine.ActivityPub.Instance
   alias Elektrine.ActivityPub.LemmyCache
+  alias Elektrine.ActivityPub.UserBlock
   alias Elektrine.Emojis.CustomEmoji
   alias Elektrine.Friends
   alias Elektrine.Messaging
@@ -167,6 +169,108 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     html = render(view)
     assert html =~ "Cached Lemmy score post"
     assert html =~ ~s(aria-label="Score: 10")
+  end
+
+  test "anonymous federated feed loads public remote posts", %{conn: conn} do
+    actor = remote_actor_fixture(%{domain: "public-fed.example"})
+
+    {:ok, _message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: actor.id,
+        content: "Anonymous federated feed target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://public-fed.example/users/alice/statuses/1",
+        activitypub_url: "https://public-fed.example/users/alice/statuses/1"
+      })
+
+    {:ok, view, _html} = live(conn, ~p"/timeline?filter=federated&view=all")
+
+    html = render(view)
+    assert html =~ "Anonymous federated feed target"
+    assert html =~ "1 shown"
+  end
+
+  test "anonymous federated feed excludes globally removed instances", %{conn: conn} do
+    allowed_actor = remote_actor_fixture(%{domain: "allowed-fed.example"})
+    removed_actor = remote_actor_fixture(%{domain: "removed-fed.example"})
+
+    {:ok, _allowed_message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: allowed_actor.id,
+        content: "Allowed federated feed target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://allowed-fed.example/users/alice/statuses/1",
+        activitypub_url: "https://allowed-fed.example/users/alice/statuses/1"
+      })
+
+    {:ok, _removed_message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: removed_actor.id,
+        content: "Removed federated feed target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://removed-fed.example/users/alice/statuses/1",
+        activitypub_url: "https://removed-fed.example/users/alice/statuses/1"
+      })
+
+    %Instance{}
+    |> Instance.changeset(%{domain: "removed-fed.example", federated_timeline_removal: true})
+    |> Repo.insert!()
+
+    {:ok, view, _html} = live(conn, ~p"/timeline?filter=federated&view=all")
+
+    html = render(view)
+    assert html =~ "Allowed federated feed target"
+    refute html =~ "Removed federated feed target"
+    assert html =~ "1 shown"
+  end
+
+  test "logged-in federated feed excludes user-blocked remote actors without hiding allowed posts",
+       %{
+         conn: conn
+       } do
+    viewer = AccountsFixtures.user_fixture()
+    allowed_actor = remote_actor_fixture(%{domain: "allowed-user-fed.example"})
+    blocked_actor = remote_actor_fixture(%{domain: "blocked-user-fed.example"})
+
+    {:ok, _allowed_message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: allowed_actor.id,
+        content: "Allowed logged in federated feed target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://allowed-user-fed.example/users/alice/statuses/1",
+        activitypub_url: "https://allowed-user-fed.example/users/alice/statuses/1"
+      })
+
+    {:ok, _blocked_message} =
+      Messaging.create_federated_message(%{
+        remote_actor_id: blocked_actor.id,
+        content: "Blocked logged in federated feed target",
+        visibility: "public",
+        federated: true,
+        activitypub_id: "https://blocked-user-fed.example/users/bob/statuses/1",
+        activitypub_url: "https://blocked-user-fed.example/users/bob/statuses/1"
+      })
+
+    %UserBlock{}
+    |> UserBlock.changeset(%{
+      user_id: viewer.id,
+      block_type: "user",
+      blocked_uri: blocked_actor.uri
+    })
+    |> Repo.insert!()
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=federated&view=all")
+
+    html = render(view)
+    assert html =~ "Allowed logged in federated feed target"
+    refute html =~ "Blocked logged in federated feed target"
   end
 
   test "composer character counter updates immediately while typing", %{conn: conn} do

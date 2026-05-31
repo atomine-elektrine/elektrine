@@ -7,6 +7,27 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
   alias Elektrine.Repo
   alias ElektrineWeb.AdminSecurity
 
+  describe "GET /pripyat/users" do
+    test "sorts users by whitelisted fields", %{conn: conn} do
+      admin = admin_user_fixture()
+      suffix = System.unique_integer([:positive]) |> Integer.to_string()
+      first_user = AccountsFixtures.user_fixture(%{username: "aaa#{suffix}"})
+      last_user = AccountsFixtures.user_fixture(%{username: "zzz#{suffix}"})
+
+      conn =
+        conn
+        |> with_elektrine_host()
+        |> log_in_as(admin)
+        |> AdminSecurity.initialize_admin_session(admin, auth_method: :passkey)
+        |> get("/pripyat/users", %{"sort" => "username", "direction" => "asc"})
+
+      html = html_response(conn, 200)
+
+      assert html =~ ~s(<option value="username" selected)
+      assert text_position(html, first_user.username) < text_position(html, last_user.username)
+    end
+  end
+
   describe "POST /pripyat/users/:id/unban" do
     test "returns to the edit page when unbanning from there", %{conn: conn} do
       admin = admin_user_fixture()
@@ -97,5 +118,12 @@ defmodule ElektrineWeb.Admin.UsersControllerTest do
     |> Plug.Conn.put_session(:admin_auth_method, "password")
     |> Plug.Conn.put_session(:admin_access_expires_at, now + 900)
     |> Plug.Conn.put_session(:admin_elevated_until, now + 300)
+  end
+
+  defp text_position(html, text) do
+    case :binary.match(html, text) do
+      {position, _length} -> position
+      :nomatch -> flunk("expected #{inspect(text)} to be present in response")
+    end
   end
 end

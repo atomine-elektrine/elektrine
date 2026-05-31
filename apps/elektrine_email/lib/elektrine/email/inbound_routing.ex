@@ -53,11 +53,18 @@ defmodule Elektrine.Email.InboundRouting do
     matches_alias =
       check_alias_ownership(to_clean, mailbox) || check_alias_ownership(rcpt_to_clean, mailbox)
 
+    matches_receiving_variant =
+      receiving_domain_owns_email?(mailbox, to_normalized) ||
+        receiving_domain_owns_email?(mailbox, rcpt_to_normalized)
+
     cond do
       matches_to ->
         :ok
 
       matches_rcpt_to ->
+        :ok
+
+      matches_receiving_variant ->
         :ok
 
       matches_alias ->
@@ -77,8 +84,8 @@ defmodule Elektrine.Email.InboundRouting do
     from_clean = extract_clean_email(from) || ""
     to_clean = extract_clean_email(to) || ""
 
-    from_is_local = Enum.any?(supported_domains(), &String.contains?(from_clean, "@#{&1}"))
-    to_is_local = Enum.any?(supported_domains(), &String.contains?(to_clean, "@#{&1}"))
+    from_is_local = Enum.any?(sendable_domains(), &String.contains?(from_clean, "@#{&1}"))
+    to_is_local = Enum.any?(sendable_domains(), &String.contains?(to_clean, "@#{&1}"))
 
     from_is_local && !to_is_local
   end
@@ -197,6 +204,10 @@ defmodule Elektrine.Email.InboundRouting do
     Elektrine.Domains.receiving_email_domains()
   end
 
+  defp sendable_domains do
+    Elektrine.Domains.supported_email_domains()
+  end
+
   defp find_existing_mailbox(to, rcpt_to) do
     clean_email = extract_clean_email(to) || extract_clean_email(rcpt_to)
 
@@ -257,11 +268,55 @@ defmodule Elektrine.Email.InboundRouting do
   end
 
   defp find_cross_domain_mailbox(clean_email) do
-    case Email.get_mailbox_by_email(clean_email) do
-      %Mailbox{} = mailbox -> mailbox
-      _ -> nil
+    find_receiving_domain_mailbox(clean_email) ||
+      case Email.get_mailbox_by_email(clean_email) do
+        %Mailbox{} = mailbox -> mailbox
+        _ -> nil
+      end
+  end
+
+  defp find_receiving_domain_mailbox(email_address) when is_binary(email_address) do
+    case String.split(String.downcase(String.trim(email_address)), "@", parts: 2) do
+      [username, domain] ->
+        base_username = username |> String.split("+") |> List.first() |> String.downcase()
+
+        if Elektrine.Domains.receiving_email_domain?(domain) do
+          Email.get_mailbox_by_username(base_username)
+        else
+          nil
+        end
+
+      _ ->
+        nil
     end
   end
+
+  defp receiving_domain_owns_email?(%Mailbox{} = mailbox, email_address)
+       when is_binary(email_address) do
+    case String.split(String.downcase(String.trim(email_address)), "@", parts: 2) do
+      [local_part, domain] ->
+        Elektrine.Domains.receiving_email_domain?(domain) and
+          local_part in mailbox_local_parts(mailbox)
+
+      _ ->
+        false
+    end
+  end
+
+  defp receiving_domain_owns_email?(_mailbox, _email_address), do: false
+
+  defp mailbox_local_parts(%Mailbox{username: username, email: email}) do
+    [username, email_local_part(email)]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.uniq()
+  end
+
+  defp email_local_part(email) when is_binary(email) do
+    email |> String.split("@", parts: 2) |> List.first()
+  end
+
+  defp email_local_part(_), do: nil
 
   defp resolve_local_mailbox(email_address) when is_binary(email_address) do
     case Email.get_mailbox_by_email(email_address) do

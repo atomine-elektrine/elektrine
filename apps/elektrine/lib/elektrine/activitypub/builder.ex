@@ -8,6 +8,18 @@ defmodule Elektrine.ActivityPub.Builder do
   alias Elektrine.Messaging
   alias Elektrine.Social.{Conversation, Message}
 
+  @toot_context %{
+    "toot" => "http://joinmastodon.org/ns#",
+    "discoverable" => "toot:discoverable",
+    "indexable" => "toot:indexable"
+  }
+  @actor_context [
+    "https://www.w3.org/ns/activitystreams",
+    "https://w3id.org/security/v1",
+    @toot_context
+  ]
+  @object_context ["https://www.w3.org/ns/activitystreams", @toot_context]
+
   @doc """
   Builds an Actor document for a user.
   """
@@ -22,10 +34,7 @@ defmodule Elektrine.ActivityPub.Builder do
     public_profile? = user.profile_visibility == "public"
 
     %{
-      "@context" => [
-        "https://www.w3.org/ns/activitystreams",
-        "https://w3id.org/security/v1"
-      ],
+      "@context" => @actor_context,
       "id" => actor_url,
       "type" => "Person",
       "preferredUsername" => ActivityPub.actor_identifier(user),
@@ -39,6 +48,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "published" => format_datetime(user.inserted_at),
       "manuallyApprovesFollowers" => user.activitypub_manually_approve_followers || false,
       "discoverable" => user.profile_visibility == "public",
+      "indexable" => user.profile_visibility == "public",
       "icon" => if(public_profile?, do: build_icon(user, base_url), else: nil),
       "image" => if(public_profile?, do: build_header_image(user, base_url), else: nil),
       "publicKey" => %{
@@ -210,6 +220,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
         "https://w3id.org/security/v1",
+        @toot_context,
         %{
           "lemmy" => "https://join-lemmy.org/ns#",
           "moderators" => %{
@@ -232,6 +243,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "published" => format_datetime(community.inserted_at),
       "manuallyApprovesFollowers" => !community.is_public,
       "discoverable" => community.is_public,
+      "indexable" => community.is_public,
       "postingRestrictedToMods" => false,
       "icon" => build_community_icon(community),
       "publicKey" => %{
@@ -316,7 +328,7 @@ defmodule Elektrine.ActivityPub.Builder do
     community_uri = get_community_uri_from_chain(message)
 
     note = %{
-      "@context" => "https://www.w3.org/ns/activitystreams",
+      "@context" => @object_context,
       "id" => object_id,
       "type" => "Note",
       "attributedTo" => ActivityPub.actor_uri(user, base_url),
@@ -324,6 +336,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "published" => format_datetime(message.inserted_at),
       "to" => build_to_addresses(message, user, community_uri),
       "cc" => build_cc_addresses(message, user),
+      "indexable" => message_indexable?(message),
       "sensitive" => message.sensitive || false,
       "attachment" => build_attachments(message),
       "tag" => build_tags(message),
@@ -388,6 +401,7 @@ defmodule Elektrine.ActivityPub.Builder do
     cc = community_cc_addresses(post, community_actor_url)
 
     %{
+      "@context" => @object_context,
       "id" => post_id,
       "type" => object_type,
       "attributedTo" => author_uri,
@@ -401,6 +415,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "audience" => community_actor_url,
       "url" => ActivityPub.community_post_web_url(community.name, post.id, base_url),
       "inReplyTo" => build_community_in_reply_to(post, community, base_url),
+      "indexable" => message_indexable?(post),
       "sensitive" => post.sensitive || false,
       "context" => community_actor_url,
       "commentsEnabled" => is_nil(post.locked_at),
@@ -648,7 +663,7 @@ defmodule Elektrine.ActivityPub.Builder do
     activity_id = "#{note["id"]}/activity"
 
     %{
-      "@context" => "https://www.w3.org/ns/activitystreams",
+      "@context" => @object_context,
       "id" => activity_id,
       "type" => "Create",
       "actor" => ActivityPub.actor_uri(user, base_url),
@@ -688,6 +703,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "tag" => build_tags(message),
       "url" => object_id,
       "inReplyTo" => build_in_reply_to(message),
+      "indexable" => message_indexable?(message),
       "sensitive" => message.sensitive || false
     }
     |> maybe_put("audience", community_uri)
@@ -695,6 +711,12 @@ defmodule Elektrine.ActivityPub.Builder do
     |> maybe_add_content_warning(message)
     |> maybe_add_quote_url(message)
   end
+
+  defp message_indexable?(%Message{visibility: "public", is_draft: draft}) do
+    draft != true
+  end
+
+  defp message_indexable?(_), do: false
 
   @doc """
   Builds a Question object for a local community poll.
@@ -724,6 +746,7 @@ defmodule Elektrine.ActivityPub.Builder do
       end
 
     %{
+      "@context" => @object_context,
       "id" => post_id,
       "type" => "Question",
       "attributedTo" => author_uri,
@@ -742,6 +765,7 @@ defmodule Elektrine.ActivityPub.Builder do
       "audience" => community_actor_url,
       "url" => ActivityPub.community_post_web_url(community.name, post.id, base_url),
       "inReplyTo" => build_community_in_reply_to(post, community, base_url),
+      "indexable" => message_indexable?(post),
       "sensitive" => post.sensitive || false,
       "context" => community_actor_url,
       "commentsEnabled" => is_nil(post.locked_at),

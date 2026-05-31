@@ -396,6 +396,7 @@ defmodule Elektrine.Search do
       where:
         m.federated == true and
           m.visibility in ["public", "unlisted"] and
+          fragment("COALESCE((?->>'indexable')::boolean, true)", m.media_metadata) and
           is_nil(m.deleted_at),
       where: ^federated_filter,
       select: %{

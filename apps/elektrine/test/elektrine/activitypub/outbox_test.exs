@@ -88,6 +88,16 @@ defmodule Elektrine.ActivityPub.OutboxTest do
              ]
 
       refute "https://www.w3.org/ns/activitystreams#Public" in note["to"]
+      assert note["indexable"] == false
+    end
+
+    test "marks public posts as indexable" do
+      user = mock_user("publicuser")
+      message = mock_message(%{visibility: "public"})
+
+      note = Builder.build_note(message, user)
+
+      assert note["indexable"] == true
     end
   end
 

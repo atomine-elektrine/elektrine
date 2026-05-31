@@ -101,6 +101,32 @@ defmodule ElektrineWeb.UserRegistrationControllerTest do
       assert response =~ "Username should be at least 2 character(s)"
       assert length(Regex.scan(~r/app-navbar/, response)) <= 1
     end
+
+    test "does not preserve stale security check token after validation errors", %{conn: conn} do
+      previous_config = Application.get_env(:elektrine, :atomine_pow, [])
+      stale_token = "redeemed-security-check-token"
+
+      Application.put_env(:elektrine, :atomine_pow, difficulty: 0, skip_verification: false)
+
+      on_exit(fn -> Application.put_env(:elektrine, :atomine_pow, previous_config) end)
+
+      {:ok, _config} = SystemSettings.set_invite_codes_enabled(false)
+
+      conn =
+        post(conn, ~p"/register", %{
+          "user" => %{
+            "username" => "a",
+            "password" => "validpassword123",
+            "password_confirmation" => "validpassword123",
+            "agree_to_terms" => "true"
+          },
+          "atomine_pow_token" => stale_token
+        })
+
+      response = html_response(conn, 422)
+      assert response =~ ~s(name="atomine_pow_token")
+      refute response =~ stale_token
+    end
   end
 
   describe "POST /register with invite codes enabled" do
