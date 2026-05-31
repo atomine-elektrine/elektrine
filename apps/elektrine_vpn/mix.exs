@@ -40,7 +40,7 @@ defmodule ElektrineVPN.MixProject do
       internal_dep(:elektrine_web),
       {:phoenix, "== 1.8.7"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.30"},
+      {:phoenix_live_view, "== 1.1.31"},
       {:jason, "== 1.4.5"}
     ]
   end
