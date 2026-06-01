@@ -2,6 +2,7 @@ defmodule ElektrineWeb.CallChannel do
   @moduledoc false
   use ElektrineWeb, :channel
   require Logger
+
   intercept [
     "presence_diff",
     "peer_ready",
@@ -138,7 +139,11 @@ defmodule ElektrineWeb.CallChannel do
   @impl true
   def handle_in("ready_to_receive", _params, socket) do
     if socket.assigns.call_source == :local do
-      broadcast_from!(socket, "peer_ready", signal_payload(socket, %{user_id: socket.assigns.user_id}))
+      broadcast_from!(
+        socket,
+        "peer_ready",
+        signal_payload(socket, %{user_id: socket.assigns.user_id})
+      )
     else
       Federation.publish_dm_call_accept(socket.assigns.call_id)
     end
@@ -213,7 +218,11 @@ defmodule ElektrineWeb.CallChannel do
       :ok ->
         case socket.assigns.call_source do
           :local ->
-            broadcast_from!(socket, "ice_candidate", signal_payload(socket, %{candidate: candidate}))
+            broadcast_from!(
+              socket,
+              "ice_candidate",
+              signal_payload(socket, %{candidate: candidate})
+            )
 
           :federated ->
             Federation.publish_dm_call_signal(
@@ -237,7 +246,12 @@ defmodule ElektrineWeb.CallChannel do
     case socket.assigns.call_source do
       :local ->
         Calls.reject_call(socket.assigns.call_id)
-        broadcast!(socket, "call_rejected", signal_payload(socket, %{by_user_id: socket.assigns.user_id}))
+
+        broadcast!(
+          socket,
+          "call_rejected",
+          signal_payload(socket, %{by_user_id: socket.assigns.user_id})
+        )
 
       :federated ->
         _ = VoiceCalls.reject_session(socket.assigns.call_id, socket.assigns.user_id)
@@ -252,7 +266,12 @@ defmodule ElektrineWeb.CallChannel do
     case socket.assigns.call_source do
       :local ->
         Calls.end_call(socket.assigns.call_id)
-        broadcast!(socket, "call_ended", signal_payload(socket, %{by_user_id: socket.assigns.user_id}))
+
+        broadcast!(
+          socket,
+          "call_ended",
+          signal_payload(socket, %{by_user_id: socket.assigns.user_id})
+        )
 
       :federated ->
         _ = VoiceCalls.end_session(socket.assigns.call_id, socket.assigns.user_id)

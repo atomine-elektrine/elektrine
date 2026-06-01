@@ -629,11 +629,21 @@ defmodule Elektrine.Domains do
   defp default_receive_only_email_domains(config) do
     primary = primary_email_domain()
 
-    config
-    |> Keyword.get(:supported_domains, [primary])
-    |> normalize_domains()
-    |> Enum.reject(&(&1 == primary))
+    if local_development_domain?(primary) do
+      []
+    else
+      config
+      |> Keyword.get(:supported_domains, [primary])
+      |> normalize_domains()
+      |> Enum.reject(&(&1 == primary))
+    end
   end
+
+  defp local_development_domain?(domain) when is_binary(domain) do
+    domain == "localhost" or String.ends_with?(domain, ".localhost")
+  end
+
+  defp local_development_domain?(_), do: false
 
   defp normalize_domains(domains) when is_list(domains) do
     domains

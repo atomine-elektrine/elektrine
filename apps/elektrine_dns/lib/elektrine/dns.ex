@@ -7,6 +7,8 @@ defmodule Elektrine.DNS do
   import Ecto.Changeset, only: [add_error: 3, change: 1]
   import Ecto.Query, warn: false
 
+  require Logger
+
   alias Elektrine.Accounts.User
   alias Elektrine.DNS.DomainHealth
   alias Elektrine.DNS.ManagedRecords
@@ -1385,10 +1387,23 @@ defmodule Elektrine.DNS do
 
   defp touch_zone_publication(_), do: nil
 
-  defp refresh_authority_cache do
+  defp refresh_authority_cache(opts \\ []) do
     case Process.whereis(ZoneCache) do
-      nil -> :ok
-      _pid -> ZoneCache.refresh(caller: self())
+      nil ->
+        :ok
+
+      _pid ->
+        if Keyword.get(opts, :async, false) do
+          ZoneCache.refresh_async()
+        else
+          case ZoneCache.refresh(caller: self()) do
+            :ok ->
+              :ok
+
+            {:error, reason} ->
+              Logger.warning("DNS zone cache refresh skipped: #{inspect(reason)}")
+          end
+        end
     end
   end
 
@@ -1401,7 +1416,14 @@ defmodule Elektrine.DNS do
 
     case zone do
       %Zone{} = existing ->
-        ensure_builtin_user_zone_records(existing)
+        case ensure_builtin_user_zone_records(existing, refresh_cache?: false) do
+          {:ok, zone} ->
+            refresh_authority_cache(async: true)
+            {:ok, zone}
+
+          other ->
+            other
+        end
 
       nil ->
         now = DateTime.utc_now() |> DateTime.truncate(:second)
@@ -1430,7 +1452,7 @@ defmodule Elektrine.DNS do
         end)
         |> case do
           {:ok, zone} ->
-            refresh_authority_cache()
+            refresh_authority_cache(async: true)
             {:ok, zone}
 
           other ->

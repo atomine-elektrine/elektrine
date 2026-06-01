@@ -21,6 +21,7 @@ defmodule Elektrine.DNSContextTest do
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.DNS
+  alias Elektrine.DNS.ZoneCache
   alias Elektrine.Repo
 
   setup_all do
@@ -62,6 +63,23 @@ defmodule Elektrine.DNSContextTest do
     assert Enum.any?(zone.records, fn record ->
              record.name == "@" and record.type == "ALIAS" and record.managed and record.required
            end)
+  end
+
+  test "list_user_zones/1 does not block on a busy zone cache while provisioning" do
+    pid = ensure_zone_cache_started()
+    :sys.suspend(pid)
+
+    try do
+      user = AccountsFixtures.user_fixture()
+
+      [zone] = DNS.list_user_zones(user)
+
+      assert zone.domain == DNS.builtin_user_zone_domain(user)
+      assert zone.status == "verified"
+    after
+      :sys.resume(pid)
+      ZoneCache.refresh(caller: self())
+    end
   end
 
   test "built-in user zone keeps apex routing reserved" do
@@ -537,5 +555,12 @@ defmodule Elektrine.DNSContextTest do
 
   defp put_lookup(domain, type, timeout, result) do
     Agent.update(Elektrine.DNS.ScanResolver, &Map.put(&1, {domain, type, timeout}, result))
+  end
+
+  defp ensure_zone_cache_started do
+    case Process.whereis(ZoneCache) do
+      nil -> start_supervised!(ZoneCache)
+      pid -> pid
+    end
   end
 end

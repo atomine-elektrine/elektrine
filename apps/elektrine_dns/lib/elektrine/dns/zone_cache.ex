@@ -31,7 +31,15 @@ defmodule Elektrine.DNS.ZoneCache do
   end
 
   def refresh(opts \\ []) do
-    GenServer.call(__MODULE__, {:refresh, opts})
+    {timeout, opts} = Keyword.pop(opts, :timeout, 5_000)
+
+    GenServer.call(__MODULE__, {:refresh, opts}, timeout)
+  catch
+    :exit, {:timeout, _} -> {:error, :timeout}
+  end
+
+  def refresh_async(opts \\ []) do
+    GenServer.cast(__MODULE__, {:refresh, opts})
   end
 
   @impl true
@@ -51,6 +59,11 @@ defmodule Elektrine.DNS.ZoneCache do
   @impl true
   def handle_call({:refresh, opts}, _from, state) do
     {:reply, :ok, refresh_cache(state, opts)}
+  end
+
+  @impl true
+  def handle_cast({:refresh, opts}, state) do
+    {:noreply, refresh_cache(state, opts)}
   end
 
   @impl true

@@ -2853,10 +2853,10 @@ defmodule Elektrine.Social do
     search_query = Keyword.get(opts, :search_query)
     preloads = MessagingMessages.timeline_feed_preloads()
 
-    if !Elektrine.Strings.present?(search_query) do
-      get_public_federated_posts_fast(limit, pagination, preloads, user_id)
-    else
+    if Elektrine.Strings.present?(search_query) do
       get_public_federated_posts_query(limit, pagination, user_id, search_query, preloads)
+    else
+      get_public_federated_posts_fast(limit, pagination, preloads, user_id)
     end
   end
 
