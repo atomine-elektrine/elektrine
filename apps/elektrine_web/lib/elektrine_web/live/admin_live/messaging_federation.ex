@@ -8,7 +8,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
     if socket.assigns[:current_user] && socket.assigns.current_user.is_admin do
       {:ok,
        socket
-       |> assign(:page_title, "Arblarg Messaging Federation")
+       |> assign(:page_title, "Chat Federation")
        |> assign(:search_query, "")
        |> assign(:page, 1)
        |> assign(:per_page, 50)
@@ -191,8 +191,8 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
     <div class="admin-page">
       <.section_header
         eyebrow="Network Controls"
-        title="Arblarg Messaging Federation"
-        description="Manage signed Arblarg chat federation, including configured peers, discovery metadata, and per-direction runtime overrides."
+        title="Chat Federation"
+        description="Manage signed chat federation, including configured peers, discovery metadata, and per-direction runtime overrides. Powered by Arblarg."
       >
         <:actions>
           <.action_toolbar>
@@ -215,7 +215,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
       <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
         <span class="text-sm">
-          Incoming controls whether this server accepts Arblarg events from a peer. Outgoing controls
+          Incoming controls whether this server accepts chat events from a peer. Outgoing controls
           whether this server sends local events to that peer. Discovered peers come from open
           federation bootstrap and keep their own trust/key-rotation metadata.
         </span>
@@ -245,10 +245,10 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
       <div class="card panel-card shadow">
         <div class="card-body p-4 sm:p-6">
           <h2 class="card-title text-base sm:text-lg mb-4">
-            <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Arblarg Messaging
+            <.icon name="hero-no-symbol" class="w-5 h-5" /> Block Peer for Chat Federation
           </h2>
           <p class="text-sm opacity-70 mb-4">
-            Use this when a remote server should not exchange Arblarg chat events with this instance.
+            Use this when a remote server should not exchange chat events with this instance.
           </p>
 
           <form phx-submit="block_domain" class="grid grid-cols-1 md:grid-cols-6 gap-3">
@@ -280,7 +280,7 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
         <div class="card-body p-4 sm:p-6">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h2 class="card-title text-base sm:text-lg">
-              <.icon name="hero-server-stack" class="w-5 h-5" /> Arblarg Peer Policy Grid
+              <.icon name="hero-server-stack" class="w-5 h-5" /> Chat Peer Policy Grid
               <span class="badge badge-neutral">{@filtered_peer_total_count}</span>
             </h2>
 
@@ -317,8 +317,8 @@ defmodule ElektrineWeb.AdminLive.MessagingFederation do
                   <tr>
                     <th>Domain</th>
                     <th>Status</th>
-                    <th>Incoming Arblarg</th>
-                    <th>Outgoing Arblarg</th>
+                    <th>Incoming Chat</th>
+                    <th>Outgoing Chat</th>
                     <th class="hidden md:table-cell">Discovery / Note</th>
                     <th>Actions</th>
                   </tr>

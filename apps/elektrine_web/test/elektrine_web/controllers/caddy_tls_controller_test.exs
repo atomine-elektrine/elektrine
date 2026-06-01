@@ -145,7 +145,8 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
       api_key: api_key
     } do
       user = user_fixture(%{username: "caddyhandle"})
-      {:ok, _user} = Accounts.update_user_handle(user, "caddyhandle")
+      {:ok, user} = Accounts.update_user_handle(user, "caddyhandle")
+      {:ok, _user} = Elektrine.DNS.update_builtin_user_zone_mode(user, "platform")
       previous_profile_domains = Application.get_env(:elektrine, :profile_base_domains, [])
 
       Application.put_env(:elektrine, :profile_base_domains, ["example.com"])

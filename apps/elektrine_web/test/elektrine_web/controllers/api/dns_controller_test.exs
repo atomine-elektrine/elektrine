@@ -83,6 +83,7 @@ defmodule ElektrineDNSWeb.API.DNSControllerTest do
 
     test "rejects apex routing changes on the built-in user zone", %{conn: conn} do
       user = user_fixture()
+      {:ok, user} = DNS.update_builtin_user_zone_mode(user, "platform")
       [zone | _] = DNS.list_user_zones(user)
 
       conn =

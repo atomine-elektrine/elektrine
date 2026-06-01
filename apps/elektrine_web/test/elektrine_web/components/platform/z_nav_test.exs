@@ -25,7 +25,7 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
     html = render_component(&ZNav.z_nav/1, active_tab: "portal")
 
     assert html =~ "Portal"
-    assert html =~ "Arblarg"
+    assert html =~ "Chat"
     assert html =~ "Timeline"
     refute html =~ "Email"
     refute html =~ "Nerve"
@@ -52,7 +52,7 @@ defmodule ElektrineWeb.Components.Platform.ZNavTest do
       refute html =~ "Maid"
       refute html =~ "Email"
       assert html =~ "Portal"
-      assert html =~ "Arblarg"
+      assert html =~ "Chat"
     end
   end
 end

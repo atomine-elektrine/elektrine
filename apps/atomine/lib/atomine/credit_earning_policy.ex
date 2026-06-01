@@ -43,7 +43,7 @@ defmodule Atomine.CreditEarningPolicy do
         label: "Proof of personhood/control",
         status: :active,
         summary: "Verify DNS, web, social, GitHub, passkey, payment, or reviewed proof signals.",
-        reward: "5-15 Atomine Credits per verified proof, once per proof."
+        reward: "5-15 Identity Credits per verified proof, once per proof."
       },
       %{
         key: "proof_of_stake",
@@ -58,7 +58,7 @@ defmodule Atomine.CreditEarningPolicy do
         status: :active,
         summary: "Spend computational or delivery-cost work to earn small temporary capacity.",
         reward:
-          "#{@pow_daily_grant} Atomine Credit per run, up to #{@pow_daily_claim_limit} per day."
+          "#{@pow_daily_grant} Identity Credit per run, up to #{@pow_daily_claim_limit} per day."
       },
       %{
         key: "proof_of_reputation",

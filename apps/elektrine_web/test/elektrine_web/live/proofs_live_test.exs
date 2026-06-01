@@ -23,8 +23,8 @@ defmodule ElektrineWeb.ProofsLiveTest do
 
     assert html =~ "Credits and trust"
     assert html =~ "Trust level 2"
-    assert html =~ "Atomine Credits"
-    assert html =~ ~r/Atomine Credits.*12/s
+    assert html =~ "Identity Credits"
+    assert html =~ ~r/Identity Credits.*12/s
     refute html =~ "DM Credits"
     refute html =~ "Email Credits"
     refute html =~ "Link Credits"
@@ -34,20 +34,20 @@ defmodule ElektrineWeb.ProofsLiveTest do
     assert html =~ "Ways to earn credits"
     assert html =~ "The same DNS name, profile, or page will not pay twice"
     assert html =~ "Proof of personhood/control"
-    assert html =~ "5-15 Atomine Credits per verified proof"
+    assert html =~ "5-15 Identity Credits per verified proof"
     assert html =~ "Proof of work"
-    assert html =~ "1 Atomine Credit per run, up to 20 per day."
+    assert html =~ "1 Identity Credit per run, up to 20 per day."
     assert html =~ "DNS control proof"
-    assert html =~ "10 Atomine Credits"
+    assert html =~ "10 Identity Credits"
     assert html =~ "Web page proof"
-    assert html =~ "8 Atomine Credits"
+    assert html =~ "8 Identity Credits"
     assert html =~ "Social/profile proof"
     assert html =~ "GitHub account proof"
     assert html =~ "Planned: stake, reputation, service"
     assert html =~ "First DM"
     assert html =~ "External email"
-    assert html =~ ~r/First DM.*1 Atomine Credit/s
-    assert html =~ ~r/External email.*1 Atomine Credit/s
+    assert html =~ ~r/First DM.*1 Identity Credit/s
+    assert html =~ ~r/External email.*1 Identity Credit/s
     assert html =~ "Higher-trust and admin accounts may not need credits for some actions."
   end
 
@@ -95,7 +95,7 @@ defmodule ElektrineWeb.ProofsLiveTest do
     assert html =~ "Public web page"
     assert html =~ "https://example.com/proof"
     assert html =~ web_proof.challenge
-    assert html =~ "validates the Atomine signature"
+    assert html =~ "validates the Identity signature"
   end
 
   test "deleting a pending proof refreshes the nav badge", %{conn: conn} do

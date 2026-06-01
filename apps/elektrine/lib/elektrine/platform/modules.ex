@@ -12,7 +12,7 @@ defmodule Elektrine.Platform.Modules do
   @modules [
     %{
       id: :chat,
-      label: "Arblarg",
+      label: "Chat",
       app: :arblarg,
       description: "Direct messages, group conversations, and messaging federation."
     },
@@ -51,7 +51,7 @@ defmodule Elektrine.Platform.Modules do
     },
     %{
       id: :atomine,
-      label: "Atomine",
+      label: "Identity",
       app: :atomine,
       description: "Proofs, account trust, and credit-based capability gates."
     }

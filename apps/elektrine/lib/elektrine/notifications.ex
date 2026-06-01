@@ -203,7 +203,7 @@ defmodule Elektrine.Notifications do
     conversation_name =
       case Regex.run(~r/(?:in |from )(.+?)(?:\s*$|"|message)/, latest.title) do
         [_, name] -> name
-        _ -> "Arblarg"
+        _ -> "Chat"
       end
 
     %{

@@ -389,7 +389,7 @@ defmodule Elektrine.Accounts.Capabilities do
 
   defp atomine_module_loaded?(module), do: Code.ensure_loaded?(module)
 
-  defp credit_label("atomine_credit"), do: "Atomine Credits"
+  defp credit_label("atomine_credit"), do: "Identity Credits"
 
   defp credit_label(value) do
     value

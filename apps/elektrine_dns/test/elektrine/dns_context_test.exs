@@ -53,6 +53,7 @@ defmodule Elektrine.DNSContextTest do
 
   test "list_user_zones/1 provisions the built-in user subdomain zone" do
     user = AccountsFixtures.user_fixture()
+    {:ok, user} = DNS.update_builtin_user_zone_mode(user, "platform")
 
     [zone] = DNS.list_user_zones(user)
 
@@ -84,6 +85,7 @@ defmodule Elektrine.DNSContextTest do
 
   test "built-in user zone keeps apex routing reserved" do
     user = AccountsFixtures.user_fixture()
+    {:ok, user} = DNS.update_builtin_user_zone_mode(user, "platform")
     [zone] = DNS.list_user_zones(user)
 
     assert {:error, changeset} =

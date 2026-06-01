@@ -131,7 +131,7 @@ defmodule ElektrineWeb.Plugs.DNSEdgeProxyTest do
     refute Process.get(:dns_edge_proxy_request)
   end
 
-  test "shows Atomine Gate splash before proxying gated origins" do
+  test "shows Security Check splash before proxying gated origins" do
     with_atomine_gate_enabled(fn ->
       conn =
         :get
@@ -141,7 +141,7 @@ defmodule ElektrineWeb.Plugs.DNSEdgeProxyTest do
 
       assert conn.halted
       assert conn.status == 403
-      assert conn.resp_body =~ "Atomine Gate"
+      assert conn.resp_body =~ "Security Check"
       assert conn.resp_body =~ "Checking your browser"
       assert conn.resp_body =~ ~s(name="gate_scope" value="dns:1:3")
       refute Process.get(:dns_edge_proxy_request)

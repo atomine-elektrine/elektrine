@@ -52,7 +52,7 @@ defmodule ElektrineWeb.AtomineGate do
 
     cond do
       not enabled?() ->
-        send_verify_error(conn, "Atomine Gate is not enabled.")
+        send_verify_error(conn, "Security check is not enabled.")
 
       is_nil(scope) ->
         send_verify_error(conn, "Invalid protected site.")
@@ -132,7 +132,7 @@ defmodule ElektrineWeb.AtomineGate do
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
-      <title>Atomine Gate</title>
+      <title>Security Check</title>
       <style>
         :root {
           color-scheme: dark;
@@ -211,7 +211,7 @@ defmodule ElektrineWeb.AtomineGate do
       <main>
         <header>
           <div class="brand">Elektrine</div>
-          <div class="badge">Atomine Gate</div>
+          <div class="badge">Atomine engine</div>
         </header>
         <section>
           <h1>Checking your browser</h1>
@@ -258,7 +258,7 @@ defmodule ElektrineWeb.AtomineGate do
             const solution = await solvePow(challenge, actualDifficulty, (attempts) => {
               setStatus(`Working... ${attempts.toLocaleString()} attempts`);
             });
-            setStatus('Issuing Atomine token...');
+            setStatus('Issuing security token...');
             const tokenResponse = await postJson('/api/atomine/anonymous-tokens', { challenge, solution, gate_proof: gateProof });
             tokenEl.value = tokenResponse.token;
             setStatus('Verified. Continuing...');
@@ -366,7 +366,7 @@ defmodule ElektrineWeb.AtomineGate do
   defp send_verify_error(conn, message) do
     conn
     |> put_resp_content_type("text/html")
-    |> send_resp(422, "<h1>Atomine Gate</h1><p>#{html_escape(message)}</p>")
+    |> send_resp(422, "<h1>Security Check</h1><p>#{html_escape(message)}</p>")
     |> halt()
   end
 

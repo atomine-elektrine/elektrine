@@ -287,7 +287,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
       assert {"content-type", "application/javascript; charset=utf-8"} in conn.resp_headers
     end
 
-    test "Atomine Gate challenges static HTML when enabled", %{user: user} do
+    test "Security Check challenges static HTML when enabled", %{user: user} do
       with_atomine_gate_enabled(fn ->
         conn =
           Plug.Test.conn(:get, "/")
@@ -296,7 +296,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
           |> ElektrineWeb.Plugs.StaticSitePlug.call([])
 
         assert conn.status == 403
-        assert conn.resp_body =~ "Atomine Gate"
+        assert conn.resp_body =~ "Security Check"
         assert conn.resp_body =~ "/api/atomine/pow/challenge"
         assert get_resp_header(conn, "cache-control") == ["no-store"]
       end)

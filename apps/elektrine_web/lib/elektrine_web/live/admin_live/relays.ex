@@ -201,7 +201,7 @@ defmodule ElektrineWeb.AdminLive.Relays do
             </.link>
             <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+              <span class="hidden sm:inline ml-1">Chat Federation</span>
             </.link>
             <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
               <.icon name="hero-link" class="w-4 h-4" />

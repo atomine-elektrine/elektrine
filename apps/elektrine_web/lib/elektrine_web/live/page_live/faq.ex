@@ -103,7 +103,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    ActivityPub powers the federated social web surface. Arblarg is the messaging federation protocol between domains. Optional Bluesky integration can connect public social posting to ATProto services.
+                    ActivityPub powers the federated social web surface. Chat federation uses Arblarg between domains. Optional Bluesky integration can connect public social posting to ATProto services.
                   </p>
                 </div>
               </div>
