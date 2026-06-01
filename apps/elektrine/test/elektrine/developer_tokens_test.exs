@@ -51,4 +51,27 @@ defmodule Elektrine.DeveloperTokensTest do
       assert Developer.count_api_tokens(user.id) == Developer.max_tokens_per_user()
     end
   end
+
+  describe "verify_api_token/2" do
+    test "revokes tokens older than the user's auth boundary" do
+      user = user_fixture()
+
+      assert {:ok, token} =
+               Developer.create_api_token(user.id, %{
+                 name: "old-token",
+                 scopes: ["read:account"]
+               })
+
+      auth_valid_after =
+        DateTime.utc_now()
+        |> DateTime.add(60, :second)
+        |> DateTime.truncate(:second)
+
+      user
+      |> change(%{auth_valid_after: auth_valid_after})
+      |> Repo.update!()
+
+      assert {:error, :token_revoked} = Developer.verify_api_token(token.token)
+    end
+  end
 end

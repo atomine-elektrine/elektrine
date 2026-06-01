@@ -125,7 +125,7 @@ defmodule Elektrine.Developer.ApiToken do
 
     belongs_to :user, Elektrine.Accounts.User
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @doc """

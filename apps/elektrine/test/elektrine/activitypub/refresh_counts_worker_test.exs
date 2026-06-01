@@ -1,5 +1,5 @@
 defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
-  use Elektrine.DataCase, async: true
+  use Elektrine.DataCase, async: false
 
   alias Elektrine.AccountsFixtures
   alias Elektrine.ActivityPub.Actor
@@ -179,6 +179,7 @@ defmodule Elektrine.ActivityPub.RefreshCountsWorkerTest do
                %{
                  "id" => activitypub_url,
                  "type" => "Note",
+                 "to" => ["https://www.w3.org/ns/activitystreams#Public"],
                  "likes" => %{"totalItems" => 7},
                  "replies" => %{"totalItems" => 3},
                  "shares" => %{"totalItems" => 2}

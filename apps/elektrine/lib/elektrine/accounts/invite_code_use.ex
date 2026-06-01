@@ -13,6 +13,7 @@ defmodule Elektrine.Accounts.InviteCodeUse do
   def changeset(invite_code_use, attrs) do
     invite_code_use
     |> cast(attrs, [:invite_code_id, :user_id])
+    |> put_change(:used_at, DateTime.utc_now() |> DateTime.truncate(:second))
     |> validate_required([:invite_code_id, :user_id])
     |> foreign_key_constraint(:invite_code_id)
     |> foreign_key_constraint(:user_id)
