@@ -244,7 +244,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   defp format_platform_name(%Ecto.Association.NotLoaded{}), do: "Post"
   defp format_platform_name(%{conversation: %{type: "timeline"}}), do: "Timeline"
   defp format_platform_name(%{conversation: %{type: "community", name: name}}), do: name
-  defp format_platform_name(%{conversation: %{type: "chat"}}), do: "Arblarg"
+  defp format_platform_name(%{conversation: %{type: "chat"}}), do: "Chat"
   defp format_platform_name(_), do: "Post"
 
   defp embedded_media_items(message) do

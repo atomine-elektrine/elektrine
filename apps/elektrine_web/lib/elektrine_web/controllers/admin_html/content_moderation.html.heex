@@ -79,8 +79,7 @@
         href={~p"/pripyat/content-moderation?type=chat"}
         class={"tab gap-2 " <> if(@content_type == "chat", do: "tab-active", else: "")}
       >
-        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" />
-        Chat ({@counts.chat})
+        <.icon name="hero-chat-bubble-bottom-center-text" class="w-4 h-4" /> Chat ({@counts.chat})
       </a>
     </div>
   </div>

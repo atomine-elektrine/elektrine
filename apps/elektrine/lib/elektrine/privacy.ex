@@ -261,7 +261,7 @@ defmodule Elektrine.Privacy do
         "You cannot send messages to yourself"
 
       :insufficient_dm_credits ->
-        "You need 1 Atomine Credit to message someone new. Earn credits from Account > Atomine by running daily browser work or verifying a domain, web page, or social/profile proof"
+        "You need 1 Identity Credit to message someone new. Earn credits from Account > Identity by running daily browser work or verifying a domain, web page, or social/profile proof"
 
       :cannot_call_self ->
         "You cannot call yourself"

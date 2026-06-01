@@ -392,7 +392,7 @@ defmodule ElektrineWeb.OnboardingLive do
                         class="w-8 h-8 mx-auto mb-2 text-primary"
                       />
                       <h3 class="font-bold">Chat</h3>
-                      <p class="text-sm opacity-70">Direct and group messages via Arblarg</p>
+                      <p class="text-sm opacity-70">Direct and group messages</p>
                     </div>
                   </.link>
 

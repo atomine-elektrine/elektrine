@@ -62,7 +62,7 @@ defmodule ElektrineWeb.PageLive.About do
                   Social federation is built around ActivityPub.
                 </p>
                 <p class="mb-4">
-                  Messaging federation uses Arblarg, a server-to-server chat protocol between domains.
+                  Chat federation uses Arblarg, a server-to-server protocol between domains.
                 </p>
                 <p>
                   Optional Bluesky integration can connect public social posting to ATProto services.

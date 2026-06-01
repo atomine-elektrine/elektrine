@@ -217,7 +217,7 @@ defmodule ElektrineWeb.AdminLive.BlueskyBridge do
           <.action_toolbar>
             <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-              <span class="ml-1">Arblarg Messaging</span>
+              <span class="ml-1">Chat Federation</span>
             </.link>
             <.link navigate={~p"/pripyat/federation"} class="btn btn-sm btn-ghost">
               <.icon name="hero-globe-alt" class="w-4 h-4" />

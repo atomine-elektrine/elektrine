@@ -252,7 +252,7 @@ defmodule ElektrineWeb.ProofsLive do
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
         <span>
-          Identity proofs are not available until Atomine is loaded. Restart the server if this was just enabled.
+          Identity proofs are not available until the Identity engine is loaded. Restart the server if this was just enabled.
         </span>
       </div>
 
@@ -611,7 +611,9 @@ defmodule ElektrineWeb.ProofsLive do
                             GitHub connection is not available on this server.
                           </span>
                         </span>
-                        <span class="badge badge-sm badge-secondary shrink-0">5 Identity Credits</span>
+                        <span class="badge badge-sm badge-secondary shrink-0">
+                          5 Identity Credits
+                        </span>
                       </span>
                     </.link>
                   </div>
@@ -1038,7 +1040,7 @@ defmodule ElektrineWeb.ProofsLive do
   defp proof_error(changeset) do
     case changeset do
       :atomine_unavailable ->
-        "Identity proofs are not available until Atomine is loaded. Restart the server if this was just enabled."
+        "Identity proofs are not available until the Identity engine is loaded. Restart the server if this was just enabled."
 
       %{errors: errors} ->
         errors

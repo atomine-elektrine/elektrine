@@ -497,13 +497,13 @@ defmodule ElektrineWeb.AdminLive.Federation do
       <.section_header
         eyebrow="Federation Policy"
         title="ActivityPub Federation"
-        description="Moderate remote ActivityPub instances, actors, and activity flow without touching Arblarg chat peering or Bluesky bridge credentials."
+        description="Moderate remote ActivityPub instances, actors, and activity flow without touching chat peering or Bluesky bridge credentials."
       >
         <:actions>
           <.action_toolbar>
             <.link navigate={~p"/pripyat/messaging-federation"} class="btn btn-sm btn-ghost">
               <.icon name="hero-chat-bubble-left-right" class="w-4 h-4" />
-              <span class="hidden sm:inline ml-1">Arblarg Messaging</span>
+              <span class="hidden sm:inline ml-1">Chat Federation</span>
             </.link>
             <.link navigate={~p"/pripyat/bluesky-bridge"} class="btn btn-sm btn-ghost">
               <.icon name="hero-link" class="w-4 h-4" />
@@ -528,8 +528,8 @@ defmodule ElektrineWeb.AdminLive.Federation do
       <div class="alert bg-base-200 border border-base-300">
         <.icon name="hero-information-circle" class="w-5 h-5 text-info" />
         <span class="text-sm">
-          Use this page for ActivityPub trust and safety policy. For Arblarg chat server peering use
-          Messaging Federation, and for ATProto mirror health use Bluesky Bridge.
+          Use this page for ActivityPub trust and safety policy. For chat server peering use Chat
+          Federation, and for ATProto mirror health use Bluesky Bridge.
         </span>
       </div>
       

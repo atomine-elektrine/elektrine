@@ -99,7 +99,7 @@ defmodule Elektrine.Developer.ApiToken do
     %{
       id: "identity_proofs",
       name: "Identity proofs",
-      description: "Create, check, and read Atomine identity proofs.",
+      description: "Create, check, and read Identity proofs.",
       scopes: ["read:proofs", "write:proofs"]
     },
     %{
