@@ -2325,7 +2325,7 @@ defmodule ArblargWeb.ChatLive.Index do
                             <div class="badge badge-warning badge-xs">Admin</div>
                           <% end %>
                           <%= if member.role == "admin" do %>
-                            <div class="badge badge-error badge-xs">Arblarg Admin</div>
+                            <div class="badge badge-error badge-xs">Chat Admin</div>
                           <% end %>
                         </div>
                       </div>
@@ -2879,7 +2879,7 @@ defmodule ArblargWeb.ChatLive.Index do
   defp conversation_type_label(type) when is_binary(type),
     do: type |> String.replace("_", " ") |> String.capitalize()
 
-  defp conversation_type_label(_), do: "Arblarg"
+  defp conversation_type_label(_), do: "Chat"
 
   defp conversation_type_label_lower(type), do: conversation_type_label(type) |> String.downcase()
 
@@ -2893,7 +2893,7 @@ defmodule ArblargWeb.ChatLive.Index do
     |> String.capitalize()
   end
 
-  defp protocol_conversation_type(_), do: "Arblarg"
+  defp protocol_conversation_type(_), do: "Chat"
 
   defp remote_conversation?(conversation) when is_map(conversation) do
     Map.get(conversation, :is_federated_mirror, false) ||

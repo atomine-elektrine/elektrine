@@ -1,7 +1,8 @@
 defmodule ElektrineWeb.ProfileLive.Domains do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.{Domains, Profiles}
+  alias Elektrine.{Accounts, Domains, Profiles}
+  alias Elektrine.Accounts.User
   alias ElektrineWeb.Platform.Integrations
 
   @impl true
@@ -12,12 +13,32 @@ defmodule ElektrineWeb.ProfileLive.Domains do
      socket
      |> assign(:page_title, "Profile Domains")
      |> assign(:user, user)
-     |> assign(
-       :default_profile_url,
-       Domains.default_profile_url_for_user(user)
-     )
+     |> assign_builtin_profile_url()
      |> assign(:custom_domains, Profiles.list_user_custom_domains(user.id))
      |> assign(:email_custom_domains, Integrations.email_custom_domains(user.id))}
+  end
+
+  @impl true
+  def handle_event("update_builtin_profile_hosting", %{"mode" => mode}, socket)
+      when mode in ["path", "platform"] do
+    case Accounts.update_user(socket.assigns.user, %{built_in_subdomain_mode: mode}) do
+      {:ok, user} ->
+        message =
+          case mode do
+            "platform" -> "Built-in profile subdomain enabled."
+            "path" -> "Built-in profile URL switched back to the main domain path."
+          end
+
+        {:noreply,
+         socket
+         |> assign(:user, user)
+         |> assign(:current_user, user)
+         |> assign_builtin_profile_url()
+         |> put_flash(:info, message)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, "Could not update built-in profile URL")}
+    end
   end
 
   @impl true
@@ -272,6 +293,38 @@ defmodule ElektrineWeb.ProfileLive.Domains do
               </div>
               <div class="mt-2 font-mono text-sm break-all text-base-content/85">
                 {@default_profile_url || "Built-in subdomain currently handed off to DNS"}
+              </div>
+
+              <div class="mt-4 flex flex-wrap items-center gap-3">
+                <%= if @built_in_subdomain_mode == "platform" do %>
+                  <button
+                    type="button"
+                    class="btn btn-outline btn-sm"
+                    phx-click="update_builtin_profile_hosting"
+                    phx-value-mode="path"
+                  >
+                    Use main-domain URL
+                  </button>
+                  <span class="text-xs text-base-content/60">
+                    Subdomain hosting is enabled for your handle.
+                  </span>
+                <% else %>
+                  <button
+                    type="button"
+                    class="btn btn-primary btn-sm"
+                    phx-click="update_builtin_profile_hosting"
+                    phx-value-mode="platform"
+                  >
+                    Enable handle subdomain
+                  </button>
+                  <span class="text-xs text-base-content/60">
+                    Enable only after your
+                    <span class="font-mono">
+                      {user_handle(@user)}.{Domains.default_profile_domain()}
+                    </span>
+                    DNS works.
+                  </span>
+                <% end %>
               </div>
             </div>
           </div>
@@ -702,6 +755,17 @@ defmodule ElektrineWeb.ProfileLive.Domains do
       Integrations.email_custom_domains(socket.assigns.user.id)
     )
   end
+
+  defp assign_builtin_profile_url(socket) do
+    user = socket.assigns.user
+
+    socket
+    |> assign(:default_profile_url, Domains.default_profile_url_for_user(user))
+    |> assign(:built_in_subdomain_mode, User.built_in_subdomain_mode(user))
+  end
+
+  defp user_handle(%{handle: handle, username: username}), do: handle || username
+  defp user_handle(_), do: nil
 
   defp changeset_error(changeset) do
     changeset.errors

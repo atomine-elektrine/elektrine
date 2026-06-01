@@ -16,19 +16,19 @@ defmodule ElektrineWeb.ProofsLive do
     %{
       kind: "dns",
       label: "DNS control proof",
-      reward: "10 Atomine Credits",
+      reward: "10 Identity Credits",
       description: "Publish a TXT record on a domain you control."
     },
     %{
       kind: "web",
       label: "Web page proof",
-      reward: "8 Atomine Credits",
+      reward: "8 Identity Credits",
       description: "Place the signed statement on a public page you control."
     },
     %{
       kind: "social",
       label: "Social/profile proof",
-      reward: "5 Atomine Credits",
+      reward: "5 Identity Credits",
       description: "Publish the statement on a stable public profile or GitHub gist."
     }
   ]
@@ -44,7 +44,7 @@ defmodule ElektrineWeb.ProofsLive do
 
         {:ok,
          socket
-         |> assign(:page_title, "Atomine")
+         |> assign(:page_title, "Identity")
          |> assign(:atomine_pow_enabled, atomine_pow_enabled)
          |> assign(:atomine_pow_difficulty, AtominePow.difficulty())
          |> assign(:proof_kinds, @proof_kinds)
@@ -207,7 +207,7 @@ defmodule ElektrineWeb.ProofsLive do
   def render(assigns) do
     ~H"""
     <.account_page
-      title="Atomine"
+      title="Identity"
       subtitle="Verify domains, pages, and accounts you control."
       sidebar_link="proofs"
       nav_tab="proofs"
@@ -228,10 +228,10 @@ defmodule ElektrineWeb.ProofsLive do
             </p>
             <h2 class="mt-1 text-lg font-semibold">Verify something you control</h2>
             <p class="mt-2 max-w-3xl text-base-content/70">
-              Add a DNS record, publish a signed line on a page, or connect GitHub. Verified proofs can raise your account score and award Atomine Credits.
+              Add a DNS record, publish a signed line on a page, or connect GitHub. Verified proofs can raise your account score and award Identity Credits.
             </p>
           </div>
-          <span class="badge badge-outline shrink-0">Atomine</span>
+          <span class="badge badge-outline shrink-0">Atomine engine</span>
         </div>
         <div class="mt-4 grid gap-3 text-xs text-base-content/70 sm:grid-cols-3">
           <div class="rounded-xl bg-base-200/60 p-3">
@@ -252,7 +252,7 @@ defmodule ElektrineWeb.ProofsLive do
       <div :if={!@atomine_available} class="alert alert-warning">
         <.icon name="hero-exclamation-triangle" class="w-5 h-5" />
         <span>
-          Atomine is not available until it is loaded. Restart the server if this was just enabled.
+          Identity proofs are not available until Atomine is loaded. Restart the server if this was just enabled.
         </span>
       </div>
 
@@ -273,7 +273,7 @@ defmodule ElektrineWeb.ProofsLive do
             <div class="card-body p-4 sm:p-6">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <h2 class="card-title text-lg mb-2">Atomine</h2>
+                  <h2 class="card-title text-lg mb-2">Identity</h2>
                   <p class="text-sm text-base-content/70">
                     Pick where the proof will live. After creating it, publish the signed line and check it.
                   </p>
@@ -449,7 +449,7 @@ defmodule ElektrineWeb.ProofsLive do
                           </div>
 
                           <p class="text-xs text-base-content/60">
-                            The verifier fetches this location, finds the exact claim, validates the Atomine signature, and confirms it matches this account, proof type, and subject.
+                            The verifier fetches this location, finds the exact claim, validates the Identity signature, and confirms it matches this account, proof type, and subject.
                           </p>
                         </div>
                       </details>
@@ -483,7 +483,7 @@ defmodule ElektrineWeb.ProofsLive do
                 >
                   <div class="flex items-start justify-between gap-4">
                     <div>
-                      <p class="font-medium">Available Atomine Credits</p>
+                      <p class="font-medium">Available Identity Credits</p>
                       <p class="mt-1 text-xs text-base-content/60">
                         Used for things like external email or first messages. Higher-trust accounts need them less often.
                       </p>
@@ -535,7 +535,7 @@ defmodule ElektrineWeb.ProofsLive do
                     </p>
                   </div>
                   <span class="badge badge-sm badge-secondary shrink-0">
-                    +{@pow_credit_amount} Atomine Credit{plural_suffix(@pow_credit_amount)}
+                    +{@pow_credit_amount} Identity Credit{plural_suffix(@pow_credit_amount)}
                   </span>
                 </div>
 
@@ -611,7 +611,7 @@ defmodule ElektrineWeb.ProofsLive do
                             GitHub connection is not available on this server.
                           </span>
                         </span>
-                        <span class="badge badge-sm badge-secondary shrink-0">5 Atomine Credits</span>
+                        <span class="badge badge-sm badge-secondary shrink-0">5 Identity Credits</span>
                       </span>
                     </.link>
                   </div>
@@ -904,7 +904,7 @@ defmodule ElektrineWeb.ProofsLive do
     "#{amount} #{credit_unit_label(credit_type)}#{plural_suffix(amount)}"
   end
 
-  defp credit_label("atomine_credit"), do: "Atomine Credits"
+  defp credit_label("atomine_credit"), do: "Identity Credits"
   defp credit_label(value), do: titleize_credit_type(value)
 
   defp credit_unit_label(credit_type) do
@@ -1038,7 +1038,7 @@ defmodule ElektrineWeb.ProofsLive do
   defp proof_error(changeset) do
     case changeset do
       :atomine_unavailable ->
-        "Atomine is not available until it is loaded. Restart the server if this was just enabled."
+        "Identity proofs are not available until Atomine is loaded. Restart the server if this was just enabled."
 
       %{errors: errors} ->
         errors

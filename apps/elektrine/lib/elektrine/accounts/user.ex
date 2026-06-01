@@ -6,7 +6,7 @@ defmodule Elektrine.Accounts.User do
 
   alias Elektrine.Security.URLValidator
 
-  @built_in_subdomain_modes ~w(platform external_dns)
+  @built_in_subdomain_modes ~w(path platform external_dns)
 
   schema "users" do
     # Authentication
@@ -56,7 +56,7 @@ defmodule Elektrine.Accounts.User do
     field :display_name, :string
     field :unique_id, :string
     field :handle_changed_at, :utc_datetime
-    field :built_in_subdomain_mode, :string, default: "platform"
+    field :built_in_subdomain_mode, :string, default: "path"
 
     # Privacy Settings
     field :allow_group_adds_from, :string, default: "everyone"
@@ -1192,7 +1192,7 @@ defmodule Elektrine.Accounts.User do
       when mode in @built_in_subdomain_modes,
       do: mode
 
-  def built_in_subdomain_mode(_), do: "platform"
+  def built_in_subdomain_mode(_), do: "path"
 
   def built_in_subdomain_hosted_by_platform?(%__MODULE__{} = user) do
     built_in_subdomain_mode(user) == "platform"

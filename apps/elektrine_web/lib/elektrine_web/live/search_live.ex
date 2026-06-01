@@ -484,7 +484,7 @@ defmodule ElektrineWeb.SearchLive do
                   phx-click="search"
                   phx-value-query=">open chat"
                 >
-                  Open Arblarg
+                  Open Chat
                 </button>
                 <button
                   class="btn btn-sm btn-ghost rounded-full"
@@ -792,7 +792,7 @@ defmodule ElektrineWeb.SearchLive do
   defp format_result_type("action"), do: "Action"
   defp format_result_type("settings"), do: "Settings"
   defp format_result_type("person"), do: "People"
-  defp format_result_type("chat"), do: "Arblarg"
+  defp format_result_type("chat"), do: "Chat"
   defp format_result_type("timeline"), do: "Timeline"
   defp format_result_type("discussion"), do: "Discussion"
   defp format_result_type("community"), do: "Community"

@@ -1,6 +1,6 @@
 defmodule ArblargWeb.Admin.ChatMessagesController do
   @moduledoc """
-  Controller for admin Arblarg chat message viewing and management.
+  Controller for admin chat message viewing and management.
   """
 
   use ArblargWeb, :controller

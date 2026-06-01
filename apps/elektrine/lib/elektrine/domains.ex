@@ -101,7 +101,7 @@ defmodule Elektrine.Domains do
     normalized_handle = String.trim(handle)
 
     if Elektrine.Strings.present?(normalized_handle) do
-      "https://#{normalized_handle}.#{default_profile_domain()}"
+      built_in_profile_url_for_handle(normalized_handle)
     else
       nil
     end
@@ -110,11 +110,7 @@ defmodule Elektrine.Domains do
   def default_profile_url_for_handle(_), do: nil
 
   def default_profile_url_for_user(%{handle: handle, username: username} = user) do
-    if User.built_in_subdomain_hosted_by_platform?(user) do
-      default_profile_url_for_handle(handle || username)
-    else
-      nil
-    end
+    profile_url_for_user(user, nil) || default_profile_url_for_handle(handle || username)
   end
 
   def default_profile_url_for_user(_), do: nil
@@ -127,7 +123,7 @@ defmodule Elektrine.Domains do
 
     if Elektrine.Strings.present?(normalized_handle) do
       configured_profile_base_domains()
-      |> Enum.map(&"https://#{normalized_handle}.#{&1}")
+      |> Enum.map(&"https://#{URI.encode_www_form(normalized_handle)}.#{&1}")
       |> Enum.uniq()
     else
       []
@@ -487,7 +483,7 @@ defmodule Elektrine.Domains do
           "https://#{domain}"
 
         _ ->
-          "https://#{URI.encode_www_form(clean_handle)}.#{default_profile_domain()}"
+          built_in_profile_url_for_handle(clean_handle)
       end
     else
       nil
@@ -499,10 +495,10 @@ defmodule Elektrine.Domains do
   def profile_url_for_user(user, host \\ nil)
 
   def profile_url_for_user(%{handle: handle, username: username} = user, host) do
-    if User.built_in_subdomain_hosted_by_platform?(user) do
-      profile_url_for_handle(handle || username, host)
-    else
-      nil
+    case User.built_in_subdomain_mode(user) do
+      "platform" -> profile_subdomain_url_for_handle(handle || username, host)
+      "path" -> profile_url_for_handle(handle || username, host)
+      _ -> nil
     end
   end
 
@@ -553,6 +549,26 @@ defmodule Elektrine.Domains do
   end
 
   def main_domain_url_from_host(_, _), do: ""
+
+  defp profile_subdomain_url_for_handle(handle, host) when is_binary(handle) do
+    clean_handle = handle |> String.trim() |> String.trim_leading("@")
+
+    if Elektrine.Strings.present?(clean_handle) do
+      case profile_custom_domain_for_host(host) do
+        %{domain: domain} -> "https://#{domain}"
+        _ -> "https://#{URI.encode_www_form(clean_handle)}.#{default_profile_domain()}"
+      end
+    else
+      nil
+    end
+  end
+
+  defp profile_subdomain_url_for_handle(_, _), do: nil
+
+  defp built_in_profile_url_for_handle(handle) do
+    encoded_handle = URI.encode_www_form(handle)
+    "https://#{default_profile_domain()}/#{encoded_handle}"
+  end
 
   defp verified_custom_email_domains do
     maybe_custom_domains(:verified_domains, [])

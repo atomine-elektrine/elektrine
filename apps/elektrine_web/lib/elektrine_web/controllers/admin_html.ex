@@ -278,7 +278,7 @@ defmodule ElektrineWeb.AdminHTML do
             platform_module: :email
           },
           %{
-            label: "Arblarg Messages",
+            label: "Chat Messages",
             path: Elektrine.Paths.admin_path(:chat_messages),
             icon: "hero-chat-bubble-left-right",
             platform_module: :chat
@@ -337,7 +337,7 @@ defmodule ElektrineWeb.AdminHTML do
             navigate: true
           },
           %{
-            label: "Arblarg Messaging",
+            label: "Chat Federation",
             path: "/pripyat/messaging-federation",
             icon: "hero-chat-bubble-left-right",
             navigate: true
