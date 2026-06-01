@@ -201,7 +201,7 @@ defmodule ElektrineWeb.Layouts do
       {ElektrineWeb.AdminLive.ReportsDashboard, :index} -> "Reports Dashboard"
       {ElektrineWeb.AdminLive.BadgeManagement, :index} -> "Badge Management"
       {ElektrineWeb.AdminLive.Federation, :index} -> "ActivityPub Federation"
-      {ElektrineWeb.AdminLive.MessagingFederation, :index} -> "Arblarg Messaging Federation"
+      {ElektrineWeb.AdminLive.MessagingFederation, :index} -> "Chat Federation"
       {ElektrineWeb.AdminLive.BlueskyBridge, :index} -> "Bluesky Bridge"
       {ElektrineWeb.AdminLive.Relays, :index} -> "ActivityPub Relay Management"
       {ElektrineWeb.AdminLive.Emojis, :new} -> "New Custom Emoji"
@@ -248,7 +248,7 @@ defmodule ElektrineWeb.Layouts do
   @doc ~s|Builds the meta description for SEO.\n|
   def build_meta_description(assigns) do
     assigns[:meta_description] ||
-      "Elektrine is an integrated platform for email, Arblarg, social, Nerve, VPN, and DNS."
+      "Elektrine is an integrated platform for mail, chat, social, Nerve, VPN, and DNS."
   end
 
   @doc ~s|Builds the meta keywords for SEO.\n|

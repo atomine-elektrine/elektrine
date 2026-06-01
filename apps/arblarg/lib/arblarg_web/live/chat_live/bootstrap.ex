@@ -18,7 +18,7 @@ defmodule ArblargWeb.ChatLive.Bootstrap do
       Helpers.scope_conversations_to_server(cached_conversations, nil)
 
     socket
-    |> Phoenix.Component.assign(:page_title, "Arblarg")
+    |> Phoenix.Component.assign(:page_title, "Chat")
     |> Phoenix.Component.assign(:ui, %State.UI{})
     |> Phoenix.Component.assign(:search, %State.Search{user_results: []})
     |> Phoenix.Component.assign(:call, %State.Call{})

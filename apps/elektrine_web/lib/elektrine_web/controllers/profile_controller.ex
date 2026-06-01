@@ -316,7 +316,7 @@ defmodule ElektrineWeb.ProfileController do
     if Elektrine.Domains.app_host?(conn.host) and Elektrine.Strings.present?(handle) and
          conn.assigns[:subdomain_handle] != handle do
       if User.built_in_subdomain_hosted_by_platform?(user) do
-        redirect(conn, external: Elektrine.Domains.profile_url_for_handle(handle, conn.host))
+        redirect(conn, external: Elektrine.Domains.profile_url_for_user(user, conn.host))
       else
         # External DNS profiles must not serve arbitrary static HTML on the main app origin.
         render_builder_profile(conn, profile)

@@ -2325,7 +2325,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   defp attention_filter_label("all"), do: "All"
   defp attention_filter_label("email"), do: "Email"
-  defp attention_filter_label("chat"), do: "Arblarg"
+  defp attention_filter_label("chat"), do: "Chat"
   defp attention_filter_label("requests"), do: "Requests"
   defp attention_filter_label("social"), do: "Social"
   defp attention_filter_label("system"), do: "System"
@@ -2392,7 +2392,7 @@ defmodule ElektrineWeb.PortalLive.Index do
       |> Enum.map(fn conversation ->
         %{
           id: "chat-#{conversation.id}",
-          app: "Arblarg",
+          app: "Chat",
           title: conversation_label(conversation),
           detail: String.capitalize(conversation.type || "conversation"),
           href: Elektrine.Paths.chat_path(conversation),
@@ -2526,7 +2526,7 @@ defmodule ElektrineWeb.PortalLive.Index do
   defp notification_activity_app(notification) do
     case {notification.type, notification.source_type} do
       {"email_received", _} -> "Email"
-      {_, "message"} -> "Arblarg"
+      {_, "message"} -> "Chat"
       {_, "post"} -> "Social"
       {_, "discussion"} -> "Social"
       {"follow", _} -> "Social"

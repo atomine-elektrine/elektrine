@@ -263,7 +263,7 @@ defmodule ElektrineWeb.CoreComponents do
               navigate="/account/proofs"
               class={account_setting_secondary_link_class(@selected_link, "proofs")}
             >
-              <.icon name="hero-identification" class="w-4 h-4" /> {gettext("Atomine")}
+              <.icon name="hero-identification" class="w-4 h-4" /> {gettext("Identity")}
             </.link>
           </div>
         </div>

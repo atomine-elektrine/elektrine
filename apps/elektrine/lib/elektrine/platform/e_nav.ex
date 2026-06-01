@@ -28,7 +28,7 @@ defmodule Elektrine.Platform.ENav do
       },
       %{
         id: "chat",
-        label: "Arblarg",
+        label: "Chat",
         href: "/chat",
         platform_module: :chat,
         access_module: :chat,
@@ -175,7 +175,7 @@ defmodule Elektrine.Platform.ENav do
       },
       %{
         id: "proofs",
-        label: "Atomine",
+        label: "Identity",
         href: "/account/proofs",
         icon: "hero-identification",
         active_icon: "hero-identification-solid"

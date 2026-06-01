@@ -39,6 +39,18 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   end
 
   describe "subdomain extraction" do
+    test "ignores profile subdomains for users who have not enabled them" do
+      user = user_fixture(%{username: "maxfield"})
+      {:ok, _user} = Accounts.update_user_handle(user, "maxfield")
+
+      conn =
+        build_conn_with_host("maxfield.example.com", "/")
+        |> ProfileSubdomain.call([])
+
+      refute Map.has_key?(conn.assigns, :subdomain_handle)
+      refute conn.halted
+    end
+
     test "extracts handle from valid subdomain" do
       conn =
         build_conn_with_host("maxfield.example.com", "/")

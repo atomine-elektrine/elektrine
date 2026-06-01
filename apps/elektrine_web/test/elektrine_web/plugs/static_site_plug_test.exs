@@ -14,6 +14,7 @@ defmodule ElektrineWeb.Plugs.StaticSitePlugTest do
 
   setup do
     user = AccountsFixtures.user_fixture()
+    {:ok, user} = Accounts.update_user(user, %{built_in_subdomain_mode: "platform"})
 
     # Create user profile with static mode
     {:ok, profile} =

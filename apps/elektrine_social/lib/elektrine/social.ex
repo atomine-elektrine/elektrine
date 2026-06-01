@@ -2001,9 +2001,9 @@ defmodule Elektrine.Social do
 
   defp get_source_name(%Message{conversation: %{type: "timeline"}}), do: "Timeline"
   defp get_source_name(%Message{conversation: %{type: "community", name: name}}), do: name
-  defp get_source_name(%Message{conversation: %{type: "dm"}}), do: "Arblarg"
-  defp get_source_name(%Message{conversation: %{type: "group"}}), do: "Arblarg"
-  defp get_source_name(%Message{conversation: %{type: "channel"}}), do: "Arblarg"
+  defp get_source_name(%Message{conversation: %{type: "dm"}}), do: "Chat"
+  defp get_source_name(%Message{conversation: %{type: "group"}}), do: "Chat"
+  defp get_source_name(%Message{conversation: %{type: "channel"}}), do: "Chat"
   defp get_source_name(_), do: ""
 
   @doc """

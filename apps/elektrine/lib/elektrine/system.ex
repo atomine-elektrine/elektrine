@@ -172,7 +172,7 @@ defmodule Elektrine.System do
   defp module_access_label(:notes), do: "Notes"
   defp module_access_label(:storage), do: "Storage"
   defp module_access_label(:portal), do: "Portal"
-  defp module_access_label(:chat), do: "Arblarg"
+  defp module_access_label(:chat), do: "Chat"
   defp module_access_label(:timeline), do: "Timeline"
   defp module_access_label(:communities), do: "Communities"
   defp module_access_label(:gallery), do: "Gallery"

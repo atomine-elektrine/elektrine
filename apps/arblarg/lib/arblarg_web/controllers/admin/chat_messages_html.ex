@@ -1,6 +1,6 @@
 defmodule ArblargWeb.Admin.ChatMessagesHTML do
   @moduledoc """
-  View helpers and templates for admin Arblarg chat message views.
+  View helpers and templates for admin chat message views.
   """
 
   use ArblargWeb, :html
