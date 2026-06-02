@@ -63,6 +63,15 @@ defmodule Elektrine.Platform.ENav do
         active_icon: "hero-photo-solid"
       },
       %{
+        id: "videos",
+        label: "Videos",
+        href: "/videos",
+        platform_module: :social,
+        access_module: :gallery,
+        icon: "hero-video-camera",
+        active_icon: "hero-video-camera-solid"
+      },
+      %{
         id: "friends",
         label: "Friends",
         href: "/friends",

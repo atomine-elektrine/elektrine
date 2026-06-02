@@ -334,6 +334,9 @@ defmodule Elektrine.ActivityPub.Normalizer do
     |> maybe_put_metadata("card", object["card"])
     |> maybe_put_metadata("application", object["application"] || object["app"])
     |> maybe_put_metadata("language", object["language"])
+    |> maybe_put_metadata("type", object["type"])
+    |> maybe_put_metadata("duration", object["duration"])
+    |> maybe_put_metadata("thumbnail_url", object_preview_url(object))
     |> maybe_put_metadata("indexable", object["indexable"])
     |> maybe_put_metadata("media_attachments", extract_media_attachments_metadata(object))
     |> maybe_put_metadata("pleroma", object["pleroma"])
@@ -1108,14 +1111,8 @@ defmodule Elektrine.ActivityPub.Normalizer do
   defp parse_nonnegative_count(_), do: 0
 
   defp extract_media_attachments_metadata(object) when is_map(object) do
-    attachments =
-      case Map.get(object, "attachment", []) do
-        [] -> Map.get(object, "files", [])
-        attachments -> attachments
-      end
-
-    attachments
-    |> List.wrap()
+    object
+    |> media_candidates()
     |> Enum.with_index()
     |> Enum.map(fn {attachment, index} -> media_attachment_metadata(attachment, index) end)
     |> Enum.filter(& &1)
@@ -1126,16 +1123,21 @@ defmodule Elektrine.ActivityPub.Normalizer do
 
   defp media_attachment_metadata(%{} = attachment, index) do
     url = attachment_url(attachment)
+    media_type = attachment_media_type(attachment)
 
-    if is_binary(url) && valid_media_url?(url) do
+    if is_binary(url) && valid_media_url?(url, media_type) do
       %{
         "id" => to_string(index),
         "type" => mastodon_media_type(attachment, url),
         "url" => url,
+        "mediaType" => media_type,
         "preview_url" => attachment_preview_url(attachment) || attachment["thumbnailUrl"] || url,
         "remote_url" =>
           attachment["remote_url"] || attachment["remoteUrl"] || attachment["uri"] || url,
         "meta" => attachment["meta"] || attachment["properties"] || %{},
+        "width" => attachment["width"],
+        "height" => attachment["height"],
+        "duration" => attachment["duration"],
         "description" =>
           attachment["comment"] || attachment["name"] || attachment["summary"] ||
             attachment["content"],
@@ -1145,6 +1147,43 @@ defmodule Elektrine.ActivityPub.Normalizer do
   end
 
   defp media_attachment_metadata(_, _), do: nil
+
+  defp media_candidates(object) when is_map(object) do
+    attachments =
+      case Map.get(object, "attachment", []) do
+        [] -> Map.get(object, "files", [])
+        attachments -> attachments
+      end
+
+    object_preview = object_preview_url(object)
+
+    attachment_candidates =
+      attachments
+      |> List.wrap()
+      |> Enum.filter(&is_map/1)
+
+    url_candidates =
+      object
+      |> Map.get("url", [])
+      |> List.wrap()
+      |> Enum.filter(&media_link?/1)
+      |> Enum.map(fn link ->
+        if is_binary(object_preview),
+          do: Map.put_new(link, "preview_url", object_preview),
+          else: link
+      end)
+
+    attachment_candidates ++ url_candidates
+  end
+
+  defp media_candidates(_), do: []
+
+  defp media_link?(%{} = link) do
+    url = attachment_url(link)
+    is_binary(url) && valid_media_url?(url, attachment_media_type(link))
+  end
+
+  defp media_link?(_), do: false
 
   defp attachment_url(attachment) when is_map(attachment) do
     cond do
@@ -1165,16 +1204,45 @@ defmodule Elektrine.ActivityPub.Normalizer do
   defp attachment_preview_url(%{"preview" => %{"href" => url}}) when is_binary(url), do: url
   defp attachment_preview_url(_), do: nil
 
+  defp object_preview_url(object) when is_map(object) do
+    [object["thumbnailUrl"], object["preview"], object["icon"], object["image"]]
+    |> Enum.find_value(fn value ->
+      value
+      |> List.wrap()
+      |> Enum.find_value(&preview_candidate_url/1)
+    end)
+  end
+
+  defp object_preview_url(_), do: nil
+
+  defp preview_candidate_url(value) when is_binary(value) do
+    if valid_media_url?(value, "image/*"), do: value, else: nil
+  end
+
+  defp preview_candidate_url(%{} = value) do
+    url = attachment_url(value)
+
+    if is_binary(url) && valid_media_url?(url, attachment_media_type(value) || "image/*"),
+      do: url,
+      else: nil
+  end
+
+  defp preview_candidate_url(_), do: nil
+
+  defp attachment_media_type(attachment) when is_map(attachment) do
+    attachment["mediaType"] || attachment["mimeType"] || attachment["media_type"]
+  end
+
+  defp attachment_media_type(_), do: nil
+
   defp mastodon_media_type(attachment, url) do
     media_type =
-      String.downcase(
-        to_string(attachment["mediaType"] || attachment["mimeType"] || attachment["type"] || "")
-      )
+      String.downcase(to_string(attachment_media_type(attachment) || attachment["type"] || ""))
 
     url_downcased = String.downcase(url)
 
     cond do
-      String.starts_with?(media_type, "video/") -> "video"
+      video_media_type?(media_type) -> "video"
       String.starts_with?(media_type, "audio/") -> "audio"
       String.starts_with?(media_type, "image/gif") -> "gifv"
       String.starts_with?(media_type, "image/") -> "image"
@@ -1186,31 +1254,23 @@ defmodule Elektrine.ActivityPub.Normalizer do
   end
 
   defp extract_media_with_alt_text(object) do
-    attachments = object["attachment"] || object["files"] || []
-
-    attachments
-    |> List.wrap()
+    object
+    |> media_candidates()
     |> Enum.with_index()
     |> Enum.map(fn {attachment, idx} ->
-      url =
-        cond do
-          is_binary(attachment["url"]) -> attachment["url"]
-          is_binary(attachment["uri"]) -> attachment["uri"]
-          is_map(attachment["url"]) -> attachment["url"]["href"]
-          is_binary(attachment["thumbnailUrl"]) -> attachment["thumbnailUrl"]
-          is_binary(attachment["href"]) -> attachment["href"]
-          true -> nil
-        end
+      url = attachment_url(attachment)
 
       alt_text =
         attachment["comment"] || attachment["name"] || attachment["summary"] ||
           attachment["content"]
 
-      {url, alt_text, idx}
+      {url, attachment_media_type(attachment), alt_text, idx}
     end)
-    |> Enum.filter(fn {url, _alt, _idx} -> is_binary(url) && valid_media_url?(url) end)
+    |> Enum.filter(fn {url, media_type, _alt, _idx} ->
+      is_binary(url) && valid_media_url?(url, media_type)
+    end)
     |> Enum.take(10)
-    |> Enum.reduce({[], %{}}, fn {url, alt_text, idx}, {urls, alt_map} ->
+    |> Enum.reduce({[], %{}}, fn {url, _media_type, alt_text, idx}, {urls, alt_map} ->
       new_urls = urls ++ [url]
 
       new_alt_map =
@@ -1224,18 +1284,33 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end)
   end
 
-  defp valid_media_url?(url) when is_binary(url) do
+  defp valid_media_url?(url, media_type) when is_binary(url) do
     uri = URI.parse(url)
     valid_scheme = uri.scheme in ["https", "http"]
     has_host = uri.host != nil
     not_localhost = uri.host && !String.contains?(uri.host, "localhost")
     not_private_ip = uri.host && !private_ip?(uri.host)
-    is_media = media_url?(url)
+    is_media = media_url?(url) || media_mime_type?(media_type)
 
     valid_scheme && has_host && not_localhost && not_private_ip && is_media
   end
 
-  defp valid_media_url?(_), do: false
+  defp valid_media_url?(_, _), do: false
+
+  defp media_mime_type?(media_type) when is_binary(media_type) do
+    media_type = String.downcase(media_type)
+
+    String.starts_with?(media_type, ["image/", "audio/"]) || video_media_type?(media_type)
+  end
+
+  defp media_mime_type?(_), do: false
+
+  defp video_media_type?(media_type) when is_binary(media_type) do
+    String.starts_with?(media_type, "video/") ||
+      media_type in ["application/x-mpegurl", "application/vnd.apple.mpegurl"]
+  end
+
+  defp video_media_type?(_), do: false
 
   defp media_url?(url) when is_binary(url) do
     url_lower = String.downcase(url)

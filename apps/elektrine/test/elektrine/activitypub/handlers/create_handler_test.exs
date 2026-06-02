@@ -35,6 +35,35 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandlerTest do
       assert {:ok, message} = CreateHandler.handle(%{"object" => object}, actor_refs, nil)
       assert message.remote_actor_id == author.id
     end
+
+    test "stores PeerTube Video creates as federated messages" do
+      author = remote_actor_fixture("peertubevideo")
+
+      object =
+        note_object(author.uri, %{
+          "id" => "https://remote.example/videos/watch/#{System.unique_integer([:positive])}",
+          "type" => "Video",
+          "name" => "Federation talk",
+          "content" => "<p>PeerTube video</p>",
+          "url" => [
+            %{
+              "type" => "Link",
+              "mediaType" => "video/mp4",
+              "href" => "https://remote.example/download/stream",
+              "width" => 1280,
+              "height" => 720
+            }
+          ]
+        })
+
+      assert {:ok, message} = CreateHandler.handle(%{"object" => object}, author.uri, nil)
+      assert message.title == "Federation talk"
+      assert message.content == "PeerTube video"
+      assert message.media_urls == ["https://remote.example/download/stream"]
+
+      assert get_in(message.media_metadata, ["media_attachments", Access.at(0), "type"]) ==
+               "video"
+    end
   end
 
   describe "create_note/2 community detection" do

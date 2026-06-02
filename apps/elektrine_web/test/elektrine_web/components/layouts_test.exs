@@ -35,6 +35,7 @@ defmodule ElektrineWeb.LayoutsTest do
     test "returns true for app surfaces that manage their own page width" do
       assert Layouts.full_width_main?(%{current_url: "https://example.com/timeline"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/gallery"})
+      assert Layouts.full_width_main?(%{current_url: "https://example.com/videos"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/email"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/communities"})
       assert Layouts.full_width_main?(%{current_url: "https://example.com/d/elixir"})

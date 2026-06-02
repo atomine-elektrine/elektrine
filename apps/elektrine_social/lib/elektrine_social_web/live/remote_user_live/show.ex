@@ -2268,17 +2268,17 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
   def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, message_id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
   def handle_event("navigate_to_post", _params, socket) do
@@ -2287,7 +2287,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
@@ -2299,7 +2299,7 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
         {:noreply, push_navigate(socket, to: trimmed_url)}
 
       %URI{scheme: scheme} when scheme in ["http", "https"] ->
-        {:noreply, push_navigate(socket, to: Paths.post_path(trimmed_url))}
+        {:noreply, ElektrineWeb.PostNavigation.navigate(socket, trimmed_url)}
 
       _ ->
         {:noreply, socket}

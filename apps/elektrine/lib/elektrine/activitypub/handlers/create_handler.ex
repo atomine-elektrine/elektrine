@@ -33,6 +33,7 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
             "Page" -> create_note(object, actor_uri, opts)
             "Article" -> create_note(object, actor_uri, opts)
             "Question" -> create_question(object, actor_uri, opts)
+            "Video" -> create_note(object, actor_uri, opts)
             # Akkoma/Pleroma explicitly sends Answer type for poll votes.
             "Answer" -> handle_incoming_poll_vote(object, actor_uri, activity_id: activity_id)
             _ -> {:ok, :unhandled}

@@ -1,0 +1,318 @@
+<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-2">
+  <.e_nav active_tab="videos" current_user={@current_user} />
+
+  <% filter_options =
+    [
+      {"discover", "All Videos", "hero-globe-alt"},
+      {"trending", "Trending", "hero-fire"},
+      {"following", "Following", "hero-users"},
+      {"liked", "Liked", "hero-heart"},
+      {"saved", "Saved", "hero-bookmark"}
+    ]
+    |> Enum.filter(fn {value, _, _} -> @current_user || value in ["discover", "trending"] end)
+
+  software_options = [
+    {"all", "All Sources"},
+    {"local", "Local"},
+    {"peertube", "PeerTube"},
+    {"mastodon", "Mastodon"},
+    {"pleroma", "Pleroma"},
+    {"misskey", "Misskey"}
+  ]
+
+  sort_options = [
+    {"fresh", "Fresh"},
+    {"popular", "Popular"},
+    {"discussed", "Discussed"}
+  ]
+
+  video_posts = Enum.filter(@filtered_posts, &video_post?/1)
+
+  {empty_title, empty_copy} =
+    video_empty_state(%{video_search: @video_search, current_filter: @current_filter}) %>
+
+  <div class="space-y-6">
+    <section class="card panel-card overflow-visible">
+      <div class="p-4 border-b border-base-300 space-y-4">
+        <ElektrineWeb.Components.Platform.ENav.product_header
+          eyebrow="Videos"
+          title="Video Feed"
+          description="Browse PeerTube and federated video posts, then save what you want to watch later."
+        >
+          <:actions>
+            <.link navigate={~p"/gallery"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-photo" class="w-4 h-4 mr-2" /> Gallery
+            </.link>
+          </:actions>
+        </ElektrineWeb.Components.Platform.ENav.product_header>
+
+        <div>
+          <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-base-content/60">
+            Feed
+          </p>
+          <div class="flex flex-wrap gap-2" role="tablist" aria-label="Video filters">
+            <%= for {value, label, icon} <- filter_options do %>
+              <button
+                id={"videos-filter-#{value}"}
+                phx-click="set_filter"
+                phx-value-filter={value}
+                role="tab"
+                aria-selected={@current_filter == value}
+                class={[
+                  "btn btn-sm min-h-10 rounded-full border border-base-300 px-3",
+                  if(@current_filter == value,
+                    do: "btn-secondary border-secondary",
+                    else: "bg-base-200 text-base-content hover:bg-base-300"
+                  )
+                ]}
+              >
+                <.icon name={icon} class="w-4 h-4" /> {label}
+              </button>
+            <% end %>
+          </div>
+        </div>
+
+        <form
+          id="videos-search-form"
+          phx-hook="PreserveSearchFocus"
+          phx-change="search_videos"
+          phx-submit="search_videos"
+          class="flex flex-col gap-3 lg:flex-row"
+        >
+          <label class="input input-bordered flex min-h-[2.75rem] flex-1 items-center gap-2 bg-base-100">
+            <.icon name="hero-magnifying-glass" class="w-4 h-4 opacity-60" />
+            <input
+              id="videos-search-input"
+              type="text"
+              name="query"
+              value={@video_search}
+              placeholder="Search titles, creators, or source"
+              phx-debounce="250"
+              autocomplete="off"
+              data-search-input="true"
+              class="grow bg-transparent"
+            />
+          </label>
+          <div class="flex gap-2">
+            <button type="submit" class="btn btn-secondary">Search</button>
+            <%= if @video_search != "" do %>
+              <button
+                type="button"
+                phx-click="clear_video_search"
+                data-search-clear="true"
+                data-search-clear-target="#videos-search-input"
+                class="btn btn-ghost"
+              >
+                Clear
+              </button>
+            <% end %>
+          </div>
+        </form>
+
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="label">
+              <span class="label-text text-xs uppercase tracking-wide">Source</span>
+            </label>
+            <form phx-change="set_software_filter">
+              <div class="select select-bordered w-full">
+                <select name="software">
+                  <%= for {value, label} <- software_options do %>
+                    <option value={value} selected={@software_filter == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </form>
+          </div>
+
+          <div>
+            <label class="label">
+              <span class="label-text text-xs uppercase tracking-wide">Sort</span>
+            </label>
+            <form phx-change="set_video_sort">
+              <div class="select select-bordered w-full">
+                <select name="sort">
+                  <%= for {value, label} <- sort_options do %>
+                    <option value={value} selected={@video_sort == value}>{label}</option>
+                  <% end %>
+                </select>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="text-sm text-base-content/60">
+          Showing <span class="font-medium text-base-content">{length(video_posts)}</span>
+          video posts.
+        </div>
+      </div>
+    </section>
+
+    <div
+      class="w-full space-y-4"
+      phx-hook="InfiniteScroll"
+      id="videos-infinite-scroll"
+      data-offset="500"
+      data-no-more={@end_of_feed}
+      data-loading-more={@loading_videos || @loading_more}
+    >
+      <%= if @loading_videos do %>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <%= for _i <- 1..9 do %>
+            <div class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
+              <div class="aspect-video animate-pulse bg-base-300"></div>
+              <div class="space-y-2 p-3">
+                <div class="h-4 w-2/3 animate-pulse rounded bg-base-300"></div>
+                <div class="h-3 w-1/2 animate-pulse rounded bg-base-300"></div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <%= if video_posts == [] do %>
+          <div class="card panel-card border border-base-300 shadow-lg">
+            <div class="card-body items-center px-6 py-14 text-center sm:py-16">
+              <div class="mb-4 rounded-full bg-base-200 p-4 text-base-content/40">
+                <.icon name="hero-video-camera" class="h-10 w-10" />
+              </div>
+              <h3 class="text-lg font-semibold sm:text-xl">{empty_title}</h3>
+              <p class="mt-2 max-w-md text-sm leading-6 text-base-content/70">{empty_copy}</p>
+              <.link navigate={~p"/timeline"} class="btn btn-secondary mt-4">
+                Browse Timeline
+              </.link>
+            </div>
+          </div>
+        <% else %>
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <%= for video <- video_posts do %>
+              <% full_url = video_primary_url(video)
+              poster_url = video_thumbnail_url(video)
+              is_liked = MapSet.member?(@user_likes, video.id)
+              is_saved = MapSet.member?(@user_saved_posts, video.id)
+              sensitive = video_sensitive?(video) %>
+
+              <article
+                class="group overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm transition-shadow hover:shadow-md"
+                data-post-id={video.id}
+              >
+                <div class={[
+                  "relative aspect-video bg-base-200",
+                  if(sensitive,
+                    do: "blur-sm hover:blur-none focus-within:blur-none transition-all"
+                  )
+                ]}>
+                  <%= if full_url do %>
+                    <video
+                      src={full_url}
+                      poster={poster_url}
+                      controls
+                      preload="metadata"
+                      class="h-full w-full object-contain"
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  <% else %>
+                    <div class="flex h-full w-full items-center justify-center text-base-content/40">
+                      <.icon name="hero-video-camera" class="h-10 w-10" />
+                    </div>
+                  <% end %>
+
+                  <%= if sensitive do %>
+                    <span class="badge badge-sm badge-warning absolute left-2 top-2 shadow">
+                      Sensitive
+                    </span>
+                  <% end %>
+                </div>
+
+                <div class="space-y-3 p-3">
+                  <div class="min-w-0">
+                    <.link navigate={video_post_path(video)} class="block hover:text-primary">
+                      <h2 class="line-clamp-2 text-sm font-semibold leading-snug">
+                        {video_display_title(video)}
+                      </h2>
+                    </.link>
+                    <div class="mt-1 flex min-w-0 items-center justify-between gap-3 text-xs text-base-content/60">
+                      <span class="truncate">
+                        {video_creator_handle(video) || video_source_label(video)}
+                      </span>
+                      <span class="shrink-0">
+                        {Elektrine.Social.time_ago_in_words(video.inserted_at)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-2 text-xs text-base-content/60">
+                    <span class="inline-flex items-center gap-1">
+                      <.icon name="hero-heart-solid" class="h-3.5 w-3.5" />
+                      {format_video_count(video.like_count || 0)}
+                    </span>
+                    <span class="inline-flex items-center gap-1">
+                      <.icon name="hero-chat-bubble-left" class="h-3.5 w-3.5" />
+                      {format_video_count(video.reply_count || 0)}
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-right">
+                      {video_source_label(video)}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      phx-click="like_video"
+                      phx-value-video_id={video.id}
+                      class={[
+                        "btn btn-sm flex-1",
+                        if(is_liked, do: "btn-secondary", else: "btn-ghost")
+                      ]}
+                    >
+                      <.icon
+                        name={if is_liked, do: "hero-heart-solid", else: "hero-heart"}
+                        class="h-4 w-4"
+                      /> Like
+                    </button>
+                    <%= if @current_user do %>
+                      <button
+                        type="button"
+                        phx-click={if is_saved, do: "unsave_post", else: "save_post"}
+                        phx-value-video_id={video.id}
+                        class={[
+                          "btn btn-sm flex-1",
+                          if(is_saved, do: "btn-secondary", else: "btn-ghost")
+                        ]}
+                      >
+                        <.icon
+                          name={if is_saved, do: "hero-bookmark-solid", else: "hero-bookmark"}
+                          class="h-4 w-4"
+                        /> Save
+                      </button>
+                    <% end %>
+                  </div>
+                </div>
+              </article>
+            <% end %>
+          </div>
+
+          <%= if @loading_more do %>
+            <div class="flex justify-center py-8">
+              <.spinner size="md" />
+            </div>
+          <% end %>
+
+          <%= if @end_of_feed && length(video_posts) > 0 do %>
+            <div class="flex justify-center py-8 text-base-content/50 text-sm">
+              No more videos to load
+            </div>
+          <% end %>
+
+          <div
+            :if={!@end_of_feed}
+            class="h-px w-full"
+            data-infinite-scroll-sentinel
+            aria-hidden="true"
+          >
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

@@ -32,9 +32,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
       msg ->
         post_url = get_post_url(msg)
 
-        is_federated_external_link =
-          Map.get(msg, :federated, false) && Map.get(msg, :activitypub_url) &&
-            !is_binary(post_url)
+        is_federated_external_link = external_url?(post_url)
 
         assigns =
           assigns
@@ -51,7 +49,7 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
     ~H"""
     <div
       phx-click={if @is_federated_link, do: "open_external_link", else: "navigate_to_embedded_post"}
-      phx-value-url={if @is_federated_link, do: @shared_message.activitypub_url, else: @post_url}
+      phx-value-url={@post_url}
       class={[
         "card panel-card border transition-colors cursor-pointer",
         if(@is_federated_link,
@@ -285,6 +283,14 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
        when is_integer(message_id) and is_binary(activitypub_id) and activitypub_id != "",
        do: Elektrine.Paths.remote_post_path(message_id)
 
+  defp get_post_url(%{activitypub_url: activitypub_url}) when is_binary(activitypub_url) do
+    external_post_url(activitypub_url)
+  end
+
+  defp get_post_url(%{activitypub_id: activitypub_id}) when is_binary(activitypub_id) do
+    external_post_url(activitypub_id)
+  end
+
   defp get_post_url(%{
          id: message_id,
          reply_to_id: reply_to_id,
@@ -322,6 +328,24 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
 
   defp get_post_url(_),
     do: "#"
+
+  defp external_post_url(url) when is_binary(url) do
+    Elektrine.Paths.post_path_or_external(url) || "#"
+  end
+
+  defp external_post_url(_), do: "#"
+
+  defp external_url?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp external_url?(_), do: false
 
   defp source_icon("timeline"), do: "hero-rectangle-stack"
   defp source_icon("community"), do: "hero-user-group"

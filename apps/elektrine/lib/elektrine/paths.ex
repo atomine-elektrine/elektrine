@@ -67,6 +67,50 @@ defmodule Elektrine.Paths do
 
   def post_path(ref), do: post_path(to_string(ref))
 
+  def post_path_or_external(%{id: id} = post) when is_integer(id), do: post_path(post)
+
+  def post_path_or_external(%{activitypub_url: activitypub_url})
+      when is_binary(activitypub_url) and activitypub_url != "" do
+    post_path_or_external(activitypub_url)
+  end
+
+  def post_path_or_external(%{activitypub_id: activitypub_id})
+      when is_binary(activitypub_id) and activitypub_id != "" do
+    post_path_or_external(activitypub_id)
+  end
+
+  def post_path_or_external(ref) when is_integer(ref), do: post_path(ref)
+
+  def post_path_or_external("/" <> _ = path), do: path
+
+  def post_path_or_external(ref) when is_binary(ref) do
+    normalized_ref =
+      ref
+      |> String.trim()
+      |> decode_remote_post_ref()
+
+    case Integer.parse(normalized_ref) do
+      {id, ""} ->
+        post_path(id)
+
+      _ when normalized_ref == "" ->
+        nil
+
+      _ ->
+        case Messages.get_message_by_activitypub_ref(normalized_ref) do
+          %{id: id} when is_integer(id) ->
+            remote_post_path(id)
+
+          _ ->
+            if external_url?(normalized_ref),
+              do: normalized_ref,
+              else: remote_post_path(normalized_ref)
+        end
+    end
+  end
+
+  def post_path_or_external(ref), do: post_path_or_external(to_string(ref))
+
   def remote_post_path(ref) when is_integer(ref), do: "/remote/post/#{ref}"
 
   def remote_post_path(ref) when is_binary(ref) do
@@ -321,6 +365,18 @@ defmodule Elektrine.Paths do
       _ -> "/remote/post/#{URI.encode_www_form(ref)}"
     end
   end
+
+  defp external_url?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp external_url?(_), do: false
 
   defp with_query(path, params) when is_binary(path) and is_list(params) do
     query = URI.encode_query(params)

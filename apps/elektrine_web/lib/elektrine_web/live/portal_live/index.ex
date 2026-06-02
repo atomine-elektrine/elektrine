@@ -825,7 +825,7 @@ defmodule ElektrineWeb.PortalLive.Index do
 
   def handle_event("navigate_to_gallery_post", %{"id" => _id, "url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, url)}
   end
 
   def handle_event("navigate_to_gallery_post", %{"id" => id}, socket) do
@@ -843,15 +843,15 @@ defmodule ElektrineWeb.PortalLive.Index do
     path =
       case parse_positive_int(id) do
         {:ok, post_id} -> Elektrine.Paths.remote_post_path(post_id)
-        :error -> Elektrine.Paths.post_path(url)
+        :error -> Elektrine.Paths.post_path_or_external(url)
       end
 
-    {:noreply, push_navigate(socket, to: path)}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, path)}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(url))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, url)}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do

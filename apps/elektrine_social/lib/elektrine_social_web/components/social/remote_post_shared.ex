@@ -92,6 +92,188 @@ defmodule ElektrineSocialWeb.Components.Social.RemotePostShared do
     """
   end
 
+  attr :attachments, :list, default: []
+  attr :urls, :list, default: []
+  attr :post_id, :any, default: nil
+  attr :layout, :atom, default: :auto, values: [:auto, :single]
+  attr :wrapper_class, :string, default: "mb-4"
+  attr :button_class, :string, default: "image-zoom-trigger rounded-lg overflow-hidden"
+  attr :image_class, :string, default: "rounded-lg w-full border border-base-300"
+  attr :video_class, :string, default: "rounded-lg w-full border border-base-300"
+  attr :audio_class, :string, default: "w-full"
+
+  attr :unknown_class, :string,
+    default: "text-sm text-primary hover:underline flex items-center gap-1"
+
+  def media_attachments(assigns) do
+    entries = build_media_entries(assigns.attachments, assigns.urls)
+    image_urls = entries |> Enum.filter(& &1.image) |> Enum.map(& &1.url)
+
+    grid_class =
+      case assigns.layout do
+        :single ->
+          "grid grid-cols-1 gap-3"
+
+        _ ->
+          case length(entries) do
+            1 -> "grid grid-cols-1 gap-3"
+            2 -> "grid grid-cols-2 gap-3"
+            _ -> "grid grid-cols-1 md:grid-cols-2 gap-3"
+          end
+      end
+
+    assigns =
+      assigns
+      |> assign(:entries, entries)
+      |> assign(:image_urls, image_urls)
+      |> assign(:grid_class, grid_class)
+
+    ~H"""
+    <%= if @entries != [] do %>
+      <div class={[@grid_class, @wrapper_class]}>
+        <%= for entry <- @entries do %>
+          <%= cond do %>
+            <% entry.image -> %>
+              <button
+                type="button"
+                phx-click="open_image_modal"
+                phx-value-url={entry.url}
+                phx-value-images={Jason.encode!(@image_urls)}
+                phx-value-index={Enum.find_index(@image_urls, &(&1 == entry.url)) || 0}
+                {@post_id && [{"phx-value-post_id", @post_id}] || []}
+                class={@button_class}
+              >
+                <img src={entry.url} alt={entry.name || ""} class={@image_class} loading="lazy" />
+              </button>
+            <% entry.video -> %>
+              <video
+                src={entry.url}
+                poster={entry.preview_url}
+                controls
+                preload="metadata"
+                class={@video_class}
+              >
+                Your browser does not support the video tag.
+              </video>
+            <% entry.audio -> %>
+              <audio src={entry.url} controls preload="metadata" class={@audio_class}>
+                Your browser does not support the audio tag.
+              </audio>
+            <% true -> %>
+              <a href={entry.url} target="_blank" rel="noopener noreferrer" class={@unknown_class}>
+                <.icon name="hero-paper-clip" class="w-3 h-3" />
+                {entry.name || "Attachment"}
+              </a>
+          <% end %>
+        <% end %>
+      </div>
+    <% end %>
+    """
+  end
+
+  defp build_media_entries(attachments, urls) do
+    attachments =
+      attachments
+      |> List.wrap()
+      |> Enum.filter(&is_map/1)
+
+    url_attachments =
+      urls
+      |> List.wrap()
+      |> Enum.filter(&(is_binary(&1) && String.trim(&1) != ""))
+      |> Enum.map(&%{"url" => &1})
+
+    (attachments ++ url_attachments)
+    |> Enum.map(&media_entry/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq_by(& &1.url)
+  end
+
+  defp media_entry(attachment) when is_map(attachment) do
+    url = attachment_url(attachment)
+
+    if is_binary(url) && String.trim(url) != "" do
+      media_type = attachment_media_type(attachment)
+      attachment_type = attachment_type(attachment)
+
+      %{
+        audio: audio_attachment?(url, media_type, attachment_type),
+        image: image_attachment?(url, media_type, attachment_type),
+        name:
+          attachment["name"] || attachment[:name] || attachment["description"] ||
+            attachment[:description],
+        preview_url:
+          attachment["preview_url"] || attachment[:preview_url] || attachment["thumbnailUrl"] ||
+            attachment[:thumbnailUrl],
+        url: url,
+        video: video_attachment?(url, media_type, attachment_type)
+      }
+    end
+  end
+
+  defp media_entry(_), do: nil
+
+  defp attachment_url(attachment) when is_map(attachment) do
+    case attachment["url"] || attachment[:url] do
+      url when is_binary(url) ->
+        url
+
+      %{"href" => href} when is_binary(href) ->
+        href
+
+      %{href: href} when is_binary(href) ->
+        href
+
+      [first | rest] ->
+        attachment_url(first) || attachment_url(%{"url" => rest})
+
+      _ ->
+        attachment["href"] || attachment[:href] || attachment["remote_url"] ||
+          attachment[:remote_url]
+    end
+  end
+
+  defp attachment_url(url) when is_binary(url), do: url
+  defp attachment_url(_), do: nil
+
+  defp attachment_media_type(attachment) when is_map(attachment) do
+    attachment["mediaType"] || attachment[:mediaType] || attachment["media_type"] ||
+      attachment[:media_type] || attachment["mimeType"] || attachment[:mimeType]
+  end
+
+  defp attachment_type(attachment) when is_map(attachment) do
+    attachment
+    |> Map.get("type")
+    |> Kernel.||(Map.get(attachment, :type))
+    |> to_string()
+    |> String.downcase()
+  end
+
+  defp image_attachment?(url, media_type, attachment_type) do
+    media_type = downcase(media_type)
+
+    String.starts_with?(media_type, "image/") || attachment_type == "image" ||
+      String.match?(url, ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp|avif)(\?.*)?$/i)
+  end
+
+  defp video_attachment?(url, media_type, attachment_type) do
+    media_type = downcase(media_type)
+
+    String.starts_with?(media_type, "video/") ||
+      media_type in ["application/x-mpegurl", "application/vnd.apple.mpegurl"] ||
+      attachment_type == "video" || String.match?(url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+  end
+
+  defp audio_attachment?(url, media_type, attachment_type) do
+    media_type = downcase(media_type)
+
+    String.starts_with?(media_type, "audio/") || attachment_type == "audio" ||
+      String.match?(url, ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i)
+  end
+
+  defp downcase(value) when is_binary(value), do: String.downcase(value)
+  defp downcase(_), do: ""
+
   attr :content, :string, default: ""
   attr :textarea_name, :string, default: "content"
   attr :textarea_id, :string, default: nil

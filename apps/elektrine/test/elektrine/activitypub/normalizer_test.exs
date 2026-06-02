@@ -280,6 +280,57 @@ defmodule Elektrine.ActivityPub.NormalizerTest do
       assert payload.attrs.media_metadata["language"] == "en"
     end
 
+    test "normalizes PeerTube video links from url arrays" do
+      actor_uri = "https://peertube.example/accounts/alice"
+
+      object =
+        note_fixture(actor_uri, %{
+          "type" => "Video",
+          "id" => "https://peertube.example/videos/watch/2",
+          "name" => "Federation talk",
+          "content" => "<p>PeerTube video</p>",
+          "duration" => "PT10M",
+          "icon" => %{
+            "type" => "Image",
+            "mediaType" => "image/jpeg",
+            "url" => "https://peertube.example/lazy-static/previews/video.jpg"
+          },
+          "url" => [
+            %{
+              "type" => "Link",
+              "mediaType" => "text/html",
+              "href" => "https://peertube.example/w/federation-talk"
+            },
+            %{
+              "type" => "Link",
+              "mediaType" => "video/mp4",
+              "href" => "https://peertube.example/download/stream",
+              "width" => 1920,
+              "height" => 1080
+            }
+          ]
+        })
+
+      payload = Normalizer.message_payload(object, actor_uri)
+
+      assert payload.attrs.media_urls == ["https://peertube.example/download/stream"]
+      assert payload.attrs.media_metadata["type"] == "Video"
+      assert payload.attrs.media_metadata["duration"] == "PT10M"
+
+      assert payload.attrs.media_metadata["thumbnail_url"] ==
+               "https://peertube.example/lazy-static/previews/video.jpg"
+
+      attachment = get_in(payload.attrs.media_metadata, ["media_attachments", Access.at(0)])
+      assert attachment["type"] == "video"
+      assert attachment["mediaType"] == "video/mp4"
+
+      assert attachment["preview_url"] ==
+               "https://peertube.example/lazy-static/previews/video.jpg"
+
+      assert attachment["width"] == 1920
+      assert attachment["height"] == 1080
+    end
+
     test "normalizes GoToSocial style counters" do
       actor_uri = "https://gotosocial.example/users/alice"
 

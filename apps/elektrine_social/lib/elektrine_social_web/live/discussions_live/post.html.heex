@@ -354,28 +354,15 @@
                       </div>
                     <% end %>
                   <% @post.message_type == "image" && @post.media_urls && length(@post.media_urls) > 0 -> %>
-                    <!-- Image Post -->
-                    <div class={[
-                      "grid gap-3 mb-4",
-                      if(length(@post.media_urls) > 1, do: "grid-cols-2", else: "grid-cols-1")
-                    ]}>
-                      <%= for {media_url, idx} <- Enum.with_index(@post.media_urls) do %>
-                        <button
-                          type="button"
-                          phx-click="open_image_modal"
-                          phx-value-images={Jason.encode!(@post.media_urls)}
-                          phx-value-index={idx}
-                          phx-value-post_id={@post.id}
-                          class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200"
-                        >
-                          <img
-                            src={media_url}
-                            alt={@post.title || ""}
-                            class="w-full object-contain bg-base-200 max-h-[600px]"
-                          />
-                        </button>
-                      <% end %>
-                    </div>
+                    <!-- Media Post -->
+                    <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+                      urls={@post.media_urls}
+                      post_id={@post.id}
+                      wrapper_class="mb-4"
+                      button_class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200"
+                      image_class="w-full object-contain bg-base-200 max-h-[600px]"
+                      video_class="rounded-lg w-full border border-base-300 max-h-[600px]"
+                    />
                     <%= if @post.content && String.trim(@post.content) != "" do %>
                       <div class="text-base leading-relaxed break-words">
                         {raw(format_post_content(@post.content))}

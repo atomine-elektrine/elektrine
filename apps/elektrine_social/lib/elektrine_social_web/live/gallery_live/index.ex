@@ -331,7 +331,7 @@ defmodule ElektrineSocialWeb.GalleryLive.Index do
         %{"activitypub_id" => activitypub_id} = _params,
         socket
       ) do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(activitypub_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, activitypub_id)}
   end
 
   def handle_event("load-more", _params, socket) do

@@ -250,6 +250,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         do: current_post_flag(assigns.user_saves, post),
         else: assigns.saved_override
 
+    card_post_path = card_post_path(post)
+
     assigns =
       assigns
       |> assign_new(:remote_poll_vote, fn -> nil end)
@@ -264,7 +266,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:is_liked, is_liked)
       |> assign(:is_boosted, is_boosted)
       |> assign(:is_saved, is_saved)
-      |> assign(:card_post_path, card_post_path(post))
+      |> assign(:card_post_path, card_post_path)
+      |> assign(:card_post_external?, external_url?(card_post_path))
 
     ~H"""
     <div
@@ -292,15 +295,27 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
           phx-hook={if @clickable, do: "PostClick", else: nil}
         >
           <%= if @clickable do %>
-            <.link
-              navigate={@card_post_path}
-              class="hidden"
-              data-post-nav-link
-              tabindex="-1"
-              aria-hidden="true"
-            >
-              Open post
-            </.link>
+            <%= if @card_post_external? do %>
+              <.link
+                href={@card_post_path}
+                class="hidden"
+                data-post-nav-link
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                Open post
+              </.link>
+            <% else %>
+              <.link
+                navigate={@card_post_path}
+                class="hidden"
+                data-post-nav-link
+                tabindex="-1"
+                aria-hidden="true"
+              >
+                Open post
+              </.link>
+            <% end %>
           <% end %>
 
           <div class="card-body timeline-post-card-body p-4 min-w-0 overflow-visible">
@@ -1659,17 +1674,23 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
 
   defp post_content(assigns) do
     title = resolve_federated_title(assigns.post)
+    post_path = card_post_path(assigns.post)
 
     assigns =
       assigns
       |> assign_new(:remote_poll_vote, fn -> nil end)
       |> assign(:title, title)
-      |> assign(:post_path, card_post_path(assigns.post))
+      |> assign(:post_path, post_path)
+      |> assign(:post_path_external?, external_url?(post_path))
 
     ~H"""
     <!-- Title -->
     <%= if @title do %>
-      <.link navigate={@post_path} class="block hover:text-primary transition-colors">
+      <.link
+        href={if @post_path_external?, do: @post_path, else: nil}
+        navigate={if @post_path_external?, do: nil, else: @post_path}
+        class="block hover:text-primary transition-colors"
+      >
         <h3 class="font-semibold text-lg mb-2 break-words leading-tight post-content">
           {@title}
           <%= if @post.auto_title do %>
@@ -2115,9 +2136,10 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     |> Enum.reduce([], fn {media_url, index}, entries ->
       case attachment_url_for_render(media_url, post) do
         full_url when is_binary(full_url) and full_url != "" ->
+          attachment = Enum.at(attachments, index)
           {width, height} = media_dimensions(metadata, attachments, index)
-          is_video = video_url?(full_url)
-          is_audio = audio_url?(full_url)
+          is_video = video_url?(full_url) || video_attachment?(attachment)
+          is_audio = audio_url?(full_url) || audio_attachment?(attachment)
 
           fallback_ratio =
             if is_video, do: @default_video_aspect_ratio, else: @default_image_aspect_ratio
@@ -2172,7 +2194,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   defp media_alt_texts(_metadata), do: %{}
 
   defp attachment_metadata(metadata) when is_map(metadata) do
-    case Map.get(metadata, "attachments") || Map.get(metadata, :attachments) do
+    case Map.get(metadata, "attachments") || Map.get(metadata, :attachments) ||
+           Map.get(metadata, "media_attachments") || Map.get(metadata, :media_attachments) do
       attachments when is_list(attachments) ->
         Enum.filter(attachments, &is_map/1)
 
@@ -2217,6 +2240,30 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp attachment_alt_text(_attachment), do: nil
+
+  defp video_attachment?(attachment), do: attachment_media_type?(attachment, "video/")
+
+  defp audio_attachment?(attachment), do: attachment_media_type?(attachment, "audio/")
+
+  defp attachment_media_type?(attachment, prefix) when is_map(attachment) do
+    type =
+      attachment
+      |> Map.get("mediaType")
+      |> Kernel.||(Map.get(attachment, :mediaType))
+      |> Kernel.||(Map.get(attachment, "media_type"))
+      |> Kernel.||(Map.get(attachment, :media_type))
+      |> Kernel.||(Map.get(attachment, "type"))
+      |> Kernel.||(Map.get(attachment, :type))
+      |> to_string()
+      |> String.downcase()
+
+    String.starts_with?(type, prefix) ||
+      (prefix == "video/" &&
+         type in ["video", "application/x-mpegurl", "application/vnd.apple.mpegurl"]) ||
+      (prefix == "audio/" && type == "audio")
+  end
+
+  defp attachment_media_type?(_, _), do: false
 
   defp legacy_media_dimension(metadata, key, index) when is_map(metadata) do
     atom_key =
@@ -2727,6 +2774,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Format reactions
     current_user_id = if assigns.current_user, do: assigns.current_user.id, else: nil
     formatted_reactions = PostUtilities.format_reactions(reactions, current_user_id)
+    card_post_path = card_post_path(post)
 
     assigns =
       assigns
@@ -2748,7 +2796,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:community_label, PostUtilities.extract_community_name(community_uri))
       |> assign(:external_link, external_link)
       |> assign(:resolved_link_preview, resolved_link_preview)
-      |> assign(:card_post_path, card_post_path(post))
+      |> assign(:card_post_path, card_post_path)
+      |> assign(:card_post_external?, external_url?(card_post_path))
       |> assign(:reply_count, reply_count)
       |> assign(:reactions, reactions)
       |> assign(:formatted_reactions, formatted_reactions)
@@ -2772,15 +2821,27 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       aria-label={"Post: #{@title || "Untitled"}"}
     >
       <%= if @clickable do %>
-        <.link
-          navigate={@card_post_path}
-          class="hidden"
-          data-post-nav-link
-          tabindex="-1"
-          aria-hidden="true"
-        >
-          Open post
-        </.link>
+        <%= if @card_post_external? do %>
+          <.link
+            href={@card_post_path}
+            class="hidden"
+            data-post-nav-link
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            Open post
+          </.link>
+        <% else %>
+          <.link
+            navigate={@card_post_path}
+            class="hidden"
+            data-post-nav-link
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            Open post
+          </.link>
+        <% end %>
       <% end %>
 
       <div class="flex">
@@ -3225,6 +3286,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     has_image = !Enum.empty?(image_urls)
     thumbnail = if has_image, do: thumbnail_url(hd(image_urls), 64), else: nil
 
+    card_post_path = card_post_path(post)
+
     assigns =
       assigns
       |> assign(:is_reply, is_reply)
@@ -3234,7 +3297,8 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       |> assign(:title, title)
       |> assign(:has_image, has_image)
       |> assign(:thumbnail, thumbnail)
-      |> assign(:card_post_path, card_post_path(post))
+      |> assign(:card_post_path, card_post_path)
+      |> assign(:card_post_external?, external_url?(card_post_path))
 
     ~H"""
     <div
@@ -3249,15 +3313,27 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       phx-hook={if @clickable, do: "PostClick", else: nil}
     >
       <%= if @clickable do %>
-        <.link
-          navigate={@card_post_path}
-          class="hidden"
-          data-post-nav-link
-          tabindex="-1"
-          aria-hidden="true"
-        >
-          Open post
-        </.link>
+        <%= if @card_post_external? do %>
+          <.link
+            href={@card_post_path}
+            class="hidden"
+            data-post-nav-link
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            Open post
+          </.link>
+        <% else %>
+          <.link
+            navigate={@card_post_path}
+            class="hidden"
+            data-post-nav-link
+            tabindex="-1"
+            aria-hidden="true"
+          >
+            Open post
+          </.link>
+        <% end %>
       <% end %>
       
     <!-- Thumbnail -->
@@ -3270,7 +3346,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <div class="flex-1 min-w-0">
         <!-- Title or content preview -->
         <%= if @title do %>
-          <.link navigate={@card_post_path} class="block">
+          <.link
+            href={if @card_post_external?, do: @card_post_path, else: nil}
+            navigate={if @card_post_external?, do: nil, else: @card_post_path}
+            class="block"
+          >
             <h3 class="font-medium text-sm line-clamp-2 mb-1">{@title}</h3>
           </.link>
         <% else %>
@@ -3361,7 +3441,35 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
        when is_integer(id) and not is_nil(reply_to_id),
        do: Elektrine.Paths.remote_post_path(id)
 
+  defp card_post_path(%{id: id} = post) when is_integer(id), do: Elektrine.Paths.post_path(post)
+
+  defp card_post_path(%{activitypub_url: url}) when is_binary(url) do
+    external_post_url(url)
+  end
+
+  defp card_post_path(%{activitypub_id: url}) when is_binary(url) do
+    external_post_url(url)
+  end
+
   defp card_post_path(post), do: Elektrine.Paths.post_path(post)
+
+  defp external_post_url(url) when is_binary(url) do
+    Elektrine.Paths.post_path_or_external(url)
+  end
+
+  defp external_post_url(value), do: Elektrine.Paths.post_path_or_external(value)
+
+  defp external_url?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
+        true
+
+      _ ->
+        false
+    end
+  end
+
+  defp external_url?(_), do: false
 
   defp video_url?(url), do: PostUtilities.video_url?(url)
 

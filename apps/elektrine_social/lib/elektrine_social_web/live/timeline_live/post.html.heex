@@ -382,44 +382,15 @@
                   _ -> []
                 end
               end) %>
-            <%= if full_media_urls != [] do %>
-              <div class="mt-4 grid grid-cols-1 gap-2">
-                <%= for {full_url, idx} <- Enum.with_index(full_media_urls) do %>
-                  <% is_video = String.match?(full_url, ~r/\.(mp4|webm|ogv|mov|avi|mkv)(\?.*)?$/i) %>
-                  <% is_audio = String.match?(full_url, ~r/\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i) %>
-                  <%= cond do %>
-                    <% is_video -> %>
-                      <video
-                        src={full_url}
-                        controls
-                        preload="metadata"
-                        class="rounded-lg w-full max-h-[80vh]"
-                      >
-                        Your browser does not support the video tag.
-                      </video>
-                    <% is_audio -> %>
-                      <div class="p-4 bg-base-200 rounded-lg flex flex-col items-center">
-                        <.icon name="hero-musical-note" class="w-12 h-12 opacity-30 mb-3" />
-                        <audio src={full_url} controls preload="metadata" class="w-full max-w-lg">
-                          Your browser does not support the audio tag.
-                        </audio>
-                      </div>
-                    <% true -> %>
-                      <button
-                        type="button"
-                        phx-click="open_image_modal"
-                        phx-value-url={full_url}
-                        phx-value-images={Jason.encode!(full_media_urls)}
-                        phx-value-index={idx}
-                        phx-value-post_id={@post.id}
-                        class="image-zoom-trigger w-full rounded-lg overflow-hidden"
-                      >
-                        <img src={full_url} alt="" class="rounded-lg w-full object-contain" />
-                      </button>
-                  <% end %>
-                <% end %>
-              </div>
-            <% end %>
+            <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+              urls={full_media_urls}
+              post_id={@post.id}
+              wrapper_class="mt-4"
+              button_class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+              image_class="rounded-lg w-full object-contain"
+              video_class="rounded-lg w-full max-h-[80vh]"
+              audio_class="w-full max-w-lg"
+            />
             
 <!-- Direct Image URLs from content -->
             <% image_urls = Elektrine.Social.Message.extract_image_urls(@post.content || "") %>
