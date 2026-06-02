@@ -594,6 +594,7 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
       end)
 
     [metadata_url | post.media_urls || []]
+    |> Enum.filter(&video_url_candidate?/1)
     |> Enum.map(&video_attachment_url(&1, post))
     |> Enum.find(fn url ->
       is_binary(url) && (PostUtilities.video_url?(url) || video_metadata?(post))
@@ -639,6 +640,9 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
   end
 
   defp video_media_type?(_), do: false
+
+  defp video_url_candidate?(url) when is_binary(url), do: String.trim(url) != ""
+  defp video_url_candidate?(_), do: false
 
   defp video_attachment_url(url, %{federated: true}) when is_binary(url) do
     if String.starts_with?(url, ["http://", "https://"]),

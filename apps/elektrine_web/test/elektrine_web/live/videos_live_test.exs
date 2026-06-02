@@ -88,6 +88,21 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
     assert html =~ ~s(href="/remote/post/#{video.id}")
   end
 
+  test "videos page renders posts when metadata has no attachment url", %{conn: conn} do
+    video =
+      remote_video_post_fixture(
+        title: "Mastodon Video Attachment",
+        media_url: "https://cdn.example/media/video.mp4",
+        media_metadata: %{"type" => "Note"}
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/videos")
+    html = render_async(view)
+
+    assert html =~ video.title
+    assert html =~ ~s(src="https://cdn.example/media/video.mp4")
+  end
+
   defp remote_video_post_fixture(attrs) do
     unique = System.unique_integer([:positive])
     username = attrs[:username] || "video#{unique}"
@@ -106,20 +121,22 @@ defmodule ElektrineSocialWeb.VideosLiveTest do
         activitypub_url: attrs[:activitypub_url] || activitypub_id,
         remote_actor_id: remote_actor.id,
         media_urls: [media_url],
-        media_metadata: %{
-          "type" => "Video",
-          "thumbnail_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
-          "media_attachments" => [
+        media_metadata:
+          attrs[:media_metadata] ||
             %{
-              "type" => "video",
-              "mediaType" => "video/mp4",
-              "url" => media_url,
-              "preview_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
-              "width" => 1280,
-              "height" => 720
+              "type" => "Video",
+              "thumbnail_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
+              "media_attachments" => [
+                %{
+                  "type" => "video",
+                  "mediaType" => "video/mp4",
+                  "url" => media_url,
+                  "preview_url" => "https://#{domain}/lazy-static/previews/#{unique}.jpg",
+                  "width" => 1280,
+                  "height" => 720
+                }
+              ]
             }
-          ]
-        }
       })
 
     Repo.preload(message, remote_actor: [])
