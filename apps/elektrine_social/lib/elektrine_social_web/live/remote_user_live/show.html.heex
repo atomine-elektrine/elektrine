@@ -766,6 +766,18 @@
                           </a>
                         </div>
                       <% end %>
+
+                      <%= if !image_url && is_list(post["attachment"]) && post["attachment"] != [] do %>
+                        <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+                          attachments={post["attachment"]}
+                          post_id={post["id"]}
+                          layout={:single}
+                          wrapper_class="mt-2 mb-2"
+                          button_class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                          image_class="rounded-lg w-full max-h-72 object-contain border border-base-300"
+                          video_class="rounded-lg w-full max-h-72 border border-base-300"
+                        />
+                      <% end %>
                       
 <!-- Meta line -->
                       <div class="flex items-center gap-2 text-xs text-base-content/50 flex-wrap">

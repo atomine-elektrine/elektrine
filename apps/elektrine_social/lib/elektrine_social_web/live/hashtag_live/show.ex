@@ -390,7 +390,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: Paths.post_path(post_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, post_id)}
   end
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do

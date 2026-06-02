@@ -304,6 +304,65 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     assert html =~ ~s(src="#{media_url}")
   end
 
+  test "federated timeline posts render video from media attachment metadata" do
+    media_url = "https://remote.example/download/stream"
+
+    post = %Message{
+      id: 988,
+      federated: true,
+      activitypub_id: "https://remote.example/videos/watch/988",
+      activitypub_url: "https://remote.example/videos/watch/988",
+      post_type: "message",
+      content: "Remote video",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [media_url],
+      media_metadata: %{
+        "media_attachments" => [
+          %{
+            "type" => "video",
+            "mediaType" => "video/mp4",
+            "url" => media_url,
+            "width" => 1280,
+            "height" => 720
+          }
+        ]
+      },
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      remote_actor: %Actor{id: 988, username: "alice", domain: "remote.example"}
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "timeline",
+        current_user: nil,
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: false,
+        on_image_click: nil
+      )
+
+    assert html =~ "<video"
+    assert html =~ ~s(src="#{media_url}")
+    refute html =~ "media-image-988"
+  end
+
   test "timeline child ids are scoped by id prefix" do
     quoted = %Message{
       id: 3319,
@@ -348,6 +407,30 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     assert duplicate_ids(first <> second) == []
   end
 
+  test "unresolved remote timeline cards link to the original external URL" do
+    remote_url = "https://mastodon.social/users/camwilson/statuses/116678821688658069"
+
+    html =
+      render_compact_timeline_post(
+        remote_post(%{id: nil, activitypub_id: remote_url, activitypub_url: remote_url})
+      )
+
+    assert html =~ ~s(href="#{remote_url}")
+    refute html =~ "/remote/post/https%3A%2F%2Fmastodon.social"
+  end
+
+  test "cached remote timeline cards keep using local remote detail" do
+    remote_url = "https://mastodon.social/users/camwilson/statuses/116678821688658069"
+
+    html =
+      render_compact_timeline_post(
+        remote_post(%{id: 12_345, activitypub_id: remote_url, activitypub_url: remote_url})
+      )
+
+    assert html =~ ~s(href="/remote/post/12345")
+    refute html =~ ~s(href="#{remote_url}")
+  end
+
   defp render_timeline_post(post, id_prefix) do
     render_component(&TimelinePost.timeline_post/1,
       post: post,
@@ -372,6 +455,62 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
       clickable: false,
       on_image_click: nil
     )
+  end
+
+  defp render_compact_timeline_post(post) do
+    render_component(&TimelinePost.timeline_post/1,
+      post: post,
+      layout: :compact,
+      source: "timeline",
+      current_user: nil,
+      user_likes: %{},
+      user_boosts: %{},
+      user_saves: %{},
+      user_follows: %{},
+      pending_follows: %{},
+      remote_follow_overrides: %{},
+      user_statuses: %{},
+      lemmy_counts: %{},
+      post_replies: %{},
+      post_interactions: %{},
+      post_reactions_map: %{},
+      reactions: [],
+      clickable: true,
+      on_image_click: nil
+    )
+  end
+
+  defp remote_post(attrs) do
+    defaults = %{
+      id: 1,
+      activitypub_id: "https://remote.example/posts/1",
+      activitypub_url: "https://remote.example/posts/1",
+      post_type: "post",
+      content: "Remote post content",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      upvotes: 0,
+      downvotes: 0,
+      federated: true,
+      remote_actor: %Actor{username: "camwilson", domain: "mastodon.social"},
+      sender: nil,
+      conversation: nil,
+      link_preview: nil,
+      poll: nil,
+      title: nil,
+      auto_title: nil,
+      content_warning: nil,
+      quoted_message_id: nil,
+      quoted_message: nil,
+      reply_to_id: nil
+    }
+
+    Map.merge(defaults, attrs)
   end
 
   defp duplicate_ids(html) do

@@ -1129,6 +1129,19 @@ defmodule ElektrineSocialWeb.TimelineFiltersTest do
     assert_redirect(view, ~p"/remote/post/#{post.id}")
   end
 
+  test "navigate_to_remote_post opens unresolved ActivityPub URLs externally", %{conn: conn} do
+    viewer = AccountsFixtures.user_fixture()
+    remote_url = "https://mastodon.social/users/camwilson/statuses/116678821688658069"
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(viewer)
+      |> live(~p"/timeline?filter=all&view=all")
+
+    assert {:error, {:redirect, %{to: ^remote_url}}} =
+             render_hook(view, "navigate_to_remote_post", %{"url" => remote_url})
+  end
+
   test "navigate_to_post opens local replies directly", %{conn: conn} do
     viewer = AccountsFixtures.user_fixture()
     author = AccountsFixtures.user_fixture()

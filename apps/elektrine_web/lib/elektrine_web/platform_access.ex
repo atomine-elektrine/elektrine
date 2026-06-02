@@ -97,7 +97,8 @@ defmodule ElektrineWeb.PlatformAccess do
           path_matches?(path, "/api/social/communities") ->
         :communities
 
-      path_matches?(path, "/gallery") or path_matches?(path, "/api/social/upload") ->
+      path_matches?(path, "/gallery") or path_matches?(path, "/videos") or
+          path_matches?(path, "/api/social/upload") ->
         :gallery
 
       path_matches?(path, "/lists") ->

@@ -993,108 +993,13 @@
                         <% end %>
                         
 <!-- Media Attachments -->
-                        <%= if @post["attachment"] && is_list(@post["attachment"]) do %>
-                          <% image_media_urls =
-                            Enum.map(@post["attachment"], fn attachment ->
-                              url =
-                                cond do
-                                  is_binary(attachment["url"]) -> attachment["url"]
-                                  is_map(attachment["url"]) -> attachment["url"]["href"]
-                                  true -> nil
-                                end
-
-                              media_type = attachment["mediaType"] || ""
-                              attachment_type = attachment["type"] || ""
-
-                              is_image =
-                                String.starts_with?(media_type, "image/") ||
-                                  attachment_type == "Image" ||
-                                  String.match?(
-                                    url || "",
-                                    ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
-                                  )
-
-                              if is_image, do: url
-                            end)
-                            |> Enum.filter(&is_binary/1) %>
-                          <div class="grid grid-cols-1 gap-3 mb-4">
-                            <%= for {attachment, idx} <- Enum.with_index(@post["attachment"]) do %>
-                              <% url =
-                                cond do
-                                  is_binary(attachment["url"]) -> attachment["url"]
-                                  is_map(attachment["url"]) -> attachment["url"]["href"]
-                                  true -> nil
-                                end
-
-                              media_type = attachment["mediaType"] || ""
-                              attachment_type = attachment["type"] || ""
-
-                              # Check if it's an image by mediaType, attachment type, or URL extension
-                              is_image =
-                                String.starts_with?(media_type, "image/") ||
-                                  attachment_type == "Image" ||
-                                  String.match?(
-                                    url || "",
-                                    ~r/\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
-                                  )
-
-                              is_video =
-                                String.starts_with?(media_type, "video/") ||
-                                  attachment_type == "Video" ||
-                                  String.match?(url || "", ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
-
-                              is_audio =
-                                String.starts_with?(media_type, "audio/") ||
-                                  attachment_type == "Audio" ||
-                                  String.match?(url || "", ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i) %>
-                              <%= if url do %>
-                                <%= cond do %>
-                                  <% is_image -> %>
-                                    <button
-                                      type="button"
-                                      phx-click="open_image_modal"
-                                      phx-value-url={url}
-                                      phx-value-images={Jason.encode!(image_media_urls)}
-                                      phx-value-index={
-                                        Enum.find_index(image_media_urls, &(&1 == url)) || 0
-                                      }
-                                      class="image-zoom-trigger w-full rounded-lg overflow-hidden"
-                                    >
-                                      <img
-                                        src={url}
-                                        alt={attachment["name"] || ""}
-                                        class="rounded-lg w-full border border-base-300"
-                                        loading="lazy"
-                                      />
-                                    </button>
-                                  <% is_video -> %>
-                                    <video
-                                      src={url}
-                                      controls
-                                      preload="metadata"
-                                      class="rounded-lg w-full border border-base-300"
-                                    >
-                                      Your browser does not support the video tag.
-                                    </video>
-                                  <% is_audio -> %>
-                                    <audio src={url} controls preload="metadata" class="w-full">
-                                      Your browser does not support the audio tag.
-                                    </audio>
-                                  <% true -> %>
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      class="text-sm text-primary hover:underline flex items-center gap-1"
-                                    >
-                                      <.icon name="hero-paper-clip" class="w-3 h-3" />
-                                      {attachment["name"] || "Attachment"}
-                                    </a>
-                                <% end %>
-                              <% end %>
-                            <% end %>
-                          </div>
-                        <% end %>
+                        <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+                          attachments={List.wrap(@post["attachment"])}
+                          layout={:single}
+                          wrapper_class="mb-4"
+                          button_class="image-zoom-trigger w-full rounded-lg overflow-hidden"
+                          image_class="rounded-lg w-full border border-base-300"
+                        />
                         
 <!-- Link Preview (from local message if available) -->
                         <% link_preview =

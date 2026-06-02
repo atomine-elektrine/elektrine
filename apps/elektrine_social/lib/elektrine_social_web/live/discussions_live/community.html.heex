@@ -899,33 +899,17 @@
                                     </div>
                                   <% end %>
                                 <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
-                                  <!-- Image Post -->
+                                  <!-- Media Post -->
                                   <% full_urls =
                                     Enum.map(post.media_urls, &Elektrine.Uploads.attachment_url/1) %>
-                                  <div class={[
-                                    "grid gap-2 my-3",
-                                    if(length(post.media_urls) > 1,
-                                      do: "grid-cols-2",
-                                      else: "grid-cols-1"
-                                    )
-                                  ]}>
-                                    <%= for {media_url, idx} <- Enum.with_index(Enum.take(post.media_urls, 4)) do %>
-                                      <button
-                                        type="button"
-                                        phx-click="open_image_modal"
-                                        phx-value-images={Jason.encode!(full_urls)}
-                                        phx-value-index={idx}
-                                        phx-value-post_id={post.id}
-                                        class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
-                                      >
-                                        <img
-                                          src={Elektrine.Uploads.attachment_url(media_url)}
-                                          alt={post.title || ""}
-                                          class="w-full h-full object-cover"
-                                        />
-                                      </button>
-                                    <% end %>
-                                  </div>
+                                  <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+                                    urls={Enum.take(full_urls, 4)}
+                                    post_id={post.id}
+                                    wrapper_class="my-3"
+                                    button_class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
+                                    image_class="w-full h-full object-cover"
+                                    video_class="rounded-lg w-full border border-base-300 max-h-80"
+                                  />
                                   <% preview =
                                     ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
                                       post.content,
@@ -1443,33 +1427,17 @@
                                   </div>
                                 <% end %>
                               <% post.message_type == "image" && post.media_urls && length(post.media_urls) > 0 -> %>
-                                <!-- Image Post: Show images -->
+                                <!-- Media Post: Show media -->
                                 <% full_urls =
                                   Enum.map(post.media_urls, &Elektrine.Uploads.attachment_url/1) %>
-                                <div class={[
-                                  "grid gap-2 my-3",
-                                  if(length(post.media_urls) > 1,
-                                    do: "grid-cols-2",
-                                    else: "grid-cols-1"
-                                  )
-                                ]}>
-                                  <%= for {media_url, idx} <- Enum.with_index(Enum.take(post.media_urls, 4)) do %>
-                                    <button
-                                      type="button"
-                                      phx-click="open_image_modal"
-                                      phx-value-images={Jason.encode!(full_urls)}
-                                      phx-value-index={idx}
-                                      phx-value-post_id={post.id}
-                                      class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
-                                    >
-                                      <img
-                                        src={Elektrine.Uploads.attachment_url(media_url)}
-                                        alt={post.title || ""}
-                                        class="w-full h-full object-cover"
-                                      />
-                                    </button>
-                                  <% end %>
-                                </div>
+                                <ElektrineSocialWeb.Components.Social.RemotePostShared.media_attachments
+                                  urls={Enum.take(full_urls, 4)}
+                                  post_id={post.id}
+                                  wrapper_class="my-3"
+                                  button_class="image-zoom-trigger rounded-lg overflow-hidden border border-base-200 bg-base-200 aspect-video"
+                                  image_class="w-full h-full object-cover"
+                                  video_class="rounded-lg w-full border border-base-300 max-h-80"
+                                />
                                 <% preview =
                                   ElektrineWeb.Components.Social.PostUtilities.render_content_preview(
                                     post.content,

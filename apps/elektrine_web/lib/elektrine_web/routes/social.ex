@@ -239,6 +239,7 @@ defmodule ElektrineWeb.Routes.Social do
         live("/lists", ElektrineSocialWeb.ListLive.Index, :index)
         live("/lists/:id", ElektrineSocialWeb.ListLive.Show, :show)
         live("/gallery", ElektrineSocialWeb.GalleryLive.Index, :index)
+        live("/videos", ElektrineSocialWeb.VideosLive.Index, :index)
         live("/remote/:handle", ElektrineSocialWeb.RemoteUserLive.Show, :show)
         live("/remote/post", ElektrineSocialWeb.RemotePostLive.Show, :show)
         live("/remote/post/:post_id", ElektrineSocialWeb.RemotePostLive.Show, :show)
@@ -255,6 +256,7 @@ defmodule ElektrineWeb.Routes.Social do
       "/timeline",
       "/hashtag",
       "/gallery",
+      "/videos",
       "/lists",
       "/remote",
       "/users/",
@@ -282,7 +284,8 @@ defmodule ElektrineWeb.Routes.Social do
       ElektrineSocialWeb.RemotePostLive.Show,
       ElektrineSocialWeb.RemoteUserLive.Show,
       ElektrineSocialWeb.TimelineLive.Index,
-      ElektrineSocialWeb.TimelineLive.Post
+      ElektrineSocialWeb.TimelineLive.Post,
+      ElektrineSocialWeb.VideosLive.Index
     ]
   end
 end

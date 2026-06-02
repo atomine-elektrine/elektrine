@@ -451,7 +451,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
 
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    {:noreply, push_navigate(socket, to: Elektrine.Paths.post_path(activitypub_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, activitypub_id)}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do

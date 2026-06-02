@@ -6,7 +6,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   import Phoenix.LiveView
 
-  alias Elektrine.{Messaging, Paths}
+  alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
 
   use Phoenix.VerifiedRoutes,
@@ -58,7 +58,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   # Navigate to remote post view by ActivityPub ID (passed as url).
   def handle_event("navigate_to_remote_post", %{"url" => activitypub_id}, socket)
       when is_binary(activitypub_id) and activitypub_id != "" do
-    {:noreply, push_navigate(socket, to: remote_post_path_for_ref(activitypub_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, activitypub_id)}
   end
 
   # Navigate to remote post view by post_id.
@@ -66,9 +66,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
     post =
       Enum.find(socket.assigns[:timeline_posts] || [], &(to_string(&1.id) == to_string(post_id)))
 
-    path = if post, do: Paths.post_path(post), else: timeline_post_path(post_id)
-
-    {:noreply, push_navigate(socket, to: path)}
+    if post do
+      {:noreply, push_navigate(socket, to: Paths.post_path(post))}
+    else
+      {:noreply, ElektrineWeb.PostNavigation.navigate(socket, post_id)}
+    end
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -134,13 +136,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
   end
 
   defp timeline_post_path(value), do: Paths.post_path(value)
-
-  defp remote_post_path_for_ref(ref) when is_binary(ref) do
-    case Messaging.get_message_by_activitypub_ref(ref) do
-      %{id: id} when is_integer(id) -> Paths.remote_post_path(id)
-      _ -> Paths.remote_post_path(ref)
-    end
-  end
 
   defp redirect_to_external_url(socket, url) do
     case SafeExternalURL.normalize(url) do

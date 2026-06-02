@@ -490,6 +490,7 @@ defmodule ElektrineWeb.Layouts do
             "/chat",
             "/timeline",
             "/gallery",
+            "/videos",
             "/email",
             "/communities",
             "/analytics",
@@ -522,6 +523,7 @@ defmodule ElektrineWeb.Layouts do
       String.starts_with?(path, "/discussions") -> "orange"
       String.starts_with?(path, "/d/") -> "orange"
       String.starts_with?(path, "/gallery") -> "pink"
+      String.starts_with?(path, "/videos") -> "pink"
       String.starts_with?(path, "/vpn") -> "green"
       String.starts_with?(path, "/admin") -> "red"
       String.starts_with?(path, "/sysadmin") -> "red"

@@ -96,6 +96,7 @@ defmodule ElektrineWeb.MixProject do
       ElektrineSocialWeb.RemoteUserLive.Show,
       ElektrineSocialWeb.TimelineLive.Index,
       ElektrineSocialWeb.TimelineLive.Post,
+      ElektrineSocialWeb.VideosLive.Index,
       ElektrineEmailWeb.UnsubscribeController,
       ElektrineEmailWeb.UnsubscribeLive.Show,
       ElektrineVPNWeb.VPNAPIController,

@@ -353,7 +353,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
     assert inspect(updated_socket.redirected) =~ "/timeline/post/42"
   end
 
-  test "routes embedded remote post URLs through remote post detail" do
+  test "opens unresolved embedded remote post URLs externally" do
     socket = %Phoenix.LiveView.Socket{assigns: %{}}
 
     assert {:noreply, updated_socket} =
@@ -363,8 +363,7 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
                socket
              )
 
-    assert inspect(updated_socket.redirected) =~
-             "/remote/post/https%3A%2F%2Fexample.com%2Fposts%2F1"
+    assert inspect(updated_socket.redirected) =~ ~s(external: "https://example.com/posts/1")
   end
 
   test "ignores placeholder embedded post URLs" do
@@ -671,6 +670,57 @@ defmodule ElektrineSocialWeb.RemotePostLiveShowTest do
 
     assert [%{"url" => "https://remote.example/media/image.webp"}] =
              updated_socket.assigns.post["attachment"]
+  end
+
+  test "cached federated PeerTube videos render a player on remote detail", %{conn: conn} do
+    unique = System.unique_integer([:positive])
+    activitypub_id = "https://peertube.example/videos/watch/#{unique}"
+    video_url = "https://peertube.example/download/stream/#{unique}"
+    preview_url = "https://peertube.example/lazy-static/previews/#{unique}.jpg"
+
+    remote_actor =
+      %Actor{}
+      |> Actor.changeset(%{
+        uri: "https://peertube.example/accounts/video#{unique}",
+        username: "video#{unique}",
+        domain: "peertube.example",
+        inbox_url: "https://peertube.example/accounts/video#{unique}/inbox",
+        public_key: "test-public-key-video-#{unique}"
+      })
+      |> Repo.insert!()
+
+    {:ok, message} =
+      Messaging.create_federated_message(%{
+        content: "PeerTube video caption",
+        title: "PeerTube video detail",
+        visibility: "public",
+        activitypub_id: activitypub_id,
+        activitypub_url: activitypub_id,
+        federated: true,
+        remote_actor_id: remote_actor.id,
+        media_urls: [video_url],
+        media_metadata: %{
+          "type" => "Video",
+          "media_attachments" => [
+            %{
+              "type" => "video",
+              "mediaType" => "video/mp4",
+              "url" => video_url,
+              "preview_url" => preview_url,
+              "width" => 1280,
+              "height" => 720
+            }
+          ]
+        }
+      })
+
+    {:ok, _view, html} = live(conn, ~p"/remote/post/#{message.id}")
+
+    assert html =~ "PeerTube video detail"
+    assert html =~ "<video"
+    assert html =~ ~s(src="#{video_url}")
+    assert html =~ ~s(poster="#{preview_url}")
+    refute html =~ ~s(<img src="#{video_url}")
   end
 
   test "platform count refresh does not lower an already displayed reply count" do

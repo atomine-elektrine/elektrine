@@ -2105,10 +2105,12 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         full_url = message_attachment_url(url, msg)
 
         if Elektrine.Strings.present?(full_url) do
+          attachment_type = media_attachment_type(full_url, metadata)
+
           %{
-            "type" => media_attachment_type(full_url),
+            "type" => attachment_type,
             "url" => full_url,
-            "mediaType" => media_attachment_type(full_url) |> default_media_type()
+            "mediaType" => default_media_type(attachment_type)
           }
         end
       end)
@@ -2122,7 +2124,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
       |> Enum.flat_map(&normalize_attachment_list/1)
       |> Enum.map(&normalize_cached_attachment/1)
 
-    (media_url_attachments ++ metadata_attachments)
+    (metadata_attachments ++ media_url_attachments)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(&attachment_url/1)
   end
@@ -2146,6 +2148,10 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         "type" => type,
         "url" => url,
         "mediaType" => media_type,
+        "preview_url" => field_value(attachment, ["preview_url", :preview_url]),
+        "width" => field_value(attachment, ["width", :width]),
+        "height" => field_value(attachment, ["height", :height]),
+        "duration" => field_value(attachment, ["duration", :duration]),
         "name" => field_value(attachment, ["name", :name, "description", :description])
       }
     end
@@ -2153,16 +2159,51 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   defp normalize_cached_attachment(_), do: nil
 
-  defp media_attachment_type(url) when is_binary(url) do
+  defp media_attachment_type(url, metadata \\ %{}) when is_binary(url) do
     cond do
       String.match?(url, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i) -> "Video"
       String.match?(url, ~r/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i) -> "Audio"
+      video_object_metadata?(metadata) -> "Video"
       true -> "Image"
     end
   end
 
-  defp default_media_type("Video"), do: "video/mp4"
-  defp default_media_type("Audio"), do: "audio/mpeg"
+  defp video_object_metadata?(metadata) when is_map(metadata) do
+    type = metadata |> field_value(["type", :type]) |> to_string() |> String.downcase()
+
+    type == "video" ||
+      metadata
+      |> field_value(["media_attachments", :media_attachments, "attachments", :attachments])
+      |> normalize_attachment_list()
+      |> Enum.any?(fn attachment ->
+        media_type = field_value(attachment, ["mediaType", :mediaType, "media_type", :media_type])
+
+        attachment_type =
+          attachment |> field_value(["type", :type]) |> to_string() |> String.downcase()
+
+        attachment_type == "video" || video_media_type?(media_type)
+      end)
+  end
+
+  defp video_object_metadata?(_), do: false
+
+  defp video_media_type?(media_type) when is_binary(media_type) do
+    media_type = String.downcase(media_type)
+
+    String.starts_with?(media_type, "video/") ||
+      media_type in ["application/x-mpegurl", "application/vnd.apple.mpegurl"]
+  end
+
+  defp video_media_type?(_), do: false
+
+  defp default_media_type(type) when is_binary(type) do
+    case String.downcase(type) do
+      "video" -> "video/mp4"
+      "audio" -> "audio/mpeg"
+      _ -> "image/jpeg"
+    end
+  end
+
   defp default_media_type(_), do: "image/jpeg"
 
   defp message_attachment_url(url, %{federated: true}) when is_binary(url) do
@@ -6157,7 +6198,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
 
   def handle_event("navigate_to_embedded_post", %{"id" => id}, socket) do
     navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.post_path(navigate_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_id)}
   end
 
   def handle_event("navigate_to_embedded_post", %{"url" => url}, socket)
@@ -6169,7 +6210,7 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         {:noreply, push_navigate(socket, to: trimmed_url)}
 
       %URI{scheme: scheme} when scheme in ["http", "https"] ->
-        {:noreply, push_navigate(socket, to: Paths.post_path(trimmed_url))}
+        {:noreply, ElektrineWeb.PostNavigation.navigate(socket, trimmed_url)}
 
       _ ->
         {:noreply, socket}
@@ -6181,15 +6222,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
   end
 
   def handle_event("navigate_to_post", %{"post_id" => post_id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, post_id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, post_id))}
   end
 
   def handle_event("navigate_to_post", %{"id" => id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, id))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, id))}
   end
 
   def handle_event("navigate_to_post", %{"message_id" => message_id}, socket) do
-    {:noreply, push_navigate(socket, to: navigate_post_path(socket, message_id))}
+    {:noreply,
+     ElektrineWeb.PostNavigation.navigate(socket, navigate_post_path(socket, message_id))}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id, "url" => url}, socket)
@@ -6197,25 +6239,23 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
     path =
       case parse_local_message_id(decode_post_ref(id)) do
         {:ok, local_id} -> Paths.remote_post_path(local_id)
-        :error -> Paths.post_path(url)
+        :error -> Paths.post_path_or_external(url)
       end
 
-    {:noreply, push_navigate(socket, to: path)}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, path)}
   end
 
   def handle_event("navigate_to_remote_post", %{"url" => url}, socket)
       when is_binary(url) and url != "" do
-    {:noreply, push_navigate(socket, to: Paths.post_path(url))}
+    {:noreply, ElektrineWeb.PostNavigation.navigate(socket, url)}
   end
 
   def handle_event("navigate_to_remote_post", %{"id" => id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, id)
-    {:noreply, push_navigate(socket, to: Paths.remote_post_path(navigate_id))}
+    {:noreply, navigate_to_remote_post_ref(socket, id)}
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do
-    navigate_id = normalize_navigate_post_id(socket, post_id)
-    {:noreply, push_navigate(socket, to: Paths.remote_post_path(navigate_id))}
+    {:noreply, navigate_to_remote_post_ref(socket, post_id)}
   end
 
   def handle_event("navigate_to_remote_post", _params, socket) do
@@ -7504,7 +7544,16 @@ defmodule ElektrineSocialWeb.RemotePostLive.Show do
         Paths.post_path(post || id)
 
       :error ->
-        Paths.post_path(normalize_navigate_post_id(socket, decoded_value))
+        Paths.post_path_or_external(normalize_navigate_post_id(socket, decoded_value))
+    end
+  end
+
+  defp navigate_to_remote_post_ref(socket, value) do
+    navigate_id = normalize_navigate_post_id(socket, value)
+
+    case parse_local_message_id(navigate_id) do
+      {:ok, local_id} -> push_navigate(socket, to: Paths.remote_post_path(local_id))
+      :error -> ElektrineWeb.PostNavigation.navigate(socket, navigate_id)
     end
   end
 
