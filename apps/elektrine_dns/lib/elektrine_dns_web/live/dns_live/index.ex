@@ -839,58 +839,85 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                         phx-change="record_validate"
                         phx-submit="record_create"
                       >
-                        <div class="grid gap-x-4 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
-                          <.input
-                            field={@record_form[:name]}
-                            label="Name"
-                            placeholder="@ or www"
-                            required
-                          />
-                          <p class="text-xs text-base-content/55">
-                            {record_name_field_help(@active_zone, @current_user)}
-                          </p>
-                          <.input
-                            field={@record_form[:type]}
-                            type="select"
-                            label="Type"
-                            options={Enum.map(@record_types, &{&1, &1})}
-                          />
-                          <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
-                          <% value_spec = record_value_spec(@record_form) %>
-                          <.input
-                            field={@record_form[:content]}
-                            label={value_spec.label}
-                            placeholder={value_spec.placeholder}
-                            required
-                          />
-                          <p class="text-xs text-base-content/55">
-                            {record_value_help(@record_form)}
-                          </p>
-                          <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                          <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
-                          <.input
-                            field={@record_form[:private]}
-                            type="checkbox"
-                            label="Private record"
-                          />
-                          <p class="text-xs text-base-content/55">
-                            Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
-                          </p>
-                          <.input
-                            field={@record_form[:proxied]}
-                            type="checkbox"
-                            label="Proxy through Elektrine"
-                          />
-                          <p class="text-xs text-base-content/55">
-                            Return Elektrine edge addresses publicly and keep this record value as the protected origin.
-                          </p>
-                          <%= for spec <- record_param_specs(@record_form) do %>
+                        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                          <div class="space-y-1">
                             <.input
-                              field={@record_form[spec.field]}
-                              type={spec.type}
-                              label={spec.label}
-                              placeholder={spec.placeholder}
+                              field={@record_form[:name]}
+                              label="Name"
+                              placeholder="@ or www"
+                              required
                             />
+                            <p class="text-xs text-base-content/55">
+                              {record_name_field_help(@active_zone, @current_user)}
+                            </p>
+                          </div>
+
+                          <div class="space-y-1">
+                            <.input
+                              field={@record_form[:type]}
+                              type="select"
+                              label="Type"
+                              options={Enum.map(@record_types, &{&1, &1})}
+                            />
+                            <p class="text-xs text-base-content/55">
+                              {record_type_help(@record_form)}
+                            </p>
+                          </div>
+
+                          <% value_spec = record_value_spec(@record_form) %>
+                          <div class={[
+                            "space-y-1",
+                            if(value_spec.type == "textarea", do: "md:col-span-2 xl:col-span-3")
+                          ]}>
+                            <.input
+                              field={@record_form[:content]}
+                              type={value_spec.type}
+                              label={value_spec.label}
+                              placeholder={value_spec.placeholder}
+                              rows={if value_spec.type == "textarea", do: "5"}
+                              required
+                            />
+                            <p class="text-xs text-base-content/55">
+                              {record_value_help(@record_form)}
+                            </p>
+                          </div>
+
+                          <div class="space-y-1">
+                            <.input field={@record_form[:ttl]} type="number" label="TTL" />
+                            <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
+                          </div>
+
+                          <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+                            <.input
+                              field={@record_form[:private]}
+                              type="checkbox"
+                              label="Private record"
+                            />
+                            <p class="text-xs text-base-content/55">
+                              Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+                            </p>
+                          </div>
+
+                          <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+                            <.input
+                              field={@record_form[:proxied]}
+                              type="checkbox"
+                              label="Proxy through Elektrine"
+                            />
+                            <p class="text-xs text-base-content/55">
+                              Return Elektrine edge addresses publicly and keep this record value as the protected origin.
+                            </p>
+                          </div>
+
+                          <%= for spec <- record_param_specs(@record_form) do %>
+                            <div class="space-y-1">
+                              <.input
+                                field={@record_form[spec.field]}
+                                type={spec.type}
+                                label={spec.label}
+                                placeholder={spec.placeholder}
+                              />
+                            </div>
                           <% end %>
                         </div>
                         <:actions>
@@ -1090,56 +1117,83 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
                   phx-change="record_validate"
                   phx-submit="record_create"
                 >
-                  <div class="grid gap-x-4 gap-y-5 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                    <.input
-                      field={@record_form[:name]}
-                      label="Name"
-                      placeholder={record_name_placeholder(@active_zone, @current_user)}
-                      required
-                    />
-                    <p class="text-xs text-base-content/55">
-                      {record_name_field_help(@active_zone, @current_user)}
-                    </p>
-                    <.input
-                      field={@record_form[:type]}
-                      type="select"
-                      label="Type"
-                      options={Enum.map(@record_types, &{&1, &1})}
-                    />
-                    <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
-                    <% value_spec = record_value_spec(@record_form) %>
-                    <.input
-                      field={@record_form[:content]}
-                      label={value_spec.label}
-                      placeholder={value_spec.placeholder}
-                      required
-                    />
-                    <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
-                    <.input field={@record_form[:ttl]} type="number" label="TTL" />
-                    <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
-                    <.input
-                      field={@record_form[:private]}
-                      type="checkbox"
-                      label="Private record"
-                    />
-                    <p class="text-xs text-base-content/55">
-                      Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
-                    </p>
-                    <.input
-                      field={@record_form[:proxied]}
-                      type="checkbox"
-                      label="Proxy through Elektrine"
-                    />
-                    <p class="text-xs text-base-content/55">
-                      Return Elektrine edge addresses publicly and keep this record value as the protected origin.
-                    </p>
-                    <%= for spec <- record_param_specs(@record_form) do %>
+                  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                    <div class="space-y-1">
                       <.input
-                        field={@record_form[spec.field]}
-                        type={spec.type}
-                        label={spec.label}
-                        placeholder={spec.placeholder}
+                        field={@record_form[:name]}
+                        label="Name"
+                        placeholder={record_name_placeholder(@active_zone, @current_user)}
+                        required
                       />
+                      <p class="text-xs text-base-content/55">
+                        {record_name_field_help(@active_zone, @current_user)}
+                      </p>
+                    </div>
+
+                    <div class="space-y-1">
+                      <.input
+                        field={@record_form[:type]}
+                        type="select"
+                        label="Type"
+                        options={Enum.map(@record_types, &{&1, &1})}
+                      />
+                      <p class="text-xs text-base-content/55">{record_type_help(@record_form)}</p>
+                    </div>
+
+                    <% value_spec = record_value_spec(@record_form) %>
+                    <div class={[
+                      "space-y-1",
+                      if(value_spec.type == "textarea",
+                        do: "md:col-span-2 xl:col-span-1 2xl:col-span-2"
+                      )
+                    ]}>
+                      <.input
+                        field={@record_form[:content]}
+                        type={value_spec.type}
+                        label={value_spec.label}
+                        placeholder={value_spec.placeholder}
+                        rows={if value_spec.type == "textarea", do: "5"}
+                        required
+                      />
+                      <p class="text-xs text-base-content/55">{record_value_help(@record_form)}</p>
+                    </div>
+
+                    <div class="space-y-1">
+                      <.input field={@record_form[:ttl]} type="number" label="TTL" />
+                      <p class="text-xs text-base-content/55">{ttl_help_text(@active_zone)}</p>
+                    </div>
+
+                    <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+                      <.input
+                        field={@record_form[:private]}
+                        type="checkbox"
+                        label="Private record"
+                      />
+                      <p class="text-xs text-base-content/55">
+                        Only recursive/private DNS clients can resolve this record. Public authoritative queries will not receive it.
+                      </p>
+                    </div>
+
+                    <div class="space-y-1 rounded-xl border border-base-content/10 bg-base-100/50 p-3">
+                      <.input
+                        field={@record_form[:proxied]}
+                        type="checkbox"
+                        label="Proxy through Elektrine"
+                      />
+                      <p class="text-xs text-base-content/55">
+                        Return Elektrine edge addresses publicly and keep this record value as the protected origin.
+                      </p>
+                    </div>
+
+                    <%= for spec <- record_param_specs(@record_form) do %>
+                      <div class="space-y-1">
+                        <.input
+                          field={@record_form[spec.field]}
+                          type={spec.type}
+                          label={spec.label}
+                          placeholder={spec.placeholder}
+                        />
+                      </div>
                     <% end %>
                   </div>
                   <:actions>
@@ -2260,28 +2314,32 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp record_value_spec(form) do
     case record_form_type(form) do
       "DNSKEY" ->
-        %{label: "Public key", placeholder: "AwEAAc..."}
+        %{label: "Public key", placeholder: "AwEAAc...", type: "textarea"}
 
       "DS" ->
-        %{label: "Digest", placeholder: "2BB183AF5F22588179A53B0A98631FAD1A292118"}
+        %{label: "Digest", placeholder: "2BB183AF5F22588179A53B0A98631FAD1A292118", type: "text"}
 
       "HTTPS" ->
-        %{label: "Target and parameters", placeholder: ". alpn=h2,h3 port=443"}
+        %{label: "Target and parameters", placeholder: ". alpn=h2,h3 port=443", type: "text"}
 
       "SSHFP" ->
-        %{label: "Fingerprint", placeholder: "1234567890ABCDEF1234567890ABCDEF"}
+        %{label: "Fingerprint", placeholder: "1234567890ABCDEF1234567890ABCDEF", type: "text"}
 
       "SVCB" ->
-        %{label: "Target and parameters", placeholder: "svc.example.net alpn=h2 port=8443"}
+        %{
+          label: "Target and parameters",
+          placeholder: "svc.example.net alpn=h2 port=8443",
+          type: "text"
+        }
 
       "TLSA" ->
-        %{label: "Certificate data", placeholder: "A1B2C3D4..."}
+        %{label: "Certificate data", placeholder: "A1B2C3D4...", type: "textarea"}
 
       "TXT" ->
-        %{label: "Text value", placeholder: "v=spf1 mx ~all"}
+        %{label: "Text value", placeholder: "v=spf1 mx ~all", type: "textarea"}
 
       _ ->
-        %{label: "Value", placeholder: "198.51.100.42"}
+        %{label: "Value", placeholder: "198.51.100.42", type: "text"}
     end
   end
 

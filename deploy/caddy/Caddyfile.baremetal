@@ -3,7 +3,7 @@
 	storage file_system /data/caddy
 
 	on_demand_tls {
-		ask {$CADDY_ASK_URL}?edge_token={$CADDY_EDGE_API_KEY}
+		ask {$CADDY_ASK_URL}
 		interval 2m
 		burst 10
 	}

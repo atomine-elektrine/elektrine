@@ -394,7 +394,7 @@ defmodule ElektrineSocialWeb.HashtagLive.Show do
   end
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do
-    {:noreply, push_navigate(socket, to: ~p"/#{handle}")}
+    ElektrineWeb.ProfileNavigation.navigate(socket, %{"handle" => handle})
   end
 
   def handle_event("toggle_post_composer", _params, socket) do

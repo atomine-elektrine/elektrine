@@ -418,7 +418,8 @@ defmodule Elektrine.Uploads do
     unique_filename = "#{user_id}_#{System.unique_integer([:positive])}_#{safe_filename}"
     key = "#{folder}/#{unique_filename}"
 
-    case ExAws.S3.put_object(bucket, key, binary, content_type: mime_type) |> ExAws.request() do
+    case ExAws.S3.put_object(bucket, key, binary, s3_put_options(key, mime_type))
+         |> ExAws.request() do
       {:ok, _response} -> {:ok, key}
       {:error, reason} -> {:error, "Upload failed: #{inspect(reason)}"}
     end
@@ -768,7 +769,7 @@ defmodule Elektrine.Uploads do
       {:ok, file_content} ->
         content_type = upload.content_type || MIME.from_path(upload.filename)
 
-        case ExAws.S3.put_object(bucket, key, file_content, content_type: content_type)
+        case ExAws.S3.put_object(bucket, key, file_content, s3_put_options(key, content_type))
              |> ExAws.request() do
           {:ok, _response} -> {:ok, key}
           {:error, reason} -> {:error, "Upload failed: #{inspect(reason)}"}
@@ -1161,7 +1162,6 @@ defmodule Elektrine.Uploads do
 
       true ->
         bucket = get_config(:bucket)
-        config = ExAws.Config.new(:s3)
 
         key =
           if String.contains?(attachment, "/") do
@@ -1171,18 +1171,29 @@ defmodule Elektrine.Uploads do
           end
 
         if is_binary(bucket) and bucket != "" do
+          config = ExAws.Config.new(:s3)
+
           case ExAws.S3.presigned_url(config, :get, bucket, key,
                  expires_in: 3600,
                  virtual_host: false,
                  query_params: [{"response-content-disposition", "attachment"}]
                ) do
             {:ok, url} -> url
-            _ -> attachment_url_direct(attachment)
+            _ -> nil
           end
         else
-          attachment_url_direct(attachment)
+          nil
         end
     end
+  end
+
+  defp s3_put_options(key, content_type) do
+    [content_type: content_type]
+    |> maybe_put_private_acl(key)
+  end
+
+  defp maybe_put_private_acl(opts, key) when is_binary(key) do
+    if allowed_private_attachment_prefix?(key), do: Keyword.put(opts, :acl, :private), else: opts
   end
 
   def verify_private_attachment_token(token) when is_binary(token) do

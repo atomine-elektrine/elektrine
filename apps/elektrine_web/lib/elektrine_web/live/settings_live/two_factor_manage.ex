@@ -28,7 +28,7 @@ defmodule ElektrineWeb.SettingsLive.TwoFactorManage do
       current_user={@current_user}
     >
       <div id="2fa-manage-card" class="card panel-card border border-base-300">
-        <div class="card-body">
+        <div class="card-body p-4 sm:p-6">
           <.section_header
             title="Two-factor is enabled"
             description="Your account requires an authenticator code or backup code after password login."

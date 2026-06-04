@@ -7,31 +7,46 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
   require Logger
 
   alias Elektrine.InternalAPI
+  alias ElektrineWeb.ClientIP
 
   def init(opts) do
     opts
     |> Keyword.put_new(:env_names, ["PHOENIX_API_KEY"])
     |> Keyword.put_new(:param_names, [])
+    |> Keyword.put_new(:source_cidrs, [])
+    |> Keyword.put_new(:source_cidrs_env_names, [])
   end
 
   def call(conn, opts) do
-    case configured_api_key(opts) do
-      nil ->
+    cond do
+      key_authorized?(conn, opts) ->
+        conn
+
+      source_authorized?(conn, opts) ->
+        conn
+
+      is_nil(configured_api_key(opts)) and source_cidrs(opts) == [] ->
         Logger.error("SECURITY: Internal API authentication configuration error")
         unauthorized(conn)
 
-      expected_key ->
-        case provided_key(conn, opts) do
-          provided_key when is_binary(provided_key) ->
-            if secure_compare(provided_key, expected_key) do
-              conn
-            else
-              unauthorized(conn)
-            end
+      true ->
+        unauthorized(conn)
+    end
+  end
 
-          _ ->
-            unauthorized(conn)
-        end
+  defp key_authorized?(conn, opts) do
+    with expected_key when is_binary(expected_key) <- configured_api_key(opts),
+         provided_key when is_binary(provided_key) <- provided_key(conn, opts) do
+      secure_compare(provided_key, expected_key)
+    else
+      _ -> false
+    end
+  end
+
+  defp source_authorized?(conn, opts) do
+    case source_cidrs(opts) do
+      [] -> false
+      cidrs -> ClientIP.ip_in_cidrs?(conn.remote_ip, cidrs)
     end
   end
 
@@ -51,9 +66,9 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
     end)
   end
 
-  # Query params decode "+" as space, which breaks base64-style shared secrets
-  # used by Caddy ask URLs. Prefer the raw query string so literal plus signs
-  # survive intact, then fall back to Plug's decoded params for normal cases.
+  # Query params decode "+" as space, which breaks base64-style shared secrets.
+  # Prefer the raw query string so literal plus signs survive intact, then fall
+  # back to Plug's decoded params for legacy/internal callers that opt into params.
   defp raw_query_param(query_string, name)
 
   defp raw_query_param(query_string, name)
@@ -101,6 +116,22 @@ defmodule ElektrineWeb.Plugs.InternalAPIAuth do
 
   defp configured_api_key(opts) do
     opts |> Keyword.fetch!(:env_names) |> InternalAPI.api_key()
+  end
+
+  defp source_cidrs(opts) do
+    configured_cidrs = Keyword.get(opts, :source_cidrs, [])
+
+    env_cidrs =
+      opts
+      |> Keyword.get(:source_cidrs_env_names, [])
+      |> Enum.flat_map(fn env_name ->
+        env_name
+        |> System.get_env("")
+        |> String.split(~r/[\s,]+/, trim: true)
+        |> Enum.map(&String.trim/1)
+      end)
+
+    Enum.uniq(configured_cidrs ++ env_cidrs)
   end
 
   defp secure_compare(provided_key, expected_key) do

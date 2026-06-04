@@ -22,30 +22,20 @@ defmodule Elektrine.Social.OEmbed do
 
   require Logger
 
-  @known_providers %{
-    # YouTube
-    ~r/youtube\.com\/watch/ => "https://www.youtube.com/oembed",
-    ~r/youtu\.be\// => "https://www.youtube.com/oembed",
-    # Vimeo
-    ~r/vimeo\.com\// => "https://vimeo.com/api/oembed.json",
-    # Twitter/X
-    ~r/twitter\.com\// => "https://publish.twitter.com/oembed",
-    ~r/x\.com\// => "https://publish.twitter.com/oembed",
-    # Spotify
-    ~r/open\.spotify\.com\// => "https://open.spotify.com/oembed",
-    # SoundCloud
-    ~r/soundcloud\.com\// => "https://soundcloud.com/oembed",
-    # TikTok
-    ~r/tiktok\.com\// => "https://www.tiktok.com/oembed",
-    # Instagram
-    ~r/instagram\.com\// => "https://api.instagram.com/oembed",
-    # Imgur
-    ~r/imgur\.com\// => "https://api.imgur.com/oembed",
-    # CodePen
-    ~r/codepen\.io\// => "https://codepen.io/api/oembed",
-    # Reddit
-    ~r/reddit\.com\// => "https://www.reddit.com/oembed"
-  }
+  @known_providers [
+    {"youtube.com", "/watch", "https://www.youtube.com/oembed"},
+    {"youtu.be", nil, "https://www.youtube.com/oembed"},
+    {"vimeo.com", nil, "https://vimeo.com/api/oembed.json"},
+    {"twitter.com", nil, "https://publish.twitter.com/oembed"},
+    {"x.com", nil, "https://publish.twitter.com/oembed"},
+    {"open.spotify.com", nil, "https://open.spotify.com/oembed"},
+    {"soundcloud.com", nil, "https://soundcloud.com/oembed"},
+    {"tiktok.com", nil, "https://www.tiktok.com/oembed"},
+    {"instagram.com", nil, "https://api.instagram.com/oembed"},
+    {"imgur.com", nil, "https://api.imgur.com/oembed"},
+    {"codepen.io", nil, "https://codepen.io/api/oembed"},
+    {"reddit.com", nil, "https://www.reddit.com/oembed"}
+  ]
 
   @type oembed :: %{
           type: String.t(),
@@ -82,20 +72,43 @@ defmodule Elektrine.Social.OEmbed do
   Checks if a URL is from a known OEmbed provider.
   """
   def known_provider?(url) do
-    Enum.any?(@known_providers, fn {pattern, _} -> Regex.match?(pattern, url) end)
+    case URI.parse(url) do
+      %URI{} = uri -> Enum.any?(@known_providers, &provider_match?(uri, &1))
+      _ -> false
+    end
   end
 
   # Private functions
 
   defp find_provider(url) do
-    Enum.find_value(@known_providers, :not_found, fn {pattern, endpoint} ->
-      if Regex.match?(pattern, url) do
+    uri = URI.parse(url)
+
+    Enum.find_value(@known_providers, :not_found, fn provider ->
+      if provider_match?(uri, provider) do
+        {_, _, endpoint} = provider
         {:ok, endpoint}
       else
         nil
       end
     end)
   end
+
+  defp provider_match?(%URI{host: host, path: path}, {provider_host, required_path, _endpoint})
+       when is_binary(host) do
+    host = String.downcase(host)
+    path = path || "/"
+
+    provider_host?(host, provider_host) and provider_path?(path, required_path)
+  end
+
+  defp provider_match?(_, _), do: false
+
+  defp provider_host?(host, provider_host) do
+    host == provider_host or String.ends_with?(host, ".#{provider_host}")
+  end
+
+  defp provider_path?(_path, nil), do: true
+  defp provider_path?(path, required_path), do: String.starts_with?(path, required_path)
 
   defp fetch_from_endpoint(endpoint, url) do
     encoded_url = URI.encode_www_form(url)

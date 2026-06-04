@@ -344,7 +344,7 @@ defmodule Elektrine.Email.Mailboxes do
   end
 
   @doc """
-  Updates optional Digest/Ledger inbox category filters for a mailbox.
+  Updates optional mailbox filters for a mailbox.
   """
   def update_mailbox_category_filters(%Mailbox{} = mailbox, attrs) do
     mailbox
@@ -360,7 +360,7 @@ defmodule Elektrine.Email.Mailboxes do
   end
 
   @doc """
-  Returns an `%Ecto.Changeset{}` for tracking mailbox category filter changes.
+  Returns an `%Ecto.Changeset{}` for tracking mailbox filter changes.
   """
   def change_mailbox_category_filters(%Mailbox{} = mailbox, attrs \\ %{}) do
     Mailbox.category_filter_changeset(mailbox, attrs)

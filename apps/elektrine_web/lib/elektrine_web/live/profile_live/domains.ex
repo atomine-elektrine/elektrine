@@ -1,8 +1,8 @@
 defmodule ElektrineWeb.ProfileLive.Domains do
   use ElektrineWeb, :live_view
 
-  alias Elektrine.{Accounts, Domains, Profiles}
   alias Elektrine.Accounts.User
+  alias Elektrine.{DNS, Domains, Profiles}
   alias ElektrineWeb.Platform.Integrations
 
   @impl true
@@ -21,7 +21,7 @@ defmodule ElektrineWeb.ProfileLive.Domains do
   @impl true
   def handle_event("update_builtin_profile_hosting", %{"mode" => mode}, socket)
       when mode in ["path", "platform"] do
-    case Accounts.update_user(socket.assigns.user, %{built_in_subdomain_mode: mode}) do
+    case DNS.update_builtin_user_zone_mode(socket.assigns.user, mode) do
       {:ok, user} ->
         message =
           case mode do
@@ -318,11 +318,11 @@ defmodule ElektrineWeb.ProfileLive.Domains do
                     Enable handle subdomain
                   </button>
                   <span class="text-xs text-base-content/60">
-                    Enable only after your
+                    Elektrine manages DNS for
                     <span class="font-mono">
                       {user_handle(@user)}.{Domains.default_profile_domain()}
                     </span>
-                    DNS works.
+                    automatically.
                   </span>
                 <% end %>
               </div>

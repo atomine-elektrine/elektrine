@@ -1219,7 +1219,7 @@ function printBackupCodes(codes) {
       </div>
 
       <div class="codes-grid">
-        ${codes.map(code => `<div class="code">${code}</div>`).join('')}
+        ${codes.map(code => `<div class="code">${escapeHtml(String(code))}</div>`).join('')}
       </div>
     </body>
     </html>
@@ -1228,6 +1228,15 @@ function printBackupCodes(codes) {
   printWindow.document.write(printContent)
   printWindow.document.close()
   printWindow.print()
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
 }
 
 // Scroll to top button that appears when scrolled down

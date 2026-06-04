@@ -320,6 +320,8 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
     mailbox = Email.get_user_mailbox(user_id) || socket.assigns.mailbox
 
     attrs = %{
+      "auto_reply_enabled" => truthy_form_value?(params["auto_reply_enabled"]),
+      "spam_filter_enabled" => truthy_form_value?(params["spam_filter_enabled"]),
       "digest_filter_enabled" => truthy_form_value?(params["digest_filter_enabled"]),
       "ledger_filter_enabled" => truthy_form_value?(params["ledger_filter_enabled"])
     }
@@ -330,7 +332,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
 
         {:noreply,
          socket
-         |> put_flash(:info, "Inbox category filters updated")
+         |> put_flash(:info, "Mailbox filters updated")
          |> assign(:mailbox, mailbox)
          |> assign(
            :mailbox_filter_form,
@@ -1013,7 +1015,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <.elektrine_nav active_tab="email" current_user={@current_user} />
 
-      <div class="flex flex-col lg:flex-row gap-3 lg:gap-6 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
+      <div class="email-sidebar-layout flex flex-col lg:flex-row items-start gap-4 lg:gap-3 min-h-[calc(100vh-10rem)] lg:min-h-[calc(100vh-12rem)]">
         <.sidebar
           current_page="settings"
           unread_count={@unread_count}
@@ -1025,7 +1027,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           current_folder_id={@current_folder_id}
         />
 
-        <div class="flex-1 min-w-0">
+        <div class="w-full flex-1 min-w-0 max-w-full overflow-visible">
           <div
             id="email-settings-card"
             class="card panel-card rounded-lg"
@@ -1211,9 +1213,10 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_safe_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Safe Senders</h2>
+      <h2 class="text-xl font-semibold mb-4">Spam Exceptions</h2>
       <p class="text-base-content/70 mb-4">
-        Emails from safe senders will never be marked as spam.
+        Add sender addresses or domains that should bypass automatic spam-folder classification.
+        Server-side security checks can still reject dangerous or unauthenticated mail.
       </p>
       
     <!-- Add Form -->
@@ -1257,7 +1260,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           </div>
         <% end %>
         <%= if Enum.empty?(@safe_senders) do %>
-          <p class="text-base-content/50 text-center py-4">No safe senders</p>
+          <p class="text-base-content/50 text-center py-4">No spam exceptions</p>
         <% end %>
       </div>
     </div>
@@ -1283,13 +1286,47 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
       <.form for={@mailbox_filter_form} phx-submit="save_category_filters" class="mb-6">
         <div class="rounded-lg border border-base-content/10 bg-base-100/50 p-4">
           <div class="mb-4">
-            <h3 class="font-semibold">Inbox Category Filters</h3>
+            <h3 class="font-semibold">Mailbox Filters</h3>
             <p class="text-sm text-base-content/60">
-              Digest and Ledger are optional inbox views. Turning one off keeps matching mail in Inbox and hides that filter button.
+              Control automatic spam-folder delivery, auto-replies, and optional inbox category views.
             </p>
           </div>
 
           <div class="grid gap-3 sm:grid-cols-2">
+            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
+              <input type="hidden" name="mailbox[auto_reply_enabled]" value="false" />
+              <span>
+                <span class="block font-medium">Auto-Reply</span>
+                <span class="text-sm text-base-content/60">
+                  Allow this mailbox to send automatic replies when your auto-reply is active.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                name="mailbox[auto_reply_enabled]"
+                value="true"
+                checked={@mailbox_filter_form[:auto_reply_enabled].value in [true, "true"]}
+                class="toggle toggle-secondary"
+              />
+            </label>
+
+            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
+              <input type="hidden" name="mailbox[spam_filter_enabled]" value="false" />
+              <span>
+                <span class="block font-medium">Spam Folder</span>
+                <span class="text-sm text-base-content/60">
+                  Deliver messages flagged by spam scoring into Spam instead of Inbox.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                name="mailbox[spam_filter_enabled]"
+                value="true"
+                checked={@mailbox_filter_form[:spam_filter_enabled].value in [true, "true"]}
+                class="toggle toggle-secondary"
+              />
+            </label>
+
             <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
               <input type="hidden" name="mailbox[digest_filter_enabled]" value="false" />
               <span>
@@ -1326,7 +1363,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           </div>
 
           <div class="mt-4 flex justify-end">
-            <button type="submit" class="btn btn-secondary btn-sm">Save Category Filters</button>
+            <button type="submit" class="btn btn-secondary btn-sm">Save Mailbox Filters</button>
           </div>
         </div>
       </.form>
@@ -2019,28 +2056,27 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
           <label class="label pb-1">
             <span class="label-text font-medium">Alias Address</span>
           </label>
-          <div class="flex flex-col sm:flex-row gap-2">
+          <div class="flex items-center gap-2">
             <input
               type="text"
               name="username"
               placeholder="myalias"
-              class="input input-bordered sm:flex-1 text-lg"
+              class="input input-bordered min-w-0 flex-1 font-sans"
               pattern="[a-zA-Z0-9]+"
               title="Only letters and numbers allowed"
               minlength="4"
               maxlength="30"
               required
             />
-            <div class="flex items-center gap-2">
-              <span class="text-base-content/50 text-lg">@</span>
-              <div class="select select-bordered text-lg">
-                <select name="domain">
-                  <%= for domain <- @available_email_domains do %>
-                    <option value={domain}>{domain}</option>
-                  <% end %>
-                </select>
-              </div>
-            </div>
+            <span class="shrink-0 text-base-content/50">@</span>
+            <select
+              name="domain"
+              class="select select-bordered max-w-[45vw] shrink-0 font-sans sm:max-w-none"
+            >
+              <%= for domain <- @available_email_domains do %>
+                <option value={domain}>{domain}</option>
+              <% end %>
+            </select>
           </div>
           <div class="text-xs text-base-content/50 mt-1">
             4-30 characters, letters and numbers only
@@ -2056,7 +2092,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
             type="email"
             name="target_email"
             placeholder="your.personal@gmail.com"
-            class="input input-bordered w-full"
+            class="input input-bordered w-full font-sans"
           />
           <div class="text-xs text-base-content/50 mt-1">
             Leave empty to deliver emails to your main mailbox
@@ -2072,7 +2108,7 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
             type="text"
             name="description"
             placeholder="e.g., Shopping accounts, newsletters, work stuff..."
-            class="input input-bordered w-full"
+            class="input input-bordered w-full font-sans"
             maxlength="500"
           />
         </div>

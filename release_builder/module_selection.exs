@@ -50,7 +50,6 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
   def normalize_modules(value) when is_list(value) do
     value
     |> Enum.map(&normalize_module/1)
-    |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
     |> Enum.sort_by(&Map.fetch!(@module_order, &1))
   end
@@ -77,9 +76,10 @@ defmodule ElektrineReleaseBuilder.ModuleSelection do
       "atomine" -> :atomine
       "proofs" -> :atomine
       "personhood" -> :atomine
-      _ -> nil
+      _ -> raise ArgumentError, "unknown Elektrine module: #{inspect(value)}"
     end
   end
 
-  defp normalize_module(_value), do: nil
+  defp normalize_module(value),
+    do: raise(ArgumentError, "unknown Elektrine module: #{inspect(value)}")
 end

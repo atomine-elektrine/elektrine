@@ -178,7 +178,8 @@
           <p class="text-sm text-base-content/70 mb-4">
             Create your personal link-in-bio page at
             <strong>
-              {Elektrine.Domains.primary_profile_domain()}/{@user.handle || @user.username}
+              {Elektrine.Domains.profile_url_for_user(@user) ||
+                "/#{@user.handle || @user.username}"}
             </strong>
           </p>
 
@@ -188,13 +189,17 @@
                 <p class="font-medium text-sm">Your Profile URL</p>
 
                 <p class="text-xs text-base-content/60">
-                  {Elektrine.Domains.primary_profile_domain()}/{@user.handle || @user.username}
+                  {Elektrine.Domains.profile_url_for_user(@user) ||
+                    "/#{@user.handle || @user.username}"}
                 </p>
               </div>
 
               <div class="flex gap-2">
                 <.link
-                  href={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
+                  href={
+                    Elektrine.Domains.profile_url_for_user(@user) ||
+                      "/#{@user.handle || @user.username}"
+                  }
                   target="_blank"
                   class="btn btn-secondary btn-sm"
                 >

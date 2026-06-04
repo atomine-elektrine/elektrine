@@ -250,7 +250,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         do: current_post_flag(assigns.user_saves, post),
         else: assigns.saved_override
 
-    card_post_path = card_post_path(post)
+    card_post_path = card_post_path(post, assigns.source)
 
     assigns =
       assigns
@@ -351,6 +351,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
               on_image_click={@on_image_click}
               remote_poll_vote={@remote_poll_vote}
               id_prefix={@id_prefix}
+              source={@source}
             />
             
     <!-- Post Actions -->
@@ -643,6 +644,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
       <button
         phx-click={@on_navigate_profile}
         phx-value-handle={@post.sender.handle || @post.sender.username}
+        phx-value-user_id={@post.sender.id}
         class="w-10 h-10 flex-shrink-0"
         type="button"
       >
@@ -652,6 +654,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
         <button
           phx-click={@on_navigate_profile}
           phx-value-handle={@post.sender.handle || @post.sender.username}
+          phx-value-user_id={@post.sender.id}
           class="font-medium hover:text-error transition-colors text-left truncate"
           type="button"
         >
@@ -1671,10 +1674,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   attr :on_image_click, :string, default: "open_image_modal"
   attr :remote_poll_vote, :map, default: nil
   attr :id_prefix, :string, default: "post"
+  attr :source, :string, default: "timeline"
 
   defp post_content(assigns) do
     title = resolve_federated_title(assigns.post)
-    post_path = card_post_path(assigns.post)
+    post_path = card_post_path(assigns.post, assigns.source)
 
     assigns =
       assigns
@@ -2774,7 +2778,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     # Format reactions
     current_user_id = if assigns.current_user, do: assigns.current_user.id, else: nil
     formatted_reactions = PostUtilities.format_reactions(reactions, current_user_id)
-    card_post_path = card_post_path(post)
+    card_post_path = card_post_path(post, assigns.source)
 
     assigns =
       assigns
@@ -3286,7 +3290,7 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
     has_image = !Enum.empty?(image_urls)
     thumbnail = if has_image, do: thumbnail_url(hd(image_urls), 64), else: nil
 
-    card_post_path = card_post_path(post)
+    card_post_path = card_post_path(post, assigns.source)
 
     assigns =
       assigns
@@ -3436,6 +3440,11 @@ defmodule ElektrineSocialWeb.Components.Social.TimelinePost do
   end
 
   defp community_path(_, _), do: nil
+
+  defp card_post_path(%{id: id}, "remote_profile") when is_integer(id),
+    do: Elektrine.Paths.remote_post_path(id)
+
+  defp card_post_path(post, _source), do: card_post_path(post)
 
   defp card_post_path(%{id: id, reply_to_id: reply_to_id, conversation: %{type: "timeline"}})
        when is_integer(id) and not is_nil(reply_to_id),

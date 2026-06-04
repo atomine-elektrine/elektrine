@@ -12,6 +12,7 @@ defmodule Elektrine.ProxyProtocol do
   Reference: https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt
   """
 
+  import Bitwise
   require Logger
 
   @doc """
@@ -28,15 +29,15 @@ defmodule Elektrine.ProxyProtocol do
       iex> client_ip
       "192.168.1.1"
   """
-  def parse_client_ip(socket) do
+  def parse_client_ip(socket, opts \\ []) do
     # Get the peer IP as fallback
-    peer_ip =
+    {peer_ip, peer_ip_string} =
       case :inet.peername(socket) do
         {:ok, {ip, _port}} ->
-          :inet.ntoa(ip) |> to_string()
+          {ip, :inet.ntoa(ip) |> to_string()}
 
         {:error, _} ->
-          "unknown"
+          {nil, "unknown"}
       end
 
     # Try to read the PROXY protocol header with a short timeout (1 second)
@@ -46,19 +47,24 @@ defmodule Elektrine.ProxyProtocol do
         line = to_string(data)
 
         if String.starts_with?(line, "PROXY ") do
-          parse_proxy_header(line, peer_ip)
+          if trusted_proxy_peer?(peer_ip, opts) do
+            parse_proxy_header(line, peer_ip_string)
+          else
+            Logger.warning("Ignoring PROXY protocol header from untrusted peer #{peer_ip_string}")
+            {:ok, peer_ip_string, line}
+          end
         else
           # No PROXY header - this is the actual client data
           # We need to "unread" this data by putting it back in the buffer
           # Since we can't do that with :gen_tcp, we'll return the peer IP
           # and the caller needs to handle the first line of data
           Logger.warning("Expected PROXY protocol header but got: #{String.slice(line, 0..50)}")
-          {:ok, peer_ip, line}
+          {:ok, peer_ip_string, line}
         end
 
       {:error, :timeout} ->
         # No data received - likely no PROXY protocol, use peer IP
-        {:ok, peer_ip, nil}
+        {:ok, peer_ip_string, nil}
 
       {:error, :closed} ->
         # Connection closed before sending data - likely health check or PROXY not enabled
@@ -90,5 +96,73 @@ defmodule Elektrine.ProxyProtocol do
         Logger.warning("Invalid PROXY protocol header: #{line}")
         {:ok, fallback_ip, line}
     end
+  end
+
+  defp trusted_proxy_peer?(ip, opts) when is_tuple(ip) do
+    opts
+    |> Keyword.get(:trusted_proxy_cidrs, configured_trusted_proxy_cidrs())
+    |> Enum.map(&parse_cidr/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.any?(&ip_in_cidr?(ip, &1))
+  end
+
+  defp trusted_proxy_peer?(_, _), do: false
+
+  defp configured_trusted_proxy_cidrs do
+    Application.get_env(
+      :elektrine,
+      :proxy_protocol_trusted_cidrs,
+      Application.get_env(:elektrine, :trusted_proxy_cidrs, [])
+    )
+  end
+
+  defp parse_cidr(value) when is_binary(value) do
+    value = String.trim(value)
+
+    {ip_string, prefix_string} =
+      case String.split(value, "/", parts: 2) do
+        [ip, prefix] -> {ip, prefix}
+        [ip] -> {ip, nil}
+      end
+
+    with {:ok, ip} <- :inet.parse_address(String.to_charlist(ip_string)),
+         max_bits <- ip_max_bits(ip),
+         {:ok, prefix} <- parse_prefix(prefix_string, max_bits) do
+      {ip, prefix}
+    else
+      _ -> nil
+    end
+  end
+
+  defp parse_cidr(_), do: nil
+
+  defp parse_prefix(nil, max_bits), do: {:ok, max_bits}
+
+  defp parse_prefix(value, max_bits) do
+    case Integer.parse(value) do
+      {prefix, ""} when prefix >= 0 and prefix <= max_bits -> {:ok, prefix}
+      _ -> :error
+    end
+  end
+
+  defp ip_in_cidr?(ip, {network, prefix}) do
+    ip_max_bits(ip) == ip_max_bits(network) and
+      ip_to_integer(ip) >>> (ip_max_bits(ip) - prefix) ==
+        ip_to_integer(network) >>> (ip_max_bits(network) - prefix)
+  end
+
+  defp ip_max_bits(ip) when tuple_size(ip) == 4, do: 32
+  defp ip_max_bits(ip) when tuple_size(ip) == 8, do: 128
+
+  defp ip_to_integer(ip) when tuple_size(ip) == 4 do
+    ip
+    |> Tuple.to_list()
+    |> Enum.reduce(0, fn octet, acc -> (acc <<< 8) + octet end)
+  end
+
+  defp ip_to_integer(ip) when tuple_size(ip) == 8 do
+    ip
+    |> Tuple.to_list()
+    |> Enum.reduce(0, fn segment, acc -> (acc <<< 16) + segment end)
   end
 end

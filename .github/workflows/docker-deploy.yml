@@ -21,8 +21,8 @@ jobs:
     name: Quality Gate
     uses: ./.github/workflows/ci.yml
     with:
-      allow_format_failure: true
-      run_tests: false
+      allow_format_failure: false
+      run_tests: true
 
   build_and_publish_image:
     name: Build and Publish Image
@@ -83,6 +83,7 @@ jobs:
       packages: read
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_SSH_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
       DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine' }}
@@ -101,8 +102,8 @@ jobs:
     steps:
       - name: Validate deploy settings
         run: |
-          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
-            echo "::error::Missing deploy settings. Set DEPLOY_HOST, DEPLOY_USER, and DEPLOY_SSH_KEY repository/org secrets."
+          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${DEPLOY_SSH_HOST_KEY}" ] || [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
+            echo "::error::Missing deploy settings. Set DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_HOST_KEY, and DEPLOY_SSH_KEY repository/org secrets."
             exit 1
           fi
 
@@ -111,7 +112,8 @@ jobs:
           install -m 700 -d ~/.ssh
           printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy over SSH
         run: |

@@ -294,6 +294,70 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
       assert message.spam
     end
 
+    test "disabled mailbox spam filter ignores Haraka spam score", %{
+      conn: conn,
+      mailbox: mailbox
+    } do
+      {:ok, mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{spam_filter_enabled: false})
+
+      params = %{
+        "from" => "sender@remote.test",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
+        "subject" => "Spam score ignored",
+        "text_body" => "This was scored as spam upstream",
+        "message_id" => "test-haraka-spam-disabled-#{System.system_time(:millisecond)}",
+        "spam_status" => "yes",
+        "spam_score" => 99.0,
+        "spam_threshold" => 5.0
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] = Email.list_inbox_messages(mailbox.id)
+      refute message.spam
+      assert message.metadata["spam_filter_enabled"] == false
+      assert Email.list_spam_messages(mailbox.id) == []
+    end
+
+    test "safe sender bypasses Haraka spam score", %{
+      conn: conn,
+      user: user,
+      mailbox: mailbox
+    } do
+      assert {:ok, _safe_sender} = Email.add_safe_email(user.id, "sender@remote.test")
+
+      params = %{
+        "from" => "sender@remote.test",
+        "to" => "testuser@example.com",
+        "rcpt_to" => "testuser@example.com",
+        "subject" => "Spam exception",
+        "text_body" => "This was scored as spam upstream",
+        "message_id" => "test-haraka-spam-exception-#{System.system_time(:millisecond)}",
+        "spam_status" => "yes",
+        "spam_score" => 99.0,
+        "spam_threshold" => 5.0
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+
+      [message] = Email.list_inbox_messages(mailbox.id)
+      refute message.spam
+      assert message.metadata["spam_exception"] == true
+      assert Email.list_spam_messages(mailbox.id) == []
+    end
+
     test "sends auto-replies for locally delivered Haraka mail", %{conn: conn} do
       user = user_fixture(%{username: "harakaautoreply"})
       assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
@@ -321,6 +385,38 @@ defmodule ElektrineEmailWeb.HarakaWebhookControllerTest do
 
       assert json_response(conn, 200)["status"] == "success"
       assert_email_sent(to: "haraka-sender@gmail.com", subject: "Re: Haraka auto reply trigger")
+    end
+
+    test "disabled mailbox auto-reply setting suppresses Haraka auto-replies", %{conn: conn} do
+      user = user_fixture(%{username: "harakaautoreplyoff"})
+      assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
+      {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+      {:ok, _mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{auto_reply_enabled: false})
+
+      assert {:ok, _auto_reply} =
+               Email.upsert_auto_reply(user.id, %{
+                 enabled: true,
+                 body: "I am away"
+               })
+
+      params = %{
+        "from" => "haraka-no-autoreply@gmail.com",
+        "to" => mailbox.email,
+        "rcpt_to" => mailbox.email,
+        "subject" => "Haraka auto reply disabled",
+        "text_body" => "Checking in",
+        "message_id" => "test-haraka-auto-reply-off-#{System.system_time(:millisecond)}"
+      }
+
+      conn =
+        conn
+        |> auth_conn()
+        |> post(~p"/api/haraka/inbound", params)
+
+      assert json_response(conn, 200)["status"] == "success"
+      refute_email_sent(to: "haraka-no-autoreply@gmail.com")
     end
 
     test "stores repeated messages with the same sender and subject when message ids differ",

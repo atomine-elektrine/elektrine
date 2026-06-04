@@ -454,6 +454,19 @@ defmodule Elektrine.Email.MessageOperationsTest do
       assert Email.unread_feed_count(mailbox.id) == 0
     end
 
+    test "disabled mailbox filter settings are persisted", %{mailbox: mailbox} do
+      {:ok, mailbox} =
+        Email.update_mailbox_category_filters(mailbox, %{
+          auto_reply_enabled: false,
+          spam_filter_enabled: false
+        })
+
+      refute Elektrine.Email.Mailbox.auto_reply_enabled?(mailbox)
+      refute Elektrine.Email.Mailbox.spam_filter_enabled?(mailbox)
+      assert Elektrine.Email.Mailbox.digest_filter_enabled?(mailbox)
+      assert Elektrine.Email.Mailbox.ledger_filter_enabled?(mailbox)
+    end
+
     test "disabled digest filter prevents automatic feed categorization", %{mailbox: mailbox} do
       {:ok, mailbox} =
         Email.update_mailbox_category_filters(mailbox, %{digest_filter_enabled: false})

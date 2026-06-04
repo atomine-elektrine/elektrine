@@ -25,6 +25,38 @@ end
 
 runtime_env = System.get_env()
 
+iftas_blocklist_enabled =
+  case System.get_env("IFTAS_BLOCKLIST_ENABLED", "true") do
+    value when value in ["1", "true", "TRUE", "yes", "YES"] -> true
+    _ -> false
+  end
+
+iftas_blocklist_threshold =
+  case Integer.parse(System.get_env("IFTAS_BLOCKLIST_THRESHOLD", "66")) do
+    {threshold, ""} when threshold in [51, 66, 80] -> threshold
+    _ -> 66
+  end
+
+iftas_blocklist_url =
+  case System.get_env("IFTAS_BLOCKLIST_URL") do
+    nil -> nil
+    "" -> nil
+    value -> value
+  end
+
+iftas_blocklist_api_key =
+  case System.get_env("IFTAS_BLOCKLIST_API_KEY") do
+    nil -> nil
+    "" -> nil
+    value -> value
+  end
+
+config :elektrine_social, :iftas_blocklist,
+  enabled: iftas_blocklist_enabled,
+  threshold: iftas_blocklist_threshold,
+  url: iftas_blocklist_url,
+  api_key: iftas_blocklist_api_key
+
 # Lightweight messaging federation runtime configuration
 messaging_federation_enabled =
   case System.get_env("MESSAGING_FEDERATION_ENABLED", "true") do
@@ -833,6 +865,13 @@ if config_env() == :prod do
 
   config :elektrine, :trusted_proxy_cidrs, trusted_proxy_cidrs
 
+  proxy_protocol_trusted_cidrs =
+    System.get_env("PROXY_PROTOCOL_TRUSTED_CIDRS", System.get_env("TRUSTED_PROXY_CIDRS", ""))
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+
+  config :elektrine, :proxy_protocol_trusted_cidrs, proxy_protocol_trusted_cidrs
+
   netbird_allowed_cidrs =
     System.get_env("NETBIRD_ALLOWED_CIDRS", "")
     |> String.split(~r/[\s,]+/, trim: true)
@@ -1149,7 +1188,7 @@ if config_env() == :prod do
 
   receive_only_email_domains =
     configured_supported_domains
-    |> Enum.reject(&(&1 in [primary_domain, email_domain]))
+    |> Enum.reject(&(&1 in [primary_domain, email_domain] or &1 in official_elektrine_domains))
     |> Enum.uniq()
 
   supported_email_domains =

@@ -34,7 +34,10 @@ config :elektrine,
   # Mail auth should require TLS unless explicitly relaxed for local development.
   allow_insecure_mail_auth: false,
   # Empty by default: no proxy headers are trusted unless explicitly configured.
-  trusted_proxy_cidrs: []
+  trusted_proxy_cidrs: [],
+  # PROXY protocol is stronger than forwarded headers and must only be accepted
+  # from exact load balancer/reverse proxy CIDRs.
+  proxy_protocol_trusted_cidrs: []
 
 config :elektrine, :netbird,
   enabled: false,
@@ -123,10 +126,18 @@ config :elektrine, Oban,
        {"20 2 * * *", Elektrine.Messaging.FederationRetentionWorker},
        # Renew wildcard certificates through acme.sh when enabled
        {"35 2 * * *", Elektrine.ACME.WildcardRenewalWorker},
+       # Sync IFTAS CARIAD denylist daily for ActivityPub instance blocking
+       {"45 3 * * *", ElektrineSocial.Moderation.IftasBlocklistWorker},
        # Recheck live Atomine proofs whose next_check_at is due
        {"25 * * * *", Atomine.LiveProofRecheckWorker}
      ]}
   ]
+
+config :elektrine_social, :iftas_blocklist,
+  enabled: true,
+  threshold: 66,
+  url: nil,
+  api_key: nil
 
 # Explicitly use UTC-only timezone database to avoid breaking DateTime.add
 # Timezone conversions use Tzdata explicitly in shift_zone/3
@@ -174,7 +185,7 @@ configured_supported_domains =
 receive_only_email_domains =
   configured_supported_domains
   |> normalize_domains.()
-  |> Enum.reject(&(&1 in [primary_domain, email_domain]))
+  |> Enum.reject(&(&1 in [primary_domain, email_domain] or &1 in official_elektrine_domains))
 
 supported_email_domains =
   ([primary_domain] ++ configured_supported_domains)

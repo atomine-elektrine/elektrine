@@ -123,8 +123,8 @@ defmodule ElektrineWeb.API.ExportController do
   GET /api/export/:id/download
   Downloads the export file.
 
-  Accepts either the authenticated browser session for the export owner
-  or the per-export download token.
+  Requires the authenticated browser session for the export owner. When a token
+  is provided, it must also match the requested export.
   """
   def download(conn, %{"id" => id} = params) do
     user = conn.assigns[:current_user]

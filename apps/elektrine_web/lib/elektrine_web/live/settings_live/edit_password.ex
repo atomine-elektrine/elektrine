@@ -29,7 +29,7 @@ defmodule ElektrineWeb.SettingsLive.EditPassword do
         id="edit-password-card"
         class="card panel-card border border-base-300 shadow-xl"
       >
-        <div class="card-body">
+        <div class="card-body p-4 sm:p-6">
           <.simple_form
             :let={f}
             for={@changeset}

@@ -2312,12 +2312,12 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket)
       when is_binary(handle) and handle != "" do
-    {:noreply, push_navigate(socket, to: "/#{handle}")}
+    ElektrineWeb.ProfileNavigation.navigate(socket, %{"handle" => handle})
   end
 
   def handle_event("navigate_to_profile", %{"username" => username}, socket)
       when is_binary(username) and username != "" do
-    {:noreply, push_navigate(socket, to: "/#{username}")}
+    ElektrineWeb.ProfileNavigation.navigate(socket, %{"username" => username})
   end
 
   def handle_event("stop_propagation", _params, socket) do

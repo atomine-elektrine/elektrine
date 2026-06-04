@@ -226,7 +226,7 @@ defmodule Elektrine.DNSContextTest do
                "name" => "admin",
                "type" => "A",
                "ttl" => 300,
-               "content" => "100.90.10.120",
+               "content" => "198.51.100.120",
                "private" => "true"
              })
 
@@ -264,6 +264,31 @@ defmodule Elektrine.DNSContextTest do
     refute Map.has_key?(updated.metadata, "proxy")
   end
 
+  test "rejects private address records" do
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "internal",
+               "type" => "A",
+               "ttl" => 300,
+               "content" => "127.0.0.1"
+             })
+
+    assert "must be a public address" in errors_on(changeset).content
+
+    assert {:error, changeset} =
+             DNS.create_record(zone, %{
+               "name" => "v6internal",
+               "type" => "AAAA",
+               "ttl" => 300,
+               "content" => "::1"
+             })
+
+    assert "must be a public address" in errors_on(changeset).content
+  end
+
   test "rejects private proxied origins" do
     user = AccountsFixtures.user_fixture()
     {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
@@ -277,7 +302,7 @@ defmodule Elektrine.DNSContextTest do
                "proxied" => "true"
              })
 
-    assert "must be a public origin address when proxied" in errors_on(changeset).content
+    assert "must be a public address" in errors_on(changeset).content
   end
 
   test "resolves proxied origins for verified zones" do

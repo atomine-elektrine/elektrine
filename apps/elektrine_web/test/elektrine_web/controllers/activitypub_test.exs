@@ -1773,7 +1773,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
       assert json_response(conn, 202) == %{}
     end
 
-    test "accepts signed activities when the signing actor moved to the claimed actor", %{
+    test "rejects signed activities when movedTo is only claimed by the signing actor", %{
       conn: conn,
       user: user
     } do
@@ -1807,7 +1807,7 @@ defmodule ElektrineWeb.ActivityPubControllerTest do
         |> put_req_header("content-type", "application/activity+json")
         |> post("/users/#{user.username}/inbox", activity)
 
-      assert json_response(conn, 202) == %{}
+      assert json_response(conn, 401) == %{"error" => "Invalid or missing signature"}
     end
   end
 

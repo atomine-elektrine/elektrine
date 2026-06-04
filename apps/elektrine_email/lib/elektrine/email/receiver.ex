@@ -34,7 +34,9 @@ defmodule Elektrine.Email.Receiver do
             {:new_email, message}
           )
 
-          Elektrine.Async.run(fn -> Email.process_auto_reply(message, mailbox.user_id) end)
+          if Mailbox.auto_reply_enabled?(mailbox) do
+            Elektrine.Async.run(fn -> Email.process_auto_reply(message, mailbox.user_id) end)
+          end
         end
 
         duration = System.monotonic_time(:millisecond) - started_at

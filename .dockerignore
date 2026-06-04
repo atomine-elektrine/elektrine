@@ -31,6 +31,24 @@
 /tmp/
 .elixir_ls
 
+# Environment files and local secrets must never be sent to the Docker daemon.
+.env
+.env.*
+!.env.example
+env/*.env
+env/*.env.*
+
+# Private key and certificate material
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+*.asc
+/certs/
+/secrets/
+
 # Mix artifacts
 /_build/
 /deps/

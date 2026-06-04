@@ -2034,10 +2034,8 @@ defmodule ArblargWeb.ChatLive.Index do
           <div class="text-center mb-6">
             <button
               data-external-link={
-                if @profile_user.profile,
-                  do:
-                    "https://#{@profile_user.handle || @profile_user.username}.#{Elektrine.Domains.primary_profile_domain()}",
-                  else: "/#{@profile_user.handle || @profile_user.username}"
+                Elektrine.Domains.profile_url_for_user(@profile_user) ||
+                  "/#{@profile_user.handle || @profile_user.username}"
               }
               class="avatar mb-4 cursor-pointer"
               title="View full profile"
@@ -2071,10 +2069,8 @@ defmodule ArblargWeb.ChatLive.Index do
             <!-- View Full Profile -->
             <button
               data-external-link={
-                if @profile_user.profile,
-                  do:
-                    "https://#{@profile_user.handle || @profile_user.username}.#{Elektrine.Domains.primary_profile_domain()}",
-                  else: "/#{@profile_user.handle || @profile_user.username}"
+                Elektrine.Domains.profile_url_for_user(@profile_user) ||
+                  "/#{@profile_user.handle || @profile_user.username}"
               }
               class="btn btn-ghost w-full"
             >
