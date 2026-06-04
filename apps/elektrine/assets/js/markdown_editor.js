@@ -244,7 +244,7 @@ function isSafeHref(href) {
     href.startsWith('http://') ||
     href.startsWith('https://') ||
     href.startsWith('mailto:') ||
-    href.startsWith('/')
+    (href.startsWith('/') && !href.startsWith('//'))
   );
 }
 

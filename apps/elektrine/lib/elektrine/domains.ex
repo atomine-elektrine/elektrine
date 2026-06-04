@@ -7,6 +7,7 @@ defmodule Elektrine.Domains do
   alias Elektrine.RuntimeEnv
 
   @default_primary_domain "example.com"
+  @official_email_domains ["elektrine.com", "elektrine.net", "elektrine.org"]
 
   @doc """
   Primary email domain (usually the main app domain).
@@ -29,11 +30,12 @@ defmodule Elektrine.Domains do
   end
 
   @doc """
-  Secondary built-in email domains that only accept inbound mail.
+  Secondary non-official built-in email domains that only accept inbound mail.
 
-  By default, configured built-in domains other than the primary email domain are
-  receive-only. They are not offered for sending, identities, profile hosts,
-  ActivityPub discovery, or web access.
+  Official Elektrine domains are user-selectable. Other configured built-in
+  domains outside the primary email domain default to receive-only. They are not
+  offered for sending, identities, profile hosts, ActivityPub discovery, or web
+  access.
   """
   def receive_only_email_domains do
     config = email_config()
@@ -497,7 +499,7 @@ defmodule Elektrine.Domains do
   def profile_url_for_user(%{handle: handle, username: username} = user, host) do
     case User.built_in_subdomain_mode(user) do
       "platform" -> profile_subdomain_url_for_handle(handle || username, host)
-      "path" -> profile_url_for_handle(handle || username, host)
+      "path" -> built_in_profile_url_for_handle(handle || username)
       _ -> nil
     end
   end
@@ -651,7 +653,7 @@ defmodule Elektrine.Domains do
       config
       |> Keyword.get(:supported_domains, [primary])
       |> normalize_domains()
-      |> Enum.reject(&(&1 == primary))
+      |> Enum.reject(&(&1 == primary or &1 in @official_email_domains))
     end
   end
 

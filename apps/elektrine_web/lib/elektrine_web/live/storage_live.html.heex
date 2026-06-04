@@ -50,51 +50,53 @@
   </div>
   
 <!-- Tabs for viewing items -->
-  <div class="tabs tabs-boxed mb-6">
-    <button
-      phx-click="change_tab"
-      phx-value-tab="overview"
-      class={["tab", @active_tab == "overview" && "tab-active"]}
-    >
-      Overview
-    </button>
-    <%= if @email_available do %>
+  <div class="overflow-x-auto mb-6">
+    <div class="tabs tabs-boxed inline-flex min-w-max">
       <button
         phx-click="change_tab"
-        phx-value-tab="emails"
-        class={["tab", @active_tab == "emails" && "tab-active"]}
+        phx-value-tab="overview"
+        class={["tab", @active_tab == "overview" && "tab-active"]}
       >
-        Email Attachments
+        Overview
       </button>
-    <% end %>
-    <button
-      phx-click="change_tab"
-      phx-value-tab="chat"
-      class={["tab", @active_tab == "chat" && "tab-active"]}
-    >
-      Chat Media
-    </button>
-    <button
-      phx-click="change_tab"
-      phx-value-tab="drive"
-      class={["tab", @active_tab == "drive" && "tab-active"]}
-    >
-      Drive
-    </button>
-    <button
-      phx-click="change_tab"
-      phx-value-tab="profile"
-      class={["tab", @active_tab == "profile" && "tab-active"]}
-    >
-      Profile Images
-    </button>
-    <button
-      phx-click="change_tab"
-      phx-value-tab="static_sites"
-      class={["tab", @active_tab == "static_sites" && "tab-active"]}
-    >
-      Static Site
-    </button>
+      <%= if @email_available do %>
+        <button
+          phx-click="change_tab"
+          phx-value-tab="emails"
+          class={["tab", @active_tab == "emails" && "tab-active"]}
+        >
+          Email Attachments
+        </button>
+      <% end %>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="chat"
+        class={["tab", @active_tab == "chat" && "tab-active"]}
+      >
+        Chat Media
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="drive"
+        class={["tab", @active_tab == "drive" && "tab-active"]}
+      >
+        Drive
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="profile"
+        class={["tab", @active_tab == "profile" && "tab-active"]}
+      >
+        Profile Images
+      </button>
+      <button
+        phx-click="change_tab"
+        phx-value-tab="static_sites"
+        class={["tab", @active_tab == "static_sites" && "tab-active"]}
+      >
+        Static Site
+      </button>
+    </div>
   </div>
 
   <%= if @active_tab == "overview" do %>

@@ -58,6 +58,7 @@ services:
       PORT: ${PORT:-8080}
       PHX_HTTP_IP: ${DOCKER_PHX_HTTP_IP:-0.0.0.0}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}
+      CADDY_ASK_TRUSTED_CIDRS: ${CADDY_ASK_TRUSTED_CIDRS:-${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}}
       MIX_ENV: prod
       ELEKTRINE_RUNTIME_ROLE: app
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-all}
@@ -83,6 +84,8 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   worker:
     image: ${ELEKTRINE_IMAGE:-elektrine:local}
@@ -126,6 +129,8 @@ services:
     networks:
       - elektrine_network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   vpn:
     profiles: ["vpn"]
@@ -169,11 +174,12 @@ services:
     network_mode: host
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
     volumes:
       - app_data:/data
       - uploads:/data/uploads
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   mail:
     profiles: ["email"]
@@ -221,6 +227,8 @@ services:
       - "${IMAP_TLS_BIND:-993:2993}"
       - "${POP3_TLS_BIND:-995:2995}"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   dns:
     profiles: ["dns"]
@@ -262,14 +270,14 @@ services:
     networks:
       - elektrine_network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   turn:
     image: ${TURN_IMAGE:-coturn/coturn:latest@sha256:867607152c6ed9504a0b59a2546a9bd2872dcf74313b3bc6cf9b69cc81be6fb3}
     container_name: elektrine_turn
     profiles:
       - turn
-    env_file:
-      - ../../.env.production
     environment:
       TURN_HOST: ${TURN_HOST:-${PRIMARY_DOMAIN:-example.com}}
       TURN_PORT: ${TURN_PORT:-3478}
@@ -293,10 +301,10 @@ services:
       - --max-port=${TURN_MAX_PORT:-49200}
       - --lt-cred-mech
       - --stale-nonce
-      - --no-tls
-      - --no-dtls
       - --simple-log
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   caddy_edge:
     build:
@@ -308,13 +316,11 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    env_file:
-      - ../../.env.production
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app_proxy:8080/_edge/tls/v1/allow}
-      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-}
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
+      CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS: ${CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS:-192.0.2.0/32}
       NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-192.0.2.0/32}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app_proxy:8080}
     ports:
@@ -328,6 +334,8 @@ services:
       elektrine_network:
       caddy_proxy_network:
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
   bluesky_pds:
     image: ghcr.io/bluesky-social/pds:0.4@sha256:e0b756701c924410532c61b546a61810b6a0059bcebb0c21718d161f5b7880db

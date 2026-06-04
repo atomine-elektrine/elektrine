@@ -9,13 +9,11 @@ services:
     depends_on:
       app:
         condition: service_healthy
-    env_file:
-      - ../../.env.production
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app_proxy:8080/_edge/tls/v1/allow}
-      CADDY_EDGE_API_KEY: ${CADDY_EDGE_API_KEY:-}
       CADDY_ADMIN_HOST: ${CADDY_ADMIN_HOST:-admin.elektrine.com}
+      CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS: ${CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS:-192.0.2.0/32}
       NETBIRD_ALLOWED_CIDRS: ${NETBIRD_ALLOWED_CIDRS:-192.0.2.0/32}
       ORIGIN_UPSTREAM: ${CADDY_ORIGIN_UPSTREAM:-app_proxy:8080}
     ports:
@@ -29,6 +27,8 @@ services:
       elektrine_network:
       caddy_proxy_network:
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   caddy_data:

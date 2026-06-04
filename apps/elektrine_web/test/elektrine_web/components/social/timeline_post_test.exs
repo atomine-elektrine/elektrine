@@ -431,6 +431,54 @@ defmodule ElektrineWeb.Components.Social.TimelinePostTest do
     refute html =~ ~s(href="#{remote_url}")
   end
 
+  test "profile timeline cards use remote detail instead of discussion route" do
+    post = %Message{
+      id: 3_031_092,
+      reply_to_id: nil,
+      conversation: %Conversation{type: "community", name: "heyitsluna"},
+      sender: nil,
+      remote_actor: nil,
+      post_type: "post",
+      title: "New community for my fans",
+      content: "New community for my fans",
+      inserted_at: ~N[2026-04-16 00:00:00],
+      media_urls: [],
+      media_metadata: %{},
+      like_count: 0,
+      reply_count: 0,
+      share_count: 0,
+      score: 0,
+      auto_title: false
+    }
+
+    html =
+      render_component(&TimelinePost.timeline_post/1,
+        post: post,
+        layout: :timeline,
+        source: "remote_profile",
+        current_user: nil,
+        user_likes: %{},
+        user_boosts: %{},
+        user_saves: %{},
+        user_follows: %{},
+        pending_follows: %{},
+        remote_follow_overrides: %{},
+        user_statuses: %{},
+        lemmy_counts: %{},
+        post_replies: %{},
+        post_interactions: %{},
+        post_reactions_map: %{},
+        reactions: [],
+        show_follow_button: false,
+        show_post_dropdown: false,
+        clickable: true,
+        on_image_click: nil
+      )
+
+    assert html =~ ~s(href="/remote/post/3031092")
+    refute html =~ "/discussions/heyitsluna/p/3031092"
+  end
+
   defp render_timeline_post(post, id_prefix) do
     render_component(&TimelinePost.timeline_post/1,
       post: post,

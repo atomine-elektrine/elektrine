@@ -4,14 +4,22 @@ defmodule Elektrine.RSS.Parser do
 
   @doc "Parses an RSS or Atom feed from XML content.\nReturns {:ok, feed_map} or {:error, reason}.\n"
   def parse(xml_content) when is_binary(xml_content) do
-    case detect_format(xml_content) do
-      :rss2 -> parse_rss2(xml_content)
-      :rss1 -> parse_rss1(xml_content)
-      :atom -> parse_atom(xml_content)
-      :unknown -> {:error, :unknown_format}
+    with {:ok, parsed_xml} <- parse_xml(xml_content) do
+      case detect_format(xml_content) do
+        :rss2 -> parse_rss2(parsed_xml)
+        :rss1 -> parse_rss1(parsed_xml)
+        :atom -> parse_atom(parsed_xml)
+        :unknown -> {:error, :unknown_format}
+      end
     end
+  end
+
+  defp parse_xml(xml_content) do
+    {:ok, SweetXml.parse(xml_content, dtd: :none, quiet: true)}
   rescue
     e -> {:error, {:parse_error, Exception.message(e)}}
+  catch
+    :exit, reason -> {:error, {:parse_error, inspect(reason)}}
   end
 
   defp detect_format(xml) do

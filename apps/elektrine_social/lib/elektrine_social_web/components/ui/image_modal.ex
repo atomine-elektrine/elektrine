@@ -79,14 +79,20 @@ defmodule ElektrineSocialWeb.Components.UI.ImageModal do
             <div class="absolute top-2 left-2 z-10 flex items-center gap-2 bg-base-200/80 rounded-full px-3 py-2">
               <%= if sender_loaded do %>
                 <.link
-                  href={"/#{@post.sender.handle || @post.sender.username}"}
+                  href={
+                    Elektrine.Domains.profile_url_for_user(@post.sender) ||
+                      "/#{@post.sender.handle || @post.sender.username}"
+                  }
                   class="w-8 h-8 flex-shrink-0"
                 >
                   <.user_avatar user={@post.sender} size="xs" user_statuses={@user_statuses} />
                 </.link>
                 <div class="min-w-0">
                   <.link
-                    href={"/#{@post.sender.handle || @post.sender.username}"}
+                    href={
+                      Elektrine.Domains.profile_url_for_user(@post.sender) ||
+                        "/#{@post.sender.handle || @post.sender.username}"
+                    }
                     class="font-medium hover:underline hover:text-primary transition-colors text-left text-sm"
                   >
                     <.username_with_effects

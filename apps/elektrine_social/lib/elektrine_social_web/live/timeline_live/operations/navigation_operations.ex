@@ -102,8 +102,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.NavigationOperations do
 
   # Navigate to a local user's profile page.
   def handle_event("navigate_to_profile", params, socket) do
-    handle = params["handle"] || params["username"]
-    {:noreply, redirect(socket, to: ~p"/#{handle}")}
+    ElektrineWeb.ProfileNavigation.navigate(socket, params)
   end
 
   # Navigate to a remote user's profile page.

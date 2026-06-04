@@ -13,6 +13,8 @@ defmodule Elektrine.Email.Mailbox do
     field :username, :string
     field :forward_to, :string
     field :forward_enabled, :boolean, default: false
+    field :auto_reply_enabled, :boolean, default: true
+    field :spam_filter_enabled, :boolean, default: true
     field :digest_filter_enabled, :boolean, default: true
     field :ledger_filter_enabled, :boolean, default: true
     field :private_storage_enabled, :boolean, default: false
@@ -68,6 +70,8 @@ defmodule Elektrine.Email.Mailbox do
       :user_id,
       :forward_to,
       :forward_enabled,
+      :auto_reply_enabled,
+      :spam_filter_enabled,
       :digest_filter_enabled,
       :ledger_filter_enabled
     ])
@@ -91,12 +95,23 @@ defmodule Elektrine.Email.Mailbox do
   end
 
   @doc """
-  Creates a changeset for optional inbox category filters.
+  Creates a changeset for optional mailbox filters.
   """
   def category_filter_changeset(mailbox, attrs) do
     mailbox
-    |> cast(attrs, [:digest_filter_enabled, :ledger_filter_enabled])
+    |> cast(attrs, [
+      :auto_reply_enabled,
+      :spam_filter_enabled,
+      :digest_filter_enabled,
+      :ledger_filter_enabled
+    ])
   end
+
+  def auto_reply_enabled?(%__MODULE__{auto_reply_enabled: enabled}), do: enabled != false
+  def auto_reply_enabled?(_mailbox), do: true
+
+  def spam_filter_enabled?(%__MODULE__{spam_filter_enabled: enabled}), do: enabled != false
+  def spam_filter_enabled?(_mailbox), do: true
 
   def digest_filter_enabled?(%__MODULE__{digest_filter_enabled: enabled}), do: enabled != false
   def digest_filter_enabled?(_mailbox), do: true

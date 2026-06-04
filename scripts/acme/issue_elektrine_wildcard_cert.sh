@@ -17,6 +17,8 @@ set -eu
 #   ELEKTRINE_INTERNAL_API_KEY defaults to CADDY_EDGE_API_KEY
 #   ACME_EMAIL           ACME account email, usually from .env.production
 #   ACME_HOME            defaults to $HOME/.acme.sh
+#   ACME_SH_DOWNLOAD_URL optional acme.sh source URL when acme.sh is absent
+#   ACME_SH_SHA256       required when ACME_SH_DOWNLOAD_URL is used
 #   CERT_DIR             defaults to /opt/elektrine/certs
 #   ENV_FILE             defaults to .env.production when present
 #   RELOAD_CMD           defaults to docker restart elektrine_caddy_edge
@@ -126,14 +128,39 @@ ACME_HOME="${ACME_HOME:-$HOME/.acme.sh}"
 CERT_DIR="${CERT_DIR:-${CADDY_TLS_MOUNT_DIR:-/opt/elektrine/certs}}"
 RELOAD_CMD="${RELOAD_CMD:-docker restart elektrine_caddy_edge}"
 
+case "$RELOAD_CMD" in
+  "docker restart elektrine_caddy_edge" | \
+  "systemctl reload caddy" | \
+  "systemctl restart caddy" | \
+  "caddy reload --config /etc/caddy/Caddyfile" | \
+  "true") ;;
+  *)
+    echo "Unsafe RELOAD_CMD. Use a supported fixed reload command instead of an arbitrary shell string." >&2
+    exit 1
+    ;;
+esac
+
 if [ ! -x "$ACME_HOME/acme.sh" ]; then
   if ! command -v curl >/dev/null 2>&1; then
     echo "acme.sh not found at $ACME_HOME/acme.sh and curl is not installed" >&2
     exit 1
   fi
 
+  if [ -z "${ACME_SH_DOWNLOAD_URL:-}" ] || [ -z "${ACME_SH_SHA256:-}" ]; then
+    echo "acme.sh is missing. Install it first, or set ACME_SH_DOWNLOAD_URL and ACME_SH_SHA256 to a pinned release." >&2
+    exit 1
+  fi
+
   mkdir -p "$ACME_HOME"
-  curl -fsSL https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh -o "$ACME_HOME/acme.sh"
+  curl -fsSL "$ACME_SH_DOWNLOAD_URL" -o "$ACME_HOME/acme.sh"
+  actual_sha="$(sha256sum "$ACME_HOME/acme.sh" | awk '{print $1}')"
+
+  if [ "$actual_sha" != "$ACME_SH_SHA256" ]; then
+    rm -f "$ACME_HOME/acme.sh"
+    echo "Downloaded acme.sh checksum mismatch" >&2
+    exit 1
+  fi
+
   chmod 700 "$ACME_HOME/acme.sh"
 
   if [ -n "${ACME_EMAIL:-}" ]; then

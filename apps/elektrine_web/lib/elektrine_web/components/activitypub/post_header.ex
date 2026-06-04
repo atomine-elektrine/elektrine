@@ -67,7 +67,13 @@ defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
       <!-- Local post header -->
       <div class="flex items-center gap-3 mb-3">
         <div class="flex-shrink-0">
-          <.link navigate={"/#{@post.sender.handle || @post.sender.username}"} class="w-10 h-10">
+          <.link
+            href={
+              Elektrine.Domains.profile_url_for_user(@post.sender) ||
+                "/#{@post.sender.handle || @post.sender.username}"
+            }
+            class="w-10 h-10"
+          >
             <%= if @post.sender.avatar do %>
               <img
                 src={@post.sender.avatar}
@@ -83,7 +89,10 @@ defmodule ElektrineWeb.Components.ActivityPub.PostHeader do
         </div>
         <div class="flex-1 min-w-0 flex flex-col justify-center">
           <.link
-            navigate={"/#{@post.sender.handle || @post.sender.username}"}
+            href={
+              Elektrine.Domains.profile_url_for_user(@post.sender) ||
+                "/#{@post.sender.handle || @post.sender.username}"
+            }
             class="font-medium hover:text-secondary transition-colors text-left truncate block"
           >
             {@post.sender.display_name || @post.sender.username}

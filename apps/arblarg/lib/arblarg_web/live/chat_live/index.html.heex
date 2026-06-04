@@ -888,6 +888,7 @@
                       <button
                         phx-click="view_profile"
                         phx-value-handle={other_user.user.handle || other_user.user.username}
+                        phx-value-user_id={other_user.user.id}
                         class="w-full text-left"
                       >
                         <.icon name="hero-user" class="w-4 h-4 mr-2" /> View Profile

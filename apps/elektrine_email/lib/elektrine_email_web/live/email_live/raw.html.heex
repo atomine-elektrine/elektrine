@@ -9,7 +9,7 @@
     current_user={@current_user}
     badge_counts={@e_nav_badge_counts}
   />
-  <div class="flex flex-col lg:flex-row gap-6">
+  <div class="email-sidebar-layout flex flex-col lg:flex-row items-start gap-4 lg:gap-3">
     <.sidebar
       mailbox={@mailbox}
       mailbox_addresses={@mailbox_addresses}
@@ -20,9 +20,9 @@
       custom_folders={@custom_folders}
     />
     <!-- Main content -->
-    <div class="flex-1 min-w-0 overflow-hidden">
+    <div class="w-full flex-1 min-w-0 max-w-full overflow-visible">
       <div id="raw-email-card" class="card panel-card rounded-lg">
-        <div class="card-body p-6">
+        <div class="card-body p-3 sm:p-6">
           <!-- Header -->
           <div class="mb-6">
             <div class="flex items-start gap-4 mb-4">

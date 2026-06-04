@@ -66,6 +66,12 @@ defmodule Elektrine.UploadsTest do
     refute stored_filename =~ "头像"
   end
 
+  test "private S3 attachment URLs fail closed when presigning cannot be configured" do
+    Application.put_env(:elektrine, :uploads, adapter: :s3)
+
+    assert Uploads.attachment_url("chat-attachments/private.jpg", %{type: "dm"}) == nil
+  end
+
   defp upload_fixture(tmp_dir, filename, content_type, content) do
     path = Path.join(tmp_dir, "#{System.unique_integer([:positive])}-#{filename}")
     File.write!(path, content)

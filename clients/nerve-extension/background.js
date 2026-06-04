@@ -62,52 +62,93 @@ async function handleMessage(message, sender) {
       return { opened: true }
 
     case MESSAGE_TYPES.GET_INLINE_STATE:
+      assertContentScriptSender(sender)
       return inlineState()
 
     case MESSAGE_TYPES.GET_SUGGESTIONS:
+      assertContentScriptSender(sender)
       return suggestions(message.pageUrl, message.query)
 
     case MESSAGE_TYPES.FILL_ENTRY:
+      assertContentScriptSender(sender)
       return fillEntry(message.entryId, message.pageUrl)
 
     case MESSAGE_TYPES.STAGE_ENTRY_FILL:
+      assertContentScriptSender(sender)
       return stageEntryFill(sender.tab?.id, message.payload || {})
 
     case MESSAGE_TYPES.RESOLVE_STAGED_FILL:
+      assertContentScriptSender(sender)
       return resolveStagedFill(sender.tab?.id, message.page)
 
     case MESSAGE_TYPES.CLEAR_STAGED_FILL:
+      assertContentScriptSender(sender)
       await clearStagedFill(sender.tab?.id)
       return { cleared: true }
 
     case MESSAGE_TYPES.RECORD_SUBMISSION:
+      assertContentScriptSender(sender)
       return recordSubmission(sender.tab?.id, message.payload)
 
     case MESSAGE_TYPES.RESOLVE_PENDING_SAVE:
+      assertContentScriptSender(sender)
       return resolvePendingSave(sender.tab?.id, message.page)
 
     case MESSAGE_TYPES.SAVE_PENDING:
+      assertContentScriptSender(sender)
       return savePendingEntry(sender.tab?.id, message.payload || {})
 
     case MESSAGE_TYPES.DISMISS_PENDING_SAVE:
+      assertContentScriptSender(sender)
       await clearPendingSave(sender.tab?.id)
       return { dismissed: true }
 
     case MESSAGE_TYPES.GET_SESSION_PASSPHRASE:
+      assertExtensionPageSender(sender)
       expireSessionPassphraseIfNeeded()
       return { passphrase: sessionPassphrase }
 
     case MESSAGE_TYPES.SET_SESSION_PASSPHRASE:
+      assertExtensionPageSender(sender)
       sessionPassphrase = typeof message.passphrase === "string" ? message.passphrase : ""
       scheduleSessionPassphraseExpiry()
       return { stored: true }
 
     case MESSAGE_TYPES.CLEAR_SESSION_PASSPHRASE:
+      assertExtensionPageSender(sender)
       clearSessionPassphrase()
       return { cleared: true }
 
     default:
-      return { ignored: true }
+      throw new Error("Unsupported message type.")
+  }
+}
+
+function assertContentScriptSender(sender) {
+  if (!sender?.tab?.id || !allowedPageUrl(sender.url)) {
+    throw new Error("Message is not allowed from this sender.")
+  }
+}
+
+function assertExtensionPageSender(sender) {
+  const extensionOrigin = chrome.runtime.getURL("")
+
+  if (sender?.tab || typeof sender?.url !== "string" || !sender.url.startsWith(extensionOrigin)) {
+    throw new Error("Message is not allowed from this sender.")
+  }
+}
+
+function allowedPageUrl(url) {
+  try {
+    const parsed = new URL(url || "")
+    return ["https:", "http:"].includes(parsed.protocol) && (
+      parsed.protocol === "https:" ||
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "::1"
+    )
+  } catch (_error) {
+    return false
   }
 }
 

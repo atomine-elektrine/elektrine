@@ -27,8 +27,11 @@ export const FormSubmit = {
         // Get loading text from data attribute or use original
         const loadingText = submitBtn.dataset.loadingText || submitBtn.textContent.trim()
 
-        // Replace with spinner and loading text
-        submitBtn.innerHTML = `${spinnerSvg()}<span>${loadingText}</span>`
+        // Replace with spinner and loading text without injecting text as HTML.
+        submitBtn.innerHTML = spinnerSvg()
+        const loadingTextElement = document.createElement('span')
+        loadingTextElement.textContent = loadingText
+        submitBtn.appendChild(loadingTextElement)
         submitBtn.disabled = true
         submitBtn.classList.add('pointer-events-none')
 

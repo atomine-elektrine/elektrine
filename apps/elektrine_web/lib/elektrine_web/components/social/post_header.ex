@@ -40,7 +40,14 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
 
   def post_header(assigns) do
     normalized = normalize_post(assigns.post)
-    assigns = assign(assigns, :normalized, normalized)
+
+    local_profile_url =
+      if normalized.author_type == :local and assigns.post.sender do
+        Elektrine.Domains.profile_url_for_user(assigns.post.sender) || "/#{normalized.handle}"
+      end
+
+    assigns =
+      assigns |> assign(:normalized, normalized) |> assign(:local_profile_url, local_profile_url)
 
     ~H"""
     <%= if @normalized.has_author do %>
@@ -54,7 +61,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
               user_follows={@user_follows}
               current_user={@current_user}
             >
-              <.link navigate={"/#{@normalized.handle}"} class="w-10 h-10">
+              <.link href={@local_profile_url} class="w-10 h-10">
                 <.user_avatar
                   user={@post.sender}
                   size="sm"
@@ -97,7 +104,7 @@ defmodule ElektrineWeb.Components.Social.PostHeader do
                 current_user={@current_user}
               >
                 <.link
-                  navigate={"/#{@normalized.handle}"}
+                  href={@local_profile_url}
                   class="font-medium hover:text-error transition-colors text-left"
                 >
                   <.username_with_effects

@@ -1,10 +1,10 @@
 <.account_page
   title="Customize Your Profile"
-  subtitle={ "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}" }
+  subtitle={"Create your personal page at #{Elektrine.Domains.profile_url_for_user(@user) || "/#{@user.handle || @user.username}"}"}
   nav_tab="profile"
   current_user={@current_user}
   shell_title="Customize Your Profile"
-  shell_subtitle={ "Create your personal page at #{Elektrine.Domains.primary_profile_domain()}/#{@user.handle || @user.username}" }
+  shell_subtitle={"Create your personal page at #{Elektrine.Domains.profile_url_for_user(@user) || "/#{@user.handle || @user.username}"}"}
   class="[&>header]:hidden"
 >
   <:sidebar>
@@ -14,7 +14,9 @@
         selected_section={@selected_tab}
         sections={profile_tabs()}
         save_status={@profile_save_status}
-        profile_url={"https://#{@user.handle || @user.username}.#{Elektrine.Domains.primary_profile_domain()}"}
+        profile_url={
+          Elektrine.Domains.profile_url_for_user(@user) || "/#{@user.handle || @user.username}"
+        }
       />
     </div>
   </:sidebar>

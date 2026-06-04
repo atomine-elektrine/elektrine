@@ -460,12 +460,8 @@ defmodule Elektrine.DNS.Record do
 
   defp validate_proxy_origin(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :content)} do
-      {type, content} when type in ["A", "AAAA"] and is_binary(content) ->
-        if URLValidator.private_ip?(content) do
-          add_error(changeset, :content, "must be a public origin address when proxied")
-        else
-          changeset
-        end
+      {type, _content} when type in ["A", "AAAA"] ->
+        changeset
 
       {type, content} when type in ["CNAME", "ALIAS"] and is_binary(content) ->
         if Elektrine.DNS.public_hostname?(content) do
@@ -492,10 +488,14 @@ defmodule Elektrine.DNS.Record do
   defp validate_address_content(changeset) do
     case {get_field(changeset, :type), get_field(changeset, :content)} do
       {"A", content} when is_binary(content) ->
-        validate_ip_address(changeset, content, 4, "must be a valid IPv4 address")
+        changeset
+        |> validate_ip_address(content, 4, "must be a valid IPv4 address")
+        |> validate_public_ip_address(content)
 
       {"AAAA", content} when is_binary(content) ->
-        validate_ip_address(changeset, content, 8, "must be a valid IPv6 address")
+        changeset
+        |> validate_ip_address(content, 8, "must be a valid IPv6 address")
+        |> validate_public_ip_address(content)
 
       _ ->
         changeset
@@ -506,6 +506,14 @@ defmodule Elektrine.DNS.Record do
     case :inet.parse_address(String.to_charlist(content)) do
       {:ok, address} when tuple_size(address) == tuple_size -> changeset
       _ -> add_error(changeset, :content, message)
+    end
+  end
+
+  defp validate_public_ip_address(changeset, content) do
+    if URLValidator.private_ip?(content) do
+      add_error(changeset, :content, "must be a public address")
+    else
+      changeset
     end
   end
 

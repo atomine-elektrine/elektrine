@@ -823,8 +823,7 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Index do
   end
 
   def handle_event("navigate_to_profile", params, socket) do
-    handle = params["handle"] || params["username"]
-    {:noreply, push_navigate(socket, to: ~p"/#{handle}")}
+    ElektrineWeb.ProfileNavigation.navigate(socket, params)
   end
 
   def handle_event("navigate_to_remote_post", %{"post_id" => post_id}, socket) do

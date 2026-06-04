@@ -74,8 +74,18 @@ defmodule ElektrineWeb.Router do
 
   pipeline :caddy_internal_api do
     plug(ElektrineWeb.Plugs.InternalAPIAuth,
+      env_names: ["CADDY_EDGE_API_KEY"]
+    )
+  end
+
+  pipeline :caddy_tls_ask_api do
+    plug(ElektrineWeb.Plugs.InternalAPIAuth,
       env_names: ["CADDY_EDGE_API_KEY"],
-      param_names: ["edge_token"]
+      source_cidrs_env_names: [
+        "CADDY_ASK_TRUSTED_CIDRS",
+        "PROXY_PROTOCOL_TRUSTED_CIDRS",
+        "TRUSTED_PROXY_CIDRS"
+      ]
     )
   end
 
@@ -324,7 +334,7 @@ defmodule ElektrineWeb.Router do
   # Internal Caddy on-demand TLS allowlist endpoint.
   # This stays on the private/origin app hostname and should be called only by the Caddy edge.
   scope "/_edge/tls/v1", ElektrineWeb do
-    pipe_through([:api, :caddy_internal_api])
+    pipe_through([:api, :caddy_tls_ask_api])
 
     get("/allow", CaddyTLSController, :allow)
   end
@@ -809,7 +819,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/oauth", ElektrineWeb do
-    pipe_through(:api)
+    pipe_through([:api, :api_rate_limited])
 
     get("/jwks", OIDCController, :jwks)
     post("/token", OIDCController, :token)
@@ -942,7 +952,7 @@ defmodule ElektrineWeb.Router do
   end
 
   scope "/api/ext/v1/static-site", ElektrineWeb.API do
-    pipe_through([:api])
+    pipe_through([:api, :api_rate_limited])
 
     post("/deploy/github", StaticSiteController, :deploy_github)
     post("/deploy/github/webhook", StaticSiteController, :github_webhook)

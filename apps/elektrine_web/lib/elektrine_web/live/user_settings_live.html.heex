@@ -214,9 +214,8 @@
                   />
                   <div class="label">
                     <span class="text-xs text-base-content/60 block">
-                      {gettext("Profile URL:")} {Elektrine.Domains.primary_profile_domain()}/{@user.handle}<br /> {gettext(
-                        "Mentions:"
-                      )} @{@user.handle}<br /> {gettext(
+                      {gettext("Profile URL:")} {Elektrine.Domains.profile_url_for_user(@user) ||
+                        "/#{@user.handle || @user.username}"}<br /> {gettext("Mentions:")} @{@user.handle}<br /> {gettext(
                         "Permanent public identifier for mentions and ActivityPub actor URLs."
                       )}
                     </span>

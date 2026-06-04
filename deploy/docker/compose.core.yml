@@ -56,6 +56,7 @@ services:
       PORT: ${PORT:-8080}
       PHX_HTTP_IP: ${DOCKER_PHX_HTTP_IP:-0.0.0.0}
       TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}
+      CADDY_ASK_TRUSTED_CIDRS: ${CADDY_ASK_TRUSTED_CIDRS:-${TRUSTED_PROXY_CIDRS:-172.30.0.0/24}}
       MIX_ENV: prod
       ELEKTRINE_ENABLED_MODULES: ${ELEKTRINE_ENABLED_MODULES:-chat,social,nerve,atomine}
       ACME_HOME: ${ACME_HOME:-/data/acme.sh}
@@ -82,6 +83,8 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres_data:

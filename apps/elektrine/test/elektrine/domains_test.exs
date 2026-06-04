@@ -59,11 +59,11 @@ defmodule Elektrine.DomainsTest do
     assert Domains.inferred_base_url_for_domain("localhost") == "https://localhost"
   end
 
-  test "default hosted Elektrine config receives alternate official domains" do
+  test "default hosted Elektrine config offers alternate official domains" do
     assert "elektrine.net" in Domains.receiving_email_domains()
     assert "elektrine.org" in Domains.receiving_email_domains()
-    refute "elektrine.net" in Domains.available_email_domains_for_user(123)
-    refute "elektrine.org" in Domains.available_email_domains_for_user(123)
+    assert "elektrine.net" in Domains.available_email_domains_for_user(123)
+    assert "elektrine.org" in Domains.available_email_domains_for_user(123)
   end
 
   test "uses the primary configured profile domain for enabled built-in profile subdomains" do
@@ -82,6 +82,7 @@ defmodule Elektrine.DomainsTest do
 
     assert Domains.default_profile_url_for_handle("alice") == "https://elektrine.com/alice"
     assert Domains.profile_url_for_handle("alice") == "https://elektrine.com/alice"
+    assert Domains.profile_url_for_user(user) == "https://elektrine.com/alice"
     assert Domains.default_profile_url_for_user(user) == "https://elektrine.com/alice"
   end
 

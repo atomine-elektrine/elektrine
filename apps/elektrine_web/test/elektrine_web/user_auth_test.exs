@@ -182,7 +182,7 @@ defmodule ElektrineWeb.UserAuthTest do
       refute UserAuth.admin_login_restricted?(conn, user)
     end
 
-    test "restricts admin login on public host when NetBird is enabled", %{conn: conn} do
+    test "allows admin login from NetBird clients when NetBird is enabled", %{conn: conn} do
       Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
 
       user = %{is_admin: true}
@@ -193,10 +193,10 @@ defmodule ElektrineWeb.UserAuthTest do
           remote_ip: {100, 90, 10, 50}
       }
 
-      assert UserAuth.admin_login_restricted?(conn, user)
+      refute UserAuth.admin_login_restricted?(conn, user)
     end
 
-    test "allows admin login on admin host without duplicating the Caddy NetBird check", %{
+    test "restricts admin login on admin host when off VPN", %{
       conn: conn
     } do
       Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
@@ -209,7 +209,7 @@ defmodule ElektrineWeb.UserAuthTest do
           remote_ip: {203, 0, 113, 50}
       }
 
-      refute UserAuth.admin_login_restricted?(conn, user)
+      assert UserAuth.admin_login_restricted?(conn, user)
     end
 
     test "does not restrict non-admin login when NetBird is enabled", %{conn: conn} do
@@ -245,7 +245,7 @@ defmodule ElektrineWeb.UserAuthTest do
       refute conn.halted
     end
 
-    test "allows admin host without duplicating Caddy NetBird check", %{conn: conn} do
+    test "returns 404 for admin host clients off VPN", %{conn: conn} do
       Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.64.1.0/24"])
 
       conn = %{
@@ -256,7 +256,8 @@ defmodule ElektrineWeb.UserAuthTest do
 
       conn = UserAuth.require_vpn_when_netbird_enabled(conn, [])
 
-      refute conn.halted
+      assert conn.halted
+      assert conn.status == 404
     end
 
     test "returns 404 for public clients when NetBird is enabled", %{conn: conn} do
@@ -271,7 +272,7 @@ defmodule ElektrineWeb.UserAuthTest do
   end
 
   describe "fetch_current_user/2" do
-    test "keeps admin sessions on admin host without duplicating Caddy NetBird check", %{
+    test "clears admin sessions on admin host when off VPN", %{
       conn: conn
     } do
       Application.put_env(:elektrine, :netbird, enabled: true, allowed_cidrs: ["100.90.0.0/16"])
@@ -293,8 +294,8 @@ defmodule ElektrineWeb.UserAuthTest do
         |> Map.put(:remote_ip, {203, 0, 113, 50})
         |> UserAuth.fetch_current_user([])
 
-      assert conn.assigns.current_user.id == admin.id
-      assert get_session(conn, :user_token) == token
+      assert conn.assigns.current_user == nil
+      assert get_session(conn, :user_token) == nil
     end
 
     test "rejects sessions issued before the last password change", %{conn: conn} do

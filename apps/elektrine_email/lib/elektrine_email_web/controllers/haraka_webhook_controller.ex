@@ -564,9 +564,13 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                 html_body
               )
 
+            spam_filter_enabled? = Elektrine.Email.Mailbox.spam_filter_enabled?(mailbox)
+            spam_exception? = spam_exception?(mailbox, from)
+
             final_is_spam =
-              spam_info.is_spam ||
-                (is_number(spam_info.score) && spam_info.score >= spam_info.threshold) ||
+              (spam_filter_enabled? && not spam_exception? &&
+                 (spam_info.is_spam ||
+                    (is_number(spam_info.score) && spam_info.score >= spam_info.threshold))) ||
                 auth_decision.action == :quarantine
 
             email_data =
@@ -607,6 +611,8 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                   spam_threshold: spam_info.threshold,
                   spam_status_header: sanitize_metadata_field(spam_info.status),
                   spam_report: sanitize_metadata_field(spam_info.report),
+                  spam_filter_enabled: spam_filter_enabled?,
+                  spam_exception: spam_exception?,
                   delivery_signal: sanitize_metadata_field(delivery_signal.signal),
                   is_dsn: delivery_signal.is_dsn,
                   is_feedback_loop: delivery_signal.is_feedback_loop,
@@ -656,7 +662,7 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                         {:new_email, message}
                       )
 
-                      if new_message? do
+                      if new_message? and Elektrine.Email.Mailbox.auto_reply_enabled?(mailbox) do
                         Elektrine.Async.run(fn ->
                           Elektrine.Email.process_auto_reply(message, mailbox.user_id)
                         end)
@@ -741,6 +747,12 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
       {:error, _reason} -> message
     end
   end
+
+  defp spam_exception?(%{user_id: user_id}, from) when is_integer(user_id) do
+    Elektrine.Email.safe?(user_id, from)
+  end
+
+  defp spam_exception?(_, _), do: false
 
   defp normalize_attachments_to_list(nil) do
     []
