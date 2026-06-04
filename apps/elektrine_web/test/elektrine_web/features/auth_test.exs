@@ -29,7 +29,7 @@ defmodule ElektrineWeb.Features.AuthTest do
     |> visit_and_wait("/settings")
     |> click(Query.css("[data-test='user-menu'] [role='button']"))
     |> click(Query.css("[data-test='user-menu'] a", text: "Log out"))
-    # After logout, redirects to home page with a "Log in" link visible
-    |> assert_has(Query.link("Log in"))
+    # After logout, redirects to home page with the public sign-in link visible.
+    |> assert_has(Query.link("Sign in"))
   end
 end
