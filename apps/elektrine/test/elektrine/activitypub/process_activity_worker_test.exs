@@ -247,13 +247,14 @@ defmodule Elektrine.ActivityPub.ProcessActivityWorkerTest do
   defp remote_actor_fixture(label) do
     unique_id = System.unique_integer([:positive])
     username = "#{label}#{unique_id}"
+    domain = "#{label}-#{unique_id}.remote.example"
 
     %Actor{}
     |> Actor.changeset(%{
-      uri: "https://remote.example/users/#{username}",
+      uri: "https://#{domain}/users/#{username}",
       username: username,
-      domain: "remote.example",
-      inbox_url: "https://remote.example/users/#{username}/inbox",
+      domain: domain,
+      inbox_url: "https://#{domain}/users/#{username}/inbox",
       public_key: "-----BEGIN RSA PUBLIC KEY-----\nMOCK\n-----END RSA PUBLIC KEY-----\n",
       last_fetched_at: DateTime.utc_now() |> DateTime.truncate(:second)
     })

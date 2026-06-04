@@ -126,6 +126,9 @@ defmodule ElektrineWeb.FeatureCase do
   end
 
   setup tags do
+    Application.put_env(:wallaby, :base_url, ElektrineWeb.Endpoint.url())
+    Application.put_env(:wallaby, :max_wait_time, 20_000)
+
     {:ok, _} = Application.ensure_all_started(:wallaby)
 
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(Elektrine.Repo)

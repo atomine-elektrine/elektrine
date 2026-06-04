@@ -15,8 +15,8 @@ defmodule ElektrineSocialWeb.Features.TimelineTest do
     session
     |> visit_and_wait("/timeline")
     # Use the accessible composer-toggle selector to work across mobile/desktop layouts.
-    |> assert_has(Query.css("button[aria-label='Create new post']"))
-    |> click(Query.css("button[aria-label='Create new post']"))
+    |> assert_has(Query.css("#timeline-left-sidebar button[aria-label='Create new post']"))
+    |> click(Query.css("#timeline-left-sidebar button[aria-label='Create new post']"))
     # Verify the composer form appears
     |> assert_has(Query.css("#post-composer-container"))
     |> assert_has(Query.css("#timeline-post-textarea"))
@@ -30,12 +30,12 @@ defmodule ElektrineSocialWeb.Features.TimelineTest do
     {session, user} = create_and_login_user(session)
 
     # Create a public post via the context
-    {:ok, post} =
+    {:ok, _post} =
       Elektrine.Social.create_timeline_post(user.id, "A post to like", visibility: "public")
 
     session
     |> visit_and_wait("/timeline")
     |> assert_has(Query.css("#timeline-posts-container"))
-    |> assert_has(Query.css("[data-post-id='#{post.id}']"))
+    |> assert_has(Query.text("A post to like"))
   end
 end

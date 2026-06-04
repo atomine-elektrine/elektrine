@@ -104,4 +104,4 @@ _deploy_release
 /certs/
 /generated.mongooseim.toml
 _build_opencode/
-apps/elektrine/priv/static/robots-9e2c81b0855bbff2baa8371bc4a78186.txt.gz
+apps/elektrine_web/screenshots/
