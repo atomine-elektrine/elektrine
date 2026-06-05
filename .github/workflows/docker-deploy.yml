@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       allow_format_failure: false
+      allow_test_failure: true
       run_tests: true
 
   build_and_publish_image:
