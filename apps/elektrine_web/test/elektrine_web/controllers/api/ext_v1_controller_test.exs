@@ -348,10 +348,11 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
       user = user_fixture()
       assert {:ok, _ledger_entry} = Credits.grant(user.id, :atomine_credit, 1, "test_grant")
       conn = with_pat(conn, user.id, ["write:email"])
+      recipient = "friend-#{System.unique_integer([:positive])}@example.com"
 
       conn =
         post(conn, "/api/ext/v1/email/messages", %{
-          "to" => "friend@example.com",
+          "to" => recipient,
           "subject" => "PAT outbound email",
           "text_body" => "Hello from the external API"
         })
@@ -361,7 +362,7 @@ defmodule ElektrineWeb.API.ExtV1ControllerTest do
 
       assert message == "Email sent successfully"
       assert email["subject"] == "PAT outbound email"
-      assert email["to"] == "friend@example.com"
+      assert email["to"] == recipient
       assert delivery["status"] in ["sent", "queued"]
       assert is_binary(delivery["message_id"])
     end
