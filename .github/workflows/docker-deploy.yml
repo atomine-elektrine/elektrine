@@ -83,12 +83,13 @@ jobs:
       contents: read
       packages: read
     env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_SSH_HOST_KEY: ${{ secrets.DEPLOY_SSH_HOST_KEY }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/elektrine' }}
-      DEPLOY_BRANCH: ${{ secrets.DEPLOY_BRANCH || 'main' }}
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST || secrets.DEPLOY_HOST }}
+      DEPLOY_SSH_HOST_KEY: ${{ vars.DEPLOY_SSH_HOST_KEY || secrets.DEPLOY_SSH_HOST_KEY }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || secrets.DEPLOY_PATH || '/opt/elektrine' }}
+      DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || secrets.DEPLOY_BRANCH || 'main' }}
       ELEKTRINE_ENABLED_MODULES: all
       ELEKTRINE_RELEASE_MODULES: all
       DOCKER_PROFILES: caddy dns email tor turn bluesky vpn
@@ -103,15 +104,21 @@ jobs:
     steps:
       - name: Validate deploy settings
         run: |
-          if [ -z "${DEPLOY_HOST}" ] || [ -z "${DEPLOY_USER}" ] || [ -z "${DEPLOY_SSH_HOST_KEY}" ] || [ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
-            echo "::error::Missing deploy settings. Set DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_HOST_KEY, and DEPLOY_SSH_KEY repository/org secrets."
+          missing=()
+          [ -n "${DEPLOY_HOST}" ] || missing+=(DEPLOY_HOST)
+          [ -n "${DEPLOY_USER}" ] || missing+=(DEPLOY_USER)
+          [ -n "${DEPLOY_SSH_HOST_KEY}" ] || missing+=(DEPLOY_SSH_HOST_KEY)
+          [ -n "${DEPLOY_SSH_KEY}" ] || missing+=(DEPLOY_SSH_KEY)
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing deploy settings: %s. Set them as repository/org variables or secrets. DEPLOY_SSH_KEY must be a secret.\n' "${missing[*]}"
             exit 1
           fi
 
       - name: Install SSH key
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_SSH_HOST_KEY" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
