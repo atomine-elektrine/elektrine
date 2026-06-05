@@ -46,6 +46,7 @@
         <%= if @current_user do %>
           <button
             phx-click="toggle_post_composer"
+            data-test="mobile-create-post-button"
             class="btn btn-secondary flex-1 min-h-[2.75rem]"
             aria-label={gettext("Create new post")}
           >
@@ -406,6 +407,7 @@
                 <div class="flex gap-2">
                   <button
                     phx-click="toggle_post_composer"
+                    data-test="desktop-create-post-button"
                     class="btn btn-secondary flex-1"
                     aria-label={gettext("Create new post")}
                   >
