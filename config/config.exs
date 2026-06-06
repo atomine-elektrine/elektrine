@@ -79,8 +79,8 @@ config :elektrine, Oban,
     messaging_federation: 4
   ],
   plugins: [
-    # Keep jobs for 1 day only
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24},
+    # High-volume federation jobs add up quickly; keep only a short completed-job window.
+    {Oban.Plugins.Pruner, max_age: 60 * 60},
     # Rescue stuck jobs
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
