@@ -115,12 +115,32 @@ jobs:
             exit 1
           fi
 
+          if [[ "$DEPLOY_HOST" == *@* ]]; then
+            echo "::warning::DEPLOY_HOST should be a hostname only. Using the user/host split from DEPLOY_HOST."
+            echo "DEPLOY_USER=${DEPLOY_HOST%@*}" >> "$GITHUB_ENV"
+            echo "DEPLOY_HOST=${DEPLOY_HOST##*@}" >> "$GITHUB_ENV"
+          fi
+
       - name: Install SSH key
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$DEPLOY_SSH_HOST_KEY" > ~/.ssh/known_hosts
+
+          {
+            printf '%s\n' "$DEPLOY_SSH_HOST_KEY"
+            while IFS= read -r line; do
+              case "$line" in
+                ''|'#'*) continue ;;
+              esac
+
+              host_field="${line%% *}"
+              rest="${line#* }"
+              if [[ "$host_field" == *@* ]]; then
+                printf '%s %s\n' "${host_field##*@}" "$rest"
+              fi
+            done <<< "$DEPLOY_SSH_HOST_KEY"
+          } > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
 
       - name: Deploy over SSH
