@@ -267,7 +267,7 @@ oban_queues =
     oban_db_pool_size <= 5 ->
       [
         default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 1),
-        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 4),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 1),
         activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 1),
         email: oban_queue_override.("OBAN_QUEUE_EMAIL", 1),
         email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 1),
@@ -282,8 +282,8 @@ oban_queues =
     oban_db_pool_size <= 10 ->
       [
         default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 2),
-        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 6),
-        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 2),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 2),
+        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 1),
         email: oban_queue_override.("OBAN_QUEUE_EMAIL", 1),
         email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 1),
         rss: oban_queue_override.("OBAN_QUEUE_RSS", 1),
@@ -297,8 +297,8 @@ oban_queues =
     true ->
       [
         default: oban_queue_override.("OBAN_QUEUE_DEFAULT", 3),
-        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 8),
-        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 3),
+        activitypub: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB", 3),
+        activitypub_delivery: oban_queue_override.("OBAN_QUEUE_ACTIVITYPUB_DELIVERY", 2),
         email: oban_queue_override.("OBAN_QUEUE_EMAIL", 2),
         email_inbound: oban_queue_override.("OBAN_QUEUE_EMAIL_INBOUND", 2),
         rss: oban_queue_override.("OBAN_QUEUE_RSS", 2),

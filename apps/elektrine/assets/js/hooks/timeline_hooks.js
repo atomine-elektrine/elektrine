@@ -635,8 +635,11 @@ export const InfiniteScroll = {
     this.prePatchAnchor = null;
     this.loadCycleStartY = null;
     this.lastKnownScrollY = currentScrollY();
+    this.previousScrollRestoration = null;
 
-    this.restoreFromGlobalSnapshotIfNeeded(true);
+    this.disableNativeScrollRestoration();
+    this.resetReloadScrollPosition();
+    this.clearGlobalRestoreSnapshot();
 
     this.setupObserver();
     this.requestCheck();
@@ -685,6 +688,25 @@ export const InfiniteScroll = {
     );
 
     this.observer.observe(this.sentinel);
+  },
+
+  disableNativeScrollRestoration() {
+    if (!window.history || !("scrollRestoration" in window.history)) return;
+
+    this.previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+  },
+
+  resetReloadScrollPosition() {
+    const navigation = performance.getEntriesByType?.("navigation")?.[0];
+    const legacyNavigation = performance.navigation;
+    const isReload =
+      navigation?.type === "reload" || legacyNavigation?.type === 1;
+
+    if (isReload && currentScrollY() > 0) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+      this.lastKnownScrollY = 0;
+    }
   },
 
   requestCheck() {
@@ -944,6 +966,13 @@ export const InfiniteScroll = {
     if (this.handleScroll)
       window.removeEventListener("scroll", this.handleScroll);
     if (this.observer) this.observer.disconnect();
+    if (
+      this.previousScrollRestoration &&
+      window.history &&
+      "scrollRestoration" in window.history
+    ) {
+      window.history.scrollRestoration = this.previousScrollRestoration;
+    }
   },
 };
 
@@ -958,8 +987,7 @@ export const PreserveStreamAnchor = {
     this.restoreRAF = null;
     this.restoreTimeouts = [];
     this.lastKnownScrollY = currentScrollY();
-
-    this.restoreFromGlobalSnapshotIfNeeded(true);
+    this.clearGlobalRestoreSnapshot();
 
     this.handleScroll = () => {
       this.lastKnownScrollY = currentScrollY();

@@ -9,6 +9,8 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    env_file:
+      - ../../.env.production
     environment:
       ACME_EMAIL: ${ACME_EMAIL:-admin@example.com}
       CADDY_ASK_URL: ${CADDY_ASK_URL:-http://app_proxy:8080/_edge/tls/v1/allow}
