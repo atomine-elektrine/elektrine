@@ -10,29 +10,12 @@
 		trusted_proxies static 192.0.2.0/32 {$CADDY_TRUSTED_PROXY_CIDRS:}
 		trusted_proxies_strict
 		client_ip_headers X-Forwarded-For X-Real-IP
-
-		listener_wrappers {
-			proxy_protocol {
-				timeout 2s
-				allow {$CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS:192.0.2.0/32}
-				fallback_policy skip
-			}
-			tls
-		}
 	}
 
 	servers :80 {
 		trusted_proxies static 192.0.2.0/32 {$CADDY_TRUSTED_PROXY_CIDRS:}
 		trusted_proxies_strict
 		client_ip_headers X-Forwarded-For X-Real-IP
-
-		listener_wrappers {
-			proxy_protocol {
-				timeout 2s
-				allow {$CADDY_PROXY_PROTOCOL_ALLOWED_CIDRS:192.0.2.0/32}
-				fallback_policy skip
-			}
-		}
 	}
 
 	auto_https disable_redirects
