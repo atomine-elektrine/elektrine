@@ -197,7 +197,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
          |> assign(:search_query, search_query)}
 
       filter != socket.assigns.current_filter ->
-        {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+        case apply_cached_timeline_view(params_socket, filter, timeline_view, search_query) do
+          {:ok, cached_socket} -> {:noreply, cached_socket}
+          :miss -> {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+        end
 
       timeline_view != socket.assigns.timeline_filter ->
         updated_socket =
@@ -207,7 +210,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
         cond do
           view_requires_data_reload?(timeline_view) ->
-            {:noreply, queue_timeline_reload(updated_socket, filter, timeline_view)}
+            case apply_cached_timeline_view(updated_socket, filter, timeline_view, search_query) do
+              {:ok, cached_socket} -> {:noreply, cached_socket}
+              :miss -> {:noreply, queue_timeline_reload(updated_socket, filter, timeline_view)}
+            end
 
           view_requires_data_reload?(socket.assigns.timeline_filter) &&
               socket.assigns.base_timeline_posts != [] ->
@@ -226,7 +232,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         end
 
       search_query != socket.assigns.search_query ->
-        {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+        case apply_cached_timeline_view(params_socket, filter, timeline_view, search_query) do
+          {:ok, cached_socket} -> {:noreply, cached_socket}
+          :miss -> {:noreply, queue_timeline_reload(params_socket, filter, timeline_view)}
+        end
 
       timeline_sort != socket.assigns.timeline_sort ->
         if filter == "rss" do
@@ -416,6 +425,47 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
     |> assign(:loading_more, false)
     |> assign(:no_more_posts, false)
     |> stream(:timeline_filtered_posts, [], reset: true)
+  end
+
+  defp apply_cached_timeline_view(socket, filter, timeline_view, search_query) do
+    cache_key = {filter, timeline_view, search_query}
+
+    case Map.get(socket.assigns[:special_view_cache] || %{}, cache_key) do
+      %{posts: posts} = cached_view when is_list(posts) ->
+        cached_replies = Map.get(cached_view, :post_replies, %{})
+
+        cached_socket =
+          socket
+          |> assign(:current_filter, filter)
+          |> assign(:timeline_filter, timeline_view)
+          |> assign(:search_query, search_query)
+          |> assign(:timeline_posts, posts)
+          |> assign(:post_replies, cached_replies)
+          |> assign(:loading_timeline, false)
+          |> assign(:loading_more, false)
+          |> assign(:no_more_posts, false)
+          |> assign(:recently_loaded_post_ids, [])
+          |> assign(:recently_loaded_count, 0)
+          |> assign(:timeline_gap_marker_ids, MapSet.new())
+          |> assign(:timeline_load_started_at, nil)
+          |> assign(:user_likes, %{})
+          |> assign(:user_downvotes, %{})
+          |> assign(:post_interactions, %{})
+          |> assign(:post_reactions, %{})
+          |> assign(:user_follows, %{})
+          |> assign(:pending_follows, %{})
+          |> assign(:user_boosts, %{})
+          |> assign(:user_saves, %{})
+          |> prune_queued_posts_for_active_filters()
+          |> apply_timeline_filter(true)
+          |> maybe_queue_reply_context_previews(posts)
+          |> start_timeline_hydration(posts, filter, timeline_view, socket.assigns[:current_user])
+
+        {:ok, cached_socket}
+
+      _ ->
+        :miss
+    end
   end
 
   defp maybe_queue_reply_context_previews(socket, posts) do
