@@ -360,11 +360,9 @@ defmodule Elektrine.Email.HarakaClient do
             |> Map.put("text", "")
         end
 
-      # Add custom headers (for threading, forwarding info, etc.)
-      # Don't set Content-Type - let Haraka handle it automatically based on html_body/text_body
-      headers = %{
-        "Content-Transfer-Encoding" => "8bit"
-      }
+      # Add custom headers (for threading, forwarding info, etc.).
+      # MIME structure and transfer encoding are owned by Haraka's message builder.
+      headers = %{}
 
       # Add In-Reply-To header if present
       headers =
