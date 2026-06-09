@@ -234,17 +234,23 @@ defmodule Elektrine.DNS.ManagedRecords do
       |> Map.put("dkim_selector", key_material.selector)
       |> Map.put("dkim_public_key", key_material.public_key)
       |> Map.put("dkim_private_key", key_material.private_key)
-      |> Map.put(
-        "dkim_value",
-        dkim_module().public_key_dns_value(key_material.public_key)
-        |> then(&"v=DKIM1; k=rsa; p=#{&1}")
-      )
+      |> Map.put("dkim_value", dkim_value(key_material.public_key, key_material.private_key))
     else
       dkim_public_key = Map.get(settings, "dkim_public_key", "")
-      dkim_value = "v=DKIM1; k=rsa; p=#{dkim_module().public_key_dns_value(dkim_public_key)}"
+      dkim_private_key = Map.get(settings, "dkim_private_key", "")
 
       settings
-      |> Map.put("dkim_value", dkim_value)
+      |> Map.put("dkim_value", dkim_value(dkim_public_key, dkim_private_key))
+    end
+  end
+
+  defp dkim_value(public_key, private_key) do
+    dkim = dkim_module()
+
+    if function_exported?(dkim, :dkim_value_from_material, 2) do
+      dkim.dkim_value_from_material(public_key, private_key)
+    else
+      "v=DKIM1; k=rsa; p=#{dkim.public_key_dns_value(public_key)}"
     end
   end
 

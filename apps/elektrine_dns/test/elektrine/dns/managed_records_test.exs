@@ -8,6 +8,19 @@ defmodule Elektrine.DNS.TestDKIM do
   def sync_domain(_domain, _selector, _private_key), do: :ok
 end
 
+defmodule Elektrine.DNS.RealValueTestDKIM do
+  alias Elektrine.Email.DKIM
+
+  def generate_domain_key_material, do: DKIM.generate_domain_key_material()
+
+  def dkim_value_from_material(public_key, private_key),
+    do: DKIM.dkim_value_from_material(public_key, private_key)
+
+  def public_key_dns_value(key), do: DKIM.public_key_dns_value(key)
+  def mx_host, do: "mail.example.com"
+  def sync_domain(_domain, _selector, _private_key), do: :ok
+end
+
 defmodule Elektrine.DNS.ManagedRecordsTest do
   use Elektrine.DataCase, async: false
 
@@ -346,6 +359,36 @@ defmodule Elektrine.DNS.ManagedRecordsTest do
     zone = DNS.get_zone(zone.id, user.id)
     dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
     assert dkim_record.content == "v=DKIM1; k=rsa; p=ROTATEDPUBLICKEY"
+  end
+
+  test "managed mail service derives DKIM TXT value from private key when available" do
+    Application.put_env(:elektrine, :managed_dns_dkim_module, Elektrine.DNS.RealValueTestDKIM)
+
+    user = AccountsFixtures.user_fixture()
+    {:ok, zone} = DNS.create_zone(user, %{"domain" => unique_domain()})
+    key_material = Elektrine.Email.DKIM.generate_domain_key_material()
+
+    assert {:ok, config} =
+             DNS.apply_zone_service(zone, "mail", %{
+               "settings" => %{
+                 "dkim_public_key" => "STALEPUBLICKEY",
+                 "dkim_private_key" => key_material.private_key
+               }
+             })
+
+    expected_value =
+      Elektrine.Email.DKIM.dkim_value_from_material(
+        "STALEPUBLICKEY",
+        key_material.private_key
+      )
+
+    assert config.status == "ok"
+    assert config.settings["dkim_value"] == expected_value
+    refute config.settings["dkim_value"] =~ "STALEPUBLICKEY"
+
+    zone = DNS.get_zone(zone.id, user.id)
+    dkim_record = Enum.find(zone.records, &(&1.managed_key == "mail:dkim"))
+    assert dkim_record.content == expected_value
   end
 
   test "managed mail service generates TLSA records when association data is configured" do

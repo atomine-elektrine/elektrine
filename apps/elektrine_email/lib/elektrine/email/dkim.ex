@@ -215,12 +215,44 @@ defmodule Elektrine.Email.DKIM do
 
   @spec dkim_value(CustomDomain.t()) :: String.t()
   def dkim_value(%CustomDomain{} = custom_domain) do
-    "v=DKIM1; k=rsa; p=#{public_key_dns_value(custom_domain.dkim_public_key)}"
+    dkim_value_from_material(custom_domain.dkim_public_key, custom_domain.dkim_private_key)
   end
 
-  def dkim_value(%{dkim_public_key: public_key}) when is_binary(public_key) do
-    "v=DKIM1; k=rsa; p=#{public_key_dns_value(public_key)}"
+  def dkim_value(%{dkim_public_key: public_key} = key_material) when is_binary(public_key) do
+    private_key =
+      Map.get(key_material, :dkim_private_key) || Map.get(key_material, "dkim_private_key")
+
+    dkim_value_from_material(public_key, private_key)
   end
+
+  @spec dkim_value_from_material(String.t() | nil, String.t() | nil) :: String.t()
+  def dkim_value_from_material(public_key, private_key) do
+    "v=DKIM1; k=rsa; p=#{public_key_dns_value(public_key_from_material(public_key, private_key))}"
+  end
+
+  @spec public_key_from_material(String.t() | nil, String.t() | nil) :: String.t() | nil
+  def public_key_from_material(public_key, private_key) do
+    case public_key_from_private_key(private_key) do
+      {:ok, derived_public_key} -> derived_public_key
+      {:error, _reason} -> public_key
+    end
+  end
+
+  @spec public_key_from_private_key(String.t() | nil) :: {:ok, String.t()} | {:error, atom()}
+  def public_key_from_private_key(private_key_pem) when is_binary(private_key_pem) do
+    with [entry | _] <- :public_key.pem_decode(private_key_pem),
+         {:ok, private_key} <- decode_pem_entry(entry),
+         {:ok, public_key} <- rsa_public_key(private_key),
+         {:ok, public_pem} <- encode_public_key(public_key) do
+      {:ok, public_pem}
+    else
+      [] -> {:error, :invalid_private_key}
+      {:error, reason} -> {:error, reason}
+      _ -> {:error, :invalid_private_key}
+    end
+  end
+
+  def public_key_from_private_key(_), do: {:error, :invalid_private_key}
 
   @spec mx_host() :: String.t()
   def mx_host do
@@ -275,6 +307,32 @@ defmodule Elektrine.Email.DKIM do
   end
 
   def public_key_dns_value(_), do: ""
+
+  defp decode_pem_entry(entry) do
+    {:ok, :public_key.pem_entry_decode(entry)}
+  rescue
+    _ -> {:error, :invalid_private_key}
+  catch
+    _, _ -> {:error, :invalid_private_key}
+  end
+
+  defp rsa_public_key(private_key) when is_tuple(private_key) and tuple_size(private_key) >= 4 do
+    case elem(private_key, 0) do
+      :RSAPrivateKey -> {:ok, {:RSAPublicKey, elem(private_key, 2), elem(private_key, 3)}}
+      _ -> {:error, :unsupported_private_key}
+    end
+  end
+
+  defp rsa_public_key(_), do: {:error, :unsupported_private_key}
+
+  defp encode_public_key(public_key) do
+    {:ok,
+     :public_key.pem_encode([:public_key.pem_entry_encode(:SubjectPublicKeyInfo, public_key)])}
+  rescue
+    _ -> {:error, :invalid_public_key}
+  catch
+    _, _ -> {:error, :invalid_public_key}
+  end
 
   defp ensure_sync_ready(%CustomDomain{dkim_selector: selector, dkim_private_key: private_key})
        when is_binary(selector) and is_binary(private_key) do
