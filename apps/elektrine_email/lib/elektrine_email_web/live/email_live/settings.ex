@@ -1154,10 +1154,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_blocked_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Blocked Senders</h2>
-      <p class="text-base-content/70 mb-4">
-        Emails from blocked addresses or domains will be automatically rejected.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Blocked Senders</h2>
+        <p class="mt-1 text-base-content/70">
+          Emails from blocked addresses or domains will be automatically rejected.
+        </p>
+      </div>
       
     <!-- Add Form -->
       <form phx-submit="block_sender" class="flex gap-2 mb-6">
@@ -1213,11 +1215,13 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_safe_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Spam Exceptions</h2>
-      <p class="text-base-content/70 mb-4">
-        Add sender addresses or domains that should bypass automatic spam-folder classification.
-        Server-side security checks can still reject dangerous or unauthenticated mail.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Spam Exceptions</h2>
+        <p class="mt-1 text-base-content/70">
+          Add sender addresses or domains that should bypass automatic spam-folder classification.
+          Server-side security checks can still reject dangerous or unauthenticated mail.
+        </p>
+      </div>
       
     <!-- Add Form -->
       <form phx-submit="add_safe_sender" class="flex gap-2 mb-6">
@@ -1270,144 +1274,161 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_filters_tab(assigns) do
     ~H"""
     <div>
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-xl font-semibold">Email Filters</h2>
-          <p class="text-base-content/70">
-            Automatically organize incoming emails based on rules.
-          </p>
-        </div>
-        <button phx-click="show_filter_modal" phx-value-id="new" class="btn btn-secondary">
-          Create Filter
-        </button>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Email Filters</h2>
+        <p class="mt-1 text-base-content/70">
+          Automatically organize incoming emails based on rules.
+        </p>
       </div>
       
     <!-- Category Filters -->
-      <.form for={@mailbox_filter_form} phx-submit="save_category_filters" class="mb-6">
-        <div class="rounded-lg border border-base-content/10 bg-base-100/50 p-4">
-          <div class="mb-4">
-            <h3 class="font-semibold">Mailbox Filters</h3>
-            <p class="text-sm text-base-content/60">
-              Control automatic spam-folder delivery, auto-replies, and optional inbox category views.
-            </p>
-          </div>
+      <.form
+        for={@mailbox_filter_form}
+        phx-submit="save_category_filters"
+        class="card space-y-4 mb-8 p-5"
+      >
+        <div>
+          <h3 class="font-semibold text-lg mb-1">Mailbox Filters</h3>
+          <p class="text-sm text-base-content/60">
+            Control automatic spam-folder delivery, auto-replies, and optional inbox category views.
+          </p>
+        </div>
 
-          <div class="grid gap-3 sm:grid-cols-2">
-            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
-              <input type="hidden" name="mailbox[auto_reply_enabled]" value="false" />
-              <span>
-                <span class="block font-medium">Auto-Reply</span>
-                <span class="text-sm text-base-content/60">
-                  Allow this mailbox to send automatic replies when your auto-reply is active.
-                </span>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/55 p-3">
+            <input type="hidden" name="mailbox[auto_reply_enabled]" value="false" />
+            <span>
+              <span class="block font-medium">Auto-Reply</span>
+              <span class="text-sm text-base-content/60">
+                Allow this mailbox to send automatic replies when your auto-reply is active.
               </span>
-              <input
-                type="checkbox"
-                name="mailbox[auto_reply_enabled]"
-                value="true"
-                checked={@mailbox_filter_form[:auto_reply_enabled].value in [true, "true"]}
-                class="toggle toggle-secondary"
-              />
-            </label>
+            </span>
+            <input
+              type="checkbox"
+              name="mailbox[auto_reply_enabled]"
+              value="true"
+              checked={@mailbox_filter_form[:auto_reply_enabled].value in [true, "true"]}
+              class="toggle toggle-secondary"
+            />
+          </label>
 
-            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
-              <input type="hidden" name="mailbox[spam_filter_enabled]" value="false" />
-              <span>
-                <span class="block font-medium">Spam Folder</span>
-                <span class="text-sm text-base-content/60">
-                  Deliver messages flagged by spam scoring into Spam instead of Inbox.
-                </span>
+          <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/55 p-3">
+            <input type="hidden" name="mailbox[spam_filter_enabled]" value="false" />
+            <span>
+              <span class="block font-medium">Spam Folder</span>
+              <span class="text-sm text-base-content/60">
+                Deliver messages flagged by spam scoring into Spam instead of Inbox.
               </span>
-              <input
-                type="checkbox"
-                name="mailbox[spam_filter_enabled]"
-                value="true"
-                checked={@mailbox_filter_form[:spam_filter_enabled].value in [true, "true"]}
-                class="toggle toggle-secondary"
-              />
-            </label>
+            </span>
+            <input
+              type="checkbox"
+              name="mailbox[spam_filter_enabled]"
+              value="true"
+              checked={@mailbox_filter_form[:spam_filter_enabled].value in [true, "true"]}
+              class="toggle toggle-secondary"
+            />
+          </label>
 
-            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
-              <input type="hidden" name="mailbox[digest_filter_enabled]" value="false" />
-              <span>
-                <span class="block font-medium">Digest</span>
-                <span class="text-sm text-base-content/60">
-                  Newsletters and bulk mail get their own inbox filter.
-                </span>
+          <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/55 p-3">
+            <input type="hidden" name="mailbox[digest_filter_enabled]" value="false" />
+            <span>
+              <span class="block font-medium">Digest</span>
+              <span class="text-sm text-base-content/60">
+                Newsletters and bulk mail get their own inbox filter.
               </span>
-              <input
-                type="checkbox"
-                name="mailbox[digest_filter_enabled]"
-                value="true"
-                checked={@mailbox_filter_form[:digest_filter_enabled].value in [true, "true"]}
-                class="toggle toggle-secondary"
-              />
-            </label>
+            </span>
+            <input
+              type="checkbox"
+              name="mailbox[digest_filter_enabled]"
+              value="true"
+              checked={@mailbox_filter_form[:digest_filter_enabled].value in [true, "true"]}
+              class="toggle toggle-secondary"
+            />
+          </label>
 
-            <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/50 p-3">
-              <input type="hidden" name="mailbox[ledger_filter_enabled]" value="false" />
-              <span>
-                <span class="block font-medium">Ledger</span>
-                <span class="text-sm text-base-content/60">
-                  Receipts, invoices, and transaction mail get their own inbox filter.
-                </span>
+          <label class="flex items-start justify-between gap-3 rounded-lg bg-base-200/55 p-3">
+            <input type="hidden" name="mailbox[ledger_filter_enabled]" value="false" />
+            <span>
+              <span class="block font-medium">Ledger</span>
+              <span class="text-sm text-base-content/60">
+                Receipts, invoices, and transaction mail get their own inbox filter.
               </span>
-              <input
-                type="checkbox"
-                name="mailbox[ledger_filter_enabled]"
-                value="true"
-                checked={@mailbox_filter_form[:ledger_filter_enabled].value in [true, "true"]}
-                class="toggle toggle-secondary"
-              />
-            </label>
-          </div>
+            </span>
+            <input
+              type="checkbox"
+              name="mailbox[ledger_filter_enabled]"
+              value="true"
+              checked={@mailbox_filter_form[:ledger_filter_enabled].value in [true, "true"]}
+              class="toggle toggle-secondary"
+            />
+          </label>
+        </div>
 
-          <div class="mt-4 flex justify-end">
-            <button type="submit" class="btn btn-secondary btn-sm">Save Mailbox Filters</button>
-          </div>
+        <div class="flex justify-end">
+          <button type="submit" class="btn btn-secondary btn-sm">Save Mailbox Filters</button>
         </div>
       </.form>
       
     <!-- List -->
-      <div class="space-y-2">
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <h3 class="font-semibold text-lg">Custom Rules</h3>
+        <button phx-click="show_filter_modal" phx-value-id="new" class="btn btn-secondary btn-sm">
+          Create Filter
+        </button>
+      </div>
+
+      <div class="space-y-3">
         <%= for filter <- @filters do %>
-          <div class="flex items-center justify-between p-3 bg-base-100/50 rounded-lg border border-base-content/10">
-            <div class="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={filter.enabled}
-                phx-click="toggle_filter"
-                phx-value-id={filter.id}
-                class="checkbox checkbox-sm"
-              />
-              <div>
-                <span class="font-medium">{filter.name}</span>
-                <div class="text-sm text-base-content/50">
-                  {describe_filter(filter)}
+          <div class="card p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex min-w-0 flex-1 items-start gap-4">
+                <input
+                  type="checkbox"
+                  checked={filter.enabled}
+                  phx-click="toggle_filter"
+                  phx-value-id={filter.id}
+                  class="checkbox checkbox-sm mt-1"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                    <span class="font-semibold text-lg">{filter.name}</span>
+                    <%= if !filter.enabled do %>
+                      <span class="badge badge-sm badge-warning gap-1">
+                        <.icon name="hero-pause" class="w-3 h-3" /> Disabled
+                      </span>
+                    <% end %>
+                  </div>
+                  <div class="mt-1 text-sm text-base-content/50">
+                    {describe_filter(filter)}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="flex gap-2">
-              <button
-                phx-click="show_filter_modal"
-                phx-value-id={filter.id}
-                class="btn btn-ghost btn-sm"
-              >
-                Edit
-              </button>
-              <button
-                phx-click="delete_filter"
-                phx-value-id={filter.id}
-                class="btn btn-ghost btn-sm text-error"
-                data-confirm="Are you sure you want to delete this filter?"
-              >
-                Delete
-              </button>
+              <div class="flex shrink-0 gap-2">
+                <button
+                  phx-click="show_filter_modal"
+                  phx-value-id={filter.id}
+                  class="btn btn-ghost btn-sm"
+                >
+                  Edit
+                </button>
+                <button
+                  phx-click="delete_filter"
+                  phx-value-id={filter.id}
+                  class="btn btn-ghost btn-sm text-error"
+                  data-confirm="Are you sure you want to delete this filter?"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         <% end %>
         <%= if Enum.empty?(@filters) do %>
-          <p class="text-base-content/50 text-center py-4">No filters created</p>
+          <div class="text-center py-12 bg-base-200/30 rounded-lg border border-dashed border-base-content/20">
+            <.icon name="hero-funnel" class="w-12 h-12 mx-auto text-base-content/30 mb-3" />
+            <p class="text-base-content/50">No filters created yet</p>
+            <p class="text-sm text-base-content/40 mt-1">Create your first custom rule above</p>
+          </div>
         <% end %>
       </div>
     </div>
@@ -1417,8 +1438,16 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_autoreply_tab(assigns) do
     ~H"""
     <div>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Auto-Reply</h2>
+        <p class="mt-1 text-base-content/70">
+          Send automatic replies when you are unavailable.
+        </p>
+      </div>
+
       <.form for={@auto_reply_form} phx-submit="save_auto_reply" class="space-y-6">
-        <!-- Status Toggle -->
+        
+    <!-- Status Toggle -->
         <div class="flex items-center justify-between p-4 bg-base-200/50 rounded-lg border border-base-content/10">
           <div class="flex items-center gap-3">
             <div class={["p-2 rounded-lg", (@auto_reply.enabled && "bg-success/20") || "bg-base-300"]}>
@@ -1575,13 +1604,14 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_templates_tab(assigns) do
     ~H"""
     <div>
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-xl font-semibold">Email Templates</h2>
-          <p class="text-base-content/70">
-            Save commonly used email templates for quick access.
-          </p>
-        </div>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Email Templates</h2>
+        <p class="mt-1 text-base-content/70">
+          Save commonly used email templates for quick access.
+        </p>
+      </div>
+
+      <div class="mb-4 flex justify-end">
         <button phx-click="show_template_modal" phx-value-id="new" class="btn btn-secondary">
           Create Template
         </button>
@@ -1627,10 +1657,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_folders_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Custom Folders</h2>
-      <p class="text-base-content/70 mb-4">
-        Create custom folders to organize your emails.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Custom Folders</h2>
+        <p class="mt-1 text-base-content/70">
+          Create custom folders to organize your emails.
+        </p>
+      </div>
       
     <!-- Add Form -->
       <form phx-submit="create_folder" class="flex gap-2 mb-6">
@@ -1688,10 +1720,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_labels_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Labels</h2>
-      <p class="text-base-content/70 mb-4">
-        Create labels to tag and categorize your emails.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Labels</h2>
+        <p class="mt-1 text-base-content/70">
+          Create labels to tag and categorize your emails.
+        </p>
+      </div>
       
     <!-- Add Form -->
       <form phx-submit="create_label" class="flex gap-2 mb-6">
@@ -1745,10 +1779,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_export_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Export Emails</h2>
-      <p class="text-base-content/70 mb-4">
-        Download a backup of your emails.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Export Emails</h2>
+        <p class="mt-1 text-base-content/70">
+          Download a backup of your emails.
+        </p>
+      </div>
       
     <!-- Export Options -->
       <div class="flex gap-4 mb-6">
@@ -1810,10 +1846,12 @@ defmodule ElektrineEmailWeb.EmailLive.Settings do
   defp render_aliases_tab(assigns) do
     ~H"""
     <div>
-      <h2 class="text-xl font-semibold mb-4">Email Aliases</h2>
-      <p class="text-base-content/70 mb-6">
-        Create additional email addresses that deliver to your mailbox or forward elsewhere. You can have up to 15 aliases.
-      </p>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold">Email Aliases</h2>
+        <p class="mt-1 text-base-content/70">
+          Create additional email addresses that deliver to your mailbox or forward elsewhere. You can have up to 15 aliases.
+        </p>
+      </div>
 
       <form phx-submit="create_custom_domain" class="card space-y-4 mb-8 p-5">
         <div>
