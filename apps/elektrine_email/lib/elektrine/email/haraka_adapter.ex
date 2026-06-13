@@ -1,58 +1,26 @@
 defmodule Elektrine.Email.HarakaAdapter do
   @moduledoc """
-  Swoosh adapter for Haraka HTTP API server
+  Swoosh adapter for the Haraka HTTP API server.
+
+  Translates `Swoosh.Email` structs into `Elektrine.Email.HarakaClient` params
+  and delegates delivery to it, so transactional mail shares the same wire
+  format (RFC 2047 header encoding, UTF-8 sanitization, attachment handling,
+  internal origin signing) as user-composed mail.
   """
 
   use Swoosh.Adapter,
     required_config: [:api_key],
     optional_config: [:base_url, :timeout]
 
+  alias Elektrine.Email.HarakaClient
   alias Elektrine.Email.InternalOrigin
-  alias Elektrine.EmailConfig
   alias Swoosh.Email
 
-  @api_path "/api/v1/send"
-
   @impl true
-  def deliver(%Email{} = email, config) do
-    base_url = EmailConfig.haraka_base_url(config[:base_url])
-    timeout = config[:timeout] || 30_000
-
-    # Get the appropriate API key based on the from address
-    api_key = get_api_key_for_email(email.from, config[:api_key])
-
-    headers = [
-      {"Content-Type", "application/json"},
-      {"X-API-Key", api_key},
-      {"User-Agent", "Elektrine-Swoosh-Haraka/1.0"}
-    ]
-
-    body = build_api_body(email)
-
-    request = Finch.build(:post, "#{base_url}#{@api_path}", headers, body)
-
-    case Finch.request(request, Elektrine.Finch, receive_timeout: timeout) do
-      {:ok, %Finch.Response{status: 200, body: response_body}} ->
-        case Jason.decode(response_body) do
-          {:ok, %{"success" => true, "message_id" => message_id}} ->
-            {:ok, %{id: message_id, message_id: message_id}}
-
-          {:ok, %{"success" => false, "error" => error}} ->
-            {:error, error}
-
-          {:ok, response} ->
-            {:error, "Unexpected Haraka response: #{inspect(response)}"}
-
-          {:error, decode_error} ->
-            {:error, "Failed to decode Haraka response: #{inspect(decode_error)}"}
-        end
-
-      {:ok, %Finch.Response{status: status_code, body: response_body}} ->
-        {:error, "Haraka HTTP API returned status #{status_code}: #{response_body}"}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+  def deliver(%Email{} = email, _config) do
+    email
+    |> to_client_params()
+    |> HarakaClient.send_email()
   end
 
   @impl true
@@ -62,104 +30,66 @@ defmodule Elektrine.Email.HarakaAdapter do
   end
 
   @doc false
-  def build_api_body(email) do
-    # Build the JSON body for Haraka HTTP API
-    body = %{
-      "from" => format_from(email.from),
-      "to" => format_recipients(email.to),
-      "subject" => email.subject
+  def build_api_body(%Email{} = email) do
+    email
+    |> to_client_params()
+    |> InternalOrigin.sign_params()
+    |> HarakaClient.build_api_body()
+  end
+
+  @doc false
+  def to_client_params(%Email{} = email) do
+    params = %{
+      from: format_address(email.from),
+      to: Enum.map(email.to || [], &format_address/1),
+      subject: email.subject,
+      text_body: email.text_body,
+      html_body: email.html_body,
+      headers: email.headers || %{}
     }
 
-    # Add CC if present
-    body =
-      if email.cc && email.cc != [] do
-        Map.put(body, "cc", format_recipients(email.cc))
-      else
-        body
+    params
+    |> maybe_put(:cc, join_addresses(email.cc))
+    |> maybe_put(:bcc, join_addresses(email.bcc))
+    |> maybe_put(:reply_to, format_address(email.reply_to))
+    |> maybe_put(:attachments, attachment_params(email.attachments))
+  end
+
+  defp maybe_put(params, _key, nil), do: params
+  defp maybe_put(params, _key, []), do: params
+  defp maybe_put(params, key, value), do: Map.put(params, key, value)
+
+  # HarakaClient expects cc/bcc as comma-separated strings.
+  defp join_addresses(nil), do: nil
+  defp join_addresses([]), do: nil
+
+  defp join_addresses(addresses) when is_list(addresses) do
+    Enum.map_join(addresses, ", ", &format_address/1)
+  end
+
+  defp format_address(nil), do: nil
+  defp format_address({"", address}) when is_binary(address), do: address
+
+  defp format_address({name, address}) when is_binary(name) and is_binary(address) do
+    "#{name} <#{address}>"
+  end
+
+  defp format_address(address) when is_binary(address), do: address
+
+  defp attachment_params(nil), do: []
+
+  defp attachment_params(attachments) when is_list(attachments) do
+    Enum.map(attachments, fn %Swoosh.Attachment{} = attachment ->
+      base = %{
+        "filename" => attachment.filename,
+        "content_type" => attachment.content_type,
+        "data" => Swoosh.Attachment.get_content(attachment)
+      }
+
+      case attachment.cid do
+        nil -> base
+        cid -> Map.put(base, "content_id", cid)
       end
-
-    # Add BCC if present
-    body =
-      if email.bcc && email.bcc != [] do
-        Map.put(body, "bcc", format_recipients(email.bcc))
-      else
-        body
-      end
-
-    # Add body content
-    body =
-      cond do
-        email.html_body && email.text_body ->
-          # Both HTML and plain text
-          body
-          |> Map.put("html_body", email.html_body)
-          |> Map.put("text_body", email.text_body)
-
-        email.html_body ->
-          # HTML only
-          Map.put(body, "html_body", email.html_body)
-
-        email.text_body ->
-          # Plain text only
-          Map.put(body, "text_body", email.text_body)
-
-        true ->
-          # No body content
-          body
-      end
-
-    body = maybe_put_custom_headers(body, email)
-    body = sign_internal_origin(body)
-
-    Jason.encode!(body)
-  end
-
-  defp maybe_put_custom_headers(body, email) do
-    if email.headers && email.headers != %{} do
-      Map.put(body, "headers", email.headers)
-    else
-      body
-    end
-  end
-
-  defp sign_internal_origin(body) do
-    headers = Map.get(body, "headers", %{})
-    signed_headers = InternalOrigin.sign_headers(headers, body["from"])
-
-    if signed_headers == %{} and headers == %{} do
-      body
-    else
-      Map.put(body, "headers", signed_headers)
-    end
-  end
-
-  defp format_recipients(recipients) when is_list(recipients) do
-    recipients
-    |> Enum.map(&format_recipient/1)
-  end
-
-  defp format_recipient({name, email}) when is_binary(name) and is_binary(email) do
-    if name == "" do
-      email
-    else
-      "#{name} <#{email}>"
-    end
-  end
-
-  defp format_recipient(email) when is_binary(email), do: email
-
-  defp format_from({name, email}) when is_binary(name) and is_binary(email) do
-    if name == "" do
-      email
-    else
-      "#{name} <#{email}>"
-    end
-  end
-
-  defp format_from(email) when is_binary(email), do: email
-
-  # Get the API key (no domain-specific logic needed)
-  defp get_api_key_for_email(_from_address, default_key) do
-    EmailConfig.haraka_api_key(default_key)
+    end)
   end
 end

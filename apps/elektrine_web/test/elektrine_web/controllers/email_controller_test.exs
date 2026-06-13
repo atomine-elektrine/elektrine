@@ -37,7 +37,7 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     refute body_text =~ ".emphasis"
   end
 
-  test "iframe content rewrites cid images and remote images", %{conn: conn} do
+  test "iframe content rewrites cid images and keeps remote images when allowed", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     mailbox = ensure_mailbox(user)
 
@@ -70,7 +70,7 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     html =
       conn
       |> log_in_user(user)
-      |> get(~p"/email/#{message.id}/iframe_content")
+      |> get(~p"/email/#{message.id}/iframe_content?images=1")
       |> html_response(200)
 
     assert html =~ ~s(src="/email/message/#{message.id}/attachment/attachment_0/download")
@@ -82,6 +82,57 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     assert html =~ "background-image:url('https://example.com/bg.png')"
     refute html =~ "cid:logo@example.com"
     refute html =~ ~s(src="/email/image_proxy?token=)
+  end
+
+  test "iframe content blocks remote images by default", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    mailbox = ensure_mailbox(user)
+
+    {:ok, message} =
+      Email.create_message(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Tracking pixel regression",
+        html_body: """
+        <p>Images</p>
+        <img src="cid:logo@example.com">
+        <img src="https://example.com/open.png">
+        <img srcset="https://example.com/open@2x.png 2x" src="https://example.com/open.png">
+        """,
+        attachments: %{
+          "attachment_0" => %{
+            "filename" => "logo.png",
+            "content_type" => "image/png",
+            "content_id" => "<logo@example.com>",
+            "disposition" => "inline",
+            "data" => Base.encode64("png"),
+            "encoding" => "base64"
+          }
+        },
+        message_id: "<image-block-#{System.unique_integer([:positive])}@example.com>"
+      })
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> get(~p"/email/#{message.id}/iframe_content")
+
+    html = html_response(conn, 200)
+    [csp] = get_resp_header(conn, "content-security-policy")
+
+    # CSP is the hard enforcement: no remote source allowed anywhere.
+    refute csp =~ "https:"
+    assert csp =~ "img-src 'self' data: cid:"
+    assert csp =~ "script-src 'none'"
+
+    # Remote img references are neutralized cosmetically too.
+    refute html =~ ~s(src="https://example.com/open.png")
+    refute html =~ "srcset="
+    assert html =~ "data:image/gif;base64"
+
+    # Inline cid attachments still render — they are local data, not trackers.
+    assert html =~ ~s(src="/email/message/#{message.id}/attachment/attachment_0/download")
   end
 
   test "iframe content keeps marketing-email layout assets permissive", %{conn: conn} do
@@ -114,7 +165,7 @@ defmodule ElektrineEmailWeb.EmailControllerTest do
     conn =
       conn
       |> log_in_user(user)
-      |> get(~p"/email/#{message.id}/iframe_content")
+      |> get(~p"/email/#{message.id}/iframe_content?images=1")
 
     html = html_response(conn, 200)
     [csp] = get_resp_header(conn, "content-security-policy")

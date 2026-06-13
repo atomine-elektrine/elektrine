@@ -1,6 +1,7 @@
 defmodule ElektrineEmailWeb.EmailLive.Show do
   use ElektrineEmailWeb, :live_view
   import ElektrineEmailWeb.EmailLive.EmailHelpers
+  import ElektrineEmailWeb.Components.Email.Sidebar
   import ElektrineWeb.Live.NotificationHelpers
   import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
@@ -96,7 +97,9 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
      |> assign(:return_filter, return_context.return_filter)
      |> assign(:return_folder_id, return_context.return_folder_id)
      |> assign(:return_query, return_context.return_query)
-     |> assign(:show_reply_later_modal, false)}
+     |> assign(:show_reply_later_modal, false)
+     |> assign(:remote_images_allowed, false)
+     |> assign(:has_remote_images, has_remote_images?(message))}
   end
 
   @impl true
@@ -302,6 +305,10 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
     {:noreply, push_event(socket, "show-keyboard-shortcuts", %{})}
   end
 
+  def handle_event("load_remote_images", _params, socket) do
+    {:noreply, assign(socket, :remote_images_allowed, true)}
+  end
+
   def handle_event("download_attachment", %{"attachment-id" => attachment_id}, socket) do
     message = socket.assigns.message
     attachment = get_in(message.attachments, [attachment_id])
@@ -464,5 +471,17 @@ defmodule ElektrineEmailWeb.EmailLive.Show do
     else
       email_preview(message, 140)
     end
+  end
+
+  # Detects remote (tracking-capable) image references so the viewer only
+  # shows the "load images" prompt when there is something to load.
+  defp has_remote_images?(message) do
+    html = message.html_body
+
+    not private_message?(message) and is_binary(html) and
+      (Regex.match?(
+         ~r/<(?:img|source|video)\b[^>]*\b(?:src|srcset|poster)\s*=\s*["']\s*https?:/i,
+         html
+       ) or Regex.match?(~r/url\(\s*["']?https?:/i, html))
   end
 end

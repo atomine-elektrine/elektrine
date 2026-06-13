@@ -6,6 +6,8 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ReplyLaterOperations do
   import Phoenix.Component
   import ElektrineWeb.Live.NotificationHelpers
 
+  import ElektrineEmailWeb.EmailLive.Operations.TabContent, only: [load_tab_content: 4]
+
   alias Elektrine.Email
   alias Elektrine.Email.Cached
 
@@ -92,101 +94,6 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ReplyLaterOperations do
 
       {:error, _} ->
         {:noreply, notify_error(socket, "Message not found")}
-    end
-  end
-
-  # Helper function for loading tab content
-  defp load_tab_content(socket, tab, params, page) do
-    mailbox = socket.assigns.mailbox
-    user = socket.assigns.current_user
-    per_page = 20
-
-    case tab do
-      "inbox" ->
-        filter = params["filter"] || "inbox"
-
-        socket =
-          if filter == "aliases" do
-            aliases = Cached.get_aliases(user.id)
-            alias_changeset = Email.change_alias(%Email.Alias{})
-            mailbox_changeset = Email.change_mailbox_forwarding(mailbox)
-
-            socket
-            |> assign(:aliases, aliases)
-            |> assign(:alias_form, to_form(alias_changeset))
-            |> assign(:mailbox_form, to_form(mailbox_changeset))
-            |> assign(:messages, [])
-            |> assign(:pagination, %{
-              page: 1,
-              per_page: per_page,
-              total_count: 0,
-              total_pages: 0,
-              has_next: false,
-              has_prev: false
-            })
-          else
-            pagination = load_inbox_messages_paginated(mailbox.id, filter, page, per_page)
-
-            socket
-            |> assign(:messages, pagination.messages)
-            |> assign(:pagination, pagination)
-          end
-
-        socket
-        |> assign(:current_filter, filter)
-
-      "sent" ->
-        pagination = Cached.list_sent_messages_paginated(mailbox.id, page, per_page)
-
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
-
-      "spam" ->
-        pagination = Cached.list_spam_messages_paginated(mailbox.id, page, per_page)
-
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
-
-      "trash" ->
-        pagination = Cached.list_trash_messages_paginated(mailbox.id, page, per_page)
-
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
-
-      "archive" ->
-        pagination = Cached.list_archived_messages_paginated(mailbox.id, page, per_page)
-
-        socket
-        |> assign(:messages, pagination.messages)
-        |> assign(:pagination, pagination)
-
-      _ ->
-        socket
-        |> assign(:pagination, %{
-          page: 1,
-          per_page: per_page,
-          total_count: 0,
-          total_pages: 0,
-          has_next: false,
-          has_prev: false
-        })
-    end
-    |> assign(:selected_messages, [])
-    |> assign(:select_all, false)
-  end
-
-  defp load_inbox_messages_paginated(mailbox_id, filter, page, per_page) do
-    case filter do
-      "unread" -> Cached.list_unread_messages_paginated(mailbox_id, page, per_page)
-      "read" -> Cached.list_read_messages_paginated(mailbox_id, page, per_page)
-      "digest" -> Cached.list_feed_messages_paginated(mailbox_id, page, per_page)
-      "ledger" -> Cached.list_ledger_messages_paginated(mailbox_id, page, per_page)
-      "stack" -> Cached.list_stack_messages_paginated(mailbox_id, page, per_page)
-      "boomerang" -> Cached.list_reply_later_messages_paginated(mailbox_id, page, per_page)
-      _ -> Cached.list_inbox_messages_paginated(mailbox_id, page, per_page)
     end
   end
 end

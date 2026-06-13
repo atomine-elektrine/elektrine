@@ -809,7 +809,7 @@ defmodule Elektrine.Accounts.Authentication do
   defp send_password_reset_email(%User{recovery_email: recovery_email} = user, token)
        when not is_nil(recovery_email) do
     case Elektrine.UserNotifier.password_reset_instructions(user, token)
-         |> Elektrine.Mailer.deliver() do
+         |> Elektrine.Mailer.deliver_later() do
       {:ok, result} ->
         {:ok, result}
 

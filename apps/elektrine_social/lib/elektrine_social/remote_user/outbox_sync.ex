@@ -1,12 +1,15 @@
 defmodule ElektrineSocial.RemoteUser.OutboxSync do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Elektrine.ActivityPub
   alias Elektrine.ActivityPub.Actor
   alias Elektrine.ActivityPub.Normalizer
   alias Elektrine.ActivityPub.Visibility
   alias Elektrine.Messaging
   alias Elektrine.Repo
+  alias Elektrine.Social.Message
   alias Elektrine.Social.Messages, as: MessagingMessages
 
   def sync_actor_outbox(actor_or_id, limit \\ 20)
@@ -41,33 +44,50 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
   end
 
   def store_outbox_posts(outbox_posts, remote_actor) when is_list(outbox_posts) do
-    outbox_posts
-    |> Enum.map(fn post ->
-      case post["id"] do
-        activitypub_id when is_binary(activitypub_id) and activitypub_id != "" ->
-          case Messaging.get_message_by_activitypub_id(activitypub_id) do
-            nil -> create_outbox_post(post, remote_actor)
-            existing -> refresh_existing_outbox_post(existing, post, remote_actor)
-          end
+    posts =
+      outbox_posts
+      |> Enum.filter(fn post -> is_binary(post["id"]) and post["id"] != "" end)
+      |> Enum.uniq_by(& &1["id"])
 
-        _ ->
-          nil
-      end
-    end)
-    |> Enum.reject(&is_nil/1)
-  end
+    existing_by_ap_id = existing_messages_by_activitypub_id(Enum.map(posts, & &1["id"]))
 
-  defp create_outbox_post(post, remote_actor) do
-    visibility = determine_visibility(post)
-
-    if visibility == "public" and
-         :ok == Normalizer.validate_object_author(post, remote_actor.uri) do
-      author_actor =
+    author_actor =
+      if Enum.any?(posts, &(not Map.has_key?(existing_by_ap_id, &1["id"]))) do
         case ActivityPub.fetch_and_cache_actor(remote_actor.uri, allow_recovery: false) do
           {:ok, actor} -> actor
           _ -> nil
         end
+      end
 
+    posts
+    |> Enum.map(fn post ->
+      case Map.get(existing_by_ap_id, post["id"]) do
+        nil -> create_outbox_post(post, remote_actor, author_actor)
+        existing -> refresh_existing_outbox_post(existing, post, remote_actor)
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Repo.preload(MessagingMessages.timeline_post_preloads())
+  end
+
+  defp existing_messages_by_activitypub_id([]), do: %{}
+
+  defp existing_messages_by_activitypub_id(ap_ids) do
+    # Ascending order so Map.new keeps the latest row per ID, matching
+    # get_message_by_activitypub_id/1 (order_by desc, limit 1) semantics.
+    from(m in Message,
+      where: m.activitypub_id in ^ap_ids,
+      order_by: [asc: m.updated_at, asc: m.id]
+    )
+    |> Repo.all()
+    |> Map.new(&{&1.activitypub_id, &1})
+  end
+
+  defp create_outbox_post(post, remote_actor, author_actor) do
+    visibility = determine_visibility(post)
+
+    if visibility == "public" and
+         :ok == Normalizer.validate_object_author(post, remote_actor.uri) do
       if author_actor do
         title = normalize_remote_post_title(post)
         content = post["content"] || title || ""
@@ -114,7 +134,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
              }) do
           {:ok, message} ->
             _ = Elektrine.ActivityPub.CollectionCountSyncWorker.enqueue(message.id, post)
-            Repo.preload(message, MessagingMessages.timeline_post_preloads())
+            message
 
           {:error, _} ->
             nil
@@ -177,7 +197,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
              |> Repo.update() do
           {:ok, message} ->
             if message.visibility == "public" do
-              Repo.preload(message, MessagingMessages.timeline_post_preloads())
+              message
             end
 
           {:error, _} ->
@@ -185,7 +205,7 @@ defmodule ElektrineSocial.RemoteUser.OutboxSync do
         end
       else
         if existing.visibility == "public" do
-          Repo.preload(existing, MessagingMessages.timeline_post_preloads())
+          existing
         end
       end
     end

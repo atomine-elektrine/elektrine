@@ -599,9 +599,10 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
       if Enum.empty?(local_user_ids) do
         %{}
       else
+        # Store false entries too so downstream checks can treat a map hit as
+        # authoritative instead of falling back to a per-post DB query.
         Elektrine.Profiles.following_status_batch(user_id, local_user_ids)
-        |> Enum.filter(fn {_followed_id, status} -> status == :following end)
-        |> Map.new(fn {followed_id, _status} -> {{:local, followed_id}, true} end)
+        |> Map.new(fn {followed_id, status} -> {{:local, followed_id}, status == :following} end)
       end
 
     remote_actor_ids =
@@ -615,8 +616,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.Helpers do
         %{}
       else
         Elektrine.Profiles.remote_following_status_batch(user_id, remote_actor_ids)
-        |> Enum.filter(fn {_actor_id, status} -> status == :following end)
-        |> Map.new(fn {actor_id, _status} -> {{:remote, actor_id}, true} end)
+        |> Map.new(fn {actor_id, status} -> {{:remote, actor_id}, status == :following} end)
       end
 
     Map.merge(local_follows, remote_follows)

@@ -14,7 +14,7 @@ defmodule Elektrine.SecurityAlertsTest do
     def deliver_many(_emails, _config), do: {:error, :forced_failure}
   end
 
-  test "does not rate limit spoofing alerts when every delivery path fails" do
+  test "queues spoofing alerts and rate limits even when the mail adapter fails" do
     previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
 
     on_exit(fn ->
@@ -53,14 +53,17 @@ defmodule Elektrine.SecurityAlertsTest do
                enabled: true
              })
 
-    assert {:error, :delivery_failed} =
+    # Recovery-email delivery goes through the Oban :email queue, so an
+    # adapter failure is retried in the background instead of failing the
+    # call, and the rate limit engages to prevent duplicate alerts.
+    assert {:ok, :sent} =
              SecurityAlerts.send_spoofing_alert(
                spoofed_address,
                "victim@example.net",
                "Test subject"
              )
 
-    assert {:error, :delivery_failed} =
+    assert {:ok, :rate_limited} =
              SecurityAlerts.send_spoofing_alert(
                spoofed_address,
                "victim@example.net",

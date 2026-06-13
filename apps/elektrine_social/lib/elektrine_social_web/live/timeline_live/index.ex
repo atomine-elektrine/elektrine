@@ -301,20 +301,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         !view_requires_data_reload?(timeline_view) ->
           posts
 
-        filter_changed ->
-          load_posts_for_filter(filter, user, "all",
-            search_query: search_query,
-            session_context: session_context
-          )
-
-        context.base_timeline_key == {filter, search_query} && context.base_timeline_posts != [] ->
+        !filter_changed && context.base_timeline_key == {filter, search_query} ->
           context.base_timeline_posts
 
         true ->
-          load_posts_for_filter(filter, user, "all",
-            search_query: search_query,
-            session_context: session_context
-          )
+          []
       end
 
     special_view_cache =
@@ -1755,26 +1746,37 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
 
   defp normalize_thread_ref(_), do: nil
 
+  defp viewer_follows_post_author?(post, socket) do
+    case socket.assigns[:current_user] do
+      nil ->
+        false
+
+      user ->
+        follows = socket.assigns[:user_follows] || %{}
+
+        cond do
+          post.sender_id ->
+            case Map.fetch(follows, {:local, post.sender_id}) do
+              {:ok, following} -> following == true
+              :error -> Social.following?(user.id, post.sender_id)
+            end
+
+          post.remote_actor_id ->
+            case Map.fetch(follows, {:remote, post.remote_actor_id}) do
+              {:ok, following} -> following == true
+              :error -> Elektrine.Profiles.following_remote_actor?(user.id, post.remote_actor_id)
+            end
+
+          true ->
+            false
+        end
+    end
+  end
+
   defp post_matches_url_filter?(post, filter, socket) do
     case filter do
       "home" ->
-        if socket.assigns[:current_user] do
-          cond do
-            post.sender_id ->
-              Social.following?(socket.assigns.current_user.id, post.sender_id)
-
-            post.remote_actor_id ->
-              Elektrine.Profiles.following_remote_actor?(
-                socket.assigns.current_user.id,
-                post.remote_actor_id
-              )
-
-            true ->
-              false
-          end
-        else
-          false
-        end
+        viewer_follows_post_author?(post, socket)
 
       "for_you" ->
         false
@@ -1786,23 +1788,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         post.federated == true
 
       "following" ->
-        if socket.assigns[:current_user] do
-          cond do
-            post.sender_id ->
-              Social.following?(socket.assigns.current_user.id, post.sender_id)
-
-            post.remote_actor_id ->
-              Elektrine.Profiles.following_remote_actor?(
-                socket.assigns.current_user.id,
-                post.remote_actor_id
-              )
-
-            true ->
-              false
-          end
-        else
-          false
-        end
+        viewer_follows_post_author?(post, socket)
 
       "saved" ->
         false
@@ -1851,23 +1837,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Index do
         !is_nil(post.sender_id) && is_nil(post.remote_actor_id)
 
       "following" ->
-        if socket.assigns[:current_user] do
-          cond do
-            post.sender_id ->
-              Social.following?(socket.assigns.current_user.id, post.sender_id)
-
-            post.remote_actor_id ->
-              Elektrine.Profiles.following_remote_actor?(
-                socket.assigns.current_user.id,
-                post.remote_actor_id
-              )
-
-            true ->
-              false
-          end
-        else
-          false
-        end
+        viewer_follows_post_author?(post, socket)
 
       "all" ->
         is_nil(Map.get(post, :reply_to_id)) && is_nil(get_in(post.media_metadata, ["inReplyTo"]))

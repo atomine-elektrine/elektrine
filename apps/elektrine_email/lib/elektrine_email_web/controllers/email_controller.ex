@@ -181,20 +181,30 @@ defmodule ElektrineEmailWeb.EmailController do
     end
   end
 
-  def iframe_content(conn, %{"id" => id}) do
+  def iframe_content(conn, %{"id" => id} = params) do
     user = conn.assigns.current_user
+
+    # Remote images are blocked by default so tracking pixels don't fire on
+    # open; the viewer opts in per message with ?images=1.
+    allow_remote_images = params["images"] == "1"
 
     case SafeConvert.parse_id(id) do
       {:ok, message_id} ->
         case Email.get_user_message(message_id, user.id) do
           {:ok, message} ->
-            content = iframe_email_content(conn, message)
+            content =
+              conn
+              |> iframe_email_content(message)
+              |> maybe_block_remote_images(allow_remote_images)
 
             # Set security headers with relaxed CSP for email content
             # Emails often include external fonts, styles, and images from newsletters
             conn
             |> put_resp_header("x-frame-options", "SAMEORIGIN")
-            |> put_resp_header("content-security-policy", build_email_iframe_csp())
+            |> put_resp_header(
+              "content-security-policy",
+              build_email_iframe_csp(allow_remote_images)
+            )
             |> put_resp_header("cache-control", "no-transform")
             |> put_resp_content_type("text/html")
             |> send_resp(200, build_iframe_html(content))
@@ -277,27 +287,25 @@ defmodule ElektrineEmailWeb.EmailController do
     end)
   end
 
-  # Build a relaxed CSP for email iframes
-  # Emails from newsletters often include external fonts, tracking pixels, etc.
-  # We need to allow these for proper email rendering while maintaining security
-  defp build_email_iframe_csp do
+  # Build the CSP for email iframes. Scripts are always blocked.
+  #
+  # With remote images allowed, styles/images/fonts/media may load from any
+  # HTTPS source since newsletters use assorted CDNs. With them blocked
+  # (the default), the CSP is the hard enforcement that keeps tracking
+  # pixels, CSS background images, and remote fonts from phoning home.
+  defp build_email_iframe_csp(allow_remote) do
+    remote = if allow_remote, do: " https:", else: ""
+
     directives = [
       "default-src 'self'",
       # Scripts: block all scripts in emails for security
       "script-src 'none'",
-      # Styles: allow ANY HTTPS source (newsletters use various CDNs)
-      # Common: Google Fonts, Adobe Fonts, Font Awesome, Typekit, custom CDNs
-      "style-src 'self' 'unsafe-inline' https:",
-      # Images: rewrite common HTML image references through the proxy, but keep
-      # HTTPS as a fidelity fallback for CSS, picture/source, and poster assets.
-      "img-src 'self' data: cid: https:",
-      # Fonts: allow ANY HTTPS source (not just specific CDNs)
-      # Common: fonts.googleapis.com, use.typekit.net, fonts.adobe.com, etc.
-      "font-src 'self' data: https:",
+      "style-src 'self' 'unsafe-inline'#{remote}",
+      "img-src 'self' data: cid:#{remote}",
+      "font-src 'self' data:#{remote}",
       # Connect: block external connections
       "connect-src 'self'",
-      # Media: allow common marketing-email media sources without scripts.
-      "media-src 'self' data: cid: https:",
+      "media-src 'self' data: cid:#{remote}",
       # Frames: block nested iframes
       "frame-src 'none'",
       # Objects: block all
@@ -309,6 +317,27 @@ defmodule ElektrineEmailWeb.EmailController do
     ]
 
     Enum.join(directives, "; ")
+  end
+
+  # 1x1 transparent GIF so blocked remote images don't render as broken icons.
+  # The tightened CSP is the actual enforcement; this is cosmetic.
+  @remote_image_placeholder "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+
+  defp maybe_block_remote_images(content, true), do: content
+  defp maybe_block_remote_images(content, false) when not is_binary(content), do: content
+
+  defp maybe_block_remote_images(content, false) do
+    content
+    |> then(
+      &Regex.replace(
+        ~r/(<img\b[^>]*?\bsrc\s*=\s*["'])\s*https?:[^"']*(["'])/i,
+        &1,
+        "\\1#{@remote_image_placeholder}\\2"
+      )
+    )
+    |> then(
+      &Regex.replace(~r/(<(?:img|source)\b[^>]*?)\bsrcset\s*=\s*["'][^"']*["']/i, &1, "\\1")
+    )
   end
 
   defp build_iframe_html(content) do
