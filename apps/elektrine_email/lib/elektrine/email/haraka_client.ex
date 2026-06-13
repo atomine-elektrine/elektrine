@@ -247,7 +247,9 @@ defmodule Elektrine.Email.HarakaClient do
     EmailConfig.haraka_http_client()
   end
 
-  defp build_api_body(params) do
+  @doc false
+  # Public so HarakaAdapter can share the exact wire format used for user mail.
+  def build_api_body(params) do
     # If raw email data is provided, use that directly (preserves attachments and MIME structure)
     if params[:raw_email] do
       # Base64 encode raw email to safely transmit binary data in JSON

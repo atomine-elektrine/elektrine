@@ -1,6 +1,7 @@
 defmodule ElektrineEmailWeb.EmailLive.Compose do
   use ElektrineEmailWeb, :live_view
   import ElektrineEmailWeb.EmailLive.EmailHelpers
+  import ElektrineEmailWeb.Components.Email.Sidebar
   import ElektrineEmailWeb.Components.Platform.ElektrineNav
   import Ecto.Query
   alias Elektrine.Constants
@@ -713,66 +714,76 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       temp_message_id = "temp_#{System.system_time(:millisecond)}"
       mailbox_id = socket.assigns.mailbox.id
 
+      # Check the attachment rate limit before consuming uploads: it avoids
+      # the storage upload work, and the entries stay attached to the form so
+      # the user doesn't lose them when the send is rejected.
+      upload_rate_limited =
+        socket.assigns.uploads.attachments.entries != [] && attachment_rate_limited?(user.id)
+
       uploaded_attachments =
-        consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
-          file_content = File.read!(path)
-          attachment_id = "temp_#{System.system_time(:millisecond)}_#{:rand.uniform(999_999)}"
+        if upload_rate_limited do
+          []
+        else
+          consume_uploaded_entries(socket, :attachments, fn %{path: path}, entry ->
+            file_content = File.read!(path)
+            attachment_id = "temp_#{System.system_time(:millisecond)}_#{:rand.uniform(999_999)}"
 
-          metadata = %{
-            "filename" => entry.client_name,
-            "content_type" => entry.client_type,
-            "size" => entry.client_size
-          }
+            metadata = %{
+              "filename" => entry.client_name,
+              "content_type" => entry.client_type,
+              "size" => entry.client_size
+            }
 
-          s3_result =
-            try do
-              Task.await(
-                Task.async(fn ->
-                  AttachmentStorage.upload_attachment(
-                    mailbox_id,
-                    temp_message_id,
-                    attachment_id,
-                    file_content,
-                    metadata
-                  )
-                end),
-                5000
-              )
-            catch
-              :exit, _ -> {:error, :timeout}
-            end
-
-          case s3_result do
-            {:ok, s3_metadata} ->
-              attachment =
-                Map.merge(
-                  %{
-                    "filename" => entry.client_name,
-                    "content_type" => entry.client_type,
-                    "size" => entry.client_size,
-                    "encoding" => "base64"
-                  },
-                  s3_metadata
+            s3_result =
+              try do
+                Task.await(
+                  Task.async(fn ->
+                    AttachmentStorage.upload_attachment(
+                      mailbox_id,
+                      temp_message_id,
+                      attachment_id,
+                      file_content,
+                      metadata
+                    )
+                  end),
+                  5000
                 )
+              catch
+                :exit, _ -> {:error, :timeout}
+              end
 
-              attachment_with_data = Map.put(attachment, "data", Base.encode64(file_content))
-              {:ok, {attachment, attachment_with_data}}
+            case s3_result do
+              {:ok, s3_metadata} ->
+                attachment =
+                  Map.merge(
+                    %{
+                      "filename" => entry.client_name,
+                      "content_type" => entry.client_type,
+                      "size" => entry.client_size,
+                      "encoding" => "base64"
+                    },
+                    s3_metadata
+                  )
 
-            {:error, reason} ->
-              Logger.warning("S3 upload failed (#{inspect(reason)}), using database storage")
-              base64_data = Base.encode64(file_content)
+                attachment_with_data = Map.put(attachment, "data", Base.encode64(file_content))
+                {:ok, {attachment, attachment_with_data}}
 
-              attachment = %{
-                "filename" => entry.client_name,
-                "content_type" => entry.client_type,
-                "size" => entry.client_size,
-                "encoding" => "base64",
-                "data" => base64_data
-              }
+              {:error, reason} ->
+                Logger.warning("S3 upload failed (#{inspect(reason)}), using database storage")
+                base64_data = Base.encode64(file_content)
 
-              {:ok, {attachment, attachment}}
-          end
-        end)
+                attachment = %{
+                  "filename" => entry.client_name,
+                  "content_type" => entry.client_type,
+                  "size" => entry.client_size,
+                  "encoding" => "base64",
+                  "data" => base64_data
+                }
+
+                {:ok, {attachment, attachment}}
+            end
+          end)
+        end
 
       successful_uploads =
         Enum.filter(uploaded_attachments, fn
@@ -874,6 +885,9 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
 
       send_result =
         cond do
+          upload_rate_limited ->
+            {:error, :attachment_rate_limit_exceeded}
+
           length(all_db_attachments) > @max_email_attachments ->
             {:error, :too_many_attachments}
 
@@ -1166,6 +1180,10 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
     mailbox = socket.assigns.mailbox
     draft_id = socket.assigns[:draft_id]
 
+    # In reply/forward modes the user's text lives in "new_message", not
+    # "body" — draft_body/2 picks the right field so autosave doesn't lose it.
+    body = draft_body(email_params, socket.assigns.mode)
+
     draft_attrs = %{
       mailbox_id: mailbox.id,
       from: socket.assigns.from_address,
@@ -1173,10 +1191,10 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
       cc: Enum.join(socket.assigns.cc_tags, ", "),
       bcc: Enum.join(socket.assigns.bcc_tags, ", "),
       subject: email_params["subject"] || "",
-      text_body: email_params["body"] || "",
+      text_body: body,
       html_body:
         html_body_for_format(
-          email_params["body"] || "",
+          body,
           body_format(email_params, socket.assigns.body_format)
         ),
       metadata: %{"body_format" => body_format(email_params, socket.assigns.body_format)},

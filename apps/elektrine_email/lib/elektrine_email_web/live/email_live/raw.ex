@@ -2,6 +2,7 @@ defmodule ElektrineEmailWeb.EmailLive.Raw do
   use ElektrineEmailWeb, :live_view
   import ElektrineWeb.Live.NotificationHelpers
   import ElektrineEmailWeb.EmailLive.EmailHelpers
+  import ElektrineEmailWeb.Components.Email.Sidebar
   import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email

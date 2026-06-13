@@ -128,9 +128,9 @@ defmodule Elektrine.SecurityAlerts do
       |> text_body(spoofing_alert_text(user, spoofed_address, recipient_address, subject))
       |> header("List-Id", EmailAddresses.list_id("elektrine-security"))
 
-    case Elektrine.Mailer.deliver(email) do
+    case Elektrine.Mailer.deliver_later(email) do
       {:ok, _} ->
-        Logger.info("Sent spoofing alert to recovery email for user #{user.username}")
+        Logger.info("Queued spoofing alert to recovery email for user #{user.username}")
         :ok
 
       {:error, reason} ->

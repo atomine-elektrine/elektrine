@@ -2863,8 +2863,11 @@ defmodule Elektrine.Social do
   defp get_public_federated_posts_fast(limit, pagination, preloads, user_id) do
     candidate_limit = max(limit * 10, 100)
 
-    query =
+    # Phase 1: fetch only the fields needed to evaluate exclusion policies, so
+    # rejected candidates never pay the cost of full preload hydration.
+    candidate_query =
       from(m in Message,
+        left_join: ra in assoc(m, :remote_actor),
         where: m.federated == true and m.visibility == "public",
         where:
           m.is_draft != true and is_nil(m.deleted_at) and is_nil(m.reply_to_id) and
@@ -2872,18 +2875,29 @@ defmodule Elektrine.Social do
             (m.approval_status == "approved" or is_nil(m.approval_status)),
         order_by: [desc: m.id],
         limit: ^candidate_limit,
-        preload: ^preloads
+        select: %{id: m.id, sender_id: m.sender_id, actor_uri: ra.uri, actor_domain: ra.domain}
       )
 
-    excluded_domains = public_timeline_excluded_instance_domains()
+    excluded_domains = compile_domain_policy(public_timeline_excluded_instance_domains())
     viewer_policy = public_timeline_viewer_policy(user_id)
 
-    query
-    |> apply_id_pagination(pagination)
-    |> apply_id_order(pagination.order)
-    |> Repo.all()
-    |> Enum.reject(&public_timeline_post_excluded?(&1, excluded_domains, viewer_policy))
-    |> Enum.take(limit)
+    selected_ids =
+      candidate_query
+      |> apply_id_pagination(pagination)
+      |> apply_id_order(pagination.order)
+      |> Repo.all()
+      |> Enum.reject(&public_timeline_post_excluded?(&1, excluded_domains, viewer_policy))
+      |> Enum.take(limit)
+      |> Enum.map(& &1.id)
+
+    # Phase 2: hydrate full posts with preloads only for the kept candidates.
+    if selected_ids == [] do
+      []
+    else
+      from(m in Message, where: m.id in ^selected_ids, preload: ^preloads)
+      |> apply_id_order(pagination.order)
+      |> Repo.all()
+    end
   end
 
   defp get_public_federated_posts_query(limit, pagination, user_id, search_query, preloads) do
@@ -2920,7 +2934,11 @@ defmodule Elektrine.Social do
   end
 
   defp public_timeline_viewer_policy(nil) do
-    %{muted_sender_ids: MapSet.new(), blocked_actor_uris: MapSet.new(), blocked_domains: []}
+    %{
+      muted_sender_ids: MapSet.new(),
+      blocked_actor_uris: MapSet.new(),
+      blocked_domains: compile_domain_policy([])
+    }
   end
 
   defp public_timeline_viewer_policy(user_id) do
@@ -2950,50 +2968,43 @@ defmodule Elektrine.Social do
         blocks
         |> Enum.filter(fn {type, domain} -> type == "domain" and is_binary(domain) end)
         |> Enum.map(fn {_type, domain} -> domain end)
+        |> compile_domain_policy()
     }
   end
 
-  defp public_timeline_post_excluded?(post, excluded_domains, viewer_policy) do
-    public_timeline_instance_excluded?(post, excluded_domains) or
-      public_timeline_viewer_policy_excluded?(post, viewer_policy)
+  defp public_timeline_post_excluded?(candidate, excluded_domains, viewer_policy) do
+    domain_excluded?(excluded_domains, candidate.actor_domain) or
+      public_timeline_viewer_policy_excluded?(candidate, viewer_policy)
   end
 
-  defp public_timeline_viewer_policy_excluded?(
-         post,
-         %{muted_sender_ids: muted_sender_ids} = policy
-       ) do
-    remote_actor = Map.get(post, :remote_actor)
-    actor_uri = remote_actor && Map.get(remote_actor, :uri)
-    domain = remote_actor && Map.get(remote_actor, :domain)
-
-    MapSet.member?(muted_sender_ids, Map.get(post, :sender_id)) or
-      (is_binary(actor_uri) && MapSet.member?(policy.blocked_actor_uris, actor_uri)) or
-      (is_binary(domain) && Enum.any?(policy.blocked_domains, &domain_matches_policy?(&1, domain)))
+  defp public_timeline_viewer_policy_excluded?(candidate, policy) do
+    MapSet.member?(policy.muted_sender_ids, candidate.sender_id) or
+      (is_binary(candidate.actor_uri) &&
+         MapSet.member?(policy.blocked_actor_uris, candidate.actor_uri)) or
+      domain_excluded?(policy.blocked_domains, candidate.actor_domain)
   end
 
-  defp public_timeline_instance_excluded?(_post, []), do: false
+  defp compile_domain_policy(domains) do
+    {wildcards, exacts} =
+      domains
+      |> Enum.filter(&is_binary/1)
+      |> Enum.map(&String.downcase/1)
+      |> Enum.split_with(&String.starts_with?(&1, "*."))
 
-  defp public_timeline_instance_excluded?(post, excluded_domains) do
-    remote_actor = Map.get(post, :remote_actor)
-    domain = remote_actor && Map.get(remote_actor, :domain)
-
-    is_binary(domain) && Enum.any?(excluded_domains, &domain_matches_policy?(&1, domain))
+    %{
+      exact: MapSet.new(exacts),
+      wildcard_suffixes: Enum.map(wildcards, &("." <> String.trim_leading(&1, "*.")))
+    }
   end
 
-  defp domain_matches_policy?(policy_domain, domain)
-       when is_binary(policy_domain) and is_binary(domain) do
-    policy_domain = String.downcase(policy_domain)
+  defp domain_excluded?(%{exact: exact, wildcard_suffixes: suffixes}, domain)
+       when is_binary(domain) do
     domain = String.downcase(domain)
 
-    if String.starts_with?(policy_domain, "*.") do
-      suffix = String.trim_leading(policy_domain, "*.")
-      String.ends_with?(domain, "." <> suffix)
-    else
-      domain == policy_domain
-    end
+    MapSet.member?(exact, domain) or Enum.any?(suffixes, &String.ends_with?(domain, &1))
   end
 
-  defp domain_matches_policy?(_, _), do: false
+  defp domain_excluded?(_policy, _domain), do: false
 
   @doc """
   Gets direct replies for a list of posts (for threaded display on timeline).

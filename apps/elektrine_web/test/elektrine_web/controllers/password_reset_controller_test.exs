@@ -106,7 +106,7 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "password reset instructions"
     end
 
-    test "shows error and restores prior token state when email delivery fails", %{
+    test "succeeds despite a failing mail adapter because delivery is queued and retried", %{
       conn: conn,
       user: user
     } do
@@ -141,13 +141,16 @@ defmodule ElektrineWeb.PasswordResetControllerTest do
           "atomine_pow_token" => "test-token"
         })
 
-      assert redirected_to(conn) == ~p"/password/reset"
-      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "error processing your request"
+      # The reset email goes through the Oban :email queue, so an adapter
+      # failure is retried in the background instead of failing the request.
+      # The new token stays in place because the queued email contains it.
+      assert redirected_to(conn) == ~p"/login"
+      assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "password reset instructions"
       refute_received {:email, _}
 
       reloaded_user = Accounts.get_user!(user.id)
-      assert reloaded_user.password_reset_token == User.hash_sensitive_token(old_token)
-      assert reloaded_user.password_reset_token_expires_at == old_expiry
+      refute reloaded_user.password_reset_token == User.hash_sensitive_token(old_token)
+      assert reloaded_user.password_reset_token != nil
     end
   end
 

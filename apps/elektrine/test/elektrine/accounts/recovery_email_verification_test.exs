@@ -93,7 +93,7 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       refute updated_user.recovery_email_verification_token == delivered_token
     end
 
-    test "returns error and restores previous verification state when email delivery fails", %{
+    test "succeeds despite a failing mail adapter because delivery is queued and retried", %{
       user: user
     } do
       previous_mailer_config = Application.get_env(:elektrine, Elektrine.Mailer, [])
@@ -120,15 +120,20 @@ defmodule Elektrine.Accounts.RecoveryEmailVerificationTest do
       })
       |> Repo.update!()
 
-      assert {:error, :email_failed} =
+      # Delivery goes through the Oban :email queue, so an adapter failure is
+      # retried in the background instead of failing the call. The new token
+      # stays in place because the queued email contains it.
+      assert {:ok, updated_user} =
                RecoveryEmailVerification.send_verification_email(user.id, force: true)
+
+      refute updated_user.recovery_email_verification_token ==
+               User.hash_sensitive_token(old_token)
 
       reloaded_user = Accounts.get_user!(user.id)
 
       assert reloaded_user.recovery_email_verification_token ==
-               User.hash_sensitive_token(old_token)
+               updated_user.recovery_email_verification_token
 
-      assert reloaded_user.recovery_email_verification_sent_at == old_sent_at
       refute_received {:email, _}
     end
   end

@@ -2290,7 +2290,7 @@ defmodule Elektrine.Email.Sender do
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
     |> Swoosh.Email.header("List-Id", EmailAddresses.list_id("elektrine-account"))
-    |> Elektrine.Mailer.deliver()
+    |> Elektrine.Mailer.deliver_later()
   end
 
   def send_vpn_quota_suspended(user, user_config) do
@@ -2426,7 +2426,7 @@ defmodule Elektrine.Email.Sender do
     |> Swoosh.Email.text_body(text_body)
     |> Swoosh.Email.html_body(html_body)
     |> Swoosh.Email.header("List-Id", EmailAddresses.list_id("elektrine-account"))
-    |> Elektrine.Mailer.deliver()
+    |> Elektrine.Mailer.deliver_later()
   end
 
   defp format_reset_date(quota_period_start) when is_nil(quota_period_start) do
@@ -2499,9 +2499,9 @@ defmodule Elektrine.Email.Sender do
         email
       end
 
-    case Elektrine.Mailer.deliver(email) do
+    case Elektrine.Mailer.deliver_later(email) do
       {:ok, _} ->
-        Logger.info("Forwarded message #{message.id} to #{forward_to}")
+        Logger.info("Queued forward of message #{message.id} to #{forward_to}")
         :ok
 
       {:error, reason} ->

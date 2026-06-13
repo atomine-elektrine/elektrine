@@ -1092,9 +1092,11 @@
                           <p class="message-preview text-xs sm:text-sm text-base-content/60 line-clamp-2 transition-colors duration-150">
                             <span
                               data-private-preview
-                              data-private-preview-placeholder={email_preview(message)}
+                              data-private-preview-placeholder={
+                                Map.get(message, :preview_text) || email_preview(message)
+                              }
                             >
-                              {email_preview(message)}
+                              {Map.get(message, :preview_text) || email_preview(message)}
                             </span>
                           </p>
                         </div>

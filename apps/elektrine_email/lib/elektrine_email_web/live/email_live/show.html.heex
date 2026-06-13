@@ -648,10 +648,25 @@
             </div>
           <% else %>
             <div class="bg-white rounded-lg p-0 border border-base-300 overflow-hidden shadow-sm">
+              <%= if @has_remote_images and not @remote_images_allowed do %>
+                <div class="flex items-center justify-between gap-3 border-b border-base-300 bg-base-200/60 px-4 py-2 text-xs text-base-content/70">
+                  <span>{gettext("Remote images are blocked to protect your privacy.")}</span>
+                  <button
+                    type="button"
+                    phx-click="load_remote_images"
+                    class="btn btn-ghost btn-xs"
+                  >
+                    {gettext("Load images")}
+                  </button>
+                </div>
+              <% end %>
               <iframe
                 id={"email-iframe-#{@message.id}"}
                 phx-hook="EmailIframeResize"
-                src={~p"/email/#{@message.id}/iframe_content"}
+                src={
+                  ~p"/email/#{@message.id}/iframe_content" <>
+                    if(@remote_images_allowed, do: "?images=1", else: "")
+                }
                 class="email-content-iframe w-full border-0 bg-white"
                 style="height: clamp(420px, 70vh, 680px);"
                 sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"

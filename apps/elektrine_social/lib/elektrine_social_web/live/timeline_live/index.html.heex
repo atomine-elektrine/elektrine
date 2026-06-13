@@ -984,7 +984,18 @@
                   View Mode
                 </p>
 
-                <p class="text-xs text-base-content/60">{length(@filtered_posts)} shown</p>
+                <%= if @loading_timeline do %>
+                  <p class="inline-flex items-center gap-1 text-xs text-base-content/70">
+                    <.spinner size="xs" />
+                    <span>
+                      Loading {String.capitalize(
+                        String.replace(@timeline_filter || "all", "_", " ")
+                      )}...
+                    </span>
+                  </p>
+                <% else %>
+                  <p class="text-xs text-base-content/60">{length(@filtered_posts)} shown</p>
+                <% end %>
               </div>
 
               <div

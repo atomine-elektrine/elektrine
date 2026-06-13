@@ -18,7 +18,7 @@ defmodule ElektrineWeb.Platform.Integrations do
   @email_user_settings_module :"Elixir.ElektrineEmailWeb.UserSettingsEmail"
   @email_user_settings_controller_module :"Elixir.ElektrineEmailWeb.UserSettingsEmailController"
   @email_storage_module :"Elixir.ElektrineEmailWeb.StorageEmail"
-  @email_helpers_module :"Elixir.ElektrineEmailWeb.EmailLive.EmailHelpers"
+  @email_sidebar_module :"Elixir.ElektrineEmailWeb.Components.Email.Sidebar"
   @email_display_module :"Elixir.ElektrineEmailWeb.Components.Email.Display"
   @social_module :"Elixir.Elektrine.Social"
   @social_poll_module :"Elixir.Elektrine.Social.Poll"
@@ -396,7 +396,7 @@ defmodule ElektrineWeb.Platform.Integrations do
   end
 
   def calendar_sidebar(assigns) do
-    call_optional(:email, @email_helpers_module, :sidebar, [assigns], nil)
+    call_optional(:email, @email_sidebar_module, :sidebar, [assigns], nil)
   end
 
   def email_message_count do

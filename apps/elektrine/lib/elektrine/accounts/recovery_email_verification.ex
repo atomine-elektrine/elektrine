@@ -95,10 +95,10 @@ defmodule Elektrine.Accounts.RecoveryEmailVerification do
          |> html_body(html_body)
          |> text_body(text_body)
          |> header("List-Id", EmailAddresses.list_id("elektrine-account"))
-         |> Elektrine.Mailer.deliver() do
+         |> Elektrine.Mailer.deliver_later() do
       {:ok, result} ->
         Logger.info(
-          "Sent recovery email verification to #{user.recovery_email} for user #{user.id}"
+          "Queued recovery email verification to #{user.recovery_email} for user #{user.id}"
         )
 
         {:ok, result}

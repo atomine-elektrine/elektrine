@@ -1,6 +1,7 @@
 defmodule ElektrineEmailWeb.EmailLive.Search do
   use ElektrineEmailWeb, :live_view
   import ElektrineEmailWeb.EmailLive.EmailHelpers
+  import ElektrineEmailWeb.Components.Email.Sidebar
   import ElektrineEmailWeb.Components.Platform.ElektrineNav
 
   alias Elektrine.Email

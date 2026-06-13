@@ -419,10 +419,14 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.PostOperations do
            |> assign(:filter_dropdown_open, false)
            |> assign(:timeline_load_ref, load_ref)
            |> assign(:timeline_filter, filter)
+           |> assign(:timeline_posts, [])
+           |> assign(:filtered_posts, [])
+           |> assign(:filtered_post_ids, [])
            |> assign(:queued_posts, [])
-           |> assign(:loading_timeline, Enum.empty?(socket.assigns.timeline_posts))
+           |> assign(:loading_timeline, true)
            |> assign(:loading_more, false)
            |> assign(:no_more_posts, false)
+           |> stream(:timeline_filtered_posts, [], reset: true)
            |> push_patch(to: path)}
 
         special_timeline_view?(current_view) &&
