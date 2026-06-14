@@ -43,7 +43,7 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       Keyword.merge(
         previous_email_config,
         domain: "elektrine.test",
-        supported_domains: ["elektrine.test", "z.org"],
+        supported_domains: ["elektrine.test", "example.org"],
         haraka_http_client: MockHarakaHTTPClient,
         custom_domain_http_client: MockHarakaHTTPClient,
         custom_domain_haraka_base_url: "https://haraka.example.test",
@@ -141,7 +141,7 @@ defmodule ElektrineEmailWeb.Admin.HarakaControllerTest do
       assert html =~ "v=spf1 include:spf.elektrine.test ~all"
       assert html =~ "v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:dmarc@elektrine.test"
       assert html =~ "default._domainkey.elektrine.test"
-      refute html =~ "mailsel._domainkey.z.org"
+      refute html =~ "mailsel._domainkey.example.org"
 
       requests = Enum.reverse(MockHarakaHTTPClient.requests())
       assert Enum.map(requests, & &1.method) == [:get, :get, :get]

@@ -7,13 +7,17 @@ defmodule Elektrine.Email.CustomDomainHealthWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    %{recent_domains: domains} = Email.custom_domain_admin_stats(500)
-
-    domains
-    |> Enum.filter(&(&1.status == "verified"))
+    Email.list_custom_domains_for_recheck(500)
     |> Enum.each(fn domain ->
-      _ = Email.sync_custom_domain_dkim(domain)
-      _ = Email.check_deliverability_domain(domain.domain)
+      # Re-verifies the TXT + MX records and re-syncs DKIM as a side effect, so a
+      # domain whose DNS records were removed is eventually demoted to pending.
+      case Email.verify_custom_domain(domain) do
+        {:ok, %{status: "verified"} = verified} ->
+          _ = Email.check_deliverability_domain(verified.domain)
+
+        _ ->
+          :ok
+      end
     end)
 
     :ok

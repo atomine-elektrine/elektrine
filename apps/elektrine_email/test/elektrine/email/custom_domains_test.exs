@@ -235,6 +235,60 @@ defmodule Elektrine.Email.CustomDomainsTest do
     assert pending_domain.last_error == "Inbound MX record not found: expected mx.elektrine.test"
   end
 
+  test "re-verifying a verified domain keeps it verified within the grace window" do
+    user = user_fixture(%{username: "gracewindow"})
+
+    {:ok, custom_domain} =
+      Email.create_custom_domain(user, %{"domain" => "mail.gracewindow.test"})
+
+    Process.put(
+      {TestTxtResolver, Email.verification_host(custom_domain)},
+      {:ok, [Email.verification_value(custom_domain)]}
+    )
+
+    Process.put({TestTxtResolver, {:mx, custom_domain.domain}}, {:ok, ["mx.elektrine.test"]})
+
+    assert {:ok, verified} = Email.verify_custom_domain(custom_domain)
+    assert verified.status == "verified"
+
+    # Records disappear from DNS.
+    Process.put({TestTxtResolver, Email.verification_host(custom_domain)}, {:ok, []})
+
+    assert {:ok, still_verified} = Email.verify_custom_domain(verified)
+    assert still_verified.status == "verified"
+    assert still_verified.failing_since
+    assert still_verified.last_error == "Verification TXT record not found"
+  end
+
+  test "re-verifying demotes a verified domain to pending after the grace window" do
+    user = user_fixture(%{username: "gracepass"})
+    {:ok, custom_domain} = Email.create_custom_domain(user, %{"domain" => "mail.gracepass.test"})
+
+    Process.put(
+      {TestTxtResolver, Email.verification_host(custom_domain)},
+      {:ok, [Email.verification_value(custom_domain)]}
+    )
+
+    Process.put({TestTxtResolver, {:mx, custom_domain.domain}}, {:ok, ["mx.elektrine.test"]})
+
+    assert {:ok, verified} = Email.verify_custom_domain(custom_domain)
+
+    # Simulate a domain that has already been failing for longer than the grace window.
+    failing_since = DateTime.utc_now() |> DateTime.add(-5 * 24 * 60 * 60, :second)
+
+    stale =
+      verified
+      |> Ecto.Changeset.change(failing_since: DateTime.truncate(failing_since, :second))
+      |> Repo.update!()
+
+    Process.put({TestTxtResolver, Email.verification_host(custom_domain)}, {:ok, []})
+
+    assert {:ok, demoted} = Email.verify_custom_domain(stale)
+    assert demoted.status == "pending"
+    assert is_nil(demoted.failing_since)
+    assert "mail.gracepass.test" not in Elektrine.Domains.available_email_domains_for_user(user)
+  end
+
   test "verified custom domains resolve to the owner's mailbox and support aliases" do
     user = user_fixture(%{username: "brandmail"})
     {:ok, mailbox} = Email.ensure_user_has_mailbox(user)

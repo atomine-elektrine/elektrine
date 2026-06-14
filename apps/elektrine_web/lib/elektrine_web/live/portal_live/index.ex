@@ -1856,16 +1856,14 @@ defmodule ElektrineWeb.PortalLive.Index do
           tone: "neutral"
         }
       end,
-      if Elektrine.System.user_can_access_module?(user, :maid) do
-        %{
-          id: "search",
-          label: "Maid",
-          detail: "Private web search",
-          href: Elektrine.Paths.maid_path(),
-          icon: "hero-magnifying-glass",
-          tone: "neutral"
-        }
-      end
+      %{
+        id: "search",
+        label: "Maid",
+        detail: "Private search",
+        href: Elektrine.Paths.maid_path(),
+        icon: "hero-magnifying-glass",
+        tone: "neutral"
+      }
     ]
     |> Enum.reject(&is_nil/1)
   end

@@ -73,10 +73,7 @@
       </.link>
     </div>
 
-    <div
-      :if={Elektrine.System.user_can_access_module?(@current_user, :maid)}
-      class="navbar-center hidden lg:flex"
-    >
+    <div class="navbar-center hidden lg:flex">
       <div class="form-control">
         <form action="/maid" method="get">
           <div class="join">

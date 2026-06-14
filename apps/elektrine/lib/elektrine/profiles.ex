@@ -23,6 +23,7 @@ defmodule Elektrine.Profiles do
 
   # Custom profile domains
   defdelegate list_user_custom_domains(user_id), to: Elektrine.Profiles.CustomDomains
+  defdelegate list_custom_domains_for_recheck(limit), to: Elektrine.Profiles.CustomDomains
   defdelegate get_custom_domain(id, user_id), to: Elektrine.Profiles.CustomDomains
   defdelegate get_verified_custom_domain(domain), to: Elektrine.Profiles.CustomDomains
   defdelegate get_verified_custom_domain_for_host(host), to: Elektrine.Profiles.CustomDomains

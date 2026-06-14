@@ -194,7 +194,7 @@ defmodule ElektrineWeb.PageLive.Home do
       %{icon: "hero-chat-bubble-left-right-mini", name: "Chat", detail: "Arblarg engine"},
       %{icon: "hero-sparkles-mini", name: "Social", detail: "ActivityPub / ATProto"},
       %{icon: "hero-shield-check-mini", name: "VPN", detail: "WireGuard"},
-      %{icon: "hero-key-mini", name: "Nerve", detail: "Extension / site actions"}
+      %{icon: "hero-key-mini", name: "Nerve", detail: "Browser extension / site actions"}
     ]
     |> Enum.filter(fn module ->
       case module.name do

@@ -16,6 +16,7 @@ defmodule Elektrine.Profiles.CustomDomain do
     field :verified_at, :utc_datetime
     field :last_checked_at, :utc_datetime
     field :last_error, :string
+    field :failing_since, :utc_datetime
 
     belongs_to :user, Elektrine.Accounts.User
 
@@ -31,6 +32,7 @@ defmodule Elektrine.Profiles.CustomDomain do
       :verified_at,
       :last_checked_at,
       :last_error,
+      :failing_since,
       :user_id
     ])
     |> update_change(:domain, &normalize_domain/1)

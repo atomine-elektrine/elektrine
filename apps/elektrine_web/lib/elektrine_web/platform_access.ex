@@ -72,9 +72,6 @@ defmodule ElektrineWeb.PlatformAccess do
       path_matches?(path, "/portal") ->
         :portal
 
-      path_matches?(path, "/maid") or path_matches?(path, "/search") ->
-        :maid
-
       path_matches?(path, "/chat") or path_matches?(path, "/api/private-attachments") or
         path_matches?(path, "/api/servers") or path_matches?(path, "/api/conversations") or
         path_matches?(path, "/api/messages") or path_matches?(path, "/api/chat") or
@@ -146,9 +143,6 @@ defmodule ElektrineWeb.PlatformAccess do
     cond do
       view == ElektrineWeb.PortalLive.Index ->
         :portal
-
-      view == ElektrineWeb.SearchLive ->
-        :maid
 
       view == ArblargWeb.ChatLive.Index ->
         :chat
