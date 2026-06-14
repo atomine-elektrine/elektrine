@@ -42,9 +42,9 @@ defmodule ElektrineSocial.MixProject do
     [
       internal_dep(:elektrine),
       internal_dep(:elektrine_web),
-      {:phoenix, "== 1.8.7"},
+      {:phoenix, "== 1.8.8"},
       {:phoenix_html, "== 4.3.0"},
-      {:phoenix_live_view, "== 1.1.30"},
+      {:phoenix_live_view, "== 1.2.1"},
       {:jason, "== 1.4.5"}
     ]
   end
