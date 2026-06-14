@@ -16,6 +16,11 @@ defmodule Elektrine.Email.CustomDomains do
   @verified_status "verified"
   @verification_label "_elektrine-verification"
 
+  # A verified domain that starts failing re-verification is given this grace
+  # window before it is demoted back to pending, so transient DNS hiccups don't
+  # break mail flow for an otherwise healthy domain.
+  @verification_grace_period_seconds 72 * 60 * 60
+
   @type lookup_result :: {:ok, [String.t()]} | {:error, term()}
 
   @doc """
@@ -99,6 +104,18 @@ defmodule Elektrine.Email.CustomDomains do
   end
 
   def list_user_custom_domains(_), do: []
+
+  @doc """
+  Returns custom domains due for a periodic DNS re-verification, oldest check
+  first so the staleest records are revisited before newer ones.
+  """
+  def list_custom_domains_for_recheck(limit \\ 500) when is_integer(limit) do
+    CustomDomain
+    |> order_by([d], asc_nulls_first: d.last_checked_at)
+    |> limit(^max(limit, 0))
+    |> Repo.all()
+    |> Enum.map(&hydrate_custom_domain/1)
+  end
 
   def list_custom_domains_admin(
         search_query \\ "",
@@ -310,7 +327,8 @@ defmodule Elektrine.Email.CustomDomains do
                   status: @verified_status,
                   verified_at: custom_domain.verified_at || now,
                   last_checked_at: now,
-                  last_error: nil
+                  last_error: nil,
+                  failing_since: nil
                 })
                 |> Repo.update()
               else
@@ -460,24 +478,31 @@ defmodule Elektrine.Email.CustomDomains do
     |> String.slice(0, max_length)
   end
 
-  defp maybe_reset_pending_status(changeset) do
-    current_status = Ecto.Changeset.get_field(changeset, :status)
-
-    if current_status == @verified_status do
-      changeset
-    else
-      Ecto.Changeset.put_change(changeset, :status, @pending_status)
-    end
-  end
-
   defp persist_verification_failure(custom_domain, now, error_message) do
     custom_domain
-    |> Ecto.Changeset.change(%{
-      last_checked_at: now,
-      last_error: truncate_error(error_message)
-    })
-    |> maybe_reset_pending_status()
+    |> Ecto.Changeset.change(
+      verification_failure_attrs(custom_domain, now, truncate_error(error_message))
+    )
     |> Repo.update()
+  end
+
+  # Pending domains simply record the failure. Verified domains stay verified
+  # until they have been failing continuously past the grace window, at which
+  # point they are demoted back to pending.
+  defp verification_failure_attrs(custom_domain, now, error_message) do
+    base = %{last_checked_at: now, last_error: error_message}
+
+    if custom_domain.status == @verified_status do
+      failing_since = custom_domain.failing_since || now
+
+      if DateTime.diff(now, failing_since, :second) >= @verification_grace_period_seconds do
+        Map.merge(base, %{status: @pending_status, verified_at: nil, failing_since: nil})
+      else
+        Map.put(base, :failing_since, failing_since)
+      end
+    else
+      Map.merge(base, %{status: @pending_status, failing_since: nil})
+    end
   end
 
   defp dns_resolver do

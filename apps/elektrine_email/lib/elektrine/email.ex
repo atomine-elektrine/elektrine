@@ -343,6 +343,7 @@ defmodule Elektrine.Email do
 
   # Delegate custom domain functions
   defdelegate list_user_custom_domains(user_id), to: Elektrine.Email.CustomDomains
+  defdelegate list_custom_domains_for_recheck(limit), to: Elektrine.Email.CustomDomains
   defdelegate get_custom_domain(id, user_id), to: Elektrine.Email.CustomDomains
   defdelegate create_custom_domain(user_or_id, attrs), to: Elektrine.Email.CustomDomains
   defdelegate verify_custom_domain(custom_domain), to: Elektrine.Email.CustomDomains

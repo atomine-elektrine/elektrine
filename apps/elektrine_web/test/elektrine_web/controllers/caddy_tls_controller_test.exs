@@ -175,18 +175,18 @@ defmodule ElektrineWeb.CaddyTLSControllerTest do
         :email,
         Keyword.merge(previous_email_config,
           domain: "example.com",
-          supported_domains: ["example.com", "z.org"]
+          supported_domains: ["example.com", "example.org"]
         )
       )
 
-      Application.put_env(:elektrine, :profile_base_domains, ["example.com", "z.org"])
+      Application.put_env(:elektrine, :profile_base_domains, ["example.com", "example.org"])
 
       on_exit(fn ->
         Application.put_env(:elektrine, :email, previous_email_config)
         Application.put_env(:elektrine, :profile_base_domains, previous_profile_domains)
       end)
 
-      conn = conn |> auth_conn(api_key) |> get(allow_path("caddysunset.z.org"))
+      conn = conn |> auth_conn(api_key) |> get(allow_path("caddysunset.example.org"))
 
       assert conn.status == 403
       assert response(conn, 403) == "forbidden"

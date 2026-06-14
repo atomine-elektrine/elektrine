@@ -168,7 +168,7 @@ defmodule Elektrine.System do
   defp module_access_label(:email), do: "Email"
   defp module_access_label(:nerve), do: "Nerve"
   defp module_access_label(:drive), do: "Drive"
-  defp module_access_label(:maid), do: "Maid"
+  defp module_access_label(:maid), do: "Maid Web Search"
   defp module_access_label(:notes), do: "Notes"
   defp module_access_label(:storage), do: "Storage"
   defp module_access_label(:portal), do: "Portal"

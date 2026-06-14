@@ -16,7 +16,8 @@ defmodule ElektrineWeb.SearchLive do
      |> assign(:suggestions, [])
      |> assign(:show_suggestions, false)
      |> assign(:active_lens, "all")
-     |> assign(:command_mode, false)}
+     |> assign(:command_mode, false)
+     |> assign_web_search_access()}
   end
 
   @impl true
@@ -24,7 +25,10 @@ defmodule ElektrineWeb.SearchLive do
     query = String.trim(params["q"] || "")
     lens = normalize_lens(params["lens"])
 
-    socket = assign(socket, :active_lens, lens)
+    socket =
+      socket
+      |> assign_web_search_access()
+      |> assign(:active_lens, lens)
 
     if query != "" do
       {:noreply, perform_search(socket, query, lens: lens)}
@@ -177,6 +181,7 @@ defmodule ElektrineWeb.SearchLive do
     user = socket.assigns.current_user
     include_web? = Keyword.get(opts, :include_web?, true)
     lens = Keyword.get(opts, :lens, socket.assigns.active_lens) |> normalize_lens()
+    web_search_allowed? = web_search_allowed?(user)
 
     socket
     |> assign(:loading, true)
@@ -187,13 +192,14 @@ defmodule ElektrineWeb.SearchLive do
       search_results =
         merged_search(user, query,
           limit: lens_limit(lens),
-          include_web?: include_web?,
+          include_web?: include_web? and web_search_allowed?,
           lens: lens
         )
 
       socket
       |> assign(:results, search_results.results)
       |> assign(:total_count, search_results.total_count)
+      |> assign(:web_search_allowed?, web_search_allowed?)
       |> assign(:searched?, true)
       |> assign(:loading, false)
       |> assign(:show_suggestions, false)
@@ -239,6 +245,14 @@ defmodule ElektrineWeb.SearchLive do
 
   defp maybe_put_lens_param(params, lens) when lens in [nil, "", "all"], do: params
   defp maybe_put_lens_param(params, lens), do: Keyword.put(params, :lens, lens)
+
+  defp assign_web_search_access(socket) do
+    socket
+    |> assign(:web_search_allowed?, web_search_allowed?(socket.assigns[:current_user]))
+    |> assign(:web_search_min_trust_level, Elektrine.System.module_min_trust_level(:maid))
+  end
+
+  defp web_search_allowed?(user), do: Elektrine.System.user_can_access_module?(user, :maid)
 
   defp merged_search(user, query, opts) do
     limit = Keyword.fetch!(opts, :limit)
@@ -396,7 +410,7 @@ defmodule ElektrineWeb.SearchLive do
                   Maid
                 </h1>
                 <p class="mx-auto max-w-2xl text-sm leading-6 text-base-content/65 sm:text-base">
-                  Search Elektrine, the web, and focused lenses.
+                  {maid_intro(@web_search_allowed?)}
                 </p>
               </div>
 
@@ -464,8 +478,24 @@ defmodule ElektrineWeb.SearchLive do
                   event="set_lens"
                   param="lens"
                   active={@active_lens}
-                  options={lenses()}
+                  options={lenses(@web_search_allowed?)}
                 />
+              </div>
+
+              <div
+                :if={web_search_locked?(@active_lens, @web_search_allowed?)}
+                class="mt-4 rounded-xl border border-warning/30 bg-warning/10 p-4 text-left text-sm text-base-content/75"
+              >
+                <div class="flex gap-3">
+                  <.icon name="hero-lock-closed" class="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+                  <div>
+                    <p class="font-semibold text-base-content">Web search is trust-walled</p>
+                    <p>
+                      Admin settings require TL{@web_search_min_trust_level}+ for web, image,
+                      video, and news search. Maid app search is still available.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div class="mt-4 flex flex-wrap items-center gap-2">
@@ -571,6 +601,7 @@ defmodule ElektrineWeb.SearchLive do
               </div>
             </button>
             <button
+              :if={@web_search_allowed?}
               class="card panel-card text-left shadow-sm transition hover:border-base-content/20"
               phx-click="search"
               phx-value-query="web search"
@@ -591,25 +622,36 @@ defmodule ElektrineWeb.SearchLive do
   end
 
   # Helper functions for formatting
-  defp lenses do
-    [
+  defp lenses(web_search_allowed?) do
+    base_lenses = [
       %{value: "all", label: "All", icon: "hero-sparkles"},
       %{
         value: "elektrine",
         label: "Elektrine",
         icon: "hero-bolt"
       },
-      %{value: "web", label: "Web", icon: "hero-globe-alt"},
-      %{value: "images", label: "Images", icon: "hero-photo"},
-      %{value: "videos", label: "Videos", icon: "hero-play-circle"},
-      %{value: "news", label: "News", icon: "hero-newspaper"},
       %{
         value: "forums",
         label: "Forums",
         icon: "hero-chat-bubble-bottom-center-text"
       }
     ]
+
+    web_lenses = [
+      %{value: "web", label: "Web", icon: "hero-globe-alt"},
+      %{value: "images", label: "Images", icon: "hero-photo"},
+      %{value: "videos", label: "Videos", icon: "hero-play-circle"},
+      %{value: "news", label: "News", icon: "hero-newspaper"}
+    ]
+
+    if web_search_allowed?, do: base_lenses ++ web_lenses, else: base_lenses
   end
+
+  defp maid_intro(true), do: "Search Elektrine, the web, and focused lenses."
+  defp maid_intro(false), do: "Search Elektrine and focused lenses."
+
+  defp web_search_locked?(lens, false), do: lens in ["web", "images", "videos", "news"]
+  defp web_search_locked?(_lens, _web_search_allowed?), do: false
 
   defp lens_empty_description("forums") do
     "No matching Elektrine discussions or communities yet."

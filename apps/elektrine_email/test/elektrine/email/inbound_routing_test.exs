@@ -15,7 +15,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
     Application.put_env(
       :elektrine,
       :email,
-      Keyword.merge(previous_email_config, supported_domains: [primary, "z.org"])
+      Keyword.merge(previous_email_config, supported_domains: [primary, "example.org"])
     )
 
     on_exit(fn -> Application.put_env(:elektrine, :email, previous_email_config) end)
@@ -72,7 +72,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
       assert resolved_mailbox.id == mailbox.id
     end
 
-    test "resolves z.org recipients to existing mailbox for inbound delivery" do
+    test "resolves example.org recipients to existing mailbox for inbound delivery" do
       username = "zreceive#{System.unique_integer([:positive])}"
       user = user_fixture(%{username: username})
 
@@ -80,8 +80,8 @@ defmodule Elektrine.Email.InboundRoutingTest do
 
       assert {:ok, resolved_mailbox} =
                InboundRouting.resolve_recipient_mailbox(
-                 "#{username}@z.org",
-                 "#{username}@z.org"
+                 "#{username}@example.org",
+                 "#{username}@example.org"
                )
 
       assert resolved_mailbox.id == mailbox.id
@@ -199,7 +199,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
                )
     end
 
-    test "accepts z.org recipient for inbound mailbox routing" do
+    test "accepts example.org recipient for inbound mailbox routing" do
       username = "zroute#{System.unique_integer([:positive])}"
       user = user_fixture(%{username: username})
 
@@ -208,7 +208,7 @@ defmodule Elektrine.Email.InboundRoutingTest do
       assert :ok =
                InboundRouting.validate_mailbox_route(
                  "list@lists.example.org",
-                 "#{username}@z.org",
+                 "#{username}@example.org",
                  mailbox
                )
     end

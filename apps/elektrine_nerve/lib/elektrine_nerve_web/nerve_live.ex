@@ -287,7 +287,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                     <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
                       Browser Extension
                     </p>
-                    <h2 class="card-title mt-1 text-lg">Install Nerve</h2>
+                    <h2 class="card-title mt-1 text-lg">Install Browser Extension</h2>
                   </div>
                   <span class="badge badge-primary badge-outline">Extension</span>
                 </div>
@@ -312,8 +312,8 @@ defmodule ElektrineNerveWeb.NerveLive do
                 </div>
 
                 <ol class="mt-5 list-decimal space-y-2 pl-5 text-xs text-base-content/60">
-                  <li>Install the extension.</li>
-                  <li>Open Nerve and unlock it in this browser.</li>
+                  <li>Install the browser extension.</li>
+                  <li>Open the browser extension and unlock Nerve in this browser.</li>
                   <li>Use saved entries on matching sites.</li>
                 </ol>
               </div>
@@ -354,7 +354,7 @@ defmodule ElektrineNerveWeb.NerveLive do
                 </div>
 
                 <div class="mt-4 rounded-xl border border-dashed border-base-300 p-4 text-sm text-base-content/60">
-                  Paired extension devices will appear here when device registration is enabled.
+                  Paired browser extension devices will appear here when device registration is enabled.
                 </div>
               </div>
             </div>

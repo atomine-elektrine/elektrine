@@ -22,7 +22,7 @@ defmodule Elektrine.Platform.ENav do
         label: "Maid",
         href: "/maid",
         platform_module: nil,
-        access_module: :maid,
+        access_module: nil,
         icon: "hero-magnifying-glass",
         active_icon: "hero-magnifying-glass-solid"
       },
@@ -137,7 +137,7 @@ defmodule Elektrine.Platform.ENav do
       },
       %{
         id: "nerve",
-        label: "Nerve",
+        label: "Browser Extension",
         href: "/account/nerve",
         platform_module: :nerve,
         access_module: :nerve,

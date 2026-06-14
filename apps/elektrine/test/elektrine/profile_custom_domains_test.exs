@@ -63,6 +63,56 @@ defmodule Elektrine.ProfileCustomDomainsTest do
     assert Profiles.get_verified_custom_domain("profiledomainowner.test").id == verified_domain.id
   end
 
+  test "re-verifying keeps a profile domain verified within the grace window" do
+    user = user_fixture(%{username: "profilegrace"})
+
+    {:ok, custom_domain} =
+      Profiles.create_custom_domain(user, %{"domain" => "profilegrace.test"})
+
+    Process.put(
+      {TestTxtResolver, Profiles.verification_host(custom_domain)},
+      {:ok, [Profiles.verification_value(custom_domain)]}
+    )
+
+    assert {:ok, verified} = Profiles.verify_custom_domain(custom_domain)
+    assert verified.status == "verified"
+
+    # Record disappears from DNS.
+    Process.put({TestTxtResolver, Profiles.verification_host(custom_domain)}, {:ok, []})
+
+    assert {:ok, still_verified} = Profiles.verify_custom_domain(verified)
+    assert still_verified.status == "verified"
+    assert still_verified.failing_since
+  end
+
+  test "re-verifying demotes a profile domain to pending after the grace window" do
+    user = user_fixture(%{username: "profilegracepass"})
+
+    {:ok, custom_domain} =
+      Profiles.create_custom_domain(user, %{"domain" => "profilegracepass.test"})
+
+    Process.put(
+      {TestTxtResolver, Profiles.verification_host(custom_domain)},
+      {:ok, [Profiles.verification_value(custom_domain)]}
+    )
+
+    assert {:ok, verified} = Profiles.verify_custom_domain(custom_domain)
+
+    failing_since = DateTime.utc_now() |> DateTime.add(-5 * 24 * 60 * 60, :second)
+
+    stale =
+      verified
+      |> Ecto.Changeset.change(failing_since: DateTime.truncate(failing_since, :second))
+      |> Elektrine.Repo.update!()
+
+    Process.put({TestTxtResolver, Profiles.verification_host(custom_domain)}, {:ok, []})
+
+    assert {:ok, demoted} = Profiles.verify_custom_domain(stale)
+    assert demoted.status == "pending"
+    assert is_nil(demoted.failing_since)
+    assert is_nil(Profiles.get_verified_custom_domain("profilegracepass.test"))
+  end
+
   test "get_verified_custom_domain_for_host resolves bare and www hosts" do
     user = user_fixture(%{username: "profilehostowner"})
 

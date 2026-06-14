@@ -9,7 +9,7 @@ defmodule ElektrineWeb.Plugs.ReceiveOnlyEmailDomainHostTest do
       :email,
       Keyword.merge(previous_email_config,
         domain: "elektrine.test",
-        supported_domains: ["elektrine.test", "z.org"]
+        supported_domains: ["elektrine.test", "example.org"]
       )
     )
 
@@ -19,14 +19,14 @@ defmodule ElektrineWeb.Plugs.ReceiveOnlyEmailDomainHostTest do
   end
 
   test "blocks the root secondary email domain", %{conn: conn} do
-    conn = conn |> Map.put(:host, "z.org") |> get("/")
+    conn = conn |> Map.put(:host, "example.org") |> get("/")
 
     assert response(conn, 404) == "Not found"
     assert conn.halted
   end
 
   test "blocks secondary email subdomains", %{conn: conn} do
-    conn = conn |> Map.put(:host, "alice.z.org") |> get("/")
+    conn = conn |> Map.put(:host, "alice.example.org") |> get("/")
 
     assert response(conn, 404) == "Not found"
     assert conn.halted

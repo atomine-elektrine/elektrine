@@ -68,7 +68,7 @@ defmodule Elektrine.DomainsTest do
 
   test "uses the primary configured profile domain for enabled built-in profile subdomains" do
     Application.put_env(:elektrine, :email, domain: "selfhost.test")
-    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])
+    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "example.org"])
     user = %User{handle: "alice", username: "alice", built_in_subdomain_mode: "platform"}
 
     assert Domains.default_profile_domain() == "selfhost.test"
@@ -89,7 +89,7 @@ defmodule Elektrine.DomainsTest do
   test "does not treat supported email domains as built-in profile domains by default" do
     Application.put_env(:elektrine, :email,
       domain: "elektrine.com",
-      supported_domains: ["elektrine.com", "elektrine.net", "elektrine.org", "z.org"]
+      supported_domains: ["elektrine.com", "elektrine.net", "elektrine.org", "example.org"]
     )
 
     Application.delete_env(:elektrine, :profile_base_domains)
@@ -102,23 +102,23 @@ defmodule Elektrine.DomainsTest do
   test "treats secondary supported domains as receive-only" do
     Application.put_env(:elektrine, :email,
       domain: "elektrine.com",
-      supported_domains: ["elektrine.com", "z.org"]
+      supported_domains: ["elektrine.com", "example.org"]
     )
 
-    Application.put_env(:elektrine, :profile_base_domains, ["elektrine.com", "z.org"])
+    Application.put_env(:elektrine, :profile_base_domains, ["elektrine.com", "example.org"])
 
     assert Domains.supported_email_domains() == ["elektrine.com"]
-    assert "z.org" in Domains.receiving_email_domains()
-    refute "z.org" in Domains.available_email_domains_for_user(123)
-    refute "z.org" in Domains.configured_profile_base_domains()
-    refute "z.org" in Domains.activitypub_domains()
+    assert "example.org" in Domains.receiving_email_domains()
+    refute "example.org" in Domains.available_email_domains_for_user(123)
+    refute "example.org" in Domains.configured_profile_base_domains()
+    refute "example.org" in Domains.activitypub_domains()
   end
 
   test "canonicalizes profile URLs to the primary configured profile domain on built-in hosts" do
     Application.put_env(:elektrine, :email, domain: "selfhost.test")
-    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "z.org"])
+    Application.put_env(:elektrine, :profile_base_domains, ["selfhost.test", "example.org"])
 
-    assert Domains.profile_url_for_handle("alice", "alice.z.org") ==
+    assert Domains.profile_url_for_handle("alice", "alice.example.org") ==
              "https://selfhost.test/alice"
   end
 end

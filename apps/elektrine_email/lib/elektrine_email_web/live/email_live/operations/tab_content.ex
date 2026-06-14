@@ -222,6 +222,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.TabContent do
 
   defp empty_pagination(per_page) do
     %{
+      messages: [],
       page: 1,
       per_page: per_page,
       total_count: 0,

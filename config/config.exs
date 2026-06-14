@@ -103,6 +103,8 @@ config :elektrine, Oban,
        {"*/5 * * * *", Elektrine.Email.ExternalDeliveryMaintenanceWorker},
        # Recheck custom email domain DKIM/DNS health hourly
        {"17 * * * *", Elektrine.Email.CustomDomainHealthWorker},
+       # Recheck custom profile domain DNS health hourly
+       {"27 * * * *", Elektrine.Jobs.ProfileCustomDomainHealthWorker},
        # Process due reply-later messages every 5 minutes
        {"*/5 * * * *", Elektrine.Jobs.ReplyLaterProcessor},
        # Publish due scheduled social posts every minute
