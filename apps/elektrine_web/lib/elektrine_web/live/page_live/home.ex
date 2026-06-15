@@ -44,7 +44,7 @@ defmodule ElektrineWeb.PageLive.Home do
                   <div class="space-y-4">
                     <div class="space-y-4">
                       <h1 class="max-w-3xl text-4xl font-semibold tracking-tight text-base-content sm:text-5xl lg:text-[3.75rem] lg:leading-[1.02] text-balance">
-                        Software for sovereignty.
+                        Own or be owned.
                       </h1>
                       <p class="max-w-2xl text-base leading-7 text-base-content/72 sm:text-lg">
                         Elektrine is a private, modular internet suite for people who want everyday
@@ -124,33 +124,69 @@ defmodule ElektrineWeb.PageLive.Home do
                   </div>
                 </div>
               </div>
-            </section>
 
-            <section class="space-y-4">
               <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-3 p-4 sm:p-5">
-                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">Principles</p>
-                  <div class="space-y-3">
-                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Ownership</div>
-                      <div class="mt-1 text-sm font-medium text-base-content">Host it yourself</div>
+                <div class="card-body gap-5 p-6 sm:p-8">
+                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">What you get</p>
+                  <%= for group <- feature_groups() do %>
+                    <div class="space-y-2">
+                      <p class="text-[11px] uppercase tracking-[0.18em] opacity-40">{group.label}</p>
+                      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <%= for item <- group.items do %>
+                          <div class={[
+                            "rounded-lg border border-base-300 bg-base-200/45 px-4 py-3",
+                            item[:wide] && "sm:col-span-2 lg:col-span-3"
+                          ]}>
+                            <div class="text-xs uppercase tracking-[0.18em] opacity-50">
+                              {item.tag}
+                            </div>
+                            <div class="mt-1 text-sm font-medium text-base-content">{item.title}</div>
+                            <div class="text-xs text-base-content/60">{item.detail}</div>
+                          </div>
+                        <% end %>
+                      </div>
                     </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <div class="card border border-base-300 bg-base-200/80">
+                <div class="card-body gap-3 p-6 sm:p-8">
+                  <p class="text-xs uppercase tracking-[0.22em] opacity-60">For developers</p>
+                  <div class="grid gap-3 sm:grid-cols-3">
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Composition</div>
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">OIDC</div>
                       <div class="mt-1 text-sm font-medium text-base-content">
-                        Compose only what you need
+                        Sign in with your domain
+                      </div>
+                      <div class="text-xs text-base-content/60">
+                        OpenID Connect with discovery, JWKS, and dynamic registration
                       </div>
                     </div>
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
-                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Identity</div>
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Tokens</div>
                       <div class="mt-1 text-sm font-medium text-base-content">
-                        Accounts and domains stay yours
+                        Scoped access tokens
+                      </div>
+                      <div class="text-xs text-base-content/60">
+                        Fine-grained tokens with separate read and write access per service
+                      </div>
+                    </div>
+                    <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
+                      <div class="text-xs uppercase tracking-[0.18em] opacity-50">Automate</div>
+                      <div class="mt-1 text-sm font-medium text-base-content">
+                        Automate everything
+                      </div>
+                      <div class="text-xs text-base-content/60">
+                        JMAP mail, a data-export API, even static-site deploys
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+            </section>
 
+            <section class="space-y-4">
               <div class="card border border-base-300 bg-base-200/80">
                 <div class="card-body gap-4 p-4 sm:p-5">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
@@ -180,6 +216,141 @@ defmodule ElektrineWeb.PageLive.Home do
       </div>
     </div>
     """
+  end
+
+  defp feature_groups do
+    [
+      %{
+        label: "Mail",
+        items: [
+          %{tag: "Aliases", title: "Free aliases", detail: "Up to 15 addresses at no extra cost"},
+          %{
+            tag: "Catch-all",
+            title: "Catch-all & plus tags",
+            detail: "anything@your-domain and you+tag@ just work"
+          },
+          %{
+            tag: "Domains",
+            title: "Free custom domains",
+            detail: "Bring your own domain"
+          },
+          %{
+            tag: "Clients",
+            title: "Use any mail app",
+            detail: "Works in Thunderbird and any IMAP, POP3, SMTP or JMAP client"
+          },
+          %{
+            tag: "Deliverability",
+            title: "Lands in the inbox",
+            detail: "DKIM, SPF, and DMARC handled for you"
+          },
+          %{
+            tag: "PGP",
+            title: "PGP, built in",
+            detail: "OpenPGP with automatic key discovery (WKD)"
+          }
+        ]
+      },
+      %{
+        label: "Privacy & security",
+        items: [
+          %{
+            tag: "First-party",
+            title: "No third parties in the loop",
+            detail:
+              "No Cloudflare, no Google Analytics, no third-party trackers, fonts, or CDNs. Nothing phones home.",
+            wide: true
+          },
+          %{
+            tag: "Email",
+            title: "Local email encryption",
+            detail: "Keys stay in your browser, so the server only ever stores ciphertext"
+          },
+          %{
+            tag: "Chat",
+            title: "End-to-end encrypted chat",
+            detail: "Messages are encrypted on your device, so the server only relays ciphertext"
+          },
+          %{
+            tag: "Tor",
+            title: "Works over Tor",
+            detail: "Sign up and use Elektrine privately"
+          },
+          %{
+            tag: "Canary",
+            title: "Warrant canary",
+            detail: "A public canary you can check any time"
+          },
+          %{
+            tag: "Passkeys",
+            title: "Passwordless sign-in",
+            detail:
+              "Phishing-resistant WebAuthn across up to 10 devices, with no password to steal"
+          },
+          %{
+            tag: "2FA",
+            title: "Two-factor auth",
+            detail: "TOTP protection on your account"
+          },
+          %{
+            tag: "Signups",
+            title: "No CAPTCHAs",
+            detail: "A short background check stops bots, so you never solve puzzles"
+          },
+          %{
+            tag: "Open source",
+            title: "Open source (AGPLv3)",
+            detail: "Audit it, or self-host the exact code we run"
+          }
+        ]
+      },
+      %{
+        label: "Social and chat",
+        items: [
+          %{
+            tag: "Fediverse",
+            title: "On the fediverse",
+            detail: "Follow and be followed across Mastodon, Lemmy, and more"
+          },
+          %{
+            tag: "Bluesky",
+            title: "Mirror to Bluesky",
+            detail: "Crosspost your public timeline to Bluesky"
+          },
+          %{
+            tag: "Messaging",
+            title: "Federated messaging",
+            detail: "Message and call across Elektrine servers, not just your own"
+          }
+        ]
+      },
+      %{
+        label: "Beyond the inbox",
+        items: [
+          %{
+            tag: "Web search",
+            title: "Private web search",
+            detail:
+              "Search the open web with Maid, which blends results from several engines and never profiles you"
+          },
+          %{
+            tag: "Calendar",
+            title: "Calendar & contacts",
+            detail: "Sync everywhere with CalDAV and CardDAV"
+          },
+          %{
+            tag: "Portability",
+            title: "No lock-in",
+            detail: "Export all your data over an open API, any time"
+          },
+          %{
+            tag: "Suite",
+            title: "One account, many tools",
+            detail: "Turn on email, messaging, VPN, social, and DNS as you need them"
+          }
+        ]
+      }
+    ]
   end
 
   defp home_modules do

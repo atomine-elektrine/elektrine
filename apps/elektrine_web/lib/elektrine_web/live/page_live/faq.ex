@@ -29,7 +29,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Elektrine is a modular platform for running internet services from one account.
+                    Elektrine is a personal internet space for messages, identity, search, storage, and everyday tools.
                   </p>
                 </div>
               </div>
@@ -79,7 +79,7 @@ defmodule ElektrineWeb.PageLive.FAQ do
                 </div>
                 <div class="collapse-content">
                   <p class="pt-2">
-                    Elektrine is meant to give operators one modular platform for running multiple internet services, while giving users something that feels native and unified rather than a stack of unrelated products.
+                    Elektrine is meant to give people one connected place for the parts of online life they want to keep close, without making it feel like a stack of unrelated products.
                   </p>
                 </div>
               </div>
