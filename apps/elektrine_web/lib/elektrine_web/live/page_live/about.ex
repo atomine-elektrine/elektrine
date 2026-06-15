@@ -23,20 +23,20 @@ defmodule ElektrineWeb.PageLive.About do
               <section class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4">What it is</h2>
                 <p class="mb-4">
-                  Elektrine is a modular platform for running internet services from one account.
+                  Elektrine is a personal internet space for the parts of online life you want to keep close.
                 </p>
                 <p>
-                  Depending on the deployment, it can include email, chat, social, contacts, calendar, VPN, and nerve features.
+                  Depending on the account, it can include communication, identity, search, storage, and personal tools.
                 </p>
               </section>
 
               <section class="mb-8">
                 <h2 class="text-2xl font-semibold mb-4">The vision</h2>
                 <p class="mb-4">
-                  Elektrine is designed so operators can run multiple internet services together without splitting identity, accounts, and administration across separate systems.
+                  Elektrine is designed to feel like one connected place instead of a pile of separate accounts and apps.
                 </p>
                 <p>
-                  For users, it should feel like one native product with one account, not a loose bundle of separate projects.
+                  The goal is a calmer, more portable home for messages, identity, connections, and everyday tools.
                 </p>
               </section>
 
@@ -49,9 +49,9 @@ defmodule ElektrineWeb.PageLive.About do
               </section>
 
               <section class="mb-8">
-                <h2 class="text-2xl font-semibold mb-4">How it is deployed</h2>
+                <h2 class="text-2xl font-semibold mb-4">How it works</h2>
                 <p class="mb-4">
-                  Not every Elektrine deployment exposes the same modules. Features can be enabled, disabled, or limited by local policy.
+                  Not every Elektrine account exposes the same features. Access can vary by local policy, trust, and configuration.
                 </p>
                 <p>Built with Elixir and Phoenix.</p>
               </section>

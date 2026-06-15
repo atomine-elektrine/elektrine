@@ -156,6 +156,12 @@ export const VPNDownload = {
  * Security check hook
  * Solves configured anti-abuse layers before submitting.
  */
+const POW_STATUS_CLASSES = {
+  progress: 'text-base-content/60',
+  success: 'text-success',
+  error: 'text-error'
+}
+
 export const AtominePow = {
   mounted() {
     this.form = this.el.closest('form') || document.getElementById('register-form')
@@ -192,7 +198,7 @@ export const AtominePow = {
       this.requestSubmit(event.submitter)
     } catch (_error) {
       this.setResponseToken('')
-      this.showError('Security check failed. Please try again.')
+      this.setStatus('Security check failed. Please try again.', 'error')
     }
   },
 
@@ -255,7 +261,6 @@ export const AtominePow = {
     }
 
     this.ensureResponseInput(this.form)
-    this.clearError()
     this.setStatus('Preparing the security check...')
 
     const challengeResponse = await postJson('/api/atomine/pow/challenge', {
@@ -286,7 +291,7 @@ export const AtominePow = {
     }
 
     this.setResponseToken(tokenResponse.token)
-    this.setStatus('Check complete. Submitting...')
+    this.setStatus('Check complete. Submitting...', 'success')
   },
 
   requestSubmit(submitter) {
@@ -297,24 +302,11 @@ export const AtominePow = {
     }
   },
 
-  setStatus(message) {
-    if (this.statusEl) this.statusEl.textContent = message
-  },
-
-  showError(message) {
-    let error = this.el.parentElement?.querySelector('[data-atomine-pow-error="true"]')
-    if (!error && this.el.parentElement) {
-      error = document.createElement('div')
-      error.className = 'text-warning text-xs mt-1'
-      error.dataset.atominePowError = 'true'
-      this.el.parentElement.appendChild(error)
-    }
-    if (error) error.textContent = message
-  },
-
-  clearError() {
-    const error = this.el.parentElement?.querySelector('[data-atomine-pow-error="true"]')
-    if (error) error.remove()
+  setStatus(message, state = 'progress') {
+    if (!this.statusEl) return
+    this.statusEl.textContent = message
+    this.statusEl.classList.remove(...Object.values(POW_STATUS_CLASSES))
+    this.statusEl.classList.add(POW_STATUS_CLASSES[state] || POW_STATUS_CLASSES.progress)
   },
 
   destroyed() {
