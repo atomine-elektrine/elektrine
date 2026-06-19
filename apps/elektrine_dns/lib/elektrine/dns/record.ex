@@ -383,7 +383,7 @@ defmodule Elektrine.DNS.Record do
         String.contains?(name, "*") and not wildcard_name?(name) ->
           [name: "has invalid wildcard placement"]
 
-        Enum.all?(String.split(name, "."), &valid_label?/1) ->
+        Enum.all?(non_wildcard_labels(name), &valid_label?/1) ->
           []
 
         true ->
@@ -395,6 +395,15 @@ defmodule Elektrine.DNS.Record do
   defp wildcard_name?("*"), do: true
   defp wildcard_name?("*." <> rest), do: rest != "" and not String.contains?(rest, "*")
   defp wildcard_name?(_), do: false
+
+  # Returns the labels of a name excluding a leading "*" wildcard label, so the
+  # remaining labels can be validated normally. A bare "*" yields no labels.
+  defp non_wildcard_labels(name) do
+    case String.split(name, ".") do
+      ["*" | rest] -> rest
+      labels -> labels
+    end
+  end
 
   defp valid_label?("_" <> rest), do: valid_service_label?(rest)
 
