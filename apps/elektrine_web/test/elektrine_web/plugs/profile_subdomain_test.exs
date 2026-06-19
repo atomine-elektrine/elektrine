@@ -39,7 +39,7 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
   end
 
   describe "subdomain extraction" do
-    test "ignores profile subdomains for users who have not enabled them" do
+    test "redirects path-mode users' subdomain to their canonical profile path" do
       user = user_fixture(%{username: "maxfield"})
       {:ok, _user} = Accounts.update_user_handle(user, "maxfield")
 
@@ -47,8 +47,25 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomainTest do
         build_conn_with_host("maxfield.example.com", "/")
         |> ProfileSubdomain.call([])
 
-      refute Map.has_key?(conn.assigns, :subdomain_handle)
+      assert conn.halted
+      assert conn.status == 302
+
+      assert get_resp_header(conn, "location") ==
+               [Elektrine.Domains.default_profile_url_for_handle("maxfield")]
+    end
+
+    test "serves the profile on the subdomain for platform-mode users" do
+      user = user_fixture(%{username: "platformuser"})
+      {:ok, user} = Accounts.update_user_handle(user, "platformuser")
+      {:ok, _user} = Accounts.update_user(user, %{built_in_subdomain_mode: "platform"})
+
+      conn =
+        build_conn_with_host("platformuser.example.com", "/")
+        |> ProfileSubdomain.call([])
+
       refute conn.halted
+      assert conn.assigns[:subdomain_handle] == "platformuser"
+      assert conn.request_path == "/subdomain/platformuser"
     end
 
     test "extracts handle from valid subdomain" do

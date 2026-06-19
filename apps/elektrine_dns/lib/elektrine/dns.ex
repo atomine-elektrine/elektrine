@@ -24,6 +24,8 @@ defmodule Elektrine.DNS do
   @record_types ~w(A AAAA ALIAS CAA CNAME DNSKEY DS HTTPS MX NS SRV SSHFP SVCB TLSA TXT)
   @builtin_user_zone_apex_managed_key "system:profile-apex"
   @builtin_user_zone_managed_service "system"
+  @profile_wildcard_managed_key_a "system:profile-wildcard-a"
+  @profile_wildcard_managed_key_aaaa "system:profile-wildcard-aaaa"
   @builtin_user_zone_forbidden_types ~w(ALIAS DNSKEY DS NS TLSA)
   @builtin_user_zone_allowed_apex_types ~w(CAA TXT)
   @builtin_user_zone_modes User.built_in_subdomain_modes()
@@ -139,6 +141,102 @@ defmodule Elektrine.DNS do
   end
 
   def repair_builtin_user_zone_records(_), do: {:error, :invalid_zone}
+
+  @doc """
+  Ensures a proxied wildcard record (`*.<base>`) exists in every configured
+  profile base-domain zone this server is authoritative for.
+
+  This is the catch-all that lets every built-in profile subdomain
+  (`username.<base>`) resolve to the edge even when the user has never
+  provisioned their own built-in zone. Per-user zones still take precedence,
+  because the resolver matches the most specific zone first.
+
+  Idempotent. Returns a list of `{domain, result}` tuples where `result` is
+  `:ok`, `{:error, :zone_not_found}` (the base domain is not a managed zone
+  here), or `{:error, :no_edge_proxy_ipv4}` (no edge address is configured to
+  point the wildcard at).
+  """
+  def ensure_profile_subdomain_wildcards do
+    domains =
+      [Domains.primary_profile_domain() | Domains.configured_profile_base_domains()]
+      |> Enum.map(&normalize_zone_host/1)
+      |> Enum.reject(&(is_nil(&1) or &1 == ""))
+      |> Enum.uniq()
+
+    results = Enum.map(domains, &ensure_profile_wildcard_for_domain/1)
+
+    if Enum.any?(results, fn {_domain, result} -> result == :ok end) do
+      ZoneCache.refresh_async()
+    end
+
+    results
+  end
+
+  defp ensure_profile_wildcard_for_domain(domain) do
+    if edge_proxy_ipv4_addresses() == [] do
+      {domain, {:error, :no_edge_proxy_ipv4}}
+    else
+      case get_zone_by_domain(domain) do
+        %Zone{} = zone ->
+          upsert_profile_wildcard_records(zone)
+          {domain, :ok}
+
+        nil ->
+          {domain, {:error, :zone_not_found}}
+      end
+    end
+  end
+
+  defp upsert_profile_wildcard_records(%Zone{} = zone) do
+    upsert_profile_wildcard_record(
+      zone,
+      "A",
+      @profile_wildcard_managed_key_a,
+      List.first(edge_proxy_ipv4_addresses())
+    )
+
+    case List.first(edge_proxy_ipv6_addresses()) do
+      nil ->
+        delete_profile_wildcard_record(zone, @profile_wildcard_managed_key_aaaa)
+
+      ipv6 ->
+        upsert_profile_wildcard_record(zone, "AAAA", @profile_wildcard_managed_key_aaaa, ipv6)
+    end
+
+    :ok
+  end
+
+  defp upsert_profile_wildcard_record(%Zone{} = zone, type, managed_key, placeholder_content) do
+    attrs = %{
+      zone_id: zone.id,
+      name: "*",
+      type: type,
+      ttl: default_ttl(),
+      content: placeholder_content,
+      source: "system",
+      service: @builtin_user_zone_managed_service,
+      managed: true,
+      managed_key: managed_key,
+      required: true,
+      proxied: true,
+      metadata: %{"label" => "Profile subdomain catch-all"}
+    }
+
+    case Repo.get_by(Record, zone_id: zone.id, managed_key: managed_key) do
+      %Record{} = record ->
+        record |> Record.changeset(attrs) |> Repo.insert_or_update!()
+
+      nil ->
+        %Record{} |> Record.changeset(attrs) |> Repo.insert!()
+    end
+  end
+
+  defp delete_profile_wildcard_record(%Zone{} = zone, managed_key) do
+    case Repo.get_by(Record, zone_id: zone.id, managed_key: managed_key) do
+      %Record{} = record -> Repo.delete!(record)
+      nil -> :ok
+    end
+  end
 
   def list_zone_records(zone_id) when is_integer(zone_id) do
     Record

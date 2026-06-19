@@ -158,7 +158,7 @@ email_domain =
 supported_domains_env =
   System.get_env("SUPPORTED_DOMAINS") || System.get_env("EMAIL_SUPPORTED_DOMAINS")
 
-official_elektrine_domains = ["elektrine.com", "elektrine.net", "elektrine.org"]
+official_elektrine_domains = ["elektrine.com", "elektrine.net", "elektrine.org", "maidcorps.net"]
 
 default_supported_domains =
   if primary_domain in official_elektrine_domains or email_domain in official_elektrine_domains do

@@ -37,8 +37,8 @@ defmodule ElektrineWeb.PageLive.Home do
         </header>
 
         <main class="flex flex-1 items-center py-8 lg:py-10">
-          <div class="grid w-full items-start gap-6 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
-            <section class="space-y-4">
+          <div class="grid w-full items-start gap-8 lg:grid-cols-[minmax(0,1.1fr)_23rem]">
+            <section class="space-y-6">
               <div class="card border border-base-300 bg-base-200/80">
                 <div class="card-body gap-6 p-6 sm:p-8 lg:p-10">
                   <div class="space-y-4">
@@ -126,12 +126,12 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
 
               <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-5 p-6 sm:p-8">
+                <div class="card-body gap-6 p-6 sm:p-8">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">What you get</p>
                   <%= for group <- feature_groups() do %>
-                    <div class="space-y-2">
+                    <div class="space-y-3">
                       <p class="text-[11px] uppercase tracking-[0.18em] opacity-40">{group.label}</p>
-                      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <%= for item <- group.items do %>
                           <div class={[
                             "rounded-lg border border-base-300 bg-base-200/45 px-4 py-3",
@@ -151,9 +151,9 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
 
               <div class="card border border-base-300 bg-base-200/80">
-                <div class="card-body gap-3 p-6 sm:p-8">
+                <div class="card-body gap-4 p-6 sm:p-8">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">For developers</p>
-                  <div class="grid gap-3 sm:grid-cols-3">
+                  <div class="grid gap-4 sm:grid-cols-3">
                     <div class="rounded-lg border border-base-300 bg-base-200/45 px-4 py-3">
                       <div class="text-xs uppercase tracking-[0.18em] opacity-50">OIDC</div>
                       <div class="mt-1 text-sm font-medium text-base-content">
@@ -186,12 +186,12 @@ defmodule ElektrineWeb.PageLive.Home do
               </div>
             </section>
 
-            <section class="space-y-4">
+            <section class="space-y-6">
               <div class="card border border-base-300 bg-base-200/80">
                 <div class="card-body gap-4 p-4 sm:p-5">
                   <p class="text-xs uppercase tracking-[0.22em] opacity-60">Modules</p>
 
-                  <div class="space-y-2">
+                  <div class="space-y-3">
                     <%= for module <- home_modules() do %>
                       <div class="flex items-center rounded-lg border border-base-300 bg-base-200/45 px-3 py-3">
                         <div class="flex items-center gap-3">

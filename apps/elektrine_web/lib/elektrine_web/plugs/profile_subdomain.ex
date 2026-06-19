@@ -50,42 +50,59 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
         {:ok, handle, base_domain} ->
           path = conn.request_path || ""
 
-          if subdomain_hosted_by_platform?(handle) do
-            cond do
-              # Redirect /handle to root (profile is at root on subdomain)
-              path == "/#{handle}" ->
+          case subdomain_serving_mode(handle) do
+            :platform ->
+              cond do
+                # Redirect /handle to root (profile is at root on subdomain)
+                path == "/#{handle}" ->
+                  conn
+                  |> redirect(to: "/")
+                  |> halt()
+
+                # Allow /profiles/* API calls for follow/followers/etc
+                String.starts_with?(path, "/profiles/") ->
+                  conn
+                  |> assign(:subdomain_handle, handle)
+
+                # Root path shows the profile
+                path == "/" ->
+                  conn
+                  |> maybe_rewrite_root_path(handle)
+                  |> assign(:subdomain_handle, handle)
+
+                # Allow asset-like paths (e.g., /1.jpg, /app.js, /style.css) through so
+                # static-mode profiles can serve assets on profile subdomains.
+                #
+                # Non-static subdomains will typically fall through to 404, which is fine.
+                asset_like_path?(path) ->
+                  conn
+                  |> assign(:subdomain_handle, handle)
+
+                # Any other path redirects to main domain
+                # Subdomains are ONLY for viewing the profile, nothing else
+                true ->
+                  conn
+                  |> redirect(external: "https://#{base_domain}#{path}")
+                  |> halt()
+              end
+
+            # The wildcard makes every handle's subdomain resolve, but a path-mode
+            # user's profile is canonical at its path URL. Bounce the subdomain there
+            # so the profile is always reachable instead of landing on the home page.
+            :path ->
+              if path in ["/", "/#{handle}"] do
                 conn
-                |> redirect(to: "/")
+                |> redirect(external: Elektrine.Domains.default_profile_url_for_handle(handle))
                 |> halt()
-
-              # Allow /profiles/* API calls for follow/followers/etc
-              String.starts_with?(path, "/profiles/") ->
-                conn
-                |> assign(:subdomain_handle, handle)
-
-              # Root path shows the profile
-              path == "/" ->
-                conn
-                |> maybe_rewrite_root_path(handle)
-                |> assign(:subdomain_handle, handle)
-
-              # Allow asset-like paths (e.g., /1.jpg, /app.js, /style.css) through so
-              # static-mode profiles can serve assets on profile subdomains.
-              #
-              # Non-static subdomains will typically fall through to 404, which is fine.
-              asset_like_path?(path) ->
-                conn
-                |> assign(:subdomain_handle, handle)
-
-              # Any other path redirects to main domain
-              # Subdomains are ONLY for viewing the profile, nothing else
-              true ->
+              else
                 conn
                 |> redirect(external: "https://#{base_domain}#{path}")
                 |> halt()
-            end
-          else
-            conn
+              end
+
+            # External-DNS (or otherwise) profiles are left untouched.
+            :other ->
+              conn
           end
 
         {:reserved_subdomain, handle, base_domain} ->
@@ -209,14 +226,22 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
     Path.extname(path) != ""
   end
 
-  defp subdomain_hosted_by_platform?(handle) when is_binary(handle) do
+  defp subdomain_serving_mode(handle) when is_binary(handle) do
     case Accounts.get_user_by_handle(handle) do
-      %User{} = user -> User.built_in_subdomain_hosted_by_platform?(user)
-      _ -> true
+      %User{} = user ->
+        cond do
+          User.built_in_subdomain_hosted_by_platform?(user) -> :platform
+          User.built_in_subdomain_mode(user) == "path" -> :path
+          true -> :other
+        end
+
+      # Unknown handle: let the platform branch render the standard 404.
+      _ ->
+        :platform
     end
   end
 
-  defp subdomain_hosted_by_platform?(_), do: true
+  defp subdomain_serving_mode(_), do: :platform
 
   defp reserved_subdomain_path("admin", _path), do: :passthrough
   defp reserved_subdomain_path("www", path) when path not in ["", "/"], do: :passthrough
