@@ -248,8 +248,20 @@ defmodule Elektrine.Email.Messages do
     identity_sets = Map.new(messages, &{&1.id, thread_identity_set(&1)})
 
     if Map.has_key?(identity_sets, current_message_id) do
-      connected_ids =
-        collect_connected_thread_message_ids(MapSet.new([current_message_id]), identity_sets)
+      # Seed the connected component with the opened message AND the user's own
+      # sent messages. Sent replies belong to the thread (same thread_id) and are
+      # the user's deliberate participation, never unrelated noise to hide. Seeding
+      # from them keeps replies the user wrote — and any received messages chaining
+      # off those replies — visible even when a subject-merged thread leaves them in
+      # a different header component than the message that happens to be open.
+      seed_ids =
+        messages
+        |> Enum.filter(&(&1.status == "sent"))
+        |> Enum.map(& &1.id)
+        |> MapSet.new()
+        |> MapSet.put(current_message_id)
+
+      connected_ids = collect_connected_thread_message_ids(seed_ids, identity_sets)
 
       Enum.filter(messages, &MapSet.member?(connected_ids, &1.id))
     else

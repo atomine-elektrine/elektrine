@@ -143,6 +143,39 @@ defmodule Elektrine.Email.SenderPipelineTest do
       assert received_message.message_id == "thunderbird-internal-duplicate@example.com"
     end
 
+    test "internal delivery shares the sent copy's Message-ID with the recipient copy", %{
+      sender: sender,
+      sender_mailbox: sender_mailbox,
+      recipient_mailbox: recipient_mailbox
+    } do
+      # Webmail compose does not set a Message-ID, so without reconciliation the sent
+      # and received copies get different IDs. The recipient's reply then points
+      # In-Reply-To at an ID the sender's mailbox never stored, orphaning the
+      # conversation starter from the thread. Both copies must share one Message-ID.
+      assert {:ok, _result} =
+               Sender.send_email(sender.id, %{
+                 from: sender_mailbox.email,
+                 to: recipient_mailbox.email,
+                 subject: "Internal threading starter",
+                 text_body: "Kick off the conversation"
+               })
+
+      sent_message =
+        sender_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.find(&(&1.subject == "Internal threading starter" && &1.status == "sent"))
+
+      received_message =
+        recipient_mailbox.id
+        |> Email.list_messages(50, 0)
+        |> Enum.find(&(&1.subject == "Internal threading starter" && &1.status == "received"))
+
+      assert sent_message
+      assert received_message
+      assert sent_message.message_id
+      assert sent_message.message_id == received_message.message_id
+    end
+
     test "deduplicates internal recipients with different display names", %{
       sender: sender,
       sender_mailbox: sender_mailbox,
