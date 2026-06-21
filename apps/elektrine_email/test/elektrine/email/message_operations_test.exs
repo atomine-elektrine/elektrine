@@ -835,6 +835,82 @@ defmodule Elektrine.Email.MessageOperationsTest do
       refute Enum.any?(thread_messages, &(&1.id == unrelated.id))
     end
 
+    test "keeps the user's sent replies visible even when header-disconnected from the opened message",
+         %{mailbox: mailbox} do
+      root_message_id = "qplan-root-#{System.unique_integer([:positive])}@example.com"
+
+      {:ok, root} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: "alice@example.com",
+          to: mailbox.email,
+          subject: "Quarterly Plan",
+          text_body: "Initial message",
+          message_id: root_message_id,
+          status: "received"
+        })
+
+      {:ok, reply} =
+        Email.create_message(%{
+          mailbox_id: mailbox.id,
+          from: mailbox.email,
+          to: "alice@example.com",
+          subject: "Re: Quarterly Plan",
+          text_body: "Reply",
+          message_id: "qplan-reply-#{System.unique_integer([:positive])}@example.com",
+          in_reply_to: root_message_id,
+          status: "sent"
+        })
+
+      thread_id = reply.thread_id
+      assert is_integer(thread_id)
+
+      # A sent message that belongs to the conversation (same thread_id) but whose
+      # headers point at a parent that never landed in this mailbox, so it sits in a
+      # different header component than the message the user opens. This is the case
+      # that previously vanished from the Conversation Context panel.
+      disconnected_sent =
+        create_test_message(mailbox.id, %{
+          from: mailbox.email,
+          to: "alice@example.com",
+          subject: "Quarterly Plan",
+          text_body: "My follow-up the panel used to hide",
+          message_id: "qplan-disconnected-sent-#{System.unique_integer([:positive])}@example.com",
+          thread_id: thread_id,
+          in_reply_to: "external-parent-#{System.unique_integer([:positive])}@gmail.com",
+          references: nil,
+          status: "sent"
+        })
+
+      # An unrelated received message sharing only the subject must still be excluded.
+      unrelated =
+        create_test_message(mailbox.id, %{
+          from: "carol@example.com",
+          to: mailbox.email,
+          subject: "Quarterly Plan",
+          text_body: "Different conversation with the same subject",
+          message_id: "qplan-unrelated-#{System.unique_integer([:positive])}@example.com",
+          thread_id: thread_id,
+          in_reply_to: nil,
+          references: nil,
+          status: "received"
+        })
+
+      # Reload root: creating the reply back-filled its thread_id in the database,
+      # but the struct captured above still has the pre-reply (nil) thread_id.
+      root_after = Email.get_message(root.id, mailbox.id)
+
+      thread_ids =
+        root_after
+        |> Email.list_thread_messages(mailbox.id)
+        |> Enum.map(& &1.id)
+
+      assert disconnected_sent.id in thread_ids
+      assert root.id in thread_ids
+      assert reply.id in thread_ids
+      refute unrelated.id in thread_ids
+    end
+
     test "attaches legacy parent messages to thread when replying", %{mailbox: mailbox} do
       legacy_parent =
         create_test_message(mailbox.id, %{

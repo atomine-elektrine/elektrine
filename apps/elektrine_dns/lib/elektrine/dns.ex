@@ -773,12 +773,39 @@ defmodule Elektrine.DNS do
     today = Date.utc_today()
     week_ago = Date.add(today, -6)
 
-    %{
-      total_queries: total_queries(zone_id),
-      queries_today: queries_since(zone_id, today),
-      queries_this_week: queries_since(zone_id, week_ago),
-      nxdomain_queries: rcode_queries(zone_id, "NXDOMAIN")
-    }
+    # Single scan of the zone's rollup rows with conditional aggregates instead of
+    # four separate SUM queries over the same (zone_id, query_date) index.
+    stats =
+      from(qs in QueryStat,
+        where: qs.zone_id == ^zone_id,
+        select: %{
+          total_queries: fragment("COALESCE(SUM(?), 0)", qs.query_count),
+          queries_today:
+            fragment(
+              "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
+              qs.query_count,
+              qs.query_date,
+              ^today
+            ),
+          queries_this_week:
+            fragment(
+              "COALESCE(SUM(?) FILTER (WHERE ? >= ?), 0)",
+              qs.query_count,
+              qs.query_date,
+              ^week_ago
+            ),
+          nxdomain_queries:
+            fragment(
+              "COALESCE(SUM(?) FILTER (WHERE ? = ?), 0)",
+              qs.query_count,
+              qs.rcode,
+              "NXDOMAIN"
+            )
+        }
+      )
+      |> Repo.one()
+
+    stats || empty_query_stats()
   end
 
   def get_zone_query_stats(_), do: empty_query_stats()
@@ -1356,33 +1383,6 @@ defmodule Elektrine.DNS do
 
   defp empty_query_stats do
     %{total_queries: 0, queries_today: 0, queries_this_week: 0, nxdomain_queries: 0}
-  end
-
-  defp total_queries(zone_id) do
-    from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id,
-      select: sum(qs.query_count)
-    )
-    |> Repo.one()
-    |> Kernel.||(0)
-  end
-
-  defp queries_since(zone_id, start_date) do
-    from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id and qs.query_date >= ^start_date,
-      select: sum(qs.query_count)
-    )
-    |> Repo.one()
-    |> Kernel.||(0)
-  end
-
-  defp rcode_queries(zone_id, rcode) do
-    from(qs in QueryStat,
-      where: qs.zone_id == ^zone_id and qs.rcode == ^rcode,
-      select: sum(qs.query_count)
-    )
-    |> Repo.one()
-    |> Kernel.||(0)
   end
 
   defp normalize_dns_metric_value(value) when is_atom(value),

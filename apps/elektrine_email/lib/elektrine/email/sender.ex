@@ -1557,6 +1557,12 @@ defmodule Elektrine.Email.Sender do
        ) do
     with %Mailbox{} = sender_mailbox <- Email.get_mailbox_internal(sender_mailbox_id),
          {:ok, recipient_mailbox} <- find_internal_recipient_mailbox(recipient) do
+      # Share the sent copy's Message-ID with the recipient's copy. A message has a
+      # single Message-ID across all recipients (the unique index is per-mailbox), and
+      # it lets the recipient's eventual reply link back to this sent message via
+      # In-Reply-To, so the conversation starter stays threaded in the sender's view.
+      email_params = Map.put(email_params, :message_id, sent_message.message_id)
+
       received_attrs =
         internal_received_attrs(
           recipient_mailbox,

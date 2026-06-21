@@ -66,7 +66,7 @@
               <div class="flex gap-3 overflow-x-auto pb-1">
                 <%= for domain <- @domain_breakdown do %>
                   <.link
-                    navigate={
+                    patch={
                       if domain.dns_zone_id do
                         ~p"/analytics/domains?zone_id=#{domain.dns_zone_id}"
                       else

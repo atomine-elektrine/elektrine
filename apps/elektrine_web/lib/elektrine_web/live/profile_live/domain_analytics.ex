@@ -1,7 +1,15 @@
 defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   use ElektrineWeb, :live_view
 
+  require Logger
+
   alias Elektrine.{DNS, Domains, Profiles}
+
+  # The analytics panel runs ~13 independent aggregate queries. Running them
+  # concurrently turns the load time from the sum of every query into the slowest
+  # single query. Bounded so one user's load can't exhaust the DB pool.
+  @analytics_max_concurrency 8
+  @analytics_query_timeout 20_000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -18,7 +26,10 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   def handle_params(params, _uri, socket) do
     user = socket.assigns.current_user
     domains = domain_targets(user)
-    domain_breakdown = merge_domain_breakdown(domains, [])
+    # The per-domain breakdown is global (independent of the selected domain), so
+    # carry the last loaded counts forward instead of blanking the table to zeros
+    # on every switch. The async refresh updates it once the new load lands.
+    domain_breakdown = carry_forward_domain_breakdown(socket.assigns[:domain_breakdown], domains)
     active_domain = select_active_domain(domains, params["host"], params["zone_id"])
 
     {:noreply,
@@ -208,24 +219,61 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
   defp domain_analytics_data(domains, active_domain) do
     domain_hosts = Enum.map(domains, & &1.host)
     active_site_scope = active_site_scope(active_domain, domain_hosts)
-    daily_views = Profiles.get_public_site_daily_view_counts(30, active_site_scope)
-    dns_daily_queries = dns_daily_queries(active_domain)
-    dns_hourly_queries = dns_hourly_queries(active_domain)
+
+    defaults = %{
+      stats: empty_public_site_stats(),
+      domain_breakdown_rows: [],
+      top_pages: [],
+      top_referrers: [],
+      daily_views: [],
+      dns_stats: empty_dns_stats(),
+      dns_query_types: [],
+      dns_top_names: [],
+      dns_top_nxdomain_names: [],
+      dns_rcode_breakdown: [],
+      dns_transport_breakdown: [],
+      dns_hourly_queries: [],
+      dns_daily_queries: []
+    }
+
+    results =
+      run_analytics_queries(
+        [
+          stats: fn -> Profiles.get_public_site_view_stats(active_site_scope) end,
+          domain_breakdown_rows: fn -> Profiles.get_public_site_domain_breakdown(domain_hosts) end,
+          top_pages: fn -> Profiles.get_public_site_top_pages(active_site_scope, 10) end,
+          top_referrers: fn -> Profiles.get_public_site_top_referrers(active_site_scope, 10) end,
+          daily_views: fn -> Profiles.get_public_site_daily_view_counts(30, active_site_scope) end,
+          dns_stats: fn -> dns_stats(active_domain) end,
+          dns_query_types: fn -> dns_query_types(active_domain) end,
+          dns_top_names: fn -> dns_top_names(active_domain) end,
+          dns_top_nxdomain_names: fn -> dns_top_nxdomain_names(active_domain) end,
+          dns_rcode_breakdown: fn -> dns_rcode_breakdown(active_domain) end,
+          dns_transport_breakdown: fn -> dns_transport_breakdown(active_domain) end,
+          dns_hourly_queries: fn -> dns_hourly_queries(active_domain) end,
+          dns_daily_queries: fn -> dns_daily_queries(active_domain) end
+        ],
+        defaults
+      )
+
+    daily_views = results.daily_views
+    dns_hourly_queries = results.dns_hourly_queries
+    dns_daily_queries = results.dns_daily_queries
 
     %{
-      stats: Profiles.get_public_site_view_stats(active_site_scope),
-      domain_breakdown: domain_breakdown(domains),
-      top_pages: Profiles.get_public_site_top_pages(active_site_scope, 10),
-      top_referrers: Profiles.get_public_site_top_referrers(active_site_scope, 10),
+      stats: results.stats,
+      domain_breakdown: merge_domain_breakdown(domains, results.domain_breakdown_rows),
+      top_pages: results.top_pages,
+      top_referrers: results.top_referrers,
       daily_views: daily_views,
       display_days: Enum.filter(daily_views, &(&1.count > 0)) |> Enum.reverse(),
       max_daily_views: max_daily_views(daily_views),
-      dns_stats: dns_stats(active_domain),
-      dns_query_types: dns_query_types(active_domain),
-      dns_top_names: dns_top_names(active_domain),
-      dns_top_nxdomain_names: dns_top_nxdomain_names(active_domain),
-      dns_rcode_breakdown: dns_rcode_breakdown(active_domain),
-      dns_transport_breakdown: dns_transport_breakdown(active_domain),
+      dns_stats: results.dns_stats,
+      dns_query_types: results.dns_query_types,
+      dns_top_names: results.dns_top_names,
+      dns_top_nxdomain_names: results.dns_top_nxdomain_names,
+      dns_rcode_breakdown: results.dns_rcode_breakdown,
+      dns_transport_breakdown: results.dns_transport_breakdown,
       dns_hourly_queries: dns_hourly_queries,
       dns_display_hours: Enum.filter(dns_hourly_queries, &(&1.count > 0)),
       max_dns_hourly_queries: max_hourly_queries(dns_hourly_queries),
@@ -233,6 +281,37 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       dns_display_days: Enum.filter(dns_daily_queries, &(&1.count > 0)) |> Enum.reverse(),
       max_dns_daily_queries: max_daily_views(dns_daily_queries)
     }
+  end
+
+  # Runs each {key, thunk} concurrently and merges the results over `defaults`.
+  # A query that times out or raises keeps its default instead of failing the
+  # whole panel, so one slow/broken metric can't blank every chart.
+  defp run_analytics_queries(jobs, defaults) do
+    jobs
+    |> Task.async_stream(
+      fn {key, fun} -> {key, safe_run(fun)} end,
+      max_concurrency: @analytics_max_concurrency,
+      timeout: @analytics_query_timeout,
+      on_timeout: :kill_task,
+      ordered: false
+    )
+    |> Enum.reduce(defaults, fn
+      {:ok, {key, {:ok, value}}}, acc -> Map.put(acc, key, value)
+      {:ok, {_key, :error}}, acc -> acc
+      {:exit, _reason}, acc -> acc
+    end)
+  end
+
+  defp safe_run(fun) do
+    {:ok, fun.()}
+  rescue
+    error ->
+      Logger.error("Domain analytics query failed: #{inspect(error)}")
+      :error
+  catch
+    kind, reason ->
+      Logger.error("Domain analytics query failed: #{inspect({kind, reason})}")
+      :error
   end
 
   defp domain_targets(user) do
@@ -355,6 +434,22 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
     end
   end
 
+  defp carry_forward_domain_breakdown([_ | _] = previous, domains) do
+    rows =
+      Enum.map(previous, fn row ->
+        %{
+          host: row.host,
+          views: Map.get(row, :views, 0),
+          unique_visitors: Map.get(row, :unique_visitors, 0),
+          views_today: Map.get(row, :views_today, 0)
+        }
+      end)
+
+    merge_domain_breakdown(domains, rows)
+  end
+
+  defp carry_forward_domain_breakdown(_previous, domains), do: merge_domain_breakdown(domains, [])
+
   defp merge_domain_breakdown(domains, rows) do
     rows_by_host = Map.new(rows, &{&1.host, &1})
 
@@ -362,13 +457,6 @@ defmodule ElektrineWeb.ProfileLive.DomainAnalytics do
       stats = domain_stats(domain, domains, rows_by_host)
       Map.merge(domain, stats)
     end)
-  end
-
-  defp domain_breakdown(domains) do
-    domain_hosts = Enum.map(domains, & &1.host)
-
-    domains
-    |> merge_domain_breakdown(Profiles.get_public_site_domain_breakdown(domain_hosts))
   end
 
   defp domain_stats(%{host: host, kind: :dns_only}, domains, rows_by_host) when is_binary(host) do

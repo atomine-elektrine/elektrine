@@ -4,7 +4,7 @@ defmodule ElektrineWeb.ProfileLiveDomainAnalyticsTest do
   import Phoenix.LiveViewTest
 
   alias Elektrine.AccountsFixtures
-  alias Elektrine.{Domains, Profiles}
+  alias Elektrine.{DNS, Domains, Profiles}
 
   test "domain counts load after the initial refresh response", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -47,6 +47,61 @@ defmodule ElektrineWeb.ProfileLiveDomainAnalyticsTest do
     assert html =~ host
     assert html =~ "2 visitors"
     assert html =~ "2 today"
+  end
+
+  test "switching to another domain keeps the breakdown counts instead of resetting to zero", %{
+    conn: conn
+  } do
+    user = AccountsFixtures.user_fixture()
+
+    # The user has an auto-created built-in DNS zone; add a second zone named to sort
+    # last so the first zone is the one loaded (and cached) on mount, making the
+    # second zone the uncached switch target where the reset-to-zero used to happen.
+    host_one = DNS.list_user_zones(user) |> List.first() |> Map.fetch!(:domain)
+
+    {:ok, zone_two} =
+      DNS.create_zone(user, %{"domain" => "zzz-switch-#{System.unique_integer([:positive])}.com"})
+
+    host_two = zone_two.domain
+
+    # First zone: 2 sessions, second zone: 3 sessions — distinct so we can tell them apart.
+    for i <- 1..2 do
+      Profiles.track_site_page_visit(
+        visitor_id: "one-#{i}",
+        session_id: "one-#{i}",
+        request_host: host_one,
+        request_path: "/",
+        status: 200
+      )
+    end
+
+    for i <- 1..3 do
+      Profiles.track_site_page_visit(
+        visitor_id: "two-#{i}",
+        session_id: "two-#{i}",
+        request_host: host_two,
+        request_path: "/",
+        status: 200
+      )
+    end
+
+    {:ok, view, _html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/analytics/domains")
+
+    html = render(view)
+    assert html =~ "2 visitors"
+    assert html =~ "3 visitors"
+
+    # Switch to the second (uncached) zone. The per-domain breakdown is global, so the
+    # counts must persist through the switch (carried forward) rather than blanking to
+    # zero while the selected zone's panel reloads. render_patch returns the pending
+    # render before the async reload, which is exactly where the reset used to show.
+    patched = render_patch(view, ~p"/analytics/domains?zone_id=#{zone_two.id}")
+
+    assert patched =~ "2 visitors"
+    assert patched =~ "3 visitors"
   end
 
   defp profile_host(user) do
