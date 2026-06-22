@@ -96,6 +96,7 @@ COPY apps/elektrine_social/mix.exs apps/elektrine_social/mix.exs
 COPY apps/elektrine_dns/mix.exs apps/elektrine_dns/mix.exs
 COPY apps/elektrine_nerve/mix.exs apps/elektrine_nerve/mix.exs
 COPY apps/elektrine_vpn/mix.exs apps/elektrine_vpn/mix.exs
+COPY apps/elektrine_uptime/mix.exs apps/elektrine_uptime/mix.exs
 COPY config/config.exs config/prod.exs config/
 WORKDIR /app/release_builder
 RUN for i in 1 2 3 4 5; do \
