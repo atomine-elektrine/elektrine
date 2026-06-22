@@ -6,7 +6,6 @@ defmodule Elektrine.ActivityPub.MastodonApi do
   Uses the Mastodon API v1 endpoints which are widely supported across the fediverse.
   """
 
-  require Logger
   alias Elektrine.Domains
   alias Elektrine.HTTP.SafeFetch
 

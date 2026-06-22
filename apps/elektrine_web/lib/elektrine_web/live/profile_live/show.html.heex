@@ -489,12 +489,10 @@
                               full_url = profile_attachment_url(first_media, content_source)
 
                               is_video =
-                                is_binary(first_media) and
-                                  String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+                                String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
 
                               is_audio =
-                                is_binary(first_media) and
-                                  String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+                                String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
 
                               media_count = length(content_source.media_urls) %>
                               <div class="mt-2 relative">
@@ -794,15 +792,11 @@
                     <span
                       id="profile-title-typewriter"
                       phx-hook="TypewriterHook"
-                      data-text={
-                        (@profile && @profile.display_name) || @user.handle || @user.username
-                      }
+                      data-text={@profile.display_name || @user.handle || @user.username}
                       data-speed={@profile.typewriter_speed || "normal"}
                       data-effect-class={"#{effect_class} #{animation_class}"}
                       data-effect-style={effect_styles}
-                      data-data-text={
-                        (@profile && @profile.display_name) || @user.handle || @user.username
-                      }
+                      data-data-text={@profile.display_name || @user.handle || @user.username}
                       class="inline-block"
                     >
                     </span>
@@ -1806,12 +1800,10 @@
                         full_url = profile_attachment_url(first_media, content_source)
 
                         is_video =
-                          is_binary(first_media) and
-                            String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
+                          String.match?(first_media, ~r/\.(mp4|webm|ogv|mov)(\?.*)?$/i)
 
                         is_audio =
-                          is_binary(first_media) and
-                            String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
+                          String.match?(first_media, ~r/\.(mp3|wav|ogg|m4a)(\?.*)?$/i)
 
                         media_count = length(content_source.media_urls) %>
                         <div class="mt-2 relative">

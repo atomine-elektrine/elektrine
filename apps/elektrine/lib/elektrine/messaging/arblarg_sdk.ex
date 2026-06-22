@@ -2225,8 +2225,6 @@ defmodule Elektrine.Messaging.ArblargSDK do
       String.starts_with?(sdp["sdp"], "v=0")
   end
 
-  defp valid_sdp_signal_payload?(_payload, _expected_type), do: false
-
   defp validate_stream_binding(@bootstrap_server_upsert_event_type, stream_id, payload)
        when is_map(payload) do
     validate_exact_stream_binding(stream_id, "server", get_in(payload, ["server", "id"]))
@@ -2296,16 +2294,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
     valid_server_context?(payload) and valid_channel_context?(payload)
   end
 
-  defp valid_channel_event_context?(_), do: false
-
   defp valid_server_context?(payload) when is_map(payload) do
     case context_identifier(payload, "server") do
       {:ok, server_id} -> valid_absolute_http_uri?(server_id)
       :error -> false
     end
   end
-
-  defp valid_server_context?(_payload), do: false
 
   defp valid_optional_presence_context?(payload) when is_map(payload) do
     refs = normalized_refs(payload)
@@ -2322,16 +2316,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
     end
   end
 
-  defp valid_optional_presence_context?(_payload), do: false
-
   defp valid_channel_context?(payload) when is_map(payload) do
     case context_identifier(payload, "channel") do
       {:ok, channel_id} -> valid_absolute_http_uri?(channel_id)
       :error -> false
     end
   end
-
-  defp valid_channel_context?(_payload), do: false
 
   defp context_identifier(payload, field)
        when is_map(payload) and field in ["server", "channel"] do
@@ -2437,16 +2427,12 @@ defmodule Elektrine.Messaging.ArblargSDK do
     Map.has_key?(message, "content") and is_binary(message["content"])
   end
 
-  defp valid_message_content?(_message), do: false
-
   defp valid_message_metadata?(message) when is_map(message) do
     valid_optional_binary?(message["message_type"]) and
       valid_attachment_list?(message["attachments"]) and
       valid_optional_iso8601?(message["created_at"]) and
       valid_optional_iso8601?(message["edited_at"])
   end
-
-  defp valid_message_metadata?(_message), do: false
 
   defp valid_message_channel_match?(payload, message) when is_map(payload) and is_map(message) do
     case message["channel_id"] do
@@ -2669,8 +2655,6 @@ defmodule Elektrine.Messaging.ArblargSDK do
         envelope
     end
   end
-
-  defp normalize_envelope_for_signing(envelope), do: envelope
 
   defp canonical_event_signature_payload(envelope) when is_map(envelope) do
     canonical_event_signature_payload(envelope, @protocol_id)

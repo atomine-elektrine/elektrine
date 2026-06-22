@@ -27,9 +27,8 @@ defmodule ElektrineEmailWeb.EmailLive.ComposeTest do
     user = AccountsFixtures.user_fixture()
     recipient_email = "secure#{System.unique_integer([:positive])}@example.com"
 
-    %Contact{}
+    %Contact{user_id: user.id}
     |> Contact.changeset(%{
-      user_id: user.id,
       name: "Secure Contact",
       email: recipient_email
     })

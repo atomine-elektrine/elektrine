@@ -58,9 +58,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.SocialOperations do
            |> assign(:timeline_posts, updated_posts)
            |> Helpers.apply_timeline_filter()
            |> put_flash(:info, "Unfollowed user.")}
-
-        _ ->
-          {:noreply, put_flash(socket, :error, "Couldn't unfollow right now. Please try again.")}
       end
     else
       case Profiles.follow_user(current_user_id, user_id) do

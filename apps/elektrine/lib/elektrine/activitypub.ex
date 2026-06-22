@@ -527,8 +527,6 @@ defmodule Elektrine.ActivityPub do
     end
   end
 
-  defp local_user_id_from_activity(_), do: nil
-
   defp local_user_id_from_uri(uri) when is_binary(uri) do
     case local_username_from_uri(uri) do
       {:ok, username} ->
@@ -550,8 +548,6 @@ defmodule Elektrine.ActivityPub do
       _ -> nil
     end
   end
-
-  defp local_user_id_from_message(_), do: nil
 
   ## Actors
 
@@ -707,8 +703,6 @@ defmodule Elektrine.ActivityPub do
       actor_username_alias_match?(requested_uri, actor_id, actor_data)
   end
 
-  defp actor_identity_matches?(_, _, _), do: false
-
   defp actor_username_alias_match?(requested_uri, actor_id, actor_data) do
     with %URI{host: requested_host} <- URI.parse(requested_uri),
          %URI{host: actor_host} <- URI.parse(actor_id),
@@ -758,8 +752,6 @@ defmodule Elektrine.ActivityPub do
       end
     end)
   end
-
-  defp validate_fetched_actor_urls(_actor_data), do: {:error, :unsafe_actor_document}
 
   defp actor_document_urls(actor_data) do
     [
@@ -1749,26 +1741,15 @@ defmodule Elektrine.ActivityPub do
             {:ok, replies}
 
           other ->
-            cond do
-              # Lemmy-style posts may expose empty AP collections without totalItems.
-              # Fall back to the instance comments API for any community Page URL.
-              lemmy_post? ->
-                fetch_lemmy_comments(community_post_ref, limit)
-
-              # ActivityPub collection returned empty but we expect replies - try
-              # Mastodon-compatible context endpoints when the post URL supports them.
-              expected_replies > 0 and is_binary(post_url) and
-                  MastodonApi.mastodon_compatible?(%{activitypub_id: post_url}) ->
-                fetch_mastodon_context_replies(post_url, limit)
-
-              true ->
-                other
+            # ActivityPub collection returned empty but we expect replies - try
+            # Mastodon-compatible context endpoints when the post URL supports them.
+            if expected_replies > 0 and is_binary(post_url) and
+                 MastodonApi.mastodon_compatible?(%{activitypub_id: post_url}) do
+              fetch_mastodon_context_replies(post_url, limit)
+            else
+              other
             end
         end
-
-      # Page type post - try instance-specific API
-      lemmy_post? ->
-        fetch_lemmy_comments(community_post_ref, limit)
 
       # Has replies count but no replies field - try Mastodon-compatible context APIs.
       has_replies_count && is_binary(post_url) &&

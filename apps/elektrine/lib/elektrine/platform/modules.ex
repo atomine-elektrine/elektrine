@@ -7,7 +7,8 @@ defmodule Elektrine.Platform.Modules do
   exposed and which module-specific runtimes are started.
   """
 
-  @type module_id :: :chat | :social | :email | :nerve | :vpn | :dns | :atomine
+  @type module_id ::
+          :chat | :social | :email | :nerve | :vpn | :dns | :uptime | :atomine
 
   @modules [
     %{
@@ -50,6 +51,12 @@ defmodule Elektrine.Platform.Modules do
       description: "Managed authoritative DNS zones, records, and delegation."
     },
     %{
+      id: :uptime,
+      label: "Uptime",
+      app: :elektrine_uptime,
+      description: "HTTP/TCP/ping uptime monitors with check history and incidents."
+    },
+    %{
       id: :atomine,
       label: "Identity",
       app: :atomine,
@@ -65,6 +72,7 @@ defmodule Elektrine.Platform.Modules do
     nerve: Elektrine.Nerve,
     vpn: Elektrine.VPN,
     dns: Elektrine.DNS,
+    uptime: Elektrine.Uptime,
     atomine: Atomine.Personhood
   }
 
@@ -185,6 +193,7 @@ defmodule Elektrine.Platform.Modules do
       "nerve" -> :nerve
       "vpn" -> :vpn
       "dns" -> :dns
+      "uptime" -> :uptime
       "atomine" -> :atomine
       "proofs" -> :atomine
       "personhood" -> :atomine

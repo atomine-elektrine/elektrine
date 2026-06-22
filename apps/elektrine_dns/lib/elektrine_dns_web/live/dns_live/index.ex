@@ -1687,8 +1687,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
     end
   end
 
-  defp keep_matching_scan(_, _), do: nil
-
   defp zone_form_attrs(%Phoenix.HTML.Form{source: changeset}) do
     %{
       "domain" => Ecto.Changeset.get_field(changeset, :domain),
@@ -1698,7 +1696,6 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
 
   defp zone_form_attrs(_), do: %{}
 
-  defp format_scan_values([]), do: "none found"
   defp format_scan_values(values) when is_list(values), do: Enum.join(values, ", ")
   defp format_scan_values(value), do: to_string(value)
 
@@ -2534,6 +2531,4 @@ defmodule ElektrineDNSWeb.DNSLive.Index do
   defp normalize_zone_params(params) when is_map(params) do
     Map.put(params, "force_https", Map.get(params, "force_https") in [true, "true", "on", "1"])
   end
-
-  defp normalize_zone_params(params), do: params
 end

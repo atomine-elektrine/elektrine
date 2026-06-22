@@ -360,9 +360,6 @@ defmodule ElektrineWeb.CallChannel do
     end
   end
 
-  defp parse_call_id(call_id) when is_integer(call_id), do: {:ok, call_id}
-  defp parse_call_id(_call_id), do: :error
-
   defp client_session_id(%{"client_session_id" => value}) when is_binary(value) do
     value
     |> String.trim()

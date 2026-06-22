@@ -24,10 +24,9 @@ defmodule Elektrine.Messaging.ChatMessages do
     ChatUserHiddenMessage,
     Federation,
     FederationReadCursor,
+    LinkPreviewBroadcast,
     RoomACL
   }
-
-  alias Elektrine.Social.Conversations
 
   alias Elektrine.PubSubTopics
 
@@ -161,7 +160,7 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp has_more_older_messages?(conversation_id, user_id, messages_desc, before_id, after_id) do
-    if before_id || (!before_id && !after_id) do
+    if before_id || is_nil(after_id) do
       case List.last(messages_desc) do
         nil ->
           false
@@ -786,12 +785,30 @@ defmodule Elektrine.Messaging.ChatMessages do
   Gets unread counts for a specific set of conversation IDs.
   """
   def get_conversation_unread_counts(conversation_ids, user_id) when is_list(conversation_ids) do
-    conversation_ids
-    |> Enum.uniq()
-    |> Enum.map(fn conversation_id ->
-      {conversation_id, get_unread_count(conversation_id, user_id)}
-    end)
-    |> Map.new()
+    ids = Enum.uniq(conversation_ids)
+
+    # Single grouped query instead of one COUNT per conversation (was N+1).
+    # Mirrors get_unread_count/2's exact filters so per-conversation counts are
+    # identical; conversations with no unread rows are 0-filled below.
+    counts =
+      from(m in ChatMessage,
+        left_join: h in ChatUserHiddenMessage,
+        on: h.chat_message_id == m.id and h.user_id == ^user_id,
+        left_join: r in "chat_message_reads",
+        on: field(r, :chat_message_id) == m.id and field(r, :user_id) == ^user_id,
+        where:
+          m.conversation_id in ^ids and
+            is_nil(h.id) and
+            is_nil(m.deleted_at) and
+            m.sender_id != ^user_id and
+            is_nil(field(r, :chat_message_id)),
+        group_by: m.conversation_id,
+        select: {m.conversation_id, count(m.id)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    Map.new(ids, fn id -> {id, Map.get(counts, id, 0)} end)
   end
 
   @doc """
@@ -815,8 +832,6 @@ defmodule Elektrine.Messaging.ChatMessages do
       )
     end)
   end
-
-  defp broadcast_chat_unread_count(_user_id), do: :ok
 
   @doc """
   Updates last read state up to a specific chat message.
@@ -1130,8 +1145,6 @@ defmodule Elektrine.Messaging.ChatMessages do
       handle
     end
   end
-
-  defp remote_reader_label(_), do: "@remote"
 
   # Search
 
@@ -1480,23 +1493,13 @@ defmodule Elektrine.Messaging.ChatMessages do
     end
   end
 
-  defp poll_and_broadcast_preview(_message, _preview_id, 0), do: :ok
-
   defp poll_and_broadcast_preview(message, preview_id, attempts_left) do
-    :timer.sleep(1000)
-
-    case Repo.get(LinkPreview, preview_id) do
-      %{status: "success"} = preview ->
-        broadcast_preview_update(message, preview)
-
-        :ok
-
-      %{status: "pending"} ->
-        poll_and_broadcast_preview(message, preview_id, attempts_left - 1)
-
-      _ ->
-        :ok
-    end
+    LinkPreviewBroadcast.poll_and_broadcast(
+      message,
+      preview_id,
+      attempts_left,
+      link_preview_broadcast_opts()
+    )
   end
 
   defp attach_link_preview(message, preview) do
@@ -1513,16 +1516,15 @@ defmodule Elektrine.Messaging.ChatMessages do
   end
 
   defp broadcast_preview_update(message, preview) do
-    updated_message =
-      %{message | link_preview: preview}
-      |> Repo.preload([:sender, :reply_to, :reactions], force: true)
-      |> hydrate_remote_sender()
+    LinkPreviewBroadcast.broadcast_update(message, preview, link_preview_broadcast_opts())
+  end
 
-    Phoenix.PubSub.broadcast(
-      Elektrine.PubSub,
-      PubSubTopics.conversation(message.conversation_id),
-      {:message_link_preview_updated, updated_message}
-    )
+  defp link_preview_broadcast_opts do
+    [
+      preload: [:sender, :reply_to, :reactions],
+      transform: &hydrate_remote_sender/1,
+      topic: fn message -> PubSubTopics.conversation(message.conversation_id) end
+    ]
   end
 
   defp broadcast_reaction_added(message_id, reaction) do
@@ -1558,14 +1560,8 @@ defmodule Elektrine.Messaging.ChatMessages do
       %ChatConversation{type: "channel"} ->
         Federation.publish_message_created(message)
 
-      %ChatConversation{type: "dm"} = conversation when is_integer(message.sender_id) ->
-        case Conversations.remote_dm_handle(conversation) do
-          handle when is_binary(handle) ->
-            Federation.publish_dm_message_created(message, handle)
-
-          _ ->
-            :ok
-        end
+      %ChatConversation{type: "dm"} when is_integer(message.sender_id) ->
+        :ok
 
       _ ->
         :ok
@@ -1730,8 +1726,6 @@ defmodule Elektrine.Messaging.ChatMessages do
       _ -> false
     end
   end
-
-  defp publishable_read_cursor_conversation?(_conversation_id), do: false
 
   defp read_only_mirror_conversation?(conversation_id) when is_integer(conversation_id) do
     match?(

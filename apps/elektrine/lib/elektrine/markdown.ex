@@ -10,13 +10,12 @@ defmodule Elektrine.Markdown do
   """
   def to_html(markdown_text) when is_binary(markdown_text) do
     markdown_text
-    |> Earmark.as_html!()
+    |> MDEx.to_html!()
     |> HtmlSanitizeEx.markdown_html()
     |> strip_images()
   end
 
   def to_html(nil), do: ""
-  def to_html(""), do: ""
 
   @doc """
   Strips markdown formatting and returns plain text.
@@ -38,10 +37,16 @@ defmodule Elektrine.Markdown do
   end
 
   def to_text(nil), do: ""
-  def to_text(""), do: ""
 
   @doc """
-  Validates markdown content length and complexity.
+  Validates markdown content length and complexity for user-facing feedback.
+
+  SECURITY: This is a UX-only check, NOT a security boundary. Its substring
+  blacklist (`<script`, `javascript:`, `data:`, `<img`, ...) is trivially
+  bypassable and must never be relied upon to neutralize hostile input. The
+  real XSS/sanitization boundary is `to_html/1`, which renders via MDEx and
+  then runs the output through the HtmlSanitizeEx allowlist (and `strip_images/1`).
+  Do not treat a passing `validate/1` result as "safe to render raw".
   """
   def validate(markdown_text) when is_binary(markdown_text) do
     cond do
@@ -66,7 +71,6 @@ defmodule Elektrine.Markdown do
   end
 
   def validate(nil), do: {:ok, nil}
-  def validate(""), do: {:ok, ""}
 
   # Count markdown links
   defp count_links(text) do

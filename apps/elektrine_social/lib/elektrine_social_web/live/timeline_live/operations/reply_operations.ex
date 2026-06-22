@@ -116,8 +116,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
 
       case resolve_parent_for_reply(socket, reply_to_id) do
         {:ok, %{parent_id: parent_id, parent: parent}} ->
-          reply_visibility =
-            (parent && parent.visibility) || user.default_post_visibility || "public"
+          reply_visibility = parent.visibility || user.default_post_visibility || "public"
 
           case Social.create_timeline_post(
                  user.id,
@@ -130,7 +129,7 @@ defmodule ElektrineSocialWeb.TimelineLive.Operations.ReplyOperations do
 
               Elektrine.Accounts.TrustLevel.increment_stat(user.id, :replies_created)
 
-              if parent && !parent.federated && parent.sender_id && parent.sender_id != user.id do
+              if !parent.federated && parent.sender_id && parent.sender_id != user.id do
                 Elektrine.Accounts.TrustLevel.increment_stat(parent.sender_id, :replies_received)
               end
 

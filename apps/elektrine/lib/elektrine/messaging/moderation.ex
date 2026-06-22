@@ -65,6 +65,27 @@ defmodule Elektrine.Messaging.Moderation do
   def timeout_chat_user(conversation_id, user_id, created_by_id, duration_seconds, reason \\ nil)
       when is_integer(conversation_id) and is_integer(user_id) and is_integer(created_by_id) and
              is_integer(duration_seconds) do
+    if chat_conversation_moderator?(conversation_id, created_by_id) do
+      do_timeout_chat_user(conversation_id, user_id, created_by_id, duration_seconds, reason)
+    else
+      {:error, :unauthorized}
+    end
+  end
+
+  # Verifies the actor is a moderator/admin/owner of the chat conversation
+  # before allowing a timeout to be issued.
+  defp chat_conversation_moderator?(conversation_id, user_id) do
+    member =
+      from(cm in Elektrine.Messaging.ChatConversationMember,
+        where:
+          cm.conversation_id == ^conversation_id and cm.user_id == ^user_id and is_nil(cm.left_at)
+      )
+      |> Repo.one()
+
+    match?(%{role: role} when role in ["owner", "admin", "moderator"], member)
+  end
+
+  defp do_timeout_chat_user(conversation_id, user_id, created_by_id, duration_seconds, reason) do
     timeout_until = DateTime.utc_now() |> DateTime.add(duration_seconds, :second)
 
     from(t in ChatUserTimeout,

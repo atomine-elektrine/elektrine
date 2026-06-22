@@ -302,7 +302,7 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
         updated_form =
           current_form
           |> Map.put("subject", template.subject || current_form["subject"] || "")
-          |> Map.put("body", template.body || "")
+          |> put_template_body(socket.assigns.mode, template.body || "")
 
         {:noreply,
          socket
@@ -1057,7 +1057,32 @@ defmodule ElektrineEmailWeb.EmailLive.Compose do
         _ -> %{}
       end
 
-    Map.merge(current_params, params)
+    merged_params = Map.merge(current_params, params)
+
+    preserve_original_body_params(socket.assigns.mode, current_params, params, merged_params)
+  end
+
+  defp preserve_original_body_params(mode, current_params, params, merged_params)
+       when mode in ["reply", "reply_all", "forward"] do
+    original_body = current_params["body"] || ""
+
+    merged_params
+    |> Map.put("body", original_body)
+    |> maybe_move_body_param_to_new_message(original_body, params)
+  end
+
+  defp preserve_original_body_params(_mode, _current_params, _params, merged_params),
+    do: merged_params
+
+  defp maybe_move_body_param_to_new_message(merged_params, original_body, params) do
+    with false <- Map.has_key?(params, "new_message"),
+         true <- Map.has_key?(params, "body"),
+         body when is_binary(body) <- params["body"],
+         true <- normalize_message_body(body) != normalize_message_body(original_body) do
+      Map.put(merged_params, "new_message", body)
+    else
+      _ -> merged_params
+    end
   end
 
   defp parse_scheduled_send_at(nil), do: nil
@@ -1539,9 +1564,6 @@ Subject: #{message.subject}#{attachment_info}
     end
   end
 
-  defp verify_private_forward_attachment(_attachment, _max_size),
-    do: {:error, :invalid_attachment}
-
   defp quote_message_body(body) do
     body |> String.split("\n") |> Enum.map_join("\n", &"> #{&1}")
   end
@@ -1593,7 +1615,7 @@ Subject: #{message.subject}#{attachment_info}
 
   defp markdown_to_html(markdown) do
     markdown
-    |> Earmark.as_html!(breaks: true)
+    |> MDEx.to_html!(render: [hardbreaks: true])
     |> Elektrine.Email.Sanitizer.sanitize_html_content()
   end
 
@@ -1635,6 +1657,14 @@ Subject: #{message.subject}#{attachment_info}
   end
 
   defp draft_body(email_params, _mode), do: email_params["body"] || ""
+
+  defp put_template_body(form, mode, body) when mode in ["reply", "reply_all", "forward"] do
+    Map.put(form, "new_message", body)
+  end
+
+  defp put_template_body(form, _mode, body) do
+    Map.put(form, "body", body)
+  end
 
   defp combine_reply_text(new_message, quoted_body) do
     [normalize_message_body(new_message), normalize_message_body(quoted_body)]
@@ -1836,10 +1866,6 @@ Subject: #{message.subject}#{attachment_info}
           mailbox.email
       end
     end
-  end
-
-  defp extract_email_address(nil) do
-    ""
   end
 
   defp extract_email_address(address_string) when is_binary(address_string) do

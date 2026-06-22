@@ -219,10 +219,6 @@ defmodule Elektrine.Messaging.Federation.Visibility do
     end
   end
 
-  defp replay_visibility_filter(_stream_id, peer_domain) when is_binary(peer_domain) do
-    dynamic([o], fragment("? = ANY(?)", ^peer_domain, o.target_domains))
-  end
-
   defp replay_visibility_filter(_stream_id, _peer_domain), do: nil
 
   defp replay_room_visible?(stream_id, peer_domain)
@@ -337,8 +333,6 @@ defmodule Elektrine.Messaging.Federation.Visibility do
     get_in(payload, ["channel", "id"]) || refs["channel_id"]
   end
 
-  defp event_channel_id(_payload), do: nil
-
   defp local_channel_id_from_federation_id(channel_id) when is_binary(channel_id) do
     with %URI{host: host, path: path} <- URI.parse(channel_id),
          true <- normalize_domain(host) == local_domain(),
@@ -350,14 +344,10 @@ defmodule Elektrine.Messaging.Federation.Visibility do
     end
   end
 
-  defp local_channel_id_from_federation_id(_channel_id), do: nil
-
   defp maybe_preload_server(%ChatConversation{server: %Server{}} = conversation), do: conversation
 
   defp maybe_preload_server(%ChatConversation{} = conversation),
     do: Repo.preload(conversation, :server)
-
-  defp maybe_preload_server(conversation), do: conversation
 
   defp canonical_event_type(event_type),
     do: Elektrine.Messaging.ArblargSDK.canonical_event_type(event_type)
@@ -366,8 +356,6 @@ defmodule Elektrine.Messaging.Federation.Visibility do
     canonical = canonical_event_type(event_type)
     Map.get(Elektrine.Messaging.ArblargSDK.schema_bindings(), canonical, canonical)
   end
-
-  defp normalized_event_name(event_type), do: event_type
 
   defp room_replay_event_types do
     canonical_room_replay_event_types =

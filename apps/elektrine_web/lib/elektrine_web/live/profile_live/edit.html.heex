@@ -51,7 +51,7 @@
                 <input
                   type="text"
                   name="profile[display_name]"
-                  value={(@profile && @profile.display_name) || @user.username}
+                  value={@profile.display_name || @user.username}
                   placeholder="Display name"
                   class="input input-bordered w-full"
                   maxlength="50"
@@ -83,13 +83,13 @@
                     placeholder="Tell people about yourself..."
                     maxlength="1000"
                     data-markdown-preview-input
-                  ><%= @profile && @profile.description || "" %></textarea>
+                  ><%= @profile.description || "" %></textarea>
                 </div>
 
                 <div id="markdown-preview" class="hidden">
                   <div class="bg-base-200 rounded-lg p-4 min-h-24 prose prose-sm max-w-none">
                     <div id="preview-content">
-                      <%= if @profile && @profile.description do %>
+                      <%= if @profile.description do %>
                         {Phoenix.HTML.raw(Elektrine.Markdown.to_html(@profile.description))}
                       <% else %>
                         <p class="text-base-content/50 italic">Preview will appear here...</p>
@@ -110,7 +110,7 @@
                 <input
                   type="text"
                   name="profile[location]"
-                  value={(@profile && @profile.location) || ""}
+                  value={@profile.location || ""}
                   placeholder="City, Country, or Remote"
                   class="input input-bordered w-full"
                   maxlength="100"
@@ -127,7 +127,7 @@
                 <input
                   type="text"
                   name="profile[page_title]"
-                  value={(@profile && @profile.page_title) || ""}
+                  value={@profile.page_title || ""}
                   placeholder={"#{@user.handle || @user.username}'s Profile"}
                   class="input input-bordered w-full"
                   maxlength="100"
@@ -174,7 +174,7 @@
                       type="checkbox"
                       name="profile[hide_view_counter]"
                       value="true"
-                      checked={@profile && @profile.hide_view_counter}
+                      checked={@profile.hide_view_counter}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -197,7 +197,7 @@
                       type="checkbox"
                       name="profile[hide_uid]"
                       value="true"
-                      checked={@profile && @profile.hide_uid}
+                      checked={@profile.hide_uid}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -220,7 +220,7 @@
                       type="checkbox"
                       name="profile[hide_followers]"
                       value="true"
-                      checked={@profile && @profile.hide_followers}
+                      checked={@profile.hide_followers}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -247,7 +247,7 @@
                       type="checkbox"
                       name="profile[hide_avatar]"
                       value="true"
-                      checked={@profile && @profile.hide_avatar}
+                      checked={@profile.hide_avatar}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -270,7 +270,7 @@
                       type="checkbox"
                       name="profile[hide_timeline]"
                       value="true"
-                      checked={@profile && @profile.hide_timeline}
+                      checked={@profile.hide_timeline}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -289,7 +289,7 @@
                       type="checkbox"
                       name="profile[hide_community_posts]"
                       value="true"
-                      checked={@profile && @profile.hide_community_posts}
+                      checked={@profile.hide_community_posts}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -308,7 +308,7 @@
                       type="checkbox"
                       name="profile[hide_share_button]"
                       value="true"
-                      checked={@profile && @profile.hide_share_button}
+                      checked={@profile.hide_share_button}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -327,7 +327,7 @@
                       type="checkbox"
                       name="profile[extend_layout]"
                       value="true"
-                      checked={@profile && @profile.extend_layout}
+                      checked={@profile.extend_layout}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -405,7 +405,7 @@
                       type="color"
                       name="base_color"
                       value={
-                        (@profile && @profile.accent_color) ||
+                        @profile.accent_color ||
                           Elektrine.Profiles.UserProfile.default(:accent_color)
                       }
                       class="w-24 h-24 border-0 rounded-xl cursor-pointer"
@@ -459,7 +459,7 @@
                       type="color"
                       name="profile[accent_color]"
                       value={
-                        (@profile && @profile.accent_color) ||
+                        @profile.accent_color ||
                           Elektrine.Profiles.UserProfile.default(:accent_color)
                       }
                       phx-change="update_color"
@@ -479,7 +479,7 @@
                         type="color"
                         name="profile[text_color]"
                         value={
-                          (@profile && @profile.text_color) ||
+                          @profile.text_color ||
                             Elektrine.Profiles.UserProfile.default(:text_color)
                         }
                         phx-change="update_color"
@@ -498,7 +498,7 @@
                         type="color"
                         name="profile[background_color]"
                         value={
-                          (@profile && @profile.background_color) ||
+                          @profile.background_color ||
                             Elektrine.Profiles.UserProfile.default(:background_color)
                         }
                         phx-change="update_color"
@@ -519,7 +519,7 @@
                         type="color"
                         name="profile[icon_color]"
                         value={
-                          (@profile && @profile.icon_color) ||
+                          @profile.icon_color ||
                             Elektrine.Profiles.UserProfile.default(:icon_color)
                         }
                         phx-change="update_color"
@@ -538,7 +538,7 @@
                         type="color"
                         name="profile[container_background_color]"
                         value={
-                          (@profile && @profile.container_background_color) ||
+                          @profile.container_background_color ||
                             Elektrine.Profiles.UserProfile.default(:background_color)
                         }
                         phx-change="update_color"
@@ -559,7 +559,7 @@
                         type="color"
                         name="profile[tick_color]"
                         value={
-                          (@profile && @profile.tick_color) ||
+                          @profile.tick_color ||
                             Elektrine.Profiles.UserProfile.default(:tick_color)
                         }
                         phx-change="update_color"
@@ -601,56 +601,56 @@
                       >
                         <option
                           value="none"
-                          selected={(@profile && @profile.container_pattern) == "none"}
+                          selected={@profile.container_pattern == "none"}
                         >
                           None
                         </option>
 
                         <option
                           value="dots"
-                          selected={(@profile && @profile.container_pattern) == "dots"}
+                          selected={@profile.container_pattern == "dots"}
                         >
                           Dots
                         </option>
 
                         <option
                           value="grid"
-                          selected={(@profile && @profile.container_pattern) == "grid"}
+                          selected={@profile.container_pattern == "grid"}
                         >
                           Grid
                         </option>
 
                         <option
                           value="diagonal_lines"
-                          selected={(@profile && @profile.container_pattern) == "diagonal_lines"}
+                          selected={@profile.container_pattern == "diagonal_lines"}
                         >
                           Diagonal Lines
                         </option>
 
                         <option
                           value="zigzag"
-                          selected={(@profile && @profile.container_pattern) == "zigzag"}
+                          selected={@profile.container_pattern == "zigzag"}
                         >
                           Zigzag
                         </option>
 
                         <option
                           value="waves"
-                          selected={(@profile && @profile.container_pattern) == "waves"}
+                          selected={@profile.container_pattern == "waves"}
                         >
                           Waves
                         </option>
 
                         <option
                           value="crosses"
-                          selected={(@profile && @profile.container_pattern) == "crosses"}
+                          selected={@profile.container_pattern == "crosses"}
                         >
                           Crosses
                         </option>
 
                         <option
                           value="houndstooth"
-                          selected={(@profile && @profile.container_pattern) == "houndstooth"}
+                          selected={@profile.container_pattern == "houndstooth"}
                         >
                           Houndstooth
                         </option>
@@ -658,13 +658,13 @@
                     </div>
                   </div>
 
-                  <%= if @profile && @profile.container_pattern != "none" do %>
+                  <%= if @profile.container_pattern != "none" do %>
                     <div class="flex items-center gap-4">
                       <input
                         type="color"
                         name="profile[pattern_color]"
                         value={
-                          (@profile && @profile.pattern_color) ||
+                          @profile.pattern_color ||
                             Elektrine.Profiles.UserProfile.default(:text_color)
                         }
                         phx-change="update_color"
@@ -685,7 +685,7 @@
                           type="checkbox"
                           name="profile[pattern_animated]"
                           value="true"
-                          checked={@profile && @profile.pattern_animated}
+                          checked={@profile.pattern_animated}
                           class="checkbox checkbox-primary"
                         />
                         <span class="label-text">
@@ -697,7 +697,7 @@
                       </label>
                     </div>
 
-                    <%= if @profile && @profile.pattern_animated do %>
+                    <%= if @profile.pattern_animated do %>
                       <div>
                         <label class="label">
                           <span class="label-text font-medium">Animation Speed</span>
@@ -706,7 +706,7 @@
                           <select name="profile[pattern_animation_speed]">
                             <option
                               value="slow"
-                              selected={(@profile && @profile.pattern_animation_speed) == "slow"}
+                              selected={@profile.pattern_animation_speed == "slow"}
                             >
                               Slow
                             </option>
@@ -714,7 +714,7 @@
                             <option
                               value="normal"
                               selected={
-                                (@profile && @profile.pattern_animation_speed) == "normal" ||
+                                @profile.pattern_animation_speed == "normal" ||
                                   !@profile.pattern_animation_speed
                               }
                             >
@@ -723,7 +723,7 @@
 
                             <option
                               value="fast"
-                              selected={(@profile && @profile.pattern_animation_speed) == "fast"}
+                              selected={@profile.pattern_animation_speed == "fast"}
                             >
                               Fast
                             </option>
@@ -758,28 +758,28 @@
                       >
                         <option
                           value="gradient"
-                          selected={(@profile && @profile.background_type) == "gradient"}
+                          selected={@profile.background_type == "gradient"}
                         >
                           Gradient
                         </option>
 
                         <option
                           value="solid"
-                          selected={(@profile && @profile.background_type) == "solid"}
+                          selected={@profile.background_type == "solid"}
                         >
                           Solid Color
                         </option>
 
                         <option
                           value="image"
-                          selected={(@profile && @profile.background_type) == "image"}
+                          selected={@profile.background_type == "image"}
                         >
                           Custom Image
                         </option>
 
                         <option
                           value="video"
-                          selected={(@profile && @profile.background_type) == "video"}
+                          selected={@profile.background_type == "video"}
                         >
                           Video (MP4/WebM)
                         </option>
@@ -794,7 +794,7 @@
                         type="checkbox"
                         name="profile[text_background]"
                         value="true"
-                        checked={@profile && @profile.text_background}
+                        checked={@profile.text_background}
                         class="checkbox checkbox-primary"
                       />
                       <span class="label-text">
@@ -811,7 +811,7 @@
               </div>
             </div>
             <!-- Background Upload -->
-            <%= if @profile && @profile.background_type in ["image", "video"] do %>
+            <%= if @profile.background_type in ["image", "video"] do %>
               <div class="card panel-card">
                 <div class="card-body p-4 sm:p-6">
                   <h2 class="card-title text-lg sm:text-xl mb-4 flex items-center gap-2">
@@ -942,7 +942,7 @@
                       <label class="label">
                         <span class="label-text font-medium">Card transparency</span>
                         <span class="label-text-alt">
-                          {round(((@profile && @profile.profile_opacity) || 1.0) * 100)}%
+                          {round((@profile.profile_opacity || 1.0) * 100)}%
                         </span>
                       </label>
                       <input
@@ -951,7 +951,7 @@
                         min="0.5"
                         max="1"
                         step="0.1"
-                        value={(@profile && @profile.profile_opacity) || 1.0}
+                        value={@profile.profile_opacity || 1.0}
                         phx-change="update_effect"
                         phx-value-field="profile_opacity"
                         class="range range-primary w-full"
@@ -965,7 +965,7 @@
                       <label class="label">
                         <span class="label-text font-medium">Background blur</span>
                         <span class="label-text-alt">
-                          {(@profile && @profile.profile_blur) || 0}px
+                          {@profile.profile_blur || 0}px
                         </span>
                       </label>
                       <input
@@ -974,7 +974,7 @@
                         min="0"
                         max="20"
                         step="1"
-                        value={(@profile && @profile.profile_blur) || 0}
+                        value={@profile.profile_blur || 0}
                         phx-change="update_effect"
                         phx-value-field="profile_blur"
                         class="range range-primary w-full"
@@ -988,7 +988,7 @@
                       <label class="label">
                         <span class="label-text font-medium">Card background transparency</span>
                         <span class="label-text-alt">
-                          {round(((@profile && @profile.container_opacity) || 0.4) * 100)}%
+                          {round((@profile.container_opacity || 0.4) * 100)}%
                         </span>
                       </label>
                       <input
@@ -997,7 +997,7 @@
                         min="0"
                         max="1"
                         step="0.1"
-                        value={(@profile && @profile.container_opacity) || 0.4}
+                        value={@profile.container_opacity || 0.4}
                         phx-change="update_effect"
                         phx-value-field="container_opacity"
                         class="range range-primary w-full"
@@ -1007,12 +1007,12 @@
                       </div>
                     </div>
 
-                    <%= if @profile && @profile.container_pattern && @profile.container_pattern != "none" do %>
+                    <%= if @profile.container_pattern && @profile.container_pattern != "none" do %>
                       <div>
                         <label class="label">
                           <span class="label-text font-medium">Pattern strength</span>
                           <span class="label-text-alt">
-                            {round(((@profile && @profile.pattern_opacity) || 0.2) * 100)}%
+                            {round((@profile.pattern_opacity || 0.2) * 100)}%
                           </span>
                         </label>
                         <input
@@ -1021,7 +1021,7 @@
                           min="0.0"
                           max="1.0"
                           step="0.1"
-                          value={(@profile && @profile.pattern_opacity) || 0.2}
+                          value={@profile.pattern_opacity || 0.2}
                           phx-change="update_effect"
                           phx-value-field="pattern_opacity"
                           class="range range-primary w-full"
@@ -1058,7 +1058,7 @@
                       type="checkbox"
                       name="profile[typewriter_title]"
                       value="true"
-                      checked={@profile && @profile.typewriter_title}
+                      checked={@profile.typewriter_title}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -1077,7 +1077,7 @@
                       type="checkbox"
                       name="profile[typewriter_effect]"
                       value="true"
-                      checked={@profile && @profile.typewriter_effect}
+                      checked={@profile.typewriter_effect}
                       class="checkbox checkbox-primary"
                     />
                     <span class="label-text">
@@ -1098,7 +1098,7 @@
                       <select name="profile[typewriter_speed]">
                         <option
                           value="slow"
-                          selected={(@profile && @profile.typewriter_speed) == "slow"}
+                          selected={@profile.typewriter_speed == "slow"}
                         >
                           Slow
                         </option>
@@ -1106,7 +1106,7 @@
                         <option
                           value="normal"
                           selected={
-                            (@profile && @profile.typewriter_speed) == "normal" ||
+                            @profile.typewriter_speed == "normal" ||
                               !@profile.typewriter_speed
                           }
                         >
@@ -1115,7 +1115,7 @@
 
                         <option
                           value="fast"
-                          selected={(@profile && @profile.typewriter_speed) == "fast"}
+                          selected={@profile.typewriter_speed == "fast"}
                         >
                           Fast
                         </option>
@@ -1154,60 +1154,60 @@
                 </label>
                 <div class="select select-bordered w-full">
                   <select name="profile[avatar_effect]">
-                    <option value="none" selected={(@profile && @profile.avatar_effect) == "none"}>
+                    <option value="none" selected={@profile.avatar_effect == "none"}>
                       None
                     </option>
 
-                    <option value="glow" selected={(@profile && @profile.avatar_effect) == "glow"}>
+                    <option value="glow" selected={@profile.avatar_effect == "glow"}>
                       Glow Pulse
                     </option>
 
                     <option
                       value="rainbow"
-                      selected={(@profile && @profile.avatar_effect) == "rainbow"}
+                      selected={@profile.avatar_effect == "rainbow"}
                     >
                       Rainbow Border
                     </option>
 
-                    <option value="fire" selected={(@profile && @profile.avatar_effect) == "fire"}>
+                    <option value="fire" selected={@profile.avatar_effect == "fire"}>
                       Fire Ring
                     </option>
 
-                    <option value="ice" selected={(@profile && @profile.avatar_effect) == "ice"}>
+                    <option value="ice" selected={@profile.avatar_effect == "ice"}>
                       Ice Shimmer
                     </option>
 
                     <option
                       value="sparkle"
-                      selected={(@profile && @profile.avatar_effect) == "sparkle"}
+                      selected={@profile.avatar_effect == "sparkle"}
                     >
                       Sparkle
                     </option>
 
                     <option
                       value="holographic"
-                      selected={(@profile && @profile.avatar_effect) == "holographic"}
+                      selected={@profile.avatar_effect == "holographic"}
                     >
                       Holographic
                     </option>
 
                     <option
                       value="gold_frame"
-                      selected={(@profile && @profile.avatar_effect) == "gold_frame"}
+                      selected={@profile.avatar_effect == "gold_frame"}
                     >
                       Imperial Gold
                     </option>
 
                     <option
                       value="pulse"
-                      selected={(@profile && @profile.avatar_effect) == "pulse"}
+                      selected={@profile.avatar_effect == "pulse"}
                     >
                       Pulse
                     </option>
 
                     <option
                       value="rotate_border"
-                      selected={(@profile && @profile.avatar_effect) == "rotate_border"}
+                      selected={@profile.avatar_effect == "rotate_border"}
                     >
                       Rotating Border
                     </option>
@@ -1249,102 +1249,102 @@
                   >
                     <option
                       value="none"
-                      selected={(@profile && @profile.username_effect) == "none"}
+                      selected={@profile.username_effect == "none"}
                     >
                       None
                     </option>
 
                     <option
                       value="glow"
-                      selected={(@profile && @profile.username_effect) == "glow"}
+                      selected={@profile.username_effect == "glow"}
                     >
                       Glow
                     </option>
 
                     <option
                       value="neon"
-                      selected={(@profile && @profile.username_effect) == "neon"}
+                      selected={@profile.username_effect == "neon"}
                     >
                       Neon
                     </option>
 
                     <option
                       value="rainbow"
-                      selected={(@profile && @profile.username_effect) == "rainbow"}
+                      selected={@profile.username_effect == "rainbow"}
                     >
                       Rainbow
                     </option>
 
                     <option
                       value="fire"
-                      selected={(@profile && @profile.username_effect) == "fire"}
+                      selected={@profile.username_effect == "fire"}
                     >
                       Fire
                     </option>
 
-                    <option value="ice" selected={(@profile && @profile.username_effect) == "ice"}>
+                    <option value="ice" selected={@profile.username_effect == "ice"}>
                       Ice
                     </option>
 
                     <option
                       value="chrome"
-                      selected={(@profile && @profile.username_effect) == "chrome"}
+                      selected={@profile.username_effect == "chrome"}
                     >
                       Chrome
                     </option>
 
                     <option
                       value="holographic"
-                      selected={(@profile && @profile.username_effect) == "holographic"}
+                      selected={@profile.username_effect == "holographic"}
                     >
                       Holographic
                     </option>
 
                     <option
                       value="gradient"
-                      selected={(@profile && @profile.username_effect) == "gradient"}
+                      selected={@profile.username_effect == "gradient"}
                     >
                       Custom Gradient
                     </option>
 
                     <option
                       value="outline"
-                      selected={(@profile && @profile.username_effect) == "outline"}
+                      selected={@profile.username_effect == "outline"}
                     >
                       Outline
                     </option>
 
                     <option
                       value="shadow"
-                      selected={(@profile && @profile.username_effect) == "shadow"}
+                      selected={@profile.username_effect == "shadow"}
                     >
                       Drop Shadow
                     </option>
 
                     <option
                       value="double"
-                      selected={(@profile && @profile.username_effect) == "double"}
+                      selected={@profile.username_effect == "double"}
                     >
                       Double Text
                     </option>
 
                     <option
                       value="retro"
-                      selected={(@profile && @profile.username_effect) == "retro"}
+                      selected={@profile.username_effect == "retro"}
                     >
                       Retro VHS
                     </option>
 
                     <option
                       value="pixelated"
-                      selected={(@profile && @profile.username_effect) == "pixelated"}
+                      selected={@profile.username_effect == "pixelated"}
                     >
                       Pixelated
                     </option>
 
                     <option
                       value="glitch"
-                      selected={(@profile && @profile.username_effect) == "glitch"}
+                      selected={@profile.username_effect == "glitch"}
                     >
                       Glitch
                     </option>
@@ -1352,14 +1352,14 @@
                 </div>
               </div>
               <!-- Color Settings (for effects that support custom colors) -->
-              <%= if @profile && @profile.username_effect in ["glow", "neon", "outline", "pixelated"] do %>
+              <%= if @profile.username_effect in ["glow", "neon", "outline", "pixelated"] do %>
                 <div class="space-y-4 p-4 bg-base-200/50 rounded-lg">
                   <div class="flex items-center gap-4">
                     <input
                       type="color"
                       name="profile[username_glow_color]"
                       value={
-                        (@profile && @profile.username_glow_color) ||
+                        @profile.username_glow_color ||
                           Elektrine.Profiles.UserProfile.default(:username_glow_color)
                       }
                       phx-change="update_username_color"
@@ -1379,7 +1379,7 @@
                     <label class="label">
                       <span class="label-text font-medium">Glow Intensity</span>
                       <span class="label-text-alt">
-                        {(@profile && @profile.username_glow_intensity) || 10}px
+                        {@profile.username_glow_intensity || 10}px
                       </span>
                     </label>
                     <input
@@ -1388,7 +1388,7 @@
                       min="0"
                       max="50"
                       step="5"
-                      value={(@profile && @profile.username_glow_intensity) || 10}
+                      value={@profile.username_glow_intensity || 10}
                       phx-change="update_username_effect"
                       class="range range-primary w-full"
                     />
@@ -1399,14 +1399,14 @@
                 </div>
               <% end %>
               <!-- Shadow Settings -->
-              <%= if @profile && @profile.username_effect in ["shadow", "double"] do %>
+              <%= if @profile.username_effect in ["shadow", "double"] do %>
                 <div class="p-4 bg-base-200/50 rounded-lg">
                   <div class="flex items-center gap-4">
                     <input
                       type="color"
                       name="profile[username_shadow_color]"
                       value={
-                        (@profile && @profile.username_shadow_color) ||
+                        @profile.username_shadow_color ||
                           Elektrine.Profiles.UserProfile.default(:username_shadow_color)
                       }
                       phx-change="update_username_color"
@@ -1422,7 +1422,7 @@
                 </div>
               <% end %>
               <!-- Gradient Settings -->
-              <%= if @profile && @profile.username_effect == "gradient" do %>
+              <%= if @profile.username_effect == "gradient" do %>
                 <div class="p-4 bg-base-200/50 rounded-lg space-y-4">
                   <p class="font-medium">Gradient Colors</p>
 
@@ -1432,7 +1432,7 @@
                         type="color"
                         name="profile[username_gradient_from]"
                         value={
-                          (@profile && @profile.username_gradient_from) ||
+                          @profile.username_gradient_from ||
                             Elektrine.Profiles.UserProfile.default(:username_glow_color)
                         }
                         phx-change="update_username_color"
@@ -1451,7 +1451,7 @@
                         type="color"
                         name="profile[username_gradient_to]"
                         value={
-                          (@profile && @profile.username_gradient_to) ||
+                          @profile.username_gradient_to ||
                             Elektrine.Theme.default_value("color_secondary")
                         }
                         phx-change="update_username_color"
@@ -1468,7 +1468,7 @@
                 </div>
               <% end %>
               <!-- Animation Speed -->
-              <%= if @profile && @profile.username_effect in ["rainbow", "glitch", "neon", "fire", "ice", "holographic"] do %>
+              <%= if @profile.username_effect in ["rainbow", "glitch", "neon", "fire", "ice", "holographic"] do %>
                 <div>
                   <label class="label">
                     <span class="label-text font-medium">Animation Speed</span>
@@ -1477,7 +1477,7 @@
                     <select name="profile[username_animation_speed]">
                       <option
                         value="slow"
-                        selected={(@profile && @profile.username_animation_speed) == "slow"}
+                        selected={@profile.username_animation_speed == "slow"}
                       >
                         Slow
                       </option>
@@ -1485,7 +1485,7 @@
                       <option
                         value="normal"
                         selected={
-                          (@profile && @profile.username_animation_speed) == "normal" ||
+                          @profile.username_animation_speed == "normal" ||
                             !@profile.username_animation_speed
                         }
                       >
@@ -1494,7 +1494,7 @@
 
                       <option
                         value="fast"
-                        selected={(@profile && @profile.username_animation_speed) == "fast"}
+                        selected={@profile.username_animation_speed == "fast"}
                       >
                         Fast
                       </option>
@@ -1538,14 +1538,14 @@
                     >
                       <option
                         value="circular"
-                        selected={(@profile && @profile.link_display_style) == "circular"}
+                        selected={@profile.link_display_style == "circular"}
                       >
                         Circular Icons
                       </option>
 
                       <option
                         value="full_width"
-                        selected={(@profile && @profile.link_display_style) == "full_width"}
+                        selected={@profile.link_display_style == "full_width"}
                       >
                         Full Width Buttons
                       </option>
@@ -1571,35 +1571,35 @@
                     >
                       <option
                         value="none"
-                        selected={(@profile && @profile.link_highlight_effect) == "none"}
+                        selected={@profile.link_highlight_effect == "none"}
                       >
                         None
                       </option>
 
                       <option
                         value="glow"
-                        selected={(@profile && @profile.link_highlight_effect) == "glow"}
+                        selected={@profile.link_highlight_effect == "glow"}
                       >
                         Glow
                       </option>
 
                       <option
                         value="pulse"
-                        selected={(@profile && @profile.link_highlight_effect) == "pulse"}
+                        selected={@profile.link_highlight_effect == "pulse"}
                       >
                         Pulse
                       </option>
 
                       <option
                         value="border"
-                        selected={(@profile && @profile.link_highlight_effect) == "border"}
+                        selected={@profile.link_highlight_effect == "border"}
                       >
                         Border Highlight
                       </option>
 
                       <option
                         value="shine"
-                        selected={(@profile && @profile.link_highlight_effect) == "shine"}
+                        selected={@profile.link_highlight_effect == "shine"}
                       >
                         Shine Animation
                       </option>
@@ -1623,7 +1623,7 @@
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-plus" class="w-6 h-6" /> Add New Link
                   <span class="text-sm font-normal text-base-content/60">
-                    ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
+                    ({if @profile.links, do: length(@profile.links), else: 0}/50)
                   </span>
                 </h2>
 
@@ -1815,14 +1815,14 @@
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-link" class="w-6 h-6" /> Your Links
                   <span class="text-sm font-normal text-base-content/60">
-                    ({if @profile && @profile.links, do: length(@profile.links), else: 0}/50)
+                    ({if @profile.links, do: length(@profile.links), else: 0}/50)
                   </span>
                 </h2>
 
                 <p class="text-sm text-base-content/60">Manage your profile links</p>
               </div>
 
-              <%= if @profile && @profile.links && length(@profile.links) > 0 do %>
+              <%= if @profile.links && length(@profile.links) > 0 do %>
                 <div class="space-y-2">
                   <%= for link <- @profile.links do %>
                     <%= if @editing_link_id == link.id do %>
@@ -2169,7 +2169,7 @@
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-plus" class="w-6 h-6" /> Add Widget
                   <span class="text-sm font-normal text-base-content/60">
-                    ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
+                    ({if @profile.widgets, do: length(@profile.widgets), else: 0}/5)
                   </span>
                 </h2>
 
@@ -2251,14 +2251,14 @@
                 <h2 class="card-title text-lg sm:text-xl mb-2 flex items-center gap-2">
                   <.icon name="hero-squares-2x2" class="w-6 h-6" /> Your Widgets
                   <span class="text-sm font-normal text-base-content/60">
-                    ({if @profile && @profile.widgets, do: length(@profile.widgets), else: 0}/5)
+                    ({if @profile.widgets, do: length(@profile.widgets), else: 0}/5)
                   </span>
                 </h2>
 
                 <p class="text-sm text-base-content/60">Manage your profile widgets</p>
               </div>
 
-              <%= if @profile && @profile.widgets && length(@profile.widgets) > 0 do %>
+              <%= if @profile.widgets && length(@profile.widgets) > 0 do %>
                 <div class="space-y-3">
                   <%= for widget <- @profile.widgets do %>
                     <div class="p-4 bg-base-200/50 rounded-lg">
@@ -2352,7 +2352,7 @@
                         style={
                           badge_preview_style(
                             badge.badge_color,
-                            @profile && @profile.accent_color
+                            @profile.accent_color
                           )
                         }
                       >
@@ -2425,13 +2425,13 @@
                       name="profile[font_family]"
                       phx-change="update_font"
                     >
-                      <option value="" selected={is_nil(@profile && @profile.font_family)}>
+                      <option value="" selected={is_nil(@profile.font_family)}>
                         System Default
                       </option>
 
                       <option
                         value="Inter"
-                        selected={(@profile && @profile.font_family) == "Inter"}
+                        selected={@profile.font_family == "Inter"}
                         style="font-family: 'Inter', sans-serif"
                       >
                         Inter
@@ -2439,7 +2439,7 @@
 
                       <option
                         value="Arial"
-                        selected={(@profile && @profile.font_family) == "Arial"}
+                        selected={@profile.font_family == "Arial"}
                         style="font-family: 'Arial', sans-serif"
                       >
                         Arial
@@ -2447,7 +2447,7 @@
 
                       <option
                         value="Helvetica"
-                        selected={(@profile && @profile.font_family) == "Helvetica"}
+                        selected={@profile.font_family == "Helvetica"}
                         style="font-family: 'Helvetica', sans-serif"
                       >
                         Helvetica
@@ -2455,7 +2455,7 @@
 
                       <option
                         value="Georgia"
-                        selected={(@profile && @profile.font_family) == "Georgia"}
+                        selected={@profile.font_family == "Georgia"}
                         style="font-family: 'Georgia', serif"
                       >
                         Georgia
@@ -2463,7 +2463,7 @@
 
                       <option
                         value="Times New Roman"
-                        selected={(@profile && @profile.font_family) == "Times New Roman"}
+                        selected={@profile.font_family == "Times New Roman"}
                         style="font-family: 'Times New Roman', serif"
                       >
                         Times New Roman
@@ -2471,7 +2471,7 @@
 
                       <option
                         value="Courier New"
-                        selected={(@profile && @profile.font_family) == "Courier New"}
+                        selected={@profile.font_family == "Courier New"}
                         style="font-family: 'Courier New', monospace"
                       >
                         Courier New
@@ -2479,7 +2479,7 @@
 
                       <option
                         value="Verdana"
-                        selected={(@profile && @profile.font_family) == "Verdana"}
+                        selected={@profile.font_family == "Verdana"}
                         style="font-family: 'Verdana', sans-serif"
                       >
                         Verdana
@@ -2487,7 +2487,7 @@
 
                       <option
                         value="Trebuchet MS"
-                        selected={(@profile && @profile.font_family) == "Trebuchet MS"}
+                        selected={@profile.font_family == "Trebuchet MS"}
                         style="font-family: 'Trebuchet MS', sans-serif"
                       >
                         Trebuchet MS
@@ -2495,7 +2495,7 @@
 
                       <option
                         value="Comic Sans MS"
-                        selected={(@profile && @profile.font_family) == "Comic Sans MS"}
+                        selected={@profile.font_family == "Comic Sans MS"}
                         style="font-family: 'Comic Sans MS', cursive"
                       >
                         Comic Sans MS
@@ -2503,7 +2503,7 @@
 
                       <option
                         value="Impact"
-                        selected={(@profile && @profile.font_family) == "Impact"}
+                        selected={@profile.font_family == "Impact"}
                         style="font-family: 'Impact', sans-serif"
                       >
                         Impact
@@ -2511,7 +2511,7 @@
 
                       <option
                         value="Palatino"
-                        selected={(@profile && @profile.font_family) == "Palatino"}
+                        selected={@profile.font_family == "Palatino"}
                         style="font-family: 'Palatino', serif"
                       >
                         Palatino
@@ -2519,7 +2519,7 @@
 
                       <option
                         value="Garamond"
-                        selected={(@profile && @profile.font_family) == "Garamond"}
+                        selected={@profile.font_family == "Garamond"}
                         style="font-family: 'Garamond', serif"
                       >
                         Garamond
@@ -2527,7 +2527,7 @@
 
                       <option
                         value="Bookman"
-                        selected={(@profile && @profile.font_family) == "Bookman"}
+                        selected={@profile.font_family == "Bookman"}
                         style="font-family: 'Bookman', serif"
                       >
                         Bookman
@@ -2535,7 +2535,7 @@
 
                       <option
                         value="Consolas"
-                        selected={(@profile && @profile.font_family) == "Consolas"}
+                        selected={@profile.font_family == "Consolas"}
                         style="font-family: 'Consolas', monospace"
                       >
                         Consolas
@@ -2543,7 +2543,7 @@
 
                       <option
                         value="Monaco"
-                        selected={(@profile && @profile.font_family) == "Monaco"}
+                        selected={@profile.font_family == "Monaco"}
                         style="font-family: 'Monaco', monospace"
                       >
                         Monaco
@@ -2563,7 +2563,7 @@
                   <p
                     class="text-lg"
                     style={
-                      if @profile && @profile.font_family,
+                      if @profile.font_family,
                         do: "font-family: '#{@profile.font_family}', sans-serif;",
                         else: ""
                     }
@@ -2600,105 +2600,105 @@
                     >
                       <option
                         value="default"
-                        selected={(@profile && @profile.cursor_style) == "default"}
+                        selected={@profile.cursor_style == "default"}
                       >
                         Default
                       </option>
 
                       <option
                         value="pointer"
-                        selected={(@profile && @profile.cursor_style) == "pointer"}
+                        selected={@profile.cursor_style == "pointer"}
                       >
                         Pointer
                       </option>
 
                       <option
                         value="crosshair"
-                        selected={(@profile && @profile.cursor_style) == "crosshair"}
+                        selected={@profile.cursor_style == "crosshair"}
                       >
                         Crosshair
                       </option>
 
                       <option
                         value="help"
-                        selected={(@profile && @profile.cursor_style) == "help"}
+                        selected={@profile.cursor_style == "help"}
                       >
                         Help
                       </option>
 
                       <option
                         value="wait"
-                        selected={(@profile && @profile.cursor_style) == "wait"}
+                        selected={@profile.cursor_style == "wait"}
                       >
                         Wait
                       </option>
 
                       <option
                         value="grab"
-                        selected={(@profile && @profile.cursor_style) == "grab"}
+                        selected={@profile.cursor_style == "grab"}
                       >
                         Grab
                       </option>
 
                       <option
                         value="text"
-                        selected={(@profile && @profile.cursor_style) == "text"}
+                        selected={@profile.cursor_style == "text"}
                       >
                         Text
                       </option>
 
                       <option
                         value="move"
-                        selected={(@profile && @profile.cursor_style) == "move"}
+                        selected={@profile.cursor_style == "move"}
                       >
                         Move
                       </option>
 
                       <option
                         value="not-allowed"
-                        selected={(@profile && @profile.cursor_style) == "not-allowed"}
+                        selected={@profile.cursor_style == "not-allowed"}
                       >
                         Not Allowed
                       </option>
 
                       <option
                         value="cell"
-                        selected={(@profile && @profile.cursor_style) == "cell"}
+                        selected={@profile.cursor_style == "cell"}
                       >
                         Cell
                       </option>
 
                       <option
                         value="context-menu"
-                        selected={(@profile && @profile.cursor_style) == "context-menu"}
+                        selected={@profile.cursor_style == "context-menu"}
                       >
                         Context Menu
                       </option>
 
                       <option
                         value="vertical-text"
-                        selected={(@profile && @profile.cursor_style) == "vertical-text"}
+                        selected={@profile.cursor_style == "vertical-text"}
                       >
                         Vertical Text
                       </option>
 
                       <option
                         value="alias"
-                        selected={(@profile && @profile.cursor_style) == "alias"}
+                        selected={@profile.cursor_style == "alias"}
                       >
                         Alias
                       </option>
 
                       <option
                         value="copy"
-                        selected={(@profile && @profile.cursor_style) == "copy"}
+                        selected={@profile.cursor_style == "copy"}
                       >
                         Copy
                       </option>
 
                       <option
                         value="no-drop"
-                        selected={(@profile && @profile.cursor_style) == "no-drop"}
+                        selected={@profile.cursor_style == "no-drop"}
                       >
                         No Drop
                       </option>
@@ -2713,14 +2713,14 @@
 
                 <div
                   class="p-4 bg-base-200/50 rounded-lg text-center"
-                  style={"cursor: #{(@profile && @profile.cursor_style) || "default"}"}
+                  style={"cursor: #{(@profile.cursor_style) || "default"}"}
                 >
                   <p class="text-sm font-semibold mb-2">Hover here to preview</p>
 
                   <p class="text-base-content/70">
                     Current cursor:
                     <span class="font-medium text-primary">
-                      {(@profile && @profile.cursor_style) || "default"}
+                      {@profile.cursor_style || "default"}
                     </span>
                   </p>
                 </div>
@@ -2748,7 +2748,7 @@
                 class="space-y-4 sm:space-y-6"
               >
                 <!-- Current Favicon Preview -->
-                <%= if @profile && @profile.favicon_url do %>
+                <%= if @profile.favicon_url do %>
                   <div class="relative p-4 bg-base-200/50 rounded-lg">
                     <p class="text-sm font-semibold mb-3">Current Favicon:</p>
 
@@ -2822,7 +2822,7 @@
       <% end %>
       <!-- Static Site Tab -->
       <%= if @selected_tab == "publish" do %>
-        <% static_mode = @profile && @profile.profile_mode == "static" %> <% static_file_count =
+        <% static_mode = @profile.profile_mode == "static" %> <% static_file_count =
           length(@static_site_files || []) %> <% has_static_files = static_file_count > 0 %> <% has_homepage =
           Enum.any?(@static_site_files || [], &(&1.path in ["index.html", "index.htm"])) %>
         <div class="space-y-4 sm:space-y-6">

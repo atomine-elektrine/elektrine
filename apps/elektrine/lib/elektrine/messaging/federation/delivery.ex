@@ -693,8 +693,6 @@ defmodule Elektrine.Messaging.Federation.Delivery do
     end
   end
 
-  defp decode_cbor(_body), do: {:error, :invalid_payload}
-
   defp put_header(headers, key, value) when is_list(headers) do
     normalized_key = String.downcase(key)
 

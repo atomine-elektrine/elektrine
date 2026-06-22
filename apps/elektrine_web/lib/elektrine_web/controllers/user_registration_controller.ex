@@ -88,6 +88,11 @@ defmodule ElektrineWeb.UserRegistrationController do
   defp complete_registration(conn, user_params_with_ip, captcha_result) do
     case captcha_result do
       {:ok, :verified} ->
+        # SECURITY: the captcha token is a stateless, replayable HMAC token (300s TTL).
+        # Clear it from the session on a successful verify so a solved token cannot be
+        # reused; the next attempt must fetch and solve a freshly issued captcha.
+        conn = delete_session(conn, :captcha_token)
+
         if Elektrine.System.invite_codes_enabled?() do
           case Accounts.register_user_with_access(user_params_with_ip) do
             {:ok, user} ->

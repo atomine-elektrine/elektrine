@@ -657,8 +657,6 @@ defmodule ElektrineSocialWeb.VideosLive.Index do
       Map.get(post, :sensitive) == true || Map.get(post, "sensitive") == true
   end
 
-  defp video_sensitive?(_), do: false
-
   defp video_post_path(%{id: id}) when is_integer(id), do: Elektrine.Paths.remote_post_path(id)
   defp video_post_path(post), do: Elektrine.Paths.post_path(post)
 

@@ -234,10 +234,6 @@ defmodule Elektrine.Email.Sanitizer do
     nil
   end
 
-  def sanitize_html_content("") do
-    ""
-  end
-
   defp fix_common_encoding_issues(content) when is_binary(content) do
     if has_clear_mojibake_pattern?(content) do
       content
@@ -323,6 +319,12 @@ defmodule Elektrine.Email.Sanitizer do
     |> String.replace(~r/<frameset[^>]*>.*?<\/frameset>/is, "")
     |> String.replace(~r/<object[^>]*>.*?<\/object>/is, "")
     |> String.replace(~r/<embed[^>]*>/is, "")
+    |> String.replace(~r/<svg[^>]*>.*?<\/svg>/is, "")
+    |> String.replace(~r/<svg[^>]*>/i, "")
+    |> String.replace(~r/<\/svg>/i, "")
+    |> String.replace(~r/<math[^>]*>.*?<\/math>/is, "")
+    |> String.replace(~r/<math[^>]*>/i, "")
+    |> String.replace(~r/<\/math>/i, "")
     |> String.replace(~r/<applet[^>]*>.*?<\/applet>/is, "")
     |> String.replace(~r/<form[^>]*>/i, "")
     |> String.replace(~r/<\/form>/i, "")
@@ -384,8 +386,8 @@ defmodule Elektrine.Email.Sanitizer do
 
   defp remove_event_handlers(content) do
     content
-    |> String.replace(~r/\son\w+\s*=\s*["'][^"']*["']/i, "")
-    |> String.replace(~r/\son\w+\s*=\s*[^\s>]+/i, "")
+    |> String.replace(~r/[\s\/]on\w+\s*=\s*["'][^"']*["']/i, "")
+    |> String.replace(~r/[\s\/]on\w+\s*=\s*[^\s>]+/i, "")
   end
 
   defp remove_dangerous_protocols(content) do
@@ -509,10 +511,6 @@ defmodule Elektrine.Email.Sanitizer do
     ""
   end
 
-  def sanitize_utf8("") do
-    ""
-  end
-
   defp remove_null_bytes(content) when is_binary(content) do
     String.replace(content, <<0>>, "")
   end
@@ -528,10 +526,6 @@ defmodule Elektrine.Email.Sanitizer do
 
   def sanitize_email_address(nil) do
     nil
-  end
-
-  def sanitize_email_address("") do
-    ""
   end
 
   defp normalize_attachments(attachments) when is_list(attachments) do

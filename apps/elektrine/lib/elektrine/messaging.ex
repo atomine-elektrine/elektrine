@@ -1,3 +1,35 @@
+defmodule Elektrine.Messaging.Router do
+  @moduledoc false
+
+  # Compile-time helper for `Elektrine.Messaging`. See `defrouted/3`.
+
+  @doc """
+  Generates a routing function that dispatches by conversation type on its
+  first argument: chat conversations go to `chat_mod`, social conversations to
+  `social_mod`. Both modules must expose the same function name/arity, and the
+  importing module must define a private `chat_conversation_type?/1` predicate.
+
+      defrouted delete_conversation(conversation_id), ChatConversations, Conversations
+
+  is equivalent to writing the explicit `if chat_conversation_type?(...)` body.
+  Put any `@doc` immediately before the macro call as you would for a normal def.
+  """
+  defmacro defrouted(call, chat_mod, social_mod) do
+    {name, args} = Macro.decompose_call(call)
+    first_arg = hd(args)
+
+    quote do
+      def unquote(name)(unquote_splicing(args)) do
+        if chat_conversation_type?(unquote(first_arg)) do
+          unquote(chat_mod).unquote(name)(unquote_splicing(args))
+        else
+          unquote(social_mod).unquote(name)(unquote_splicing(args))
+        end
+      end
+    end
+  end
+end
+
 defmodule Elektrine.Messaging do
   @moduledoc """
   The Messaging context - handles conversations, messages, and real-time communication.
@@ -30,6 +62,10 @@ defmodule Elektrine.Messaging do
   alias Elektrine.Social.Conversations
   alias Elektrine.Social.Messages
 
+  # Routes uniform "dispatch by conversation type" functions to the chat or
+  # social context. See `Elektrine.Messaging.Router.defrouted/3`.
+  import Elektrine.Messaging.Router
+
   ## Conversations - Delegate to Conversations context
 
   @doc """
@@ -44,13 +80,7 @@ defmodule Elektrine.Messaging do
   @doc """
   Gets a single conversation with members and recent messages.
   """
-  def get_conversation!(id, user_id) do
-    if chat_conversation_type?(id) do
-      ChatConversations.get_conversation!(id, user_id)
-    else
-      Conversations.get_conversation!(id, user_id)
-    end
-  end
+  defrouted(get_conversation!(id, user_id), ChatConversations, Conversations)
 
   defdelegate get_chat_conversation!(id, user_id), to: ChatConversations, as: :get_conversation!
 
@@ -135,13 +165,7 @@ defmodule Elektrine.Messaging do
   @doc """
   Deletes a conversation (admin/creator only).
   """
-  def delete_conversation(conversation_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.delete_conversation(conversation_id)
-    else
-      Conversations.delete_conversation(conversation_id)
-    end
-  end
+  defrouted(delete_conversation(conversation_id), ChatConversations, Conversations)
 
   @doc """
   Lists public channels.
@@ -187,146 +211,107 @@ defmodule Elektrine.Messaging do
   @doc """
   Removes a member from a conversation.
   """
-  def remove_member_from_conversation(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.remove_member_from_conversation(conversation_id, user_id)
-    else
-      Conversations.remove_member_from_conversation(conversation_id, user_id)
-    end
-  end
+  defrouted(
+    remove_member_from_conversation(conversation_id, user_id),
+    ChatConversations,
+    Conversations
+  )
+
+  @doc """
+  Removes a member from a conversation on behalf of `actor_user_id`.
+
+  Routes to the correct context by conversation type so callers need not name a
+  concrete module. Both contexts enforce actor-role authorization when an actor
+  is supplied (manager-or-self), and skip the check when the actor is nil.
+  """
+  defrouted(
+    remove_member_from_conversation(conversation_id, user_id, actor_user_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
   Gets a conversation member record.
   """
-  def get_conversation_member(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.get_conversation_member(conversation_id, user_id)
-    else
-      Conversations.get_conversation_member(conversation_id, user_id)
-    end
-  end
+  defrouted(get_conversation_member(conversation_id, user_id), ChatConversations, Conversations)
 
   @doc """
   Gets all members of a conversation.
   """
-  def get_conversation_members(conversation_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.get_conversation_members(conversation_id)
-    else
-      Conversations.get_conversation_members(conversation_id)
-    end
-  end
+  defrouted(get_conversation_members(conversation_id), ChatConversations, Conversations)
 
   @doc """
   Lists pending remote join requests for a locally authoritative channel.
   """
-  def list_pending_remote_join_requests(conversation_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.list_pending_remote_join_requests(conversation_id)
-    else
-      Conversations.list_pending_remote_join_requests(conversation_id)
-    end
-  end
+  defrouted(list_pending_remote_join_requests(conversation_id), ChatConversations, Conversations)
 
   @doc """
   Approves a pending remote join request.
   """
-  def approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.approve_remote_join_request(
-        conversation_id,
-        remote_actor_id,
-        reviewer_user_id
-      )
-    else
-      Conversations.approve_remote_join_request(
-        conversation_id,
-        remote_actor_id,
-        reviewer_user_id
-      )
-    end
-  end
+  defrouted(
+    approve_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
   Declines a pending remote join request.
   """
-  def decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.decline_remote_join_request(
-        conversation_id,
-        remote_actor_id,
-        reviewer_user_id
-      )
-    else
-      Conversations.decline_remote_join_request(
-        conversation_id,
-        remote_actor_id,
-        reviewer_user_id
-      )
-    end
-  end
+  defrouted(
+    decline_remote_join_request(conversation_id, remote_actor_id, reviewer_user_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
   Promotes a member to admin role.
   """
-  def promote_to_admin(conversation_id, user_id, promoter_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.promote_to_admin(conversation_id, user_id, promoter_id)
-    else
-      Conversations.promote_to_admin(conversation_id, user_id, promoter_id)
-    end
-  end
+  defrouted(
+    promote_to_admin(conversation_id, user_id, promoter_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
   Demotes an admin to regular member.
   """
-  def demote_from_admin(conversation_id, user_id, demoter_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.demote_from_admin(conversation_id, user_id, demoter_id)
-    else
-      Conversations.demote_from_admin(conversation_id, user_id, demoter_id)
-    end
-  end
+  defrouted(
+    demote_from_admin(conversation_id, user_id, demoter_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
   Updates a member's role in a conversation.
   """
-  def update_member_role(conversation_id, user_id, new_role) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.update_member_role(conversation_id, user_id, new_role)
-    else
-      Conversations.update_member_role(conversation_id, user_id, new_role)
-    end
-  end
+  defrouted(
+    update_member_role(conversation_id, user_id, new_role),
+    ChatConversations,
+    Conversations
+  )
 
-  def update_member_role(conversation_id, user_id, new_role, actor_user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.update_member_role(conversation_id, user_id, new_role, actor_user_id)
-    else
-      Conversations.update_member_role(conversation_id, user_id, new_role, actor_user_id)
-    end
-  end
+  defrouted(
+    update_member_role(conversation_id, user_id, new_role, actor_user_id),
+    ChatConversations,
+    Conversations
+  )
 
   @doc """
-  Promotes a user to moderator.
+  Promotes a user to moderator. Pass `actor_user_id` to enforce owner/admin authz.
   """
-  defdelegate promote_to_moderator(conversation_id, user_id), to: Conversations
+  defdelegate promote_to_moderator(conversation_id, user_id, actor_user_id \\ nil),
+    to: Conversations
 
   @doc """
-  Demotes a moderator to member.
+  Demotes a moderator to member. Pass `actor_user_id` to enforce owner/admin authz.
   """
-  defdelegate demote_from_moderator(conversation_id, user_id), to: Conversations
+  defdelegate demote_from_moderator(conversation_id, user_id, actor_user_id \\ nil),
+    to: Conversations
 
   @doc """
   Joins a public conversation (channel or group).
   """
-  def join_conversation(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.join_conversation(conversation_id, user_id)
-    else
-      Conversations.join_conversation(conversation_id, user_id)
-    end
-  end
+  defrouted(join_conversation(conversation_id, user_id), ChatConversations, Conversations)
 
   @doc """
   Joins a public channel.
@@ -336,35 +321,17 @@ defmodule Elektrine.Messaging do
   @doc """
   Pins a conversation for a user.
   """
-  def pin_conversation(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.pin_conversation(conversation_id, user_id)
-    else
-      Conversations.pin_conversation(conversation_id, user_id)
-    end
-  end
+  defrouted(pin_conversation(conversation_id, user_id), ChatConversations, Conversations)
 
   @doc """
   Unpins a conversation for a user.
   """
-  def unpin_conversation(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.unpin_conversation(conversation_id, user_id)
-    else
-      Conversations.unpin_conversation(conversation_id, user_id)
-    end
-  end
+  defrouted(unpin_conversation(conversation_id, user_id), ChatConversations, Conversations)
 
   @doc """
   Allows a user to leave a conversation.
   """
-  def leave_conversation(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatConversations.leave_conversation(conversation_id, user_id)
-    else
-      Conversations.leave_conversation(conversation_id, user_id)
-    end
-  end
+  defrouted(leave_conversation(conversation_id, user_id), ChatConversations, Conversations)
 
   @doc """
   Checks if a user is the owner of a community.
@@ -490,19 +457,11 @@ defmodule Elektrine.Messaging do
   @doc """
   Creates a voice message in a conversation.
   """
-  def create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type) do
-    if chat_conversation_type?(conversation_id) do
-      ChatMessages.create_voice_message(
-        conversation_id,
-        sender_id,
-        audio_url,
-        duration,
-        mime_type
-      )
-    else
-      Messages.create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type)
-    end
-  end
+  defrouted(
+    create_voice_message(conversation_id, sender_id, audio_url, duration, mime_type),
+    ChatMessages,
+    Messages
+  )
 
   @doc """
   Creates a system message in a conversation.
@@ -641,35 +600,21 @@ defmodule Elektrine.Messaging do
   @doc """
   Updates the last read message for a user in a conversation.
   """
-  def update_last_read_message(conversation_id, user_id, message_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatMessages.update_last_read_message(conversation_id, user_id, message_id)
-    else
-      Messages.update_last_read_message(conversation_id, user_id, message_id)
-    end
-  end
+  defrouted(
+    update_last_read_message(conversation_id, user_id, message_id),
+    ChatMessages,
+    Messages
+  )
 
   @doc """
   Gets the last read message ID for a user in a conversation.
   """
-  def get_last_read_message_id(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatMessages.get_last_read_message_id(conversation_id, user_id)
-    else
-      Messages.get_last_read_message_id(conversation_id, user_id)
-    end
-  end
+  defrouted(get_last_read_message_id(conversation_id, user_id), ChatMessages, Messages)
 
   @doc """
   Clears message history for a specific user.
   """
-  def clear_history_for_user(conversation_id, user_id) do
-    if chat_conversation_type?(conversation_id) do
-      ChatMessages.clear_history_for_user(conversation_id, user_id)
-    else
-      Messages.clear_history_for_user(conversation_id, user_id)
-    end
-  end
+  defrouted(clear_history_for_user(conversation_id, user_id), ChatMessages, Messages)
 
   @doc """
   Gets users who have read a specific message.

@@ -241,10 +241,6 @@ defmodule ArblargWeb.ChatLive.Operations.CallOperations do
     end
   end
 
-  defp initiate_federated_call(socket, _remote_handle, _conversation_id, _call_type) do
-    {:noreply, notify_error(socket, "Call can only be started from a federated DM")}
-  end
-
   defp answer_call(socket, call_id) do
     case current_call_source(socket, call_id) do
       :federated ->

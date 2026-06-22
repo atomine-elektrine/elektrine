@@ -262,6 +262,7 @@
     </div>
 
     <div class="email-content">
+      <%!-- security: relies on hardened Sanitizer + global nonce CSP; do not render untrusted HTML here without sandbox --%>
       <%= if @message.html_body do %>
         {Phoenix.HTML.raw(
           ElektrineWeb.CoreComponents.safe_sanitize_email_html(@message.html_body)

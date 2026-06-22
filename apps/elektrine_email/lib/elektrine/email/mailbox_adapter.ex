@@ -86,8 +86,6 @@ defmodule Elektrine.Email.MailboxAdapter do
     Regex.replace(~r/[^\s<>,']+@[^\s<>,']+/, message, "[redacted-email]")
   end
 
-  defp redact_emails(message), do: inspect(message)
-
   @doc """
   Gets a regular mailbox by ID.
   """

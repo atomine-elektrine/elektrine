@@ -13,11 +13,19 @@ defmodule Elektrine.Social.Lists do
   end
 
   @doc "Updates a list.\n"
+  # SECURITY: This function trusts the caller to have verified ownership of the
+  # given List. Callers MUST only pass a List that belongs to the acting user
+  # (e.g. one fetched via get_user_list/2). Do not pass a list resolved from a
+  # client-supplied id without an ownership check.
   def update_list(%List{} = list, attrs) do
     list |> List.changeset(attrs) |> Repo.update()
   end
 
   @doc "Deletes a list.\n"
+  # SECURITY: This function trusts the caller to have verified ownership of the
+  # given List. Callers MUST only pass a List that belongs to the acting user
+  # (e.g. one fetched via get_user_list/2). Do not pass a list resolved from a
+  # client-supplied id without an ownership check.
   def delete_list(%List{} = list) do
     Repo.delete(list)
   end
@@ -85,16 +93,48 @@ defmodule Elektrine.Social.Lists do
   end
 
   @doc "Adds a user or remote actor to a list.\n"
+  # SECURITY: This arity does NOT verify list ownership. Prefer the owner-scoped
+  # add_to_list/3 for any path driven by client-supplied input.
   def add_to_list(list_id, attrs) do
     %ListMember{} |> ListMember.changeset(Map.put(attrs, :list_id, list_id)) |> Repo.insert()
   end
 
+  @doc "Adds a member to a list, verifying the list belongs to owner_user_id.\n"
+  def add_to_list(owner_user_id, list_id, attrs) do
+    if list_owned_by?(owner_user_id, list_id) do
+      add_to_list(list_id, attrs)
+    else
+      {:error, :unauthorized}
+    end
+  end
+
   @doc "Removes a member from a list.\n"
+  # SECURITY: This arity does NOT verify list ownership. Prefer the owner-scoped
+  # remove_from_list/2 for any path driven by client-supplied input.
   def remove_from_list(list_member_id) do
     case Repo.get(ListMember, list_member_id) do
       nil -> {:error, :not_found}
       list_member -> Repo.delete(list_member)
     end
+  end
+
+  @doc "Removes a member from a list, only when the list belongs to owner_user_id.\n"
+  def remove_from_list(owner_user_id, list_member_id) do
+    query =
+      from(lm in ListMember,
+        join: l in List,
+        on: l.id == lm.list_id,
+        where: lm.id == ^list_member_id and l.user_id == ^owner_user_id
+      )
+
+    case Repo.one(query) do
+      nil -> {:error, :unauthorized}
+      list_member -> Repo.delete(list_member)
+    end
+  end
+
+  defp list_owned_by?(owner_user_id, list_id) do
+    not is_nil(get_user_list(owner_user_id, list_id))
   end
 
   @doc "Gets timeline posts from a list (posts from list members only).\n"

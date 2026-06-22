@@ -35,8 +35,6 @@ defmodule Elektrine.ActivityPub.MRF.NormalizePolicy do
     end
   end
 
-  defp sanitize_html(content), do: content
-
   @impl true
   def describe do
     {:ok, %{normalize_markup: true}}

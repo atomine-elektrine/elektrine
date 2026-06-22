@@ -402,10 +402,6 @@ defmodule Elektrine.Bluesky.Managed do
     end
   end
 
-  defp validate_managed_handle(_handle) do
-    {:error, :invalid_handle}
-  end
-
   defp create_reconnect_session(service_url, identifier, %User{} = user, current_password) do
     user
     |> reconnect_password_candidates(current_password)

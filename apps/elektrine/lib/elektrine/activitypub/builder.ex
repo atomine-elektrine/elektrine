@@ -1283,8 +1283,6 @@ defmodule Elektrine.ActivityPub.Builder do
     end
   end
 
-  defp actor_base_url_from_uri(_), do: nil
-
   # Walk up the reply chain to find community_actor_uri (for Lemmy posts)
   # This ensures replies to replies in a Lemmy thread have the correct audience
   defp get_community_uri_from_chain(message, depth \\ 0)

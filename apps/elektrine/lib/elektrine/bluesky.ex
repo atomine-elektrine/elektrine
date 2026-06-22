@@ -340,10 +340,6 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp fetch_user(_) do
-    {:skip, :user_not_found}
-  end
-
   defp ensure_user_enabled(%User{bluesky_enabled: true}) do
     :ok
   end
@@ -584,10 +580,6 @@ defmodule Elektrine.Bluesky do
     |> String.trim_trailing("?")
     |> String.trim_trailing(";")
     |> String.trim_trailing(":")
-  end
-
-  defp trim_trailing_url_punctuation(_url) do
-    ""
   end
 
   defp valid_absolute_http_url?(url) when is_binary(url) do
@@ -986,10 +978,6 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp blank_to_default(_value, default) do
-    default
-  end
-
   defp source_display_name(source) when is_binary(source) do
     with {:ok, normalized} <- normalize_external_uri(source),
          %URI{} = parsed <- URI.parse(normalized),
@@ -1264,10 +1252,6 @@ defmodule Elektrine.Bluesky do
     |> String.downcase()
   end
 
-  defp normalize_content_type(_value) do
-    "application/octet-stream"
-  end
-
   defp media_kind("image/" <> _rest) do
     :image
   end
@@ -1498,10 +1482,6 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp map_fetch_string(_map, _key, reason) do
-    {:error, reason}
-  end
-
   defp map_fetch_map(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
       value when is_map(value) -> {:ok, value}
@@ -1509,19 +1489,11 @@ defmodule Elektrine.Bluesky do
     end
   end
 
-  defp map_fetch_map(_map, _key, reason) do
-    {:error, reason}
-  end
-
   defp map_fetch_list(map, key, reason) when is_map(map) do
     case Map.get(map, key) do
       value when is_list(value) -> {:ok, value}
       _ -> {:error, reason}
     end
-  end
-
-  defp map_fetch_list(_map, _key, reason) do
-    {:error, reason}
   end
 
   defp fetch_mirrored_subject_message(message_id) when is_integer(message_id) do
@@ -1540,10 +1512,6 @@ defmodule Elektrine.Bluesky do
       nil ->
         {:skip, :message_not_found}
     end
-  end
-
-  defp fetch_mirrored_subject_message(_) do
-    {:skip, :message_not_found}
   end
 
   defp parse_at_uri("at://" <> rest) do

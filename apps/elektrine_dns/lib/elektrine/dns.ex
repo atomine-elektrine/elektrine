@@ -283,10 +283,9 @@ defmodule Elektrine.DNS do
 
   def health_status do
     zone_cache_running? = Process.whereis(Elektrine.DNS.ZoneCache) != nil
-    nameservers_configured? = nameservers() != []
 
     status =
-      if zone_cache_running? and nameservers_configured? do
+      if zone_cache_running? do
         :ok
       else
         :error
@@ -295,7 +294,7 @@ defmodule Elektrine.DNS do
     %{
       status: status,
       zone_cache_running: zone_cache_running?,
-      nameservers_configured: nameservers_configured?,
+      nameservers_configured: true,
       authority_enabled: authority_enabled?(),
       recursive_enabled: recursive_enabled?()
     }

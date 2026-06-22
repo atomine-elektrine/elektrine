@@ -1039,7 +1039,7 @@ defmodule Elektrine.Drive do
 
     normalized =
       if value == "",
-        do: MIME.from_path(filename || "") || "application/octet-stream",
+        do: MIME.from_path(filename || ""),
         else: value
 
     if active_content_type?(normalized), do: "application/octet-stream", else: normalized

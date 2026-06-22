@@ -21,22 +21,20 @@ defmodule Elektrine.Email.Receiver do
            {:ok, message} <- store_incoming_message(mailbox, params) do
         message = apply_user_filters(message, mailbox.user_id)
 
-        if mailbox do
-          Phoenix.PubSub.broadcast!(
-            Elektrine.PubSub,
-            "user:#{mailbox.user_id}",
-            {:new_email, message}
-          )
+        Phoenix.PubSub.broadcast!(
+          Elektrine.PubSub,
+          "user:#{mailbox.user_id}",
+          {:new_email, message}
+        )
 
-          Phoenix.PubSub.broadcast!(
-            Elektrine.PubSub,
-            "mailbox:#{mailbox.id}",
-            {:new_email, message}
-          )
+        Phoenix.PubSub.broadcast!(
+          Elektrine.PubSub,
+          "mailbox:#{mailbox.id}",
+          {:new_email, message}
+        )
 
-          if Mailbox.auto_reply_enabled?(mailbox) do
-            Elektrine.Async.run(fn -> Email.process_auto_reply(message, mailbox.user_id) end)
-          end
+        if Mailbox.auto_reply_enabled?(mailbox) do
+          Elektrine.Async.run(fn -> Email.process_auto_reply(message, mailbox.user_id) end)
         end
 
         duration = System.monotonic_time(:millisecond) - started_at
@@ -641,10 +639,6 @@ defmodule Elektrine.Email.Receiver do
 
   defp prepare_private_attachments(_) do
     %{}
-  end
-
-  defp decode_attachment_filename(nil) do
-    "attachment"
   end
 
   defp decode_attachment_filename("") do

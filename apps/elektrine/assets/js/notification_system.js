@@ -384,11 +384,11 @@ export function showKeyboardShortcuts() {
 
   const modal = document.createElement('div')
   modal.id = 'keyboard-shortcuts-modal'
-  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
+  modal.className = 'shortcut-overlay fixed inset-0 flex items-center justify-center z-50'
 
   // Create modal content container
   const modalContent = document.createElement('div')
-  modalContent.className = 'bg-base-100 rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto'
+  modalContent.className = 'shortcut-dialog rounded-lg p-6 max-w-2xl w-full mx-4 max-h-96 overflow-y-auto'
   modalContent.innerHTML = `
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Keyboard Shortcuts</h2>
@@ -461,7 +461,7 @@ export function showKeyboardShortcuts() {
       </div>
     </div>
 
-    <div class="mt-6 p-4 bg-base-200 rounded-lg">
+    <div class="shortcut-panel mt-6 p-4 rounded-lg">
       <h4 class="font-semibold mb-2">Go to shortcuts (press 'g' then):</h4>
       <div class="grid grid-cols-2 gap-2 text-sm">
         <div><kbd class="kbd kbd-xs">i</kbd> Inbox</div>

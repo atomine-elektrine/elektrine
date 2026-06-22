@@ -2916,8 +2916,6 @@ defmodule ArblargWeb.ChatLive.Index do
     if content != "", do: content, else: fallback_message_label(message)
   end
 
-  defp message_display_content(_), do: ""
-
   defp fallback_message_text(nil, message), do: map_message_value(message, :body)
   defp fallback_message_text("", message), do: map_message_value(message, :body)
   defp fallback_message_text(content, _message), do: content
@@ -2982,9 +2980,7 @@ defmodule ArblargWeb.ChatLive.Index do
 
   defp message_sender(_), do: %{}
 
-  defp sender_name(%Ecto.Association.NotLoaded{}), do: HandleFormatter.handle(nil)
   defp sender_name(sender) when is_map(sender), do: HandleFormatter.handle(sender)
-  defp sender_name(_), do: HandleFormatter.handle(nil)
 
   defp message_sender_name(message), do: message |> message_sender() |> sender_name()
 
@@ -3303,8 +3299,6 @@ defmodule ArblargWeb.ChatLive.Index do
       _ -> :error
     end
   end
-
-  defp normalize_remote_dm_handle_query(_), do: :error
 
   defp remote_dm_search_result(remote_handle) do
     [username, _domain] = String.split(remote_handle, "@", parts: 2)

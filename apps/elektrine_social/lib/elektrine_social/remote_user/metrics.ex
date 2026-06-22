@@ -183,12 +183,6 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
       {:ok, count} when is_integer(count) ->
         max(count, 0)
 
-      {:ok, count} when is_binary(count) ->
-        case Integer.parse(String.trim(count)) do
-          {n, _} -> max(n, 0)
-          :error -> 0
-        end
-
       _ ->
         0
     end
@@ -209,8 +203,6 @@ defmodule ElektrineSocial.RemoteUser.Metrics do
       posts: get_status_count(metadata || %{})
     }
   end
-
-  defp community_stats_from_actor(_), do: %{members: 0, posts: 0}
 
   defp merge_community_stats(current, incoming) do
     %{

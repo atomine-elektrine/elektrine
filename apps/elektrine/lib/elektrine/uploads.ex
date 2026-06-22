@@ -528,8 +528,9 @@ defmodule Elektrine.Uploads do
 
   defp validate_favicon_upload(%Plug.Upload{} = upload, user_id) do
     with :ok <- validate_file_size(upload, :favicon, user_id),
-         :ok <- validate_file_type(upload, @favicon_mime_types) do
-      validate_file_extension(upload, @favicon_extensions)
+         :ok <- validate_file_type(upload, @favicon_mime_types),
+         :ok <- validate_file_extension(upload, @favicon_extensions) do
+      validate_favicon_content(upload)
     end
   end
 
@@ -622,6 +623,13 @@ defmodule Elektrine.Uploads do
   end
 
   defp validate_attachment_content(%Plug.Upload{} = upload) do
+    with {:ok, content} <- File.read(upload.path),
+         :ok <- validate_magic_bytes(content, upload.content_type) do
+      scan_for_malicious_content(content)
+    end
+  end
+
+  defp validate_favicon_content(%Plug.Upload{} = upload) do
     with {:ok, content} <- File.read(upload.path),
          :ok <- validate_magic_bytes(content, upload.content_type) do
       scan_for_malicious_content(content)

@@ -291,8 +291,6 @@ defmodule Elektrine.ActivityPub.HTTPSignature do
     end
   end
 
-  defp host_header_value(%URI{host: host}) when is_binary(host), do: host
-
   defp default_port?("http", 80), do: true
   defp default_port?("https", 443), do: true
   defp default_port?(_, _), do: false

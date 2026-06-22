@@ -155,8 +155,6 @@ defmodule ArblargWeb.ChatLive.Operations.DirectMessageOperations do
     end
   end
 
-  defp normalize_remote_handle(_), do: :error
-
   defp remote_search_result(remote_handle) do
     [username, _domain] = String.split(remote_handle, "@", parts: 2)
 

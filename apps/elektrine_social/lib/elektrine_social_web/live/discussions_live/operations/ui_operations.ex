@@ -213,47 +213,9 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.UiOperations do
      |> assign(:modal_post, modal_post)}
   end
 
-  def handle_event("close_image_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, false)
-     |> assign(:modal_image_url, nil)
-     |> assign(:modal_images, [])
-     |> assign(:modal_image_index, 0)
-     |> assign(:modal_post, nil)}
-  end
-
-  def handle_event("next_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index + 1, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-
-    if total > 0 do
-      new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-      new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-      {:noreply,
-       socket
-       |> assign(:modal_image_index, new_index)
-       |> assign(:modal_image_url, new_url)}
-    else
-      {:noreply, socket}
-    end
-  end
+  # close_image_modal / next_image / prev_image are delegated to the shared
+  # ElektrineSocialWeb.TimelineLive.Operations.ImageOperations via the router,
+  # since they only operate on the canonical modal-state assigns.
 
   def handle_event("next_media_post", _params, socket) do
     navigate_to_media_post(socket, :next)

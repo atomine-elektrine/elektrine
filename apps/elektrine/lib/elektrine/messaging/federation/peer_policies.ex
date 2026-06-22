@@ -352,8 +352,6 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
     |> Map.new()
   end
 
-  defp normalize_peer_policy_attrs(_), do: %{}
-
   defp maybe_put_updated_by(attrs, updated_by_id)
        when is_map(attrs) and is_integer(updated_by_id) do
     Map.put(attrs, :updated_by_id, updated_by_id)
@@ -391,7 +389,6 @@ defmodule Elektrine.Messaging.Federation.PeerPolicies do
   defp normalize_optional_boolean("0", _missing), do: false
   defp normalize_optional_boolean("inherit", _missing), do: nil
   defp normalize_optional_boolean("", _missing), do: nil
-  defp normalize_optional_boolean(value, missing) when value == missing, do: missing
   defp normalize_optional_boolean(_value, _missing), do: nil
 
   defp normalize_reason(:__missing__), do: :__missing__

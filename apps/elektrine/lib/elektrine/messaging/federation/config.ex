@@ -448,8 +448,6 @@ defmodule Elektrine.Messaging.Federation.Config do
     end
   end
 
-  defp valid_peer_base_url?(_, _), do: false
-
   defp normalize_peer_features(features) when is_map(features) do
     normalize_peer_capability_document(features)
   end

@@ -183,8 +183,6 @@ defmodule Elektrine.Accounts.AppPassword do
   defp legacy_sha256_hash?(token_hash) when is_binary(token_hash),
     do: String.match?(token_hash, ~r/\A[0-9a-f]{64}\z/)
 
-  defp legacy_sha256_hash?(_), do: false
-
   defp verify_argon2_token(token, token_hash) do
     case argon2_hash_body(token_hash) do
       nil ->

@@ -84,8 +84,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
     has_reply_to_content? || present_binary?(metadata_in_reply_to_content(post))
   end
 
-  defp reply_preview_available?(_), do: false
-
   defp preview_for_ref(ref) when is_binary(ref) do
     case Messaging.get_message_by_activitypub_ref(ref) do
       %Message{} = message ->
@@ -148,8 +146,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
   defp put_post_metadata(post, metadata) when is_map(post),
     do: Map.put(post, :media_metadata, metadata)
 
-  defp put_post_metadata(post, _metadata), do: post
-
   defp put_metadata_if_blank(metadata, _key, nil), do: metadata
 
   defp put_metadata_if_blank(metadata, key, value) when is_binary(value) do
@@ -194,8 +190,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
         metadata[:in_reply_to_content]
     end
   end
-
-  defp metadata_in_reply_to_content(_), do: nil
 
   defp normalize_ref(%{"id" => id}), do: normalize_ref(id)
   defp normalize_ref(%{"href" => href}), do: normalize_ref(href)
@@ -258,8 +252,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
     end
   end
 
-  defp extract_author_from_url(_), do: nil
-
   defp extract_username_from_path(path) when is_binary(path) do
     case path_segments(path) do
       ["users", username | _] ->
@@ -277,8 +269,6 @@ defmodule ElektrineSocialWeb.TimelineLive.ReplyContextPreviews do
         nil
     end
   end
-
-  defp extract_username_from_path(_), do: nil
 
   defp path_segments(path) when is_binary(path) do
     path

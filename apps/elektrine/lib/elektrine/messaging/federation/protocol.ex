@@ -248,8 +248,6 @@ defmodule Elektrine.Messaging.Federation.Protocol do
     end
   end
 
-  defp session_websocket_url(_base_url, _allow_insecure_transport), do: nil
-
   defp discovery_features do
     %{
       "relay_transport" => true,

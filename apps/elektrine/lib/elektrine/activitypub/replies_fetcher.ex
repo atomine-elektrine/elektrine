@@ -106,9 +106,6 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
 
                 {:error, _reason} ->
                   fetch_and_store_replies_via_fallback(post_object, message.id, opts)
-
-                result ->
-                  result
               end
 
             {:error, _reason} ->
@@ -762,8 +759,6 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
     end
   end
 
-  defp mastodon_status_actor_ref(_), do: nil
-
   defp fallback_remote_actor(%{"_account" => account}, actor_uri) when is_map(account) do
     create_or_get_fallback_actor(actor_uri, account)
   end
@@ -843,10 +838,7 @@ defmodule Elektrine.ActivityPub.RepliesFetcher do
   defp actor_domain_from_uri(_), do: nil
 
   defp fallback_actor_inbox(actor_uri) when is_binary(actor_uri), do: actor_uri <> "/inbox"
-  defp fallback_actor_inbox(_), do: nil
-
   defp fallback_actor_outbox(actor_uri) when is_binary(actor_uri), do: actor_uri <> "/outbox"
-  defp fallback_actor_outbox(_), do: nil
 
   defp normalize_mastodon_profile_url(url) when is_binary(url) do
     case URI.parse(String.trim(url)) do

@@ -621,7 +621,11 @@ defmodule Atomine.Attestations do
 
   defp signing_secret do
     System.get_env("ATOMINE_ATTESTATION_SECRET") || Elektrine.RuntimeSecrets.secret_key_base() ||
-      "atomine-dev-attestation-secret"
+      if Elektrine.RuntimeEnv.dev_or_test?() do
+        "atomine-dev-attestation-secret"
+      else
+        raise "attestation signing secret is not configured"
+      end
   end
 
   defp issuer do

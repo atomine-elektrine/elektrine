@@ -88,15 +88,6 @@ defmodule ElektrineWeb.API.GlobalSearchController do
 
         {:error, :unauthorized} ->
           Response.error(conn, :unauthorized, "unauthorized", "Unauthorized")
-
-        {:error, reason} ->
-          Response.error(
-            conn,
-            :unprocessable_entity,
-            "action_execution_failed",
-            "Action execution failed",
-            inspect(reason)
-          )
       end
     else
       Response.error(

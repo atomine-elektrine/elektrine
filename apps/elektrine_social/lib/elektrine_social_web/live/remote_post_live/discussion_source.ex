@@ -148,8 +148,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.DiscussionSource do
     end
   end
 
-  defp community_path_uri?(_), do: false
-
   defp user_actor_uri?(uri) when is_binary(uri) do
     case URI.parse(uri) do
       %URI{path: path} when is_binary(path) ->
@@ -160,8 +158,6 @@ defmodule ElektrineSocialWeb.RemotePostLive.DiscussionSource do
         false
     end
   end
-
-  defp user_actor_uri?(_), do: false
 
   defp field_value(nil, _keys), do: nil
 

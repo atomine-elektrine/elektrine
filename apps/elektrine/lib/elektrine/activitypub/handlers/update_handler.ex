@@ -331,8 +331,6 @@ defmodule Elektrine.ActivityPub.Handlers.UpdateHandler do
     |> String.trim_trailing("/")
   end
 
-  defp normalize_uri(_), do: nil
-
   defp inherit_wrapper_fields(activity, object) when is_map(activity) and is_map(object) do
     ["to", "cc", "audience", "published"]
     |> Enum.reduce(object, fn field, acc ->

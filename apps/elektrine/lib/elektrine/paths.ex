@@ -376,8 +376,6 @@ defmodule Elektrine.Paths do
     end
   end
 
-  defp external_url?(_), do: false
-
   defp with_query(path, params) when is_binary(path) and is_list(params) do
     query = URI.encode_query(params)
     if query == "", do: path, else: path <> "?" <> query

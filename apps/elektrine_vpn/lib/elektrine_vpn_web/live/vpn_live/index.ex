@@ -39,8 +39,8 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
             else: VPN.list_active_servers_for_user(user.trust_level)
 
         # Set timezone and time_format from user preferences
-        timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
-        time_format = if user && user.time_format, do: user.time_format, else: "12"
+        timezone = user.timezone || "Etc/UTC"
+        time_format = user.time_format || "12"
 
         {:ok,
          socket
@@ -57,117 +57,137 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
   end
 
   @impl true
-  def handle_event("create_config", %{"server_id" => server_id}, socket) do
+  def handle_event("create_config", %{"server_id" => server_id_param}, socket) do
     user = socket.assigns.current_user
-    server_id = String.to_integer(server_id)
 
-    case VPN.create_user_config(user.id, server_id) do
-      {:ok, _config} ->
-        # Reload configs
-        user_configs = VPN.list_user_configs(user.id)
+    case parse_id(server_id_param) do
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid server.")}
 
-        {:noreply,
-         socket
-         |> assign(:user_configs, user_configs)
-         |> put_flash(:info, "VPN configuration created successfully!")}
+      {:ok, server_id} ->
+        case VPN.create_user_config(user.id, server_id) do
+          {:ok, _config} ->
+            # Reload configs
+            user_configs = VPN.list_user_configs(user.id)
 
-      {:error, :server_not_active} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "This server is not currently active.")}
+            {:noreply,
+             socket
+             |> assign(:user_configs, user_configs)
+             |> put_flash(:info, "VPN configuration created successfully!")}
 
-      {:error, :insufficient_trust_level} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "You do not have access to this VPN server.")}
+          {:error, :server_not_active} ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "This server is not currently active.")}
 
-      {:error, :no_available_ips} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "No available IP addresses on this server. Contact support.")}
+          {:error, :insufficient_trust_level} ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "You do not have access to this VPN server.")}
 
-      {:error, changeset} ->
-        errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, _opts} -> msg end)
-        error_msg = inspect(errors)
+          {:error, :no_available_ips} ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "No available IP addresses on this server. Contact support.")}
 
-        {:noreply,
-         socket
-         |> put_flash(:error, "Failed to create configuration: #{error_msg}")}
+          {:error, changeset} ->
+            errors = Ecto.Changeset.traverse_errors(changeset, fn {msg, _opts} -> msg end)
+            error_msg = inspect(errors)
+
+            {:noreply,
+             socket
+             |> put_flash(:error, "Failed to create configuration: #{error_msg}")}
+        end
     end
   end
 
-  def handle_event("delete_config", %{"config_id" => config_id}, socket) do
-    config_id = String.to_integer(config_id)
-    config = VPN.get_user_config!(config_id)
+  def handle_event("delete_config", %{"config_id" => config_id_param}, socket) do
+    case parse_id(config_id_param) do
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid configuration.")}
 
-    # Verify ownership
-    if config.user_id == socket.assigns.current_user.id do
-      case VPN.delete_user_config(config) do
-        {:ok, _} ->
-          user_configs = VPN.list_user_configs(socket.assigns.current_user.id)
+      {:ok, config_id} ->
+        config = VPN.get_user_config!(config_id)
+
+        # Verify ownership
+        if config.user_id == socket.assigns.current_user.id do
+          case VPN.delete_user_config(config) do
+            {:ok, _} ->
+              user_configs = VPN.list_user_configs(socket.assigns.current_user.id)
+
+              {:noreply,
+               socket
+               |> assign(:user_configs, user_configs)
+               |> put_flash(:info, "VPN configuration deleted")}
+
+            {:error, _} ->
+              {:noreply,
+               socket
+               |> put_flash(:error, "Failed to delete configuration")}
+          end
+        else
+          {:noreply,
+           socket
+           |> put_flash(:error, "Unauthorized")}
+        end
+    end
+  end
+
+  def handle_event("download_config", %{"config_id" => config_id_param}, socket) do
+    case parse_id(config_id_param) do
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid configuration.")}
+
+      {:ok, config_id} ->
+        config = VPN.get_user_config!(config_id)
+
+        # Verify ownership
+        if config.user_id == socket.assigns.current_user.id do
+          config_content = VPN.generate_config_file(config)
 
           {:noreply,
            socket
-           |> assign(:user_configs, user_configs)
-           |> put_flash(:info, "VPN configuration deleted")}
-
-        {:error, _} ->
+           |> push_event("download_config", %{
+             filename: VPN.config_download_filename(config),
+             content: config_content
+           })}
+        else
           {:noreply,
            socket
-           |> put_flash(:error, "Failed to delete configuration")}
-      end
-    else
-      {:noreply,
-       socket
-       |> put_flash(:error, "Unauthorized")}
+           |> put_flash(:error, "Unauthorized")}
+        end
     end
   end
 
-  def handle_event("download_config", %{"config_id" => config_id}, socket) do
-    config_id = String.to_integer(config_id)
-    config = VPN.get_user_config!(config_id)
+  def handle_event("show_qr_code", %{"config_id" => config_id_param}, socket) do
+    case parse_id(config_id_param) do
+      :error ->
+        {:noreply, put_flash(socket, :error, "Invalid configuration.")}
 
-    # Verify ownership
-    if config.user_id == socket.assigns.current_user.id do
-      config_content = VPN.generate_config_file(config)
+      {:ok, config_id} ->
+        config = VPN.get_user_config!(config_id)
 
-      {:noreply,
-       socket
-       |> push_event("download_config", %{
-         filename: VPN.config_download_filename(config),
-         content: config_content
-       })}
-    else
-      {:noreply,
-       socket
-       |> put_flash(:error, "Unauthorized")}
-    end
-  end
+        # Verify ownership
+        if config.user_id == socket.assigns.current_user.id do
+          # Generate QR code for mobile devices
+          config_content = VPN.generate_config_file(config)
 
-  def handle_event("show_qr_code", %{"config_id" => config_id}, socket) do
-    config_id = String.to_integer(config_id)
-    config = VPN.get_user_config!(config_id)
+          qr_code =
+            config_content
+            |> EQRCode.encode()
+            |> EQRCode.svg(width: 300)
 
-    # Verify ownership
-    if config.user_id == socket.assigns.current_user.id do
-      # Generate QR code for mobile devices
-      config_content = VPN.generate_config_file(config)
-
-      qr_code =
-        config_content
-        |> EQRCode.encode()
-        |> EQRCode.svg(width: 300)
-
-      {:noreply,
-       socket
-       |> assign(:show_qr_modal, true)
-       |> assign(:qr_code_svg, qr_code)
-       |> assign(:qr_config, config)
-       |> assign(:qr_config_name, config.vpn_server.name)}
-    else
-      {:noreply,
-       socket
-       |> put_flash(:error, "Unauthorized")}
+          {:noreply,
+           socket
+           |> assign(:show_qr_modal, true)
+           |> assign(:qr_code_svg, qr_code)
+           |> assign(:qr_config, config)
+           |> assign(:qr_config_name, config.vpn_server.name)}
+        else
+          {:noreply,
+           socket
+           |> put_flash(:error, "Unauthorized")}
+        end
     end
   end
 
@@ -181,6 +201,19 @@ defmodule ElektrineVPNWeb.VPNLive.Index do
   end
 
   # Helper functions for the template
+
+  # Safely parse a user-supplied id param. Rejects non-integer/garbage input
+  # (e.g. "abc", "1; drop", "") so it can't crash the LiveView with an
+  # ArgumentError from String.to_integer/1.
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} -> {:ok, int}
+      _ -> :error
+    end
+  end
+
+  defp parse_id(value) when is_integer(value), do: {:ok, value}
+  defp parse_id(_), do: :error
 
   defp format_bytes(bytes) when is_integer(bytes) do
     cond do

@@ -276,7 +276,8 @@ oban_queues =
         webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 1),
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 1),
-        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 1)
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 1),
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 1)
       ]
 
     oban_db_pool_size <= 10 ->
@@ -291,7 +292,8 @@ oban_queues =
         webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 1),
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 1),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
-        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 2)
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 2),
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 2)
       ]
 
     true ->
@@ -306,7 +308,8 @@ oban_queues =
         webhooks: oban_queue_override.("OBAN_QUEUE_WEBHOOKS", 2),
         federation_metadata: oban_queue_override.("OBAN_QUEUE_FEDERATION_METADATA", 2),
         federation: oban_queue_override.("OBAN_QUEUE_FEDERATION", 2),
-        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 4)
+        messaging_federation: oban_queue_override.("OBAN_QUEUE_MESSAGING_FEDERATION", 4),
+        uptime: oban_queue_override.("OBAN_QUEUE_UPTIME", 4)
       ]
   end
 
@@ -1092,7 +1095,18 @@ if config_env() == :prod do
       """
 
   session_signing_salt =
-    RuntimeSecrets.session_signing_salt(runtime_env) || "chat_auth_signing_salt"
+    RuntimeSecrets.session_signing_salt(runtime_env) ||
+      raise """
+      one of SESSION_SIGNING_SALT or ELEKTRINE_MASTER_SECRET must be set.
+      ELEKTRINE_MASTER_SECRET is required when deriving internal runtime secrets.
+      """
+
+  RuntimeSecrets.session_encryption_salt(runtime_env) ||
+    raise """
+    one of SESSION_ENCRYPTION_SALT or ELEKTRINE_MASTER_SECRET must be set.
+    Without a session encryption salt the session cookie would be signed but
+    not encrypted in production.
+    """
 
   present? = fn value -> is_binary(value) and String.trim(value) != "" end
 

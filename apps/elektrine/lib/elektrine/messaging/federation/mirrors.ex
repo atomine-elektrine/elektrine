@@ -424,21 +424,15 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
     end
   end
 
-  defp event_channel_payload(_data), do: nil
-
   defp event_server_id(data) when is_map(data) do
     refs = data["refs"] || %{}
     get_in(data, ["server", "id"]) || refs["server_id"]
   end
 
-  defp event_server_id(_data), do: nil
-
   defp event_channel_id(data) when is_map(data) do
     refs = data["refs"] || %{}
     get_in(data, ["channel", "id"]) || refs["channel_id"]
   end
-
-  defp event_channel_id(_data), do: nil
 
   defp event_room_origin_domain(data) when is_map(data) do
     server_host = data |> event_server_id() |> uri_host()
@@ -461,8 +455,6 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
         nil
     end
   end
-
-  defp event_room_origin_domain(_data), do: nil
 
   defp room_authority_domain(%Server{} = server, data) when is_map(data) do
     normalize_domain(
@@ -548,9 +540,6 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
     end
   end
 
-  defp resolve_existing_channel_context(_server_id, _channel_id),
-    do: {:error, :invalid_event_payload}
-
   defp resolve_channel_by_federation_id(channel_id) when is_binary(channel_id) do
     case Repo.get_by(ChatConversation, type: "channel", federated_source: channel_id) do
       %ChatConversation{} = channel ->
@@ -569,8 +558,6 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
         end
     end
   end
-
-  defp resolve_channel_by_federation_id(_channel_id), do: nil
 
   defp server_matches_identifier?(%Server{} = server, identifier) when is_binary(identifier) do
     normalize_identifier(server.federation_id || server_federation_id(server.id)) ==
@@ -611,8 +598,6 @@ defmodule Elektrine.Messaging.Federation.Mirrors do
     normalized_host == local_domain or
       String.ends_with?(normalized_host, "." <> local_domain)
   end
-
-  defp host_belongs_to_local_domain?(_host), do: false
 
   defp message_origin_domain(payload, fallback_domain)
        when is_map(payload) and is_binary(fallback_domain) do

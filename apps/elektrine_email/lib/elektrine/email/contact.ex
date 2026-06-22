@@ -80,7 +80,7 @@ defmodule Elektrine.Email.Contact do
   """
   def changeset(contact, attrs) do
     contact
-    |> cast(attrs, [:user_id, :name, :email, :phone, :organization, :notes, :favorite, :group_id])
+    |> cast(attrs, [:name, :email, :phone, :organization, :notes, :favorite, :group_id])
     |> validate_required([:user_id, :name, :email])
     |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/)
     |> validate_length(:name, max: 255)

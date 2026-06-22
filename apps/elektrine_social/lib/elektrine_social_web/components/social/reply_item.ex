@@ -461,8 +461,6 @@ defmodule ElektrineSocialWeb.Components.Social.ReplyItem do
     end
   end
 
-  defp format_timestamp(nil), do: nil
-
   defp format_timestamp(datetime) do
     Integrations.social_time_ago(datetime)
   end

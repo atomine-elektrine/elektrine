@@ -1,6 +1,5 @@
 defmodule ElektrineWeb.UserSocket do
   use Phoenix.Socket
-  require Logger
 
   alias Elektrine.Accounts
   alias Elektrine.Accounts.Authentication

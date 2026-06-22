@@ -186,16 +186,11 @@ defmodule ElektrineWeb.MessagingFederationController do
   end
 
   defp base_url_for_origin_domain(origin_domain) when is_binary(origin_domain) do
-    case URI.parse(Runtime.local_base_url()) do
-      %URI{} = uri ->
-        uri
-        |> Map.put(:host, origin_domain)
-        |> URI.to_string()
-        |> String.trim_trailing("/")
-
-      _ ->
-        "https://#{origin_domain}"
-    end
+    Runtime.local_base_url()
+    |> URI.parse()
+    |> Map.put(:host, origin_domain)
+    |> URI.to_string()
+    |> String.trim_trailing("/")
   end
 
   defp put_cache_headers(conn, payload, cache_control) do

@@ -597,7 +597,7 @@ defmodule Atomine.Personhood do
 
   defp fetch_gist_raw_file(raw_url) do
     with {:ok, uri} <- safe_web_proof_uri(raw_url),
-         "gist.githubusercontent.com" <- String.downcase(uri.host || ""),
+         "gist.githubusercontent.com" <- String.downcase(uri.host),
          {:ok, body} <- fetch_web_proof(uri) do
       [body]
     else

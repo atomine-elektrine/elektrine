@@ -144,7 +144,6 @@
                           phx-click="copy_discussion_link"
                           phx-value-message_id={@post.id}
                           type="button"
-                          phx-click="close_dropdown"
                         >
                           <.icon name="hero-link" class="w-4 h-4" /> Copy Link
                         </button>
@@ -170,7 +169,6 @@
                             phx-click="report_discussion"
                             phx-value-message_id={@post.id}
                             type="button"
-                            phx-click="close_dropdown"
                           >
                             <.icon name="hero-flag" class="w-4 h-4" /> Report Post
                           </button>
@@ -191,7 +189,6 @@
                               phx-click="pin_post"
                               phx-value-message_id={@post.id}
                               type="button"
-                              phx-click="close_dropdown"
                             >
                               <.icon name="hero-map-pin" class="w-4 h-4" /> Pin Post
                             </button>
@@ -202,7 +199,6 @@
                               phx-click="unpin_post"
                               phx-value-message_id={@post.id}
                               type="button"
-                              phx-click="close_dropdown"
                             >
                               <.icon name="hero-x-mark" class="w-4 h-4" /> Unpin Post
                             </button>
@@ -214,7 +210,6 @@
                               phx-click="lock_thread"
                               phx-value-message_id={@post.id}
                               type="button"
-                              phx-click="close_dropdown"
                             >
                               <.icon name="hero-lock-closed" class="w-4 h-4" /> Lock Thread
                             </button>
@@ -225,7 +220,6 @@
                               phx-click="unlock_thread"
                               phx-value-message_id={@post.id}
                               type="button"
-                              phx-click="close_dropdown"
                             >
                               <.icon name="hero-lock-open" class="w-4 h-4" /> Unlock Thread
                             </button>
@@ -1236,7 +1230,7 @@
 <!-- Image Modal -->
   <% # Use @post directly since it gets updated on like/unlike
   modal_is_liked = assigns[:liked_by_user] || false
-  modal_like_count = (@post && @post.like_count) || 0 %>
+  modal_like_count = @post.like_count || 0 %>
   <.image_modal
     show={@show_image_modal}
     image_url={@modal_image_url}

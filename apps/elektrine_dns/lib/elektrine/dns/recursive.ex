@@ -17,9 +17,6 @@ defmodule Elektrine.DNS.Recursive do
 
       {:error, :format_error} ->
         Packet.encode_error(packet, :formerr)
-
-      _ ->
-        Packet.encode_error(packet, :servfail)
     end
   end
 

@@ -101,8 +101,8 @@ defmodule ElektrineEmailWeb.EmailController do
             end
 
             # Set timezone and time_format from user preferences
-            timezone = if user && user.timezone, do: user.timezone, else: "Etc/UTC"
-            time_format = if user && user.time_format, do: user.time_format, else: "12"
+            timezone = user.timezone || "Etc/UTC"
+            time_format = user.time_format || "12"
 
             conn
             |> put_layout(false)
@@ -256,8 +256,6 @@ defmodule ElektrineEmailWeb.EmailController do
       plain_text_email_content(content)
     end
   end
-
-  defp normalize_iframe_email_content(content), do: content
 
   defp html_fragment?(content) when is_binary(content) do
     Regex.match?(

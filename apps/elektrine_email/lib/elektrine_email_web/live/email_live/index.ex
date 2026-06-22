@@ -21,8 +21,6 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
   alias Elektrine.Telemetry.Events
   alias ElektrineEmailWeb.EmailLive.Router
 
-  require Logger
-
   @calendar_events [
     "prev_month",
     "next_month",
@@ -445,9 +443,6 @@ defmodule ElektrineEmailWeb.EmailLive.Index do
         )
     end
   end
-
-  defp message_list_count_label(_messages, total_count),
-    do: ngettext("1 result", "%{count} results", total_count, count: total_count)
 
   defp maybe_open_calendar_composer(socket, "calendar", %{"composer" => composer})
        when composer in ["event", "task"] do

@@ -4,7 +4,6 @@ defmodule ElektrineWeb.MobileChannel do
   Provides live updates for emails, notifications, chat, social features, and other events.
   """
   use ElektrineWeb, :channel
-  require Logger
 
   alias Elektrine.{Accounts, Friends, Notifications, Profiles, Uploads}
   alias Elektrine.Messaging, as: Messaging
@@ -638,10 +637,8 @@ defmodule ElektrineWeb.MobileChannel do
   def handle_in("mark_notification_read", %{"id" => id}, socket) do
     user_id = socket.assigns.user_id
 
-    case Notifications.mark_as_read(id, user_id) do
-      :ok -> {:reply, :ok, socket}
-      _ -> {:reply, {:error, %{reason: "not_found"}}, socket}
-    end
+    :ok = Notifications.mark_as_read(id, user_id)
+    {:reply, :ok, socket}
   end
 
   @impl true

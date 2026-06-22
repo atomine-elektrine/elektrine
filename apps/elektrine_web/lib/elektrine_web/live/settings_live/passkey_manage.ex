@@ -236,9 +236,6 @@ defmodule ElektrineWeb.SettingsLive.PasskeyManage do
         {:error, :passkey_limit_reached} ->
           {:noreply,
            assign(socket, :error, gettext("You have reached the maximum number of passkeys"))}
-
-        {:error, _reason} ->
-          {:noreply, assign(socket, :error, gettext("Failed to start passkey registration"))}
       end
     else
       {:noreply,

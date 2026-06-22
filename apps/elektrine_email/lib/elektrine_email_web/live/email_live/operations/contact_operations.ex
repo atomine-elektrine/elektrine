@@ -27,7 +27,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ContactOperations do
   end
 
   def handle_event("edit_contact", %{"id" => id}, socket) do
-    contact = Elektrine.Email.Contacts.get_contact!(id)
+    contact = Elektrine.Email.Contacts.get_contact!(socket.assigns.current_user.id, id)
     {:noreply, assign(socket, show_contact_modal: true, editing_contact: contact)}
   end
 
@@ -71,7 +71,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ContactOperations do
   end
 
   def handle_event("delete_contact", %{"id" => id}, socket) do
-    contact = Elektrine.Email.Contacts.get_contact!(id)
+    contact = Elektrine.Email.Contacts.get_contact!(socket.assigns.current_user.id, id)
 
     case Elektrine.Email.Contacts.delete_contact(contact) do
       {:ok, _} ->
@@ -89,7 +89,7 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ContactOperations do
   end
 
   def handle_event("toggle_favorite", %{"id" => id}, socket) do
-    contact = Elektrine.Email.Contacts.get_contact!(id)
+    contact = Elektrine.Email.Contacts.get_contact!(socket.assigns.current_user.id, id)
     {:ok, _} = Elektrine.Email.Contacts.toggle_favorite(contact)
     contacts = Elektrine.Email.Contacts.list_contacts(socket.assigns.current_user.id)
     {:noreply, assign(socket, :contacts, contacts)}

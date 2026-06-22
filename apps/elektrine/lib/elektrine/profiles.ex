@@ -1508,28 +1508,19 @@ defmodule Elektrine.Profiles do
            |> Repo.insert() do
         {:ok, follow} ->
           # Send to remote inbox
-          publish_result =
+          {:ok, _activity_record} =
             Elektrine.ActivityPub.Publisher.publish(follow_activity, follower, [
               remote_actor.inbox_url
             ])
 
-          case publish_result do
-            {:ok, _activity_record} ->
-              Logger.info(
-                "Successfully sent Follow to #{remote_actor.username}@#{remote_actor.domain}"
-              )
+          Logger.info(
+            "Successfully sent Follow to #{remote_actor.username}@#{remote_actor.domain}"
+          )
 
-              maybe_join_remote_group_mirror(follower_id, remote_actor)
-              maybe_trigger_community_fetch(remote_actor)
+          maybe_join_remote_group_mirror(follower_id, remote_actor)
+          maybe_trigger_community_fetch(remote_actor)
 
-              {:ok, follow}
-
-            unexpected ->
-              Logger.error("Unexpected return from Publisher.publish: #{inspect(unexpected)}")
-              # Clean up the follow record
-              Repo.delete(follow)
-              {:error, :unexpected_response}
-          end
+          {:ok, follow}
 
         {:error, changeset} ->
           Logger.error("Failed to create follow record: #{inspect(changeset)}")
@@ -1624,7 +1615,6 @@ defmodule Elektrine.Profiles do
       {:ok, :unfollowed}
     else
       nil -> {:error, :not_following}
-      error -> error
     end
   end
 

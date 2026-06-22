@@ -12,6 +12,8 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostRouter do
     VotingOperations
   }
 
+  alias ElektrineSocialWeb.TimelineLive.Operations.ImageOperations
+
   def route_event(event_name, params, socket) do
     case event_name do
       # Reply Operations
@@ -154,13 +156,13 @@ defmodule ElektrineSocialWeb.DiscussionsLive.PostRouter do
         UIOperations.handle_event(event_name, params, socket)
 
       "close_image_modal" ->
-        UIOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       "next_image" ->
-        UIOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       "prev_image" ->
-        UIOperations.handle_event(event_name, params, socket)
+        ImageOperations.handle_event(event_name, params, socket)
 
       _ ->
         Logger.warning("Unknown event in DiscussionsLive.Post: #{event_name}")

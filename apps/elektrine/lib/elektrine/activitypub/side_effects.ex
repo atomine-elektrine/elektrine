@@ -12,8 +12,6 @@ defmodule Elektrine.ActivityPub.SideEffects do
   separating the "what happened" from the "what should happen next".
   """
 
-  require Logger
-
   alias Elektrine.Async
   alias Elektrine.Notifications.FederationNotifications
 

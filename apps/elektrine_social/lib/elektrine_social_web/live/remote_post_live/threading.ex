@@ -109,8 +109,8 @@ defmodule ElektrineSocialWeb.RemotePostLive.Threading do
   end
 
   defp get_reply_score(reply) do
-    likes = APHelpers.get_collection_total(reply["likes"]) || 0
-    dislikes = APHelpers.get_collection_total(reply["dislikes"]) || 0
+    likes = APHelpers.get_collection_total(reply["likes"])
+    dislikes = APHelpers.get_collection_total(reply["dislikes"])
     likes - dislikes
   end
 

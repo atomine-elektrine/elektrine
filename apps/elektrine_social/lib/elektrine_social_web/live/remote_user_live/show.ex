@@ -2225,35 +2225,11 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
      |> assign(:modal_post, modal_post)}
   end
 
-  def handle_event("close_image_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, false)
-     |> assign(:modal_image_url, nil)
-     |> assign(:modal_images, [])
-     |> assign(:modal_image_index, 0)
-     |> assign(:modal_post, nil)}
-  end
-
-  def handle_event("next_image", _params, socket) do
-    new_index = rem(socket.assigns.modal_image_index + 1, length(socket.assigns.modal_images))
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    total = length(socket.assigns.modal_images)
-    new_index = rem(socket.assigns.modal_image_index - 1 + total, total)
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+  # close_image_modal / next_image / prev_image only touch the canonical modal-state
+  # assigns, so delegate to the shared image-modal handlers.
+  def handle_event(event, params, socket)
+      when event in ["close_image_modal", "next_image", "prev_image"] do
+    ElektrineSocialWeb.TimelineLive.Operations.ImageOperations.handle_event(event, params, socket)
   end
 
   def handle_event("next_media_post", _params, socket) do
@@ -2553,8 +2529,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     (stats[:members] || 0) > 0 || (stats[:posts] || 0) > 0
   end
 
-  defp community_stats_ready?(_), do: false
-
   defp maybe_schedule_remote_relationship_counts(socket, remote_actor) do
     if connected?(socket) && remote_relationship_counts_stale?(remote_actor) do
       send(self(), {:load_remote_relationship_counts, remote_actor.id})
@@ -2744,8 +2718,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq_by(& &1.id)
   end
-
-  defp messages_for_local_state(_), do: []
 
   defp shared_message_for_state(%{shared_message: %Ecto.Association.NotLoaded{}}), do: nil
 
@@ -2991,8 +2963,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
     |> Enum.map(fn {_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
   end
 
-  defp group_reply_chains(posts), do: posts
-
   defp choose_thread_representative([post]), do: post
 
   defp choose_thread_representative(grouped_posts) do
@@ -3036,9 +3006,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
 
       is_map(post) ->
         normalize_thread_ref(post["inReplyTo"])
-
-      true ->
-        nil
     end
   end
 
@@ -3056,7 +3023,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
   defp post_group_id(_post), do: nil
 
   defp map_string_key(post, key) when is_map(post), do: Map.get(post, key)
-  defp map_string_key(_post, _key), do: nil
 
   defp get_post_activity(post) when is_map(post) do
     cond do
@@ -3399,8 +3365,6 @@ defmodule ElektrineSocialWeb.RemoteUserLive.Show do
       Map.get(post_interactions || %{}, key) || Map.get(post_interactions || %{}, to_string(key))
     end) || PostInteractions.default_interaction_state()
   end
-
-  defp interaction_state_for_remote_post(_, _), do: PostInteractions.default_interaction_state()
 
   defp put_remote_post_interaction_state(post_interactions, interaction_key, message, state) do
     [interaction_key, message.activitypub_id, Integer.to_string(message.id), message.id]

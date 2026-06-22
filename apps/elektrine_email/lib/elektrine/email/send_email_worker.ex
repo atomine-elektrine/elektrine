@@ -154,7 +154,6 @@ defmodule Elektrine.Email.SendEmailWorker do
   defp load_submission(_submission_id), do: :none
 
   defp reconcile_submission_success(:none, _result), do: :ok
-  defp reconcile_submission_success(nil, _result), do: :ok
 
   defp reconcile_submission_success(submission, result) when is_map(result) do
     delivery_status =
@@ -175,7 +174,6 @@ defmodule Elektrine.Email.SendEmailWorker do
   end
 
   defp reconcile_submission_failure(:none, _reason), do: :ok
-  defp reconcile_submission_failure(nil, _reason), do: :ok
 
   defp reconcile_submission_failure(submission, reason) do
     JMAP.fail_submission(submission, reason)

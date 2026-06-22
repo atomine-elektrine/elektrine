@@ -114,7 +114,7 @@ defmodule Elektrine.MixProject do
       {:wax_, "~> 0.6"},
       {:eqrcode, "== 0.2.1"},
       {:cachex, "== 4.1.1"},
-      {:earmark, "== 1.4.48"},
+      {:mdex, "== 0.13.1"},
       {:tzdata, "== 1.1.3"},
       {:image, "== 0.67.0"},
       {:html_entities, "~> 0.5"},

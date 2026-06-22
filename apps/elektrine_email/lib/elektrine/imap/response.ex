@@ -600,9 +600,9 @@ defmodule Elektrine.IMAP.Response do
       "(#{all_parts} \"MIXED\" (\"BOUNDARY\" \"mixed_boundary\") NIL NIL)"
     else
       if msg.html_body do
-        html_lines = count_lines(msg.html_body || "")
+        html_lines = count_lines(msg.html_body)
 
-        "(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"8BIT\" #{byte_size(msg.html_body || "")} #{html_lines})"
+        "(\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"8BIT\" #{byte_size(msg.html_body)} #{html_lines})"
       else
         text_lines = count_lines(msg.text_body || "")
 
@@ -611,7 +611,6 @@ defmodule Elektrine.IMAP.Response do
     end
   end
 
-  defp count_lines(nil), do: 0
   defp count_lines(""), do: 0
 
   defp count_lines(text) do

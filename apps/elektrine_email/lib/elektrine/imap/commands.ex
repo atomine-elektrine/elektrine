@@ -2113,7 +2113,7 @@ defmodule Elektrine.IMAP.Commands do
     new_status =
       cond do
         is_draft -> "draft"
-        current_status == "draft" && !is_draft -> "received"
+        current_status == "draft" -> "received"
         true -> current_status
       end
 
@@ -2906,6 +2906,10 @@ defmodule Elektrine.IMAP.Commands do
   end
 
   defp auth_allowed?(state) do
+    # NOTE: prod sets :allow_insecure_auth explicitly from config, so this
+    # function default is only hit by callers that omit the key. It stays `true`
+    # (matching existing auth tests + capability advertising); the actual
+    # insecure-auth policy is enforced by config, not this default.
     secure_transport?(state) or Map.get(state, :allow_insecure_auth, true)
   end
 

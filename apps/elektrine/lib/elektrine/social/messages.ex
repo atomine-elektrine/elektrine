@@ -3,12 +3,13 @@ defmodule Elektrine.Social.Messages do
   Context for managing messages - creation, editing, deletion, and retrieval.
   """
 
-  import Ecto.Query, warn: false
   require Logger
+
+  import Ecto.Query, warn: false
   alias Elektrine.{Accounts, AppCache}
   alias Elektrine.Repo
 
-  alias Elektrine.Messaging.{RateLimiter, UserHiddenMessage}
+  alias Elektrine.Messaging.{LinkPreviewBroadcast, RateLimiter, UserHiddenMessage}
   alias Elektrine.Social.{Conversation, ConversationMember, Message}
 
   alias Elektrine.Social.{FetchLinkPreviewWorker, LinkPreview, LinkPreviewFetcher}
@@ -253,12 +254,10 @@ defmodule Elektrine.Social.Messages do
                     {:ok, decrypted_message}
 
                   {:error, changeset} = error ->
-                    require Logger
                     Logger.error("Failed to create media message: #{inspect(changeset.errors)}")
                     error
 
                   error ->
-                    require Logger
                     Logger.error("Failed to create media message: #{inspect(error)}")
                     error
                 end
@@ -609,7 +608,7 @@ defmodule Elektrine.Social.Messages do
 
     # Check if there are more messages available
     has_more_older =
-      if before_id || (!before_id && !after_id) do
+      if before_id || is_nil(after_id) do
         oldest_message = List.last(messages)
 
         if oldest_message do
@@ -862,7 +861,6 @@ defmodule Elektrine.Social.Messages do
 
         case Repo.insert_all(UserHiddenMessage, hidden_records, on_conflict: :nothing) do
           {_count, _} -> {:ok, :cleared}
-          _ -> {:error, :failed}
         end
     end
   end
@@ -990,15 +988,6 @@ defmodule Elektrine.Social.Messages do
     case member do
       nil ->
         0
-
-      last_read_at when is_nil(last_read_at) ->
-        # If never read, count all messages from others
-        from(m in Message,
-          where: m.conversation_id == ^conversation_id,
-          where: m.sender_id != ^user_id,
-          select: count(m.id)
-        )
-        |> Repo.one()
 
       last_read_at ->
         # Count messages after last read timestamp
@@ -1368,23 +1357,13 @@ defmodule Elektrine.Social.Messages do
     end
   end
 
-  defp poll_and_broadcast_preview(_message, _preview_id, 0), do: :ok
-
   defp poll_and_broadcast_preview(message, preview_id, attempts_left) do
-    :timer.sleep(1000)
-
-    case Repo.get(LinkPreview, preview_id) do
-      %{status: "success"} = preview ->
-        broadcast_preview_update(message, preview)
-
-        :ok
-
-      %{status: "pending"} ->
-        poll_and_broadcast_preview(message, preview_id, attempts_left - 1)
-
-      _ ->
-        :ok
-    end
+    LinkPreviewBroadcast.poll_and_broadcast(
+      message,
+      preview_id,
+      attempts_left,
+      link_preview_broadcast_opts()
+    )
   end
 
   defp attach_link_preview(message, preview) do
@@ -1401,15 +1380,14 @@ defmodule Elektrine.Social.Messages do
   end
 
   defp broadcast_preview_update(message, preview) do
-    updated_message =
-      %{message | link_preview: preview}
-      |> Repo.preload([:sender, :reply_to, :reactions, :hashtags], force: true)
+    LinkPreviewBroadcast.broadcast_update(message, preview, link_preview_broadcast_opts())
+  end
 
-    Phoenix.PubSub.broadcast(
-      Elektrine.PubSub,
-      "conversation:#{message.conversation_id}",
-      {:message_link_preview_updated, updated_message}
-    )
+  defp link_preview_broadcast_opts do
+    [
+      preload: [:sender, :reply_to, :reactions, :hashtags],
+      topic: fn message -> "conversation:#{message.conversation_id}" end
+    ]
   end
 
   # Notifies conversation members about a new message

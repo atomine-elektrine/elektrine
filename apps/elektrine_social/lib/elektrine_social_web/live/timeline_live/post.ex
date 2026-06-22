@@ -6,7 +6,6 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
   import ElektrineWeb.HtmlHelpers
   import Elektrine.Components.User.Avatar
   import Elektrine.Components.User.UsernameEffects
-  use Phoenix.Component
 
   alias Elektrine.Paths
   alias Elektrine.Security.SafeExternalURL
@@ -763,40 +762,11 @@ defmodule ElektrineSocialWeb.TimelineLive.Post do
      |> assign(:modal_post, modal_post)}
   end
 
-  def handle_event("close_image_modal", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:show_image_modal, false)
-     |> assign(:modal_image_url, nil)
-     |> assign(:modal_images, [])
-     |> assign(:modal_image_index, 0)
-     |> assign(:modal_post, nil)}
-  end
-
-  def handle_event("next_image", _params, socket) do
-    new_index = rem(socket.assigns.modal_image_index + 1, length(socket.assigns.modal_images))
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
-  end
-
-  def handle_event("prev_image", _params, socket) do
-    new_index =
-      if socket.assigns.modal_image_index == 0 do
-        length(socket.assigns.modal_images) - 1
-      else
-        socket.assigns.modal_image_index - 1
-      end
-
-    new_url = Enum.at(socket.assigns.modal_images, new_index)
-
-    {:noreply,
-     socket
-     |> assign(:modal_image_index, new_index)
-     |> assign(:modal_image_url, new_url)}
+  # close_image_modal / next_image / prev_image only touch the canonical modal-state
+  # assigns, so delegate to the shared image-modal handlers.
+  def handle_event(event, params, socket)
+      when event in ["close_image_modal", "next_image", "prev_image"] do
+    ElektrineSocialWeb.TimelineLive.Operations.ImageOperations.handle_event(event, params, socket)
   end
 
   def handle_event("navigate_to_profile", %{"handle" => handle}, socket) do

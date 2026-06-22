@@ -34,6 +34,12 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     "resources temporarily unavailable",
     "over quota"
   ]
+
+  # Inbound attachment limits to guard against MIME-bomb payloads.
+  @max_attachment_count 50
+  @max_attachment_decoded_size 25 * 1024 * 1024
+  @max_total_attachment_decoded_size 40 * 1024 * 1024
+
   def verify_recipient(conn, %{"email" => email}) do
     case authenticate(conn) do
       :ok ->
@@ -169,7 +175,10 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
                       %{format: "nil", count: 0}
 
                     other ->
-                      %{format: inspect(other.__struct__ || "unknown"), count: 0}
+                      # `other` is a non-map scalar here (list/map/nil already
+                      # matched above), so accessing .__struct__ would raise
+                      # BadMapError. Inspect the value directly.
+                      %{format: inspect(other), count: 0}
                   end
 
                 unless forwarding_failure_reason?(reason) do
@@ -771,49 +780,116 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
   end
 
   defp process_haraka_attachments(attachments) when is_list(attachments) do
-    attachments
-    |> Enum.with_index()
-    |> Enum.reduce(%{}, fn {attachment, index}, acc ->
-      case process_haraka_attachment(attachment, index) do
-        nil -> acc
-        processed_attachment -> Map.put(acc, "attachment_#{index}", processed_attachment)
-      end
-    end)
+    if length(attachments) > @max_attachment_count do
+      Logger.warning(
+        "Haraka: Rejected message attachments: count #{length(attachments)} exceeds limit #{@max_attachment_count}"
+      )
+
+      Events.email_inbound(:attachment, :failure, nil, %{
+        reason: :too_many_attachments,
+        source: :haraka
+      })
+
+      %{}
+    else
+      attachments
+      |> Enum.with_index()
+      |> Enum.reduce({%{}, 0}, fn {attachment, index}, {acc, total_size} ->
+        case process_haraka_attachment(attachment, index, total_size) do
+          nil ->
+            {acc, total_size}
+
+          {processed_attachment, decoded_size} ->
+            {Map.put(acc, "attachment_#{index}", processed_attachment), total_size + decoded_size}
+        end
+      end)
+      |> elem(0)
+    end
   end
 
   defp process_haraka_attachments(_) do
     %{}
   end
 
-  defp process_haraka_attachment(attachment, index) when is_map(attachment) do
+  defp process_haraka_attachment(attachment, index, total_size) when is_map(attachment) do
     filename = attachment["filename"] || attachment["name"] || "attachment_#{index}"
     content_type = attachment["content_type"] || attachment["type"] || "application/octet-stream"
     size = attachment["size"] || 0
     data = attachment["data"] || attachment["content"] || ""
 
-    if validate_attachment_safe?(filename, content_type) do
-      %{
-        "filename" => filename,
-        "content_type" => content_type,
-        "encoding" => "base64",
-        "data" => data,
-        "size" => size
-      }
-    else
-      Logger.warning("Haraka: Blocked unsafe attachment: #{filename} (#{content_type})")
+    decoded_size = base64_decoded_size(data)
 
-      Events.email_inbound(:attachment, :failure, nil, %{
-        reason: :unsafe_attachment,
-        source: :haraka
-      })
+    cond do
+      not validate_attachment_safe?(filename, content_type) ->
+        Logger.warning("Haraka: Blocked unsafe attachment: #{filename} (#{content_type})")
 
-      nil
+        Events.email_inbound(:attachment, :failure, nil, %{
+          reason: :unsafe_attachment,
+          source: :haraka
+        })
+
+        nil
+
+      decoded_size > @max_attachment_decoded_size ->
+        Logger.warning(
+          "Haraka: Blocked oversized attachment: #{filename} (#{decoded_size} bytes exceeds #{@max_attachment_decoded_size})"
+        )
+
+        Events.email_inbound(:attachment, :failure, nil, %{
+          reason: :attachment_too_large,
+          source: :haraka
+        })
+
+        nil
+
+      total_size + decoded_size > @max_total_attachment_decoded_size ->
+        Logger.warning(
+          "Haraka: Blocked attachment exceeding total size budget: #{filename} (#{total_size + decoded_size} bytes exceeds #{@max_total_attachment_decoded_size})"
+        )
+
+        Events.email_inbound(:attachment, :failure, nil, %{
+          reason: :total_attachments_too_large,
+          source: :haraka
+        })
+
+        nil
+
+      true ->
+        {%{
+           "filename" => filename,
+           "content_type" => content_type,
+           "encoding" => "base64",
+           "data" => data,
+           "size" => size
+         }, decoded_size}
     end
   end
 
-  defp process_haraka_attachment(_, _) do
+  defp process_haraka_attachment(_, _, _) do
     nil
   end
+
+  # Estimate decoded byte size from base64 length without decoding the payload.
+  # Each 4 base64 characters encode 3 bytes; padding "=" reduces the output.
+  defp base64_decoded_size(data) when is_binary(data) do
+    stripped = String.replace(data, ~r/\s/, "")
+    len = byte_size(stripped)
+
+    if len == 0 do
+      0
+    else
+      padding =
+        cond do
+          String.ends_with?(stripped, "==") -> 2
+          String.ends_with?(stripped, "=") -> 1
+          true -> 0
+        end
+
+      div(len * 3, 4) - padding
+    end
+  end
+
+  defp base64_decoded_size(_), do: 0
 
   defp validate_attachment_safe?(filename, content_type) do
     dangerous_extensions = [
@@ -1896,10 +1972,6 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
     end
   end
 
-  defp reconstruct_pgp_mime_if_needed(text_body, html_body, _attachments) do
-    {text_body, html_body, %{}}
-  end
-
   defp log_forwarding_failure(
          reason,
          alias_email,
@@ -2003,10 +2075,6 @@ defmodule ElektrineEmailWeb.HarakaWebhookController do
       end)
       |> Enum.map_join("", & &1)
     end
-  end
-
-  defp ensure_safe_utf8(nil) do
-    ""
   end
 
   defp ensure_safe_utf8(_) do

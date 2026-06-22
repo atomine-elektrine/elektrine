@@ -150,10 +150,6 @@ defmodule Elektrine.Email.HeaderSanitizer do
     end
   end
 
-  defp flatten_iolist(tail, acc) when is_binary(tail) do
-    Enum.reverse([tail | acc])
-  end
-
   defp flatten_iolist(_, acc) do
     Enum.reverse(acc)
   end
@@ -357,10 +353,6 @@ defmodule Elektrine.Email.HeaderSanitizer do
   end
 
   defp extract_domain(_) do
-    nil
-  end
-
-  defp extract_local_part(nil) do
     nil
   end
 

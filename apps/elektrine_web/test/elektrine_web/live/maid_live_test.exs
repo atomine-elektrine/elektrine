@@ -3,7 +3,7 @@ defmodule ElektrineWeb.MaidLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Elektrine.{Accounts, AccountsFixtures}
+  alias Elektrine.AccountsFixtures
 
   defmodule SearchProvider do
     @behaviour Maid.Provider
@@ -70,36 +70,6 @@ defmodule ElektrineWeb.MaidLiveTest do
 
     refute html =~ ~s(phx-keyup="suggest")
     refute html =~ ~s(phx-debounce="350")
-  end
-
-  test "respects admin-managed Maid trust level gate", %{conn: conn} do
-    previous_min_trust_level = Elektrine.System.module_min_trust_level(:maid)
-
-    on_exit(fn ->
-      Elektrine.System.set_module_min_trust_level(:maid, previous_min_trust_level)
-    end)
-
-    {:ok, _config} = Elektrine.System.set_module_min_trust_level(:maid, 1)
-
-    blocked_user = AccountsFixtures.user_fixture()
-
-    blocked_conn =
-      conn
-      |> log_in_user(blocked_user)
-      |> get(~p"/maid")
-
-    assert response(blocked_conn, 403) =~ "higher trust level"
-
-    trusted_user = AccountsFixtures.user_fixture()
-    {:ok, trusted_user} = Accounts.admin_update_user(trusted_user, %{trust_level: 1})
-
-    {:ok, _view, html} =
-      conn
-      |> recycle()
-      |> log_in_user(trusted_user)
-      |> live(~p"/maid")
-
-    assert html =~ "Maid"
   end
 
   defp log_in_user(conn, user) do

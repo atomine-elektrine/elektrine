@@ -35,7 +35,7 @@ defmodule ElektrineWeb.PortalLive.Index do
     user = socket.assigns[:current_user]
 
     if user do
-      locale = session["locale"] || (user && user.locale) || "en"
+      locale = session["locale"] || user.locale || "en"
       Gettext.put_locale(ElektrineWeb.Gettext, locale)
 
       if connected?(socket) do
@@ -3033,8 +3033,6 @@ defmodule ElektrineWeb.PortalLive.Index do
     |> Enum.map(fn {_group_key, grouped_posts} -> choose_thread_representative(grouped_posts) end)
     |> Enum.sort_by(&timeline_sort_key/1, :desc)
   end
-
-  defp group_reply_chains(posts), do: posts
 
   defp choose_thread_representative([post]), do: post
 

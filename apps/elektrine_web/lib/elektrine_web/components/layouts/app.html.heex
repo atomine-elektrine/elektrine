@@ -24,8 +24,15 @@
 <% end %>
 
 <div class="app-navbar navbar min-h-16">
-  <div class="container mx-auto flex min-h-16 w-full items-center px-4">
-    <div class="navbar-start items-center gap-2 sm:gap-3">
+  <div class="mx-auto flex min-h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+    <div class="navbar-start !w-auto flex-shrink-0 items-center gap-2 sm:gap-3">
+      <.link
+        navigate={~p"/"}
+        class="inline-flex flex-shrink-0 items-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
+      </.link>
+
       <div class="dropdown flex-shrink-0">
         <div tabindex="0" role="button" class="btn btn-ghost btn-circle lg:hidden flex-shrink-0">
           <.icon name="hero-bars-3" class="h-6 w-6" />
@@ -67,30 +74,26 @@
           <% end %>
         </ul>
       </div>
-
-      <.link navigate={~p"/"} class="btn btn-ghost px-2 sm:px-3 flex-shrink-0 lg:-ml-1">
-        <img src="/images/logo.svg" alt="Elektrine" class="h-6 sm:h-7 w-auto" />
-      </.link>
     </div>
 
-    <div class="navbar-center hidden lg:flex">
-      <div class="form-control">
-        <form action="/maid" method="get">
-          <div class="join">
-            <label class="input input-bordered join-item rounded-l-full rounded-r-none w-72 flex items-center gap-2">
+    <div class="navbar-center hidden min-w-0 flex-1 justify-center lg:flex">
+      <div class="form-control w-full">
+        <form action="/maid" method="get" class="w-full">
+          <div class="join mx-auto flex w-full max-w-96">
+            <label class="input input-bordered join-item flex min-w-0 flex-1 items-center gap-2 rounded-l-full rounded-r-none">
               <.icon name="hero-magnifying-glass" class="h-4 w-4 opacity-60" />
               <input
                 type="text"
                 name="q"
                 data-search-input="true"
                 placeholder={gettext("Maid...")}
-                class="grow bg-transparent"
+                class="min-w-0 grow bg-transparent"
                 id="global-search"
               />
             </label>
             <button
               type="submit"
-              class="btn btn-outline join-item rounded-l-none rounded-r-full px-4"
+              class="btn btn-outline join-item flex-shrink-0 rounded-l-none rounded-r-full px-4"
             >
               <.icon name="hero-magnifying-glass" class="h-4 w-4" />
             </button>
@@ -99,7 +102,7 @@
       </div>
     </div>
 
-    <div class="navbar-end items-center gap-2 sm:gap-3 lg:gap-3">
+    <div class="navbar-end !w-auto flex-shrink-0 items-center gap-2 sm:gap-3 lg:gap-3">
       <%= if @current_user do %>
         <div class="dropdown dropdown-end flex-shrink-0" data-test="global-composer">
           <div

@@ -323,17 +323,9 @@ defmodule ElektrineSocialWeb.Components.Social.EmbeddedPost do
   defp get_post_url(%{id: message_id}),
     do: Elektrine.Paths.post_path(message_id)
 
-  defp get_post_url(%Ecto.Association.NotLoaded{}),
-    do: "#"
-
-  defp get_post_url(_),
-    do: "#"
-
   defp external_post_url(url) when is_binary(url) do
     Elektrine.Paths.post_path_or_external(url) || "#"
   end
-
-  defp external_post_url(_), do: "#"
 
   defp external_url?(url) when is_binary(url) do
     case URI.parse(url) do

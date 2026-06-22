@@ -72,10 +72,8 @@ defmodule Elektrine.Social.OEmbed do
   Checks if a URL is from a known OEmbed provider.
   """
   def known_provider?(url) do
-    case URI.parse(url) do
-      %URI{} = uri -> Enum.any?(@known_providers, &provider_match?(uri, &1))
-      _ -> false
-    end
+    uri = URI.parse(url)
+    Enum.any?(@known_providers, &provider_match?(uri, &1))
   end
 
   # Private functions

@@ -6,14 +6,9 @@ defmodule ElektrineWeb.PageControllerTest do
 
   test "GET /", %{conn: conn} do
     conn = get(conn, ~p"/")
-    html = html_response(conn, 200)
-
-    assert html =~ "Software for sovereignty."
-
-    assert html =~
-             ~r/Elektrine is a private, modular internet suite for people who want everyday\s+services without ads, tracking, or dependence on closed providers\./
-
-    assert html =~ "Sign up"
+    # Smoke test only: the landing page must render. Homepage marketing copy
+    # changes frequently and isn't worth coupling a test to.
+    assert html_response(conn, 200)
   end
 
   test "tracks site-wide page visits", %{conn: conn} do

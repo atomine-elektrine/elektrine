@@ -60,6 +60,53 @@ defmodule ElektrineWeb.EmailComposeLiveTest do
     assert html =~ typed_reply
   end
 
+  test "applying a template to a reply preserves the quoted original message", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    {:ok, mailbox} = Email.ensure_user_has_mailbox(user)
+
+    {:ok, template} =
+      Email.create_template(%{
+        user_id: user.id,
+        name: "Reply Template",
+        subject: "Templated subject",
+        body: "Template response"
+      })
+
+    original =
+      EmailFixtures.message_fixture(%{
+        mailbox_id: mailbox.id,
+        from: "sender@example.com",
+        to: mailbox.email,
+        subject: "Question",
+        text_body: "Original question",
+        html_body: "<p>Original question</p>"
+      })
+
+    {:ok, view, html} =
+      conn
+      |> log_in_user(user)
+      |> live(~p"/email/compose?mode=reply&message_id=#{original.id}")
+
+    quoted_body = hidden_body_value(html)
+
+    html = render_change(view, "apply_template", %{"template_id" => "#{template.id}"})
+
+    assert hidden_body_value(html) == quoted_body
+    assert html =~ "Template response"
+
+    html =
+      render_change(view, "validate_and_autosave", %{
+        "email" => %{
+          "body" => "Template response",
+          "body_format" => "markdown",
+          "encryption_mode" => "auto"
+        }
+      })
+
+    assert hidden_body_value(html) == quoted_body
+    assert html =~ "Template response"
+  end
+
   defp hidden_body_value(html) do
     html
     |> Floki.parse_document!()

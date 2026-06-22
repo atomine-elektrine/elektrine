@@ -619,7 +619,6 @@ defmodule ElektrineWeb.FriendsLive do
   end
 
   defp friend_active?(%{status: status}), do: status in ["online", "away", "dnd"]
-  defp friend_active?(_presence), do: false
 
   defp presence_rank("online"), do: 0
   defp presence_rank("away"), do: 1

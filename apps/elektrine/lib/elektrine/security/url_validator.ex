@@ -26,13 +26,9 @@ defmodule Elektrine.Security.URLValidator do
       {:error, :private_ip}
   """
   def validate(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{} = uri ->
-        validate_uri(uri)
-
-      _ ->
-        {:error, :invalid_url}
-    end
+    url
+    |> URI.parse()
+    |> validate_uri()
   end
 
   def validate(_), do: {:error, :invalid_url}
@@ -173,9 +169,6 @@ defmodule Elektrine.Security.URLValidator do
               {:ok, ip}
             end
 
-          {:ok, []} ->
-            {:error, :dns_resolution_failed}
-
           {:error, reason} ->
             {:error, reason}
         end
@@ -187,7 +180,6 @@ defmodule Elektrine.Security.URLValidator do
 
     case resolve_host_ips(normalized_host) do
       {:ok, [ip | _]} -> {:ok, ip}
-      {:ok, []} -> {:error, :dns_resolution_failed}
       {:error, reason} -> {:error, reason}
     end
   end

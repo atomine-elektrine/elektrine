@@ -107,8 +107,6 @@ defmodule ElektrineSocialWeb.Components.Social.Poll do
     """
   end
 
-  defp format_poll_time(datetime) when is_nil(datetime), do: ""
-
   defp format_poll_time(%DateTime{} = datetime) do
     diff = DateTime.diff(datetime, DateTime.utc_now(), :second)
 

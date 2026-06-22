@@ -188,7 +188,6 @@ defmodule Elektrine.Bluesky.Inbound do
       track_event(user.id, event_id, "feed_post", post_uri, raw_feed_event)
     else
       {:skip, reason} -> {:skip, reason}
-      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -231,17 +230,11 @@ defmodule Elektrine.Bluesky.Inbound do
     |> Enum.reduce({:ok, %{processed_events: 0, created_notifications: 0}}, fn notification,
                                                                                {:ok, acc} ->
       case process_notification(user, notification) do
-        {:ok, created_notification?} ->
+        {:ok, true} ->
           {:ok,
            %{
              processed_events: acc.processed_events + 1,
-             created_notifications:
-               acc.created_notifications +
-                 if created_notification? do
-                   1
-                 else
-                   0
-                 end
+             created_notifications: acc.created_notifications + 1
            }}
 
         {:skip, _reason} ->

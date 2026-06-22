@@ -3,8 +3,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
   Handles all post-related operations: creating, editing, deleting, pinning, locking posts.
   """
 
-  require Logger
-
   import Phoenix.LiveView
   import Phoenix.Component
 
@@ -170,9 +168,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
             else
               assign(socket, :link_url, url)
             end
-
-          _ ->
-            assign(socket, :link_url, url)
         end
       else
         assign(socket, :link_url, url)
@@ -1277,9 +1272,6 @@ defmodule ElektrineSocialWeb.DiscussionsLive.Operations.PostOperations do
           else
             socket
           end
-
-        _ ->
-          socket
       end
     else
       socket

@@ -486,8 +486,6 @@ defmodule Elektrine.ActivityPub.Handlers.CreateHandler do
     |> maybe_put_opt(:fallback_community_uri, activity["_elektrine_target_community_uri"])
   end
 
-  defp ingestion_opts(_), do: []
-
   defp maybe_put_opt(opts, key, value) when is_integer(value), do: Keyword.put(opts, key, value)
 
   defp maybe_put_opt(opts, key, value) when is_binary(value) and value != "",

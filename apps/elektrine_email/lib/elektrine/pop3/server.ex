@@ -740,8 +740,6 @@ defmodule Elektrine.POP3.Server do
     end
   end
 
-  defp redact_identifier(nil), do: "<nil>"
-
   defp redact_identifier(identifier) do
     text = identifier |> to_string() |> String.trim()
 
@@ -1204,7 +1202,6 @@ defmodule Elektrine.POP3.Server do
 
   defp command_outcome({:continue, _state}), do: :ok
   defp command_outcome({:quit, _state}), do: :quit
-  defp command_outcome(_), do: :error
 
   defp maybe_alert_slow_command(command_name, duration_us, ip) do
     if duration_us >= @slow_command_threshold_us do

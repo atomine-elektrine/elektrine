@@ -82,6 +82,26 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ComposeOperations do
     {:noreply, put_flash(socket, :warning, "Please select a message first")}
   end
 
+  def handle_event("delete_message", %{"message_id" => message_id}, socket) do
+    case Integer.parse(message_id) do
+      {id, ""} ->
+        case Email.get_user_message(id, socket.assigns.current_user.id) do
+          {:ok, message} ->
+            delete_selected_message(socket, message)
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Message not found")}
+        end
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Invalid message")}
+    end
+  end
+
+  def handle_event("delete_message", _params, socket) do
+    {:noreply, put_flash(socket, :warning, "Please select a message first")}
+  end
+
   def handle_event("navigate_to_compose", _params, socket) do
     {:noreply, push_navigate(socket, to: Elektrine.Paths.email_compose_path())}
   end
@@ -106,5 +126,32 @@ defmodule ElektrineEmailWeb.EmailLive.Operations.ComposeOperations do
   def handle_event("update_tag_input", _params, socket) do
     # Ignore - this event is for compose page only
     {:noreply, socket}
+  end
+
+  defp delete_selected_message(socket, message) do
+    current_tab = socket.assigns.active_tab
+
+    result =
+      if current_tab == "trash" or message.deleted do
+        Email.delete_message(message)
+      else
+        Email.update_message(message, %{deleted: true})
+      end
+
+    case result do
+      {:ok, _message} ->
+        message =
+          if current_tab == "trash",
+            do: "Message permanently deleted",
+            else: "Message moved to trash"
+
+        {:noreply,
+         socket
+         |> put_flash(:info, message)
+         |> push_patch(to: Elektrine.Paths.email_index_path(tab: current_tab))}
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete message")}
+    end
   end
 end

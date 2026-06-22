@@ -522,8 +522,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end
   end
 
-  defp known_group_actor_uri?(_), do: false
-
   defp community_path_uri?(uri) when is_binary(uri) do
     case URI.parse(uri) do
       %URI{path: path} when is_binary(path) ->
@@ -537,8 +535,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end
   end
 
-  defp community_path_uri?(_), do: false
-
   defp user_actor_uri?(uri) when is_binary(uri) do
     case URI.parse(uri) do
       %URI{path: path} when is_binary(path) ->
@@ -549,8 +545,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
         false
     end
   end
-
-  defp user_actor_uri?(_), do: false
 
   defp extract_external_link(object) do
     activity_id = normalize_external_link_candidate(object["id"])
@@ -765,8 +759,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end
   end
 
-  defp normalize_mention_name(_, _), do: nil
-
   defp extract_host_from_url(url) when is_binary(url) do
     case URI.parse(url) do
       %{host: host} when is_binary(host) and host != "" -> host
@@ -813,8 +805,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end
   end
 
-  defp extract_username_from_path(_), do: nil
-
   defp extract_post_id_from_path(path) when is_binary(path) do
     candidate =
       case path_segments(path) do
@@ -832,8 +822,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
 
     sanitize_identifier(candidate)
   end
-
-  defp extract_post_id_from_path(_), do: nil
 
   defp path_segments(path) when is_binary(path) do
     path
@@ -944,8 +932,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     missing_name && missing_content && missing_attachment && missing_image
   end
 
-  defp sparse_object_payload?(_), do: false
-
   defp merge_sparse_object_payload(base, fetched) when is_map(base) and is_map(fetched) do
     Enum.reduce(fetched, base, fn {key, fetched_value}, acc ->
       current_value = Map.get(acc, key)
@@ -1024,8 +1010,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
       end
     end)
   end
-
-  defp short_mention_replacements(_), do: %{}
 
   defp short_mention_name(name) when is_binary(name) do
     cleaned = String.trim(name)
@@ -1119,8 +1103,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     |> Enum.take(10)
   end
 
-  defp extract_media_attachments_metadata(_), do: []
-
   defp media_attachment_metadata(%{} = attachment, index) do
     url = attachment_url(attachment)
     media_type = attachment_media_type(attachment)
@@ -1213,8 +1195,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     end)
   end
 
-  defp object_preview_url(_), do: nil
-
   defp preview_candidate_url(value) when is_binary(value) do
     if valid_media_url?(value, "image/*"), do: value, else: nil
   end
@@ -1295,8 +1275,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
     valid_scheme && has_host && not_localhost && not_private_ip && is_media
   end
 
-  defp valid_media_url?(_, _), do: false
-
   defp media_mime_type?(media_type) when is_binary(media_type) do
     media_type = String.downcase(media_type)
 
@@ -1329,8 +1307,6 @@ defmodule Elektrine.ActivityPub.Normalizer do
 
     has_media_extension || is_known_media_host
   end
-
-  defp media_url?(_), do: false
 
   defp private_ip?(host) do
     String.starts_with?(host, ["127.", "192.168.", "10.", "0."]) ||

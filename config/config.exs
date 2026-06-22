@@ -76,7 +76,9 @@ config :elektrine, Oban,
     # Federated timeline background refresh/ingestion workers
     federation: 2,
     # Messaging federation outbox/event delivery
-    messaging_federation: 4
+    messaging_federation: 4,
+    # Uptime monitor probes
+    uptime: 3
   ],
   plugins: [
     # High-volume federation jobs add up quickly; keep only a short completed-job window.
@@ -131,7 +133,9 @@ config :elektrine, Oban,
        # Sync IFTAS CARIAD denylist daily for ActivityPub instance blocking
        {"45 3 * * *", ElektrineSocial.Moderation.IftasBlocklistWorker},
        # Recheck live Atomine proofs whose next_check_at is due
-       {"25 * * * *", Atomine.LiveProofRecheckWorker}
+       {"25 * * * *", Atomine.LiveProofRecheckWorker},
+       # Fan out due uptime monitor checks every minute
+       {"* * * * *", Elektrine.Uptime.CheckSchedulerWorker}
      ]}
   ]
 
@@ -296,11 +300,12 @@ config :elektrine, :compiled_platform_modules, [
   :nerve,
   :vpn,
   :dns,
+  :uptime,
   :atomine
 ]
 
 config :elektrine, :platform_modules,
-  enabled: [:chat, :social, :email, :nerve, :vpn, :dns, :atomine]
+  enabled: [:chat, :social, :email, :nerve, :vpn, :dns, :uptime, :atomine]
 
 # Process Haraka inbound payloads asynchronously through Oban.
 # Can be overridden with HARAKA_ASYNC_INGEST at runtime.

@@ -114,6 +114,20 @@ defmodule Elektrine.Email.AliasTest do
       assert changeset.valid?
     end
 
+    test "rejects reserved operational and certificate-validation aliases" do
+      for local_part <- ~w(abuse postmaster ssladmin ssladministrator sysadmin noc payments dmca) do
+        attrs = %{
+          alias_email: "#{local_part}@#{Domains.primary_email_domain()}",
+          user_id: 1
+        }
+
+        changeset = Alias.changeset(%Alias{}, attrs)
+
+        refute changeset.valid?, "#{local_part}@ should be reserved"
+        assert "that email address is not available" in errors_on(changeset).alias_email
+      end
+    end
+
     test "allows catch-all aliases with verified custom domain rule metadata" do
       user = user_fixture()
       domain = "catchall#{System.unique_integer([:positive])}.example.net"

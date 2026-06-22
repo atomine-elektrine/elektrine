@@ -457,9 +457,6 @@ defmodule ElektrineWeb.ProfileController do
 
       nil ->
         respond_follow_action(conn, handle, :not_found, {:error, "User not found"})
-
-      {:error, reason} ->
-        respond_follow_action(conn, handle, :unprocessable_entity, {:error, inspect(reason)})
     end
   end
 
@@ -475,9 +472,6 @@ defmodule ElektrineWeb.ProfileController do
 
       nil ->
         respond_follow_action(conn, handle, :not_found, {:error, "User not found"})
-
-      {:error, reason} ->
-        respond_follow_action(conn, handle, :unprocessable_entity, {:error, inspect(reason)})
     end
   end
 

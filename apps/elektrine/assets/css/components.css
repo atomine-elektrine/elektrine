@@ -113,6 +113,16 @@ html[data-theme="dark"] .btn:focus-visible,
 } .system-announcement__icon { background-color: color-mix(in srgb, var(--announcement-accent) 14%, var(--color-base-200) 86%); color: var(--announcement-accent);
 } .system-announcement--info { --announcement-accent: var(--color-info);
 } .system-announcement--warning { --announcement-accent: var(--color-warning);
+} /* -------------------------------------------------------------------------- SHORTCUT OVERLAYS -------------------------------------------------------------------------- */ .shortcut-overlay { background-color: var(--theme-modal-backdrop); color: var(--color-base-content);
+} .shortcut-dialog { border: 1px solid var(--surface-modal-border); background-color: var(--surface-modal-bg-fallback) !important; background-image: none !important; color: var(--color-base-content); box-shadow: var(--surface-modal-shadow);
+} .shortcut-floating { border: 1px solid var(--surface-floating-border); background-color: var(--surface-floating-bg-fallback) !important; background-image: none !important; color: var(--color-base-content); box-shadow: var(--surface-floating-shadow);
+} .shortcut-heading { color: color-mix(in srgb, var(--color-primary) 72%, var(--color-base-content) 28%);
+} .shortcut-muted { color: color-mix(in srgb, var(--color-base-content) 62%, transparent);
+} .shortcut-panel { border: 1px solid var(--surface-panel-border); background-color: color-mix(in srgb, var(--surface-panel-bg-fallback) 74%, var(--color-base-100) 26%) !important; color: var(--color-base-content);
+} .shortcut-divider { border-color: var(--surface-panel-border);
+} .shortcut-dialog .kbd,
+.shortcut-panel .kbd,
+.shortcut-floating .kbd { border-color: color-mix(in srgb, var(--color-primary) 42%, var(--surface-panel-border) 58%); background-color: color-mix(in srgb, var(--color-primary) 14%, var(--color-base-200) 86%); color: color-mix(in srgb, var(--color-primary) 64%, var(--color-base-content) 36%); box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--color-primary) 18%, transparent);
 } .system-announcement--maintenance { --announcement-accent: color-mix(in srgb, var(--color-base-content) 55%, var(--color-base-300) 45%);
 } .system-announcement--feature { --announcement-accent: var(--color-success);
 } .system-announcement--urgent { --announcement-accent: var(--color-error);

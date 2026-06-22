@@ -250,8 +250,6 @@ defmodule ElektrineWeb.Plugs.APIAuth do
     end
   end
 
-  defp validate_password_changed_at(_user, _parsed), do: {:error, :invalid_token}
-
   defp password_changed_at_unix(user) do
     case user.last_password_change do
       %DateTime{} = changed_at -> DateTime.to_unix(changed_at, :second)

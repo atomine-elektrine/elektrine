@@ -1184,8 +1184,6 @@ defmodule Elektrine.Social do
     |> maybe_exclude_blocked_instances()
   end
 
-  defp maybe_exclude_muted_senders(query, nil), do: query
-
   defp maybe_exclude_muted_senders(query, user_id) do
     from(m in query,
       left_join: mute in UserMute,
@@ -1193,8 +1191,6 @@ defmodule Elektrine.Social do
       where: is_nil(mute.id)
     )
   end
-
-  defp maybe_exclude_blocked_remote_actors(query, nil), do: query
 
   defp maybe_exclude_blocked_remote_actors(query, user_id) do
     from(m in query,
@@ -1206,8 +1202,6 @@ defmodule Elektrine.Social do
       where: is_nil(remote_actor.id) or is_nil(blocked_remote_actor.id)
     )
   end
-
-  defp maybe_exclude_user_blocked_domains(query, nil), do: query
 
   defp maybe_exclude_user_blocked_domains(query, user_id) do
     from(m in query,

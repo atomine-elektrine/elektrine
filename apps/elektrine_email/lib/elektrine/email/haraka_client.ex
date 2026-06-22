@@ -530,8 +530,6 @@ defmodule Elektrine.Email.HarakaClient do
     Enum.map(attachments, &normalize_attachment_for_api/1)
   end
 
-  defp normalize_attachments_for_api(_), do: []
-
   defp normalize_attachment_for_api(attachment) when is_map(attachment) do
     normalized = %{
       "filename" =>

@@ -163,8 +163,6 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
       not String.contains?(handle, ["/", "\0", "\r", "\n", "\t"])
   end
 
-  defp valid_handle?(_), do: false
-
   defp maybe_rewrite_root_path(conn, handle) do
     if conn.request_path == "/" do
       %{conn | request_path: "/subdomain/#{handle}", path_info: ["subdomain", handle]}
@@ -240,8 +238,6 @@ defmodule ElektrineWeb.Plugs.ProfileSubdomain do
         :platform
     end
   end
-
-  defp subdomain_serving_mode(_), do: :platform
 
   defp reserved_subdomain_path("admin", _path), do: :passthrough
   defp reserved_subdomain_path("www", path) when path not in ["", "/"], do: :passthrough

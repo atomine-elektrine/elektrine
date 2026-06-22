@@ -468,8 +468,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     end
   end
 
-  defp normalize_discovery_protocol_version(_payload), do: {:error, :invalid_discovery_document}
-
   defp normalize_discovery_identity(identity) when is_map(identity) do
     keys =
       case discovery_field(identity, "keys") do
@@ -630,8 +628,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     |> maybe_put_discovery_capability("transport_profiles", transport_profiles)
   end
 
-  defp normalize_discovery_capabilities(_payload), do: %{}
-
   defp maybe_enrich_discovery_capabilities(capabilities, claimed_domain, endpoints, context)
        when is_map(capabilities) and is_binary(claimed_domain) and is_map(endpoints) and
               is_map(context) do
@@ -692,8 +688,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     end
   end
 
-  defp normalize_profiles_capabilities(_payload), do: %{}
-
   defp profiles_support_supported_version?(payload) when is_map(payload) do
     supported_version = ArblargSDK.protocol_version()
 
@@ -708,8 +702,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
         |> Enum.any?(&(&1 == supported_version))
     end
   end
-
-  defp profiles_support_supported_version?(_payload), do: false
 
   defp deep_merge_capability_maps(left, right) when is_map(left) and is_map(right) do
     Map.merge(left, right, fn _key, left_value, right_value ->
@@ -1129,8 +1121,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     _ -> nil
   end
 
-  defp lookup_tls_identity_binding(_domain), do: nil
-
   defp lookup_dns_txt_records(name) when is_binary(name) do
     name
     |> String.to_charlist()
@@ -1152,17 +1142,13 @@ defmodule Elektrine.Messaging.Federation.Discovery do
         nil
 
       url ->
-        case URI.parse(url) do
-          %URI{scheme: scheme, host: host} ->
-            if is_binary(host) and host != "" and scheme in allowed_schemes and
-                 host_belongs_to_domain?(host, claimed_domain) do
-              url
-            else
-              nil
-            end
+        %URI{scheme: scheme, host: host} = URI.parse(url)
 
-          _ ->
-            nil
+        if is_binary(host) and host != "" and scheme in allowed_schemes and
+             host_belongs_to_domain?(host, claimed_domain) do
+          url
+        else
+          nil
         end
     end
   end
@@ -1188,7 +1174,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     else
       false -> {:error, :invalid_discovery_url}
       {:error, reason} -> {:error, reason}
-      _ -> {:error, :invalid_discovery_url}
     end
   end
 
@@ -1203,7 +1188,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     else
       false -> {:error, :invalid_discovery_url}
       {:error, reason} -> {:error, reason}
-      _ -> {:error, :invalid_discovery_url}
     end
   end
 
@@ -1498,8 +1482,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     |> List.first()
   end
 
-  defp apply_runtime_policy_to_peer(_peer), do: nil
-
   defp discovered_peer_stale?(
          %FederationDiscoveredPeer{last_discovered_at: %DateTime{} = discovered_at},
          context
@@ -1537,8 +1519,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
       :ok
   end
 
-  defp record_discovery_failure(_domain, _reason), do: :ok
-
   defp discovery_candidate_urls(domain, context) when is_binary(domain) and is_map(context) do
     schemes =
       if call(context, :allow_insecure_transport?, []) do
@@ -1575,8 +1555,6 @@ defmodule Elektrine.Messaging.Federation.Discovery do
     _ ->
       nil
   end
-
-  defp safe_existing_atom_key(_key), do: nil
 
   defp normalize_optional_string(value) when is_binary(value),
     do: Elektrine.Strings.present(value)

@@ -266,7 +266,7 @@ defmodule ElektrineEmailWeb.Admin.MessagesController do
         |> put_resp_header("x-frame-options", "SAMEORIGIN")
         |> put_resp_header(
           "content-security-policy",
-          "default-src 'self' 'unsafe-inline'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';"
+          "default-src 'none'; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';"
         )
         |> send_resp(200, html_content)
     end
