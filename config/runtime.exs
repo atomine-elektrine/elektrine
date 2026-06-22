@@ -315,6 +315,32 @@ oban_queues =
 
 config :elektrine, Oban, queues: oban_queues
 
+# Drop cron entries whose worker module isn't bundled in this release build.
+# Module-specific workers (uptime, email, social, ...) are only present when
+# their platform module is compiled in. Oban validates the whole crontab on
+# boot, so a single missing worker would crash the app — fatal for partial
+# builds (e.g. ELEKTRINE_RELEASE_MODULES=chat). Filtering by module
+# loadability keeps the scheduler running with whatever modules are present.
+oban_existing_plugins = Application.get_env(:elektrine, Oban, []) |> Keyword.get(:plugins)
+
+if is_list(oban_existing_plugins) do
+  filtered_oban_plugins =
+    Enum.map(oban_existing_plugins, fn
+      {Oban.Plugins.Cron, cron_opts} ->
+        crontab =
+          cron_opts
+          |> Keyword.get(:crontab, [])
+          |> Enum.filter(fn entry -> Code.ensure_loaded?(elem(entry, 1)) end)
+
+        {Oban.Plugins.Cron, Keyword.put(cron_opts, :crontab, crontab)}
+
+      other ->
+        other
+    end)
+
+  config :elektrine, Oban, plugins: filtered_oban_plugins
+end
+
 parse_dns_endpoint = fn value ->
   trimmed = String.trim(value)
 
